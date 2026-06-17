@@ -1,0 +1,19 @@
+# Rust build output
+/target/
+
+# Rust backup files
+*.rs.bk
+
+# macOS files
+.DS_Store
+
+# Editor/IDE settings
+.vscode/
+.idea/
+
+# Debug symbols
+*.pdb
+
+# Local environment files
+.env
+.env.*

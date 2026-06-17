@@ -1,0 +1,69 @@
+use cassie::pgwire::protocol::{decode, encode, ClientMessage, ServerMessage};
+
+#[test]
+fn should_decode_basic_protocol_messages() {
+    // Arrange
+    let startup = decode("STARTUP user=alice database=testdb");
+    let query = decode("QUERY select 1");
+
+    // Act
+    let encoded = encode(&ServerMessage::RowDescription(vec![
+        "id".to_string(),
+        "score".to_string(),
+    ]));
+
+    // Assert
+    let ClientMessage::Startup { user, database } = startup else {
+        panic!("expected startup message");
+    };
+    assert_eq!(user, "alice");
+    assert_eq!(database, Some("testdb".to_string()));
+
+    let ClientMessage::Query(sql) = query else {
+        panic!("expected query message");
+    };
+    assert_eq!(sql, "select 1");
+    assert!(String::from_utf8_lossy(&encoded).starts_with("ROWDESC id,score"));
+    assert_eq!(encoded.last(), Some(&b'\n'));
+}
+
+#[test]
+fn should_decode_extended_protocol_lifecycle_messages() {
+    // Arrange
+    let parse = decode("PARSE q1|SELECT * FROM items");
+    let bind = decode("BIND q1 $1|$2");
+    let describe = decode("DESCRIBE q1");
+    let execute = decode("EXECUTE q1 3");
+    let close = decode("CLOSE q1");
+
+    // Act
+    let ClientMessage::Parse { name, query } = parse else {
+        panic!("expected parse message");
+    };
+
+    // Assert
+    assert_eq!(name, "q1");
+    assert_eq!(query, "SELECT * FROM items");
+
+    let ClientMessage::Bind { name, params } = bind else {
+        panic!("expected bind message");
+    };
+    assert_eq!(name, "q1");
+    assert_eq!(params, vec!["$1", "$2"]);
+
+    let ClientMessage::Describe(name) = describe else {
+        panic!("expected describe message");
+    };
+    assert_eq!(name, "q1");
+
+    let ClientMessage::Execute { name, limit } = execute else {
+        panic!("expected execute message");
+    };
+    assert_eq!(name, "q1");
+    assert_eq!(limit, Some(3));
+
+    let ClientMessage::Close(name) = close else {
+        panic!("expected close message");
+    };
+    assert_eq!(name, "q1");
+}

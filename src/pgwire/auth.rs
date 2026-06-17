@@ -1,0 +1,16 @@
+use crate::app::CassieError;
+
+pub fn validate_user_password(
+    configured_user: &str,
+    configured_password: &str,
+    user: &str,
+    password: Option<&str>,
+) -> Result<(), CassieError> {
+    if user == configured_user && password.unwrap_or("") == configured_password {
+        Ok(())
+    } else if configured_password.is_empty() {
+        Ok(())
+    } else {
+        Err(CassieError::Unauthorized)
+    }
+}

@@ -542,6 +542,271 @@ async fn execute_query_with_alias_and_filters() {
 }
 
 #[tokio::test]
+async fn should_fail_query_when_query_timeout_is_exceeded() {
+    // Arrange
+    with_fallback();
+    let mut config = CassieRuntimeConfig::from_env();
+    config.limits.query_timeout_ms = 0;
+    let path = data_dir("timeout");
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+
+    let collection = "exec_timeout";
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .await
+        .unwrap();
+    cassie
+        .register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        )
+        .await;
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("doc-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .await
+        .unwrap();
+
+    let session = cassie.create_session("tester", None).await;
+
+    // Act
+    let result = cassie
+        .execute_sql(&session, "SELECT title FROM exec_timeout", vec![])
+        .await;
+
+    // Assert
+    let message = result
+        .expect_err("query should fail when timeout is configured to 0")
+        .to_string();
+    assert!(
+        message.contains("query timeout exceeded"),
+        "expected timeout error, got {message}"
+    );
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[tokio::test]
+async fn should_fail_query_when_result_limit_is_exceeded() {
+    // Arrange
+    with_fallback();
+    let mut config = CassieRuntimeConfig::from_env();
+    config.limits.max_result_rows = 1;
+    let path = data_dir("max_rows");
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+
+    let collection = "exec_max_rows";
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .await
+        .unwrap();
+    cassie
+        .register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        )
+        .await;
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("doc-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .await
+        .unwrap();
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("doc-2".to_string()),
+            serde_json::json!({"title": "beta"}),
+        )
+        .await
+        .unwrap();
+
+    let session = cassie.create_session("tester", None).await;
+
+    // Act
+    let result = cassie
+        .execute_sql(
+            &session,
+            "SELECT title FROM exec_max_rows ORDER BY title",
+            vec![],
+        )
+        .await;
+
+    // Assert
+    let message = result
+        .expect_err("query should fail when row limit is configured too low")
+        .to_string();
+    assert!(
+        message.contains("query result row limit exceeded"),
+        "expected row limit error, got {message}"
+    );
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[tokio::test]
+async fn should_fail_query_when_cte_recursion_depth_is_exceeded() {
+    // Arrange
+    with_fallback();
+    let mut config = CassieRuntimeConfig::from_env();
+    config.limits.cte_recursion_depth = 0;
+    let path = data_dir("cte_depth");
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+
+    let collection = "exec_cte_depth";
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "n".to_string(),
+            data_type: DataType::Int,
+            nullable: true,
+        }],
+    };
+
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .await
+        .unwrap();
+    cassie
+        .register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        )
+        .await;
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("d1".to_string()),
+            serde_json::json!({"n": 1}),
+        )
+        .await
+        .unwrap();
+
+    let session = cassie.create_session("tester", None).await;
+
+    // Act
+    let result = cassie
+            .execute_sql(
+                &session,
+                "WITH RECURSIVE seq(n) AS (SELECT n FROM exec_cte_depth WHERE n = 1 UNION ALL SELECT n FROM seq WHERE n = 1) SELECT n FROM seq",
+                vec![],
+            )
+            .await;
+
+    // Assert
+    let message = result
+        .expect_err("recursive cte should fail when depth is exhausted")
+        .to_string();
+    assert!(
+        message.contains("did not stabilize within 0 iterations"),
+        "expected recursion depth error, got {message}"
+    );
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[tokio::test]
+async fn should_fail_query_when_temporary_spill_budget_is_exceeded() {
+    // Arrange
+    with_fallback();
+    let mut config = CassieRuntimeConfig::from_env();
+    config.limits.temp_spill_budget_bytes = 16;
+    let path = data_dir("spill_budget");
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+
+    let collection = "exec_spill";
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "payload".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .await
+        .unwrap();
+    cassie
+        .register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        )
+        .await;
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("doc-1".to_string()),
+            serde_json::json!({"payload": "very long payload data for spill budget test"}),
+        )
+        .await
+        .unwrap();
+
+    let session = cassie.create_session("tester", None).await;
+
+    // Act
+    let result = cassie
+        .execute_sql(&session, "SELECT payload FROM exec_spill", vec![])
+        .await;
+
+    // Assert
+    let message = result
+        .expect_err("query should fail when temp spill budget is exhausted")
+        .to_string();
+    assert!(
+        message.contains("temporary storage budget exceeded"),
+        "expected spill budget error, got {message}"
+    );
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[tokio::test]
 async fn execute_query_respects_boolean_precedence() {
     with_fallback();
     let cassie = Cassie::new().unwrap();

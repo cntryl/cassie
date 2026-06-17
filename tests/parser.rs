@@ -989,6 +989,244 @@ fn should_parse_vector_create_index_statement() {
 }
 
 #[test]
+fn should_parse_fulltext_create_index_statement_with_options() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-fulltext-index-options-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "ft_docs_options".to_string(),
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "id".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                        FieldSchema {
+                            name: "body".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                    ],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_ft_docs_body ON ft_docs_options USING fulltext (body) WITH (boost = 2.5, k1 = 0.8, b = 0.1)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog)
+            .await
+            .expect("bind should succeed");
+
+        // Assert
+        let QueryStatement::CreateIndex(statement) = bound.statement.statement else {
+            panic!("expected create index statement");
+        };
+        assert!(matches!(statement.kind, IndexKind::FullText));
+        assert_eq!(statement.options.get("boost"), Some(&"2.5".to_string()));
+        assert_eq!(statement.options.get("k1"), Some(&"0.8".to_string()));
+        assert_eq!(statement.options.get("b"), Some(&"0.1".to_string()));
+    });
+}
+
+#[test]
+fn should_apply_fulltext_create_index_defaults() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-fulltext-index-defaults-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "ft_docs_defaults".to_string(),
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "id".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                        FieldSchema {
+                            name: "body".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                    ],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_ft_docs_defaults ON ft_docs_defaults USING fulltext (body)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog)
+            .await
+            .expect("bind should succeed");
+
+        // Assert
+        let QueryStatement::CreateIndex(statement) = bound.statement.statement else {
+            panic!("expected create index statement");
+        };
+        assert_eq!(statement.options.get("boost"), Some(&"1".to_string()));
+        assert_eq!(statement.options.get("k1"), Some(&"1.2".to_string()));
+        assert_eq!(statement.options.get("b"), Some(&"0.75".to_string()));
+    });
+}
+
+#[test]
+fn should_reject_fulltext_index_on_non_text_field() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-fulltext-index-non-text-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "ft_docs_bad_field".to_string(),
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "score".to_string(),
+                        data_type: DataType::Int,
+                        nullable: true,
+                    }],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_ft_docs_bad_field ON ft_docs_bad_field USING fulltext (score)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_reject_fulltext_create_index_with_unsupported_option() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-fulltext-index-unsupported-option-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "ft_docs_unsupported".to_string(),
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "id".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                        FieldSchema {
+                            name: "body".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                    ],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_ft_docs_unsupported ON ft_docs_unsupported USING fulltext (body) WITH (alpha = 0.5)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_reject_fulltext_create_index_with_invalid_fulltext_k1() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-fulltext-index-bad-k1-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "ft_docs_bad_k1".to_string(),
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "id".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                        FieldSchema {
+                            name: "body".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                    ],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_ft_docs_bad_k1 ON ft_docs_bad_k1 USING fulltext (body) WITH (k1 = -1)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
 fn should_reject_vector_create_index_without_source_field() {
     // Arrange
     let cassie = Cassie::new_with_data_dir(format!(

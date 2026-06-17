@@ -6,6 +6,7 @@ use std::pin::Pin;
 use crate::app::CassieError;
 use crate::catalog::Catalog;
 use crate::embeddings::DistanceMetric;
+use crate::search::bm25;
 use crate::sql::ast::{
     AlterTableOperation, AlterTableStatement, CallProcedureStatement, CreateFunctionStatement,
     CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement, CteQuery,
@@ -284,6 +285,55 @@ async fn bind_create_index(
             .insert("metric".to_string(), metric.as_str().to_string());
     }
 
+    if statement.kind == crate::catalog::IndexKind::FullText {
+        if !matches!(field_entry.data_type, DataType::Text) {
+            return Err(CassieError::Planner(format!(
+                "fulltext index '{name}' requires text field '{field}'"
+            )));
+        }
+
+        let boost = parse_fulltext_index_float_option(
+            "boost",
+            statement
+                .options
+                .get("boost")
+                .map(std::string::String::as_str),
+            bm25::DEFAULT_FULLTEXT_BOOST,
+            0.0,
+            None,
+        )?;
+
+        let k1 = parse_fulltext_index_float_option(
+            "k1",
+            statement.options.get("k1").map(std::string::String::as_str),
+            bm25::DEFAULT_BM25_K1,
+            0.0,
+            None,
+        )?;
+
+        let b = parse_fulltext_index_float_option(
+            "b",
+            statement.options.get("b").map(std::string::String::as_str),
+            bm25::DEFAULT_BM25_B,
+            0.0,
+            Some(1.0),
+        )?;
+
+        for key in statement.options.keys() {
+            if !matches!(key.as_str(), "boost" | "k1" | "b") {
+                return Err(CassieError::Planner(format!(
+                    "unsupported fulltext index option '{key}' for '{name}' on collection '{table}'"
+                )));
+            }
+        }
+
+        statement
+            .options
+            .insert("boost".to_string(), boost.to_string());
+        statement.options.insert("k1".to_string(), k1.to_string());
+        statement.options.insert("b".to_string(), b.to_string());
+    }
+
     if !statement.if_not_exists && catalog.get_index(&table, &name).await.is_some() {
         return Err(CassieError::Planner(format!(
             "index '{name}' already exists on collection '{table}'"
@@ -303,6 +353,42 @@ fn parse_vector_metric(raw_metric: Option<&str>) -> Result<DistanceMetric, Cassi
             "unsupported vector metric '{metric}' (expected cosine, l2, or dot)"
         ))
     })
+}
+
+fn parse_fulltext_index_float_option(
+    key: &str,
+    value: Option<&str>,
+    default: f64,
+    min: f64,
+    max: Option<f64>,
+) -> Result<f64, CassieError> {
+    let value = value.unwrap_or("").trim();
+    if value.is_empty() {
+        return Ok(default);
+    }
+
+    let parsed = value
+        .parse::<f64>()
+        .map_err(|_| CassieError::Planner(format!("invalid {key} value '{value}'")))?;
+
+    let range_ok = if let Some(max) = max {
+        parsed >= min && parsed <= max
+    } else {
+        parsed >= min
+    };
+
+    if !range_ok {
+        return match max {
+            Some(max) => Err(CassieError::Planner(format!(
+                "fulltext index option '{key}' must be in [{min}, {max}]"
+            ))),
+            None => Err(CassieError::Planner(format!(
+                "fulltext index option '{key}' must be at least {min}"
+            ))),
+        };
+    }
+
+    Ok(parsed)
 }
 
 async fn bind_drop_index(

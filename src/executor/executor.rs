@@ -694,7 +694,7 @@ async fn execute_source_query(
         }
     };
 
-    let field_boost = if let QuerySource::Collection(name) = &plan.source {
+    let (field_boost, field_k1, field_b) = if let QuerySource::Collection(name) = &plan.source {
         let fields = cassie.catalog.text_fields(name).await;
         let mut boost = HashMap::with_capacity(fields.len());
         for field in fields {
@@ -702,15 +702,23 @@ async fn execute_source_query(
                 boost.insert(field, value as f64);
             }
         }
-        boost
+
+        let (index_boost, index_k1, index_b) = load_fulltext_index_options(cassie, name).await?;
+        for (field, value) in index_boost {
+            boost.insert(field, value);
+        }
+
+        (boost, index_k1, index_b)
     } else {
-        HashMap::new()
+        (HashMap::new(), HashMap::new(), HashMap::new())
     };
 
     let search_context = filter::SearchContext::from_rows(
         batches.iter().flat_map(|batch| batch.iter()),
         &text_fields,
         &field_boost,
+        &field_k1,
+        &field_b,
     );
 
     if let Some(filter_expr) = &plan.filter {
@@ -752,6 +760,110 @@ async fn execute_source_query(
     }
 
     Ok(batch::flatten_batches(batches))
+}
+
+async fn load_fulltext_index_options(
+    cassie: &Cassie,
+    collection: &str,
+) -> Result<
+    (
+        HashMap<String, f64>,
+        HashMap<String, f64>,
+        HashMap<String, f64>,
+    ),
+    QueryError,
+> {
+    let mut field_boost = HashMap::new();
+    let mut field_k1 = HashMap::new();
+    let mut field_b = HashMap::new();
+
+    for index in cassie.catalog.list_indexes(collection).await {
+        if index.kind != catalog::IndexKind::FullText {
+            continue;
+        }
+
+        let field = index.field.to_string();
+
+        let boost = parse_index_float_option(
+            &index,
+            &field,
+            "boost",
+            index.options.get("boost").map(String::as_str),
+            crate::search::bm25::DEFAULT_FULLTEXT_BOOST,
+            0.0,
+            None,
+        )?;
+
+        let k1 = parse_index_float_option(
+            &index,
+            &field,
+            "k1",
+            index.options.get("k1").map(String::as_str),
+            crate::search::bm25::DEFAULT_BM25_K1,
+            0.0,
+            None,
+        )?;
+
+        let b = parse_index_float_option(
+            &index,
+            &field,
+            "b",
+            index.options.get("b").map(String::as_str),
+            crate::search::bm25::DEFAULT_BM25_B,
+            0.0,
+            Some(1.0),
+        )?;
+
+        field_boost.insert(field.clone(), boost);
+        field_k1.insert(field.clone(), k1);
+        field_b.insert(field, b);
+    }
+
+    Ok((field_boost, field_k1, field_b))
+}
+
+fn parse_index_float_option(
+    index: &catalog::IndexMeta,
+    field: &str,
+    key: &str,
+    value: Option<&str>,
+    default: f64,
+    min: f64,
+    max: Option<f64>,
+) -> Result<f64, QueryError> {
+    let value = value.unwrap_or("").trim();
+    if value.is_empty() {
+        return Ok(default);
+    }
+
+    let parsed = value.parse::<f64>().map_err(|_| {
+        QueryError::General(format!(
+            "fulltext index option '{key}' on '{field}' for collection '{}' must be numeric",
+            index.collection
+        ))
+    })?;
+
+    let valid = if let Some(max) = max {
+        parsed >= min && parsed <= max
+    } else {
+        parsed >= min
+    };
+
+    if !valid {
+        if let Some(max) = max {
+            return Err(QueryError::General(format!(
+                "fulltext index option '{key}' on '{field}' for collection '{}' must be in [{min}, {max}]",
+                index.collection
+            )));
+        }
+
+        return Err(QueryError::General(format!(
+            "fulltext index option '{key}' on '{field}' for collection '{}' must be at least {min}",
+            index.collection
+        )));
+    }
+
+    Ok(parsed)
 }
 
 fn row_signature(row: &impl RowAccess) -> String {

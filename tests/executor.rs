@@ -953,6 +953,102 @@ async fn execute_query_supports_projection_aliases_for_function_columns() {
 }
 
 #[test]
+fn should_apply_fulltext_index_params_during_search_score() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let cassie = Cassie::new().unwrap();
+        let collection = "exec_fulltext_k1_b";
+
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "id".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"body": "alpha alpha alpha"}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"body": "bravo"}),
+            )
+            .await
+            .unwrap();
+
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_exec_fulltext_k1_b ON exec_fulltext_k1_b USING fulltext (body) WITH (k1 = 0, b = 0)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT search_score(body, 'alpha') AS score FROM exec_fulltext_k1_b WHERE id = 'd1'",
+                vec![],
+            )
+            .await
+            .expect("query should execute");
+
+        // Assert
+        let expected = cassie::search::bm25::bm25_score(3.0, 1.0, 2.0, 0.0, 0.0, 3.0, 2.0);
+        assert_eq!(result.columns.len(), 1);
+        assert_eq!(result.columns[0].name, "score");
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0].len(), 1);
+        match &result.rows[0][0] {
+            Value::Float64(score) => assert_eq!(*score, expected),
+            _ => panic!("expected float score"),
+        }
+    });
+}
+
+#[test]
 fn should_skip_offset_then_take_limit() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

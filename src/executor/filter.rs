@@ -22,6 +22,8 @@ pub(crate) struct SearchContext {
     doc_frequency: HashMap<String, HashMap<String, usize>>,
     avg_doc_length: HashMap<String, f64>,
     doc_boost: HashMap<String, f64>,
+    field_k1: HashMap<String, f64>,
+    field_b: HashMap<String, f64>,
 }
 
 impl SearchContext {
@@ -29,6 +31,8 @@ impl SearchContext {
         rows: I,
         text_fields: &[String],
         field_boost: &HashMap<String, f64>,
+        field_k1: &HashMap<String, f64>,
+        field_b: &HashMap<String, f64>,
     ) -> Self
     where
         I: IntoIterator<Item = &'a R>,
@@ -36,6 +40,8 @@ impl SearchContext {
     {
         let mut context = Self {
             doc_boost: field_boost.clone(),
+            field_k1: field_k1.clone(),
+            field_b: field_b.clone(),
             ..Default::default()
         };
 
@@ -111,14 +117,21 @@ impl SearchContext {
             .unwrap_or(1.0)
     }
 
-    pub(crate) fn score_text(
-        &self,
-        field: Option<&str>,
-        source: &str,
-        query: &str,
-        k1: f64,
-        b: f64,
-    ) -> f64 {
+    fn field_k1(&self, field: &str) -> f64 {
+        self.field_k1
+            .get(&field.to_lowercase())
+            .copied()
+            .unwrap_or(crate::search::bm25::DEFAULT_BM25_K1)
+    }
+
+    fn field_b(&self, field: &str) -> f64 {
+        self.field_b
+            .get(&field.to_lowercase())
+            .copied()
+            .unwrap_or(crate::search::bm25::DEFAULT_BM25_B)
+    }
+
+    pub(crate) fn score_text(&self, field: Option<&str>, source: &str, query: &str) -> f64 {
         let query_tokens = crate::search::tokenizer::tokenize(query);
         if query_tokens.is_empty() || source.trim().is_empty() {
             return 0.0;
@@ -141,6 +154,13 @@ impl SearchContext {
             .as_deref()
             .map(|field| self.field_boost(field))
             .unwrap_or(1.0);
+        let (k1, b) = field
+            .as_deref()
+            .map(|field| (self.field_k1(field), self.field_b(field)))
+            .unwrap_or((
+                crate::search::bm25::DEFAULT_BM25_K1,
+                crate::search::bm25::DEFAULT_BM25_B,
+            ));
 
         let mut score = 0.0;
         let query_terms = query_tokens.into_iter().collect::<HashSet<_>>();
@@ -498,9 +518,9 @@ fn evaluate_function<R: RowAccess + ?Sized>(
             };
             let score = if let Some(context) = search_context {
                 if source_field.is_none() && context.total_documents() > 0 {
-                    context.score_text(None, &source, &query, 1.2, 0.75)
+                    context.score_text(None, &source, &query)
                 } else {
-                    context.score_text(source_field, &source, &query, 1.2, 0.75)
+                    context.score_text(source_field, &source, &query)
                 }
             } else {
                 simple_search_score(&source, &query)

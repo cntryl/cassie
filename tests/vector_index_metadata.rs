@@ -266,3 +266,82 @@ fn should_reload_generic_index_registry_after_restart() {
 
     let _ = std::fs::remove_dir_all(path_for_cleanup);
 }
+
+#[test]
+fn should_persist_fulltext_index_metadata_after_restart() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("fulltext_index_restart");
+    let path_for_cleanup = path.clone();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async move {
+        // Act
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        let collection = "fulltext_restart_docs";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "id".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .into_iter()
+                    .map(|field| (field.name, field.data_type))
+                    .collect(),
+            )
+            .await;
+
+        let expected = IndexMeta {
+            collection: collection.to_string(),
+            name: "idx_fulltext_body".to_string(),
+            field: "body".to_string(),
+            kind: IndexKind::FullText,
+            unique: false,
+            options: BTreeMap::from_iter(vec![
+                ("boost".to_string(), "2".to_string()),
+                ("k1".to_string(), "0.7".to_string()),
+                ("b".to_string(), "0.2".to_string()),
+            ]),
+        };
+        cassie.midge.put_index(expected.clone()).await.unwrap();
+
+        drop(cassie);
+
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().await.unwrap();
+
+        // Assert
+        let loaded = restarted
+            .catalog
+            .get_index(collection, "idx_fulltext_body")
+            .await
+            .expect("index should hydrate");
+        assert_eq!(loaded, expected);
+    });
+
+    let _ = std::fs::remove_dir_all(path_for_cleanup);
+}

@@ -1,7 +1,7 @@
 # Sprint 08 - Indexes and Constraints
 
-Previous: [Sprint 07 - Schema Objects and DDL Compatibility](sprint-07.md)  
-Next: [Sprint 09 - UDFs and Stored Procedures](sprint-09.md)
+Previous: [Sprint 07 - Schema Objects and DDL Compatibility](../sprint-07.md)  
+Next: [Sprint 09 - UDFs and Stored Procedures](../sprint-09.md)
 
 ## Goal
 
@@ -54,4 +54,3 @@ Add V1 PostgreSQL-compatible index and constraint behavior so Cassie can enforce
 ## Exit Gate
 
 This sprint is complete when index metadata, constraint enforcement, restart recovery, and unsupported-feature errors are covered by validator-clean tests, targeted tests pass, `cargo build` passes, and Clippy is clean with warnings denied.
-

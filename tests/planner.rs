@@ -562,3 +562,76 @@ fn should_plan_alter_table_command() {
         }
     });
 }
+
+#[test]
+fn should_plan_create_index_as_command() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_create_index");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        // Act
+        let parsed = parser::parse_statement(
+            "CREATE UNIQUE INDEX planner_idx_title ON planner_create_index USING btree (title)",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let plan = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert_eq!(plan.collection, "planner_create_index");
+        assert!(plan.command.is_some());
+        match plan.command.as_ref().unwrap() {
+            logical::LogicalCommand::CreateIndex(statement) => {
+                assert_eq!(statement.name, "planner_idx_title");
+                assert!(statement.unique);
+            }
+            _ => panic!("expected create index command"),
+        }
+    });
+}
+
+#[test]
+fn should_plan_drop_index_as_command() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_drop_index");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        catalog
+            .register_index(cassie::catalog::IndexMeta {
+                collection: "planner_drop_index".to_string(),
+                name: "planner_idx_title".to_string(),
+                field: "title".to_string(),
+                kind: cassie::catalog::IndexKind::Scalar,
+                unique: false,
+                options: std::collections::BTreeMap::new(),
+            })
+            .await;
+
+        // Act
+        let parsed =
+            parser::parse_statement("DROP INDEX planner_idx_title ON planner_drop_index").unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let plan = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert_eq!(plan.collection, "planner_drop_index");
+        assert!(plan.command.is_some());
+        match plan.command.as_ref().unwrap() {
+            logical::LogicalCommand::DropIndex(statement) => {
+                assert_eq!(statement.name, "planner_idx_title");
+                assert_eq!(statement.table, "planner_drop_index");
+            }
+            _ => panic!("expected drop index command"),
+        }
+    });
+}

@@ -1,6 +1,6 @@
 # Sprint 09 - UDFs and Stored Procedures
 
-Previous: [Sprint 08 - Indexes and Constraints](sprint-08.md)  
+Previous: [Sprint 08 - Indexes and Constraints](completed/sprint-08.md)  
 Next: [Sprint 10 - Full-Text Search Stack](sprint-10.md)
 
 ## Goal
@@ -56,4 +56,3 @@ Add V1 programmability through SQL-defined user-defined functions and stored pro
 ## Exit Gate
 
 This sprint is complete when UDFs and stored procedures are covered by validator-clean tests, targeted programmability tests pass, `cargo build` passes, and Clippy is clean with warnings denied.
-

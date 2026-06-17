@@ -1,3 +1,6 @@
+use std::collections::BTreeMap;
+
+use crate::catalog::{FieldConstraint, IndexKind};
 use crate::types::DataType;
 
 #[derive(Debug, Clone)]
@@ -35,6 +38,8 @@ pub enum QueryStatement {
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
     CreateSchema(CreateSchemaStatement),
+    CreateIndex(CreateIndexStatement),
+    DropIndex(DropIndexStatement),
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +47,24 @@ pub struct CreateTableStatement {
     pub table: String,
     pub fields: Vec<FieldDefinition>,
     pub if_not_exists: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateIndexStatement {
+    pub name: String,
+    pub table: String,
+    pub field: String,
+    pub if_not_exists: bool,
+    pub unique: bool,
+    pub kind: IndexKind,
+    pub options: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DropIndexStatement {
+    pub name: String,
+    pub table: String,
+    pub if_exists: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -73,6 +96,7 @@ pub struct CreateSchemaStatement {
 pub struct FieldDefinition {
     pub name: String,
     pub data_type: DataType,
+    pub constraints: Vec<FieldConstraint>,
 }
 
 #[derive(Debug, Clone)]

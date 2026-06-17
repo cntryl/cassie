@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use serde::Serialize;
 
-use crate::catalog::Catalog;
+use crate::catalog::{Catalog, ConstraintCheck, ConstraintOperator, FieldConstraint};
 use crate::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
 use crate::embeddings::{
     cohere::CohereProvider,
@@ -122,14 +122,20 @@ impl Cassie {
 
         for name in collections {
             if let Some(schema) = self.midge.collection_schema(&name).await {
+                let constraints = self
+                    .midge
+                    .load_constraints(&name)
+                    .await
+                    .unwrap_or_default();
                 self.catalog
-                    .register_collection(
+                    .register_collection_with_constraints(
                         &name,
                         schema
                             .fields
                             .into_iter()
                             .map(|field| (field.name, field.data_type))
                             .collect(),
+                        constraints,
                     )
                     .await;
             }
@@ -138,6 +144,11 @@ impl Cassie {
         let indexes = self.midge.list_vector_indexes().await?;
         for index in indexes {
             self.catalog.register_vector_index(index).await;
+        }
+
+        let indexes = self.midge.list_indexes().await?;
+        for index in indexes {
+            self.catalog.register_index(index).await;
         }
 
         Ok(())
@@ -234,13 +245,195 @@ impl Cassie {
         collection: &str,
         mut payload: serde_json::Value,
     ) -> Result<String, CassieError> {
+        let constraints = self.catalog.get_constraints(collection).await;
+        if !constraints.is_empty() {
+            self.apply_default_values(&mut payload, &constraints)?;
+        }
+
         let indexes = self.catalog.list_vector_indexes(collection).await;
         if !indexes.is_empty() {
             self.apply_vector_indexes(collection, &mut payload, indexes.as_slice())
                 .await?;
         }
 
+        self.validate_constraints(collection, &payload, &constraints)
+            .await?;
+
         self.midge.put_document(collection, None, payload).await
+    }
+
+    fn apply_default_values(
+        &self,
+        payload: &mut serde_json::Value,
+        constraints: &[FieldConstraint],
+    ) -> Result<(), CassieError> {
+        let object = payload
+            .as_object_mut()
+            .ok_or_else(|| CassieError::InvalidVector("document payload must be a JSON object".to_string()))?;
+
+        for constraint in constraints {
+            if object.contains_key(&constraint.field) {
+                continue;
+            }
+
+            if let Some(default) = &constraint.default_value {
+                object.insert(constraint.field.clone(), default.clone());
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn validate_constraints(
+        &self,
+        collection: &str,
+        payload: &serde_json::Value,
+        constraints: &[FieldConstraint],
+    ) -> Result<(), CassieError> {
+        let object = payload
+            .as_object()
+            .ok_or_else(|| CassieError::InvalidVector("document payload must be a JSON object".to_string()))?;
+
+        for constraint in constraints {
+            let existing = object.get(&constraint.field);
+
+            if (constraint.not_null || constraint.primary_key) && (existing.is_none() || existing.is_some_and(|value| value.is_null())) {
+                return Err(CassieError::InvalidVector(format!(
+                    "field '{}' cannot be null",
+                    constraint.field
+                )));
+            }
+
+            if let Some(check) = &constraint.check {
+                let Some(value) = existing else {
+                    continue;
+                };
+                if !self.satisfies_check_constraint(value, check) {
+                    return Err(CassieError::InvalidVector(format!(
+                        "check constraint failed for '{}' field",
+                        check.field
+                    )));
+                }
+            }
+        }
+
+        self.validate_uniques(collection, object, constraints).await
+    }
+
+    fn satisfies_check_constraint(&self, value: &serde_json::Value, check: &ConstraintCheck) -> bool {
+        match check.operator {
+            ConstraintOperator::Eq => value == &check.value,
+            ConstraintOperator::NotEq => value != &check.value,
+            ConstraintOperator::Lt => {
+                self.compare_constraint_values(value, &check.value)
+                    .is_some_and(|order| order.is_lt())
+            }
+            ConstraintOperator::Lte => {
+                self.compare_constraint_values(value, &check.value)
+                    .is_some_and(|order| order.is_le())
+            }
+            ConstraintOperator::Gt => {
+                self.compare_constraint_values(value, &check.value)
+                    .is_some_and(|order| order.is_gt())
+            }
+            ConstraintOperator::Gte => {
+                self.compare_constraint_values(value, &check.value)
+                    .is_some_and(|order| order.is_ge())
+            }
+            ConstraintOperator::Like => {
+                let Some(value) = value.as_str() else {
+                    return false;
+                };
+                let Some(expected) = check.value.as_str() else {
+                    return false;
+                };
+                self.string_like_match(expected, value)
+            }
+        }
+    }
+
+    fn compare_constraint_values(
+        &self,
+        left: &serde_json::Value,
+        right: &serde_json::Value,
+    ) -> Option<std::cmp::Ordering> {
+        match (left, right) {
+            (serde_json::Value::Number(left), serde_json::Value::Number(right)) => left
+                .as_f64()
+                .and_then(|left| right.as_f64().map(|right| left.partial_cmp(&right)))
+                .flatten(),
+            (serde_json::Value::String(left), serde_json::Value::String(right)) => {
+                Some(left.cmp(right))
+            }
+            (serde_json::Value::Bool(left), serde_json::Value::Bool(right)) => {
+                Some(left.cmp(right))
+            }
+            _ => None,
+        }
+    }
+
+    fn string_like_match(&self, pattern: &str, value: &str) -> bool {
+        if pattern == "%" {
+            return true;
+        }
+
+        let starts_with_wildcard = pattern.starts_with('%');
+        let ends_with_wildcard = pattern.ends_with('%');
+        let normalized = pattern.trim_matches('%');
+
+        if starts_with_wildcard && ends_with_wildcard {
+            value.contains(normalized)
+        } else if starts_with_wildcard {
+            value.ends_with(normalized)
+        } else if ends_with_wildcard {
+            value.starts_with(normalized)
+        } else {
+            value == pattern
+        }
+    }
+
+    async fn validate_uniques(
+        &self,
+        collection: &str,
+        payload: &serde_json::Map<String, serde_json::Value>,
+        constraints: &[FieldConstraint],
+    ) -> Result<(), CassieError> {
+        for constraint in constraints {
+            if !(constraint.unique || constraint.primary_key) {
+                continue;
+            }
+
+            let Some(value) = payload.get(&constraint.field) else {
+                continue;
+            };
+            if value.is_null() {
+                continue;
+            }
+
+            if self.value_exists_for_collection_field(collection, &constraint.field, value).await? {
+                return Err(CassieError::InvalidVector(format!(
+                    "unique constraint failed for '{}'",
+                    constraint.field
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn value_exists_for_collection_field(
+        &self,
+        collection: &str,
+        field: &str,
+        value: &serde_json::Value,
+    ) -> Result<bool, CassieError> {
+        for document in self.midge.scan_documents(collection).await? {
+            if document.payload.get(field) == Some(value) {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
     }
 
     async fn apply_vector_indexes(

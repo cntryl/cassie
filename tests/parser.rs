@@ -849,6 +849,91 @@ fn should_reject_duplicate_fields_in_create_table_definition() {
 }
 
 #[test]
+fn should_parse_create_table_field_constraints() {
+    // Arrange
+    let sql =
+        "CREATE TABLE users (id INT PRIMARY KEY, email TEXT NOT NULL UNIQUE DEFAULT 'anon', score INT CHECK (score >= 0))";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateTable(statement) = parsed.statement else {
+        panic!("expected create table statement");
+    };
+    assert_eq!(statement.table, "users");
+    assert_eq!(statement.fields.len(), 3);
+
+    assert!(statement.fields[0].constraints.iter().any(|c| c.primary_key));
+    assert!(!statement.fields[0].constraints.iter().any(|c| c.unique));
+
+    let email_constraints = &statement.fields[1].constraints;
+    assert_eq!(email_constraints.len(), 1);
+    assert!(email_constraints[0].not_null);
+    assert!(email_constraints[0].unique);
+    assert_eq!(
+        email_constraints[0].default_value,
+        Some(serde_json::Value::String("anon".to_string()))
+    );
+
+    let score_constraints = &statement.fields[2].constraints;
+    assert_eq!(score_constraints.len(), 1);
+    assert!(score_constraints[0].check.is_some());
+}
+
+#[test]
+fn should_reject_create_table_constraints_without_parentheses() {
+    // Arrange
+    let sql = "CREATE TABLE broken (id INT CHECK score >= 0)";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+}
+
+#[test]
+fn should_parse_create_index_statement() {
+    // Arrange
+    let sql = "CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WITH (fillfactor = 90, case_sensitive = 'false')";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateIndex(statement) = parsed.statement else {
+        panic!("expected create index statement");
+    };
+
+    assert_eq!(statement.name, "idx_users_email");
+    assert_eq!(statement.table, "users");
+    assert_eq!(statement.field, "email");
+    assert!(statement.unique);
+    assert!(matches!(statement.kind, cassie::catalog::IndexKind::Scalar));
+    assert_eq!(statement.options.get("fillfactor"), Some(&"90".to_string()));
+    assert_eq!(statement.options.get("case_sensitive"), Some(&"false".to_string()));
+}
+
+#[test]
+fn should_parse_drop_index_statement() {
+    // Arrange
+    let sql = "DROP INDEX IF EXISTS idx_users_email ON users";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::DropIndex(statement) = parsed.statement else {
+        panic!("expected drop index statement");
+    };
+
+    assert_eq!(statement.name, "idx_users_email");
+    assert_eq!(statement.table, "users");
+    assert!(statement.if_exists);
+}
+
+#[test]
 fn should_reject_create_table_when_collection_exists_without_if_not_exists() {
     // Arrange
     let cassie =

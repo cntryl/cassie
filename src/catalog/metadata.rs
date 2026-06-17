@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use crate::catalog::{CollectionMeta, CollectionSchema, NamespaceMeta};
+use crate::catalog::{CollectionMeta, CollectionSchema, FieldConstraint, IndexMeta, NamespaceMeta};
 use crate::embeddings::VectorIndexRecord;
 use crate::types::DataType;
 
@@ -12,6 +12,8 @@ pub struct Catalog {
     pub collections: Arc<RwLock<HashMap<String, CollectionMeta>>>,
     pub namespaces: Arc<RwLock<HashMap<String, NamespaceMeta>>>,
     pub schemas: Arc<RwLock<HashMap<String, CollectionSchema>>>,
+    pub constraints: Arc<RwLock<HashMap<String, Vec<FieldConstraint>>>>,
+    pub indexes: Arc<RwLock<HashMap<String, IndexMeta>>>,
     pub vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
 }
 
@@ -21,11 +23,23 @@ impl Catalog {
             collections: Arc::new(RwLock::new(HashMap::new())),
             namespaces: Arc::new(RwLock::new(HashMap::new())),
             schemas: Arc::new(RwLock::new(HashMap::new())),
+            constraints: Arc::new(RwLock::new(HashMap::new())),
+            indexes: Arc::new(RwLock::new(HashMap::new())),
             vector_indexes: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     pub async fn register_collection(&self, name: &str, schema: Vec<(String, DataType)>) {
+        self.register_collection_with_constraints(name, schema, Vec::new())
+            .await;
+    }
+
+    pub async fn register_collection_with_constraints(
+        &self,
+        name: &str,
+        schema: Vec<(String, DataType)>,
+        constraints: Vec<FieldConstraint>,
+    ) {
         let mut collections = self.collections.write().await;
         collections.insert(name.to_string(), CollectionMeta::new(name, None));
 
@@ -46,6 +60,15 @@ impl Catalog {
                 fields,
             },
         );
+
+        let normalized = constraints
+            .into_iter()
+            .filter(Self::is_constraint_populated)
+            .collect::<Vec<_>>();
+        self.constraints
+            .write()
+            .await
+            .insert(name.to_string(), normalized);
     }
 
     pub async fn list_collections(&self) -> Vec<CollectionMeta> {
@@ -75,18 +98,116 @@ impl Catalog {
         self.collections.write().await.clear();
         self.namespaces.write().await.clear();
         self.schemas.write().await.clear();
+        self.constraints.write().await.clear();
+        self.indexes.write().await.clear();
         self.vector_indexes.write().await.clear();
     }
 
     pub async fn unregister_collection(&self, collection: &str) {
         self.collections.write().await.remove(collection);
-
         self.schemas.write().await.remove(collection);
-
-        self.vector_indexes
+        self.constraints.write().await.remove(collection);
+        self.indexes
             .write()
             .await
             .retain(|_, index| index.collection != collection);
+        self.vector_indexes
+            .write()
+            .await
+            .retain(|_, record| record.collection != collection);
+    }
+
+    pub async fn get_constraints(&self, collection: &str) -> Vec<FieldConstraint> {
+        self.constraints
+            .read()
+            .await
+            .get(collection)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub async fn get_constraint(&self, collection: &str, field: &str) -> Option<FieldConstraint> {
+        self.constraints
+            .read()
+            .await
+            .get(collection)
+            .and_then(|constraints| {
+                constraints
+                    .iter()
+                    .find(|constraint| constraint.field.eq_ignore_ascii_case(field))
+                    .cloned()
+            })
+    }
+
+    pub async fn register_constraints(&self, collection: &str, constraints: Vec<FieldConstraint>) {
+        let normalized = constraints
+            .into_iter()
+            .filter(Self::is_constraint_populated)
+            .collect::<Vec<_>>();
+        self.constraints
+            .write()
+            .await
+            .insert(collection.to_string(), normalized);
+    }
+
+    pub async fn replace_collection_constraint_set(
+        &self,
+        collection: &str,
+        constraints: Vec<FieldConstraint>,
+    ) {
+        self.register_constraints(collection, constraints).await;
+    }
+
+    pub async fn replace_constraints_for_field(
+        &self,
+        collection: &str,
+        field: &str,
+        constraint: Option<FieldConstraint>,
+    ) {
+        let mut constraints = self.constraints.write().await;
+        let Some(entries) = constraints.get_mut(collection) else {
+            return;
+        };
+
+        let position = entries.iter().position(|entry| entry.field == field);
+        match (position, constraint) {
+            (Some(position), Some(constraint)) => {
+                entries[position] = constraint;
+            }
+            (Some(position), None) => {
+                entries.remove(position);
+            }
+            (None, Some(constraint)) => entries.push(constraint),
+            (None, None) => {}
+        }
+    }
+
+    pub async fn register_index(&self, metadata: IndexMeta) {
+        let mut indexes = self.indexes.write().await;
+        indexes.insert(Self::index_key(&metadata.collection, &metadata.name), metadata);
+    }
+
+    pub async fn unregister_index(&self, collection: &str, name: &str) {
+        self.indexes
+            .write()
+            .await
+            .remove(&Self::index_key(collection, name));
+    }
+
+    pub async fn get_index(&self, collection: &str, name: &str) -> Option<IndexMeta> {
+        let indexes = self.indexes.read().await;
+        indexes.get(&Self::index_key(collection, name)).cloned()
+    }
+
+    pub async fn list_indexes(&self, collection: &str) -> Vec<IndexMeta> {
+        let indexes = self.indexes.read().await;
+        let mut out = indexes
+            .values()
+            .filter(|index| index.collection == collection)
+            .cloned()
+            .collect::<Vec<_>>();
+        out.sort_by_key(|index| index.name.to_ascii_lowercase());
+        out
     }
 
     pub async fn get_schema(&self, collection: &str) -> Option<CollectionSchema> {
@@ -137,18 +258,44 @@ impl Catalog {
             );
         }
 
-        let mut indexes = self.vector_indexes.write().await;
-        let keys = indexes
+        let normalized_constraints = {
+            let mut constraints = self.constraints.write().await;
+            constraints
+                .remove(current_name)
+                .unwrap_or_default()
+        };
+        if !normalized_constraints.is_empty() {
+            self.constraints
+                .write()
+                .await
+                .insert(next_name.to_string(), normalized_constraints);
+        }
+
+        let mut indexes = self.indexes.write().await;
+        let existing_indexes = indexes
+            .iter()
+            .filter(|(_, index)| index.collection == current_name)
+            .map(|(key, index)| (key.clone(), index.clone()))
+            .collect::<Vec<_>>();
+
+        for (key, mut index) in existing_indexes {
+            indexes.remove(&key);
+            index.collection = next_name.to_string();
+            indexes.insert(Self::index_key(&index.collection, &index.name), index);
+        }
+
+        let mut vector_indexes = self.vector_indexes.write().await;
+        let keys: Vec<(String, String)> = vector_indexes
             .iter()
             .filter(|(_, record)| record.collection == current_name)
             .map(|(key, record)| (key.clone(), record.field.clone()))
             .collect::<Vec<_>>();
 
         for (key, field) in keys {
-            if let Some(mut metadata) = indexes.remove(&key) {
+            if let Some(mut metadata) = vector_indexes.remove(&key) {
                 metadata.collection = next_name.to_string();
                 let next_key = Self::vector_index_key(&metadata.collection, &field);
-                indexes.insert(next_key, metadata);
+                vector_indexes.insert(next_key, metadata);
             }
         }
     }
@@ -200,6 +347,13 @@ impl Catalog {
         indexes.insert(key, record);
     }
 
+    pub async fn unregister_vector_index(&self, collection: &str, field: &str) {
+        self.vector_indexes
+            .write()
+            .await
+            .remove(&Self::vector_index_key(collection, field));
+    }
+
     pub async fn get_vector_index(
         &self,
         collection: &str,
@@ -225,8 +379,20 @@ impl Catalog {
         indexes.retain(|_, value| value.collection != collection);
     }
 
-    fn vector_index_key(collection: &str, field: &str) -> String {
+    pub fn vector_index_key(collection: &str, field: &str) -> String {
         format!("{collection}:{field}")
+    }
+
+    fn index_key(collection: &str, name: &str) -> String {
+        format!("{collection}:{name}")
+    }
+
+    fn is_constraint_populated(constraint: &FieldConstraint) -> bool {
+        constraint.primary_key
+            || constraint.unique
+            || constraint.not_null
+            || constraint.default_value.is_some()
+            || constraint.check.is_some()
     }
 }
 

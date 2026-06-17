@@ -1,10 +1,13 @@
 use crate::sql::ast::{
     AlterTableOperation, AlterTableStatement, BinaryOp, CommonTableExpression,
-    CreateSchemaStatement, CreateTableStatement, CteQuery, DropTableStatement, Expr,
+    CreateIndexStatement, CreateSchemaStatement, CreateTableStatement, CteQuery, DropIndexStatement,
+    DropTableStatement, Expr,
     FieldDefinition, FunctionCall, OrderExpr, ParsedStatement, QuerySource, QueryStatement,
     SelectItem, SelectStatement, SortDirection,
 };
+use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, IndexKind};
 use crate::types::DataType;
+use serde_json::Value;
 use std::collections::HashSet;
 
 #[derive(Debug)]
@@ -17,6 +20,13 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         parse_with_statement(trimmed)
     } else if lower.starts_with("select ") {
         parse_select_statement(trimmed, Vec::new(), false)
+    } else if lower.starts_with("create unique index ")
+        || lower.starts_with("create index ")
+        || lower == "create index"
+    {
+        parse_create_index_statement(trimmed)
+    } else if lower.starts_with("drop index ") || lower == "drop index" {
+        parse_drop_index_statement(trimmed)
     } else if lower.starts_with("create table ") || lower == "create table" {
         parse_create_table_statement(trimmed)
     } else if lower.starts_with("drop table ") || lower == "drop table" {
@@ -120,6 +130,87 @@ fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> 
             table: table.to_string(),
             fields,
             if_not_exists,
+        }),
+    })
+}
+
+fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let lower = trimmed.to_lowercase();
+
+    let mut unique = false;
+    let remainder = if lower.starts_with("create unique index ") {
+        unique = true;
+        &trimmed["create unique index ".len()..]
+    } else if lower.starts_with("create index ") {
+        &trimmed["create index ".len()..]
+    } else {
+        return Err(SqlError("unsupported CREATE INDEX statement".to_string()));
+    };
+
+    if starts_with_keyword(remainder, "concurrently") {
+        return Err(SqlError(
+            "CREATE INDEX CONCURRENTLY is not supported in this version".to_string(),
+        ));
+    }
+
+    let (if_not_exists, remainder) = parse_if_not_exists(remainder)?;
+
+    let on_pos = find_top_level_keyword(remainder, 0, "on")
+        .ok_or_else(|| SqlError("CREATE INDEX requires 'ON' clause".to_string()))?;
+
+    let name = remainder[..on_pos].trim();
+    if name.is_empty() {
+        return Err(SqlError("CREATE INDEX missing index name".to_string()));
+    }
+
+    let remainder = remainder[on_pos + 2..].trim();
+    let (table, remainder) = parse_index_target(remainder)?;
+    let (kind, remainder) = parse_index_kind(remainder)?;
+    let (field, remainder) = parse_index_field(remainder)?;
+    let (options, remainder) = parse_index_options(remainder)?;
+
+    if !remainder.is_empty() {
+        return Err(SqlError("unsupported CREATE INDEX syntax".to_string()));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CreateIndex(CreateIndexStatement {
+            name: name.to_string(),
+            table: table.to_string(),
+            field: field.to_string(),
+            if_not_exists,
+            unique,
+            kind,
+            options,
+        }),
+    })
+}
+
+fn parse_drop_index_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[10..].trim();
+
+    let (if_exists, rest) = parse_if_exists(rest)?;
+    let on_pos = find_top_level_keyword(rest, 0, "on")
+        .ok_or_else(|| SqlError("DROP INDEX requires 'ON' clause".to_string()))?;
+
+    let name = rest[..on_pos].trim();
+    let table = rest[on_pos + 2..].trim();
+    if name.is_empty() || table.is_empty() {
+        return Err(SqlError("DROP INDEX requires index name and table".to_string()));
+    }
+    if table.contains(' ') {
+        return Err(SqlError("unsupported tokens after DROP INDEX table name".to_string()));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::DropIndex(DropIndexStatement {
+            name: name.to_string(),
+            table: table.to_string(),
+            if_exists,
         }),
     })
 }
@@ -267,23 +358,361 @@ fn parse_if_exists(raw: &str) -> Result<(bool, &str), SqlError> {
 }
 
 fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlError> {
-    let mut parts = raw.split_whitespace();
+    let mut parts = tokenize_schema_field(raw).into_iter();
     let name = parts
         .next()
-        .ok_or_else(|| SqlError("invalid column definition".into()))?
-        .trim();
+        .ok_or_else(|| SqlError("invalid column definition".into()))?;
+    let name = name.trim().to_string();
     if name.is_empty() {
         return Err(SqlError("invalid column definition".into()));
     }
-    let type_tokens: Vec<&str> = parts.collect();
-    if type_tokens.is_empty() {
+    let type_token = parts
+        .next()
+        .ok_or_else(|| SqlError(format!("missing data type for column '{name}'")))?
+        .trim()
+        .to_string();
+    if type_token.is_empty() {
         return Err(SqlError(format!("missing data type for column '{name}'")));
     }
-    let data_type = parse_data_type(type_tokens.join(" ").as_str())?;
+    let data_type = parse_data_type(&type_token)?;
+
+    let mut constraint = FieldConstraint {
+        field: name.clone(),
+        not_null: false,
+        unique: false,
+        primary_key: false,
+        default_value: None,
+        check: None,
+    };
+
+    let mut saw_constraint = false;
+    while let Some(token) = parts.next() {
+        match token.to_lowercase().as_str() {
+            "not" => {
+                let next = parts
+                    .next()
+                    .ok_or_else(|| SqlError("NOT must be followed by NULL".into()))?;
+                if !next.eq_ignore_ascii_case("null") {
+                    return Err(SqlError(format!("unsupported constraint '{token} {next}'")));
+                }
+                saw_constraint = true;
+                constraint.not_null = true;
+            }
+            "null" => {
+                return Err(SqlError("unexpected NULL constraint".to_string()));
+            }
+            "unique" => {
+                saw_constraint = true;
+                constraint.unique = true;
+            }
+            "primary" => {
+                let next = parts
+                    .next()
+                    .ok_or_else(|| SqlError("PRIMARY must be followed by KEY".into()))?;
+                if !next.eq_ignore_ascii_case("key") {
+                    return Err(SqlError(format!("unsupported constraint '{token} {next}'")));
+                }
+                saw_constraint = true;
+                constraint.primary_key = true;
+            }
+            "key" => {
+                return Err(SqlError("KEY without PRIMARY".to_string()));
+            }
+            "default" => {
+                saw_constraint = true;
+                let value = parts
+                    .next()
+                    .ok_or_else(|| SqlError("DEFAULT requires a value".into()))?;
+                constraint.default_value = Some(parse_constraint_literal(&value)?);
+            }
+            "check" => {
+                saw_constraint = true;
+                let expression = parts
+                    .next()
+                    .ok_or_else(|| SqlError("CHECK requires an expression".into()))?;
+                let remaining = parts.collect::<Vec<_>>().join(" ");
+                let expression = if remaining.is_empty() {
+                    expression
+                } else {
+                    format!("{expression} {remaining}")
+                };
+                let constraint_check = parse_check_constraint(&expression)?;
+                constraint.check = Some(constraint_check);
+                break;
+            }
+            "references" => {
+                return Err(SqlError(
+                    "foreign key constraints are not supported at this stage".to_string(),
+                ));
+            }
+            other => {
+                return Err(SqlError(format!("unsupported constraint '{other}'")));
+            }
+        }
+    }
+
+    if !saw_constraint {
+        return Ok(FieldDefinition {
+            name: name.to_string(),
+            data_type,
+            constraints: Vec::new(),
+        });
+    }
+
     Ok(FieldDefinition {
         name: name.to_string(),
         data_type,
+        constraints: vec![constraint],
     })
+}
+
+fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlError> {
+    let expression = raw.trim();
+    if !expression.starts_with('(') || !expression.ends_with(')') {
+        return Err(SqlError("CHECK expression must be parenthesized".to_string()));
+    }
+    let inner = strip_parentheses(expression)
+        .ok_or_else(|| SqlError("invalid CHECK expression".to_string()))?
+        .trim();
+
+    let (left, op, right) = parse_simple_comparison(inner)
+        .ok_or_else(|| SqlError("unsupported CHECK expression".to_string()))?;
+
+    if !left
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
+    {
+        return Err(SqlError(
+            "CHECK expression field must be an identifier".to_string(),
+        ));
+    }
+
+    Ok(ConstraintCheck {
+        field: left.to_string(),
+        operator: op,
+        value: right,
+    })
+}
+
+fn parse_simple_comparison(raw: &str) -> Option<(String, ConstraintOperator, Value)> {
+    let candidates = [
+        (" <=", ConstraintOperator::Lte),
+        (" >=", ConstraintOperator::Gte),
+        (" <> ", ConstraintOperator::NotEq),
+        (" != ", ConstraintOperator::NotEq),
+        (" like ", ConstraintOperator::Like),
+        (" < ", ConstraintOperator::Lt),
+        (" > ", ConstraintOperator::Gt),
+        (" = ", ConstraintOperator::Eq),
+    ];
+
+    for (operator, kind) in candidates {
+        let lower = raw.to_lowercase();
+        if let Some(position) = lower.find(operator) {
+            let left = raw[..position].trim();
+            let right = raw[position + operator.len()..].trim();
+            if left.is_empty() || right.is_empty() {
+                continue;
+            }
+
+            if let Ok(value) = parse_constraint_literal(right) {
+                return Some((left.to_string(), kind, value));
+            }
+        }
+    }
+
+    None
+}
+
+fn parse_constraint_literal(raw: &str) -> Result<Value, SqlError> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err(SqlError("invalid literal".to_string()));
+    }
+
+    if raw.eq_ignore_ascii_case("null") {
+        return Ok(Value::Null);
+    }
+    if raw.eq_ignore_ascii_case("true") {
+        return Ok(Value::Bool(true));
+    }
+    if raw.eq_ignore_ascii_case("false") {
+        return Ok(Value::Bool(false));
+    }
+
+    if let Some(rest) = raw.strip_prefix('\'') {
+        if raw.ends_with('\'') && raw.len() >= 2 {
+            let unquoted = rest
+                .strip_suffix('\'')
+                .unwrap_or(rest);
+            return Ok(Value::String(unquoted.to_string()));
+        }
+    }
+    if let Some(rest) = raw.strip_prefix('"') {
+        if raw.ends_with('"') && raw.len() >= 2 {
+            let unquoted = rest
+                .strip_suffix('"')
+                .unwrap_or(rest);
+            return Ok(Value::String(unquoted.to_string()));
+        }
+    }
+
+    if let Ok(value) = raw.parse::<i64>() {
+        return Ok(value.into());
+    }
+    if let Ok(value) = raw.parse::<f64>() {
+        return Ok(value.into());
+    }
+
+    Ok(Value::String(raw.to_string()))
+}
+
+fn tokenize_schema_field(raw: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut depth = 0isize;
+    let mut start = 0usize;
+
+    for (idx, ch) in raw.char_indices() {
+        match ch {
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            '(' if !in_single && !in_double => depth += 1,
+            ')' if !in_single && !in_double => depth -= 1,
+            ' ' if !in_single && !in_double && depth == 0 => {
+                if start != idx {
+                    out.push(raw[start..idx].to_string());
+                }
+                start = idx + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+
+    if start < raw.len() {
+        out.push(raw[start..].to_string());
+    }
+
+    out.into_iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect()
+}
+
+fn parse_index_target(raw: &str) -> Result<(String, &str), SqlError> {
+    let tokens: Vec<&str> = raw.split_whitespace().collect();
+    if tokens.is_empty() {
+        return Err(SqlError("missing table name in CREATE INDEX".to_string()));
+    }
+
+    let table = tokens[0];
+    if table.contains('(') || table.contains(')') {
+        return Err(SqlError("invalid table name in CREATE INDEX".to_string()));
+    }
+
+    let remainder = raw[table.len()..].trim_start();
+    Ok((table.to_string(), remainder))
+}
+
+fn parse_index_kind(raw: &str) -> Result<(IndexKind, &str), SqlError> {
+    if !starts_with_keyword(raw, "using") {
+        return Ok((IndexKind::Scalar, raw));
+    }
+
+    let remainder = raw[5..].trim_start();
+    if starts_with_keyword(remainder, "btree") {
+        return Ok((IndexKind::Scalar, remainder[5..].trim_start()));
+    }
+    if starts_with_keyword(remainder, "hash") {
+        return Ok((IndexKind::Scalar, remainder[4..].trim_start()));
+    }
+    if starts_with_keyword(remainder, "gin") {
+        return Ok((IndexKind::FullText, remainder[3..].trim_start()));
+    }
+    if starts_with_keyword(remainder, "fulltext") {
+        return Ok((IndexKind::FullText, remainder[8..].trim_start()));
+    }
+    if starts_with_keyword(remainder, "vector") {
+        return Ok((IndexKind::Vector, remainder[6..].trim_start()));
+    }
+
+    Err(SqlError("unsupported index method".to_string()))
+}
+
+fn parse_index_field(raw: &str) -> Result<(String, &str), SqlError> {
+    let raw = raw.trim();
+    if !raw.starts_with('(') {
+        return Err(SqlError(
+            "CREATE INDEX requires indexed field list in parentheses".to_string(),
+        ));
+    }
+
+    let close = raw.find(')').ok_or_else(|| {
+        SqlError("CREATE INDEX field list missing closing ')'".to_string())
+    })?;
+    if close == 1 {
+        return Err(SqlError("CREATE INDEX field cannot be empty".to_string()));
+    }
+
+    let field_spec = &raw[1..close];
+    if field_spec.trim().is_empty() {
+        return Err(SqlError("CREATE INDEX field cannot be empty".to_string()));
+    }
+
+    let before = raw[close + 1..].trim();
+    if field_spec.contains(',') {
+        return Err(SqlError("CREATE INDEX does not support composite indexes".to_string()));
+    }
+    if field_spec.contains(' ') {
+        return Err(SqlError(
+            "expression index definitions are not supported".to_string(),
+        ));
+    }
+
+    Ok((field_spec.to_string(), before))
+}
+
+fn parse_index_options(raw: &str) -> Result<(std::collections::BTreeMap<String, String>, &str), SqlError> {
+    let mut options = std::collections::BTreeMap::new();
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Ok((options, raw));
+    }
+
+    if !starts_with_keyword(raw, "with") {
+        return Ok((options, raw));
+    }
+
+    let with_body = raw[4..].trim_start();
+    if !with_body.starts_with('(') || !with_body.ends_with(')') {
+        return Err(SqlError("WITH options must be enclosed in parentheses".to_string()));
+    }
+
+    let body = &with_body[1..with_body.len() - 1];
+    for token in split_csv(body) {
+        let token = token.trim();
+        let (key, value) = token.split_once('=')
+            .ok_or_else(|| SqlError("index option must be key=value".to_string()))?;
+        let key = key.trim().to_lowercase();
+        let value = value.trim().trim_matches('"').trim_matches('\'').to_string();
+        if key.is_empty() {
+            return Err(SqlError("index option key cannot be empty".to_string()));
+        }
+        options.insert(key, value);
+    }
+
+    Ok((options, ""))
+}
+
+fn starts_with_keyword(raw: &str, keyword: &str) -> bool {
+    let lower = raw.to_lowercase();
+    if !lower.starts_with(keyword) {
+        return false;
+    }
+
+    let suffix = lower.chars().nth(keyword.len()).unwrap_or(' ');
+    !suffix.is_ascii_alphanumeric()
 }
 
 fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {

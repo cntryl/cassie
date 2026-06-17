@@ -1,6 +1,8 @@
 use cassie::app::Cassie;
+use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
 use cassie::types::{DataType, FieldSchema, Schema};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 fn with_fallback() {
@@ -186,6 +188,80 @@ fn should_reload_registry_after_restart_simulation() {
 
         // Assert
         assert_eq!(hydrated, record);
+    });
+
+    let _ = std::fs::remove_dir_all(path_for_cleanup);
+}
+
+#[test]
+fn should_reload_generic_index_registry_after_restart() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("generic_index_restart");
+    let path_for_cleanup = path.clone();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async move {
+        // Act
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        let collection = "generic_index_docs";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "id".to_string(),
+                    data_type: DataType::Int,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .into_iter()
+                    .map(|field| (field.name, field.data_type))
+                    .collect(),
+            )
+            .await;
+
+        let record = IndexMeta {
+            collection: collection.to_string(),
+            name: "idx_generic_title".to_string(),
+            field: "title".to_string(),
+            kind: IndexKind::Scalar,
+            unique: true,
+            options: BTreeMap::from_iter(vec![("case_sensitive".to_string(), "true".to_string())]),
+        };
+        cassie.midge.put_index(record.clone()).await.unwrap();
+
+        drop(cassie);
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().await.unwrap();
+
+        // Assert
+        let loaded = restarted
+            .catalog
+            .get_index(collection, "idx_generic_title")
+            .await
+            .expect("index should hydrate");
+        assert_eq!(loaded, record);
     });
 
     let _ = std::fs::remove_dir_all(path_for_cleanup);

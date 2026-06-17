@@ -1,5 +1,6 @@
 use cassie::app::Cassie;
 use cassie::rest::{collections, documents};
+use uuid::Uuid;
 
 #[test]
 fn should_crud_collection_documents_through_rest() {
@@ -88,4 +89,189 @@ fn should_reject_invalid_vector_dimensions_through_rest() {
         // Assert
         assert!(insert.is_err(), "dimension mismatch should fail");
     });
+}
+
+#[test]
+fn should_apply_default_values_for_rest_ingest() {
+    // Arrange
+    let path = format!("/tmp/cassie-rest-default-{}", Uuid::new_v4());
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let collection = "rest_constraint_defaults";
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let session = cassie.create_session("postgres", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE rest_constraint_defaults (id INT PRIMARY KEY, status TEXT DEFAULT 'pending')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let doc = documents::create(
+            &cassie,
+            collection,
+            serde_json::json!({"id": 1}).to_string().as_bytes(),
+        )
+        .await
+        .expect("create rest document");
+        let id = doc["id"].as_str().expect("id present");
+        let stored = cassie
+            .midge
+            .get_document(collection, id)
+            .await
+            .expect("document read");
+
+        // Assert
+        let stored = stored.expect("document should be stored").payload;
+        assert_eq!(stored["status"], "pending");
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_reject_rest_ingest_when_not_null_constraint_is_violated() {
+    // Arrange
+    let path = format!("/tmp/cassie-rest-not-null-{}", Uuid::new_v4());
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let collection = "rest_constraint_not_null";
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let session = cassie.create_session("postgres", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE rest_constraint_not_null (id INT PRIMARY KEY, email TEXT NOT NULL)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let missing = documents::create(
+            &cassie,
+            collection,
+            serde_json::json!({"id": 1}).to_string().as_bytes(),
+        )
+        .await;
+
+        // Assert
+        assert!(missing.is_err(), "missing required field should be rejected");
+        let error = format!("{:?}", missing.unwrap_err());
+        assert!(
+            error.contains("cannot be null"),
+            "unexpected error: {error}"
+        );
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_reject_rest_ingest_when_unique_constraint_is_violated() {
+    // Arrange
+    let path = format!("/tmp/cassie-rest-unique-{}", Uuid::new_v4());
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let collection = "rest_constraint_unique";
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let session = cassie.create_session("postgres", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE rest_constraint_unique (id INT PRIMARY KEY, email TEXT NOT NULL UNIQUE)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        documents::create(
+            &cassie,
+            collection,
+            serde_json::json!({"id": 1, "email": "a@example.com"})
+                .to_string()
+                .as_bytes(),
+        )
+        .await
+        .expect("first insert");
+
+        // Act
+        let duplicate = documents::create(
+            &cassie,
+            collection,
+            serde_json::json!({"id": 2, "email": "a@example.com"})
+                .to_string()
+                .as_bytes(),
+        )
+        .await;
+
+        // Assert
+        assert!(duplicate.is_err(), "duplicate unique field should be rejected");
+        let error = format!("{:?}", duplicate.unwrap_err());
+        assert!(
+            error.contains("unique constraint failed"),
+            "unexpected error: {error}"
+        );
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_reject_rest_ingest_when_check_constraint_is_violated() {
+    // Arrange
+    let path = format!("/tmp/cassie-rest-check-{}", Uuid::new_v4());
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let collection = "rest_constraint_check";
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let session = cassie.create_session("postgres", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE rest_constraint_check (id INT PRIMARY KEY, score INT CHECK (score >= 18))",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let invalid = documents::create(
+            &cassie,
+            collection,
+            serde_json::json!({"id": 1, "score": 17})
+                .to_string()
+                .as_bytes(),
+        )
+        .await;
+
+        // Assert
+        assert!(invalid.is_err(), "check constraint failure should be rejected");
+        let error = format!("{:?}", invalid.unwrap_err());
+        assert!(
+            error.contains("check constraint failed"),
+            "unexpected error: {error}"
+        );
+    });
+
+    let _ = std::fs::remove_dir_all(path);
 }

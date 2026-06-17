@@ -5,6 +5,7 @@ use std::pin::Pin;
 use crate::app::Cassie;
 use crate::executor::batch::{self, BatchRow, RowAccess};
 use crate::executor::{aggregate, filter, projection, scan, sort};
+use crate::catalog;
 use crate::planner::logical::{LogicalCommand, LogicalPlan};
 use crate::planner::physical::PhysicalPlan;
 use crate::sql::ast::{CommonTableExpression, CteQuery, QuerySource};
@@ -87,15 +88,32 @@ async fn execute_command(
                 .create_collection(&statement.table, schema.clone())
                 .await
                 .map_err(|error| QueryError::General(error.to_string()))?;
+
+            let constraints = statement
+                .fields
+                .iter()
+                .flat_map(|field| field.constraints.iter().cloned())
+                .collect::<Vec<_>>();
+
+            cassie
+                .midge
+                .save_constraints(
+                    &statement.table,
+                    constraints
+                        .as_slice(),
+                )
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
-                .register_collection(
+                .register_collection_with_constraints(
                     &statement.table,
                     schema
                         .fields
                         .into_iter()
                         .map(|field| (field.name, field.data_type))
                         .collect(),
+                    constraints,
                 )
                 .await;
 
@@ -204,6 +222,61 @@ async fn execute_command(
                 columns: Vec::new(),
                 rows: Vec::new(),
                 command: "CREATE SCHEMA".to_string(),
+            })
+        }
+        LogicalCommand::CreateIndex(statement) => {
+            let metadata = catalog::IndexMeta {
+                collection: statement.table.clone(),
+                name: statement.name.clone(),
+                field: statement.field.clone(),
+                kind: statement.kind.clone(),
+                unique: statement.unique,
+                options: statement.options.clone(),
+            };
+
+            cassie
+                .midge
+                .put_index(metadata.clone())
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.register_index(metadata).await;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "CREATE INDEX".to_string(),
+            })
+        }
+        LogicalCommand::DropIndex(statement) => {
+            if statement.if_exists {
+                let existing = cassie
+                    .catalog
+                    .get_index(&statement.table, &statement.name)
+                    .await
+                    .is_some();
+                if !existing {
+                    return Ok(QueryResult {
+                        columns: Vec::new(),
+                        rows: Vec::new(),
+                        command: "DROP INDEX".to_string(),
+                    });
+                }
+            }
+
+            cassie
+                .midge
+                .delete_index(&statement.table, &statement.name)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie
+                .catalog
+                .unregister_index(&statement.table, &statement.name)
+                .await;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "DROP INDEX".to_string(),
             })
         }
     }

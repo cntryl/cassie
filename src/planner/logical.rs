@@ -2,8 +2,8 @@ use crate::app::CassieError;
 use crate::sql::{
     ast::{
         AlterTableOperation, AlterTableStatement, CommonTableExpression, CreateSchemaStatement,
-        CreateTableStatement, DropTableStatement, Expr, OrderExpr, QuerySource, QueryStatement,
-        SelectItem, SelectStatement,
+        CreateIndexStatement, CreateTableStatement, DropIndexStatement, DropTableStatement, Expr,
+        OrderExpr, QuerySource, QueryStatement, SelectItem, SelectStatement,
     },
     binder::BoundStatement,
 };
@@ -27,6 +27,8 @@ pub enum LogicalCommand {
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
     CreateSchema(CreateSchemaStatement),
+    CreateIndex(CreateIndexStatement),
+    DropIndex(DropIndexStatement),
 }
 
 pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
@@ -118,6 +120,59 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 command: Some(LogicalCommand::CreateSchema(statement.clone())),
                 source: QuerySource::Collection(statement.schema.clone()),
                 collection: statement.schema.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
+        QueryStatement::CreateIndex(statement) => {
+            if statement.table.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "CREATE INDEX requires a collection name".into(),
+                ));
+            }
+            if statement.name.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "CREATE INDEX requires an index name".into(),
+                ));
+            }
+            if statement.field.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "CREATE INDEX requires an indexed field".into(),
+                ));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::CreateIndex(statement.clone())),
+                source: QuerySource::Collection(statement.table.clone()),
+                collection: statement.table.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
+        QueryStatement::DropIndex(statement) => {
+            if statement.table.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "DROP INDEX requires a collection name".into(),
+                ));
+            }
+            if statement.name.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "DROP INDEX requires an index name".into(),
+                ));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::DropIndex(statement.clone())),
+                source: QuerySource::Collection(statement.table.clone()),
+                collection: statement.table.clone(),
                 ctes: Vec::new(),
                 projection: Vec::new(),
                 filter: None,

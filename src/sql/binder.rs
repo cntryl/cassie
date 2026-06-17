@@ -6,8 +6,9 @@ use std::pin::Pin;
 use crate::app::CassieError;
 use crate::catalog::Catalog;
 use crate::sql::ast::{
-    AlterTableOperation, AlterTableStatement, CreateSchemaStatement, CteQuery, Expr, FunctionCall,
-    ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
+    AlterTableOperation, AlterTableStatement, CreateIndexStatement, CreateSchemaStatement,
+    DropIndexStatement, CteQuery, Expr, FunctionCall, ParsedStatement, QuerySource, QueryStatement,
+    SelectItem, SelectStatement,
 };
 
 type CteScope = HashMap<String, Vec<String>>;
@@ -61,6 +62,20 @@ fn bind_statement<'a>(
                     statement: QueryStatement::AlterTable(statement),
                 })
             }
+            QueryStatement::CreateIndex(statement) => {
+                let statement = bind_create_index(statement, catalog).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::CreateIndex(statement),
+                })
+            }
+            QueryStatement::DropIndex(statement) => {
+                let statement = bind_drop_index(statement, catalog).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::DropIndex(statement),
+                })
+            }
             QueryStatement::CreateSchema(statement) => {
                 let schema = statement.schema.trim().to_string();
                 if schema.is_empty() {
@@ -102,6 +117,7 @@ async fn bind_create_table(
     }
 
     let mut seen = HashSet::new();
+    let mut primary_key_field: Option<String> = None;
     for field in &mut statement.fields {
         let field_name = field.name.trim();
         if field_name.is_empty() {
@@ -115,10 +131,107 @@ async fn bind_create_table(
                 "CREATE TABLE field '{field_name}' is defined more than once"
             )));
         }
+
+        for constraint in &field.constraints {
+            if constraint.primary_key {
+                if let Some(previous) = &primary_key_field {
+                    return Err(CassieError::Planner(format!(
+                        "multiple primary keys defined on '{name}': '{previous}' and '{field_name}'"
+                    )));
+                }
+                primary_key_field = Some(field_name.to_string());
+            }
+        }
+
         field.name = field_name.to_string();
     }
 
     statement.table = name;
+    Ok(statement)
+}
+
+async fn bind_create_index(
+    mut statement: CreateIndexStatement,
+    catalog: &Catalog,
+) -> Result<CreateIndexStatement, CassieError> {
+    let table = statement.table.trim().to_string();
+    if table.is_empty() {
+        return Err(CassieError::Planner(
+            "CREATE INDEX requires a collection name".into(),
+        ));
+    }
+    if !catalog.exists(&table).await {
+        return Err(CassieError::CollectionNotFound(table));
+    }
+
+    let name = statement.name.trim().to_string();
+    if name.is_empty() {
+        return Err(CassieError::Planner(
+            "CREATE INDEX requires an index name".into(),
+        ));
+    }
+
+    let field = statement.field.trim().to_string();
+    if field.is_empty() {
+        return Err(CassieError::Planner(
+            "CREATE INDEX requires an index field".into(),
+        ));
+    }
+
+    let schema = catalog
+        .get_schema(&table)
+        .await
+        .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
+    if !schema.fields.iter().any(|entry| entry.name == field) {
+        return Err(CassieError::Planner(format!(
+            "index field '{field}' does not exist on collection '{table}'"
+        )));
+    }
+
+    if !statement.if_not_exists && catalog.get_index(&table, &name).await.is_some() {
+        return Err(CassieError::Planner(format!(
+            "index '{name}' already exists on collection '{table}'"
+        )));
+    }
+
+    statement.table = table;
+    statement.name = name;
+    statement.field = field;
+    Ok(statement)
+}
+
+async fn bind_drop_index(
+    mut statement: DropIndexStatement,
+    catalog: &Catalog,
+) -> Result<DropIndexStatement, CassieError> {
+    let table = statement.table.trim().to_string();
+    if table.is_empty() {
+        return Err(CassieError::Planner(
+            "DROP INDEX requires a collection name".into(),
+        ));
+    }
+    let name = statement.name.trim().to_string();
+    if name.is_empty() {
+        return Err(CassieError::Planner("DROP INDEX requires an index name".into()));
+    }
+
+    if !catalog.exists(&table).await {
+        if !statement.if_exists {
+            return Err(CassieError::CollectionNotFound(table));
+        }
+        statement.table = table;
+        statement.name = name;
+        return Ok(statement);
+    }
+
+    if !statement.if_exists && catalog.get_index(&table, &name).await.is_none() {
+        return Err(CassieError::Planner(format!(
+            "index '{name}' does not exist on collection '{table}'"
+        )));
+    }
+
+    statement.table = table;
+    statement.name = name;
     Ok(statement)
 }
 

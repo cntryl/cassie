@@ -384,6 +384,128 @@ fn should_persist_namespace_on_create_schema() {
 }
 
 #[test]
+fn should_enforce_constraints_during_ingest() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("constraints_ingest");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let create = cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE constraint_docs (id INT PRIMARY KEY, email TEXT NOT NULL UNIQUE, status TEXT DEFAULT 'pending', score INT CHECK (score >= 18))",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        let first = cassie
+            .ingest_document(
+                "constraint_docs",
+                serde_json::json!({"id": 1, "email": "a@example.com", "score": 25}),
+            )
+            .await
+            .unwrap();
+        let missing_not_null = cassie
+            .ingest_document("constraint_docs", serde_json::json!({"id": 2, "score": 20}))
+            .await;
+        let duplicate = cassie
+            .ingest_document(
+                "constraint_docs",
+                serde_json::json!({"id": 3, "email": "a@example.com", "score": 19}),
+            )
+            .await;
+        let rejected_check = cassie
+            .ingest_document(
+                "constraint_docs",
+                serde_json::json!({"id": 4, "email": "b@example.com", "score": 17}),
+            )
+            .await;
+
+        let inserted = cassie
+            .midge
+            .get_document("constraint_docs", &first)
+            .await
+            .unwrap()
+            .expect("document inserted");
+
+        // Assert
+        assert_eq!(create.command, "CREATE TABLE");
+        assert_eq!(
+            inserted.payload.get("status").expect("status is defaulted"),
+            &serde_json::Value::String("pending".to_string())
+        );
+        assert!(missing_not_null.is_err());
+        assert!(missing_not_null
+            .unwrap_err()
+            .to_string()
+            .contains("cannot be null"));
+        assert!(duplicate.is_err());
+        assert!(duplicate
+            .unwrap_err()
+            .to_string()
+            .contains("unique constraint"));
+        assert!(rejected_check.is_err());
+        assert!(rejected_check
+            .unwrap_err()
+            .to_string()
+            .contains("check constraint"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_hydrate_collection_constraints_on_startup() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("constraints_hydrate");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE hydrated_constraints (id INT, email TEXT NOT NULL UNIQUE, score INT CHECK (score >= 0))",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        drop(cassie);
+
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().await.unwrap();
+
+        let constraints = restarted.catalog.get_constraints("hydrated_constraints").await;
+        // Assert
+        assert_eq!(constraints.len(), 2);
+        assert!(constraints.iter().any(|constraint| constraint.not_null));
+        assert!(constraints.iter().any(|constraint| constraint.unique));
+        assert!(constraints.iter().any(|constraint| constraint.check.is_some()));
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
     // Arrange
     with_fallback();

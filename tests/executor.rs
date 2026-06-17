@@ -2410,3 +2410,63 @@ async fn should_execute_create_alter_and_drop_table_commands() {
 
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[tokio::test]
+async fn should_execute_create_and_drop_index_commands() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ddl_index_command");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let session = cassie.create_session("tester", None).await;
+
+    // Act
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE idx_commands (id TEXT, title TEXT)",
+            vec![],
+        )
+        .await
+        .unwrap();
+
+    let create_index = cassie
+        .execute_sql(
+            &session,
+            "CREATE INDEX idx_title ON idx_commands USING btree (title)",
+            vec![],
+        )
+        .await
+        .unwrap();
+
+    let catalog_index = cassie
+        .catalog
+        .get_index("idx_commands", "idx_title")
+        .await
+        .expect("index should be in catalog");
+    let stored_index = cassie
+        .midge
+        .get_index("idx_commands", "idx_title")
+        .await
+        .unwrap()
+        .expect("index should be persisted");
+
+    let drop_index = cassie
+        .execute_sql(
+            &session,
+            "DROP INDEX IF EXISTS idx_title ON idx_commands",
+            vec![],
+        )
+        .await
+        .unwrap();
+
+    // Assert
+    assert_eq!(create_index.command, "CREATE INDEX");
+    assert_eq!(create_index.columns.len(), 0);
+    assert!(!catalog_index.unique);
+    assert_eq!(catalog_index.field, "title");
+    assert_eq!(stored_index.field, "title");
+    assert_eq!(drop_index.command, "DROP INDEX");
+    assert!(cassie.catalog.get_index("idx_commands", "idx_title").await.is_none());
+
+    let _ = std::fs::remove_dir_all(path);
+}

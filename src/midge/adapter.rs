@@ -6,7 +6,7 @@ use cntryl_midge::{ColumnFamilyHandle, Engine, Query, TransactionMode, WriteOpti
 use uuid::Uuid;
 
 use crate::app::CassieError;
-use crate::catalog::NamespaceMeta;
+use crate::catalog::{FieldConstraint, IndexMeta, NamespaceMeta};
 use crate::types::{DataType, FieldSchema, Schema, Value, Vector};
 
 fn allow_memory_fallback() -> bool {
@@ -25,6 +25,8 @@ const DATA_FAMILY_NAME: &str = "cf1";
 const TEMP_FAMILY_NAME: &str = "cf2";
 const DEFAULT_FAMILY_NAME: &str = "default";
 const VECTOR_INDEX_PREFIX: &str = "__cassie__/vector-index/";
+const INDEX_PREFIX: &str = "__cassie__/index/";
+const CONSTRAINTS_PREFIX: &str = "__cassie__/constraints/";
 const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
 const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
 const NAMESPACES_KEY: &str = "__cassie__/namespaces";
@@ -284,6 +286,22 @@ impl Midge {
 
     fn vector_index_collection_prefix(collection: &str) -> Vec<u8> {
         format!("{VECTOR_INDEX_PREFIX}{collection}/").into_bytes()
+    }
+
+    fn index_key(collection: &str, name: &str) -> Vec<u8> {
+        format!("{INDEX_PREFIX}{collection}/{name}").into_bytes()
+    }
+
+    fn index_prefix() -> Vec<u8> {
+        INDEX_PREFIX.as_bytes().to_vec()
+    }
+
+    fn index_collection_prefix(collection: &str) -> Vec<u8> {
+        format!("{INDEX_PREFIX}{collection}/").into_bytes()
+    }
+
+    fn constraints_key(collection: &str) -> Vec<u8> {
+        format!("{CONSTRAINTS_PREFIX}{collection}").into_bytes()
     }
 
     fn namespace_key(namespace: &str) -> Vec<u8> {
@@ -547,6 +565,22 @@ impl Midge {
             schema_tx.delete(key).map_err(CassieError::from)?;
         }
 
+        let index_prefix = Self::index_collection_prefix(name);
+        let mut index_scan = schema_tx
+            .scan(&Query::new().prefix(index_prefix.into()))
+            .map_err(CassieError::from)?;
+        let mut index_keys = Vec::new();
+        while let Some((key, _)) = index_scan.next() {
+            index_keys.push(key);
+        }
+        for key in index_keys {
+            schema_tx.delete(key).map_err(CassieError::from)?;
+        }
+
+        schema_tx
+            .delete(Self::constraints_key(name))
+            .map_err(CassieError::from)?;
+
         let mut collections = self.load_collections(&schema_tx).await?;
         collections.retain(|entry| entry != name);
         self.save_collections(&mut schema_tx, &collections).await?;
@@ -709,6 +743,43 @@ impl Midge {
                 .map_err(CassieError::from)?;
         }
 
+        let index_prefix = Self::index_collection_prefix(current_name);
+        let mut indexes = schema_tx
+            .scan(&Query::new().prefix(index_prefix.into()))
+            .map_err(CassieError::from)?;
+        let mut index_keys = Vec::new();
+        while let Some((key, _value)) = indexes.next() {
+            index_keys.push(key);
+        }
+        for key in index_keys {
+            let Some(raw_value) = schema_tx.get(&key).map_err(CassieError::from)? else {
+                continue;
+            };
+            let Ok(mut metadata) = serde_json::from_slice::<IndexMeta>(&raw_value) else {
+                continue;
+            };
+
+            metadata.collection = next_name.to_string();
+            schema_tx.delete(key).map_err(CassieError::from)?;
+            let next_key = Self::index_key(&metadata.collection, &metadata.name);
+            let value = serde_json::to_vec(&metadata)
+                .map_err(|error| CassieError::Parse(error.to_string()))?;
+            schema_tx
+                .put(next_key, value, None)
+                .map_err(CassieError::from)?;
+        }
+
+        let current_constraints_key = Self::constraints_key(current_name);
+        let constraints = schema_tx
+            .get(&current_constraints_key)
+            .map_err(CassieError::from)?;
+        if let Some(raw) = constraints {
+            schema_tx.delete(current_constraints_key).map_err(CassieError::from)?;
+            schema_tx
+                .put(Self::constraints_key(next_name), raw.to_vec(), None)
+                .map_err(CassieError::from)?;
+        }
+
         schema_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
@@ -772,6 +843,91 @@ impl Midge {
         serde_json::from_slice(&raw)
             .map(Some)
             .map_err(|error| CassieError::Parse(format!("invalid vector index metadata: {error}")))
+    }
+
+    pub async fn put_index(&self, metadata: IndexMeta) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let key = Self::index_key(&metadata.collection, &metadata.name);
+        let value = serde_json::to_vec(&metadata)
+            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(key, value, None).map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn get_index(
+        &self,
+        collection: &str,
+        name: &str,
+    ) -> Result<Option<IndexMeta>, CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        let raw = tx
+            .get(&Self::index_key(collection, name))
+            .map_err(CassieError::from)?;
+        let Some(raw) = raw else {
+            return Ok(None);
+        };
+
+        serde_json::from_slice(&raw)
+            .map(Some)
+            .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))
+    }
+
+    pub async fn list_indexes(&self) -> Result<Vec<IndexMeta>, CassieError> {
+        let entries = self
+            .raw_scan_prefix(StorageFamily::Schema, &Self::index_prefix())
+            .await?;
+        let mut out = Vec::with_capacity(entries.len());
+
+        for (_key, raw_value) in entries {
+            let Ok(record) = serde_json::from_slice(&raw_value) else {
+                continue;
+            };
+            out.push(record);
+        }
+
+        Ok(out)
+    }
+
+    pub async fn delete_index(&self, collection: &str, name: &str) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.delete(Self::index_key(collection, name))
+            .map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn save_constraints(
+        &self,
+        collection: &str,
+        constraints: &[FieldConstraint],
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let value = serde_json::to_vec(constraints)
+            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(Self::constraints_key(collection), value, None)
+            .map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn load_constraints(
+        &self,
+        collection: &str,
+    ) -> Result<Vec<FieldConstraint>, CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        let raw = tx
+            .get(&Self::constraints_key(collection))
+            .map_err(CassieError::from)?;
+        let Some(raw) = raw else {
+            return Ok(Vec::new());
+        };
+
+        serde_json::from_slice(&raw)
+            .map_err(|error| CassieError::Parse(format!("invalid constraint metadata: {error}")))
     }
 
     pub async fn list_vector_indexes(

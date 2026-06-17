@@ -732,13 +732,11 @@ fn should_default_missing_offset_to_zero_in_execution() {
         let collection = "exec_default_offset";
 
         let schema = Schema {
-            fields: vec![
-                FieldSchema {
-                    name: "title".to_string(),
-                    data_type: DataType::Text,
-                    nullable: true,
-                },
-            ],
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
         };
 
         cassie
@@ -1600,5 +1598,258 @@ fn should_filter_by_hybrid_score_threshold() {
         // Assert
         assert_eq!(result.rows.len(), 1);
         assert_eq!(result.rows[0][0], Value::String("d1".to_string()));
+    });
+}
+
+#[test]
+fn should_project_missing_columns_as_null() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let cassie = Cassie::new().unwrap();
+        let collection = "exec_missing_projection_column";
+
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let session = cassie.create_session("tester", None).await;
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT title, body FROM exec_missing_projection_column",
+                vec![],
+            )
+            .await
+            .expect("query should execute");
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0].len(), 2);
+        assert_eq!(result.rows[0][0], Value::String("alpha".to_string()));
+        assert_eq!(result.rows[0][1], Value::Null);
+    });
+}
+
+#[test]
+fn should_sort_by_unprojected_column_before_projection() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let cassie = Cassie::new().unwrap();
+        let collection = "exec_order_by_unprojected_field";
+
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("id1".to_string()),
+                serde_json::json!({"title": "title-a", "body": "zzz"}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("id2".to_string()),
+                serde_json::json!({"title": "title-b", "body": "aaa"}),
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let session = cassie.create_session("tester", None).await;
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM exec_order_by_unprojected_field ORDER BY body ASC",
+                vec![],
+            )
+            .await
+            .expect("query should execute");
+
+        // Assert
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0][0], Value::String("title-b".to_string()));
+        assert_eq!(result.rows[1][0], Value::String("title-a".to_string()));
+    });
+}
+
+#[test]
+fn should_be_deterministic_for_repeated_execution_metadata() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let cassie = Cassie::new().unwrap();
+        let collection = "exec_repeated_metadata";
+
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("id1".to_string()),
+                serde_json::json!({"title": "alpha", "body": "first"}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("id2".to_string()),
+                serde_json::json!({"title": "beta", "body": "second"}),
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let session = cassie.create_session("tester", None).await;
+        let first = cassie
+            .execute_sql(
+                &session,
+                "SELECT title, body FROM exec_repeated_metadata ORDER BY title ASC",
+                vec![],
+            )
+            .await
+            .expect("query should execute");
+        let second = cassie
+            .execute_sql(
+                &session,
+                "SELECT title, body FROM exec_repeated_metadata ORDER BY title ASC",
+                vec![],
+            )
+            .await
+            .expect("query should execute");
+
+        // Assert
+        assert_eq!(first.command, second.command);
+        let first_columns = first
+            .columns
+            .iter()
+            .map(|column| (column.name.clone(), column.data_type.clone()))
+            .collect::<Vec<_>>();
+        let second_columns = second
+            .columns
+            .iter()
+            .map(|column| (column.name.clone(), column.data_type.clone()))
+            .collect::<Vec<_>>();
+        assert_eq!(first_columns, second_columns);
+        assert_eq!(first.rows, second.rows);
     });
 }

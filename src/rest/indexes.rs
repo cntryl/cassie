@@ -147,10 +147,7 @@ pub async fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Va
         metadata,
     };
 
-    cassie
-        .midge
-        .put_vector_index(record.clone())
-        .await?;
+    cassie.midge.put_vector_index(record.clone()).await?;
     cassie.register_vector_index(record.clone()).await;
 
     Ok(serde_json::json!({

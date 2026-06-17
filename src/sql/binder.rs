@@ -33,7 +33,12 @@ pub async fn bind(
 
     validate_functions(&statement)?;
     validate_projection_references(&select.projection, &known_fields)?;
-    validate_expression_references(select.filter.as_ref(), &known_fields, &projection_aliases, false)?;
+    validate_expression_references(
+        select.filter.as_ref(),
+        &known_fields,
+        &projection_aliases,
+        false,
+    )?;
     validate_order_by_references(select.order.iter(), &known_fields, &projection_aliases)?;
 
     Ok(BoundStatement { statement })
@@ -43,8 +48,12 @@ fn collect_projection_aliases(select: &crate::sql::ast::SelectStatement) -> Hash
     let mut aliases = HashSet::new();
     for item in &select.projection {
         match item {
-            SelectItem::Column { alias: Some(alias), .. }
-            | SelectItem::Function { alias: Some(alias), .. } => {
+            SelectItem::Column {
+                alias: Some(alias), ..
+            }
+            | SelectItem::Function {
+                alias: Some(alias), ..
+            } => {
                 aliases.insert(alias.to_ascii_lowercase());
             }
             _ => {}
@@ -93,7 +102,12 @@ fn validate_expression_references(
         return Ok(());
     };
 
-    validate_expression(expression, known_fields, projection_aliases, allow_projection_alias)
+    validate_expression(
+        expression,
+        known_fields,
+        projection_aliases,
+        allow_projection_alias,
+    )
 }
 
 fn validate_order_by_references(
@@ -102,12 +116,7 @@ fn validate_order_by_references(
     projection_aliases: &HashSet<String>,
 ) -> Result<(), CassieError> {
     for item in order {
-        validate_expression(
-            &item.expr,
-            known_fields,
-            projection_aliases,
-            true,
-        )?;
+        validate_expression(&item.expr, known_fields, projection_aliases, true)?;
     }
     Ok(())
 }
@@ -161,12 +170,27 @@ fn validate_expression(
             )))
         }
         Expr::Binary { left, right, .. } => {
-            validate_expression(left, known_fields, projection_aliases, allow_projection_alias)?;
-            validate_expression(right, known_fields, projection_aliases, allow_projection_alias)
+            validate_expression(
+                left,
+                known_fields,
+                projection_aliases,
+                allow_projection_alias,
+            )?;
+            validate_expression(
+                right,
+                known_fields,
+                projection_aliases,
+                allow_projection_alias,
+            )
         }
         Expr::Function(function) => {
             for arg in &function.args {
-                validate_expression(arg, known_fields, projection_aliases, allow_projection_alias)?;
+                validate_expression(
+                    arg,
+                    known_fields,
+                    projection_aliases,
+                    allow_projection_alias,
+                )?;
             }
 
             Ok(())

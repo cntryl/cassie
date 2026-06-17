@@ -201,10 +201,7 @@ fn should_reject_ingest_when_dimensions_change() {
 
         // Assert
         let result = cassie
-            .ingest_document(
-                collection,
-                serde_json::json!({"content": "sample text"}),
-            )
+            .ingest_document(collection, serde_json::json!({"content": "sample text"}))
             .await;
         assert!(matches!(result, Err(CassieError::InvalidEmbedding(_))));
     });

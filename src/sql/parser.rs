@@ -93,7 +93,8 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
                     if !seen.insert("limit") {
                         return Err(SqlError("duplicate LIMIT clause".into()));
                     }
-                    limit_clause = take_int(raw_value).map_err(|error| SqlError(error.to_string()))?;
+                    limit_clause =
+                        take_int(raw_value).map_err(|error| SqlError(error.to_string()))?;
                 }
                 Clause::Offset => {
                     if !seen.insert("offset") {
@@ -189,7 +190,9 @@ impl std::fmt::Display for ParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidClause(value) => write!(f, "invalid clause value: '{value}'"),
-            Self::NegativeValue(value) => write!(f, "negative clause value not supported: '{value}'"),
+            Self::NegativeValue(value) => {
+                write!(f, "negative clause value not supported: '{value}'")
+            }
         }
     }
 }
@@ -225,7 +228,7 @@ fn split_csv(s: &str) -> Vec<&str> {
                 start = i + ch.len_utf8();
                 continue;
             }
-        _ => {}
+            _ => {}
         }
     }
     out.push(&s[start..]);
@@ -522,9 +525,7 @@ fn find_top_level_clause(rest: &str, start: usize, token: &str) -> Option<usize>
                 '(' if !in_single && !in_double => depth += 1,
                 ')' if !in_single && !in_double => depth = depth.saturating_sub(1),
                 '[' if !in_single && !in_double => bracket_depth += 1,
-                ']' if !in_single && !in_double => {
-                    bracket_depth = bracket_depth.saturating_sub(1)
-                }
+                ']' if !in_single && !in_double => bracket_depth = bracket_depth.saturating_sub(1),
                 _ => {}
             }
             continue;
@@ -536,9 +537,7 @@ fn find_top_level_clause(rest: &str, start: usize, token: &str) -> Option<usize>
             '(' if !in_single && !in_double => depth += 1,
             ')' if !in_single && !in_double => depth = depth.saturating_sub(1),
             '[' if !in_single && !in_double => bracket_depth += 1,
-            ']' if !in_single && !in_double => {
-                bracket_depth = bracket_depth.saturating_sub(1)
-            }
+            ']' if !in_single && !in_double => bracket_depth = bracket_depth.saturating_sub(1),
             _ => {}
         }
 

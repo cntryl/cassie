@@ -592,10 +592,7 @@ fn should_reject_unknown_projection_column_during_binding() {
             .await;
 
         // Act
-        let parsed = parse_statement(
-            "SELECT unknown FROM binder_docs_projection_col",
-        )
-        .unwrap();
+        let parsed = parse_statement("SELECT unknown FROM binder_docs_projection_col").unwrap();
         let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
 
         // Assert
@@ -623,5 +620,8 @@ fn should_parse_deterministically_across_invocations() {
         QueryStatement::Select(statement) => ((), statement),
     };
 
-    assert_eq!(format!("{:?}", first_statement), format!("{:?}", second_statement));
+    assert_eq!(
+        format!("{:?}", first_statement),
+        format!("{:?}", second_statement)
+    );
 }

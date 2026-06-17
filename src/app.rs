@@ -1,6 +1,6 @@
 use std::path::Path;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use serde::Serialize;
 
@@ -139,9 +139,9 @@ impl Cassie {
     }
 
     pub async fn startup(&self) -> Result<(), CassieError> {
-        self.midge
-            .ensure_families_ready()
-            .map_err(|error| CassieError::StorageBootstrap(format!("bootstrap families: {error}")))?;
+        self.midge.ensure_families_ready().map_err(|error| {
+            CassieError::StorageBootstrap(format!("bootstrap families: {error}"))
+        })?;
         self.midge
             .clear_temp_family()
             .await

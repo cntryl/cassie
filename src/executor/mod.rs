@@ -1,6 +1,6 @@
+pub mod aggregate;
 #[path = "executor.rs"]
 mod execution;
-pub mod aggregate;
 pub mod filter;
 pub mod projection;
 pub mod scan;

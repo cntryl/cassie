@@ -1,6 +1,6 @@
-use cassie::{app::CassieError, Cassie, CassieRuntimeConfig};
 use cassie::config::EmbeddingsRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
+use cassie::{app::CassieError, Cassie, CassieRuntimeConfig};
 use std::env;
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -220,7 +220,10 @@ fn should_startup_respects_runtime_config_defaults() {
     assert_eq!(config.rest_listen, "127.0.0.1:8080");
     assert_eq!(config.user, "postgres");
     assert_eq!(config.password, "postgres");
-    assert!(matches!(config.embeddings, EmbeddingsRuntimeConfig::Disabled));
+    assert!(matches!(
+        config.embeddings,
+        EmbeddingsRuntimeConfig::Disabled
+    ));
 
     for (key, value) in backup {
         if let Some(value) = value {
@@ -248,14 +251,19 @@ fn should_create_session_without_mutating_runtime_state() {
         let before_collections = cassie.catalog.list_collections().await.len();
 
         // Act
-        let session = cassie.create_session("tester", Some("postgres".to_string())).await;
+        let session = cassie
+            .create_session("tester", Some("postgres".to_string()))
+            .await;
         let after_health = cassie.health().await;
         let after_collections = cassie.catalog.list_collections().await.len();
 
         // Assert
         assert_eq!(session.user, "tester");
         assert_eq!(session.database, Some("postgres".to_string()));
-        assert_eq!(before_health["ready"].as_bool(), after_health["ready"].as_bool());
+        assert_eq!(
+            before_health["ready"].as_bool(),
+            after_health["ready"].as_bool()
+        );
         assert_eq!(before_health["status"], after_health["status"]);
         assert_eq!(before_collections, after_collections);
 

@@ -48,7 +48,10 @@ fn should_bootstrap_cf0_cf1_cf2_idempotently() {
         let second_ids = normalize_family_ids(&reloaded);
 
         // Assert
-        assert_eq!(first_state.1, ("cf0".to_string(), "cf1".to_string(), "cf2".to_string()));
+        assert_eq!(
+            first_state.1,
+            ("cf0".to_string(), "cf1".to_string(), "cf2".to_string())
+        );
         assert_eq!(second_ids, first_state.0);
 
         let _ = std::fs::remove_dir_all(path);
@@ -368,12 +371,8 @@ fn should_hydrate_from_schema_records_when_collections_index_is_missing() {
             .await
             .unwrap();
 
-        let mut tx = cassie
-            .midge
-            .schema_tx(TransactionMode::ReadWrite)
-            .unwrap();
-        tx.delete(b"__cassie__/collections".to_vec())
-            .unwrap();
+        let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
+        tx.delete(b"__cassie__/collections".to_vec()).unwrap();
         tx.commit(cntryl_midge::WriteOptions::sync()).unwrap();
 
         drop(cassie);
@@ -448,7 +447,9 @@ fn should_refresh_in_memory_catalog_during_startup() {
             .collect::<Vec<_>>();
 
         // Assert
-        assert!(collections.iter().any(|value| value == "hydrated_collection"));
+        assert!(collections
+            .iter()
+            .any(|value| value == "hydrated_collection"));
         assert!(!collections.iter().any(|value| value == "ghost_collection"));
 
         let _ = std::fs::remove_dir_all(path);

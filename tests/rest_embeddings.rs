@@ -29,12 +29,12 @@ impl MockOpenAiServer {
         );
         let thread = thread::spawn(move || {
             let responses = responses.into_iter();
-    for response in responses {
-        let (mut stream, _) = listener.accept().expect("mock accept");
-        let body = read_http_body(&mut stream);
-        if body.is_empty() {
-            continue;
-        }
+            for response in responses {
+                let (mut stream, _) = listener.accept().expect("mock accept");
+                let body = read_http_body(&mut stream);
+                if body.is_empty() {
+                    continue;
+                }
 
                 let mut output = String::new();
                 output.push_str("HTTP/1.1 ");

@@ -3,7 +3,6 @@ use cassie::sql::binder;
 use cassie::sql::parser;
 use cassie::types::{DataType, FieldSchema, Schema, Value};
 use std::env;
-use std::path::PathBuf;
 use uuid::Uuid;
 
 fn with_fallback() {
@@ -196,7 +195,7 @@ async fn execute_query_with_alias_and_filters() {
         Value::String(value) => assert_eq!(value, "alpha"),
         _ => panic!("expected string in first column"),
     }
-    let _ = std::fs::remove_dir_all(PathBuf::from(path));
+    let _ = std::fs::remove_dir_all(path);
 }
 
 #[tokio::test]

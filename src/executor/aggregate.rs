@@ -1,6 +1,6 @@
 use crate::sql::ast::SelectItem;
 
-use crate::executor::executor::ColumnMeta;
+use crate::executor::ColumnMeta;
 
 pub fn columns_from_projection(projection: &[SelectItem]) -> Vec<ColumnMeta> {
     if projection.is_empty() {

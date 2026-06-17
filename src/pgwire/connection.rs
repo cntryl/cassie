@@ -250,7 +250,7 @@ pub async fn run_connection(
                         ));
                         for row in result.rows {
                             response.push(ServerMessage::DataRow(
-                                row.into_iter().map(|value| value_to_text(value)).collect(),
+                                row.into_iter().map(value_to_text).collect(),
                             ));
                         }
                         response.push(ServerMessage::CommandComplete(result.command));

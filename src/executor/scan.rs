@@ -4,12 +4,12 @@ use crate::types::Value;
 pub async fn scan(
     cassie: &Cassie,
     collection: &str,
-) -> Result<Vec<Vec<(String, Value)>>, crate::executor::executor::QueryError> {
+) -> Result<Vec<Vec<(String, Value)>>, crate::executor::QueryError> {
     let documents = cassie
         .midge
         .all_fields_json(collection)
         .await
-        .map_err(|e| crate::executor::executor::QueryError::General(e.to_string()))?;
+        .map_err(|e| crate::executor::QueryError::General(e.to_string()))?;
 
     let mut rows = Vec::with_capacity(documents.len());
     for (id, payload) in documents {

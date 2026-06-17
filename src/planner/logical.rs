@@ -14,9 +14,7 @@ pub struct LogicalPlan {
 }
 
 pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, crate::app::CassieError> {
-    let select = match &bound.statement.statement {
-        crate::sql::ast::QueryStatement::Select(sel) => sel,
-    };
+    let crate::sql::ast::QueryStatement::Select(select) = &bound.statement.statement;
     Ok(LogicalPlan {
         collection: select.collection.clone(),
         projection: select.projection.clone(),

@@ -69,7 +69,7 @@ pub async fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Va
     let metric = payload
         .options
         .get("metric")
-        .and_then(|metric| DistanceMetric::from_str(metric))
+        .and_then(|metric| metric.parse::<DistanceMetric>().ok())
         .unwrap_or(DistanceMetric::Cosine);
 
     let metadata = VectorIndexMetadata {
@@ -150,8 +150,7 @@ pub async fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Va
     cassie
         .midge
         .put_vector_index(record.clone())
-        .await
-        .map_err(CassieError::from)?;
+        .await?;
     cassie.register_vector_index(record.clone()).await;
 
     Ok(serde_json::json!({

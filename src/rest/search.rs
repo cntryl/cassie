@@ -24,13 +24,19 @@ pub async fn vector_search(
     let request: SearchRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
 
-    let metric = request.metric.as_deref().and_then(DistanceMetric::from_str);
+    let metric = request
+        .metric
+        .as_deref()
+        .and_then(|metric| metric.parse::<DistanceMetric>().ok());
+    let requested_metric = request.metric.as_deref();
 
-    if request.metric.is_some() && metric.is_none() {
-        return Err(CassieError::InvalidEmbedding(format!(
-            "unsupported metric '{}'. expected cosine/l2/dot",
-            request.metric.unwrap()
-        )));
+    if let Some(requested_metric) = requested_metric {
+        if metric.is_none() {
+            return Err(CassieError::InvalidEmbedding(format!(
+                "unsupported metric '{}'. expected cosine/l2/dot",
+                requested_metric
+            )));
+        }
     }
 
     let limit = request.limit.unwrap_or(10);

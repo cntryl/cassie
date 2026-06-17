@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
 
@@ -33,6 +34,7 @@ pub struct Cassie {
     pub midge: Arc<Midge>,
     pub catalog: Catalog,
     pub embedding_provider: Arc<dyn EmbeddingProvider>,
+    pub started: Arc<AtomicBool>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -101,6 +103,7 @@ impl Cassie {
             midge,
             catalog: Catalog::new(),
             embedding_provider,
+            started: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -134,9 +137,22 @@ impl Cassie {
     }
 
     pub async fn startup(&self) -> Result<(), CassieError> {
-        self.midge.ensure_families_ready()?;
-        self.midge.clear_temp_family().await?;
-        self.hydrate_catalog().await
+        self.midge
+            .ensure_families_ready()
+            .map_err(|error| CassieError::StorageBootstrap(format!("bootstrap families: {error}")))?;
+        self.midge
+            .clear_temp_family()
+            .await
+            .map_err(|error| CassieError::Storage(format!("clear temp family: {error}")))?;
+        self.hydrate_catalog()
+            .await
+            .map_err(|error| CassieError::Storage(format!("catalog hydration: {error}")))?;
+        self.started.store(true, Ordering::SeqCst);
+        Ok(())
+    }
+
+    pub fn is_started(&self) -> bool {
+        self.started.load(Ordering::SeqCst)
     }
 
     pub async fn execute_sql(
@@ -344,9 +360,11 @@ impl Cassie {
     }
 
     pub async fn health(&self) -> serde_json::Value {
+        let ready = self.is_started();
         let collections = self.midge.list_collections().await;
         serde_json::json!({
-            "status": "ok",
+            "status": if ready { "ok" } else { "starting" },
+            "ready": ready,
             "collections": collections.len(),
             "version": env!("CARGO_PKG_VERSION")
         })
@@ -363,7 +381,7 @@ impl Cassie {
         serde_json::json!({
             "uptime_seconds": 0,
             "running_queries": 0,
-            "ready": true,
+            "ready": self.is_started(),
             "auth_user": "postgres"
         })
     }
@@ -374,12 +392,10 @@ fn build_embedding_provider(
 ) -> Result<Arc<dyn EmbeddingProvider>, CassieError> {
     match &config.embeddings {
         EmbeddingsRuntimeConfig::Disabled => Ok(Arc::new(LocalProvider)),
-        EmbeddingsRuntimeConfig::Voyage => Ok(Arc::new(VoyageProvider::default())),
-        EmbeddingsRuntimeConfig::Cohere => Ok(Arc::new(CohereProvider::default())),
-        EmbeddingsRuntimeConfig::Local => Ok(Arc::new(LocalProvider::default())),
-        EmbeddingsRuntimeConfig::OpenAI(runtime) => {
-            build_openai_provider(runtime).map_err(CassieError::from)
-        }
+        EmbeddingsRuntimeConfig::Voyage => Ok(Arc::new(VoyageProvider)),
+        EmbeddingsRuntimeConfig::Cohere => Ok(Arc::new(CohereProvider)),
+        EmbeddingsRuntimeConfig::Local => Ok(Arc::new(LocalProvider)),
+        EmbeddingsRuntimeConfig::OpenAI(runtime) => build_openai_provider(runtime),
     }
 }
 

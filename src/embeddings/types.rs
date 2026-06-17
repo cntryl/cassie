@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -17,20 +18,24 @@ impl DistanceMetric {
         }
     }
 
-    pub fn from_str(value: &str) -> Option<Self> {
-        match value.trim().to_lowercase().as_str() {
-            "cosine" => Some(Self::Cosine),
-            "l2" | "euclidean" | "euclidean_distance" => Some(Self::L2),
-            "dot" | "dot_product" => Some(Self::Dot),
-            _ => None,
-        }
-    }
-
     pub fn sql_operator(&self) -> &'static str {
         match self {
             Self::Cosine => "<=>",
             Self::L2 => "<->",
             Self::Dot => "<#>",
+        }
+    }
+}
+
+impl FromStr for DistanceMetric {
+    type Err = ();
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_lowercase().as_str() {
+            "cosine" => Ok(Self::Cosine),
+            "l2" | "euclidean" | "euclidean_distance" => Ok(Self::L2),
+            "dot" | "dot_product" => Ok(Self::Dot),
+            _ => Err(()),
         }
     }
 }

@@ -147,8 +147,7 @@ fn parse_content_length(value: &[u8]) -> usize {
     let header = String::from_utf8_lossy(value);
     for line in header.lines() {
         let lower = line.to_lowercase();
-        if lower.starts_with("content-length:") {
-            let value = lower["content-length:".len()..].trim();
+        if let Some(value) = lower.strip_prefix("content-length:") {
             if let Ok(parsed) = value.parse::<usize>() {
                 return parsed;
             }

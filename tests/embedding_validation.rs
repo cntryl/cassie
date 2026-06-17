@@ -143,7 +143,7 @@ fn should_reject_ingest_when_query_provider_model_mismatch() {
         let result = voyage
             .ingest_document(
                 "provider_mismatch_docs",
-                serde_json::json!({"content": "sample text"}).into(),
+                serde_json::json!({"content": "sample text"}),
             )
             .await;
 
@@ -203,7 +203,7 @@ fn should_reject_ingest_when_dimensions_change() {
         let result = cassie
             .ingest_document(
                 collection,
-                serde_json::json!({"content": "sample text"}).into(),
+                serde_json::json!({"content": "sample text"}),
             )
             .await;
         assert!(matches!(result, Err(CassieError::InvalidEmbedding(_))));

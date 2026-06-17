@@ -9,7 +9,7 @@ pub(crate) fn sort_rows(
     projection: &[SelectItem],
     params: &[Value],
     search_context: Option<&SearchContext>,
-) -> Result<Vec<Vec<(String, Value)>>, crate::executor::executor::QueryError> {
+) -> Result<Vec<Vec<(String, Value)>>, crate::executor::QueryError> {
     if order.is_empty() {
         return Ok(rows);
     }

@@ -183,11 +183,7 @@ fn split_csv(s: &str) -> Vec<&str> {
                 start = i + ch.len_utf8();
                 continue;
             }
-            _ => {}
-        }
-
-        match ch {
-            _ => {}
+        _ => {}
         }
     }
     out.push(&s[start..]);
@@ -358,8 +354,7 @@ fn split_top_level<'a>(input: &'a str, keyword: &'a str) -> Option<(&'a str, &'a
     let mut in_single = false;
     let mut in_double = false;
 
-    for i in 0..chars.len() {
-        let (idx, ch) = chars[i];
+    for &(idx, ch) in &chars {
         match ch {
             '\'' => {
                 if !in_double {

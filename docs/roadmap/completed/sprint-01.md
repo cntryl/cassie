@@ -43,9 +43,14 @@ Establish the repository contract and runtime baseline for Cassie V1. This sprin
 
 ## Tests
 
-- Add or confirm a single-behavior startup idempotence test.
-- Add or confirm a single-behavior startup failure mapping test.
-- Add or confirm a health/config runtime behavior test if implementation changes touch those surfaces.
+- Add or confirm these Sprint 01 focused tests:
+  - `should_startup_be_idempotent_without_state_corruption`
+  - `should_map_storage_bootstrap_failure_to_cassie_error`
+  - `should_startup_not_create_side_effects_in_default_family`
+  - `should_health_after_startup_reports_ready_state`
+  - `should_startup_respects_runtime_config_defaults`
+  - `should_create_session_without_mutating_runtime_state`
+- Add or confirm any additional single-behavior startup regression tests needed by implementation.
 - Validate every edited test file with `cntryl-tools validate-tests -f <file>`.
 - Run targeted runtime and query-stack tests before closing the sprint.
 

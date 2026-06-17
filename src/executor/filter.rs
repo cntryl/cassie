@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::executor::executor::QueryError;
+use crate::executor::QueryError;
 use crate::sql::ast::FunctionCall;
 use crate::sql::ast::{BinaryOp, Expr};
 use crate::types::Value;
@@ -186,13 +186,13 @@ impl ScalarValue {
         }
     }
 
-    fn to_value(self) -> Value {
+    fn to_value(&self) -> Value {
         match self {
             ScalarValue::Null => Value::Null,
-            ScalarValue::Bool(v) => Value::Bool(v),
-            ScalarValue::Int(v) => Value::Int64(v),
-            ScalarValue::Float(v) => Value::Float64(v),
-            ScalarValue::Str(v) => Value::String(v),
+            ScalarValue::Bool(v) => Value::Bool(*v),
+            ScalarValue::Int(v) => Value::Int64(*v),
+            ScalarValue::Float(v) => Value::Float64(*v),
+            ScalarValue::Str(v) => Value::String(v.clone()),
         }
     }
 }
@@ -222,7 +222,7 @@ pub(crate) fn evaluate_expr_value(
 }
 
 fn eval_filter(
-    row: &Vec<(String, Value)>,
+    row: &[(String, Value)],
     expression: &Expr,
     params: &[Value],
     search_context: Option<&SearchContext>,
@@ -340,11 +340,11 @@ fn binary_math(left: &ScalarValue, right: &ScalarValue, op: impl Fn(f64, f64) ->
 fn vector_distance(op: BinaryOp, left: &ScalarValue, right: &ScalarValue) -> f64 {
     let left = left
         .as_str()
-        .and_then(|value| parse_vector_text(value))
+        .and_then(parse_vector_text)
         .unwrap_or_default();
     let right = right
         .as_str()
-        .and_then(|value| parse_vector_text(value))
+        .and_then(parse_vector_text)
         .unwrap_or_default();
     if left.is_empty() || right.is_empty() || left.len() != right.len() {
         return f64::INFINITY;
@@ -440,29 +440,19 @@ fn evaluate_function(
         }
         "vector_distance" => {
             let (left, right) = vector_operands(function, &args)?;
-            Ok(match (left, right) {
-                (left, right) => Value::Float64(crate::vector::dot_score(&left, &right)),
-            })
+            Ok(Value::Float64(crate::vector::dot_score(&left, &right)))
         }
         "vector_score" => {
             let (left, right) = vector_operands(function, &args)?;
-            Ok(match (left, right) {
-                (left, right) => {
-                    Value::Float64(1.0 / (1.0 + crate::vector::l2_distance(&left, &right)))
-                }
-            })
+            Ok(Value::Float64(1.0 / (1.0 + crate::vector::l2_distance(&left, &right))))
         }
         "cosine_distance" => {
             let (left, right) = vector_operands(function, &args)?;
-            Ok(match (left, right) {
-                (left, right) => Value::Float64(crate::vector::cosine_distance(&left, &right)),
-            })
+            Ok(Value::Float64(crate::vector::cosine_distance(&left, &right)))
         }
         "dot_product" => {
             let (left, right) = vector_operands(function, &args)?;
-            Ok(match (left, right) {
-                (left, right) => Value::Float64(crate::vector::dot_score(&left, &right)),
-            })
+            Ok(Value::Float64(crate::vector::dot_score(&left, &right)))
         }
         "hybrid_score" => {
             if args.len() != 2 {

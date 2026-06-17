@@ -13,39 +13,37 @@ fn should_parse_select_statement_with_aliases_filters_sorting_pagination() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    match parsed.statement {
-        QueryStatement::Select(statement) => {
-            assert_eq!(statement.collection, "docs");
-            assert_eq!(statement.limit, Some(10));
-            assert_eq!(statement.offset, Some(5));
+    let QueryStatement::Select(statement) = parsed.statement;
 
-            assert_eq!(statement.projection.len(), 2);
-            match &statement.projection[0] {
-                SelectItem::Column { name, alias } => {
-                    assert_eq!(name, "title");
-                    assert_eq!(alias.as_deref(), Some("doc_title"));
-                }
-                _ => panic!("expected column projection"),
-            }
+    assert_eq!(statement.collection, "docs");
+    assert_eq!(statement.limit, Some(10));
+    assert_eq!(statement.offset, Some(5));
 
-            match &statement.projection[1] {
-                SelectItem::Function { function, alias } => {
-                    assert_eq!(function.name, "search_score");
-                    assert_eq!(alias.as_deref(), Some("score"));
-                }
-                _ => panic!("expected function projection"),
-            }
-
-            let filter = statement.filter.expect("filter expected");
-            let Expr::Binary { op: _, .. } = filter else {
-                panic!("filter should be binary")
-            };
-
-            assert_eq!(statement.order.len(), 2);
-            assert!(matches!(statement.order[0].direction, SortDirection::Desc));
-            assert!(matches!(statement.order[1].direction, SortDirection::Asc));
+    assert_eq!(statement.projection.len(), 2);
+    match &statement.projection[0] {
+        SelectItem::Column { name, alias } => {
+            assert_eq!(name, "title");
+            assert_eq!(alias.as_deref(), Some("doc_title"));
         }
+        _ => panic!("expected column projection"),
     }
+
+    match &statement.projection[1] {
+        SelectItem::Function { function, alias } => {
+            assert_eq!(function.name, "search_score");
+            assert_eq!(alias.as_deref(), Some("score"));
+        }
+        _ => panic!("expected function projection"),
+    }
+
+    let filter = statement.filter.expect("filter expected");
+    let Expr::Binary { op: _, .. } = filter else {
+        panic!("filter should be binary")
+    };
+
+    assert_eq!(statement.order.len(), 2);
+    assert!(matches!(statement.order[0].direction, SortDirection::Desc));
+    assert!(matches!(statement.order[1].direction, SortDirection::Asc));
 }
 
 #[test]
@@ -123,9 +121,7 @@ fn should_parse_pgvector_cosine_ordering() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let statement = match parsed.statement {
-        QueryStatement::Select(statement) => statement,
-    };
+    let QueryStatement::Select(statement) = parsed.statement;
     let order = &statement.order;
     assert_eq!(order.len(), 1);
     let expr = &order[0].expr;
@@ -148,9 +144,7 @@ fn should_parse_pgvector_dot_ordering() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let statement = match parsed.statement {
-        QueryStatement::Select(statement) => statement,
-    };
+    let QueryStatement::Select(statement) = parsed.statement;
     let expr = &statement.order[0].expr;
     match expr {
         Expr::Binary {
@@ -170,9 +164,7 @@ fn should_parse_vector_function_argument_with_commas() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let statement = match parsed.statement {
-        QueryStatement::Select(statement) => statement,
-    };
+    let QueryStatement::Select(statement) = parsed.statement;
     let projection = &statement.projection[0];
     match projection {
         SelectItem::Function { function, .. } => {
@@ -194,9 +186,7 @@ fn should_parse_pgvector_l2_ordering() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let statement = match parsed.statement {
-        QueryStatement::Select(statement) => statement,
-    };
+    let QueryStatement::Select(statement) = parsed.statement;
     let expr = &statement.order[0].expr;
     match expr {
         Expr::Binary {
@@ -216,9 +206,7 @@ fn should_parse_boolean_precedence_in_where_clause() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let statement = match parsed.statement {
-        QueryStatement::Select(statement) => statement,
-    };
+    let QueryStatement::Select(statement) = parsed.statement;
     let filter = statement.filter.expect("filter expected");
 
     let Expr::Binary {
@@ -255,9 +243,7 @@ fn should_parse_parenthesized_where_changes_precedence() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let statement = match parsed.statement {
-        QueryStatement::Select(statement) => statement,
-    };
+    let QueryStatement::Select(statement) = parsed.statement;
     let filter = statement.filter.expect("filter expected");
 
     let Expr::Binary {
@@ -318,9 +304,7 @@ fn should_parse_parameter_positions() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let statement = match parsed.statement {
-        QueryStatement::Select(statement) => statement,
-    };
+    let QueryStatement::Select(statement) = parsed.statement;
     let filter = statement.filter.expect("filter expected");
 
     let Expr::Binary { left, right, op: _ } = filter else {

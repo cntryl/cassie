@@ -133,7 +133,7 @@ fn should_build_physical_operators_in_execution_order() {
         // Assert
         assert_eq!(physical_plan.operators.len(), 6);
         assert!(matches!(
-            physical_plan.operators.get(0),
+            physical_plan.operators.first(),
             Some(Operator::Scan)
         ));
         assert!(matches!(

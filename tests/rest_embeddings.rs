@@ -28,13 +28,13 @@ impl MockOpenAiServer {
             listener.local_addr().expect("mock server addr")
         );
         let thread = thread::spawn(move || {
-            let mut responses = responses.into_iter();
-            while let Some(response) = responses.next() {
-                let (mut stream, _) = listener.accept().expect("mock accept");
-                let body = read_http_body(&mut stream);
-                if body.is_empty() {
-                    continue;
-                }
+            let responses = responses.into_iter();
+    for response in responses {
+        let (mut stream, _) = listener.accept().expect("mock accept");
+        let body = read_http_body(&mut stream);
+        if body.is_empty() {
+            continue;
+        }
 
                 let mut output = String::new();
                 output.push_str("HTTP/1.1 ");
@@ -359,8 +359,7 @@ fn parse_content_length(value: &[u8]) -> usize {
     let header = String::from_utf8_lossy(value);
     for line in header.lines() {
         let lower = line.to_ascii_lowercase();
-        if lower.starts_with("content-length:") {
-            let value = lower["content-length:".len()..].trim();
+        if let Some(value) = lower.strip_prefix("content-length:") {
             if let Ok(parsed) = value.parse::<usize>() {
                 return parsed;
             }

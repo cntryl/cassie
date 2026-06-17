@@ -6,9 +6,7 @@ pub fn validate_user_password(
     user: &str,
     password: Option<&str>,
 ) -> Result<(), CassieError> {
-    if user == configured_user && password.unwrap_or("") == configured_password {
-        Ok(())
-    } else if configured_password.is_empty() {
+    if configured_password.is_empty() || (user == configured_user && password.unwrap_or("") == configured_password) {
         Ok(())
     } else {
         Err(CassieError::Unauthorized)

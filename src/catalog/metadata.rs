@@ -132,3 +132,9 @@ impl Catalog {
         format!("{collection}:{field}")
     }
 }
+
+impl Default for Catalog {
+    fn default() -> Self {
+        Self::new()
+    }
+}

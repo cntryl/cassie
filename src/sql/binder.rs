@@ -1,11 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
+use std::mem;
 use std::pin::Pin;
 
 use crate::app::CassieError;
 use crate::catalog::Catalog;
 use crate::sql::ast::{
-    CteQuery, Expr, FunctionCall, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
+    AlterTableOperation, AlterTableStatement, CteQuery, Expr, FunctionCall, ParsedStatement,
+    QuerySource, QueryStatement, SelectItem, SelectStatement,
 };
 
 type CteScope = HashMap<String, Vec<String>>;
@@ -23,172 +25,321 @@ pub async fn bind(
     Ok(BoundStatement { statement })
 }
 
-fn unwrap_select(statement: ParsedStatement) -> Result<(String, SelectStatement), CassieError> {
-    match statement.statement {
-        QueryStatement::Select(select) => Ok((statement.raw_sql, select)),
-    }
-}
-
 fn bind_statement<'a>(
     statement: ParsedStatement,
     catalog: &'a Catalog,
     outer_scope: &'a CteScope,
 ) -> Pin<Box<dyn Future<Output = Result<ParsedStatement, CassieError>> + Send + 'a>> {
     Box::pin(async move {
-        let (raw_sql, mut select) = unwrap_select(statement)?;
-
-        let mut scope = outer_scope.clone();
-        let mut local_names = HashSet::new();
-
-        let mut bound_ctes = Vec::with_capacity(select.ctes.len());
-        for cte in select.ctes {
-            let cte_name = cte.name.trim();
-            if cte_name.is_empty() {
-                return Err(CassieError::Planner("CTE name cannot be empty".into()));
+        let raw_sql = statement.raw_sql.clone();
+        match statement.statement {
+            QueryStatement::Select(select) => {
+                let select = bind_select(select, catalog, outer_scope).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::Select(select),
+                })
             }
-            let cte_name_lc = cte_name.to_ascii_lowercase();
-            if !local_names.insert(cte_name_lc.clone()) {
-                return Err(CassieError::Planner(format!("duplicate CTE name '{cte_name}'")));
+            QueryStatement::CreateTable(statement) => {
+                let statement = bind_create_table(statement, catalog).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::CreateTable(statement),
+                })
             }
-
-            let bound_query = match cte.query {
-                CteQuery::Simple(next) => {
-                    let next = Box::new(bind_statement(*next, catalog, &scope).await?);
-                    CteQuery::Simple(next)
-                }
-                CteQuery::Recursive { base, recursive } => {
-                    if cte.aliases.is_empty() {
-                        return Err(CassieError::Planner(format!(
-                            "recursive CTE '{cte_name}' requires column aliases"
-                        )));
-                    }
-
-                    let mut recursive_scope = scope.clone();
-                    recursive_scope.insert(cte_name_lc.clone(), cte.aliases.clone());
-
-                    let base = Box::new(bind_statement(*base, catalog, &recursive_scope).await?);
-                    let recursive =
-                        Box::new(bind_statement(*recursive, catalog, &recursive_scope).await?);
-
-                    if !references_cte_as_source(&recursive, cte_name) {
-                        return Err(CassieError::Planner(format!(
-                            "recursive CTE '{cte_name}' must reference itself in recursive term"
-                        )));
-                    }
-
-                    CteQuery::Recursive { base, recursive }
-                }
-            };
-
-            let visible_fields = cte_output_fields(&bound_query).await?;
-            let fields = if cte.aliases.is_empty() {
-                visible_fields
-            } else {
-                if visible_fields.len() != cte.aliases.len() {
-                    return Err(CassieError::Planner(format!(
-                        "CTE '{cte_name}' alias count does not match output columns"
-                    )));
+            QueryStatement::DropTable(statement) => {
+                let statement = bind_drop_table(statement, catalog).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::DropTable(statement),
+                })
+            }
+            QueryStatement::AlterTable(statement) => {
+                let statement = bind_alter_table(statement, catalog).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::AlterTable(statement),
+                })
+            }
+            QueryStatement::CreateSchema(statement) => {
+                if statement.schema.trim().is_empty() {
+                    return Err(CassieError::Planner("CREATE SCHEMA requires a name".into()));
                 }
 
-                cte.aliases
-                    .iter()
-                    .map(|alias| alias.to_ascii_lowercase())
-                    .collect::<Vec<_>>()
-            };
-
-            scope.insert(cte_name_lc, fields);
-
-            bound_ctes.push(crate::sql::ast::CommonTableExpression {
-                name: cte.name,
-                aliases: cte.aliases,
-                query: bound_query,
-            });
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::CreateSchema(statement),
+                })
+            }
         }
-
-        select.ctes = bound_ctes;
-
-        let source_name = match &select.source {
-            QuerySource::Collection(name) => name.to_string(),
-            QuerySource::Cte(name) => name.to_string(),
-        };
-        let source_name_lc = source_name.to_ascii_lowercase();
-
-        if scope.contains_key(&source_name_lc) {
-            select.source = QuerySource::Cte(source_name);
-        } else {
-            if !catalog.exists(&source_name).await {
-                return Err(CassieError::CollectionNotFound(source_name));
-            }
-            select.source = QuerySource::Collection(source_name);
-        }
-
-        let known_fields = source_fields(catalog, &select.source, &scope).await?;
-        let projection_aliases = collect_projection_aliases(&select);
-
-        let statement = ParsedStatement {
-            raw_sql,
-            statement: QueryStatement::Select(select),
-        };
-
-        validate_functions(&statement)?;
-        validate_projection_references(select_projection(&statement), &known_fields)?;
-        validate_expression_references(
-            select_filter(&statement),
-            &known_fields,
-            &projection_aliases,
-            false,
-        )?;
-        validate_order_by_references(select_order(&statement), &known_fields, &projection_aliases)?;
-
-        Ok(statement)
     })
 }
 
-fn select_projection(statement: &ParsedStatement) -> &[SelectItem] {
-    match &statement.statement {
-        QueryStatement::Select(select) => &select.projection,
+async fn bind_create_table(
+    mut statement: crate::sql::ast::CreateTableStatement,
+    catalog: &Catalog,
+) -> Result<crate::sql::ast::CreateTableStatement, CassieError> {
+    let name = statement.table.trim().to_string();
+    if name.is_empty() {
+        return Err(CassieError::Planner(
+            "CREATE TABLE requires a table name".into(),
+        ));
     }
+    if !statement.if_not_exists && catalog.exists(&name).await {
+        return Err(CassieError::Planner(format!(
+            "collection '{name}' already exists"
+        )));
+    }
+
+    let mut seen = HashSet::new();
+    for field in &mut statement.fields {
+        let field_name = field.name.trim();
+        if field_name.is_empty() {
+            return Err(CassieError::Planner(
+                "CREATE TABLE field names cannot be empty".into(),
+            ));
+        }
+
+        if !seen.insert(field_name.to_ascii_lowercase()) {
+            return Err(CassieError::Planner(format!(
+                "CREATE TABLE field '{field_name}' is defined more than once"
+            )));
+        }
+        field.name = field_name.to_string();
+    }
+
+    statement.table = name;
+    Ok(statement)
 }
 
-fn select_filter(statement: &ParsedStatement) -> Option<&Expr> {
-    match &statement.statement {
-        QueryStatement::Select(select) => select.filter.as_ref(),
+async fn bind_drop_table(
+    mut statement: crate::sql::ast::DropTableStatement,
+    catalog: &Catalog,
+) -> Result<crate::sql::ast::DropTableStatement, CassieError> {
+    let table = statement.table.trim().to_string();
+    if table.is_empty() {
+        return Err(CassieError::Planner(
+            "DROP TABLE requires a table name".into(),
+        ));
     }
+    if !statement.if_exists && !catalog.exists(&table).await {
+        return Err(CassieError::CollectionNotFound(table));
+    }
+    statement.table = table;
+    Ok(statement)
 }
 
-fn select_order(statement: &ParsedStatement) -> std::slice::Iter<'_, crate::sql::ast::OrderExpr> {
-    match &statement.statement {
-        QueryStatement::Select(select) => select.order.iter(),
+async fn bind_alter_table(
+    mut statement: AlterTableStatement,
+    catalog: &Catalog,
+) -> Result<AlterTableStatement, CassieError> {
+    let table = statement.table.trim().to_string();
+    if table.is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER TABLE requires a table name".into(),
+        ));
     }
+
+    let schema = catalog
+        .get_schema(&table)
+        .await
+        .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
+
+    let existing_fields = schema
+        .fields
+        .into_iter()
+        .map(|field| field.name.to_ascii_lowercase())
+        .collect::<HashSet<_>>();
+
+    validate_alter_schema(&table, &statement.operation, &existing_fields)?;
+
+    statement.table = table;
+    Ok(statement)
 }
 
-fn references_cte_as_source(statement: &ParsedStatement, cte_name: &str) -> bool {
-    let cte_name = cte_name.to_ascii_lowercase();
-    match &statement.statement {
-        QueryStatement::Select(select) => match &select.source {
-            QuerySource::Cte(source) | QuerySource::Collection(source) => {
-                source.to_ascii_lowercase() == cte_name
+fn validate_alter_schema(
+    table: &str,
+    operation: &AlterTableOperation,
+    existing_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    match operation {
+        AlterTableOperation::AddColumn {
+            field,
+            data_type: _,
+        } => {
+            let name = field.trim();
+            if name.is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE ADD COLUMN requires a field name".into(),
+                ));
             }
-        },
+
+            if existing_fields.contains(&name.to_ascii_lowercase()) {
+                return Err(CassieError::Planner(format!(
+                    "cannot add existing column '{name}' on collection '{table}'"
+                )));
+            }
+        }
+        AlterTableOperation::DropColumn { field } => {
+            let name = field.trim();
+            if name.is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE DROP COLUMN requires a field name".into(),
+                ));
+            }
+            if name.eq_ignore_ascii_case("id") {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE DROP COLUMN cannot remove reserved field 'id'".into(),
+                ));
+            }
+            if !existing_fields.contains(&name.to_ascii_lowercase()) {
+                return Err(CassieError::Planner(format!(
+                    "ALTER TABLE '{table}' has no field '{name}'"
+                )));
+            }
+        }
+        AlterTableOperation::RenameTo { table: target } => {
+            let target = target.trim();
+            if target.is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE RENAME TO requires a table name".into(),
+                ));
+            }
+            if table.eq_ignore_ascii_case(target) {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE cannot rename collection to same name".into(),
+                ));
+            }
+        }
     }
+
+    Ok(())
 }
 
-async fn cte_output_fields(
-    cte_query: &CteQuery,
-) -> Result<Vec<String>, CassieError> {
+async fn bind_select(
+    select: SelectStatement,
+    catalog: &Catalog,
+    outer_scope: &CteScope,
+) -> Result<SelectStatement, CassieError> {
+    let mut scope = outer_scope.clone();
+    let mut local_names = HashSet::new();
+    let mut select = select;
+    let ctes = mem::take(&mut select.ctes);
+
+    let mut bound_ctes = Vec::with_capacity(ctes.len());
+    for cte in ctes {
+        let cte_name = cte.name.trim();
+        if cte_name.is_empty() {
+            return Err(CassieError::Planner("CTE name cannot be empty".into()));
+        }
+        let cte_name_lc = cte_name.to_ascii_lowercase();
+        if !local_names.insert(cte_name_lc.clone()) {
+            return Err(CassieError::Planner(format!(
+                "duplicate CTE name '{cte_name}'"
+            )));
+        }
+
+        let query = match cte.query {
+            CteQuery::Simple(next) => {
+                CteQuery::Simple(Box::new(bind_statement(*next, catalog, &scope).await?))
+            }
+            CteQuery::Recursive { base, recursive } => {
+                if cte.aliases.is_empty() {
+                    return Err(CassieError::Planner(format!(
+                        "recursive CTE '{cte_name}' requires column aliases"
+                    )));
+                }
+
+                let mut recursive_scope = scope.clone();
+                recursive_scope.insert(cte_name_lc.clone(), cte.aliases.clone());
+
+                let bound_base = bind_statement(*base, catalog, &recursive_scope).await?;
+                let bound_recursive = bind_statement(*recursive, catalog, &recursive_scope).await?;
+
+                if !recursive_cte_references_self(&bound_recursive, cte_name) {
+                    return Err(CassieError::Planner(format!(
+                        "recursive CTE '{cte_name}' must reference itself in recursive term"
+                    )));
+                }
+
+                CteQuery::Recursive {
+                    base: Box::new(bound_base),
+                    recursive: Box::new(bound_recursive),
+                }
+            }
+        };
+
+        let visible_fields = cte_output_fields(&query).await?;
+        let aliases = if cte.aliases.is_empty() {
+            visible_fields
+        } else {
+            if visible_fields.len() != cte.aliases.len() {
+                return Err(CassieError::Planner(format!(
+                    "CTE '{cte_name}' alias count does not match output columns"
+                )));
+            }
+
+            cte.aliases
+                .iter()
+                .map(|alias| alias.to_ascii_lowercase())
+                .collect()
+        };
+        scope.insert(cte_name_lc, aliases);
+
+        bound_ctes.push(crate::sql::ast::CommonTableExpression {
+            name: cte.name,
+            aliases: cte.aliases,
+            query,
+        });
+    }
+
+    let source_name = match &select.source {
+        QuerySource::Collection(name) | QuerySource::Cte(name) => name.to_string(),
+    };
+    let source_name_lc = source_name.to_ascii_lowercase();
+    let source = if scope.contains_key(&source_name_lc) {
+        QuerySource::Cte(source_name)
+    } else {
+        if !catalog.exists(&source_name).await {
+            return Err(CassieError::CollectionNotFound(source_name));
+        }
+        QuerySource::Collection(source_name)
+    };
+
+    let known_fields = source_fields(catalog, &source, &scope).await?;
+    select.source = source;
+    select.ctes = bound_ctes;
+
+    let projection_aliases = collect_projection_aliases(&select);
+    validate_projection_references(&select.projection, &known_fields)?;
+    validate_expression_references(
+        select.filter.as_ref(),
+        &known_fields,
+        &projection_aliases,
+        false,
+    )?;
+    validate_order_by_references(&select.order, &known_fields, &projection_aliases)?;
+    validate_functions(&select)?;
+
+    Ok(select)
+}
+
+async fn cte_output_fields(cte_query: &CteQuery) -> Result<Vec<String>, CassieError> {
     let query = match cte_query {
         CteQuery::Simple(statement) => statement,
         CteQuery::Recursive { base, .. } => base,
     };
 
-    match &query.statement {
-        QueryStatement::Select(select) => {
-            if select.projection.iter().any(matches_wildcard) {
-                return Ok(vec!["*".into()]);
-            }
-            Ok(projected_column_names(&select.projection))
-        }
+    let QueryStatement::Select(select) = &query.statement else {
+        return Err(CassieError::Planner(
+            "CTE body must be a SELECT statement".into(),
+        ));
+    };
+    if select.projection.iter().any(matches_wildcard) {
+        return Ok(vec!["*".into()]);
     }
+
+    Ok(projected_column_names(&select.projection))
 }
 
 fn projected_column_names(projection: &[SelectItem]) -> Vec<String> {
@@ -200,9 +351,7 @@ fn projected_column_names(projection: &[SelectItem]) -> Vec<String> {
                 name: _,
                 alias: Some(alias),
                 ..
-            } => {
-                alias.to_ascii_lowercase()
-            }
+            } => alias.to_ascii_lowercase(),
             SelectItem::Column { name, alias: None } => name.to_ascii_lowercase(),
             SelectItem::Function { function, alias } => alias
                 .as_deref()
@@ -227,7 +376,6 @@ async fn source_fields(
                 .get_schema(name)
                 .await
                 .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?;
-
             Ok(schema
                 .fields
                 .iter()
@@ -260,11 +408,11 @@ fn collect_projection_aliases(select: &SelectStatement) -> HashSet<String> {
     aliases
 }
 
-fn validate_functions(statement: &ParsedStatement) -> Result<(), CassieError> {
-    let mut signatures = HashMap::new();
-    for function in crate::sql::functions::registry() {
-        signatures.insert(function.name.to_ascii_lowercase(), function.arity);
-    }
+fn validate_functions(statement: &SelectStatement) -> Result<(), CassieError> {
+    let signatures = crate::sql::functions::registry()
+        .into_iter()
+        .map(|function| (function.name.to_ascii_lowercase(), function.arity))
+        .collect::<HashMap<_, _>>();
 
     let mut seen = Vec::new();
     collect_functions(statement, &mut seen);
@@ -276,7 +424,6 @@ fn validate_functions(statement: &ParsedStatement) -> Result<(), CassieError> {
                 function.name
             )));
         };
-
         if function.args.len() != *arity {
             return Err(CassieError::Planner(format!(
                 "function '{}' expects {} args, got {}",
@@ -290,6 +437,31 @@ fn validate_functions(statement: &ParsedStatement) -> Result<(), CassieError> {
     Ok(())
 }
 
+fn validate_projection_references(
+    projection: &[SelectItem],
+    known_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    for item in projection {
+        match item {
+            SelectItem::Wildcard => {}
+            SelectItem::Column { name, .. } => {
+                validate_expression(
+                    &Expr::Column(name.clone()),
+                    known_fields,
+                    &HashSet::new(),
+                    false,
+                )?;
+            }
+            SelectItem::Function { function, .. } => {
+                for arg in &function.args {
+                    validate_expression(arg, known_fields, &HashSet::new(), false)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn validate_expression_references(
     expression: Option<&Expr>,
     known_fields: &HashSet<String>,
@@ -299,7 +471,6 @@ fn validate_expression_references(
     let Some(expression) = expression else {
         return Ok(());
     };
-
     validate_expression(
         expression,
         known_fields,
@@ -309,39 +480,13 @@ fn validate_expression_references(
 }
 
 fn validate_order_by_references(
-    order: std::slice::Iter<'_, crate::sql::ast::OrderExpr>,
+    order: &[crate::sql::ast::OrderExpr],
     known_fields: &HashSet<String>,
     projection_aliases: &HashSet<String>,
 ) -> Result<(), CassieError> {
     for item in order {
         validate_expression(&item.expr, known_fields, projection_aliases, true)?;
     }
-    Ok(())
-}
-
-fn validate_projection_references(
-    projection: &[crate::sql::ast::SelectItem],
-    known_fields: &HashSet<String>,
-) -> Result<(), CassieError> {
-    for item in projection {
-        match item {
-            crate::sql::ast::SelectItem::Wildcard => {}
-            crate::sql::ast::SelectItem::Column { name, .. } => {
-                validate_expression(
-                    &Expr::Column(name.clone()),
-                    known_fields,
-                    &HashSet::new(),
-                    false,
-                )?;
-            }
-            crate::sql::ast::SelectItem::Function { function, .. } => {
-                for arg in &function.args {
-                    validate_expression(arg, known_fields, &HashSet::new(), false)?;
-                }
-            }
-        }
-    }
-
     Ok(())
 }
 
@@ -390,7 +535,6 @@ fn validate_expression(
                     allow_projection_alias,
                 )?;
             }
-
             Ok(())
         }
         Expr::Param(_)
@@ -401,25 +545,30 @@ fn validate_expression(
     }
 }
 
-fn collect_functions(statement: &ParsedStatement, out: &mut Vec<FunctionCall>) {
-    let QueryStatement::Select(select) = &statement.statement;
-    for item in &select.projection {
+fn collect_functions(statement: &SelectStatement, out: &mut Vec<FunctionCall>) {
+    for item in &statement.projection {
         collect_item(item, out);
     }
-    if let Some(expr) = &select.filter {
+    if let Some(expr) = &statement.filter {
         collect_expr(expr, out);
     }
-    for order in &select.order {
+    for order in &statement.order {
         collect_expr(&order.expr, out);
     }
-    for cte in &select.ctes {
+    for cte in &statement.ctes {
         match &cte.query {
             CteQuery::Simple(statement) => {
-                collect_functions(statement, out);
+                if let QueryStatement::Select(select) = &statement.statement {
+                    collect_functions(select, out);
+                }
             }
             CteQuery::Recursive { base, recursive } => {
-                collect_functions(base, out);
-                collect_functions(recursive, out);
+                if let QueryStatement::Select(select) = &base.statement {
+                    collect_functions(select, out);
+                }
+                if let QueryStatement::Select(select) = &recursive.statement {
+                    collect_functions(select, out);
+                }
             }
         }
     }
@@ -441,9 +590,19 @@ fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
             collect_expr(arg, out);
         }
     }
-
     if let Expr::Binary { left, right, .. } = expr {
         collect_expr(left, out);
         collect_expr(right, out);
+    }
+}
+
+fn recursive_cte_references_self(statement: &ParsedStatement, cte_name: &str) -> bool {
+    match &statement.statement {
+        QueryStatement::Select(select) => match &select.source {
+            QuerySource::Cte(name) | QuerySource::Collection(name) => {
+                name.eq_ignore_ascii_case(cte_name)
+            }
+        },
+        _ => false,
     }
 }

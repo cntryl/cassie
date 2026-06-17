@@ -341,7 +341,7 @@ async fn execute_recursive_cte_until_stabilization() {
             _ => panic!("expected integer value"),
         })
         .collect::<Vec<_>>();
-        assert_eq!(values, vec![1]);
+    assert_eq!(values, vec![1]);
 }
 
 #[tokio::test]
@@ -1176,11 +1176,7 @@ fn should_execute_query_across_multiple_batches_without_truncation() {
             let title = format!("doc-{index:04}");
             cassie
                 .midge
-                .put_document(
-                    collection,
-                    Some(id),
-                    serde_json::json!({ "title": title }),
-                )
+                .put_document(collection, Some(id), serde_json::json!({ "title": title }))
                 .await
                 .unwrap();
         }
@@ -2310,6 +2306,7 @@ fn should_fail_unknown_function_during_execution() {
             .unwrap();
 
         let logical = LogicalPlan {
+            command: None,
             source: QuerySource::Collection(collection.to_string()),
             collection: collection.to_string(),
             ctes: vec![],
@@ -2338,4 +2335,78 @@ fn should_fail_unknown_function_during_execution() {
         // Assert
         assert!(result.is_err());
     });
+}
+
+#[tokio::test]
+async fn should_execute_create_alter_and_drop_table_commands() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ddl_command");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let session = cassie.create_session("tester", None).await;
+    let table_name = "ddl_table";
+
+    // Act
+    let create = cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE ddl_table (id TEXT, title TEXT)",
+            vec![],
+        )
+        .await
+        .unwrap();
+    assert_eq!(create.command, "CREATE TABLE");
+    assert_eq!(create.columns.len(), 0);
+    assert!(cassie.catalog.exists(table_name).await);
+
+    cassie
+        .midge
+        .put_document(
+            table_name,
+            Some("d1".to_string()),
+            serde_json::json!({"id": "d1", "title": "alpha"}),
+        )
+        .await
+        .unwrap();
+
+    let alter_add = cassie
+        .execute_sql(
+            &session,
+            "ALTER TABLE ddl_table ADD COLUMN status TEXT",
+            vec![],
+        )
+        .await
+        .unwrap();
+    let alter_rename = cassie
+        .execute_sql(
+            &session,
+            "ALTER TABLE ddl_table RENAME TO ddl_table_archive",
+            vec![],
+        )
+        .await
+        .unwrap();
+    let rename_rows = cassie
+        .execute_sql(
+            &session,
+            "SELECT id, status FROM ddl_table_archive ORDER BY id",
+            vec![],
+        )
+        .await
+        .unwrap();
+    let drop = cassie
+        .execute_sql(&session, "DROP TABLE ddl_table_archive", vec![])
+        .await
+        .unwrap();
+
+    // Assert
+    assert_eq!(alter_add.command, "ALTER TABLE");
+    assert_eq!(alter_rename.command, "ALTER TABLE");
+    assert!(!cassie.catalog.exists(table_name).await);
+    assert_eq!(rename_rows.columns.len(), 2);
+    assert_eq!(rename_rows.rows.len(), 1);
+    assert_eq!(rename_rows.rows[0][0], Value::String("d1".to_string()));
+    assert_eq!(drop.command, "DROP TABLE");
+    assert!(!cassie.catalog.exists("ddl_table_archive").await);
+
+    let _ = std::fs::remove_dir_all(path);
 }

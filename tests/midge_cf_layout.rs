@@ -164,6 +164,40 @@ fn should_route_schema_data_temp_across_families() {
 }
 
 #[test]
+fn should_reject_transactions_that_include_schema_plus_data_families() {
+    // Arrange
+    let path = data_dir("mixed_family_reject");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.midge.ensure_families_ready().unwrap();
+
+        // Act
+        let result = cassie.midge.begin_families_tx(
+            &[StorageFamily::Schema, StorageFamily::Data],
+            TransactionMode::ReadWrite,
+        );
+
+        // Assert
+        assert!(result.is_err());
+        let error = match result {
+            Ok(_) => panic!("expected mixed-family transaction to be rejected"),
+            Err(error) => error.to_string(),
+        };
+        assert!(
+            error.contains("cannot open a transaction across schema and data families"),
+            "unexpected error: {error}"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_bootstrap_via_startup_path() {
     // Arrange
     let path = data_dir("bootstrap_startup");

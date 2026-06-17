@@ -15,9 +15,14 @@ fn should_parse_select_statement_with_aliases_filters_sorting_pagination() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let QueryStatement::Select(statement) = parsed.statement;
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
 
-    assert_eq!(statement.source, QuerySource::Collection("docs".to_string()));
+    assert_eq!(
+        statement.source,
+        QuerySource::Collection("docs".to_string())
+    );
     assert_eq!(statement.limit, Some(10));
     assert_eq!(statement.offset, Some(5));
 
@@ -123,7 +128,9 @@ fn should_parse_pgvector_cosine_ordering() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let QueryStatement::Select(statement) = parsed.statement;
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
     let order = &statement.order;
     assert_eq!(order.len(), 1);
     let expr = &order[0].expr;
@@ -146,7 +153,9 @@ fn should_parse_pgvector_dot_ordering() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let QueryStatement::Select(statement) = parsed.statement;
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
     let expr = &statement.order[0].expr;
     match expr {
         Expr::Binary {
@@ -166,7 +175,9 @@ fn should_parse_vector_function_argument_with_commas() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let QueryStatement::Select(statement) = parsed.statement;
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
     let projection = &statement.projection[0];
     match projection {
         SelectItem::Function { function, .. } => {
@@ -188,7 +199,9 @@ fn should_parse_pgvector_l2_ordering() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let QueryStatement::Select(statement) = parsed.statement;
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
     let expr = &statement.order[0].expr;
     match expr {
         Expr::Binary {
@@ -208,7 +221,9 @@ fn should_parse_boolean_precedence_in_where_clause() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let QueryStatement::Select(statement) = parsed.statement;
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
     let filter = statement.filter.expect("filter expected");
 
     let Expr::Binary {
@@ -245,7 +260,9 @@ fn should_parse_parenthesized_where_changes_precedence() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let QueryStatement::Select(statement) = parsed.statement;
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
     let filter = statement.filter.expect("filter expected");
 
     let Expr::Binary {
@@ -306,7 +323,9 @@ fn should_parse_parameter_positions() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let QueryStatement::Select(statement) = parsed.statement;
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
     let filter = statement.filter.expect("filter expected");
 
     let Expr::Binary { left, right, op: _ } = filter else {
@@ -617,9 +636,11 @@ fn should_parse_deterministically_across_invocations() {
     // Assert
     let (_, first_statement) = match first.statement {
         QueryStatement::Select(statement) => ((), statement),
+        _ => panic!("expected select statement"),
     };
     let (_, second_statement) = match second.statement {
         QueryStatement::Select(statement) => ((), statement),
+        _ => panic!("expected select statement"),
     };
 
     assert_eq!(
@@ -637,11 +658,16 @@ fn should_parse_with_clause_with_cte_source() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let QueryStatement::Select(statement) = parsed.statement;
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
     assert_eq!(statement.ctes.len(), 1);
     assert_eq!(statement.ctes[0].name, "docs_cte");
     assert!(matches!(statement.ctes[0].query, CteQuery::Simple(_)));
-    assert_eq!(statement.source, QuerySource::Collection("docs_cte".to_string()));
+    assert_eq!(
+        statement.source,
+        QuerySource::Collection("docs_cte".to_string())
+    );
 }
 
 #[test]
@@ -653,11 +679,16 @@ fn should_parse_multiple_ctes_with_dependencies() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let QueryStatement::Select(statement) = parsed.statement;
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
     assert_eq!(statement.ctes.len(), 2);
     assert_eq!(statement.ctes[0].name, "first");
     assert_eq!(statement.ctes[1].name, "second");
-    assert_eq!(statement.source, QuerySource::Collection("second".to_string()));
+    assert_eq!(
+        statement.source,
+        QuerySource::Collection("second".to_string())
+    );
 }
 
 #[test]
@@ -669,24 +700,178 @@ fn should_parse_recursive_cte_shape() {
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let QueryStatement::Select(statement) = parsed.statement;
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
     assert!(statement.recursive);
     assert_eq!(statement.ctes.len(), 1);
     assert_eq!(statement.ctes[0].aliases, vec!["n".to_string()]);
-    assert!(matches!(statement.ctes[0].query, CteQuery::Recursive { .. }));
+    assert!(matches!(
+        statement.ctes[0].query,
+        CteQuery::Recursive { .. }
+    ));
 }
 
 #[test]
 fn should_parse_cte_column_aliases() {
     // Arrange
-    let sql = "WITH docs_cte(title_alias) AS (SELECT title FROM docs) SELECT title_alias FROM docs_cte";
+    let sql =
+        "WITH docs_cte(title_alias) AS (SELECT title FROM docs) SELECT title_alias FROM docs_cte";
 
     // Act
     let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    let QueryStatement::Select(statement) = parsed.statement;
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
     assert_eq!(statement.ctes[0].aliases.len(), 1);
     assert_eq!(statement.ctes[0].aliases[0], "title_alias");
-    assert_eq!(statement.source, QuerySource::Collection("docs_cte".to_string()));
+    assert_eq!(
+        statement.source,
+        QuerySource::Collection("docs_cte".to_string())
+    );
+}
+
+#[test]
+fn should_parse_create_table_with_if_not_exists() {
+    // Arrange
+    let sql =
+        "CREATE TABLE IF NOT EXISTS users (id INT, title TEXT, embedding VECTOR(3), flag BOOLEAN)";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateTable(statement) = parsed.statement else {
+        panic!("expected create table statement");
+    };
+
+    assert_eq!(statement.table, "users");
+    assert!(statement.if_not_exists);
+    assert_eq!(statement.fields.len(), 4);
+    assert_eq!(statement.fields[1].name, "title");
+    assert_eq!(statement.fields[1].data_type, DataType::Text);
+}
+
+#[test]
+fn should_parse_drop_table_with_if_exists() {
+    // Arrange
+    let sql = "DROP TABLE IF EXISTS users";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::DropTable(statement) = parsed.statement else {
+        panic!("expected drop table statement");
+    };
+
+    assert_eq!(statement.table, "users");
+    assert!(statement.if_exists);
+}
+
+#[test]
+fn should_parse_create_schema_if_not_exists() {
+    // Arrange
+    let sql = "CREATE SCHEMA IF NOT EXISTS reporting";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateSchema(statement) = parsed.statement else {
+        panic!("expected create schema statement");
+    };
+
+    assert_eq!(statement.schema, "reporting");
+    assert!(statement.if_not_exists);
+}
+
+#[test]
+fn should_parse_rename_table_alter_statement() {
+    // Arrange
+    let sql = "ALTER TABLE docs RENAME TO docs_archive";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::AlterTable(statement) = parsed.statement else {
+        panic!("expected alter table statement");
+    };
+
+    assert_eq!(statement.table, "docs");
+    match statement.operation {
+        cassie::sql::ast::AlterTableOperation::RenameTo { table } => {
+            assert_eq!(table, "docs_archive");
+        }
+        _ => panic!("expected rename operation"),
+    }
+}
+
+#[test]
+fn should_reject_duplicate_fields_in_create_table_definition() {
+    // Arrange
+    let sql = "CREATE TABLE dup_cols (id TEXT, id TEXT)";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+}
+
+#[test]
+fn should_reject_create_table_when_collection_exists_without_if_not_exists() {
+    // Arrange
+    let cassie =
+        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "existing_table".to_string(),
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "id".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement("CREATE TABLE existing_table (title TEXT)")
+            .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_reject_drop_table_when_collection_missing_without_if_exists() {
+    // Arrange
+    let cassie =
+        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        // Act
+        let parsed = parse_statement("DROP TABLE missing_table").expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(bound.is_err());
+    });
 }

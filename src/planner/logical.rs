@@ -1,35 +1,132 @@
 use crate::app::CassieError;
 use crate::sql::{
-    ast::{CommonTableExpression, Expr, OrderExpr, QuerySource},
+    ast::{
+        AlterTableOperation, AlterTableStatement, CommonTableExpression, CreateSchemaStatement,
+        CreateTableStatement, DropTableStatement, Expr, OrderExpr, QuerySource, QueryStatement,
+        SelectItem, SelectStatement,
+    },
     binder::BoundStatement,
 };
 
 #[derive(Debug, Clone)]
 pub struct LogicalPlan {
+    pub command: Option<LogicalCommand>,
     pub source: QuerySource,
     pub collection: String,
     pub ctes: Vec<CommonTableExpression>,
-    pub projection: Vec<crate::sql::ast::SelectItem>,
+    pub projection: Vec<SelectItem>,
     pub filter: Option<Expr>,
     pub order: Vec<OrderExpr>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
 
-pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
-    let crate::sql::ast::QueryStatement::Select(select) = &bound.statement.statement;
-    validate_logical_plan(select)?;
+#[derive(Debug, Clone)]
+pub enum LogicalCommand {
+    CreateTable(CreateTableStatement),
+    DropTable(DropTableStatement),
+    AlterTable(AlterTableStatement),
+    CreateSchema(CreateSchemaStatement),
+}
 
-    Ok(LogicalPlan {
-        source: select.source.clone(),
-        collection: source_name(&select.source),
-        ctes: select.ctes.clone(),
-        projection: select.projection.clone(),
-        filter: select.filter.clone(),
-        order: select.order.clone(),
-        limit: select.limit,
-        offset: select.offset,
-    })
+pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
+    match &bound.statement.statement {
+        QueryStatement::Select(select) => {
+            validate_logical_plan(select)?;
+            Ok(LogicalPlan {
+                command: None,
+                source: select.source.clone(),
+                collection: source_name(&select.source),
+                ctes: select.ctes.clone(),
+                projection: select.projection.clone(),
+                filter: select.filter.clone(),
+                order: select.order.clone(),
+                limit: select.limit,
+                offset: select.offset,
+            })
+        }
+        QueryStatement::CreateTable(statement) => {
+            if statement.table.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "CREATE TABLE requires a table name".into(),
+                ));
+            }
+            if statement.fields.is_empty() {
+                return Err(CassieError::Planner(
+                    "CREATE TABLE requires at least one column".into(),
+                ));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::CreateTable(statement.clone())),
+                source: QuerySource::Collection(statement.table.clone()),
+                collection: statement.table.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
+        QueryStatement::DropTable(statement) => {
+            if statement.table.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "DROP TABLE requires a table name".into(),
+                ));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::DropTable(statement.clone())),
+                source: QuerySource::Collection(statement.table.clone()),
+                collection: statement.table.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
+        QueryStatement::AlterTable(statement) => {
+            if statement.table.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE requires a table name".into(),
+                ));
+            }
+
+            validate_alter_command(statement)?;
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::AlterTable(statement.clone())),
+                source: QuerySource::Collection(statement.table.clone()),
+                collection: statement.table.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
+        QueryStatement::CreateSchema(statement) => {
+            if statement.schema.trim().is_empty() {
+                return Err(CassieError::Planner("CREATE SCHEMA requires a name".into()));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::CreateSchema(statement.clone())),
+                source: QuerySource::Collection(statement.schema.clone()),
+                collection: statement.schema.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
+    }
 }
 
 fn source_name(source: &QuerySource) -> String {
@@ -38,7 +135,44 @@ fn source_name(source: &QuerySource) -> String {
     }
 }
 
-fn validate_logical_plan(select: &crate::sql::ast::SelectStatement) -> Result<(), CassieError> {
+fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieError> {
+    if statement.table.trim().is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER TABLE requires a table name".into(),
+        ));
+    }
+    match &statement.operation {
+        AlterTableOperation::AddColumn { field, .. } => {
+            if field.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE ADD COLUMN requires a field".into(),
+                ));
+            }
+        }
+        AlterTableOperation::DropColumn { field } => {
+            if field.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE DROP COLUMN requires a field".into(),
+                ));
+            }
+            if field.trim().eq_ignore_ascii_case("id") {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE cannot drop reserved field 'id'".into(),
+                ));
+            }
+        }
+        AlterTableOperation::RenameTo { table } => {
+            if table.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE RENAME TO requires a table name".into(),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_logical_plan(select: &SelectStatement) -> Result<(), CassieError> {
     if source_name(&select.source).trim().is_empty() {
         return Err(CassieError::Planner(
             "planner cannot build plan for empty source name".to_string(),

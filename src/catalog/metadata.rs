@@ -57,9 +57,79 @@ impl Catalog {
         self.vector_indexes.write().await.clear();
     }
 
+    pub async fn unregister_collection(&self, collection: &str) {
+        self.collections.write().await.remove(collection);
+
+        self.schemas.write().await.remove(collection);
+
+        self.vector_indexes
+            .write()
+            .await
+            .retain(|_, index| index.collection != collection);
+    }
+
     pub async fn get_schema(&self, collection: &str) -> Option<CollectionSchema> {
         let schemas = self.schemas.read().await;
         schemas.get(collection).cloned()
+    }
+
+    pub async fn add_collection_field(&self, collection: &str, name: String, data_type: DataType) {
+        let mut schemas = self.schemas.write().await;
+        let Some(schema) = schemas.get_mut(collection) else {
+            return;
+        };
+
+        if schema.fields.iter().any(|field| field.name == name) {
+            return;
+        }
+
+        schema.fields.push(crate::catalog::FieldMeta {
+            name,
+            data_type,
+            is_indexed: true,
+            boost: Some(1.0),
+        });
+    }
+
+    pub async fn remove_collection_field(&self, collection: &str, name: &str) {
+        let mut schemas = self.schemas.write().await;
+        let Some(schema) = schemas.get_mut(collection) else {
+            return;
+        };
+
+        schema.fields.retain(|field| field.name != name);
+    }
+
+    pub async fn rename_collection(&self, current_name: &str, next_name: &str) {
+        let mut collections = self.collections.write().await;
+        collections.remove(current_name);
+        collections.insert(next_name.to_string(), CollectionMeta::new(next_name, None));
+
+        let mut schemas = self.schemas.write().await;
+        if let Some(schema) = schemas.remove(current_name) {
+            schemas.insert(
+                next_name.to_string(),
+                CollectionSchema {
+                    collection: next_name.to_string(),
+                    fields: schema.fields,
+                },
+            );
+        }
+
+        let mut indexes = self.vector_indexes.write().await;
+        let keys = indexes
+            .iter()
+            .filter(|(_, record)| record.collection == current_name)
+            .map(|(key, record)| (key.clone(), record.field.clone()))
+            .collect::<Vec<_>>();
+
+        for (key, field) in keys {
+            if let Some(mut metadata) = indexes.remove(&key) {
+                metadata.collection = next_name.to_string();
+                let next_key = Self::vector_index_key(&metadata.collection, &field);
+                indexes.insert(next_key, metadata);
+            }
+        }
     }
 
     pub async fn exists(&self, collection: &str) -> bool {

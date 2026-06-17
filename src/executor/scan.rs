@@ -2,7 +2,10 @@ use crate::app::Cassie;
 use crate::executor::batch::{Batch, BatchRow, DEFAULT_BATCH_SIZE};
 use crate::types::Value;
 
-pub(crate) async fn scan(cassie: &Cassie, collection: &str) -> Result<Vec<Batch>, crate::executor::QueryError> {
+pub(crate) async fn scan(
+    cassie: &Cassie,
+    collection: &str,
+) -> Result<Vec<Batch>, crate::executor::QueryError> {
     let document_batches = cassie
         .midge
         .scan_documents_batched(collection, DEFAULT_BATCH_SIZE)

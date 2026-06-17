@@ -43,6 +43,63 @@ impl StorageFamily {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct FamilyScope {
+    include_schema: bool,
+    include_data: bool,
+    include_temp: bool,
+}
+
+impl FamilyScope {
+    fn for_families(families: &[StorageFamily]) -> Result<Self, CassieError> {
+        if families.is_empty() {
+            return Err(CassieError::Unsupported(
+                "transaction scope must include at least one storage family".to_string(),
+            ));
+        }
+
+        let include_schema = families
+            .iter()
+            .any(|family| matches!(family, StorageFamily::Schema));
+        let include_data = families
+            .iter()
+            .any(|family| matches!(family, StorageFamily::Data));
+        let include_temp = families
+            .iter()
+            .any(|family| matches!(family, StorageFamily::Temp));
+
+        if include_schema && include_data {
+            return Err(CassieError::Unsupported(
+                "cannot open a transaction across schema and data families".to_string(),
+            ));
+        }
+
+        if include_temp && (include_schema || include_data) {
+            return Err(CassieError::Unsupported(
+                "transactions currently support exactly one storage family".to_string(),
+            ));
+        }
+
+        Ok(Self {
+            include_schema,
+            include_data,
+            include_temp,
+        })
+    }
+
+    fn family(self) -> Option<StorageFamily> {
+        if self.include_schema {
+            Some(StorageFamily::Schema)
+        } else if self.include_data {
+            Some(StorageFamily::Data)
+        } else if self.include_temp {
+            Some(StorageFamily::Temp)
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct StorageLayout {
     pub schema: ColumnFamilyHandle,
@@ -122,15 +179,15 @@ impl Midge {
         &self,
         mode: TransactionMode,
     ) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.transaction(StorageFamily::Schema, mode)
+        self.begin_families_tx(&[StorageFamily::Schema], mode)
     }
 
     pub fn data_tx(&self, mode: TransactionMode) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.transaction(StorageFamily::Data, mode)
+        self.begin_families_tx(&[StorageFamily::Data], mode)
     }
 
     pub fn temp_tx(&self, mode: TransactionMode) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.transaction(StorageFamily::Temp, mode)
+        self.begin_families_tx(&[StorageFamily::Temp], mode)
     }
 
     pub fn default_tx(
@@ -138,6 +195,21 @@ impl Midge {
         mode: TransactionMode,
     ) -> Result<cntryl_midge::Transaction, CassieError> {
         self.transaction_by_name(DEFAULT_FAMILY_NAME, mode)
+    }
+
+    pub fn begin_families_tx(
+        &self,
+        families: &[StorageFamily],
+        mode: TransactionMode,
+    ) -> Result<cntryl_midge::Transaction, CassieError> {
+        let scope = FamilyScope::for_families(families)?;
+        let family = scope.family().ok_or_else(|| {
+            CassieError::Unsupported(
+                "transactions currently support exactly one storage family".to_string(),
+            )
+        })?;
+
+        self.transaction(family, mode)
     }
 
     fn transaction(
@@ -205,6 +277,10 @@ impl Midge {
 
     fn vector_index_prefix() -> Vec<u8> {
         VECTOR_INDEX_PREFIX.as_bytes().to_vec()
+    }
+
+    fn vector_index_collection_prefix(collection: &str) -> Vec<u8> {
+        format!("{VECTOR_INDEX_PREFIX}{collection}/").into_bytes()
     }
 
     fn collections_key() -> Vec<u8> {
@@ -346,6 +422,222 @@ impl Midge {
         }
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn drop_collection(&self, name: &str) -> Result<(), CassieError> {
+        let mut schema_tx = self.begin_schema_rw_tx()?;
+        let schema_key = Self::collection_schema_key(name);
+        if schema_tx
+            .get(&schema_key)
+            .map_err(CassieError::from)?
+            .is_none()
+        {
+            return Err(CassieError::CollectionNotFound(name.to_string()));
+        }
+
+        let vector_prefix = Self::vector_index_collection_prefix(name);
+        let mut vector_indexes = schema_tx
+            .scan(&Query::new().prefix(vector_prefix.into()))
+            .map_err(CassieError::from)?;
+        let mut vector_keys = Vec::new();
+        while let Some((key, _value)) = vector_indexes.next() {
+            vector_keys.push(key);
+        }
+        for key in vector_keys {
+            schema_tx.delete(key).map_err(CassieError::from)?;
+        }
+
+        let mut collections = self.load_collections(&schema_tx).await?;
+        collections.retain(|entry| entry != name);
+        self.save_collections(&mut schema_tx, &collections).await?;
+        schema_tx.delete(schema_key).map_err(CassieError::from)?;
+        schema_tx
+            .commit(WriteOptions::sync())
+            .map_err(CassieError::from)?;
+
+        let mut data_tx = self.begin_data_rw_tx()?;
+        let data_prefix = Self::doc_prefix(name);
+        let mut documents = data_tx
+            .scan(&Query::new().prefix(data_prefix.clone().into()))
+            .map_err(CassieError::from)?;
+        let mut document_keys = Vec::new();
+        while let Some((key, _value)) = documents.next() {
+            document_keys.push(key);
+        }
+
+        for key in document_keys {
+            data_tx.delete(key).map_err(CassieError::from)?;
+        }
+        data_tx
+            .commit(WriteOptions::sync())
+            .map_err(CassieError::from)?;
+
+        Ok(())
+    }
+
+    pub async fn alter_collection_add_column(
+        &self,
+        collection: &str,
+        field: FieldSchema,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let schema_key = Self::collection_schema_key(collection);
+        let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
+        let Some(schema_raw) = schema_raw else {
+            return Err(CassieError::CollectionNotFound(collection.to_string()));
+        };
+
+        let mut schema: Schema = serde_json::from_slice(&schema_raw).map_err(|error| {
+            CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
+        })?;
+
+        if schema.fields.iter().any(|entry| entry.name == field.name) {
+            return Err(CassieError::Unsupported(format!(
+                "field '{0}' already exists on collection '{collection}'",
+                field.name
+            )));
+        }
+
+        schema.fields.push(field);
+        let schema_bytes =
+            serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(schema_key, schema_bytes, None)
+            .map_err(CassieError::from)?;
+
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn alter_collection_drop_column(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let schema_key = Self::collection_schema_key(collection);
+        let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
+        let Some(schema_raw) = schema_raw else {
+            return Err(CassieError::CollectionNotFound(collection.to_string()));
+        };
+
+        let mut schema: Schema = serde_json::from_slice(&schema_raw).map_err(|error| {
+            CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
+        })?;
+
+        let field_count_before = schema.fields.len();
+        schema.fields.retain(|entry| entry.name != field);
+        if schema.fields.len() == field_count_before {
+            return Err(CassieError::Unsupported(format!(
+                "field '{field}' not found in collection '{collection}'",
+            )));
+        }
+
+        let schema_bytes =
+            serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(schema_key, schema_bytes, None)
+            .map_err(CassieError::from)?;
+
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn rename_collection(
+        &self,
+        current_name: &str,
+        next_name: &str,
+    ) -> Result<(), CassieError> {
+        let mut schema_tx = self.begin_schema_rw_tx()?;
+
+        let current_schema_key = Self::collection_schema_key(current_name);
+        let current_schema_bytes = schema_tx
+            .get(&current_schema_key)
+            .map_err(CassieError::from)?
+            .ok_or_else(|| CassieError::CollectionNotFound(current_name.to_string()))?;
+
+        let next_schema_key = Self::collection_schema_key(next_name);
+        if schema_tx
+            .get(&next_schema_key)
+            .map_err(CassieError::from)?
+            .is_some()
+        {
+            return Err(CassieError::Unsupported(format!(
+                "collection '{next_name}' already exists"
+            )));
+        }
+
+        schema_tx
+            .delete(current_schema_key)
+            .map_err(CassieError::from)?;
+        schema_tx
+            .put(next_schema_key, current_schema_bytes.to_vec(), None)
+            .map_err(CassieError::from)?;
+
+        let mut collections = self.load_collections(&schema_tx).await?;
+        if let Some(position) = collections.iter().position(|entry| entry == current_name) {
+            collections[position] = next_name.to_string();
+            collections.sort();
+            collections.dedup();
+            self.save_collections(&mut schema_tx, &collections).await?;
+        }
+
+        let vector_prefix = Self::vector_index_collection_prefix(current_name);
+        let mut vector_indexes = schema_tx
+            .scan(&Query::new().prefix(vector_prefix.into()))
+            .map_err(CassieError::from)?;
+        let mut vector_keys = Vec::new();
+        while let Some((key, _value)) = vector_indexes.next() {
+            vector_keys.push(key);
+        }
+
+        for key in vector_keys {
+            let Some(raw_value) = schema_tx.get(&key).map_err(CassieError::from)? else {
+                continue;
+            };
+            let Ok(mut record) =
+                serde_json::from_slice::<crate::embeddings::VectorIndexRecord>(&raw_value)
+            else {
+                continue;
+            };
+
+            record.collection = next_name.to_string();
+            schema_tx.delete(key).map_err(CassieError::from)?;
+            let next_key = Self::vector_index_key(&record.collection, &record.field);
+            let value = serde_json::to_vec(&record)
+                .map_err(|error| CassieError::Parse(error.to_string()))?;
+            schema_tx
+                .put(next_key, value, None)
+                .map_err(CassieError::from)?;
+        }
+
+        schema_tx
+            .commit(WriteOptions::sync())
+            .map_err(CassieError::from)?;
+
+        let mut data_tx = self.begin_data_rw_tx()?;
+        let current_prefix = Self::doc_prefix(current_name);
+        let next_prefix = Self::doc_prefix(next_name);
+        let mut documents = data_tx
+            .scan(&Query::new().prefix(current_prefix.clone().into()))
+            .map_err(CassieError::from)?;
+        let mut entries = Vec::new();
+        while let Some((key, value)) = documents.next() {
+            entries.push((key, value));
+        }
+
+        for (key, value) in entries {
+            if let Some(id) = key.strip_prefix(current_prefix.as_slice()) {
+                let next_key = [next_prefix.as_slice(), id].concat();
+                data_tx.delete(key).map_err(CassieError::from)?;
+                data_tx
+                    .put(next_key, value, None)
+                    .map_err(CassieError::from)?;
+            }
+        }
+        data_tx
+            .commit(WriteOptions::sync())
+            .map_err(CassieError::from)?;
+
         Ok(())
     }
 

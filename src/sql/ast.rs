@@ -1,3 +1,5 @@
+use crate::types::DataType;
+
 #[derive(Debug, Clone)]
 pub struct ParsedStatement {
     pub raw_sql: String,
@@ -29,6 +31,48 @@ pub enum QuerySource {
 #[derive(Debug, Clone)]
 pub enum QueryStatement {
     Select(SelectStatement),
+    CreateTable(CreateTableStatement),
+    DropTable(DropTableStatement),
+    AlterTable(AlterTableStatement),
+    CreateSchema(CreateSchemaStatement),
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateTableStatement {
+    pub table: String,
+    pub fields: Vec<FieldDefinition>,
+    pub if_not_exists: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct DropTableStatement {
+    pub table: String,
+    pub if_exists: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct AlterTableStatement {
+    pub table: String,
+    pub operation: AlterTableOperation,
+}
+
+#[derive(Debug, Clone)]
+pub enum AlterTableOperation {
+    AddColumn { field: String, data_type: DataType },
+    DropColumn { field: String },
+    RenameTo { table: String },
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateSchemaStatement {
+    pub schema: String,
+    pub if_not_exists: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct FieldDefinition {
+    pub name: String,
+    pub data_type: DataType,
 }
 
 #[derive(Debug, Clone)]

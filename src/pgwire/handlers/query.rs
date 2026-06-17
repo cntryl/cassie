@@ -37,6 +37,10 @@ pub async fn describe_query(
     let logical = crate::planner::logical::plan(&bound)?;
     let logical = crate::planner::optimizer::optimize(logical);
 
+    if logical.command.is_some() {
+        return Ok(Vec::new());
+    }
+
     Ok(
         crate::executor::columns_from_projection(&logical.projection)
             .into_iter()

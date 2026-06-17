@@ -5,10 +5,10 @@ use std::pin::Pin;
 use crate::app::Cassie;
 use crate::executor::batch::{self, BatchRow, RowAccess};
 use crate::executor::{aggregate, filter, projection, scan, sort};
-use crate::planner::logical::LogicalPlan;
+use crate::planner::logical::{LogicalCommand, LogicalPlan};
 use crate::planner::physical::PhysicalPlan;
-use crate::sql::ast::{CteQuery, CommonTableExpression, QuerySource};
-use crate::types::Value;
+use crate::sql::ast::{CommonTableExpression, CteQuery, QuerySource};
+use crate::types::{FieldSchema, Schema, Value};
 
 const MAX_RECURSIVE_CTE_DEPTH: usize = 64;
 
@@ -39,6 +39,10 @@ pub async fn run(
     plan: PhysicalPlan,
     params: Vec<Value>,
 ) -> Result<QueryResult, QueryError> {
+    if let Some(command) = plan.logical.command.as_ref() {
+        return execute_command(cassie, command).await;
+    }
+
     let mut cte_context: CteContext = HashMap::new();
     let rows = execute_plan(cassie, &plan.logical, &mut cte_context, &params).await?;
 
@@ -52,12 +56,151 @@ pub async fn run(
     })
 }
 
+async fn execute_command(
+    cassie: &Cassie,
+    command: &LogicalCommand,
+) -> Result<QueryResult, QueryError> {
+    match command {
+        LogicalCommand::CreateTable(statement) => {
+            if statement.if_not_exists && cassie.catalog.exists(&statement.table).await {
+                return Ok(QueryResult {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    command: "CREATE TABLE".to_string(),
+                });
+            }
+
+            let schema = Schema {
+                fields: statement
+                    .fields
+                    .iter()
+                    .map(|field| FieldSchema {
+                        name: field.name.clone(),
+                        data_type: field.data_type.clone(),
+                        nullable: true,
+                    })
+                    .collect(),
+            };
+
+            cassie
+                .midge
+                .create_collection(&statement.table, schema.clone())
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie
+                .catalog
+                .register_collection(
+                    &statement.table,
+                    schema
+                        .fields
+                        .into_iter()
+                        .map(|field| (field.name, field.data_type))
+                        .collect(),
+                )
+                .await;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "CREATE TABLE".to_string(),
+            })
+        }
+        LogicalCommand::DropTable(statement) => {
+            if statement.if_exists && !cassie.catalog.exists(&statement.table).await {
+                return Ok(QueryResult {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    command: "DROP TABLE".to_string(),
+                });
+            }
+
+            cassie
+                .midge
+                .drop_collection(&statement.table)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.unregister_collection(&statement.table).await;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "DROP TABLE".to_string(),
+            })
+        }
+        LogicalCommand::AlterTable(statement) => {
+            match &statement.operation {
+                crate::sql::ast::AlterTableOperation::AddColumn { field, data_type } => {
+                    let field = FieldSchema {
+                        name: field.clone(),
+                        data_type: data_type.clone(),
+                        nullable: true,
+                    };
+                    cassie
+                        .midge
+                        .alter_collection_add_column(&statement.table, field.clone())
+                        .await
+                        .map_err(|error| QueryError::General(error.to_string()))?;
+                    cassie
+                        .catalog
+                        .add_collection_field(&statement.table, field.name, field.data_type.clone())
+                        .await;
+                }
+                crate::sql::ast::AlterTableOperation::DropColumn { field } => {
+                    cassie
+                        .midge
+                        .alter_collection_drop_column(&statement.table, field)
+                        .await
+                        .map_err(|error| QueryError::General(error.to_string()))?;
+                    cassie
+                        .catalog
+                        .remove_collection_field(&statement.table, field)
+                        .await;
+                }
+                crate::sql::ast::AlterTableOperation::RenameTo { table } => {
+                    if cassie.catalog.exists(table).await {
+                        return Err(QueryError::General(format!(
+                            "collection '{table}' already exists"
+                        )));
+                    }
+
+                    cassie
+                        .midge
+                        .rename_collection(&statement.table, table)
+                        .await
+                        .map_err(|error| QueryError::General(error.to_string()))?;
+                    cassie
+                        .catalog
+                        .rename_collection(&statement.table, table)
+                        .await;
+                }
+            }
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "ALTER TABLE".to_string(),
+            })
+        }
+        LogicalCommand::CreateSchema(_statement) => Ok(QueryResult {
+            columns: Vec::new(),
+            rows: Vec::new(),
+            command: "CREATE SCHEMA".to_string(),
+        }),
+    }
+}
+
 async fn execute_plan(
     cassie: &Cassie,
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
     params: &[Value],
 ) -> Result<Vec<BatchRow>, QueryError> {
+    if plan.command.is_some() {
+        return Err(QueryError::General(
+            "cannot execute command plans in CTE context".into(),
+        ));
+    }
+
     for cte in &plan.ctes {
         let rows = execute_cte(cassie, cte, cte_context, params).await?;
         cte_context.insert(cte.name.to_ascii_lowercase(), rows);
@@ -144,11 +287,21 @@ fn execute_cte<'a>(
     })
 }
 
-fn build_logical_plan(statement: &crate::sql::ast::ParsedStatement) -> Result<LogicalPlan, QueryError> {
-    crate::planner::logical::plan(&crate::sql::binder::BoundStatement {
+fn build_logical_plan(
+    statement: &crate::sql::ast::ParsedStatement,
+) -> Result<LogicalPlan, QueryError> {
+    let plan = crate::planner::logical::plan(&crate::sql::binder::BoundStatement {
         statement: statement.clone(),
     })
-    .map_err(|error| QueryError::General(error.to_string()))
+    .map_err(|error| QueryError::General(error.to_string()))?;
+
+    if plan.command.is_some() {
+        return Err(QueryError::General(
+            "CTE statements cannot include command statements".into(),
+        ));
+    }
+
+    Ok(plan)
 }
 
 async fn execute_source_query(
@@ -170,9 +323,7 @@ async fn execute_source_query(
                 .ok_or_else(|| QueryError::General(format!("relation '{name}' does not exist")))?;
             let text_fields = deduce_text_fields(&rows);
             let batches = batch::chunk_rows(
-                rows.into_iter()
-                    .map(BatchRow::new)
-                    .collect::<Vec<_>>(),
+                rows.into_iter().map(BatchRow::new).collect::<Vec<_>>(),
                 batch::DEFAULT_BATCH_SIZE,
             );
             (batches, text_fields)
@@ -212,7 +363,8 @@ async fn execute_source_query(
         )?;
     }
 
-    batches = projection::project_batches(batches, &plan.projection, params, Some(&search_context))?;
+    batches =
+        projection::project_batches(batches, &plan.projection, params, Some(&search_context))?;
 
     if let Some(offset) = plan.offset {
         let offset = offset.max(0) as usize;

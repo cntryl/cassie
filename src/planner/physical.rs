@@ -20,6 +20,14 @@ pub struct PhysicalPlan {
 }
 
 pub fn build(plan: LogicalPlan) -> PhysicalPlan {
+    if plan.command.is_some() {
+        return PhysicalPlan {
+            collection: plan.collection.clone(),
+            operators: Vec::new(),
+            logical: plan,
+        };
+    }
+
     let mut operators = vec![Operator::Scan];
     if plan.filter.is_some() {
         operators.push(Operator::Filter);

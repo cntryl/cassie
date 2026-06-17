@@ -1,7 +1,7 @@
 use crate::executor::batch::{Batch, BatchRow, RowAccess};
+use crate::executor::filter;
 use crate::executor::filter::SearchContext;
 use crate::executor::QueryError;
-use crate::executor::filter;
 use crate::sql::ast::SelectItem;
 use crate::types::Value;
 

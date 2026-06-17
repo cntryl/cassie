@@ -247,9 +247,9 @@ fn should_keep_collection_clause_values_in_logical_plan() {
 fn should_reject_invalid_logical_plan_shape_missing_collection() {
     // Arrange
     let bound = BoundStatement {
-            statement: ParsedStatement {
-                raw_sql: "SELECT id FROM  LIMIT 1".to_string(),
-                statement: QueryStatement::Select(SelectStatement {
+        statement: ParsedStatement {
+            raw_sql: "SELECT id FROM  LIMIT 1".to_string(),
+            statement: QueryStatement::Select(SelectStatement {
                 source: QuerySource::Collection("".to_string()),
                 ctes: vec![],
                 recursive: false,
@@ -280,9 +280,9 @@ fn should_reject_invalid_logical_plan_shape_missing_collection() {
 fn should_reject_invalid_logical_plan_shape_empty_projection() {
     // Arrange
     let bound = BoundStatement {
-            statement: ParsedStatement {
-                raw_sql: "SELECT FROM planner_projectionless".to_string(),
-                statement: QueryStatement::Select(SelectStatement {
+        statement: ParsedStatement {
+            raw_sql: "SELECT FROM planner_projectionless".to_string(),
+            statement: QueryStatement::Select(SelectStatement {
                 source: QuerySource::Collection("planner_projectionless".to_string()),
                 ctes: vec![],
                 recursive: false,
@@ -310,9 +310,9 @@ fn should_reject_invalid_logical_plan_shape_empty_projection() {
 fn should_reject_invalid_logical_plan_shape_negative_offset() {
     // Arrange
     let bound = BoundStatement {
-            statement: ParsedStatement {
-                raw_sql: "SELECT id FROM planner_negative_offset".to_string(),
-                statement: QueryStatement::Select(SelectStatement {
+        statement: ParsedStatement {
+            raw_sql: "SELECT id FROM planner_negative_offset".to_string(),
+            statement: QueryStatement::Select(SelectStatement {
                 source: QuerySource::Collection("planner_negative_offset".to_string()),
                 ctes: vec![],
                 recursive: false,
@@ -343,9 +343,9 @@ fn should_reject_invalid_logical_plan_shape_negative_offset() {
 fn should_reject_invalid_logical_plan_shape_negative_limit() {
     // Arrange
     let bound = BoundStatement {
-            statement: ParsedStatement {
-                raw_sql: "SELECT id FROM planner_negative_limit".to_string(),
-                statement: QueryStatement::Select(SelectStatement {
+        statement: ParsedStatement {
+            raw_sql: "SELECT id FROM planner_negative_limit".to_string(),
+            statement: QueryStatement::Select(SelectStatement {
                 source: QuerySource::Collection("planner_negative_limit".to_string()),
                 ctes: vec![],
                 recursive: false,
@@ -484,5 +484,81 @@ fn should_preserve_recursive_cte_aliases_in_logical_plan() {
             cassie::sql::ast::CteQuery::Recursive { .. }
         );
         assert!(recursive);
+    });
+}
+
+#[test]
+fn should_plan_create_table_as_command() {
+    // Arrange
+    let catalog = Catalog::new();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        // Act
+        let parsed =
+            parser::parse_statement("CREATE TABLE planner_create (id INT, title TEXT, body TEXT)")
+                .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let plan = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert_eq!(plan.collection, "planner_create");
+        assert!(plan.command.is_some());
+        assert!(plan.projection.is_empty());
+        assert!(plan.filter.is_none());
+    });
+}
+
+#[test]
+fn should_plan_drop_table_as_command() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_drop");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        // Act
+        let parsed = parser::parse_statement("DROP TABLE planner_drop").unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let plan = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert_eq!(plan.collection, "planner_drop");
+        assert!(plan.command.is_some());
+    });
+}
+
+#[test]
+fn should_plan_alter_table_command() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_alter");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        // Act
+        let parsed =
+            parser::parse_statement("ALTER TABLE planner_alter ADD COLUMN score FLOAT").unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let plan = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert_eq!(plan.collection, "planner_alter");
+        assert!(plan.command.is_some());
+        match plan.command.as_ref().unwrap() {
+            logical::LogicalCommand::AlterTable(statement) => {
+                assert_eq!(statement.table, "planner_alter");
+            }
+            _ => panic!("expected alter table command"),
+        }
     });
 }

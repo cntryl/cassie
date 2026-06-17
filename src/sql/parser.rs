@@ -1,7 +1,10 @@
 use crate::sql::ast::{
-    BinaryOp, CteQuery, CommonTableExpression, Expr, FunctionCall, OrderExpr, ParsedStatement,
-    QuerySource, QueryStatement, SelectItem, SelectStatement, SortDirection,
+    AlterTableOperation, AlterTableStatement, BinaryOp, CommonTableExpression,
+    CreateSchemaStatement, CreateTableStatement, CteQuery, DropTableStatement, Expr,
+    FieldDefinition, FunctionCall, OrderExpr, ParsedStatement, QuerySource, QueryStatement,
+    SelectItem, SelectStatement, SortDirection,
 };
+use crate::types::DataType;
 use std::collections::HashSet;
 
 #[derive(Debug)]
@@ -14,10 +17,16 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         parse_with_statement(trimmed)
     } else if lower.starts_with("select ") {
         parse_select_statement(trimmed, Vec::new(), false)
+    } else if lower.starts_with("create table ") || lower == "create table" {
+        parse_create_table_statement(trimmed)
+    } else if lower.starts_with("drop table ") || lower == "drop table" {
+        parse_drop_table_statement(trimmed)
+    } else if lower.starts_with("alter table ") || lower == "alter table" {
+        parse_alter_table_statement(trimmed)
+    } else if lower.starts_with("create schema ") || lower == "create schema" {
+        parse_create_schema_statement(trimmed)
     } else {
-        Err(SqlError(
-            "only SELECT statements are supported in this stage".into(),
-        ))
+        Err(SqlError("unsupported SQL statement".into()))
     }
 }
 
@@ -32,21 +41,285 @@ fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         remainder
     };
 
-    let select_pos = find_top_level_keyword(after_recursive, 0, "select").ok_or_else(|| {
-        SqlError("missing SELECT after WITH clause".into())
-    })?;
+    let select_pos = find_top_level_keyword(after_recursive, 0, "select")
+        .ok_or_else(|| SqlError("missing SELECT after WITH clause".into()))?;
 
     let cte_sql = after_recursive[..select_pos].trim();
     if cte_sql.is_empty() {
         return Err(SqlError("missing CTE definition in WITH clause".into()));
     }
-    if !after_recursive[select_pos..].to_lowercase().starts_with("select ") {
-        return Err(SqlError("only SELECT statements are supported in this stage".into()));
+    if !after_recursive[select_pos..]
+        .to_lowercase()
+        .starts_with("select ")
+    {
+        return Err(SqlError(
+            "only SELECT statements are supported in this stage".into(),
+        ));
     }
 
     let cte_defs = parse_cte_definitions(cte_sql, recursive)?;
     let main_select = &after_recursive[select_pos..];
     parse_select_statement(main_select, cte_defs, recursive)
+}
+
+fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[12..].trim();
+
+    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+
+    let open_paren = rest
+        .find('(')
+        .ok_or_else(|| SqlError("CREATE TABLE requires a column list".into()))?;
+    let close_paren = rest
+        .rfind(')')
+        .ok_or_else(|| SqlError("CREATE TABLE requires closing ')'".into()))?;
+    if close_paren < open_paren {
+        return Err(SqlError("invalid CREATE TABLE definition".into()));
+    }
+
+    let table = rest[..open_paren].trim();
+    let body = rest[(open_paren + 1)..close_paren].trim();
+    let trailing = rest[(close_paren + 1)..].trim();
+    if !trailing.is_empty() {
+        return Err(SqlError(
+            "unexpected tokens after CREATE TABLE columns".into(),
+        ));
+    }
+    if table.is_empty() {
+        return Err(SqlError("missing table name".into()));
+    }
+
+    let mut fields = Vec::new();
+    if !body.is_empty() {
+        for raw in split_csv(body) {
+            let raw = raw.trim();
+            if raw.is_empty() {
+                return Err(SqlError("empty column definition".into()));
+            }
+            let field = parse_field_definition(raw)?;
+            fields.push(field);
+        }
+    }
+
+    if fields.is_empty() {
+        return Err(SqlError("CREATE TABLE requires at least one column".into()));
+    }
+
+    let mut seen = HashSet::new();
+    for field in &fields {
+        let name = field.name.to_ascii_lowercase();
+        if !seen.insert(name.clone()) {
+            return Err(SqlError(format!("duplicate column name '{name}'")));
+        }
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CreateTable(CreateTableStatement {
+            table: table.to_string(),
+            fields,
+            if_not_exists,
+        }),
+    })
+}
+
+fn parse_drop_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[10..].trim();
+
+    let (if_exists, rest) = parse_if_exists(rest)?;
+    let table = rest.trim();
+    if table.is_empty() {
+        return Err(SqlError("missing table name in DROP TABLE".into()));
+    }
+    if table.split_whitespace().count() != 1 {
+        return Err(SqlError(
+            "DROP TABLE supports only a single table name".into(),
+        ));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::DropTable(DropTableStatement {
+            table: table.to_string(),
+            if_exists,
+        }),
+    })
+}
+
+fn parse_alter_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[11..].trim();
+
+    let (if_exists, rest) = parse_if_exists(rest)?;
+    if if_exists {
+        return Err(SqlError("ALTER TABLE IF EXISTS is not supported".into()));
+    }
+    let mut table_and_op = rest.splitn(2, char::is_whitespace);
+    let table = table_and_op
+        .next()
+        .ok_or_else(|| SqlError("missing table name in ALTER TABLE".into()))?
+        .trim();
+    if table.is_empty() {
+        return Err(SqlError("missing table name in ALTER TABLE".into()));
+    }
+    if table.contains(' ') {
+        return Err(SqlError("invalid table name in ALTER TABLE".into()));
+    }
+
+    let op_clause = table_and_op
+        .next()
+        .ok_or_else(|| SqlError("missing alter operation".into()))?
+        .trim();
+    if op_clause.is_empty() {
+        return Err(SqlError("missing alter operation".into()));
+    }
+
+    let operation = parse_alter_table_operation(op_clause)?;
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::AlterTable(AlterTableStatement {
+            table: table.to_string(),
+            operation,
+        }),
+    })
+}
+
+fn parse_alter_table_operation(raw: &str) -> Result<AlterTableOperation, SqlError> {
+    let lower = raw.to_lowercase();
+    if lower.starts_with("add column") {
+        let field_def = raw["add column".len()..].trim();
+        let definition = parse_field_definition(field_def)?;
+        return Ok(AlterTableOperation::AddColumn {
+            field: definition.name,
+            data_type: definition.data_type,
+        });
+    }
+    if lower.starts_with("drop column") {
+        let field = raw["drop column".len()..].trim();
+        if field.is_empty() {
+            return Err(SqlError("DROP COLUMN requires a column name".into()));
+        }
+        if field.split_whitespace().count() != 1 {
+            return Err(SqlError("DROP COLUMN supports only one column".into()));
+        }
+        return Ok(AlterTableOperation::DropColumn {
+            field: field.to_string(),
+        });
+    }
+    if lower.starts_with("rename to") {
+        let table = raw["rename to".len()..].trim();
+        if table.is_empty() {
+            return Err(SqlError("RENAME TO requires a collection name".into()));
+        }
+        if table.split_whitespace().count() != 1 {
+            return Err(SqlError(
+                "RENAME TO supports only one collection name".into(),
+            ));
+        }
+        return Ok(AlterTableOperation::RenameTo {
+            table: table.to_string(),
+        });
+    }
+
+    Err(SqlError("unsupported ALTER TABLE operation".into()))
+}
+
+fn parse_create_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[13..].trim();
+    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+    let schema = rest.trim();
+    if schema.is_empty() {
+        return Err(SqlError("missing schema name".into()));
+    }
+    if schema.split_whitespace().count() != 1 {
+        return Err(SqlError(
+            "CREATE SCHEMA supports only one schema name".into(),
+        ));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CreateSchema(CreateSchemaStatement {
+            schema: schema.to_string(),
+            if_not_exists,
+        }),
+    })
+}
+
+fn parse_if_not_exists(raw: &str) -> Result<(bool, &str), SqlError> {
+    let lower = raw.to_lowercase();
+    if lower.starts_with("if not exists ") {
+        return Ok((true, raw["if not exists ".len()..].trim()));
+    }
+    Ok((false, raw.trim()))
+}
+
+fn parse_if_exists(raw: &str) -> Result<(bool, &str), SqlError> {
+    let lower = raw.to_lowercase();
+    if lower.starts_with("if exists ") {
+        return Ok((true, raw["if exists ".len()..].trim()));
+    }
+    Ok((false, raw.trim()))
+}
+
+fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlError> {
+    let mut parts = raw.split_whitespace();
+    let name = parts
+        .next()
+        .ok_or_else(|| SqlError("invalid column definition".into()))?
+        .trim();
+    if name.is_empty() {
+        return Err(SqlError("invalid column definition".into()));
+    }
+    let type_tokens: Vec<&str> = parts.collect();
+    if type_tokens.is_empty() {
+        return Err(SqlError(format!("missing data type for column '{name}'")));
+    }
+    let data_type = parse_data_type(type_tokens.join(" ").as_str())?;
+    Ok(FieldDefinition {
+        name: name.to_string(),
+        data_type,
+    })
+}
+
+fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {
+    let raw = raw.trim();
+    let lower = raw.to_lowercase();
+    if let Some(inner) = lower.strip_prefix("vector(") {
+        let Some(inner) = inner.strip_suffix(')') else {
+            return Err(SqlError(format!("invalid VECTOR type '{raw}'")));
+        };
+        let dim = inner
+            .trim()
+            .parse::<usize>()
+            .map_err(|_| SqlError(format!("invalid VECTOR dimension '{raw}'")))?;
+        if dim == 0 {
+            return Err(SqlError(format!("invalid VECTOR dimension '{raw}'")));
+        }
+        return Ok(DataType::Vector(dim));
+    }
+
+    if lower == "int" || lower == "integer" {
+        return Ok(DataType::Int);
+    }
+    if lower == "float" || lower == "double" || lower == "numeric" || lower == "decimal" {
+        return Ok(DataType::Float);
+    }
+    if lower == "boolean" || lower == "bool" {
+        return Ok(DataType::Boolean);
+    }
+    if lower == "json" {
+        return Ok(DataType::Json);
+    }
+    if lower == "text" || lower == "string" {
+        return Ok(DataType::Text);
+    }
+
+    Err(SqlError(format!("unsupported data type '{raw}'")))
 }
 
 fn parse_select_statement(
@@ -211,7 +484,10 @@ fn parse_select_statement(
     })
 }
 
-fn parse_cte_definitions(raw: &str, recursive: bool) -> Result<Vec<CommonTableExpression>, SqlError> {
+fn parse_cte_definitions(
+    raw: &str,
+    recursive: bool,
+) -> Result<Vec<CommonTableExpression>, SqlError> {
     let mut out = Vec::new();
     for definition in split_csv(raw) {
         let definition = definition.trim();

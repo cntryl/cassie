@@ -47,6 +47,9 @@ pub enum QuerySource {
 #[derive(Debug, Clone)]
 pub enum QueryStatement {
     Select(SelectStatement),
+    Insert(InsertStatement),
+    Update(UpdateStatement),
+    Delete(DeleteStatement),
     CreateTable(CreateTableStatement),
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
@@ -58,6 +61,29 @@ pub enum QueryStatement {
     CreateProcedure(CreateProcedureStatement),
     DropProcedure(DropProcedureStatement),
     CallProcedure(CallProcedureStatement),
+}
+
+#[derive(Debug, Clone)]
+pub struct InsertStatement {
+    pub table: String,
+    pub columns: Vec<String>,
+    pub values: Vec<Expr>,
+    pub returning: Vec<SelectItem>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UpdateStatement {
+    pub table: String,
+    pub assignments: Vec<(String, Expr)>,
+    pub filter: Option<Expr>,
+    pub returning: Vec<SelectItem>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DeleteStatement {
+    pub table: String,
+    pub filter: Option<Expr>,
+    pub returning: Vec<SelectItem>,
 }
 
 #[derive(Debug, Clone)]

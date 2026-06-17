@@ -5,8 +5,8 @@ pub mod parser;
 
 pub use ast::{
     AlterTableOperation, AlterTableStatement, CommonTableExpression, CreateSchemaStatement,
-    CreateTableStatement, DropTableStatement, FieldDefinition, ParsedStatement, QuerySource,
-    QueryStatement, SelectItem, SelectStatement,
+    CreateTableStatement, DeleteStatement, DropTableStatement, FieldDefinition, InsertStatement,
+    ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement, UpdateStatement,
 };
 pub use binder::{bind, BoundStatement};
 pub use functions::registry;

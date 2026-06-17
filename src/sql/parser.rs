@@ -19,6 +19,12 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let lower = trimmed.to_lowercase();
     if lower.starts_with("with ") || lower == "with" {
         parse_with_statement(trimmed)
+    } else if lower.starts_with("insert ") || lower == "insert" {
+        parse_insert_statement(trimmed)
+    } else if lower.starts_with("update ") || lower == "update" {
+        parse_update_statement(trimmed)
+    } else if lower.starts_with("delete ") || lower == "delete" {
+        parse_delete_statement(trimmed)
     } else if lower.starts_with("create function ") || lower == "create function" {
         parse_create_function_statement(trimmed)
     } else if lower.starts_with("create procedure ") || lower == "create procedure" {
@@ -516,6 +522,365 @@ fn parse_create_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError>
             if_not_exists,
         }),
     })
+}
+
+fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    if !trimmed.to_lowercase().starts_with("insert into ") {
+        return Err(SqlError("INSERT requires INTO clause".into()));
+    }
+
+    let remainder = trimmed[11..].trim();
+    let values_pos = find_top_level_keyword(remainder, 0, "values")
+        .ok_or_else(|| SqlError("INSERT requires VALUES".into()))?;
+    let before_values = remainder[..values_pos].trim();
+    let values_part = remainder[values_pos + 6..].trim();
+    if before_values.is_empty() {
+        return Err(SqlError("INSERT INTO requires a table name".into()));
+    }
+    if values_part.is_empty() {
+        return Err(SqlError("INSERT requires VALUES list".into()));
+    }
+    if !values_part.starts_with('(') {
+        return Err(SqlError("INSERT VALUES requires parenthesized list".into()));
+    }
+
+    let (table, columns) = if let Some(open) = before_values.find('(') {
+        let close = find_matching_paren(before_values, open)
+            .ok_or_else(|| SqlError("INSERT columns list requires closing ')'".into()))?;
+        if close < open {
+            return Err(SqlError("INSERT columns list is malformed".into()));
+        }
+        let table = before_values[..open].trim();
+        if table.is_empty() {
+            return Err(SqlError("INSERT INTO requires a table name".into()));
+        }
+        let tail = before_values[close + 1..].trim();
+        if !tail.is_empty() {
+            return Err(SqlError("INSERT column list is malformed".into()));
+        }
+        let inside = &before_values[open + 1..close];
+        let columns = split_csv(inside)
+            .into_iter()
+            .map(|column| {
+                let column = column.trim();
+                if column.is_empty() {
+                    return Err(SqlError(
+                        "INSERT column list cannot include empty columns".into(),
+                    ));
+                }
+                Ok(column.to_string())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        (table, columns)
+    } else {
+        (before_values, Vec::new())
+    };
+
+    if !values_part.starts_with('(') {
+        return Err(SqlError("INSERT VALUES requires parenthesized list".into()));
+    }
+
+    let close = find_matching_paren(values_part, 0)
+        .ok_or_else(|| SqlError("INSERT VALUES requires closing ')'".into()))?;
+    let values_raw = &values_part[1..close];
+    if values_raw.trim().is_empty() {
+        return Err(SqlError("INSERT VALUES cannot be empty".into()));
+    }
+
+    let values = split_csv(values_raw)
+        .into_iter()
+        .map(parse_expr_token)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if !columns.is_empty() && columns.len() != values.len() {
+        return Err(SqlError(format!(
+            "INSERT column/value counts mismatch: {} columns, {} values",
+            columns.len(),
+            values.len()
+        )));
+    }
+
+    let trailing = values_part[close + 1..].trim();
+    let returning = parse_returning_clause(trailing)?;
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::Insert(crate::sql::ast::InsertStatement {
+            table: table.to_string(),
+            columns,
+            values,
+            returning,
+        }),
+    })
+}
+
+fn parse_update_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let remainder = trimmed[6..].trim();
+    if remainder.is_empty() {
+        return Err(SqlError("UPDATE requires a target table".into()));
+    }
+
+    let set_pos = find_top_level_keyword(remainder, 0, "set")
+        .ok_or_else(|| SqlError("UPDATE requires SET".into()))?;
+
+    let table = remainder[..set_pos].trim();
+    if table.is_empty() {
+        return Err(SqlError("UPDATE requires a target table".into()));
+    }
+
+    let after_set = remainder[(set_pos + 3)..].trim();
+    let (set_clause, remaining) = split_trailing_update_clauses(after_set)?;
+    let assignments = parse_assignment_list(set_clause)?;
+
+    if assignments.is_empty() {
+        return Err(SqlError(
+            "UPDATE SET requires at least one assignment".into(),
+        ));
+    }
+
+    let (filter, returning) = parse_filter_and_returning(remaining)?;
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::Update(crate::sql::ast::UpdateStatement {
+            table: table.to_string(),
+            assignments,
+            filter,
+            returning,
+        }),
+    })
+}
+
+fn parse_delete_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    if !trimmed.to_lowercase().starts_with("delete from ") {
+        return Err(SqlError("DELETE requires FROM clause".into()));
+    }
+
+    let remainder = trimmed[11..].trim();
+    if remainder.is_empty() {
+        return Err(SqlError("DELETE requires a target table".into()));
+    }
+
+    let remaining = match remainder.find(char::is_whitespace) {
+        Some(position) => {
+            let table = remainder[..position].trim();
+            if table.is_empty() {
+                return Err(SqlError("DELETE requires a target table".into()));
+            }
+            let tail = remainder[position..].trim();
+            (table, tail)
+        }
+        None => (remainder, ""),
+    };
+
+    let (filter, returning) = parse_filter_and_returning(remaining.1)?;
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::Delete(crate::sql::ast::DeleteStatement {
+            table: remaining.0.to_string(),
+            filter,
+            returning,
+        }),
+    })
+}
+
+fn parse_returning_clause(raw: &str) -> Result<Vec<crate::sql::ast::SelectItem>, SqlError> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    if !starts_with_keyword(raw, "returning") {
+        return Err(SqlError("unexpected tokens after VALUES".into()));
+    }
+
+    parse_projection_items(&raw[8..])
+}
+
+fn parse_filter_and_returning(
+    raw: &str,
+) -> Result<(Option<Expr>, Vec<crate::sql::ast::SelectItem>), SqlError> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Ok((None, Vec::new()));
+    }
+
+    let where_pos = find_top_level_keyword(raw, 0, "where");
+    let returning_pos = find_top_level_keyword(raw, 0, "returning");
+
+    match (where_pos, returning_pos) {
+        (Some(where_pos), Some(returning_pos)) if where_pos > returning_pos => {
+            Err(SqlError("unexpected RETURNING order".into()))
+        }
+        (Some(where_pos), Some(returning_pos)) => {
+            let filter_raw = raw[where_pos + 5..returning_pos].trim();
+            let returning_raw = raw[returning_pos + 9..].trim();
+            let filter = if filter_raw.is_empty() {
+                None
+            } else {
+                Some(parse_expression(filter_raw)?)
+            };
+            let returning = parse_projection_items(returning_raw)?;
+            Ok((filter, returning))
+        }
+        (Some(where_pos), None) => {
+            let filter_raw = raw[where_pos + 5..].trim();
+            let filter = if filter_raw.is_empty() {
+                None
+            } else {
+                Some(parse_expression(filter_raw)?)
+            };
+            Ok((filter, Vec::new()))
+        }
+        (None, Some(returning_pos)) => {
+            let filter = None;
+            let returning_raw = raw[returning_pos + 9..].trim();
+            let returning = parse_projection_items(returning_raw)?;
+            Ok((filter, returning))
+        }
+        (None, None) => Ok((None, Vec::new())),
+    }
+}
+
+fn parse_projection_items(raw: &str) -> Result<Vec<crate::sql::ast::SelectItem>, SqlError> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err(SqlError("missing projection".into()));
+    }
+
+    let mut projection = Vec::new();
+    for token in split_csv(raw) {
+        let token = token.trim();
+        if token == "*" {
+            projection.push(SelectItem::Wildcard);
+            continue;
+        }
+
+        if let Some(function) = parse_function(token)? {
+            let (expr, alias) = parse_alias(token);
+            if expr.is_empty() {
+                return Err(SqlError("invalid function in projection".into()));
+            }
+            projection.push(SelectItem::Function { function, alias });
+            continue;
+        }
+
+        let (name, alias) = parse_alias(token);
+        if name.is_empty() {
+            return Err(SqlError("invalid projection item".into()));
+        }
+
+        projection.push(SelectItem::Column {
+            name: name.to_string(),
+            alias,
+        });
+    }
+
+    Ok(projection)
+}
+
+fn parse_assignment_list(raw: &str) -> Result<Vec<(String, Expr)>, SqlError> {
+    let mut assignments = Vec::new();
+    if raw.trim().is_empty() {
+        return Ok(assignments);
+    }
+
+    for assignment in split_csv(raw) {
+        let assignment = assignment.trim();
+        if assignment.is_empty() {
+            return Err(SqlError(
+                "UPDATE SET cannot include empty assignment".into(),
+            ));
+        }
+        assignments.push(parse_assignment(assignment)?);
+    }
+
+    Ok(assignments)
+}
+
+fn find_matching_paren(raw: &str, open_at: usize) -> Option<usize> {
+    if raw.as_bytes().get(open_at) != Some(&b'(') {
+        return None;
+    }
+
+    let mut depth = 0i32;
+    let mut in_single = false;
+    let mut in_double = false;
+
+    for (idx, ch) in raw.char_indices().skip(open_at) {
+        match ch {
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            '(' if !in_single && !in_double => depth += 1,
+            ')' if !in_single && !in_double => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(idx);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    None
+}
+
+fn split_trailing_update_clauses(raw: &str) -> Result<(&str, &str), SqlError> {
+    let where_pos = find_top_level_keyword(raw, 0, "where");
+    let returning_pos = find_top_level_keyword(raw, 0, "returning");
+
+    match (where_pos, returning_pos) {
+        (None, None) => Ok((raw, "")),
+        (Some(where_pos), Some(returning_pos)) if where_pos < returning_pos => {
+            Ok((&raw[..where_pos], &raw[where_pos..]))
+        }
+        (Some(_), Some(_)) => Err(SqlError("unexpected RETURNING order".into())),
+        (Some(pos), None) => Ok((&raw[..pos], &raw[pos..])),
+        (None, Some(pos)) => Ok((&raw[..pos], &raw[pos..])),
+    }
+}
+
+fn parse_assignment(raw: &str) -> Result<(String, Expr), SqlError> {
+    let eq_pos = split_top_level_assignment(raw)
+        .ok_or_else(|| SqlError("UPDATE SET assignments require '='".into()))?;
+
+    let (left, right) = raw.split_at(eq_pos);
+    let left = left.trim();
+    if left.is_empty() {
+        return Err(SqlError("UPDATE SET assignment missing column name".into()));
+    }
+    let right = right[1..].trim();
+    if right.is_empty() {
+        return Err(SqlError("UPDATE SET assignment missing value".into()));
+    }
+
+    Ok((left.to_string(), parse_expression(right)?))
+}
+
+fn split_top_level_assignment(raw: &str) -> Option<usize> {
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut depth = 0i32;
+    let mut square_depth = 0i32;
+
+    for (idx, ch) in raw.char_indices() {
+        match ch {
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            '(' if !in_single && !in_double => depth += 1,
+            ')' if !in_single && !in_double => depth -= 1,
+            '[' if !in_single && !in_double => square_depth += 1,
+            ']' if !in_single && !in_double => square_depth -= 1,
+            '=' if !in_single && !in_double && depth == 0 && square_depth == 0 => {
+                return Some(idx);
+            }
+            _ => {}
+        }
+    }
+
+    None
 }
 
 fn parse_if_not_exists(raw: &str) -> Result<(bool, &str), SqlError> {

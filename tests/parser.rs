@@ -470,15 +470,40 @@ fn should_allow_snippet_function_binding() {
 }
 
 #[test]
-fn should_reject_non_select_statement() {
+fn should_parse_non_select_statement() {
     // Arrange
     let sql = "INSERT INTO docs VALUES (1)";
 
     // Act
-    let parsed = parse_statement(sql);
+    let parsed = parse_statement(sql).expect("insert statements should parse");
 
     // Assert
-    assert!(parsed.is_err());
+    assert!(matches!(parsed.statement, QueryStatement::Insert(_)));
+}
+
+#[test]
+fn should_reject_unsupported_non_select_statement() {
+    // Arrange
+    let sql = "INSERT INTO docs VALUES (1)";
+    let cassie =
+        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-unsupported-{}", Uuid::new_v4()))
+            .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        // Act
+        let parsed = parse_statement(sql).expect("insert statements should parse");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(matches!(
+            bound,
+            Err(cassie::app::CassieError::Unsupported(_))
+        ));
+    });
 }
 
 #[test]

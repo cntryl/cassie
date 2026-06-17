@@ -54,6 +54,18 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 offset: select.offset,
             })
         }
+        QueryStatement::Insert(statement) => Err(CassieError::Planner(format!(
+            "INSERT statement is not supported: {}",
+            statement.table
+        ))),
+        QueryStatement::Update(statement) => Err(CassieError::Planner(format!(
+            "UPDATE statement is not supported: {}",
+            statement.table
+        ))),
+        QueryStatement::Delete(statement) => Err(CassieError::Planner(format!(
+            "DELETE statement is not supported: {}",
+            statement.table
+        ))),
         QueryStatement::CreateTable(statement) => {
             if statement.table.trim().is_empty() {
                 return Err(CassieError::Planner(

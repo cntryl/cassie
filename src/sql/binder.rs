@@ -135,6 +135,18 @@ fn bind_statement<'a>(
                     statement: QueryStatement::CallProcedure(statement),
                 })
             }
+            QueryStatement::Insert(statement) => Err(CassieError::Unsupported(format!(
+                "INSERT statement is not supported: {}",
+                statement.table
+            ))),
+            QueryStatement::Update(statement) => Err(CassieError::Unsupported(format!(
+                "UPDATE statement is not supported: {}",
+                statement.table
+            ))),
+            QueryStatement::Delete(statement) => Err(CassieError::Unsupported(format!(
+                "DELETE statement is not supported: {}",
+                statement.table
+            ))),
         }
     })
 }

@@ -1,6 +1,10 @@
+use cassie::app::CassieError;
 use cassie::catalog::Catalog;
 use cassie::planner::{logical, optimizer, physical, physical::Operator};
-use cassie::sql::ast::{BinaryOp, Expr, SelectItem, SortDirection};
+use cassie::sql::ast::{
+    BinaryOp, Expr, ParsedStatement, QueryStatement, SelectItem, SelectStatement, SortDirection,
+};
+use cassie::sql::binder::BoundStatement;
 use cassie::sql::{binder, parser};
 use cassie::types::{DataType, FieldSchema};
 
@@ -235,5 +239,181 @@ fn should_keep_collection_clause_values_in_logical_plan() {
             Expr::Column(field) if field == "title"
         ));
         assert!(matches!(logical.order[0].direction, SortDirection::Asc));
+    });
+}
+
+#[test]
+fn should_reject_invalid_logical_plan_shape_missing_collection() {
+    // Arrange
+    let bound = BoundStatement {
+        statement: ParsedStatement {
+            raw_sql: "SELECT id FROM  LIMIT 1".to_string(),
+            statement: QueryStatement::Select(SelectStatement {
+                collection: "".to_string(),
+                projection: vec![SelectItem::Column {
+                    name: "id".to_string(),
+                    alias: None,
+                }],
+                filter: None,
+                order: vec![],
+                limit: Some(1),
+                offset: Some(0),
+            }),
+        },
+    };
+
+    // Act
+    let result = logical::plan(&bound);
+
+    // Assert
+    let error = result.unwrap_err();
+    match error {
+        CassieError::Planner(message) => assert!(message.contains("collection")),
+        other => panic!("unexpected error variant: {other:?}"),
+    }
+}
+
+#[test]
+fn should_reject_invalid_logical_plan_shape_empty_projection() {
+    // Arrange
+    let bound = BoundStatement {
+        statement: ParsedStatement {
+            raw_sql: "SELECT FROM planner_projectionless".to_string(),
+            statement: QueryStatement::Select(SelectStatement {
+                collection: "planner_projectionless".to_string(),
+                projection: vec![],
+                filter: None,
+                order: vec![],
+                limit: Some(1),
+                offset: Some(0),
+            }),
+        },
+    };
+
+    // Act
+    let result = logical::plan(&bound);
+
+    // Assert
+    let error = result.unwrap_err();
+    match error {
+        CassieError::Planner(message) => assert!(message.contains("projection")),
+        other => panic!("unexpected error variant: {other:?}"),
+    }
+}
+
+#[test]
+fn should_reject_invalid_logical_plan_shape_negative_offset() {
+    // Arrange
+    let bound = BoundStatement {
+        statement: ParsedStatement {
+            raw_sql: "SELECT id FROM planner_negative_offset".to_string(),
+            statement: QueryStatement::Select(SelectStatement {
+                collection: "planner_negative_offset".to_string(),
+                projection: vec![SelectItem::Column {
+                    name: "id".to_string(),
+                    alias: None,
+                }],
+                filter: None,
+                order: vec![],
+                limit: Some(10),
+                offset: Some(-1),
+            }),
+        },
+    };
+
+    // Act
+    let result = logical::plan(&bound);
+
+    // Assert
+    let error = result.unwrap_err();
+    match error {
+        CassieError::Planner(message) => assert!(message.contains("offset")),
+        other => panic!("unexpected error variant: {other:?}"),
+    }
+}
+
+#[test]
+fn should_reject_invalid_logical_plan_shape_negative_limit() {
+    // Arrange
+    let bound = BoundStatement {
+        statement: ParsedStatement {
+            raw_sql: "SELECT id FROM planner_negative_limit".to_string(),
+            statement: QueryStatement::Select(SelectStatement {
+                collection: "planner_negative_limit".to_string(),
+                projection: vec![SelectItem::Column {
+                    name: "id".to_string(),
+                    alias: None,
+                }],
+                filter: None,
+                order: vec![],
+                limit: Some(-10),
+                offset: Some(0),
+            }),
+        },
+    };
+
+    // Act
+    let result = logical::plan(&bound);
+
+    // Assert
+    let error = result.unwrap_err();
+    match error {
+        CassieError::Planner(message) => assert!(message.contains("limit")),
+        other => panic!("unexpected error variant: {other:?}"),
+    }
+}
+
+#[test]
+fn should_be_deterministic_for_repeated_planning_of_same_query() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_repeat_logical");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_repeat_logical WHERE title = 'gamma' ORDER BY title ASC LIMIT 3 OFFSET 1",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+
+        // Act
+        let first = logical::plan(&bound).unwrap();
+        let second = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert_eq!(format!("{:?}", first), format!("{:?}", second));
+    });
+}
+
+#[test]
+fn should_be_deterministic_for_repeated_optimization_of_same_logical_plan() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_repeat_optimizer");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_repeat_optimizer WHERE title = 'gamma' ORDER BY title ASC LIMIT 3",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let logical_plan = logical::plan(&bound).unwrap();
+
+        // Act
+        let first = optimizer::optimize(logical_plan.clone());
+        let second = optimizer::optimize(logical_plan);
+
+        // Assert
+        assert_eq!(format!("{:?}", first), format!("{:?}", second));
+        assert_eq!(first.offset, Some(0));
+        assert_eq!(second.offset, Some(0));
     });
 }

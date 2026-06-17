@@ -1,7 +1,7 @@
 # Sprint 11 - Vector and Hybrid Retrieval
 
-Previous: [Sprint 10 - Full-Text Search Stack](sprint-10.md)  
-Next: [Sprint 12 - Runtime Observability, Plan Cache, and Operational Controls](sprint-12.md)
+Previous: [Sprint 10 - Full-Text Search Stack](../sprint-10.md)  
+Next: [Sprint 12 - Runtime Observability, Plan Cache, and Operational Controls](../sprint-12.md)
 
 ## Goal
 

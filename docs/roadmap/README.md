@@ -16,7 +16,7 @@ Cassie is PostgreSQL-wire compatible, but it is not PostgreSQL. Unsupported Post
 8. [Sprint 08 - Indexes and Constraints](completed/sprint-08.md)
 9. [Sprint 09 - UDFs and Stored Procedures](sprint-09.md)
 10. [Sprint 10 - Full-Text Search Stack](sprint-10.md)
-11. [Sprint 11 - Vector and Hybrid Retrieval](sprint-11.md)
+11. [Sprint 11 - Vector and Hybrid Retrieval](completed/sprint-11.md)
 12. [Sprint 12 - Runtime Observability, Plan Cache, and Operational Controls](sprint-12.md)
 13. [Sprint 13 - SQL DML and Mutation Semantics](sprint-13.md)
 14. [Sprint 14 - Transactions and Session Semantics](sprint-14.md)

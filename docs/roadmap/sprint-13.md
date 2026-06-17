@@ -1,6 +1,6 @@
 # Sprint 13 - SQL DML and Mutation Semantics
 
-Previous: [Sprint 12 - Runtime Observability, Plan Cache, and Operational Controls](sprint-12.md)  
+Previous: [Sprint 12 - Runtime Observability, Plan Cache, and Operational Controls](../completed/sprint-12.md)
 Next: [Sprint 14 - Transactions and Session Semantics](sprint-14.md)
 
 ## Goal
@@ -56,4 +56,3 @@ Add PostgreSQL-compatible SQL mutation support so documents can be created, chan
 ## Exit Gate
 
 This sprint is complete when SQL mutation behavior is covered by validator-clean tests, targeted DML tests pass, `cargo build` passes, and Clippy is clean with warnings denied.
-

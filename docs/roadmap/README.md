@@ -8,7 +8,7 @@ Cassie is PostgreSQL-wire compatible, but it is not PostgreSQL. Unsupported Post
 
 1. [Sprint 01 - Foundation, Repo Contract, Runtime Baseline](completed/sprint-01.md)
 2. [Sprint 02 - Midge Storage Contract and Catalog Hydration](completed/sprint-02.md)
-3. [Sprint 03 - SQL Parser and Binder V1](sprint-03.md)
+3. [Sprint 03 - SQL Parser and Binder V1](completed/sprint-03.md)
 4. [Sprint 04 - Planner, Optimizer, and Physical Plan Determinism](sprint-04.md)
 5. [Sprint 05 - Executor Semantics and Query Result Contract](sprint-05.md)
 6. [Sprint 06 - Common Table Expressions](sprint-06.md)

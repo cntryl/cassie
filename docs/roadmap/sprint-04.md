@@ -1,6 +1,6 @@
 # Sprint 04 - Planner, Optimizer, and Physical Plan Determinism
 
-Previous: [Sprint 03 - SQL Parser and Binder V1](sprint-03.md)  
+Previous: [Sprint 03 - SQL Parser and Binder V1](completed/sprint-03.md)  
 Next: [Sprint 05 - Executor Semantics and Query Result Contract](sprint-05.md)
 
 ## Goal

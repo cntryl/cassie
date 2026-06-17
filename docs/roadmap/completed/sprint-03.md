@@ -1,7 +1,7 @@
 # Sprint 03 - SQL Parser and Binder V1
 
-Previous: [Sprint 02 - Midge Storage Contract and Catalog Hydration](completed/sprint-02.md)  
-Next: [Sprint 04 - Planner, Optimizer, and Physical Plan Determinism](sprint-04.md)
+Previous: [Sprint 02 - Midge Storage Contract and Catalog Hydration](sprint-02.md)  
+Next: [Sprint 04 - Planner, Optimizer, and Physical Plan Determinism](../sprint-04.md)
 
 ## Goal
 

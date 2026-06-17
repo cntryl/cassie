@@ -1,4 +1,7 @@
 use cassie::app::Cassie;
+use cassie::catalog::IndexKind;
+use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
+use cassie::embeddings::{openai::OpenAiConfig, DistanceMetric, DEFAULT_EMBEDDING_MODEL};
 use cassie::executor;
 use cassie::planner::logical::LogicalPlan;
 use cassie::planner::physical::PhysicalPlan;
@@ -17,6 +20,21 @@ fn data_dir(label: &str) -> String {
     let mut path = std::env::temp_dir();
     path.push(format!("cassie-exec-{}-{}", label, Uuid::new_v4()));
     path.to_string_lossy().to_string()
+}
+
+fn openai_runtime_for_vectors() -> CassieRuntimeConfig {
+    let mut config = CassieRuntimeConfig::from_env();
+    config.embeddings = EmbeddingsRuntimeConfig::OpenAI(OpenAiRuntimeConfig {
+        config: OpenAiConfig {
+            api_key: "vector-tests".to_string(),
+            model: DEFAULT_EMBEDDING_MODEL.to_string(),
+        },
+        timeout_seconds: 1,
+        max_batch_size: 1,
+        max_retries: 1,
+        base_url: Some("http://127.0.0.1:1".to_string()),
+    });
+    config
 }
 
 #[test]
@@ -2471,6 +2489,138 @@ async fn should_execute_create_and_drop_index_commands() {
         .get_index("idx_commands", "idx_title")
         .await
         .is_none());
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_execute_create_vector_index_command() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ddl_vector_index_create_command");
+    let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE idx_vector_commands (id TEXT, content TEXT, embedding VECTOR(1536))",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        let create_index = cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_vector_embedding ON idx_vector_commands USING vector (embedding) WITH (source_field = content, metric = l2)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        let catalog_index = cassie
+            .catalog
+            .get_index("idx_vector_commands", "idx_vector_embedding")
+            .await
+            .expect("index should be in catalog");
+        let stored_vector = cassie
+            .midge
+            .get_vector_index("idx_vector_commands", "embedding")
+            .await
+            .unwrap()
+            .expect("vector index should be persisted");
+
+        // Assert
+        assert_eq!(create_index.command, "CREATE INDEX");
+        assert_eq!(create_index.columns.len(), 0);
+        assert!(matches!(catalog_index.kind, IndexKind::Vector));
+        assert_eq!(catalog_index.field, "embedding");
+        assert_eq!(
+            catalog_index.options.get("source_field"),
+            Some(&"content".to_string())
+        );
+        assert_eq!(catalog_index.options.get("metric"), Some(&"l2".to_string()));
+        assert_eq!(stored_vector.field, "embedding");
+        assert_eq!(stored_vector.source_field, "content");
+        assert_eq!(stored_vector.metadata.metric, DistanceMetric::L2);
+        assert_eq!(
+            stored_vector.metadata.provider,
+            cassie.embedding_provider.provider_name()
+        );
+        assert_eq!(
+            stored_vector.metadata.model,
+            cassie.embedding_provider.model_name().to_string()
+        );
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_execute_drop_vector_index_command() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ddl_vector_index_drop_command");
+    let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let session = cassie.create_session("tester", None).await;
+
+        // Arrange
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE idx_vector_commands (id TEXT, content TEXT, embedding VECTOR(1536))",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_vector_embedding ON idx_vector_commands USING vector (embedding) WITH (source_field = content, metric = l2)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let drop_index = cassie
+            .execute_sql(
+                &session,
+                "DROP INDEX idx_vector_embedding ON idx_vector_commands",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(drop_index.command, "DROP INDEX");
+        assert!(cassie
+            .catalog
+            .get_index("idx_vector_commands", "idx_vector_embedding")
+            .await
+            .is_none());
+        assert!(cassie
+            .midge
+            .get_vector_index("idx_vector_commands", "embedding")
+            .await
+            .unwrap()
+            .is_none());
+    });
 
     let _ = std::fs::remove_dir_all(path);
 }

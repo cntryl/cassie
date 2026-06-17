@@ -5,12 +5,13 @@ use std::pin::Pin;
 use crate::app::Cassie;
 use crate::catalog;
 use crate::catalog::{FunctionMeta, ProcedureMeta, Volatility};
+use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
 use crate::executor::batch::{self, BatchRow, RowAccess};
 use crate::executor::{aggregate, filter, projection, scan, sort};
 use crate::planner::logical::{LogicalCommand, LogicalPlan};
 use crate::planner::physical::PhysicalPlan;
 use crate::sql::ast::{CommonTableExpression, CteQuery, QuerySource};
-use crate::types::{FieldSchema, Schema, Value};
+use crate::types::{DataType, FieldSchema, Schema, Value};
 
 const MAX_RECURSIVE_CTE_DEPTH: usize = 64;
 
@@ -237,6 +238,17 @@ async fn execute_command(
             })
         }
         LogicalCommand::CreateIndex(statement) => {
+            if matches!(statement.kind, catalog::IndexKind::Vector) {
+                let vector_index = vector_index_metadata(cassie, statement).await?;
+
+                cassie
+                    .midge
+                    .put_vector_index(vector_index.clone())
+                    .await
+                    .map_err(|error| QueryError::General(error.to_string()))?;
+                cassie.catalog.register_vector_index(vector_index).await;
+            }
+
             let metadata = catalog::IndexMeta {
                 collection: statement.table.clone(),
                 name: statement.name.clone(),
@@ -260,18 +272,30 @@ async fn execute_command(
             })
         }
         LogicalCommand::DropIndex(statement) => {
-            if statement.if_exists {
-                let existing = cassie
-                    .catalog
-                    .get_index(&statement.table, &statement.name)
-                    .await
-                    .is_some();
-                if !existing {
-                    return Ok(QueryResult {
-                        columns: Vec::new(),
-                        rows: Vec::new(),
-                        command: "DROP INDEX".to_string(),
-                    });
+            let index = cassie
+                .catalog
+                .get_index(&statement.table, &statement.name)
+                .await;
+
+            if statement.if_exists && index.is_none() {
+                return Ok(QueryResult {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    command: "DROP INDEX".to_string(),
+                });
+            }
+
+            if let Some(index) = index {
+                if matches!(index.kind, catalog::IndexKind::Vector) {
+                    cassie
+                        .midge
+                        .delete_vector_index(&statement.table, &index.field)
+                        .await
+                        .map_err(|error| QueryError::General(error.to_string()))?;
+                    cassie
+                        .catalog
+                        .unregister_vector_index(&statement.table, &index.field)
+                        .await;
                 }
             }
 
@@ -441,6 +465,87 @@ async fn execute_command(
             })
         }
     }
+}
+
+async fn vector_index_metadata(
+    cassie: &Cassie,
+    statement: &crate::sql::ast::CreateIndexStatement,
+) -> Result<VectorIndexRecord, QueryError> {
+    let schema = cassie
+        .midge
+        .collection_schema(&statement.table)
+        .await
+        .ok_or_else(|| {
+            QueryError::General(format!(
+                "collection '{}' not found while creating vector index",
+                statement.table
+            ))
+        })?;
+
+    let vector_field = schema
+        .fields
+        .iter()
+        .find(|field| field.name == statement.field)
+        .ok_or_else(|| {
+            QueryError::General(format!(
+                "index field '{}' does not exist in collection '{}'",
+                statement.field, statement.table
+            ))
+        })?;
+
+    let dimensions = match vector_field.data_type {
+        DataType::Vector(dimensions) => dimensions,
+        _ => {
+            return Err(QueryError::General(format!(
+                "field '{}' is not a vector field",
+                vector_field.name
+            )));
+        }
+    };
+
+    let source_field = statement
+        .options
+        .get("source_field")
+        .ok_or_else(|| {
+            QueryError::General("CREATE INDEX USING vector requires source_field".to_string())
+        })?
+        .to_string();
+
+    let source_metadata = schema
+        .fields
+        .iter()
+        .find(|field| field.name == source_field)
+        .ok_or_else(|| {
+            QueryError::General(format!(
+                "source field '{}' does not exist in collection '{}'",
+                source_field, statement.table
+            ))
+        })?;
+
+    if !matches!(source_metadata.data_type, DataType::Text | DataType::Json) {
+        return Err(QueryError::General(format!(
+            "source field '{}' must be text/json for vector index",
+            source_field
+        )));
+    }
+
+    let metadata = VectorIndexMetadata {
+        provider: cassie.embedding_provider.provider_name().to_string(),
+        model: cassie.embedding_provider.model_name().to_string(),
+        dimensions,
+        metric: statement
+            .options
+            .get("metric")
+            .and_then(|metric| metric.parse::<DistanceMetric>().ok())
+            .unwrap_or(DistanceMetric::Cosine),
+    };
+
+    Ok(VectorIndexRecord {
+        collection: statement.table.clone(),
+        field: statement.field.clone(),
+        source_field,
+        metadata,
+    })
 }
 
 async fn execute_plan(

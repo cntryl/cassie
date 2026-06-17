@@ -919,6 +919,19 @@ impl Midge {
         Ok(())
     }
 
+    pub async fn delete_vector_index(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.delete(Self::vector_index_key(collection, field))
+            .map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
     pub async fn save_constraints(
         &self,
         collection: &str,

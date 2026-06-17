@@ -5,12 +5,14 @@ use std::pin::Pin;
 
 use crate::app::CassieError;
 use crate::catalog::Catalog;
+use crate::embeddings::DistanceMetric;
 use crate::sql::ast::{
     AlterTableOperation, AlterTableStatement, CallProcedureStatement, CreateFunctionStatement,
     CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement, CteQuery,
     DropFunctionStatement, DropIndexStatement, DropProcedureStatement, Expr, FunctionCall,
     ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
 };
+use crate::types::DataType;
 
 type CteScope = HashMap<String, Vec<String>>;
 
@@ -218,10 +220,68 @@ async fn bind_create_index(
         .get_schema(&table)
         .await
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
-    if !schema.fields.iter().any(|entry| entry.name == field) {
-        return Err(CassieError::Planner(format!(
-            "index field '{field}' does not exist on collection '{table}'"
-        )));
+    let field_entry = schema
+        .fields
+        .iter()
+        .find(|entry| entry.name == field)
+        .ok_or_else(|| {
+            CassieError::Planner(format!(
+                "index field '{field}' does not exist on collection '{table}'"
+            ))
+        })?;
+
+    if statement.kind == crate::catalog::IndexKind::Vector {
+        if let Some(existing_vector) = catalog.get_vector_index(&table, &field).await {
+            let existing_index = catalog
+                .get_index(&table, &name)
+                .await
+                .filter(|metadata| metadata.field == existing_vector.field)
+                .filter(|metadata| metadata.kind == crate::catalog::IndexKind::Vector);
+
+            if existing_index.is_none() {
+                return Err(CassieError::Planner(format!(
+                    "vector index on field '{}' already exists on collection '{}'",
+                    existing_vector.field, table
+                )));
+            }
+        }
+
+        if !matches!(field_entry.data_type, DataType::Vector(_)) {
+            return Err(CassieError::Planner(format!(
+                "vector index '{name}' requires vector field '{field}'"
+            )));
+        }
+
+        let source_field = statement
+            .options
+            .get("source_field")
+            .map(std::string::String::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                CassieError::Planner("CREATE INDEX USING vector requires source_field".into())
+            })?;
+
+        let source_entry = schema
+            .fields
+            .iter()
+            .find(|entry| entry.name == source_field)
+            .ok_or_else(|| {
+                CassieError::Planner(format!(
+                    "source field '{source_field}' does not exist on collection '{table}'"
+                ))
+            })?;
+
+        if !matches!(source_entry.data_type, DataType::Text | DataType::Json) {
+            return Err(CassieError::Planner(format!(
+                "source field '{source_field}' must be text/json for vector index"
+            )));
+        }
+
+        let metric = parse_vector_metric(statement.options.get("metric").map(String::as_str))?;
+        statement
+            .options
+            .insert("metric".to_string(), metric.as_str().to_string());
     }
 
     if !statement.if_not_exists && catalog.get_index(&table, &name).await.is_some() {
@@ -234,6 +294,15 @@ async fn bind_create_index(
     statement.name = name;
     statement.field = field;
     Ok(statement)
+}
+
+fn parse_vector_metric(raw_metric: Option<&str>) -> Result<DistanceMetric, CassieError> {
+    let metric = raw_metric.unwrap_or("cosine");
+    metric.parse().map_err(|_| {
+        CassieError::Planner(format!(
+            "unsupported vector metric '{metric}' (expected cosine, l2, or dot)"
+        ))
+    })
 }
 
 async fn bind_drop_index(

@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use cassie::catalog::IndexKind;
 use cassie::sql::ast::{
     BinaryOp, CteQuery, Expr, QuerySource, QueryStatement, SelectItem, SortDirection,
 };
@@ -960,6 +961,220 @@ fn should_parse_create_index_statement() {
         statement.options.get("case_sensitive"),
         Some(&"false".to_string())
     );
+}
+
+#[test]
+fn should_parse_vector_create_index_statement() {
+    // Arrange
+    let sql = "CREATE INDEX idx_docs_embedding ON docs USING vector (embedding) WITH (source_field = content, metric = 'l2')";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateIndex(statement) = parsed.statement else {
+        panic!("expected create index statement");
+    };
+
+    assert_eq!(statement.name, "idx_docs_embedding");
+    assert_eq!(statement.table, "docs");
+    assert_eq!(statement.field, "embedding");
+    assert!(!statement.unique);
+    assert!(matches!(statement.kind, IndexKind::Vector));
+    assert_eq!(
+        statement.options.get("source_field"),
+        Some(&"content".to_string())
+    );
+    assert_eq!(statement.options.get("metric"), Some(&"l2".to_string()));
+}
+
+#[test]
+fn should_reject_vector_create_index_without_source_field() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-vector-index-no-source-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "vec_docs_no_source".to_string(),
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "id".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                        FieldSchema {
+                            name: "content".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                        FieldSchema {
+                            name: "embedding".to_string(),
+                            data_type: DataType::Vector(3),
+                            nullable: true,
+                        },
+                    ],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_docs_embedding ON vec_docs_no_source USING vector (embedding)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_reject_vector_create_index_with_invalid_metric() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-vector-index-bad-metric-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "vec_docs_invalid_metric".to_string(),
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "content".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                        FieldSchema {
+                            name: "embedding".to_string(),
+                            data_type: DataType::Vector(3),
+                            nullable: true,
+                        },
+                    ],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_docs_embedding ON vec_docs_invalid_metric USING vector (embedding) WITH (source_field = content, metric = 'unsupported')",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_reject_vector_create_index_on_non_vector_field() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-vector-index-non-vector-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "vec_docs_not_vector".to_string(),
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "content".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                    ],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_docs_embedding ON vec_docs_not_vector USING vector (content) WITH (source_field = content)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_default_vector_metric_to_cosine() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-vector-index-default-metric-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "vec_docs_default_metric".to_string(),
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "content".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                        FieldSchema {
+                            name: "embedding".to_string(),
+                            data_type: DataType::Vector(3),
+                            nullable: true,
+                        },
+                    ],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_docs_embedding ON vec_docs_default_metric USING vector (embedding) WITH (source_field = content)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog)
+            .await
+            .expect("bind should succeed");
+
+        // Assert
+        let QueryStatement::CreateIndex(statement) = bound.statement.statement else {
+            panic!("expected create index statement");
+        };
+        assert_eq!(statement.options.get("metric"), Some(&"cosine".to_string()));
+    });
 }
 
 #[test]

@@ -574,7 +574,7 @@ fn evaluate_function<R: RowAccess + ?Sized>(
                 .args
                 .iter()
                 .cloned()
-                .zip(args.into_iter())
+                .zip(args)
                 .map(|(arg, value)| (arg.name.to_ascii_lowercase(), value))
                 .collect::<HashMap<String, Value>>();
 

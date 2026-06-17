@@ -11,7 +11,7 @@ use crate::sql::ast::{
     AlterTableOperation, AlterTableStatement, CallProcedureStatement, CreateFunctionStatement,
     CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement, CteQuery,
     DropFunctionStatement, DropIndexStatement, DropProcedureStatement, Expr, FunctionCall,
-    ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
+    InsertSource, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
 };
 use crate::types::DataType;
 
@@ -135,20 +135,152 @@ fn bind_statement<'a>(
                     statement: QueryStatement::CallProcedure(statement),
                 })
             }
-            QueryStatement::Insert(statement) => Err(CassieError::Unsupported(format!(
-                "INSERT statement is not supported: {}",
-                statement.table
-            ))),
-            QueryStatement::Update(statement) => Err(CassieError::Unsupported(format!(
-                "UPDATE statement is not supported: {}",
-                statement.table
-            ))),
-            QueryStatement::Delete(statement) => Err(CassieError::Unsupported(format!(
-                "DELETE statement is not supported: {}",
-                statement.table
-            ))),
+            QueryStatement::Insert(statement) => {
+                let statement = bind_insert(statement, catalog).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::Insert(statement),
+                })
+            }
+            QueryStatement::Update(statement) => {
+                let statement = bind_update(statement, catalog).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::Update(statement),
+                })
+            }
+            QueryStatement::Delete(statement) => {
+                let statement = bind_delete(statement, catalog).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::Delete(statement),
+                })
+            }
         }
     })
+}
+
+async fn bind_insert(
+    mut statement: crate::sql::ast::InsertStatement,
+    catalog: &Catalog,
+) -> Result<crate::sql::ast::InsertStatement, CassieError> {
+    let table = statement.table.trim().to_string();
+    if table.is_empty() {
+        return Err(CassieError::Planner(
+            "INSERT requires a target table".into(),
+        ));
+    }
+    if !catalog.exists(&table).await {
+        return Err(CassieError::CollectionNotFound(table));
+    }
+
+    let schema = catalog
+        .get_schema(&table)
+        .await
+        .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
+
+    let mut seen_columns = HashSet::new();
+    for column in statement.columns.iter_mut() {
+        let column_name = column.trim().to_string();
+        if column_name.is_empty() {
+            return Err(CassieError::Planner(
+                "INSERT column names cannot be empty".into(),
+            ));
+        }
+
+        if !schema
+            .fields
+            .iter()
+            .any(|field| field.name.eq_ignore_ascii_case(&column_name))
+        {
+            return Err(CassieError::Planner(format!(
+                "INSERT target column '{column_name}' does not exist in '{table}'"
+            )));
+        }
+
+        if !seen_columns.insert(column_name.clone()) {
+            return Err(CassieError::Planner(format!(
+                "INSERT column '{column_name}' is duplicated"
+            )));
+        }
+
+        *column = column_name;
+    }
+
+    if let InsertSource::Select(select) = statement.source {
+        let source = bind_select(select, catalog, &HashMap::new()).await?;
+        statement.source = InsertSource::Select(source);
+    }
+
+    statement.table = table;
+    Ok(statement)
+}
+
+async fn bind_update(
+    mut statement: crate::sql::ast::UpdateStatement,
+    catalog: &Catalog,
+) -> Result<crate::sql::ast::UpdateStatement, CassieError> {
+    let table = statement.table.trim().to_string();
+    if table.is_empty() {
+        return Err(CassieError::Planner(
+            "UPDATE requires a target table".into(),
+        ));
+    }
+    if !catalog.exists(&table).await {
+        return Err(CassieError::CollectionNotFound(table));
+    }
+
+    let schema = catalog
+        .get_schema(&table)
+        .await
+        .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
+
+    let mut seen = HashSet::new();
+    for (field, _) in &mut statement.assignments {
+        let normalized_field = field.trim().to_string();
+        if normalized_field.is_empty() {
+            return Err(CassieError::Planner(
+                "UPDATE assignment names cannot be empty".into(),
+            ));
+        }
+        if !schema
+            .fields
+            .iter()
+            .any(|entry| entry.name.eq_ignore_ascii_case(&normalized_field))
+        {
+            return Err(CassieError::Planner(format!(
+                "UPDATE assignment target '{normalized_field}' does not exist in '{table}'"
+            )));
+        }
+
+        if !seen.insert(normalized_field.clone()) {
+            return Err(CassieError::Planner(format!(
+                "UPDATE assignment target '{normalized_field}' is duplicated"
+            )));
+        }
+
+        *field = normalized_field;
+    }
+
+    statement.table = table;
+    Ok(statement)
+}
+
+async fn bind_delete(
+    mut statement: crate::sql::ast::DeleteStatement,
+    catalog: &Catalog,
+) -> Result<crate::sql::ast::DeleteStatement, CassieError> {
+    let table = statement.table.trim().to_string();
+    if table.is_empty() {
+        return Err(CassieError::Planner(
+            "DELETE requires a target table".into(),
+        ));
+    }
+    if !catalog.exists(&table).await {
+        return Err(CassieError::CollectionNotFound(table));
+    }
+    statement.table = table;
+    Ok(statement)
 }
 
 async fn bind_create_table(

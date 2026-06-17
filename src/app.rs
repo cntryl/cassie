@@ -417,12 +417,26 @@ impl Cassie {
     pub async fn ingest_document(
         &self,
         collection: &str,
+        payload: serde_json::Value,
+    ) -> Result<String, CassieError> {
+        self.write_document(collection, None, payload, true, None)
+            .await
+    }
+
+    pub(crate) async fn write_document(
+        &self,
+        collection: &str,
+        id: Option<String>,
         mut payload: serde_json::Value,
+        apply_defaults: bool,
+        exclude_id: Option<&str>,
     ) -> Result<String, CassieError> {
         let constraints = self.catalog.get_constraints(collection).await;
-        if !constraints.is_empty() {
+        if apply_defaults && !constraints.is_empty() {
             self.apply_default_values(&mut payload, &constraints)?;
         }
+
+        self.validate_payload_schema(collection, &payload).await?;
 
         let indexes = self.catalog.list_vector_indexes(collection).await;
         if !indexes.is_empty() {
@@ -430,10 +444,117 @@ impl Cassie {
                 .await?;
         }
 
-        self.validate_constraints(collection, &payload, &constraints)
+        self.validate_constraints(collection, &payload, &constraints, exclude_id)
             .await?;
 
-        self.midge.put_document(collection, None, payload).await
+        self.midge.put_document(collection, id, payload).await
+    }
+
+    async fn validate_payload_schema(
+        &self,
+        collection: &str,
+        payload: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        let schema = self
+            .catalog
+            .get_schema(collection)
+            .await
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+
+        let object = payload.as_object().ok_or_else(|| {
+            CassieError::InvalidVector("document payload must be a JSON object".to_string())
+        })?;
+
+        for (field, value) in object {
+            let expected = schema
+                .fields
+                .iter()
+                .find(|entry| entry.name.eq_ignore_ascii_case(field))
+                .ok_or_else(|| {
+                    CassieError::InvalidVector(format!(
+                        "field '{field}' is not defined on collection '{collection}'"
+                    ))
+                })?
+                .data_type
+                .clone();
+
+            match expected {
+                crate::types::DataType::Int => match value {
+                    serde_json::Value::Number(number) => {
+                        if number.as_i64().is_none() {
+                            return Err(CassieError::InvalidVector(format!(
+                                "field '{field}' expects int"
+                            )));
+                        }
+                    }
+                    serde_json::Value::Null => {}
+                    _ => {
+                        return Err(CassieError::InvalidVector(format!(
+                            "field '{field}' expects int"
+                        )));
+                    }
+                },
+                crate::types::DataType::Float => match value {
+                    serde_json::Value::Number(_) => {}
+                    serde_json::Value::Null => {}
+                    _ => {
+                        return Err(CassieError::InvalidVector(format!(
+                            "field '{field}' expects float"
+                        )));
+                    }
+                },
+                crate::types::DataType::Boolean => match value {
+                    serde_json::Value::Bool(_) => {}
+                    serde_json::Value::Null => {}
+                    _ => {
+                        return Err(CassieError::InvalidVector(format!(
+                            "field '{field}' expects boolean"
+                        )));
+                    }
+                },
+                crate::types::DataType::Text => match value {
+                    serde_json::Value::String(_) => {}
+                    serde_json::Value::Null => {}
+                    _ => {
+                        return Err(CassieError::InvalidVector(format!(
+                            "field '{field}' expects text"
+                        )));
+                    }
+                },
+                crate::types::DataType::Json => {
+                    if !value.is_object()
+                        && !value.is_array()
+                        && !value.is_string()
+                        && !value.is_number()
+                        && !value.is_boolean()
+                        && !value.is_null()
+                    {
+                        return Err(CassieError::InvalidVector(format!(
+                            "field '{field}' expects json"
+                        )));
+                    }
+                }
+                crate::types::DataType::Vector(size) => {
+                    let Some(array) = value.as_array() else {
+                        return Err(CassieError::InvalidVector(format!(
+                            "field '{field}' expects vector({size})"
+                        )));
+                    };
+                    if array.len() != size {
+                        return Err(CassieError::InvalidVector(format!(
+                            "field '{field}' expects vector({size})"
+                        )));
+                    }
+                    if array.iter().any(|value| value.as_f64().is_none()) {
+                        return Err(CassieError::InvalidVector(format!(
+                            "field '{field}' expects vector({size})"
+                        )));
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn apply_default_values(
@@ -463,6 +584,7 @@ impl Cassie {
         collection: &str,
         payload: &serde_json::Value,
         constraints: &[FieldConstraint],
+        exclude_id: Option<&str>,
     ) -> Result<(), CassieError> {
         let object = payload.as_object().ok_or_else(|| {
             CassieError::InvalidVector("document payload must be a JSON object".to_string())
@@ -493,7 +615,8 @@ impl Cassie {
             }
         }
 
-        self.validate_uniques(collection, object, constraints).await
+        self.validate_uniques(collection, object, constraints, exclude_id)
+            .await
     }
 
     fn satisfies_check_constraint(
@@ -573,6 +696,7 @@ impl Cassie {
         collection: &str,
         payload: &serde_json::Map<String, serde_json::Value>,
         constraints: &[FieldConstraint],
+        exclude_id: Option<&str>,
     ) -> Result<(), CassieError> {
         for constraint in constraints {
             if !(constraint.unique || constraint.primary_key) {
@@ -587,7 +711,7 @@ impl Cassie {
             }
 
             if self
-                .value_exists_for_collection_field(collection, &constraint.field, value)
+                .value_exists_for_collection_field(collection, &constraint.field, value, exclude_id)
                 .await?
             {
                 return Err(CassieError::InvalidVector(format!(
@@ -605,8 +729,13 @@ impl Cassie {
         collection: &str,
         field: &str,
         value: &serde_json::Value,
+        exclude_id: Option<&str>,
     ) -> Result<bool, CassieError> {
         for document in self.midge.scan_documents(collection).await? {
+            if exclude_id.is_some_and(|id| document.id == id) {
+                continue;
+            }
+
             if document.payload.get(field) == Some(value) {
                 return Ok(true);
             }

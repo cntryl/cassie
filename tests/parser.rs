@@ -481,29 +481,35 @@ fn should_parse_non_select_statement() {
     assert!(matches!(parsed.statement, QueryStatement::Insert(_)));
 }
 
-
 #[test]
-fn should_reject_unsupported_non_select_statement() {
+fn should_bind_insert_statement_for_existing_collection() {
     // Arrange
     let sql = "INSERT INTO docs VALUES (1)";
-    let cassie =
-        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-unsupported-{}", Uuid::new_v4()))
-            .unwrap();
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-parser-insert-binding-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
+        cassie
+            .catalog
+            .register_collection("docs", vec![("id".to_string(), DataType::Int)])
+            .await;
+
         // Act
         let parsed = parse_statement(sql).expect("insert statements should parse");
         let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
 
         // Assert
-        assert!(matches!(
-            bound,
-            Err(cassie::app::CassieError::Unsupported(_))
-        ));
+        assert!(
+            bound.is_ok(),
+            "insert binding should succeed for known tables"
+        );
     });
 }
 

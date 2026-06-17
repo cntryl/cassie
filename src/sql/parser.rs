@@ -600,9 +600,7 @@ fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         // Keep parsing behavior consistent for select sources with explicit and implicit `RETURNING`.
         let parsed = parse_statement(source)?;
         let QueryStatement::Select(select) = parsed.statement else {
-            return Err(SqlError(
-                "INSERT source must be a SELECT statement".into(),
-            ));
+            return Err(SqlError("INSERT source must be a SELECT statement".into()));
         };
 
         return Ok(ParsedStatement {
@@ -644,9 +642,7 @@ fn split_statement_and_returning(raw: &str) -> Result<(&str, Vec<SelectItem>), S
     }
 }
 
-fn parse_insert_target(
-    raw: &str,
-) -> Result<(String, Vec<String>, &str), SqlError> {
+fn parse_insert_target(raw: &str) -> Result<(String, Vec<String>, &str), SqlError> {
     let raw = raw.trim();
     if raw.is_empty() {
         return Err(SqlError("INSERT INTO requires a table name".into()));
@@ -661,9 +657,8 @@ fn parse_insert_target(
         (None, None) => None,
     };
 
-    let source_pos = source_pos.ok_or_else(|| {
-        SqlError("INSERT requires VALUES or SELECT source".to_string())
-    })?;
+    let source_pos = source_pos
+        .ok_or_else(|| SqlError("INSERT requires VALUES or SELECT source".to_string()))?;
 
     let target = raw[..source_pos].trim();
     let source = raw[source_pos..].trim();

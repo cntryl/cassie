@@ -48,5 +48,5 @@ Provide enough PostgreSQL catalog and `information_schema` compatibility for pra
 
 ## Exit Gate
 
-This sprint is complete when PostgreSQL catalog/introspection behavior is covered by validator-clean tests, client metadata probes pass, `cargo build` passes, and Clippy is clean with warnings denied.
+This sprint is complete when PostgreSQL catalog/introspection behavior is covered by validator-clean tests, client metadata probes pass, `cargo build` passes, and Clippy is clean with warnings denied. When the exit gates are green, move this file from `docs/roadmap/sprint-16.md` to `docs/roadmap/completed/sprint-16.md` and update the roadmap links to point at the completed copy.
 

@@ -50,5 +50,5 @@ Define and implement Cassie's V1 PostgreSQL type compatibility layer so SQL pars
 
 ## Exit Gate
 
-This sprint is complete when type behavior and metadata are covered by validator-clean tests, targeted type tests pass, `cargo build` passes, and Clippy is clean with warnings denied.
+This sprint is complete when type behavior and metadata are covered by validator-clean tests, targeted type tests pass, `cargo build` passes, and Clippy is clean with warnings denied. When the exit gates are green, move this file from `docs/roadmap/sprint-17.md` to `docs/roadmap/completed/sprint-17.md` and update the roadmap links to point at the completed copy.
 

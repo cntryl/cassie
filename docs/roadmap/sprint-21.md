@@ -54,4 +54,4 @@ Complete PostgreSQL extended query protocol support and prove Cassie can serve p
 
 ## Exit Gate
 
-This sprint is complete when extended query protocol support works through real PostgreSQL wire messages, practical driver compatibility smoke tests pass, touched tests are validator-clean, `cargo build` passes, and Clippy is clean with warnings denied.
+This sprint is complete when extended query protocol support works through real PostgreSQL wire messages, practical driver compatibility smoke tests pass, touched tests are validator-clean, `cargo build` passes, and Clippy is clean with warnings denied. When the exit gates are green, move this file from `docs/roadmap/sprint-21.md` to `docs/roadmap/completed/sprint-21.md` and update the roadmap links to point at the completed copy.

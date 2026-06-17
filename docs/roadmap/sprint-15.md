@@ -51,5 +51,5 @@ Expand Cassie's PostgreSQL-inspired SQL dialect beyond single-source SELECT so c
 
 ## Exit Gate
 
-This sprint is complete when relational SQL expansion is covered by validator-clean tests, targeted relational tests pass, `cargo build` passes, and Clippy is clean with warnings denied.
+This sprint is complete when relational SQL expansion is covered by validator-clean tests, targeted relational tests pass, `cargo build` passes, and Clippy is clean with warnings denied. When the exit gates are green, move this file from `docs/roadmap/sprint-15.md` to `docs/roadmap/completed/sprint-15.md` and update the roadmap links to point at the completed copy.
 

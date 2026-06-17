@@ -53,5 +53,5 @@ Define and implement V1 transaction and session behavior that is practical for P
 
 ## Exit Gate
 
-This sprint is complete when transaction/session semantics are covered by validator-clean tests, targeted transaction tests pass, `cargo build` passes, and Clippy is clean with warnings denied.
+This sprint is complete when transaction/session semantics are covered by validator-clean tests, targeted transaction tests pass, `cargo build` passes, and Clippy is clean with warnings denied. When the exit gates are green, move this file from `docs/roadmap/sprint-14.md` to `docs/roadmap/completed/sprint-14.md` and update the roadmap links to point at the completed copy.
 

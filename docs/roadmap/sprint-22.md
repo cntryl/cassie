@@ -53,4 +53,4 @@ Finish the secondary REST/admin surface, operational readiness, single-container
 
 ## Exit Gate
 
-This sprint is complete when all V1 acceptance criteria are green, PostgreSQL practical client compatibility is proven, REST and operational surfaces are stable, single-container deployment is ready to ship, `cargo build` passes, `cargo clippy --all-targets --all-features -- -D warnings` passes, and full `cargo test` passes.
+This sprint is complete when all V1 acceptance criteria are green, PostgreSQL practical client compatibility is proven, REST and operational surfaces are stable, single-container deployment is ready to ship, `cargo build` passes, `cargo clippy --all-targets --all-features -- -D warnings` passes, and full `cargo test` passes. When the exit gates are green, move this file from `docs/roadmap/sprint-22.md` to `docs/roadmap/completed/sprint-22.md` and update the roadmap links to point at the completed copy.

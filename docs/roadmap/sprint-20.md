@@ -55,4 +55,4 @@ Replace the current simplified line-oriented pgwire path with real PostgreSQL fr
 
 ## Exit Gate
 
-This sprint is complete when the real binary wire path supports startup, auth, simple query, row output, errors, ready-for-query, practical `psql` or libpq smoke compatibility, validator-clean tests, `cargo build`, and Clippy with warnings denied.
+This sprint is complete when the real binary wire path supports startup, auth, simple query, row output, errors, ready-for-query, practical `psql` or libpq smoke compatibility, validator-clean tests, `cargo build`, and Clippy with warnings denied. When the exit gates are green, move this file from `docs/roadmap/sprint-20.md` to `docs/roadmap/completed/sprint-20.md` and update the roadmap links to point at the completed copy.

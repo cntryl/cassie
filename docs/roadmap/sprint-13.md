@@ -55,4 +55,4 @@ Add PostgreSQL-compatible SQL mutation support so documents can be created, chan
 
 ## Exit Gate
 
-This sprint is complete when SQL mutation behavior is covered by validator-clean tests, targeted DML tests pass, `cargo build` passes, and Clippy is clean with warnings denied.
+This sprint is complete when SQL mutation behavior is covered by validator-clean tests, targeted DML tests pass, `cargo build` passes, and Clippy is clean with warnings denied. When the exit gates are green, move this file from `docs/roadmap/sprint-13.md` to `docs/roadmap/completed/sprint-13.md` and update the roadmap links to point at the completed copy.

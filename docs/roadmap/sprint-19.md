@@ -49,5 +49,5 @@ Turn Cassie's PostgreSQL compatibility promise into a concrete, repeatable compa
 
 ## Exit Gate
 
-This sprint is complete when compatibility expectations are automated, documented, validator-clean, and ready to run as a release gate alongside `cargo build`, Clippy, and targeted tests.
+This sprint is complete when compatibility expectations are automated, documented, validator-clean, and ready to run as a release gate alongside `cargo build`, Clippy, and targeted tests. When the exit gates are green, move this file from `docs/roadmap/sprint-19.md` to `docs/roadmap/completed/sprint-19.md` and update the roadmap links to point at the completed copy.
 

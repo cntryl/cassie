@@ -51,5 +51,5 @@ Define Cassie's V1 security model for practical PostgreSQL clients and operation
 
 ## Exit Gate
 
-This sprint is complete when auth, role posture, unsupported security features, and REST/pgwire auth behavior are covered by validator-clean tests, targeted auth tests pass, `cargo build` passes, and Clippy is clean with warnings denied.
+This sprint is complete when auth, role posture, unsupported security features, and REST/pgwire auth behavior are covered by validator-clean tests, targeted auth tests pass, `cargo build` passes, and Clippy is clean with warnings denied. When the exit gates are green, move this file from `docs/roadmap/sprint-18.md` to `docs/roadmap/completed/sprint-18.md` and update the roadmap links to point at the completed copy.
 

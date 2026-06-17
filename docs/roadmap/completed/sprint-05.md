@@ -1,6 +1,6 @@
 # Sprint 05 - Executor Semantics and Query Result Contract
 
-Previous: [Sprint 04 - Planner, Optimizer, and Physical Plan Determinism](completed/sprint-04.md)  
+Previous: [Sprint 04 - Planner, Optimizer, and Physical Plan Determinism](sprint-04.md)  
 Next: [Sprint 06 - Common Table Expressions](sprint-06.md)
 
 ## Goal

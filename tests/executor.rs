@@ -13,6 +13,12 @@ fn with_fallback() {
     env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
 }
 
+fn data_dir(label: &str) -> String {
+    let mut path = std::env::temp_dir();
+    path.push(format!("cassie-exec-{}-{}", label, Uuid::new_v4()));
+    path.to_string_lossy().to_string()
+}
+
 #[test]
 fn should_execute_simple_filtered_query() {
     // Arrange
@@ -23,7 +29,8 @@ fn should_execute_simple_filtered_query() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let path = data_dir("smoke");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "exec_smoke";
 
         let schema = Schema {
@@ -73,6 +80,8 @@ fn should_execute_simple_filtered_query() {
             Value::String(value) => assert_eq!(value, "alpha"),
             _ => panic!("expected string in first column"),
         }
+
+        let _ = std::fs::remove_dir_all(path);
     });
 }
 

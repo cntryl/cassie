@@ -1,9 +1,11 @@
 use crate::app::CassieError;
 use crate::sql::{
     ast::{
-        AlterTableOperation, AlterTableStatement, CommonTableExpression, CreateSchemaStatement,
-        CreateIndexStatement, CreateTableStatement, DropIndexStatement, DropTableStatement, Expr,
-        OrderExpr, QuerySource, QueryStatement, SelectItem, SelectStatement,
+        AlterTableOperation, AlterTableStatement, CommonTableExpression, CreateFunctionStatement,
+        CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement,
+        CreateTableStatement, DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
+        DropTableStatement, Expr, OrderExpr, QuerySource, QueryStatement, SelectItem,
+        SelectStatement,
     },
     binder::BoundStatement,
 };
@@ -26,9 +28,14 @@ pub enum LogicalCommand {
     CreateTable(CreateTableStatement),
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
+    CreateFunction(CreateFunctionStatement),
+    DropFunction(DropFunctionStatement),
+    CreateProcedure(CreateProcedureStatement),
+    DropProcedure(DropProcedureStatement),
     CreateSchema(CreateSchemaStatement),
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
+    CallProcedure(crate::sql::ast::CallProcedureStatement),
 }
 
 pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
@@ -120,6 +127,99 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 command: Some(LogicalCommand::CreateSchema(statement.clone())),
                 source: QuerySource::Collection(statement.schema.clone()),
                 collection: statement.schema.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
+        QueryStatement::CreateFunction(statement) => {
+            if statement.name.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "CREATE FUNCTION requires a name".into(),
+                ));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::CreateFunction(statement.clone())),
+                source: QuerySource::Collection(statement.name.clone()),
+                collection: statement.name.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
+        QueryStatement::DropFunction(statement) => {
+            if statement.name.trim().is_empty() {
+                return Err(CassieError::Planner("DROP FUNCTION requires a name".into()));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::DropFunction(statement.clone())),
+                source: QuerySource::Collection(statement.name.clone()),
+                collection: statement.name.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
+        QueryStatement::CreateProcedure(statement) => {
+            if statement.name.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "CREATE PROCEDURE requires a name".into(),
+                ));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::CreateProcedure(statement.clone())),
+                source: QuerySource::Collection(statement.name.clone()),
+                collection: statement.name.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
+        QueryStatement::DropProcedure(statement) => {
+            if statement.name.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "DROP PROCEDURE requires a name".into(),
+                ));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::DropProcedure(statement.clone())),
+                source: QuerySource::Collection(statement.name.clone()),
+                collection: statement.name.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
+        QueryStatement::CallProcedure(statement) => {
+            if statement.name.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "CALL requires a procedure name".into(),
+                ));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::CallProcedure(statement.clone())),
+                source: QuerySource::Collection(statement.name.clone()),
+                collection: statement.name.clone(),
                 ctes: Vec::new(),
                 projection: Vec::new(),
                 filter: None,

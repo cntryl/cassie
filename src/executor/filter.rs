@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::catalog::FunctionMeta;
 use crate::executor::batch::{Batch, RowAccess};
 use crate::executor::QueryError;
 use crate::sql::ast::FunctionCall;
@@ -203,13 +204,16 @@ pub(crate) fn filter_rows<R>(
     expression: &Expr,
     params: &[Value],
     search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
 ) -> Result<Vec<R>, QueryError>
 where
     R: RowAccess,
 {
     Ok(rows
         .into_iter()
-        .filter(|row| eval_filter(row, expression, params, search_context).unwrap_or(false))
+        .filter(|row| {
+            eval_filter(row, expression, params, search_context, user_functions).unwrap_or(false)
+        })
         .collect())
 }
 
@@ -218,10 +222,11 @@ pub(crate) fn filter_batches(
     expression: &Expr,
     params: &[Value],
     search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
 ) -> Result<Vec<Batch>, QueryError> {
     batches
         .into_iter()
-        .map(|batch| filter_rows(batch, expression, params, search_context))
+        .map(|batch| filter_rows(batch, expression, params, search_context, user_functions))
         .collect()
 }
 
@@ -230,10 +235,19 @@ pub(crate) fn evaluate_expr_value<R: RowAccess + ?Sized>(
     expr: &Expr,
     params: &[Value],
     search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
 ) -> Result<Value, QueryError> {
     match expr {
-        Expr::Function(function) => evaluate_function(function, row, params, search_context),
-        _ => Ok(eval_scalar(row, expr, params, search_context)?.to_value()),
+        Expr::Function(function) => evaluate_function(
+            function,
+            row,
+            params,
+            search_context,
+            user_functions,
+            local_args,
+        ),
+        _ => Ok(eval_scalar(row, expr, params, search_context, user_functions, None)?.to_value()),
     }
 }
 
@@ -242,8 +256,16 @@ fn eval_filter<R: RowAccess + ?Sized>(
     expression: &Expr,
     params: &[Value],
     search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
 ) -> Result<bool, QueryError> {
-    let value = eval_scalar(row, expression, params, search_context)?;
+    let value = eval_scalar(
+        row,
+        expression,
+        params,
+        search_context,
+        user_functions,
+        None,
+    )?;
     Ok(value.as_bool())
 }
 
@@ -252,12 +274,23 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
     expr: &Expr,
     params: &[Value],
     search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
 ) -> Result<ScalarValue, QueryError> {
     match expr {
-        Expr::Column(name) => Ok(row
-            .get(name)
-            .and_then(scalar_from_value)
-            .unwrap_or(ScalarValue::Null)),
+        Expr::Column(name) => {
+            if let Some(local_args) = local_args {
+                let key = name.to_ascii_lowercase();
+                if let Some(value) = local_args.get(&key) {
+                    return Ok(scalar_from_value(value).unwrap_or(ScalarValue::Null));
+                }
+            }
+
+            Ok(row
+                .get(name)
+                .and_then(scalar_from_value)
+                .unwrap_or(ScalarValue::Null))
+        }
         Expr::StringLiteral(value) => Ok(ScalarValue::Str(value.clone())),
         Expr::NumberLiteral(value) => Ok(ScalarValue::Float(*value)),
         Expr::BoolLiteral(value) => Ok(ScalarValue::Bool(*value)),
@@ -267,16 +300,33 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
             .and_then(scalar_from_value)
             .map(Ok)
             .unwrap_or_else(|| Ok(ScalarValue::Null)),
-        Expr::Function(function) => {
-            Ok(
-                scalar_from_value(&evaluate_function(function, row, params, search_context)?)
-                    .unwrap_or(ScalarValue::Null),
-            )
-        }
+        Expr::Function(function) => Ok(scalar_from_value(&evaluate_function(
+            function,
+            row,
+            params,
+            search_context,
+            user_functions,
+            local_args,
+        )?)
+        .unwrap_or(ScalarValue::Null)),
         Expr::Binary { left, op, right } => Ok(binary_scalar(
-            &eval_scalar(row, left, params, search_context)?,
+            &eval_scalar(
+                row,
+                left,
+                params,
+                search_context,
+                user_functions,
+                local_args,
+            )?,
             op,
-            &eval_scalar(row, right, params, search_context)?,
+            &eval_scalar(
+                row,
+                right,
+                params,
+                search_context,
+                user_functions,
+                local_args,
+            )?,
         )),
     }
 }
@@ -423,12 +473,16 @@ fn evaluate_function<R: RowAccess + ?Sized>(
     row: &R,
     params: &[Value],
     search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
     let args: Vec<Value> = function
         .args
         .iter()
-        .map(|arg| evaluate_expr_value(row, arg, params, search_context))
+        .map(|arg| {
+            evaluate_expr_value(row, arg, params, search_context, user_functions, local_args)
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     match name.as_str() {
@@ -497,9 +551,53 @@ fn evaluate_function<R: RowAccess + ?Sized>(
             let terms = crate::search::tokenizer::tokenize(&query);
             Ok(Value::String(crate::search::snippet(&source, &terms)))
         }
-        _ => Err(QueryError::General(format!(
-            "unsupported function '{name}'",
-        ))),
+        _ => {
+            let Some(metadata) = user_functions.get(&name) else {
+                return Err(QueryError::General(format!(
+                    "unsupported function '{name}'",
+                )));
+            };
+
+            if args.len() != metadata.args.len() {
+                return Err(QueryError::General(format!(
+                    "function '{name}' expects {} args, got {}",
+                    metadata.args.len(),
+                    args.len()
+                )));
+            }
+
+            let body = crate::sql::parser::parse_expression(&metadata.body).map_err(|error| {
+                QueryError::General(format!("invalid function body for '{}': {}", name, error.0))
+            })?;
+
+            let locals = metadata
+                .args
+                .iter()
+                .cloned()
+                .zip(args.into_iter())
+                .map(|(arg, value)| (arg.name.to_ascii_lowercase(), value))
+                .collect::<HashMap<String, Value>>();
+
+            let merged_args = if let Some(outer) = local_args {
+                let mut merged = outer.clone();
+                for (name, value) in locals {
+                    merged.insert(name, value);
+                }
+                merged
+            } else {
+                locals
+            };
+
+            eval_scalar(
+                row,
+                &body,
+                params,
+                search_context,
+                user_functions,
+                Some(&merged_args),
+            )
+            .map(|value| value.to_value())
+        }
     }
 }
 

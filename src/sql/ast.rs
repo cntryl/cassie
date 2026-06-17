@@ -10,6 +10,19 @@ pub struct ParsedStatement {
 }
 
 #[derive(Debug, Clone)]
+pub struct FunctionArg {
+    pub name: String,
+    pub data_type: DataType,
+}
+
+#[derive(Debug, Clone)]
+pub enum Volatility {
+    Immutable,
+    Stable,
+    Volatile,
+}
+
+#[derive(Debug, Clone)]
 pub struct CommonTableExpression {
     pub name: String,
     pub aliases: Vec<String>,
@@ -40,6 +53,11 @@ pub enum QueryStatement {
     CreateSchema(CreateSchemaStatement),
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
+    CreateFunction(CreateFunctionStatement),
+    DropFunction(DropFunctionStatement),
+    CreateProcedure(CreateProcedureStatement),
+    DropProcedure(DropProcedureStatement),
+    CallProcedure(CallProcedureStatement),
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +76,42 @@ pub struct CreateIndexStatement {
     pub unique: bool,
     pub kind: IndexKind,
     pub options: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateFunctionStatement {
+    pub name: String,
+    pub if_not_exists: bool,
+    pub args: Vec<FunctionArg>,
+    pub return_type: DataType,
+    pub volatility: Volatility,
+    pub body: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DropFunctionStatement {
+    pub name: String,
+    pub if_exists: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateProcedureStatement {
+    pub name: String,
+    pub if_not_exists: bool,
+    pub args: Vec<FunctionArg>,
+    pub body: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DropProcedureStatement {
+    pub name: String,
+    pub if_exists: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct CallProcedureStatement {
+    pub name: String,
+    pub args: Vec<Expr>,
 }
 
 #[derive(Debug, Clone)]

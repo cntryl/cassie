@@ -27,6 +27,8 @@ const DEFAULT_FAMILY_NAME: &str = "default";
 const VECTOR_INDEX_PREFIX: &str = "__cassie__/vector-index/";
 const INDEX_PREFIX: &str = "__cassie__/index/";
 const CONSTRAINTS_PREFIX: &str = "__cassie__/constraints/";
+const FUNCTION_PREFIX: &str = "__cassie__/function/";
+const PROCEDURE_PREFIX: &str = "__cassie__/procedure/";
 const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
 const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
 const NAMESPACES_KEY: &str = "__cassie__/namespaces";
@@ -298,6 +300,22 @@ impl Midge {
 
     fn index_collection_prefix(collection: &str) -> Vec<u8> {
         format!("{INDEX_PREFIX}{collection}/").into_bytes()
+    }
+
+    fn function_key(name: &str) -> Vec<u8> {
+        format!("{FUNCTION_PREFIX}{}", name.to_ascii_lowercase()).into_bytes()
+    }
+
+    fn function_prefix() -> Vec<u8> {
+        FUNCTION_PREFIX.as_bytes().to_vec()
+    }
+
+    fn procedure_key(name: &str) -> Vec<u8> {
+        format!("{PROCEDURE_PREFIX}{}", name.to_ascii_lowercase()).into_bytes()
+    }
+
+    fn procedure_prefix() -> Vec<u8> {
+        PROCEDURE_PREFIX.as_bytes().to_vec()
     }
 
     fn constraints_key(collection: &str) -> Vec<u8> {
@@ -774,7 +792,9 @@ impl Midge {
             .get(&current_constraints_key)
             .map_err(CassieError::from)?;
         if let Some(raw) = constraints {
-            schema_tx.delete(current_constraints_key).map_err(CassieError::from)?;
+            schema_tx
+                .delete(current_constraints_key)
+                .map_err(CassieError::from)?;
             schema_tx
                 .put(Self::constraints_key(next_name), raw.to_vec(), None)
                 .map_err(CassieError::from)?;
@@ -848,8 +868,8 @@ impl Midge {
     pub async fn put_index(&self, metadata: IndexMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::index_key(&metadata.collection, &metadata.name);
-        let value = serde_json::to_vec(&metadata)
-            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        let value =
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
@@ -946,6 +966,116 @@ impl Midge {
         }
 
         Ok(out)
+    }
+
+    pub async fn put_function(
+        &self,
+        metadata: crate::catalog::FunctionMeta,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let key = Self::function_key(&metadata.name);
+        let value =
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(key, value, None).map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn get_function(
+        &self,
+        name: &str,
+    ) -> Result<Option<crate::catalog::FunctionMeta>, CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        let raw = tx
+            .get(&Self::function_key(name))
+            .map_err(CassieError::from)?;
+        let Some(raw) = raw else {
+            return Ok(None);
+        };
+
+        serde_json::from_slice(&raw)
+            .map(Some)
+            .map_err(|error| CassieError::Parse(format!("invalid function metadata: {error}")))
+    }
+
+    pub async fn list_functions(&self) -> Result<Vec<crate::catalog::FunctionMeta>, CassieError> {
+        let entries = self
+            .raw_scan_prefix(StorageFamily::Schema, &Self::function_prefix())
+            .await?;
+        let mut out: Vec<crate::catalog::FunctionMeta> = Vec::with_capacity(entries.len());
+        for (_key, raw_value) in entries {
+            let Ok(record) = serde_json::from_slice(&raw_value) else {
+                continue;
+            };
+            out.push(record);
+        }
+        out.sort_by_key(|metadata| metadata.name.to_ascii_lowercase());
+        Ok(out)
+    }
+
+    pub async fn delete_function(&self, name: &str) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.delete(Self::function_key(name))
+            .map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn put_procedure(
+        &self,
+        metadata: crate::catalog::ProcedureMeta,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let key = Self::procedure_key(&metadata.name);
+        let value =
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(key, value, None).map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn get_procedure(
+        &self,
+        name: &str,
+    ) -> Result<Option<crate::catalog::ProcedureMeta>, CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        let raw = tx
+            .get(&Self::procedure_key(name))
+            .map_err(CassieError::from)?;
+        let Some(raw) = raw else {
+            return Ok(None);
+        };
+
+        serde_json::from_slice(&raw)
+            .map(Some)
+            .map_err(|error| CassieError::Parse(format!("invalid procedure metadata: {error}")))
+    }
+
+    pub async fn list_procedures(&self) -> Result<Vec<crate::catalog::ProcedureMeta>, CassieError> {
+        let entries = self
+            .raw_scan_prefix(StorageFamily::Schema, &Self::procedure_prefix())
+            .await?;
+        let mut out: Vec<crate::catalog::ProcedureMeta> = Vec::with_capacity(entries.len());
+        for (_key, raw_value) in entries {
+            let Ok(record) = serde_json::from_slice(&raw_value) else {
+                continue;
+            };
+            out.push(record);
+        }
+        out.sort_by_key(|metadata| metadata.name.to_ascii_lowercase());
+        Ok(out)
+    }
+
+    pub async fn delete_procedure(&self, name: &str) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.delete(Self::procedure_key(name))
+            .map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
     }
 
     pub async fn collection_schema(&self, name: &str) -> Option<Schema> {

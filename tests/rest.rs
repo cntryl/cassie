@@ -167,7 +167,10 @@ fn should_reject_rest_ingest_when_not_null_constraint_is_violated() {
         .await;
 
         // Assert
-        assert!(missing.is_err(), "missing required field should be rejected");
+        assert!(
+            missing.is_err(),
+            "missing required field should be rejected"
+        );
         let error = format!("{:?}", missing.unwrap_err());
         assert!(
             error.contains("cannot be null"),

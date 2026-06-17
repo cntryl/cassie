@@ -1,3 +1,4 @@
+use crate::catalog::FunctionMeta;
 use crate::executor::batch::{Batch, BatchRow, RowAccess};
 use crate::executor::filter;
 use crate::executor::filter::SearchContext;
@@ -10,6 +11,7 @@ pub(crate) fn project_rows<R>(
     projection: &[SelectItem],
     params: &[Value],
     search_context: Option<&SearchContext>,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
 ) -> Result<Vec<BatchRow>, QueryError>
 where
     R: RowAccess,
@@ -41,6 +43,8 @@ where
                         &crate::sql::ast::Expr::Function(function.clone()),
                         params,
                         search_context,
+                        user_functions,
+                        None,
                     )?;
                     projected.push((key, value));
                 }
@@ -57,9 +61,10 @@ pub(crate) fn project_batches(
     projection: &[SelectItem],
     params: &[Value],
     search_context: Option<&SearchContext>,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
 ) -> Result<Vec<Batch>, QueryError> {
     batches
         .into_iter()
-        .map(|batch| project_rows(batch, projection, params, search_context))
+        .map(|batch| project_rows(batch, projection, params, search_context, user_functions))
         .collect()
 }

@@ -3,7 +3,10 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use crate::catalog::{CollectionMeta, CollectionSchema, FieldConstraint, IndexMeta, NamespaceMeta};
+use crate::catalog::{
+    CollectionMeta, CollectionSchema, FieldConstraint, FunctionMeta, IndexMeta, NamespaceMeta,
+    ProcedureMeta,
+};
 use crate::embeddings::VectorIndexRecord;
 use crate::types::DataType;
 
@@ -14,6 +17,8 @@ pub struct Catalog {
     pub schemas: Arc<RwLock<HashMap<String, CollectionSchema>>>,
     pub constraints: Arc<RwLock<HashMap<String, Vec<FieldConstraint>>>>,
     pub indexes: Arc<RwLock<HashMap<String, IndexMeta>>>,
+    pub functions: Arc<RwLock<HashMap<String, FunctionMeta>>>,
+    pub procedures: Arc<RwLock<HashMap<String, ProcedureMeta>>>,
     pub vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
 }
 
@@ -25,6 +30,8 @@ impl Catalog {
             schemas: Arc::new(RwLock::new(HashMap::new())),
             constraints: Arc::new(RwLock::new(HashMap::new())),
             indexes: Arc::new(RwLock::new(HashMap::new())),
+            functions: Arc::new(RwLock::new(HashMap::new())),
+            procedures: Arc::new(RwLock::new(HashMap::new())),
             vector_indexes: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -90,6 +97,70 @@ impl Catalog {
         out
     }
 
+    pub async fn register_function(&self, metadata: FunctionMeta) {
+        let mut functions = self.functions.write().await;
+        functions.insert(metadata.name.to_ascii_lowercase(), metadata);
+    }
+
+    pub async fn unregister_function(&self, name: &str) {
+        self.functions
+            .write()
+            .await
+            .remove(&name.to_ascii_lowercase());
+    }
+
+    pub async fn get_function(&self, name: &str) -> Option<FunctionMeta> {
+        self.functions
+            .read()
+            .await
+            .get(&name.to_ascii_lowercase())
+            .cloned()
+    }
+
+    pub async fn list_functions(&self) -> Vec<FunctionMeta> {
+        let mut out = self
+            .functions
+            .read()
+            .await
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        out.sort_by_key(|function| function.name.to_ascii_lowercase());
+        out
+    }
+
+    pub async fn register_procedure(&self, metadata: ProcedureMeta) {
+        let mut procedures = self.procedures.write().await;
+        procedures.insert(metadata.name.to_ascii_lowercase(), metadata);
+    }
+
+    pub async fn unregister_procedure(&self, name: &str) {
+        self.procedures
+            .write()
+            .await
+            .remove(&name.to_ascii_lowercase());
+    }
+
+    pub async fn get_procedure(&self, name: &str) -> Option<ProcedureMeta> {
+        self.procedures
+            .read()
+            .await
+            .get(&name.to_ascii_lowercase())
+            .cloned()
+    }
+
+    pub async fn list_procedures(&self) -> Vec<ProcedureMeta> {
+        let mut out = self
+            .procedures
+            .read()
+            .await
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        out.sort_by_key(|procedure| procedure.name.to_ascii_lowercase());
+        out
+    }
+
     pub async fn namespace_exists(&self, namespace: &str) -> bool {
         self.namespaces.read().await.contains_key(namespace)
     }
@@ -99,6 +170,8 @@ impl Catalog {
         self.namespaces.write().await.clear();
         self.schemas.write().await.clear();
         self.constraints.write().await.clear();
+        self.functions.write().await.clear();
+        self.procedures.write().await.clear();
         self.indexes.write().await.clear();
         self.vector_indexes.write().await.clear();
     }
@@ -184,7 +257,10 @@ impl Catalog {
 
     pub async fn register_index(&self, metadata: IndexMeta) {
         let mut indexes = self.indexes.write().await;
-        indexes.insert(Self::index_key(&metadata.collection, &metadata.name), metadata);
+        indexes.insert(
+            Self::index_key(&metadata.collection, &metadata.name),
+            metadata,
+        );
     }
 
     pub async fn unregister_index(&self, collection: &str, name: &str) {
@@ -260,9 +336,7 @@ impl Catalog {
 
         let normalized_constraints = {
             let mut constraints = self.constraints.write().await;
-            constraints
-                .remove(current_name)
-                .unwrap_or_default()
+            constraints.remove(current_name).unwrap_or_default()
         };
         if !normalized_constraints.is_empty() {
             self.constraints

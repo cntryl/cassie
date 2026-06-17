@@ -54,6 +54,47 @@ fn should_parse_select_statement_with_aliases_filters_sorting_pagination() {
 }
 
 #[test]
+fn should_parse_create_function_statement() {
+    // Arrange
+    let sql = "CREATE FUNCTION double(x INT) RETURNS INT AS \"x * 2\"";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateFunction(statement) = parsed.statement else {
+        panic!("expected create function");
+    };
+
+    assert_eq!(statement.name, "double");
+    assert_eq!(statement.args.len(), 1);
+    assert_eq!(statement.args[0].name, "x");
+    assert_eq!(statement.args[0].data_type, DataType::Int);
+    assert_eq!(statement.return_type, DataType::Int);
+    assert_eq!(statement.body, "x * 2");
+}
+
+#[test]
+fn should_parse_create_procedure_statement() {
+    // Arrange
+    let sql = "CREATE PROCEDURE log_event(message TEXT) AS \"noop\"";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateProcedure(statement) = parsed.statement else {
+        panic!("expected create procedure");
+    };
+
+    assert_eq!(statement.name, "log_event");
+    assert_eq!(statement.args.len(), 1);
+    assert_eq!(statement.args[0].name, "message");
+    assert_eq!(statement.args[0].data_type, DataType::Text);
+    assert_eq!(statement.body, "noop");
+}
+
+#[test]
 fn should_reject_unknown_function_during_binding() {
     // Arrange
     let cassie =
@@ -864,7 +905,10 @@ fn should_parse_create_table_field_constraints() {
     assert_eq!(statement.table, "users");
     assert_eq!(statement.fields.len(), 3);
 
-    assert!(statement.fields[0].constraints.iter().any(|c| c.primary_key));
+    assert!(statement.fields[0]
+        .constraints
+        .iter()
+        .any(|c| c.primary_key));
     assert!(!statement.fields[0].constraints.iter().any(|c| c.unique));
 
     let email_constraints = &statement.fields[1].constraints;
@@ -912,7 +956,10 @@ fn should_parse_create_index_statement() {
     assert!(statement.unique);
     assert!(matches!(statement.kind, cassie::catalog::IndexKind::Scalar));
     assert_eq!(statement.options.get("fillfactor"), Some(&"90".to_string()));
-    assert_eq!(statement.options.get("case_sensitive"), Some(&"false".to_string()));
+    assert_eq!(
+        statement.options.get("case_sensitive"),
+        Some(&"false".to_string())
+    );
 }
 
 #[test]

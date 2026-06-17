@@ -1,11 +1,13 @@
 pub mod collections;
-pub mod indexes;
 pub mod constraints;
+pub mod indexes;
 pub mod metadata;
+pub mod programs;
 pub mod schemas;
 
 pub use collections::{CollectionMeta, NamespaceMeta};
-pub use indexes::{IndexKind, IndexMeta};
 pub use constraints::{ConstraintCheck, ConstraintOperator, FieldConstraint};
+pub use indexes::{IndexKind, IndexMeta};
 pub use metadata::Catalog;
+pub use programs::{FunctionArgMeta, FunctionMeta, ProcedureMeta, Volatility};
 pub use schemas::{CollectionSchema, FieldMeta};

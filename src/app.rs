@@ -122,11 +122,7 @@ impl Cassie {
 
         for name in collections {
             if let Some(schema) = self.midge.collection_schema(&name).await {
-                let constraints = self
-                    .midge
-                    .load_constraints(&name)
-                    .await
-                    .unwrap_or_default();
+                let constraints = self.midge.load_constraints(&name).await.unwrap_or_default();
                 self.catalog
                     .register_collection_with_constraints(
                         &name,
@@ -149,6 +145,16 @@ impl Cassie {
         let indexes = self.midge.list_indexes().await?;
         for index in indexes {
             self.catalog.register_index(index).await;
+        }
+
+        let functions = self.midge.list_functions().await?;
+        for metadata in functions {
+            self.catalog.register_function(metadata).await;
+        }
+
+        let procedures = self.midge.list_procedures().await?;
+        for metadata in procedures {
+            self.catalog.register_procedure(metadata).await;
         }
 
         Ok(())
@@ -267,9 +273,9 @@ impl Cassie {
         payload: &mut serde_json::Value,
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
-        let object = payload
-            .as_object_mut()
-            .ok_or_else(|| CassieError::InvalidVector("document payload must be a JSON object".to_string()))?;
+        let object = payload.as_object_mut().ok_or_else(|| {
+            CassieError::InvalidVector("document payload must be a JSON object".to_string())
+        })?;
 
         for constraint in constraints {
             if object.contains_key(&constraint.field) {
@@ -290,14 +296,16 @@ impl Cassie {
         payload: &serde_json::Value,
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
-        let object = payload
-            .as_object()
-            .ok_or_else(|| CassieError::InvalidVector("document payload must be a JSON object".to_string()))?;
+        let object = payload.as_object().ok_or_else(|| {
+            CassieError::InvalidVector("document payload must be a JSON object".to_string())
+        })?;
 
         for constraint in constraints {
             let existing = object.get(&constraint.field);
 
-            if (constraint.not_null || constraint.primary_key) && (existing.is_none() || existing.is_some_and(|value| value.is_null())) {
+            if (constraint.not_null || constraint.primary_key)
+                && (existing.is_none() || existing.is_some_and(|value| value.is_null()))
+            {
                 return Err(CassieError::InvalidVector(format!(
                     "field '{}' cannot be null",
                     constraint.field
@@ -320,26 +328,26 @@ impl Cassie {
         self.validate_uniques(collection, object, constraints).await
     }
 
-    fn satisfies_check_constraint(&self, value: &serde_json::Value, check: &ConstraintCheck) -> bool {
+    fn satisfies_check_constraint(
+        &self,
+        value: &serde_json::Value,
+        check: &ConstraintCheck,
+    ) -> bool {
         match check.operator {
             ConstraintOperator::Eq => value == &check.value,
             ConstraintOperator::NotEq => value != &check.value,
-            ConstraintOperator::Lt => {
-                self.compare_constraint_values(value, &check.value)
-                    .is_some_and(|order| order.is_lt())
-            }
-            ConstraintOperator::Lte => {
-                self.compare_constraint_values(value, &check.value)
-                    .is_some_and(|order| order.is_le())
-            }
-            ConstraintOperator::Gt => {
-                self.compare_constraint_values(value, &check.value)
-                    .is_some_and(|order| order.is_gt())
-            }
-            ConstraintOperator::Gte => {
-                self.compare_constraint_values(value, &check.value)
-                    .is_some_and(|order| order.is_ge())
-            }
+            ConstraintOperator::Lt => self
+                .compare_constraint_values(value, &check.value)
+                .is_some_and(|order| order.is_lt()),
+            ConstraintOperator::Lte => self
+                .compare_constraint_values(value, &check.value)
+                .is_some_and(|order| order.is_le()),
+            ConstraintOperator::Gt => self
+                .compare_constraint_values(value, &check.value)
+                .is_some_and(|order| order.is_gt()),
+            ConstraintOperator::Gte => self
+                .compare_constraint_values(value, &check.value)
+                .is_some_and(|order| order.is_ge()),
             ConstraintOperator::Like => {
                 let Some(value) = value.as_str() else {
                     return false;
@@ -410,7 +418,10 @@ impl Cassie {
                 continue;
             }
 
-            if self.value_exists_for_collection_field(collection, &constraint.field, value).await? {
+            if self
+                .value_exists_for_collection_field(collection, &constraint.field, value)
+                .await?
+            {
                 return Err(CassieError::InvalidVector(format!(
                     "unique constraint failed for '{}'",
                     constraint.field

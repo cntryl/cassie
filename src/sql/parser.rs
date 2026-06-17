@@ -1,11 +1,12 @@
-use crate::sql::ast::{
-    AlterTableOperation, AlterTableStatement, BinaryOp, CommonTableExpression,
-    CreateIndexStatement, CreateSchemaStatement, CreateTableStatement, CteQuery, DropIndexStatement,
-    DropTableStatement, Expr,
-    FieldDefinition, FunctionCall, OrderExpr, ParsedStatement, QuerySource, QueryStatement,
-    SelectItem, SelectStatement, SortDirection,
-};
 use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, IndexKind};
+use crate::sql::ast::{
+    AlterTableOperation, AlterTableStatement, BinaryOp, CallProcedureStatement,
+    CommonTableExpression, CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
+    CreateSchemaStatement, CreateTableStatement, CteQuery, DropFunctionStatement,
+    DropIndexStatement, DropProcedureStatement, DropTableStatement, Expr, FieldDefinition,
+    FunctionArg, FunctionCall, OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem,
+    SelectStatement, SortDirection, Volatility,
+};
 use crate::types::DataType;
 use serde_json::Value;
 use std::collections::HashSet;
@@ -18,6 +19,10 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let lower = trimmed.to_lowercase();
     if lower.starts_with("with ") || lower == "with" {
         parse_with_statement(trimmed)
+    } else if lower.starts_with("create function ") || lower == "create function" {
+        parse_create_function_statement(trimmed)
+    } else if lower.starts_with("create procedure ") || lower == "create procedure" {
+        parse_create_procedure_statement(trimmed)
     } else if lower.starts_with("select ") {
         parse_select_statement(trimmed, Vec::new(), false)
     } else if lower.starts_with("create unique index ")
@@ -27,6 +32,12 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         parse_create_index_statement(trimmed)
     } else if lower.starts_with("drop index ") || lower == "drop index" {
         parse_drop_index_statement(trimmed)
+    } else if lower.starts_with("drop function ") || lower == "drop function" {
+        parse_drop_function_statement(trimmed)
+    } else if lower.starts_with("drop procedure ") || lower == "drop procedure" {
+        parse_drop_procedure_statement(trimmed)
+    } else if lower.starts_with("call ") {
+        parse_call_statement(trimmed)
     } else if lower.starts_with("create table ") || lower == "create table" {
         parse_create_table_statement(trimmed)
     } else if lower.starts_with("drop table ") || lower == "drop table" {
@@ -38,6 +49,168 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     } else {
         Err(SqlError("unsupported SQL statement".into()))
     }
+}
+
+fn parse_create_function_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[15..].trim();
+
+    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+
+    let name_end = rest
+        .find('(')
+        .ok_or_else(|| SqlError("CREATE FUNCTION requires argument list".into()))?;
+    let name = rest[..name_end].trim();
+    if name.is_empty() {
+        return Err(SqlError("CREATE FUNCTION requires a name".into()));
+    }
+
+    let rest = &rest[name_end + 1..];
+    let close = rest
+        .find(')')
+        .ok_or_else(|| SqlError("CREATE FUNCTION argument list is missing ')'".into()))?;
+    let args_raw = rest[..close].trim();
+
+    let args = parse_function_args(args_raw)?;
+
+    let mut remaining = rest[(close + 1)..].trim_start();
+    if !starts_with_keyword(remaining, "returns") {
+        return Err(SqlError("CREATE FUNCTION requires RETURNS clause".into()));
+    }
+
+    remaining = remaining[7..].trim();
+    let (return_type_raw, remaining) = split_keyword(remaining, "as")
+        .ok_or_else(|| SqlError("CREATE FUNCTION requires AS clause".into()))?;
+    let (return_type, volatility) = parse_return_clause(return_type_raw)?;
+
+    let body = parse_quoted_or_raw_body(remaining)?;
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CreateFunction(CreateFunctionStatement {
+            name: name.to_string(),
+            if_not_exists,
+            args,
+            return_type,
+            volatility,
+            body,
+        }),
+    })
+}
+
+fn parse_create_procedure_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[16..].trim();
+
+    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+
+    let name_end = rest
+        .find('(')
+        .ok_or_else(|| SqlError("CREATE PROCEDURE requires argument list".into()))?;
+    let name = rest[..name_end].trim();
+    if name.is_empty() {
+        return Err(SqlError("CREATE PROCEDURE requires a name".into()));
+    }
+
+    let rest = &rest[name_end + 1..];
+    let close = rest
+        .find(')')
+        .ok_or_else(|| SqlError("CREATE PROCEDURE argument list is missing ')'".into()))?;
+    let args_raw = rest[..close].trim();
+
+    let args = parse_function_args(args_raw)?;
+    let mut remaining = rest[(close + 1)..].trim_start();
+
+    if !starts_with_keyword(remaining, "as") {
+        return Err(SqlError("CREATE PROCEDURE requires AS clause".into()));
+    }
+    remaining = remaining[2..].trim();
+
+    let body = parse_quoted_or_raw_body(remaining)?;
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CreateProcedure(CreateProcedureStatement {
+            name: name.to_string(),
+            if_not_exists,
+            args,
+            body,
+        }),
+    })
+}
+
+fn parse_drop_function_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[14..].trim();
+    let (if_exists, rest) = parse_if_exists(rest)?;
+
+    if rest.is_empty() {
+        return Err(SqlError("missing function name for DROP FUNCTION".into()));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::DropFunction(DropFunctionStatement {
+            name: rest.to_string(),
+            if_exists,
+        }),
+    })
+}
+
+fn parse_drop_procedure_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[15..].trim();
+    let (if_exists, rest) = parse_if_exists(rest)?;
+
+    if rest.is_empty() {
+        return Err(SqlError("missing procedure name for DROP PROCEDURE".into()));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::DropProcedure(DropProcedureStatement {
+            name: rest.to_string(),
+            if_exists,
+        }),
+    })
+}
+
+fn parse_call_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[4..].trim();
+
+    let open = rest
+        .find('(')
+        .ok_or_else(|| SqlError("CALL requires argument list".into()))?;
+    let close = rest
+        .rfind(')')
+        .ok_or_else(|| SqlError("CALL argument list is missing ')'".into()))?;
+    if close < open {
+        return Err(SqlError("invalid CALL syntax".into()));
+    }
+
+    let name = rest[..open].trim();
+    if name.is_empty() {
+        return Err(SqlError("CALL requires a procedure name".into()));
+    }
+
+    let args_raw = rest[(open + 1)..close].trim();
+    let args = if args_raw.is_empty() {
+        Vec::new()
+    } else {
+        split_csv(args_raw)
+            .into_iter()
+            .map(parse_expr_token)
+            .collect::<Result<Vec<_>, _>>()?
+    };
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CallProcedure(CallProcedureStatement {
+            name: name.to_string(),
+            args,
+        }),
+    })
 }
 
 fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
@@ -199,10 +372,14 @@ fn parse_drop_index_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let name = rest[..on_pos].trim();
     let table = rest[on_pos + 2..].trim();
     if name.is_empty() || table.is_empty() {
-        return Err(SqlError("DROP INDEX requires index name and table".to_string()));
+        return Err(SqlError(
+            "DROP INDEX requires index name and table".to_string(),
+        ));
     }
     if table.contains(' ') {
-        return Err(SqlError("unsupported tokens after DROP INDEX table name".to_string()));
+        return Err(SqlError(
+            "unsupported tokens after DROP INDEX table name".to_string(),
+        ));
     }
 
     Ok(ParsedStatement {
@@ -357,6 +534,139 @@ fn parse_if_exists(raw: &str) -> Result<(bool, &str), SqlError> {
     Ok((false, raw.trim()))
 }
 
+fn parse_function_args(raw: &str) -> Result<Vec<FunctionArg>, SqlError> {
+    if raw.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut args = Vec::new();
+    for token in split_csv(raw) {
+        let token = token.trim();
+        if token.is_empty() {
+            continue;
+        }
+        let parts = tokenize_schema_field(token);
+        if parts.is_empty() {
+            return Err(SqlError("invalid function argument".into()));
+        }
+
+        let name = parts[0].trim();
+        if name.is_empty() || name.contains(',') {
+            return Err(SqlError("invalid function argument".into()));
+        }
+
+        if parts.len() < 2 {
+            return Err(SqlError(format!(
+                "missing data type for function argument '{}'",
+                name
+            )));
+        }
+        let data_type = parse_data_type(parts[1].as_str())?;
+
+        args.push(FunctionArg {
+            name: name.to_string(),
+            data_type,
+        });
+    }
+
+    Ok(args)
+}
+
+fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), SqlError> {
+    let tokens = raw.split_whitespace().collect::<Vec<_>>();
+    if tokens.is_empty() {
+        return Err(SqlError(
+            "CREATE FUNCTION RETURNS clause is missing a type".into(),
+        ));
+    }
+
+    let data_type = parse_data_type(tokens[0])?;
+    let volatility = if tokens.len() > 1 {
+        match tokens[1].to_lowercase().as_str() {
+            "immutable" => {
+                if tokens.len() > 2 {
+                    return Err(SqlError(
+                        "unexpected token after function volatility".into(),
+                    ));
+                }
+                Volatility::Immutable
+            }
+            "stable" => {
+                if tokens.len() > 2 {
+                    return Err(SqlError(
+                        "unexpected token after function volatility".into(),
+                    ));
+                }
+                Volatility::Stable
+            }
+            "volatile" => {
+                if tokens.len() > 2 {
+                    return Err(SqlError(
+                        "unexpected token after function volatility".into(),
+                    ));
+                }
+                Volatility::Volatile
+            }
+            _ => {
+                return Err(SqlError(format!(
+                    "unsupported function volatility '{}'; use IMMUTABLE/STABLE/VOLATILE",
+                    tokens[1]
+                )));
+            }
+        }
+    } else {
+        Volatility::Immutable
+    };
+
+    if tokens.len() > 2 {
+        return Err(SqlError("unexpected token after RETURNS clause".into()));
+    }
+
+    Ok((data_type, volatility))
+}
+
+fn parse_quoted_or_raw_body(raw: &str) -> Result<String, SqlError> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err(SqlError("empty function/procedure body".into()));
+    }
+
+    if let Ok((_value, remainder)) = parse_sql_quoted_string(raw) {
+        if remainder.trim().is_empty() {
+            return Ok(_value);
+        }
+    }
+
+    Ok(raw.to_string())
+}
+
+fn parse_sql_quoted_string(raw: &str) -> Result<(String, &str), SqlError> {
+    if raw.starts_with('"') && raw.ends_with('"') && raw.len() >= 2 {
+        return Ok((raw[1..raw.len() - 1].to_string(), ""));
+    }
+
+    if raw.starts_with('\'') && raw.ends_with('\'') && raw.len() >= 2 {
+        return Ok((raw[1..raw.len() - 1].to_string(), ""));
+    }
+
+    Err(SqlError("not a quoted string".into()))
+}
+
+fn split_keyword<'a>(raw: &'a str, keyword: &'a str) -> Option<(&'a str, &'a str)> {
+    let lower = raw.to_lowercase();
+    let keyword_len = keyword.len();
+    let idx = lower.find(&format!(" {keyword} "))?;
+
+    let before = raw[..idx].trim();
+    let pattern_len = keyword_len + 2;
+    let after = raw[idx + pattern_len..].trim_start();
+    if after.is_empty() {
+        None
+    } else {
+        Some((before, after))
+    }
+}
+
 fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlError> {
     let mut parts = tokenize_schema_field(raw).into_iter();
     let name = parts
@@ -469,7 +779,9 @@ fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlError> {
 fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlError> {
     let expression = raw.trim();
     if !expression.starts_with('(') || !expression.ends_with(')') {
-        return Err(SqlError("CHECK expression must be parenthesized".to_string()));
+        return Err(SqlError(
+            "CHECK expression must be parenthesized".to_string(),
+        ));
     }
     let inner = strip_parentheses(expression)
         .ok_or_else(|| SqlError("invalid CHECK expression".to_string()))?
@@ -542,17 +854,13 @@ fn parse_constraint_literal(raw: &str) -> Result<Value, SqlError> {
 
     if let Some(rest) = raw.strip_prefix('\'') {
         if raw.ends_with('\'') && raw.len() >= 2 {
-            let unquoted = rest
-                .strip_suffix('\'')
-                .unwrap_or(rest);
+            let unquoted = rest.strip_suffix('\'').unwrap_or(rest);
             return Ok(Value::String(unquoted.to_string()));
         }
     }
     if let Some(rest) = raw.strip_prefix('"') {
         if raw.ends_with('"') && raw.len() >= 2 {
-            let unquoted = rest
-                .strip_suffix('"')
-                .unwrap_or(rest);
+            let unquoted = rest.strip_suffix('"').unwrap_or(rest);
             return Ok(Value::String(unquoted.to_string()));
         }
     }
@@ -648,9 +956,9 @@ fn parse_index_field(raw: &str) -> Result<(String, &str), SqlError> {
         ));
     }
 
-    let close = raw.find(')').ok_or_else(|| {
-        SqlError("CREATE INDEX field list missing closing ')'".to_string())
-    })?;
+    let close = raw
+        .find(')')
+        .ok_or_else(|| SqlError("CREATE INDEX field list missing closing ')'".to_string()))?;
     if close == 1 {
         return Err(SqlError("CREATE INDEX field cannot be empty".to_string()));
     }
@@ -662,7 +970,9 @@ fn parse_index_field(raw: &str) -> Result<(String, &str), SqlError> {
 
     let before = raw[close + 1..].trim();
     if field_spec.contains(',') {
-        return Err(SqlError("CREATE INDEX does not support composite indexes".to_string()));
+        return Err(SqlError(
+            "CREATE INDEX does not support composite indexes".to_string(),
+        ));
     }
     if field_spec.contains(' ') {
         return Err(SqlError(
@@ -673,7 +983,9 @@ fn parse_index_field(raw: &str) -> Result<(String, &str), SqlError> {
     Ok((field_spec.to_string(), before))
 }
 
-fn parse_index_options(raw: &str) -> Result<(std::collections::BTreeMap<String, String>, &str), SqlError> {
+fn parse_index_options(
+    raw: &str,
+) -> Result<(std::collections::BTreeMap<String, String>, &str), SqlError> {
     let mut options = std::collections::BTreeMap::new();
     let raw = raw.trim();
     if raw.is_empty() {
@@ -686,16 +998,23 @@ fn parse_index_options(raw: &str) -> Result<(std::collections::BTreeMap<String, 
 
     let with_body = raw[4..].trim_start();
     if !with_body.starts_with('(') || !with_body.ends_with(')') {
-        return Err(SqlError("WITH options must be enclosed in parentheses".to_string()));
+        return Err(SqlError(
+            "WITH options must be enclosed in parentheses".to_string(),
+        ));
     }
 
     let body = &with_body[1..with_body.len() - 1];
     for token in split_csv(body) {
         let token = token.trim();
-        let (key, value) = token.split_once('=')
+        let (key, value) = token
+            .split_once('=')
             .ok_or_else(|| SqlError("index option must be key=value".to_string()))?;
         let key = key.trim().to_lowercase();
-        let value = value.trim().trim_matches('"').trim_matches('\'').to_string();
+        let value = value
+            .trim()
+            .trim_matches('"')
+            .trim_matches('\'')
+            .to_string();
         if key.is_empty() {
             return Err(SqlError("index option key cannot be empty".to_string()));
         }
@@ -1154,7 +1473,7 @@ fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError> {
     Ok(Some(FunctionCall { name, args }))
 }
 
-fn parse_expression(raw: &str) -> Result<Expr, SqlError> {
+pub(crate) fn parse_expression(raw: &str) -> Result<Expr, SqlError> {
     parse_or_expression(raw)
 }
 

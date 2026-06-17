@@ -3,9 +3,10 @@ use std::future::Future;
 use std::pin::Pin;
 
 use crate::app::Cassie;
+use crate::catalog;
+use crate::catalog::{FunctionMeta, ProcedureMeta, Volatility};
 use crate::executor::batch::{self, BatchRow, RowAccess};
 use crate::executor::{aggregate, filter, projection, scan, sort};
-use crate::catalog;
 use crate::planner::logical::{LogicalCommand, LogicalPlan};
 use crate::planner::physical::PhysicalPlan;
 use crate::sql::ast::{CommonTableExpression, CteQuery, QuerySource};
@@ -40,12 +41,27 @@ pub async fn run(
     plan: PhysicalPlan,
     params: Vec<Value>,
 ) -> Result<QueryResult, QueryError> {
+    let user_functions = cassie
+        .catalog
+        .list_functions()
+        .await
+        .into_iter()
+        .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
+        .collect::<HashMap<String, FunctionMeta>>();
+
     if let Some(command) = plan.logical.command.as_ref() {
         return execute_command(cassie, command).await;
     }
 
     let mut cte_context: CteContext = HashMap::new();
-    let rows = execute_plan(cassie, &plan.logical, &mut cte_context, &params).await?;
+    let rows = execute_plan(
+        cassie,
+        &plan.logical,
+        &mut cte_context,
+        &user_functions,
+        &params,
+    )
+    .await?;
 
     let columns = aggregate::columns_from_projection(&plan.logical.projection);
     let rows = rows.into_iter().map(BatchRow::into_values).collect();
@@ -97,11 +113,7 @@ async fn execute_command(
 
             cassie
                 .midge
-                .save_constraints(
-                    &statement.table,
-                    constraints
-                        .as_slice(),
-                )
+                .save_constraints(&statement.table, constraints.as_slice())
                 .await
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
@@ -279,6 +291,155 @@ async fn execute_command(
                 command: "DROP INDEX".to_string(),
             })
         }
+        LogicalCommand::CreateFunction(statement) => {
+            if statement.if_not_exists
+                && cassie.catalog.get_function(&statement.name).await.is_some()
+            {
+                return Ok(QueryResult {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    command: "CREATE FUNCTION".to_string(),
+                });
+            }
+
+            let metadata = FunctionMeta {
+                name: statement.name.clone(),
+                args: statement
+                    .args
+                    .iter()
+                    .map(|arg| catalog::FunctionArgMeta {
+                        name: arg.name.clone(),
+                        data_type: arg.data_type.clone(),
+                    })
+                    .collect(),
+                return_type: statement.return_type.clone(),
+                volatility: Volatility::from(statement.volatility.clone()),
+                body: statement.body.clone(),
+            };
+
+            cassie
+                .midge
+                .put_function(metadata.clone())
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.register_function(metadata).await;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "CREATE FUNCTION".to_string(),
+            })
+        }
+        LogicalCommand::DropFunction(statement) => {
+            if statement.if_exists && cassie.catalog.get_function(&statement.name).await.is_none() {
+                return Ok(QueryResult {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    command: "DROP FUNCTION".to_string(),
+                });
+            }
+
+            cassie
+                .midge
+                .delete_function(&statement.name)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.unregister_function(&statement.name).await;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "DROP FUNCTION".to_string(),
+            })
+        }
+        LogicalCommand::CreateProcedure(statement) => {
+            if statement.if_not_exists
+                && cassie
+                    .catalog
+                    .get_procedure(&statement.name)
+                    .await
+                    .is_some()
+            {
+                return Ok(QueryResult {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    command: "CREATE PROCEDURE".to_string(),
+                });
+            }
+
+            let metadata = ProcedureMeta {
+                name: statement.name.clone(),
+                args: statement
+                    .args
+                    .iter()
+                    .map(|arg| catalog::FunctionArgMeta {
+                        name: arg.name.clone(),
+                        data_type: arg.data_type.clone(),
+                    })
+                    .collect(),
+                body: statement.body.clone(),
+            };
+
+            cassie
+                .midge
+                .put_procedure(metadata.clone())
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.register_procedure(metadata).await;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "CREATE PROCEDURE".to_string(),
+            })
+        }
+        LogicalCommand::DropProcedure(statement) => {
+            if statement.if_exists
+                && cassie
+                    .catalog
+                    .get_procedure(&statement.name)
+                    .await
+                    .is_none()
+            {
+                return Ok(QueryResult {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    command: "DROP PROCEDURE".to_string(),
+                });
+            }
+
+            cassie
+                .midge
+                .delete_procedure(&statement.name)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.unregister_procedure(&statement.name).await;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "DROP PROCEDURE".to_string(),
+            })
+        }
+        LogicalCommand::CallProcedure(statement) => {
+            if cassie
+                .catalog
+                .get_procedure(&statement.name)
+                .await
+                .is_none()
+            {
+                return Err(QueryError::General(format!(
+                    "procedure '{}' does not exist",
+                    statement.name
+                )));
+            }
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "CALL".to_string(),
+            })
+        }
     }
 }
 
@@ -286,6 +447,7 @@ async fn execute_plan(
     cassie: &Cassie,
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
+    user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
 ) -> Result<Vec<BatchRow>, QueryError> {
     if plan.command.is_some() {
@@ -295,17 +457,18 @@ async fn execute_plan(
     }
 
     for cte in &plan.ctes {
-        let rows = execute_cte(cassie, cte, cte_context, params).await?;
+        let rows = execute_cte(cassie, cte, cte_context, user_functions, params).await?;
         cte_context.insert(cte.name.to_ascii_lowercase(), rows);
     }
 
-    execute_source_query(cassie, plan, cte_context, params).await
+    execute_source_query(cassie, plan, cte_context, user_functions, params).await
 }
 
 fn execute_cte<'a>(
     cassie: &'a Cassie,
     cte: &'a CommonTableExpression,
     cte_context: &'a mut CteContext,
+    user_functions: &'a HashMap<String, FunctionMeta>,
     params: &'a [Value],
 ) -> CteExecution<'a> {
     Box::pin(async move {
@@ -315,7 +478,7 @@ fn execute_cte<'a>(
         let output = match &cte.query {
             CteQuery::Simple(statement) => {
                 let logical = build_logical_plan(statement.as_ref())?;
-                execute_plan(cassie, &logical, cte_context, params)
+                execute_plan(cassie, &logical, cte_context, user_functions, params)
                     .await?
                     .into_iter()
                     .map(BatchRow::into_entries)
@@ -323,11 +486,12 @@ fn execute_cte<'a>(
             }
             CteQuery::Recursive { base, recursive } => {
                 let base_plan = build_logical_plan(base.as_ref())?;
-                let mut rows = execute_plan(cassie, &base_plan, cte_context, params)
-                    .await?
-                    .into_iter()
-                    .map(BatchRow::into_entries)
-                    .collect::<Vec<_>>();
+                let mut rows =
+                    execute_plan(cassie, &base_plan, cte_context, user_functions, params)
+                        .await?
+                        .into_iter()
+                        .map(BatchRow::into_entries)
+                        .collect::<Vec<_>>();
 
                 cte_context.insert(cte_name.clone(), rows.clone());
 
@@ -336,11 +500,12 @@ fn execute_cte<'a>(
 
                 for _ in 0..MAX_RECURSIVE_CTE_DEPTH {
                     let recursive_plan = build_logical_plan(recursive.as_ref())?;
-                    let recursive_rows = execute_plan(cassie, &recursive_plan, cte_context, params)
-                        .await?
-                        .into_iter()
-                        .map(BatchRow::into_entries)
-                        .collect::<Vec<_>>();
+                    let recursive_rows =
+                        execute_plan(cassie, &recursive_plan, cte_context, user_functions, params)
+                            .await?
+                            .into_iter()
+                            .map(BatchRow::into_entries)
+                            .collect::<Vec<_>>();
 
                     let mut new_rows = Vec::new();
                     for row in recursive_rows {
@@ -401,6 +566,7 @@ async fn execute_source_query(
     cassie: &Cassie,
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
+    user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
 ) -> Result<Vec<BatchRow>, QueryError> {
     let (mut batches, text_fields) = match &plan.source {
@@ -443,7 +609,13 @@ async fn execute_source_query(
     );
 
     if let Some(filter_expr) = &plan.filter {
-        batches = filter::filter_batches(batches, filter_expr, params, Some(&search_context))?;
+        batches = filter::filter_batches(
+            batches,
+            filter_expr,
+            params,
+            Some(&search_context),
+            user_functions,
+        )?;
     }
 
     if !plan.order.is_empty() {
@@ -453,11 +625,17 @@ async fn execute_source_query(
             &plan.projection,
             params,
             Some(&search_context),
+            user_functions,
         )?;
     }
 
-    batches =
-        projection::project_batches(batches, &plan.projection, params, Some(&search_context))?;
+    batches = projection::project_batches(
+        batches,
+        &plan.projection,
+        params,
+        Some(&search_context),
+        user_functions,
+    )?;
 
     if let Some(offset) = plan.offset {
         let offset = offset.max(0) as usize;

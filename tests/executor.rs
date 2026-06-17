@@ -2466,7 +2466,187 @@ async fn should_execute_create_and_drop_index_commands() {
     assert_eq!(catalog_index.field, "title");
     assert_eq!(stored_index.field, "title");
     assert_eq!(drop_index.command, "DROP INDEX");
-    assert!(cassie.catalog.get_index("idx_commands", "idx_title").await.is_none());
+    assert!(cassie
+        .catalog
+        .get_index("idx_commands", "idx_title")
+        .await
+        .is_none());
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[tokio::test]
+async fn should_execute_create_function_and_evaluate_user_body() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("create_function_exec");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let session = cassie.create_session("tester", None).await;
+
+    let collection = "udf_eval";
+
+    cassie
+        .execute_sql(&session, "CREATE TABLE udf_eval (id TEXT, x INT)", vec![])
+        .await
+        .unwrap();
+    cassie
+        .register_collection(
+            collection,
+            vec![
+                ("id".to_string(), DataType::Text),
+                ("x".to_string(), DataType::Int),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await;
+
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("d1".to_string()),
+            serde_json::json!({"id": "d1", "x": 3}),
+        )
+        .await
+        .unwrap();
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("d2".to_string()),
+            serde_json::json!({"id": "d2", "x": 7}),
+        )
+        .await
+        .unwrap();
+
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE FUNCTION double_input(x INT) RETURNS INT AS \"x\"",
+            vec![],
+        )
+        .await
+        .unwrap();
+
+    let query = cassie
+        .execute_sql(
+            &session,
+            "SELECT id, double_input(x) AS doubled FROM udf_eval ORDER BY id ASC",
+            vec![],
+        )
+        .await
+        .unwrap();
+
+    // Assert
+    let function = cassie
+        .catalog
+        .get_function("double_input")
+        .await
+        .expect("function should be registered");
+    assert_eq!(function.name, "double_input");
+    assert_eq!(query.columns[1].name, "doubled");
+    assert_eq!(
+        query.rows[0],
+        vec![Value::String("d1".to_string()), Value::Int64(3),]
+    );
+    assert_eq!(
+        query.rows[1],
+        vec![Value::String("d2".to_string()), Value::Int64(7),]
+    );
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[tokio::test]
+async fn should_execute_drop_function_and_reject_subsequent_use() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("drop_function_exec");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let session = cassie.create_session("tester", None).await;
+
+    let collection = "udf_drop";
+
+    cassie
+        .execute_sql(&session, "CREATE TABLE udf_drop (id TEXT, x INT)", vec![])
+        .await
+        .unwrap();
+    cassie
+        .register_collection(
+            collection,
+            vec![
+                ("id".to_string(), DataType::Text),
+                ("x".to_string(), DataType::Int),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await;
+
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("d1".to_string()),
+            serde_json::json!({"id": "d1", "x": 3}),
+        )
+        .await
+        .unwrap();
+
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE FUNCTION square(x INT) RETURNS INT AS \"x\"",
+            vec![],
+        )
+        .await
+        .unwrap();
+    cassie
+        .execute_sql(&session, "DROP FUNCTION square", vec![])
+        .await
+        .unwrap();
+
+    let result = cassie
+        .execute_sql(&session, "SELECT square(x) FROM udf_drop", vec![])
+        .await;
+    let missing = cassie.catalog.get_function("square").await.is_none();
+
+    // Assert
+    assert!(missing);
+    assert!(result.is_err());
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[tokio::test]
+async fn should_execute_create_call_and_drop_procedure_commands() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("procedure_exec");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let session = cassie.create_session("tester", None).await;
+
+    let create = cassie
+        .execute_sql(&session, "CREATE PROCEDURE noop() AS \"noop\"", vec![])
+        .await
+        .unwrap();
+    let call = cassie
+        .execute_sql(&session, "CALL noop()", vec![])
+        .await
+        .unwrap();
+    let drop = cassie
+        .execute_sql(&session, "DROP PROCEDURE noop", vec![])
+        .await
+        .unwrap();
+
+    let missing = cassie.catalog.get_procedure("noop").await.is_none();
+
+    // Assert
+    assert_eq!(create.command, "CREATE PROCEDURE");
+    assert_eq!(call.command, "CALL");
+    assert_eq!(drop.command, "DROP PROCEDURE");
+    assert!(missing);
 
     let _ = std::fs::remove_dir_all(path);
 }

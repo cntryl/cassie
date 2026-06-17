@@ -1,3 +1,4 @@
+use crate::catalog::FunctionMeta;
 use crate::executor::batch::{
     chunk_rows, flatten_batches, row_tie_key, Batch, RowAccess, DEFAULT_BATCH_SIZE,
 };
@@ -12,6 +13,7 @@ pub(crate) fn sort_rows<R>(
     projection: &[SelectItem],
     params: &[Value],
     search_context: Option<&SearchContext>,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
 ) -> Result<Vec<R>, crate::executor::QueryError>
 where
     R: RowAccess,
@@ -22,8 +24,22 @@ where
 
     rows.sort_by(|left, right| {
         for OrderExpr { expr, direction } in order {
-            let left_value = sort_value(left, expr, projection, params, search_context);
-            let right_value = sort_value(right, expr, projection, params, search_context);
+            let left_value = sort_value(
+                left,
+                expr,
+                projection,
+                params,
+                search_context,
+                user_functions,
+            );
+            let right_value = sort_value(
+                right,
+                expr,
+                projection,
+                params,
+                search_context,
+                user_functions,
+            );
 
             let cmp = compare_scalar(&left_value, &right_value);
             if cmp != std::cmp::Ordering::Equal {
@@ -48,13 +64,21 @@ pub(crate) fn sort_batches(
     projection: &[SelectItem],
     params: &[Value],
     search_context: Option<&SearchContext>,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
     if order.is_empty() {
         return Ok(batches);
     }
 
     let rows = flatten_batches(batches);
-    let rows = sort_rows(rows, order, projection, params, search_context)?;
+    let rows = sort_rows(
+        rows,
+        order,
+        projection,
+        params,
+        search_context,
+        user_functions,
+    )?;
     Ok(chunk_rows(rows, DEFAULT_BATCH_SIZE))
 }
 
@@ -64,16 +88,24 @@ fn sort_value<R: RowAccess + ?Sized>(
     projection: &[SelectItem],
     params: &[Value],
     search_context: Option<&SearchContext>,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
 ) -> crate::executor::filter::ScalarValue {
-    let base = filter::eval_scalar(row, expr, params, search_context)
+    let base = filter::eval_scalar(row, expr, params, search_context, user_functions, None)
         .unwrap_or(crate::executor::filter::ScalarValue::Null);
     if !matches!(base, crate::executor::filter::ScalarValue::Null) {
         return base;
     }
 
     alias_expr(expr, projection).map_or(base, |alias_expr| {
-        filter::eval_scalar(row, &alias_expr, params, search_context)
-            .unwrap_or(crate::executor::filter::ScalarValue::Null)
+        filter::eval_scalar(
+            row,
+            &alias_expr,
+            params,
+            search_context,
+            user_functions,
+            None,
+        )
+        .unwrap_or(crate::executor::filter::ScalarValue::Null)
     })
 }
 

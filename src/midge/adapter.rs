@@ -517,7 +517,11 @@ impl Midge {
         Ok(false)
     }
 
-    pub async fn scan_documents(&self, collection: &str) -> Result<Vec<DocumentRef>, CassieError> {
+    pub async fn scan_documents_batched(
+        &self,
+        collection: &str,
+        batch_size: usize,
+    ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
         if self.collection_schema(collection).await.is_none() {
             return Err(CassieError::CollectionNotFound(collection.to_string()));
         }
@@ -527,7 +531,9 @@ impl Midge {
             .scan(&Query::new().prefix(Self::doc_prefix(collection).into()))
             .map_err(CassieError::from)?;
         let needle = format!("doc:{collection}:");
+        let batch_size = batch_size.max(1);
         let mut results = Vec::new();
+        let mut current = Vec::with_capacity(batch_size);
 
         while let Some((raw_key, raw_value)) = iter.next() {
             let raw_key = String::from_utf8(raw_key).map_err(|error| {
@@ -541,10 +547,24 @@ impl Midge {
             let payload = serde_json::from_slice(&raw_value).map_err(|error| {
                 CassieError::Parse(format!("invalid document payload: {error}"))
             })?;
-            results.push(DocumentRef { id, payload });
+            current.push(DocumentRef { id, payload });
+            if current.len() >= batch_size {
+                results.push(current);
+                current = Vec::with_capacity(batch_size);
+            }
+        }
+
+        if !current.is_empty() {
+            results.push(current);
         }
 
         Ok(results)
+    }
+
+    pub async fn scan_documents(&self, collection: &str) -> Result<Vec<DocumentRef>, CassieError> {
+        self.scan_documents_batched(collection, 1024)
+            .await
+            .map(|batches| batches.into_iter().flatten().collect())
     }
 
     pub async fn all_fields_json(

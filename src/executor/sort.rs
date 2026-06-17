@@ -1,24 +1,27 @@
+use crate::executor::batch::{chunk_rows, flatten_batches, row_tie_key, Batch, RowAccess, DEFAULT_BATCH_SIZE};
 use crate::executor::filter;
 use crate::executor::filter::SearchContext;
 use crate::sql::ast::{Expr, OrderExpr, SelectItem, SortDirection};
 use crate::types::Value;
 
-pub(crate) fn sort_rows(
-    mut rows: Vec<Vec<(String, Value)>>,
+pub(crate) fn sort_rows<R>(
+    mut rows: Vec<R>,
     order: &[OrderExpr],
     projection: &[SelectItem],
     params: &[Value],
     search_context: Option<&SearchContext>,
-) -> Result<Vec<Vec<(String, Value)>>, crate::executor::QueryError> {
+) -> Result<Vec<R>, crate::executor::QueryError>
+where
+    R: RowAccess,
+{
     if order.is_empty() {
         return Ok(rows);
     }
 
     rows.sort_by(|left, right| {
         for OrderExpr { expr, direction } in order {
-            let left_value = sort_value(left.as_slice(), expr, projection, params, search_context);
-            let right_value =
-                sort_value(right.as_slice(), expr, projection, params, search_context);
+            let left_value = sort_value(left, expr, projection, params, search_context);
+            let right_value = sort_value(right, expr, projection, params, search_context);
 
             let cmp = compare_scalar(&left_value, &right_value);
             if cmp != std::cmp::Ordering::Equal {
@@ -29,16 +32,32 @@ pub(crate) fn sort_rows(
             }
         }
 
-        let left_key = row_to_tie_key(left);
-        let right_key = row_to_tie_key(right);
+        let left_key = row_tie_key(left);
+        let right_key = row_tie_key(right);
         left_key.cmp(&right_key)
     });
 
     Ok(rows)
 }
 
-fn sort_value(
-    row: &[(String, Value)],
+pub(crate) fn sort_batches(
+    batches: Vec<Batch>,
+    order: &[OrderExpr],
+    projection: &[SelectItem],
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+) -> Result<Vec<Batch>, crate::executor::QueryError> {
+    if order.is_empty() {
+        return Ok(batches);
+    }
+
+    let rows = flatten_batches(batches);
+    let rows = sort_rows(rows, order, projection, params, search_context)?;
+    Ok(chunk_rows(rows, DEFAULT_BATCH_SIZE))
+}
+
+fn sort_value<R: RowAccess + ?Sized>(
+    row: &R,
     expr: &Expr,
     projection: &[SelectItem],
     params: &[Value],
@@ -97,28 +116,4 @@ fn compare_scalar(
     }
 
     std::cmp::Ordering::Equal
-}
-
-fn row_to_tie_key(row: &[(String, Value)]) -> String {
-    row.iter()
-        .map(|(_, value)| value_to_key(value))
-        .collect::<Vec<_>>()
-        .join("|")
-}
-
-fn value_to_key(value: &Value) -> String {
-    match value {
-        Value::Null => String::from("<null>"),
-        Value::Bool(v) => v.to_string(),
-        Value::Int64(v) => v.to_string(),
-        Value::Float64(v) => v.to_string(),
-        Value::String(v) => v.clone(),
-        Value::Vector(v) => v
-            .values
-            .iter()
-            .map(|value| value.to_string())
-            .collect::<Vec<_>>()
-            .join(","),
-        Value::Json(v) => v.to_string(),
-    }
 }

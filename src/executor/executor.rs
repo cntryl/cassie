@@ -1,12 +1,14 @@
+use std::collections::{HashMap, HashSet};
+use std::future::Future;
+use std::pin::Pin;
+
 use crate::app::Cassie;
+use crate::executor::batch::{self, BatchRow, RowAccess};
 use crate::executor::{aggregate, filter, projection, scan, sort};
 use crate::planner::logical::LogicalPlan;
 use crate::planner::physical::PhysicalPlan;
 use crate::sql::ast::{CteQuery, CommonTableExpression, QuerySource};
 use crate::types::Value;
-use std::future::Future;
-use std::collections::{HashMap, HashSet};
-use std::pin::Pin;
 
 const MAX_RECURSIVE_CTE_DEPTH: usize = 64;
 
@@ -41,10 +43,7 @@ pub async fn run(
     let rows = execute_plan(cassie, &plan.logical, &mut cte_context, &params).await?;
 
     let columns = aggregate::columns_from_projection(&plan.logical.projection);
-    let rows = rows
-        .into_iter()
-        .map(|row| row.into_iter().map(|(_, value)| value).collect())
-        .collect();
+    let rows = rows.into_iter().map(BatchRow::into_values).collect();
 
     Ok(QueryResult {
         columns,
@@ -58,7 +57,7 @@ async fn execute_plan(
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
     params: &[Value],
-) -> Result<CteRows, QueryError> {
+) -> Result<Vec<BatchRow>, QueryError> {
     for cte in &plan.ctes {
         let rows = execute_cte(cassie, cte, cte_context, params).await?;
         cte_context.insert(cte.name.to_ascii_lowercase(), rows);
@@ -80,11 +79,19 @@ fn execute_cte<'a>(
         let output = match &cte.query {
             CteQuery::Simple(statement) => {
                 let logical = build_logical_plan(statement.as_ref())?;
-                execute_plan(cassie, &logical, cte_context, params).await?
+                execute_plan(cassie, &logical, cte_context, params)
+                    .await?
+                    .into_iter()
+                    .map(BatchRow::into_entries)
+                    .collect()
             }
             CteQuery::Recursive { base, recursive } => {
                 let base_plan = build_logical_plan(base.as_ref())?;
-                let mut rows = execute_plan(cassie, &base_plan, cte_context, params).await?;
+                let mut rows = execute_plan(cassie, &base_plan, cte_context, params)
+                    .await?
+                    .into_iter()
+                    .map(BatchRow::into_entries)
+                    .collect::<Vec<_>>();
 
                 cte_context.insert(cte_name.clone(), rows.clone());
 
@@ -93,7 +100,11 @@ fn execute_cte<'a>(
 
                 for _ in 0..MAX_RECURSIVE_CTE_DEPTH {
                     let recursive_plan = build_logical_plan(recursive.as_ref())?;
-                    let recursive_rows = execute_plan(cassie, &recursive_plan, cte_context, params).await?;
+                    let recursive_rows = execute_plan(cassie, &recursive_plan, cte_context, params)
+                        .await?
+                        .into_iter()
+                        .map(BatchRow::into_entries)
+                        .collect::<Vec<_>>();
 
                     let mut new_rows = Vec::new();
                     for row in recursive_rows {
@@ -145,11 +156,11 @@ async fn execute_source_query(
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
     params: &[Value],
-) -> Result<CteRows, QueryError> {
-    let (mut rows, text_fields) = match &plan.source {
+) -> Result<Vec<BatchRow>, QueryError> {
+    let (mut batches, text_fields) = match &plan.source {
         QuerySource::Collection(name) => {
-            let rows = scan::scan(cassie, name).await?;
-            (rows, cassie.catalog.text_fields(name).await)
+            let batches = scan::scan(cassie, name).await?;
+            (batches, cassie.catalog.text_fields(name).await)
         }
         QuerySource::Cte(name) => {
             let key = name.to_ascii_lowercase();
@@ -158,7 +169,13 @@ async fn execute_source_query(
                 .cloned()
                 .ok_or_else(|| QueryError::General(format!("relation '{name}' does not exist")))?;
             let text_fields = deduce_text_fields(&rows);
-            (rows, text_fields)
+            let batches = batch::chunk_rows(
+                rows.into_iter()
+                    .map(BatchRow::new)
+                    .collect::<Vec<_>>(),
+                batch::DEFAULT_BATCH_SIZE,
+            );
+            (batches, text_fields)
         }
     };
 
@@ -175,15 +192,19 @@ async fn execute_source_query(
         HashMap::new()
     };
 
-    let search_context = filter::SearchContext::from_rows(&rows, &text_fields, &field_boost);
+    let search_context = filter::SearchContext::from_rows(
+        batches.iter().flat_map(|batch| batch.iter()),
+        &text_fields,
+        &field_boost,
+    );
 
     if let Some(filter_expr) = &plan.filter {
-        rows = filter::filter_rows(rows, filter_expr, params, Some(&search_context))?;
+        batches = filter::filter_batches(batches, filter_expr, params, Some(&search_context))?;
     }
 
     if !plan.order.is_empty() {
-        rows = sort::sort_rows(
-            rows,
+        batches = sort::sort_batches(
+            batches,
             &plan.order,
             &plan.projection,
             params,
@@ -191,31 +212,30 @@ async fn execute_source_query(
         )?;
     }
 
-    rows = projection::project_rows(rows, &plan.projection, params, Some(&search_context))?;
+    batches = projection::project_batches(batches, &plan.projection, params, Some(&search_context))?;
 
     if let Some(offset) = plan.offset {
         let offset = offset.max(0) as usize;
-        rows = rows.into_iter().skip(offset).collect();
-    }
-
-    if let Some(limit) = plan.limit {
+        let limit = plan.limit.map(|value| value.max(0) as usize);
+        batches = batch::slice_batches(batches, offset, limit);
+    } else if let Some(limit) = plan.limit {
         let limit = limit.max(0) as usize;
-        rows = rows.into_iter().take(limit).collect();
+        batches = batch::slice_batches(batches, 0, Some(limit));
     }
 
-    Ok(rows)
+    Ok(batch::flatten_batches(batches))
 }
 
-fn row_signature(row: &Vec<(String, Value)>) -> String {
-    serde_json::to_string(row).unwrap_or_else(|_| String::new())
+fn row_signature(row: &impl RowAccess) -> String {
+    serde_json::to_string(row.entries()).unwrap_or_else(|_| String::new())
 }
 
-fn deduce_text_fields(rows: &[Vec<(String, Value)>]) -> Vec<String> {
+fn deduce_text_fields<R: RowAccess>(rows: &[R]) -> Vec<String> {
     let mut fields = HashSet::<String>::new();
     let mut ordered = Vec::new();
 
     for row in rows {
-        for (name, value) in row {
+        for (name, value) in row.entries() {
             if !matches!(value, Value::String(_) | Value::Json(_)) {
                 continue;
             }

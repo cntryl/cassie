@@ -148,7 +148,7 @@ fn parse_content_length(value: &[u8]) -> usize {
     for line in header.lines() {
         let lower = line.to_lowercase();
         if let Some(value) = lower.strip_prefix("content-length:") {
-            if let Ok(parsed) = value.parse::<usize>() {
+            if let Ok(parsed) = value.trim().parse::<usize>() {
                 return parsed;
             }
         }

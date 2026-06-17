@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::executor::batch::{Batch, RowAccess};
 use crate::executor::QueryError;
 use crate::sql::ast::FunctionCall;
 use crate::sql::ast::{BinaryOp, Expr};
@@ -23,20 +24,19 @@ pub(crate) struct SearchContext {
 }
 
 impl SearchContext {
-    pub(crate) fn from_rows(
-        rows: &[Vec<(String, Value)>],
+    pub(crate) fn from_rows<'a, I, R>(
+        rows: I,
         text_fields: &[String],
         field_boost: &HashMap<String, f64>,
-    ) -> Self {
+    ) -> Self
+    where
+        I: IntoIterator<Item = &'a R>,
+        R: RowAccess + 'a,
+    {
         let mut context = Self {
-            total_documents: rows.len(),
             doc_boost: field_boost.clone(),
             ..Default::default()
         };
-
-        if rows.is_empty() {
-            return context;
-        }
 
         let text_fields = text_fields
             .iter()
@@ -46,7 +46,8 @@ impl SearchContext {
         let mut text_length = HashMap::<String, usize>::new();
 
         for row in rows {
-            for (name, value) in row {
+            context.total_documents += 1;
+            for (name, value) in row.entries() {
                 let name = name.to_lowercase();
                 if !text_fields.is_empty() && !text_fields.contains(&name) {
                     continue;
@@ -197,20 +198,35 @@ impl ScalarValue {
     }
 }
 
-pub(crate) fn filter_rows(
-    rows: Vec<Vec<(String, Value)>>,
+pub(crate) fn filter_rows<R>(
+    rows: Vec<R>,
     expression: &Expr,
     params: &[Value],
     search_context: Option<&SearchContext>,
-) -> Result<Vec<Vec<(String, Value)>>, QueryError> {
+) -> Result<Vec<R>, QueryError>
+where
+    R: RowAccess,
+{
     Ok(rows
         .into_iter()
         .filter(|row| eval_filter(row, expression, params, search_context).unwrap_or(false))
         .collect())
 }
 
-pub(crate) fn evaluate_expr_value(
-    row: &[(String, Value)],
+pub(crate) fn filter_batches(
+    batches: Vec<Batch>,
+    expression: &Expr,
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+) -> Result<Vec<Batch>, QueryError> {
+    batches
+        .into_iter()
+        .map(|batch| filter_rows(batch, expression, params, search_context))
+        .collect()
+}
+
+pub(crate) fn evaluate_expr_value<R: RowAccess + ?Sized>(
+    row: &R,
     expr: &Expr,
     params: &[Value],
     search_context: Option<&SearchContext>,
@@ -221,8 +237,8 @@ pub(crate) fn evaluate_expr_value(
     }
 }
 
-fn eval_filter(
-    row: &[(String, Value)],
+fn eval_filter<R: RowAccess + ?Sized>(
+    row: &R,
     expression: &Expr,
     params: &[Value],
     search_context: Option<&SearchContext>,
@@ -231,17 +247,16 @@ fn eval_filter(
     Ok(value.as_bool())
 }
 
-pub(crate) fn eval_scalar(
-    row: &[(String, Value)],
+pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
+    row: &R,
     expr: &Expr,
     params: &[Value],
     search_context: Option<&SearchContext>,
 ) -> Result<ScalarValue, QueryError> {
     match expr {
         Expr::Column(name) => Ok(row
-            .iter()
-            .find(|(column, _)| column == name)
-            .and_then(|(_, value)| scalar_from_value(value))
+            .get(name)
+            .and_then(scalar_from_value)
             .unwrap_or(ScalarValue::Null)),
         Expr::StringLiteral(value) => Ok(ScalarValue::Str(value.clone())),
         Expr::NumberLiteral(value) => Ok(ScalarValue::Float(*value)),
@@ -403,9 +418,9 @@ fn scalar_from_value(value: &Value) -> Option<ScalarValue> {
     }
 }
 
-fn evaluate_function(
+fn evaluate_function<R: RowAccess + ?Sized>(
     function: &FunctionCall,
-    row: &[(String, Value)],
+    row: &R,
     params: &[Value],
     search_context: Option<&SearchContext>,
 ) -> Result<Value, QueryError> {

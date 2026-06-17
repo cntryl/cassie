@@ -1135,6 +1135,91 @@ fn should_default_missing_offset_to_zero_in_execution() {
 }
 
 #[test]
+fn should_execute_query_across_multiple_batches_without_truncation() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let cassie = Cassie::new().unwrap();
+        let collection = "exec_multi_batch";
+
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        for index in 0..1105 {
+            let id = format!("d{index:04}");
+            let title = format!("doc-{index:04}");
+            cassie
+                .midge
+                .put_document(
+                    collection,
+                    Some(id),
+                    serde_json::json!({ "title": title }),
+                )
+                .await
+                .unwrap();
+        }
+
+        // Act
+        let session = cassie.create_session("tester", None).await;
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id FROM exec_multi_batch ORDER BY title ASC LIMIT 5 OFFSET 1095",
+                vec![],
+            )
+            .await
+            .expect("query should execute");
+
+        // Assert
+        assert_eq!(result.rows.len(), 5);
+        let ids = result
+            .rows
+            .into_iter()
+            .map(|row| match &row[0] {
+                Value::String(value) => value.clone(),
+                _ => panic!("expected id string"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            ids,
+            vec![
+                "d1095".to_string(),
+                "d1096".to_string(),
+                "d1097".to_string(),
+                "d1098".to_string(),
+                "d1099".to_string(),
+            ]
+        );
+    });
+}
+
+#[test]
 fn should_sort_with_stable_tiebreaker() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

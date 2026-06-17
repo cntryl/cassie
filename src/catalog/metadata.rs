@@ -51,6 +51,12 @@ impl Catalog {
         collections.values().cloned().collect()
     }
 
+    pub async fn clear(&self) {
+        self.collections.write().await.clear();
+        self.schemas.write().await.clear();
+        self.vector_indexes.write().await.clear();
+    }
+
     pub async fn get_schema(&self, collection: &str) -> Option<CollectionSchema> {
         let schemas = self.schemas.read().await;
         schemas.get(collection).cloned()

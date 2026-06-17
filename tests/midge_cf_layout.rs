@@ -339,3 +339,118 @@ fn should_fail_startup_when_data_dir_is_not_writable_directory() {
 
     let _ = std::fs::remove_file(&base_path);
 }
+
+#[test]
+fn should_hydrate_from_schema_records_when_collections_index_is_missing() {
+    // Arrange
+    let path = data_dir("schema_fallback");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        let collection = "fallback_collection";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema)
+            .await
+            .unwrap();
+
+        let mut tx = cassie
+            .midge
+            .schema_tx(TransactionMode::ReadWrite)
+            .unwrap();
+        tx.delete(b"__cassie__/collections".to_vec())
+            .unwrap();
+        tx.commit(cntryl_midge::WriteOptions::sync()).unwrap();
+
+        drop(cassie);
+
+        // Act
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().await.unwrap();
+        let collections = restarted
+            .catalog
+            .list_collections()
+            .await
+            .into_iter()
+            .map(|collection| collection.name)
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(collections.iter().any(|value| value == collection));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_refresh_in_memory_catalog_during_startup() {
+    // Arrange
+    let path = data_dir("startup_catalog_refresh");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        cassie
+            .midge
+            .create_collection(
+                "hydrated_collection",
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "title".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .await
+            .unwrap();
+
+        cassie
+            .register_collection(
+                "ghost_collection",
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "title".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .await;
+
+        // Act
+        cassie.startup().await.unwrap();
+        let collections = cassie
+            .catalog
+            .list_collections()
+            .await
+            .into_iter()
+            .map(|collection| collection.name)
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(collections.iter().any(|value| value == "hydrated_collection"));
+        assert!(!collections.iter().any(|value| value == "ghost_collection"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

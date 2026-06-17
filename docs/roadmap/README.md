@@ -9,7 +9,7 @@ Cassie is PostgreSQL-wire compatible, but it is not PostgreSQL. Unsupported Post
 1. [Sprint 01 - Foundation, Repo Contract, Runtime Baseline](completed/sprint-01.md)
 2. [Sprint 02 - Midge Storage Contract and Catalog Hydration](completed/sprint-02.md)
 3. [Sprint 03 - SQL Parser and Binder V1](completed/sprint-03.md)
-4. [Sprint 04 - Planner, Optimizer, and Physical Plan Determinism](sprint-04.md)
+4. [Sprint 04 - Planner, Optimizer, and Physical Plan Determinism](completed/sprint-04.md)
 5. [Sprint 05 - Executor Semantics and Query Result Contract](sprint-05.md)
 6. [Sprint 06 - Common Table Expressions](sprint-06.md)
 7. [Sprint 07 - Schema Objects and DDL Compatibility](sprint-07.md)
@@ -47,6 +47,14 @@ Cassie is PostgreSQL-wire compatible, but it is not PostgreSQL. Unsupported Post
 Each sprint is self-contained and can be assigned to an agent or engineer. Start at the top of the sprint file, write the first failing behavior test, implement the smallest passing change, validate touched tests with `cntryl-tools`, and stop only when the sprint exit gate is green.
 
 Do not skip ahead to protocol or feature polish while earlier storage, SQL, planner, and executor invariants are failing. PostgreSQL compatibility depends on the lower query stack behaving deterministically.
+
+## Sprint Completion Steps
+
+- Close a finished sprint by moving its file from `docs/roadmap/sprint-XX.md` to `docs/roadmap/completed/sprint-XX.md`.
+- Update `docs/roadmap/README.md` to point that sprint entry at `completed/sprint-XX.md`.
+- Update the `Next` link in the previous sprint file to point to the completed file.
+- Update the `Previous` link in the next sprint file (if not completed) to point to `completed/sprint-XX.md`.
+- Run the sprint exit gates (tests/validation/build/clippy) before finalizing and committing.
 
 ## Required Gates
 

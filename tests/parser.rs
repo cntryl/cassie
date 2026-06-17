@@ -1,10 +1,11 @@
 use cassie::app::Cassie;
-use cassie::catalog::IndexKind;
+use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::sql::ast::{
     BinaryOp, CteQuery, Expr, QuerySource, QueryStatement, SelectItem, SortDirection,
 };
 use cassie::sql::parse_statement;
 use cassie::types::{DataType, FieldSchema, Schema};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 #[test]
@@ -1092,6 +1093,114 @@ fn should_apply_fulltext_create_index_defaults() {
         assert_eq!(statement.options.get("boost"), Some(&"1".to_string()));
         assert_eq!(statement.options.get("k1"), Some(&"1.2".to_string()));
         assert_eq!(statement.options.get("b"), Some(&"0.75".to_string()));
+    });
+}
+
+#[test]
+fn should_reject_fulltext_create_index_with_non_finite_boost() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-fulltext-index-non-finite-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "ft_docs_non_finite".to_string(),
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "id".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                        FieldSchema {
+                            name: "body".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                    ],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_ft_docs_non_finite ON ft_docs_non_finite USING fulltext (body) WITH (boost = inf)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_reject_duplicate_fulltext_index_on_same_field() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-fulltext-index-duplicate-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "ft_docs_duplicate".to_string(),
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "id".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                        FieldSchema {
+                            name: "body".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                    ],
+                },
+            )
+            .await;
+
+        cassie
+            .catalog
+            .register_index(IndexMeta {
+                collection: "ft_docs_duplicate".to_string(),
+                name: "idx_ft_docs_duplicate_primary".to_string(),
+                field: "body".to_string(),
+                kind: IndexKind::FullText,
+                unique: false,
+                options: BTreeMap::from_iter(vec![
+                    ("boost".to_string(), "1.0".to_string()),
+                    ("k1".to_string(), "1.2".to_string()),
+                    ("b".to_string(), "0.75".to_string()),
+                ]),
+            })
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_ft_docs_duplicate_secondary ON ft_docs_duplicate USING fulltext (body)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(bound.is_err());
     });
 }
 

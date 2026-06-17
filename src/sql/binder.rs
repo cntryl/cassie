@@ -292,6 +292,33 @@ async fn bind_create_index(
             )));
         }
 
+        let existing_fulltext_index =
+            catalog
+                .list_indexes(&table)
+                .await
+                .into_iter()
+                .find(|metadata| {
+                    metadata.kind == crate::catalog::IndexKind::FullText
+                        && metadata.field.eq_ignore_ascii_case(&field)
+                });
+        if let Some(existing_fulltext_index) = existing_fulltext_index {
+            let existing_index = catalog
+                .get_index(&table, &name)
+                .await
+                .filter(|metadata| metadata.kind == crate::catalog::IndexKind::FullText)
+                .filter(|metadata| {
+                    metadata
+                        .field
+                        .eq_ignore_ascii_case(&existing_fulltext_index.field)
+                });
+
+            if existing_index.is_none() {
+                return Err(CassieError::Planner(format!(
+                    "fulltext index on field '{field}' already exists on collection '{table}'"
+                )));
+            }
+        }
+
         let boost = parse_fulltext_index_float_option(
             "boost",
             statement
@@ -370,6 +397,12 @@ fn parse_fulltext_index_float_option(
     let parsed = value
         .parse::<f64>()
         .map_err(|_| CassieError::Planner(format!("invalid {key} value '{value}'")))?;
+
+    if !parsed.is_finite() {
+        return Err(CassieError::Planner(format!(
+            "fulltext index option '{key}' must be finite"
+        )));
+    }
 
     let range_ok = if let Some(max) = max {
         parsed >= min && parsed <= max

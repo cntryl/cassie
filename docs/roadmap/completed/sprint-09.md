@@ -1,7 +1,7 @@
 # Sprint 09 - UDFs and Stored Procedures
 
-Previous: [Sprint 08 - Indexes and Constraints](../sprint-08.md)  
-Next: [Sprint 10 - Full-Text Search Stack](../sprint-10.md)
+Previous: [Sprint 08 - Indexes and Constraints](sprint-08.md)  
+Next: [Sprint 10 - Full-Text Search Stack](sprint-10.md)
 
 ## Goal
 

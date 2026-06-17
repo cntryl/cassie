@@ -694,39 +694,45 @@ async fn execute_source_query(
         }
     };
 
-    let (field_boost, field_k1, field_b) = if let QuerySource::Collection(name) = &plan.source {
-        let fields = cassie.catalog.text_fields(name).await;
-        let mut boost = HashMap::with_capacity(fields.len());
-        for field in fields {
-            if let Some(value) = cassie.catalog.get_field_boost(name, &field).await {
-                boost.insert(field, value as f64);
-            }
-        }
-
-        let (index_boost, index_k1, index_b) = load_fulltext_index_options(cassie, name).await?;
-        for (field, value) in index_boost {
-            boost.insert(field, value);
-        }
-
-        (boost, index_k1, index_b)
+    let fulltext_fields = fulltext_query_fields(plan);
+    let search_context = if fulltext_fields.is_empty() {
+        None
     } else {
-        (HashMap::new(), HashMap::new(), HashMap::new())
-    };
+        let (field_boost, field_k1, field_b) = if let QuerySource::Collection(name) = &plan.source {
+            let fields = cassie.catalog.text_fields(name).await;
+            let mut boost = HashMap::with_capacity(fields.len());
+            for field in fields {
+                if let Some(value) = cassie.catalog.get_field_boost(name, &field).await {
+                    boost.insert(field, value as f64);
+                }
+            }
 
-    let search_context = filter::SearchContext::from_rows(
-        batches.iter().flat_map(|batch| batch.iter()),
-        &text_fields,
-        &field_boost,
-        &field_k1,
-        &field_b,
-    );
+            let (index_boost, index_k1, index_b) =
+                load_fulltext_index_options(cassie, name, &fulltext_fields).await?;
+            for (field, value) in index_boost {
+                boost.insert(field, value);
+            }
+
+            (boost, index_k1, index_b)
+        } else {
+            (HashMap::new(), HashMap::new(), HashMap::new())
+        };
+
+        Some(filter::SearchContext::from_rows(
+            batches.iter().flat_map(|batch| batch.iter()),
+            &text_fields,
+            &field_boost,
+            &field_k1,
+            &field_b,
+        ))
+    };
 
     if let Some(filter_expr) = &plan.filter {
         batches = filter::filter_batches(
             batches,
             filter_expr,
             params,
-            Some(&search_context),
+            search_context.as_ref(),
             user_functions,
         )?;
     }
@@ -737,7 +743,7 @@ async fn execute_source_query(
             &plan.order,
             &plan.projection,
             params,
-            Some(&search_context),
+            search_context.as_ref(),
             user_functions,
         )?;
     }
@@ -746,7 +752,7 @@ async fn execute_source_query(
         batches,
         &plan.projection,
         params,
-        Some(&search_context),
+        search_context.as_ref(),
         user_functions,
     )?;
 
@@ -765,6 +771,7 @@ async fn execute_source_query(
 async fn load_fulltext_index_options(
     cassie: &Cassie,
     collection: &str,
+    requested_fields: &HashSet<String>,
 ) -> Result<
     (
         HashMap<String, f64>,
@@ -776,17 +783,27 @@ async fn load_fulltext_index_options(
     let mut field_boost = HashMap::new();
     let mut field_k1 = HashMap::new();
     let mut field_b = HashMap::new();
+    let mut seen_fields = HashSet::new();
 
     for index in cassie.catalog.list_indexes(collection).await {
         if index.kind != catalog::IndexKind::FullText {
             continue;
         }
 
-        let field = index.field.to_string();
+        let field = index.field.to_ascii_lowercase();
+        if !requested_fields.contains(&field) {
+            continue;
+        }
+        if !seen_fields.insert(field.clone()) {
+            return Err(QueryError::General(format!(
+                "fulltext indexes on field '{}' already exist on collection '{}'",
+                index.field, collection
+            )));
+        }
 
         let boost = parse_index_float_option(
             &index,
-            &field,
+            &index.field,
             "boost",
             index.options.get("boost").map(String::as_str),
             crate::search::bm25::DEFAULT_FULLTEXT_BOOST,
@@ -796,7 +813,7 @@ async fn load_fulltext_index_options(
 
         let k1 = parse_index_float_option(
             &index,
-            &field,
+            &index.field,
             "k1",
             index.options.get("k1").map(String::as_str),
             crate::search::bm25::DEFAULT_BM25_K1,
@@ -806,7 +823,7 @@ async fn load_fulltext_index_options(
 
         let b = parse_index_float_option(
             &index,
-            &field,
+            &index.field,
             "b",
             index.options.get("b").map(String::as_str),
             crate::search::bm25::DEFAULT_BM25_B,
@@ -820,6 +837,62 @@ async fn load_fulltext_index_options(
     }
 
     Ok((field_boost, field_k1, field_b))
+}
+
+fn fulltext_query_fields(plan: &LogicalPlan) -> HashSet<String> {
+    let mut fields = HashSet::new();
+
+    if let Some(filter) = &plan.filter {
+        collect_fulltext_fields_from_expr(filter, &mut fields);
+    }
+
+    for order in &plan.order {
+        collect_fulltext_fields_from_expr(&order.expr, &mut fields);
+    }
+
+    for item in &plan.projection {
+        collect_fulltext_fields_from_select_item(item, &mut fields);
+    }
+
+    fields
+}
+
+fn collect_fulltext_fields_from_select_item(
+    item: &crate::sql::ast::SelectItem,
+    fields: &mut HashSet<String>,
+) {
+    if let crate::sql::ast::SelectItem::Function { function, .. } = item {
+        collect_fulltext_fields_from_function(function, fields);
+    }
+}
+
+fn collect_fulltext_fields_from_expr(expr: &crate::sql::ast::Expr, fields: &mut HashSet<String>) {
+    match expr {
+        crate::sql::ast::Expr::Binary { left, right, .. } => {
+            collect_fulltext_fields_from_expr(left, fields);
+            collect_fulltext_fields_from_expr(right, fields);
+        }
+        crate::sql::ast::Expr::Function(function) => {
+            collect_fulltext_fields_from_function(function, fields);
+        }
+        _ => {}
+    }
+}
+
+fn collect_fulltext_fields_from_function(
+    function: &crate::sql::ast::FunctionCall,
+    fields: &mut HashSet<String>,
+) {
+    let name = function.name.to_ascii_lowercase();
+    if matches!(name.as_str(), "search" | "search_score") {
+        if let Some(crate::sql::ast::Expr::Column(field)) = function.args.first() {
+            fields.insert(field.to_ascii_lowercase());
+        }
+    }
+
+    for arg in &function.args {
+        collect_fulltext_fields_from_expr(arg, fields);
+    }
 }
 
 fn parse_index_float_option(
@@ -842,6 +915,13 @@ fn parse_index_float_option(
             index.collection
         ))
     })?;
+
+    if !parsed.is_finite() {
+        return Err(QueryError::General(format!(
+            "fulltext index option '{key}' on '{field}' for collection '{}' must be finite",
+            index.collection
+        )));
+    }
 
     let valid = if let Some(max) = max {
         parsed >= min && parsed <= max

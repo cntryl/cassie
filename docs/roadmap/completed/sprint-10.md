@@ -1,7 +1,7 @@
 # Sprint 10 - Full-Text Search Stack
 
-Previous: [Sprint 09 - UDFs and Stored Procedures](completed/sprint-09.md)  
-Next: [Sprint 11 - Vector and Hybrid Retrieval](completed/sprint-11.md)
+Previous: [Sprint 09 - UDFs and Stored Procedures](sprint-09.md)  
+Next: [Sprint 11 - Vector and Hybrid Retrieval](sprint-11.md)
 
 ## Goal
 

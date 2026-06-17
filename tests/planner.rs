@@ -2,7 +2,8 @@ use cassie::app::CassieError;
 use cassie::catalog::Catalog;
 use cassie::planner::{logical, optimizer, physical, physical::Operator};
 use cassie::sql::ast::{
-    BinaryOp, Expr, ParsedStatement, QueryStatement, SelectItem, SelectStatement, SortDirection,
+    BinaryOp, Expr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
+    SortDirection,
 };
 use cassie::sql::binder::BoundStatement;
 use cassie::sql::{binder, parser};
@@ -246,10 +247,12 @@ fn should_keep_collection_clause_values_in_logical_plan() {
 fn should_reject_invalid_logical_plan_shape_missing_collection() {
     // Arrange
     let bound = BoundStatement {
-        statement: ParsedStatement {
-            raw_sql: "SELECT id FROM  LIMIT 1".to_string(),
-            statement: QueryStatement::Select(SelectStatement {
-                collection: "".to_string(),
+            statement: ParsedStatement {
+                raw_sql: "SELECT id FROM  LIMIT 1".to_string(),
+                statement: QueryStatement::Select(SelectStatement {
+                source: QuerySource::Collection("".to_string()),
+                ctes: vec![],
+                recursive: false,
                 projection: vec![SelectItem::Column {
                     name: "id".to_string(),
                     alias: None,
@@ -268,7 +271,7 @@ fn should_reject_invalid_logical_plan_shape_missing_collection() {
     // Assert
     let error = result.unwrap_err();
     match error {
-        CassieError::Planner(message) => assert!(message.contains("collection")),
+        CassieError::Planner(message) => assert!(message.contains("source")),
         other => panic!("unexpected error variant: {other:?}"),
     }
 }
@@ -277,10 +280,12 @@ fn should_reject_invalid_logical_plan_shape_missing_collection() {
 fn should_reject_invalid_logical_plan_shape_empty_projection() {
     // Arrange
     let bound = BoundStatement {
-        statement: ParsedStatement {
-            raw_sql: "SELECT FROM planner_projectionless".to_string(),
-            statement: QueryStatement::Select(SelectStatement {
-                collection: "planner_projectionless".to_string(),
+            statement: ParsedStatement {
+                raw_sql: "SELECT FROM planner_projectionless".to_string(),
+                statement: QueryStatement::Select(SelectStatement {
+                source: QuerySource::Collection("planner_projectionless".to_string()),
+                ctes: vec![],
+                recursive: false,
                 projection: vec![],
                 filter: None,
                 order: vec![],
@@ -305,10 +310,12 @@ fn should_reject_invalid_logical_plan_shape_empty_projection() {
 fn should_reject_invalid_logical_plan_shape_negative_offset() {
     // Arrange
     let bound = BoundStatement {
-        statement: ParsedStatement {
-            raw_sql: "SELECT id FROM planner_negative_offset".to_string(),
-            statement: QueryStatement::Select(SelectStatement {
-                collection: "planner_negative_offset".to_string(),
+            statement: ParsedStatement {
+                raw_sql: "SELECT id FROM planner_negative_offset".to_string(),
+                statement: QueryStatement::Select(SelectStatement {
+                source: QuerySource::Collection("planner_negative_offset".to_string()),
+                ctes: vec![],
+                recursive: false,
                 projection: vec![SelectItem::Column {
                     name: "id".to_string(),
                     alias: None,
@@ -336,10 +343,12 @@ fn should_reject_invalid_logical_plan_shape_negative_offset() {
 fn should_reject_invalid_logical_plan_shape_negative_limit() {
     // Arrange
     let bound = BoundStatement {
-        statement: ParsedStatement {
-            raw_sql: "SELECT id FROM planner_negative_limit".to_string(),
-            statement: QueryStatement::Select(SelectStatement {
-                collection: "planner_negative_limit".to_string(),
+            statement: ParsedStatement {
+                raw_sql: "SELECT id FROM planner_negative_limit".to_string(),
+                statement: QueryStatement::Select(SelectStatement {
+                source: QuerySource::Collection("planner_negative_limit".to_string()),
+                ctes: vec![],
+                recursive: false,
                 projection: vec![SelectItem::Column {
                     name: "id".to_string(),
                     alias: None,
@@ -415,5 +424,65 @@ fn should_be_deterministic_for_repeated_optimization_of_same_logical_plan() {
         assert_eq!(format!("{:?}", first), format!("{:?}", second));
         assert_eq!(first.offset, Some(0));
         assert_eq!(second.offset, Some(0));
+    });
+}
+
+#[test]
+fn should_plan_non_recursive_cte_source_as_logical_source() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_cte_source");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "WITH docs_cte AS (SELECT title FROM planner_cte_source) SELECT title FROM docs_cte",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+
+        // Act
+        let logical = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert_eq!(logical.ctes.len(), 1);
+        assert_eq!(logical.source, QuerySource::Cte("docs_cte".to_string()));
+        assert_eq!(logical.collection, "docs_cte");
+        assert_eq!(logical.ctes[0].name, "docs_cte");
+    });
+}
+
+#[test]
+fn should_preserve_recursive_cte_aliases_in_logical_plan() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_recursive_aliases");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "WITH RECURSIVE seq(id) AS (SELECT id FROM planner_recursive_aliases UNION ALL SELECT id FROM seq) SELECT id FROM seq",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+
+        // Act
+        let logical = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert_eq!(logical.ctes.len(), 1);
+        assert_eq!(logical.ctes[0].aliases, vec!["id".to_string()]);
+        assert_eq!(logical.ctes[0].name, "seq");
+        let recursive = matches!(
+            logical.ctes[0].query,
+            cassie::sql::ast::CteQuery::Recursive { .. }
+        );
+        assert!(recursive);
     });
 }

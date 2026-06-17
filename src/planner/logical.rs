@@ -1,12 +1,14 @@
 use crate::app::CassieError;
 use crate::sql::{
-    ast::{Expr, OrderExpr},
+    ast::{CommonTableExpression, Expr, OrderExpr, QuerySource},
     binder::BoundStatement,
 };
 
 #[derive(Debug, Clone)]
 pub struct LogicalPlan {
+    pub source: QuerySource,
     pub collection: String,
+    pub ctes: Vec<CommonTableExpression>,
     pub projection: Vec<crate::sql::ast::SelectItem>,
     pub filter: Option<Expr>,
     pub order: Vec<OrderExpr>,
@@ -19,7 +21,9 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
     validate_logical_plan(select)?;
 
     Ok(LogicalPlan {
-        collection: select.collection.clone(),
+        source: select.source.clone(),
+        collection: source_name(&select.source),
+        ctes: select.ctes.clone(),
         projection: select.projection.clone(),
         filter: select.filter.clone(),
         order: select.order.clone(),
@@ -28,10 +32,16 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
     })
 }
 
+fn source_name(source: &QuerySource) -> String {
+    match source {
+        QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
+    }
+}
+
 fn validate_logical_plan(select: &crate::sql::ast::SelectStatement) -> Result<(), CassieError> {
-    if select.collection.trim().is_empty() {
+    if source_name(&select.source).trim().is_empty() {
         return Err(CassieError::Planner(
-            "planner cannot build plan for empty collection name".to_string(),
+            "planner cannot build plan for empty source name".to_string(),
         ));
     }
 

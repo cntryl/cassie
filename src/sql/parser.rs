@@ -1,6 +1,6 @@
 use crate::sql::ast::{
-    BinaryOp, Expr, FunctionCall, OrderExpr, ParsedStatement, QueryStatement, SelectItem,
-    SelectStatement, SortDirection,
+    BinaryOp, CteQuery, CommonTableExpression, Expr, FunctionCall, OrderExpr, ParsedStatement,
+    QuerySource, QueryStatement, SelectItem, SelectStatement, SortDirection,
 };
 use std::collections::HashSet;
 
@@ -9,12 +9,58 @@ pub struct SqlError(pub String);
 
 pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
-    if !trimmed.to_lowercase().starts_with("select") {
+    let lower = trimmed.to_lowercase();
+    if lower.starts_with("with ") || lower == "with" {
+        parse_with_statement(trimmed)
+    } else if lower.starts_with("select ") {
+        parse_select_statement(trimmed, Vec::new(), false)
+    } else {
+        Err(SqlError(
+            "only SELECT statements are supported in this stage".into(),
+        ))
+    }
+}
+
+fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let remainder = sql[4..].trim_start();
+    let lower_remainder = remainder.to_lowercase();
+    let mut recursive = false;
+    let after_recursive = if lower_remainder.starts_with("recursive ") {
+        recursive = true;
+        remainder[10..].trim_start()
+    } else {
+        remainder
+    };
+
+    let select_pos = find_top_level_keyword(after_recursive, 0, "select").ok_or_else(|| {
+        SqlError("missing SELECT after WITH clause".into())
+    })?;
+
+    let cte_sql = after_recursive[..select_pos].trim();
+    if cte_sql.is_empty() {
+        return Err(SqlError("missing CTE definition in WITH clause".into()));
+    }
+    if !after_recursive[select_pos..].to_lowercase().starts_with("select ") {
+        return Err(SqlError("only SELECT statements are supported in this stage".into()));
+    }
+
+    let cte_defs = parse_cte_definitions(cte_sql, recursive)?;
+    let main_select = &after_recursive[select_pos..];
+    parse_select_statement(main_select, cte_defs, recursive)
+}
+
+fn parse_select_statement(
+    sql: &str,
+    withs: Vec<CommonTableExpression>,
+    recursive: bool,
+) -> Result<ParsedStatement, SqlError> {
+    if !sql.to_lowercase().starts_with("select ") {
         return Err(SqlError(
             "only SELECT statements are supported in this stage".into(),
         ));
     }
 
+    let trimmed = sql.trim().trim_end_matches(';').trim();
     let lower = trimmed.to_lowercase();
     let from_pos = lower
         .find(" from ")
@@ -116,7 +162,7 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         return Err(SqlError("unsupported FROM syntax".into()));
     }
 
-    let collection = from_tokens[0].to_string();
+    let source = from_tokens[0].trim().to_string();
 
     let projection_tokens: Vec<&str> = split_csv(select_part);
     let mut projection = Vec::with_capacity(projection_tokens.len());
@@ -153,7 +199,9 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::Select(SelectStatement {
-            collection,
+            source: QuerySource::Collection(source),
+            ctes: withs,
+            recursive,
             projection,
             filter,
             order: order.unwrap_or_default(),
@@ -161,6 +209,139 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
             offset: offset_clause,
         }),
     })
+}
+
+fn parse_cte_definitions(raw: &str, recursive: bool) -> Result<Vec<CommonTableExpression>, SqlError> {
+    let mut out = Vec::new();
+    for definition in split_csv(raw) {
+        let definition = definition.trim();
+        if definition.is_empty() {
+            continue;
+        }
+
+        let as_pos = find_top_level_keyword(definition, 0, "as").ok_or_else(|| {
+            SqlError(format!("invalid CTE definition '{definition}': missing AS"))
+        })?;
+        let head = definition[..as_pos].trim();
+        let body = definition[as_pos + 2..].trim();
+
+        let (name, aliases) = parse_cte_header(head)?;
+        let body_sql = parse_enclosed_parenthesized(body)
+            .ok_or_else(|| SqlError(format!("invalid CTE body for '{name}'")))?;
+        let query = match parse_recursive_cte_query(&body_sql) {
+            Some(query) => query,
+            None => {
+                let parsed_body = parse_statement(&body_sql).map_err(|error| {
+                    SqlError(format!("invalid CTE body for '{name}': {}", error.0))
+                })?;
+
+                CteQuery::Simple(Box::new(parsed_body))
+            }
+        };
+        if recursive && !matches!(query, CteQuery::Recursive { .. }) {
+            return Err(SqlError(format!(
+                "recursive CTE '{name}' must include UNION ALL between anchor and recursive queries"
+            )));
+        }
+        if !recursive && matches!(query, CteQuery::Recursive { .. }) {
+            return Err(SqlError("WITH clause is not marked RECURSIVE".to_string()));
+        }
+
+        out.push(CommonTableExpression {
+            name: name.to_string(),
+            aliases,
+            query,
+        });
+    }
+
+    if out.is_empty() {
+        return Err(SqlError("empty WITH clause".into()));
+    }
+
+    Ok(out)
+}
+
+fn parse_recursive_cte_query(body: &str) -> Option<CteQuery> {
+    let union_pos = find_top_level_keyword(body, 0, "union all")?;
+    let base = body[..union_pos].trim();
+    let recursive = body[(union_pos + "union all".len())..].trim();
+    if base.is_empty() || recursive.is_empty() {
+        return None;
+    }
+
+    Some(CteQuery::Recursive {
+        base: Box::new(parse_statement(base).ok()?),
+        recursive: Box::new(parse_statement(recursive).ok()?),
+    })
+}
+
+fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlError> {
+    let raw = raw.trim();
+    let open = raw.find('(').filter(|open| *open + 1 < raw.len());
+    if let Some(open) = open {
+        let close = raw
+            .rfind(')')
+            .ok_or_else(|| SqlError(format!("invalid CTE header '{raw}'")))?;
+        if close <= open {
+            return Err(SqlError(format!("invalid CTE header '{raw}'")));
+        }
+
+        let name = raw[..open].trim();
+        if name.is_empty() || name.contains('(') || name.contains(')') {
+            return Err(SqlError(format!("invalid CTE header '{raw}'")));
+        }
+
+        if !raw[close + 1..].trim().is_empty() {
+            return Err(SqlError(format!("invalid CTE header '{raw}'")));
+        }
+
+        let aliases = raw[(open + 1)..close]
+            .split(',')
+            .map(|alias| alias.trim().to_string())
+            .filter(|alias| !alias.is_empty())
+            .collect::<Vec<_>>();
+        if aliases.is_empty() {
+            return Err(SqlError(format!("invalid CTE header '{raw}'")));
+        }
+
+        Ok((name.to_string(), aliases))
+    } else {
+        if raw.contains('(') || raw.contains(')') {
+            return Err(SqlError(format!("invalid CTE header '{raw}'")));
+        }
+
+        Ok((raw.to_string(), Vec::new()))
+    }
+}
+
+fn parse_enclosed_parenthesized(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    if !raw.starts_with('(') || !raw.ends_with(')') {
+        return None;
+    }
+
+    let mut depth = 0i32;
+    let mut in_single = false;
+    let mut in_double = false;
+    for (i, ch) in raw.char_indices() {
+        match ch {
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            '(' if !in_single && !in_double => depth += 1,
+            ')' if !in_single && !in_double => {
+                depth -= 1;
+                if depth == 0 && i != raw.len().saturating_sub(1) {
+                    return None;
+                }
+            }
+            _ => {}
+        }
+    }
+    if depth != 0 {
+        return None;
+    }
+
+    Some(raw[1..raw.len().saturating_sub(1)].to_string())
 }
 
 fn take_int(input: &str) -> Result<Option<i64>, ParserError> {
@@ -506,6 +687,10 @@ fn parse_clauses(rest: &str) -> Result<Vec<ClauseMatch>, SqlError> {
     }
 
     Ok(ordered)
+}
+
+fn find_top_level_keyword(rest: &str, start: usize, token: &str) -> Option<usize> {
+    find_top_level_clause(rest, start, token)
 }
 
 fn find_top_level_clause(rest: &str, start: usize, token: &str) -> Option<usize> {

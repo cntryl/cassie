@@ -2,7 +2,7 @@ use cassie::app::Cassie;
 use cassie::executor;
 use cassie::planner::logical::LogicalPlan;
 use cassie::planner::physical::PhysicalPlan;
-use cassie::sql::ast::{Expr, FunctionCall, SelectItem};
+use cassie::sql::ast::{Expr, FunctionCall, QuerySource, SelectItem};
 use cassie::sql::binder;
 use cassie::sql::parser;
 use cassie::types::{DataType, FieldSchema, Schema, Value};
@@ -83,6 +83,317 @@ fn should_execute_simple_filtered_query() {
 
         let _ = std::fs::remove_dir_all(path);
     });
+}
+
+#[tokio::test]
+async fn execute_query_with_non_recursive_cte() {
+    with_fallback();
+    let cassie = Cassie::new().unwrap();
+    let collection = "exec_cte_simple";
+
+    let schema = Schema {
+        fields: vec![
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    };
+
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .await
+        .unwrap();
+    cassie
+        .register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        )
+        .await;
+
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("d1".to_string()),
+            serde_json::json!({"title": "alpha", "body": "first"}),
+        )
+        .await
+        .unwrap();
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("d2".to_string()),
+            serde_json::json!({"title": "beta", "body": "second"}),
+        )
+        .await
+        .unwrap();
+
+    let session = cassie.create_session("tester", None).await;
+    let result = cassie
+        .execute_sql(
+            &session,
+            "WITH docs_cte AS (SELECT title FROM exec_cte_simple) SELECT title FROM docs_cte ORDER BY title",
+            vec![],
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(result.columns[0].name, "title");
+    assert_eq!(result.rows.len(), 2);
+    assert_eq!(result.rows[0][0], Value::String("alpha".to_string()));
+    assert_eq!(result.rows[1][0], Value::String("beta".to_string()));
+}
+
+#[tokio::test]
+async fn execute_query_with_ordered_cte_dependencies() {
+    with_fallback();
+    let cassie = Cassie::new().unwrap();
+    let collection = "exec_cte_dependency";
+
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .await
+        .unwrap();
+    cassie
+        .register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        )
+        .await;
+
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("d1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .await
+        .unwrap();
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("d2".to_string()),
+            serde_json::json!({"title": "beta"}),
+        )
+        .await
+        .unwrap();
+
+    let session = cassie.create_session("tester", None).await;
+    let result = cassie
+        .execute_sql(
+            &session,
+            "WITH first AS (SELECT title FROM exec_cte_dependency), second AS (SELECT title FROM first WHERE title = 'beta') SELECT title FROM second",
+            vec![],
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(result.rows.len(), 1);
+    assert_eq!(result.rows[0][0], Value::String("beta".to_string()));
+}
+
+#[tokio::test]
+async fn execute_query_passes_params_to_cte_and_main_query() {
+    with_fallback();
+    let cassie = Cassie::new().unwrap();
+    let collection = "exec_cte_params";
+
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .await
+        .unwrap();
+    cassie
+        .register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        )
+        .await;
+
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("d1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .await
+        .unwrap();
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("d2".to_string()),
+            serde_json::json!({"title": "beta"}),
+        )
+        .await
+        .unwrap();
+
+    let session = cassie.create_session("tester", None).await;
+    let result = cassie
+        .execute_sql(
+            &session,
+            "WITH filtered_docs AS (SELECT title FROM exec_cte_params WHERE title = $1) SELECT title FROM filtered_docs WHERE title = $1",
+            vec![Value::String("alpha".to_string())],
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(result.rows.len(), 1);
+    assert_eq!(result.rows[0][0], Value::String("alpha".to_string()));
+}
+
+#[tokio::test]
+async fn execute_recursive_cte_until_stabilization() {
+    with_fallback();
+    let cassie = Cassie::new().unwrap();
+    let collection = "exec_cte_recursive";
+
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "n".to_string(),
+            data_type: DataType::Int,
+            nullable: true,
+        }],
+    };
+
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .await
+        .unwrap();
+    cassie
+        .register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        )
+        .await;
+
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("d1".to_string()),
+            serde_json::json!({"n": 1}),
+        )
+        .await
+        .unwrap();
+
+    let session = cassie.create_session("tester", None).await;
+    let result = cassie
+        .execute_sql(
+            &session,
+            "WITH RECURSIVE seq(n) AS (SELECT n FROM exec_cte_recursive WHERE n = 1 UNION ALL SELECT n FROM seq WHERE n = 1) SELECT n FROM seq ORDER BY n",
+            vec![],
+        )
+        .await
+        .unwrap();
+
+    let values = result
+        .rows
+        .into_iter()
+        .map(|row| match row.first() {
+            Some(Value::Int64(value)) => *value,
+            _ => panic!("expected integer value"),
+        })
+        .collect::<Vec<_>>();
+        assert_eq!(values, vec![1]);
+}
+
+#[tokio::test]
+async fn execute_recursive_cte_enforces_depth_limit_when_no_stabilization() {
+    with_fallback();
+    let cassie = Cassie::new().unwrap();
+    let collection = "exec_cte_infinite";
+
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "n".to_string(),
+            data_type: DataType::Int,
+            nullable: true,
+        }],
+    };
+
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .await
+        .unwrap();
+    cassie
+        .register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        )
+        .await;
+
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("d1".to_string()),
+            serde_json::json!({"n": 1}),
+        )
+        .await
+        .unwrap();
+
+    let session = cassie.create_session("tester", None).await;
+    let result = cassie
+        .execute_sql(
+            &session,
+            "WITH RECURSIVE seq(n) AS (SELECT n FROM exec_cte_infinite WHERE n = 1 UNION ALL SELECT n + 1 AS n FROM seq) SELECT n FROM seq",
+            vec![],
+        )
+        .await;
+
+    assert!(result.is_err());
 }
 
 #[tokio::test]
@@ -1914,7 +2225,9 @@ fn should_fail_unknown_function_during_execution() {
             .unwrap();
 
         let logical = LogicalPlan {
+            source: QuerySource::Collection(collection.to_string()),
             collection: collection.to_string(),
+            ctes: vec![],
             projection: vec![SelectItem::Function {
                 function: FunctionCall {
                     name: "unknown_fn".to_string(),

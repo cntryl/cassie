@@ -5,13 +5,37 @@ pub struct ParsedStatement {
 }
 
 #[derive(Debug, Clone)]
+pub struct CommonTableExpression {
+    pub name: String,
+    pub aliases: Vec<String>,
+    pub query: CteQuery,
+}
+
+#[derive(Debug, Clone)]
+pub enum CteQuery {
+    Simple(Box<ParsedStatement>),
+    Recursive {
+        base: Box<ParsedStatement>,
+        recursive: Box<ParsedStatement>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QuerySource {
+    Collection(String),
+    Cte(String),
+}
+
+#[derive(Debug, Clone)]
 pub enum QueryStatement {
     Select(SelectStatement),
 }
 
 #[derive(Debug, Clone)]
 pub struct SelectStatement {
-    pub collection: String,
+    pub source: QuerySource,
+    pub ctes: Vec<CommonTableExpression>,
+    pub recursive: bool,
     pub projection: Vec<SelectItem>,
     pub filter: Option<Expr>,
     pub order: Vec<OrderExpr>,

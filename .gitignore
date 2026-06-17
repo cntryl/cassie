@@ -17,3 +17,5 @@
 # Local environment files
 .env
 .env.*
+
+.cassie/

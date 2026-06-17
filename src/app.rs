@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
 use serde::Serialize;
 
@@ -15,6 +16,7 @@ use crate::embeddings::{
 };
 use crate::executor::{QueryError, QueryResult};
 use crate::midge::adapter::Midge;
+use crate::runtime::{ExecutionMode, PlanCacheKey, RuntimeState};
 use crate::sql::{binder, parser};
 
 #[derive(Debug, Clone, Serialize)]
@@ -34,6 +36,8 @@ pub struct Cassie {
     pub midge: Arc<Midge>,
     pub catalog: Catalog,
     pub embedding_provider: Arc<dyn EmbeddingProvider>,
+    pub(crate) runtime: Arc<RuntimeState>,
+    pub(crate) auth_user: String,
     pub started: Arc<AtomicBool>,
 }
 
@@ -99,30 +103,46 @@ impl Cassie {
     ) -> Result<Self, CassieError> {
         let midge = Arc::new(Midge::new_with_data_dir(data_dir.as_ref())?);
         let embedding_provider = build_embedding_provider(&runtime_config)?;
+        let runtime = Arc::new(RuntimeState::new(runtime_config.limits.clone()));
+        let auth_user = runtime_config.user.clone();
         Ok(Self {
             midge,
             catalog: Catalog::new(),
             embedding_provider,
+            runtime,
+            auth_user,
             started: Arc::new(AtomicBool::new(false)),
         })
     }
 
     pub async fn hydrate_catalog(&self) -> Result<(), CassieError> {
+        let started_at = Instant::now();
         self.catalog.clear().await;
+        self.invalidate_plan_cache();
 
         let namespaces = self.midge.list_namespaces().await;
+        self.runtime.record_storage_access("schema", false, true);
         for namespace in namespaces {
             self.catalog.register_namespace(&namespace, None).await;
         }
 
         let mut collections = self.midge.list_collections().await;
+        self.runtime.record_storage_access("schema", false, true);
         if collections.is_empty() {
             collections = self.midge.list_collections_from_schema().await;
+            self.runtime.record_storage_access("schema", false, true);
         }
 
         for name in collections {
+            self.runtime.record_storage_access("schema", false, true);
             if let Some(schema) = self.midge.collection_schema(&name).await {
-                let constraints = self.midge.load_constraints(&name).await.unwrap_or_default();
+                let constraints = self.midge.load_constraints(&name).await.map_err(|error| {
+                    self.runtime.record_storage_access("schema", false, false);
+                    CassieError::Storage(format!(
+                        "load constraints for collection '{name}': {error}"
+                    ))
+                })?;
+                self.runtime.record_storage_access("schema", false, true);
                 self.catalog
                     .register_collection_with_constraints(
                         &name,
@@ -137,40 +157,65 @@ impl Cassie {
             }
         }
 
-        let indexes = self.midge.list_vector_indexes().await?;
+        let indexes = self.midge.list_vector_indexes().await.map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list vector indexes: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
         for index in indexes {
             self.catalog.register_vector_index(index).await;
         }
 
-        let indexes = self.midge.list_indexes().await?;
+        let indexes = self.midge.list_indexes().await.map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list indexes: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
         for index in indexes {
             self.catalog.register_index(index).await;
         }
 
-        let functions = self.midge.list_functions().await?;
+        let functions = self.midge.list_functions().await.map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list functions: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
         for metadata in functions {
             self.catalog.register_function(metadata).await;
         }
 
-        let procedures = self.midge.list_procedures().await?;
+        let procedures = self.midge.list_procedures().await.map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list procedures: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
         for metadata in procedures {
             self.catalog.register_procedure(metadata).await;
         }
 
+        self.runtime.record_catalog_hydration(started_at.elapsed());
         Ok(())
     }
 
     pub async fn startup(&self) -> Result<(), CassieError> {
-        self.midge.ensure_families_ready().map_err(|error| {
+        let started_at = Instant::now();
+        let families_ready = self.midge.ensure_families_ready();
+        self.runtime
+            .record_storage_access("schema", true, families_ready.is_ok());
+        families_ready.map_err(|error| {
             CassieError::StorageBootstrap(format!("bootstrap families: {error}"))
         })?;
-        self.midge
-            .clear_temp_family()
-            .await
-            .map_err(|error| CassieError::Storage(format!("clear temp family: {error}")))?;
+
+        let clear_temp = self.midge.clear_temp_family().await;
+        self.runtime
+            .record_storage_access("temp", true, clear_temp.is_ok());
+        clear_temp.map_err(|error| CassieError::Storage(format!("clear temp family: {error}")))?;
+
         self.hydrate_catalog()
             .await
             .map_err(|error| CassieError::Storage(format!("catalog hydration: {error}")))?;
+        self.runtime.mark_started();
+        self.runtime.record_startup(started_at.elapsed());
         self.started.store(true, Ordering::SeqCst);
         Ok(())
     }
@@ -179,24 +224,146 @@ impl Cassie {
         self.started.load(Ordering::SeqCst)
     }
 
+    pub async fn shutdown(&self) {
+        if self.started.swap(false, Ordering::SeqCst) {
+            self.runtime.record_shutdown();
+            self.runtime.mark_shutdown();
+        }
+    }
+
     pub async fn execute_sql(
         &self,
         session: &CassieSession,
         sql: &str,
         params: Vec<crate::types::Value>,
     ) -> Result<QueryResult, CassieError> {
+        self.execute_sql_with_mode(session, sql, params, ExecutionMode::SimpleQuery)
+            .await
+    }
+
+    pub async fn describe_sql(&self, sql: &str) -> Result<Vec<String>, CassieError> {
+        let parsed = parser::parse_statement(sql)?;
+        let controls = self.runtime.query_controls(Instant::now());
+        if controls.is_timed_out() {
+            return Err(CassieError::Execution("query timeout exceeded".to_string()));
+        }
+
+        let key = PlanCacheKey {
+            normalized_sql: crate::runtime::normalized_sql(&parsed),
+            catalog_version: self.catalog_version(),
+            parameter_shape: Vec::new(),
+            mode: ExecutionMode::DescribeQuery,
+        };
+
+        let physical = if let Some(plan) = self.runtime.plan_cache_lookup(&key) {
+            plan
+        } else {
+            let bound = binder::bind(parsed, &self.catalog).await?;
+            let logical = crate::planner::logical::plan(&bound)?;
+            let optimized = crate::planner::optimizer::optimize(logical);
+            let physical = crate::planner::physical::build(optimized);
+            self.runtime.plan_cache_store(key, physical.clone());
+            physical
+        };
+
+        if physical.logical.command.is_some() {
+            return Ok(Vec::new());
+        }
+
+        Ok(
+            crate::executor::columns_from_projection(&physical.logical.projection)
+                .into_iter()
+                .map(|column| column.name)
+                .collect(),
+        )
+    }
+
+    pub(crate) async fn execute_sql_with_mode(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+        mode: ExecutionMode,
+    ) -> Result<QueryResult, CassieError> {
+        let query_started = Instant::now();
+        let running_guard = self.runtime.begin_running_query();
+        let result = self
+            .execute_sql_inner(session, sql, params, mode, query_started)
+            .await;
+        let elapsed = query_started.elapsed();
+
+        match &result {
+            Ok(result) => self
+                .runtime
+                .record_query_success(elapsed, result.rows.len()),
+            Err(error) => self.runtime.record_query_error(elapsed, error),
+        }
+
+        drop(running_guard);
+        result
+    }
+
+    async fn execute_sql_inner(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+        mode: ExecutionMode,
+        started_at: Instant,
+    ) -> Result<QueryResult, CassieError> {
         if session.user.is_empty() {
             return Err(CassieError::Unauthorized);
         }
 
+        let controls = self.runtime.query_controls(started_at);
+        if controls.is_timed_out() {
+            return Err(CassieError::Execution("query timeout exceeded".to_string()));
+        }
+
         let parsed = parser::parse_statement(sql)?;
-        let bound = binder::bind(parsed, &self.catalog).await?;
-        let logical = crate::planner::logical::plan(&bound)?;
-        let optimized = crate::planner::optimizer::optimize(logical);
-        let physical = crate::planner::physical::build(optimized);
-        crate::executor::run(self, physical, params)
+        if controls.is_timed_out() {
+            return Err(CassieError::Execution("query timeout exceeded".to_string()));
+        }
+
+        let key = PlanCacheKey {
+            normalized_sql: crate::runtime::normalized_sql(&parsed),
+            catalog_version: self.catalog_version(),
+            parameter_shape: crate::runtime::parameter_shape(&params),
+            mode,
+        };
+
+        let physical = if let Some(plan) = self.runtime.plan_cache_lookup(&key) {
+            plan
+        } else {
+            let bound = binder::bind(parsed, &self.catalog).await?;
+            if controls.is_timed_out() {
+                return Err(CassieError::Execution("query timeout exceeded".to_string()));
+            }
+
+            let logical = crate::planner::logical::plan(&bound)?;
+            let optimized = crate::planner::optimizer::optimize(logical);
+            let physical = crate::planner::physical::build(optimized);
+            self.runtime.plan_cache_store(key, physical.clone());
+            physical
+        };
+
+        if controls.is_timed_out() {
+            return Err(CassieError::Execution("query timeout exceeded".to_string()));
+        }
+
+        let result = crate::executor::run_with_controls(self, physical, params, &controls)
             .await
-            .map_err(CassieError::from)
+            .map_err(CassieError::from)?;
+
+        if result.rows.len() > controls.max_result_rows {
+            return Err(CassieError::Execution(format!(
+                "query result row limit exceeded: {} > {}",
+                result.rows.len(),
+                controls.max_result_rows
+            )));
+        }
+
+        Ok(result)
     }
 
     pub async fn execute_vector_search(
@@ -243,7 +410,8 @@ impl Cassie {
             limit.max(1),
             offset
         );
-        self.execute_sql(&session, &sql, Vec::new()).await
+        let result = self.execute_sql(&session, &sql, Vec::new()).await;
+        result
     }
 
     pub async fn ingest_document(
@@ -564,10 +732,12 @@ impl Cassie {
                     .collect(),
             )
             .await;
+        self.invalidate_plan_cache();
     }
 
     pub async fn register_vector_index(&self, index: VectorIndexRecord) {
         self.catalog.register_vector_index(index).await;
+        self.invalidate_plan_cache();
     }
 
     pub async fn health(&self) -> serde_json::Value {
@@ -589,12 +759,30 @@ impl Cassie {
     }
 
     pub async fn metrics(&self) -> serde_json::Value {
+        let snapshot = self.runtime.snapshot();
         serde_json::json!({
-            "uptime_seconds": 0,
-            "running_queries": 0,
+            "uptime_seconds": snapshot.runtime.uptime_seconds,
+            "running_queries": snapshot.runtime.running_queries,
             "ready": self.is_started(),
-            "auth_user": "postgres"
+            "auth_user": &self.auth_user,
+            "runtime": snapshot.runtime,
+            "query": snapshot.query,
+            "rest": snapshot.rest,
+            "pgwire": snapshot.pgwire,
+            "search": snapshot.search,
+            "vector": snapshot.vector,
+            "hybrid": snapshot.hybrid,
+            "storage": snapshot.storage,
+            "plan_cache": snapshot.plan_cache,
         })
+    }
+
+    pub(crate) fn invalidate_plan_cache(&self) {
+        self.runtime.invalidate_plan_cache();
+    }
+
+    fn catalog_version(&self) -> u64 {
+        self.catalog.version()
     }
 }
 

@@ -8,4 +8,4 @@ pub mod scan;
 pub mod sort;
 
 pub use aggregate::columns_from_projection;
-pub use execution::{run, ColumnMeta, QueryError, QueryResult};
+pub use execution::{run, run_with_controls, ColumnMeta, QueryError, QueryResult};

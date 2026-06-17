@@ -32,21 +32,7 @@ pub async fn describe_query(
     cassie: &Cassie,
     sql: &str,
 ) -> Result<Vec<String>, crate::app::CassieError> {
-    let parsed = crate::sql::parser::parse_statement(sql)?;
-    let bound = crate::sql::binder::bind(parsed, &cassie.catalog).await?;
-    let logical = crate::planner::logical::plan(&bound)?;
-    let logical = crate::planner::optimizer::optimize(logical);
-
-    if logical.command.is_some() {
-        return Ok(Vec::new());
-    }
-
-    Ok(
-        crate::executor::columns_from_projection(&logical.projection)
-            .into_iter()
-            .map(|column| column.name)
-            .collect(),
-    )
+    cassie.describe_sql(sql).await
 }
 
 pub fn parse_bind_param(raw: &str) -> Value {

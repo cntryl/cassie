@@ -10,7 +10,11 @@ pub(crate) async fn scan(
         .midge
         .scan_documents_batched(collection, DEFAULT_BATCH_SIZE)
         .await
-        .map_err(|e| crate::executor::QueryError::General(e.to_string()))?;
+        .map_err(|error| {
+            cassie.runtime.record_storage_access("data", false, false);
+            crate::executor::QueryError::General(error.to_string())
+        })?;
+    cassie.runtime.record_storage_access("data", false, true);
 
     Ok(document_batches
         .into_iter()

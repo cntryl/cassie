@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -20,6 +21,7 @@ pub struct Catalog {
     pub functions: Arc<RwLock<HashMap<String, FunctionMeta>>>,
     pub procedures: Arc<RwLock<HashMap<String, ProcedureMeta>>>,
     pub vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
+    version: Arc<AtomicU64>,
 }
 
 impl Catalog {
@@ -33,7 +35,12 @@ impl Catalog {
             functions: Arc::new(RwLock::new(HashMap::new())),
             procedures: Arc::new(RwLock::new(HashMap::new())),
             vector_indexes: Arc::new(RwLock::new(HashMap::new())),
+            version: Arc::new(AtomicU64::new(0)),
         }
+    }
+
+    pub fn version(&self) -> u64 {
+        self.version.load(Ordering::SeqCst)
     }
 
     pub async fn register_collection(&self, name: &str, schema: Vec<(String, DataType)>) {
@@ -76,6 +83,7 @@ impl Catalog {
             .write()
             .await
             .insert(name.to_string(), normalized);
+        self.bump_version();
     }
 
     pub async fn list_collections(&self) -> Vec<CollectionMeta> {
@@ -88,6 +96,7 @@ impl Catalog {
     pub async fn register_namespace(&self, name: &str, description: Option<String>) {
         let mut namespaces = self.namespaces.write().await;
         namespaces.insert(name.to_string(), NamespaceMeta::new(name, description));
+        self.bump_version();
     }
 
     pub async fn list_namespaces(&self) -> Vec<NamespaceMeta> {
@@ -100,6 +109,7 @@ impl Catalog {
     pub async fn register_function(&self, metadata: FunctionMeta) {
         let mut functions = self.functions.write().await;
         functions.insert(metadata.name.to_ascii_lowercase(), metadata);
+        self.bump_version();
     }
 
     pub async fn unregister_function(&self, name: &str) {
@@ -107,6 +117,7 @@ impl Catalog {
             .write()
             .await
             .remove(&name.to_ascii_lowercase());
+        self.bump_version();
     }
 
     pub async fn get_function(&self, name: &str) -> Option<FunctionMeta> {
@@ -132,6 +143,7 @@ impl Catalog {
     pub async fn register_procedure(&self, metadata: ProcedureMeta) {
         let mut procedures = self.procedures.write().await;
         procedures.insert(metadata.name.to_ascii_lowercase(), metadata);
+        self.bump_version();
     }
 
     pub async fn unregister_procedure(&self, name: &str) {
@@ -139,6 +151,7 @@ impl Catalog {
             .write()
             .await
             .remove(&name.to_ascii_lowercase());
+        self.bump_version();
     }
 
     pub async fn get_procedure(&self, name: &str) -> Option<ProcedureMeta> {
@@ -174,6 +187,7 @@ impl Catalog {
         self.procedures.write().await.clear();
         self.indexes.write().await.clear();
         self.vector_indexes.write().await.clear();
+        self.bump_version();
     }
 
     pub async fn unregister_collection(&self, collection: &str) {
@@ -188,6 +202,7 @@ impl Catalog {
             .write()
             .await
             .retain(|_, record| record.collection != collection);
+        self.bump_version();
     }
 
     pub async fn get_constraints(&self, collection: &str) -> Vec<FieldConstraint> {
@@ -221,6 +236,7 @@ impl Catalog {
             .write()
             .await
             .insert(collection.to_string(), normalized);
+        self.bump_version();
     }
 
     pub async fn replace_collection_constraint_set(
@@ -253,6 +269,7 @@ impl Catalog {
             (None, Some(constraint)) => entries.push(constraint),
             (None, None) => {}
         }
+        self.bump_version();
     }
 
     pub async fn register_index(&self, metadata: IndexMeta) {
@@ -261,6 +278,7 @@ impl Catalog {
             Self::index_key(&metadata.collection, &metadata.name),
             metadata,
         );
+        self.bump_version();
     }
 
     pub async fn unregister_index(&self, collection: &str, name: &str) {
@@ -268,6 +286,7 @@ impl Catalog {
             .write()
             .await
             .remove(&Self::index_key(collection, name));
+        self.bump_version();
     }
 
     pub async fn get_index(&self, collection: &str, name: &str) -> Option<IndexMeta> {
@@ -307,6 +326,7 @@ impl Catalog {
             is_indexed: true,
             boost: Some(1.0),
         });
+        self.bump_version();
     }
 
     pub async fn remove_collection_field(&self, collection: &str, name: &str) {
@@ -316,6 +336,7 @@ impl Catalog {
         };
 
         schema.fields.retain(|field| field.name != name);
+        self.bump_version();
     }
 
     pub async fn rename_collection(&self, current_name: &str, next_name: &str) {
@@ -372,6 +393,7 @@ impl Catalog {
                 vector_indexes.insert(next_key, metadata);
             }
         }
+        self.bump_version();
     }
 
     pub async fn exists(&self, collection: &str) -> bool {
@@ -397,6 +419,7 @@ impl Catalog {
         };
 
         field_meta.boost = Some(boost);
+        self.bump_version();
         true
     }
 
@@ -419,6 +442,7 @@ impl Catalog {
         let mut indexes = self.vector_indexes.write().await;
         let key = Self::vector_index_key(&record.collection, &record.field);
         indexes.insert(key, record);
+        self.bump_version();
     }
 
     pub async fn unregister_vector_index(&self, collection: &str, field: &str) {
@@ -426,6 +450,7 @@ impl Catalog {
             .write()
             .await
             .remove(&Self::vector_index_key(collection, field));
+        self.bump_version();
     }
 
     pub async fn get_vector_index(
@@ -451,6 +476,7 @@ impl Catalog {
     pub async fn clear_vector_indexes(&self, collection: &str) {
         let mut indexes = self.vector_indexes.write().await;
         indexes.retain(|_, value| value.collection != collection);
+        self.bump_version();
     }
 
     pub fn vector_index_key(collection: &str, field: &str) -> String {
@@ -467,6 +493,10 @@ impl Catalog {
             || constraint.not_null
             || constraint.default_value.is_some()
             || constraint.check.is_some()
+    }
+
+    fn bump_version(&self) {
+        self.version.fetch_add(1, Ordering::SeqCst);
     }
 }
 

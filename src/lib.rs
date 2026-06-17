@@ -8,6 +8,7 @@ pub mod midge;
 pub mod pgwire;
 pub mod planner;
 pub mod rest;
+pub mod runtime;
 pub mod search;
 pub mod sql;
 pub mod types;

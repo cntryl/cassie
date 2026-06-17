@@ -11,6 +11,7 @@ use crate::pgwire::handlers::query;
 use crate::pgwire::protocol::{
     decode, encode, ClientMessage, Portal, PreparedStatement, ReadyState, ServerMessage, WireError,
 };
+use crate::runtime::ExecutionMode;
 use crate::types::Value;
 
 const DEFAULT_STATEMENT: &str = "_pstmt_";
@@ -52,6 +53,8 @@ pub async fn run_connection(
     cassie: Arc<Cassie>,
     config: CassieRuntimeConfig,
 ) {
+    let runtime = cassie.runtime.clone();
+    let _session_guard = runtime.begin_pgwire_session();
     let (read_half, mut write_half) = socket.split();
     let mut reader = BufReader::new(read_half);
     let mut state = SessionState::new();
@@ -71,6 +74,7 @@ pub async fn run_connection(
 
         match &msg {
             ClientMessage::Startup { user, database } => {
+                runtime.record_pgwire_message("startup");
                 state.startup_user = Some(user.clone());
                 if config.password.is_empty() {
                     state.authenticated = true;
@@ -79,12 +83,14 @@ pub async fn run_connection(
                         database: database.clone(),
                     });
                     state.ready = ReadyState::Idle;
+                    runtime.record_pgwire_auth_ok();
                     response.push(ServerMessage::AuthenticationOk);
                 } else {
                     response.push(ServerMessage::AuthChallenge);
                 }
             }
             ClientMessage::Password { user, password } => {
+                runtime.record_pgwire_message("password");
                 let auth_user = if user == "postgres" {
                     state.startup_user.as_deref().unwrap_or("postgres")
                 } else {
@@ -105,27 +111,41 @@ pub async fn run_connection(
                         database: None,
                     });
                     state.ready = ReadyState::Idle;
+                    runtime.record_pgwire_auth_ok();
                     response.push(ServerMessage::AuthenticationOk);
                 } else {
+                    runtime.record_pgwire_auth_failed();
                     response.push(ServerMessage::ErrorResponse(
                         WireError::NotAuthenticated.to_string(),
                     ));
+                    runtime.record_pgwire_protocol_error();
                 }
             }
             ClientMessage::Query(sql) => {
+                runtime.record_pgwire_message("query");
+                runtime.record_pgwire_simple_query();
                 if !state.authenticated {
+                    runtime.record_pgwire_protocol_error();
                     response.push(ServerMessage::ErrorResponse(
                         WireError::NotAuthenticated.to_string(),
                     ));
                 } else if let Some(active_session) = state.session.as_ref() {
-                    response.extend(
-                        query::run_simple_query(&cassie, active_session, sql, Vec::new()).await,
-                    );
+                    let query_response =
+                        query::run_simple_query(&cassie, active_session, sql, Vec::new()).await;
+                    if query_response
+                        .iter()
+                        .any(|part| matches!(part, ServerMessage::ErrorResponse(_)))
+                    {
+                        runtime.record_pgwire_protocol_error();
+                    }
+                    response.extend(query_response);
                     response.push(ServerMessage::ReadyForQuery);
                 }
             }
             ClientMessage::Parse { name, query } => {
+                runtime.record_pgwire_message("parse");
                 if !state.authenticated {
+                    runtime.record_pgwire_protocol_error();
                     response.push(ServerMessage::ErrorResponse(
                         WireError::NotAuthenticated.to_string(),
                     ));
@@ -136,20 +156,28 @@ pub async fn run_connection(
                     Ok(_) => {
                         let statement_name = SessionState::statement_name(name);
                         let prepared_name = statement_name.clone();
-                        state.prepared.insert(
+                        let existed = state.prepared.insert(
                             statement_name,
                             PreparedStatement {
                                 name: prepared_name,
                                 query: query.clone(),
                             },
                         );
+                        if existed.is_none() {
+                            runtime.record_pgwire_prepared_delta(1);
+                        }
                         response.push(ServerMessage::ParseComplete);
                     }
-                    Err(error) => response.push(ServerMessage::ErrorResponse(error.0)),
+                    Err(error) => {
+                        runtime.record_pgwire_protocol_error();
+                        response.push(ServerMessage::ErrorResponse(error.0));
+                    }
                 };
             }
             ClientMessage::Bind { name, params } => {
+                runtime.record_pgwire_message("bind");
                 if !state.authenticated {
+                    runtime.record_pgwire_protocol_error();
                     response.push(ServerMessage::ErrorResponse(
                         WireError::NotAuthenticated.to_string(),
                     ));
@@ -158,13 +186,14 @@ pub async fn run_connection(
 
                 let statement_name = SessionState::statement_name(name);
                 if !state.prepared.contains_key(&statement_name) {
+                    runtime.record_pgwire_protocol_error();
                     response.push(ServerMessage::ErrorResponse(format!(
                         "statement '{}' is not prepared",
                         statement_name
                     )));
                     continue;
                 }
-                state.portals.insert(
+                let existed = state.portals.insert(
                     statement_name.clone(),
                     Portal {
                         name: statement_name.clone(),
@@ -173,10 +202,15 @@ pub async fn run_connection(
                         params: params.clone(),
                     },
                 );
+                if existed.is_none() {
+                    runtime.record_pgwire_portal_delta(1);
+                }
                 response.push(ServerMessage::BindComplete);
             }
             ClientMessage::Describe(name) => {
+                runtime.record_pgwire_message("describe");
                 if !state.authenticated {
+                    runtime.record_pgwire_protocol_error();
                     response.push(ServerMessage::ErrorResponse(
                         WireError::NotAuthenticated.to_string(),
                     ));
@@ -187,6 +221,7 @@ pub async fn run_connection(
                 let prepared_query = match state.prepared.get(&statement_name) {
                     Some(prepared) => prepared.query.clone(),
                     None => {
+                        runtime.record_pgwire_protocol_error();
                         response.push(ServerMessage::ErrorResponse(format!(
                             "statement '{}' is not prepared",
                             statement_name
@@ -196,11 +231,17 @@ pub async fn run_connection(
                 };
                 match query::describe_query(&cassie, &prepared_query).await {
                     Ok(columns) => response.push(ServerMessage::RowDescription(columns)),
-                    Err(error) => response.push(ServerMessage::ErrorResponse(error.to_string())),
+                    Err(error) => {
+                        runtime.record_pgwire_protocol_error();
+                        response.push(ServerMessage::ErrorResponse(error.to_string()))
+                    }
                 }
             }
             ClientMessage::Execute { name, limit } => {
+                runtime.record_pgwire_message("execute");
+                runtime.record_pgwire_extended_query();
                 if !state.authenticated {
+                    runtime.record_pgwire_protocol_error();
                     response.push(ServerMessage::ErrorResponse(
                         WireError::NotAuthenticated.to_string(),
                     ));
@@ -217,6 +258,7 @@ pub async fn run_connection(
                 let prepared_query = match state.prepared.get(&statement_name) {
                     Some(prepared) => prepared.query.clone(),
                     None => {
+                        runtime.record_pgwire_protocol_error();
                         response.push(ServerMessage::ErrorResponse(format!(
                             "statement '{}' is not prepared",
                             statement_name
@@ -237,7 +279,12 @@ pub async fn run_connection(
                 };
                 let limit = limit.or(portal_limit);
                 let query_result = cassie
-                    .execute_sql(active_session, &prepared_query, params)
+                    .execute_sql_with_mode(
+                        active_session,
+                        &prepared_query,
+                        params,
+                        ExecutionMode::ExtendedQuery,
+                    )
                     .await;
                 match query_result {
                     Ok(mut result) => {
@@ -255,21 +302,32 @@ pub async fn run_connection(
                         }
                         response.push(ServerMessage::CommandComplete(result.command));
                     }
-                    Err(error) => response.push(ServerMessage::ErrorResponse(error.to_string())),
+                    Err(error) => {
+                        runtime.record_pgwire_protocol_error();
+                        response.push(ServerMessage::ErrorResponse(error.to_string()))
+                    }
                 };
             }
             ClientMessage::Close(name) => {
+                runtime.record_pgwire_message("close");
                 let statement_name = SessionState::statement_name(name);
-                state.prepared.remove(&statement_name);
-                state.portals.remove(&statement_name);
+                if state.prepared.remove(&statement_name).is_some() {
+                    runtime.record_pgwire_prepared_delta(-1);
+                }
+                if state.portals.remove(&statement_name).is_some() {
+                    runtime.record_pgwire_portal_delta(-1);
+                }
                 response.push(ServerMessage::CloseComplete);
             }
             ClientMessage::Sync => {
+                runtime.record_pgwire_message("sync");
                 state.ready = ReadyState::Idle;
                 response.push(ServerMessage::SyncComplete);
                 response.push(ServerMessage::ReadyForQuery);
             }
             ClientMessage::Unknown(text) => {
+                runtime.record_pgwire_message("unknown");
+                runtime.record_pgwire_protocol_error();
                 response.push(ServerMessage::ErrorResponse(format!(
                     "unsupported message: {text}"
                 )));

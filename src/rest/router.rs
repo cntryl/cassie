@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Instant;
 
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
@@ -99,6 +100,20 @@ fn map_error(error: crate::app::CassieError) -> (StatusCode, String) {
     }
 }
 
+fn record_rest_error(
+    cassie: &Arc<Cassie>,
+    method: &str,
+    route: &str,
+    started_at: Instant,
+    error: crate::app::CassieError,
+) -> (StatusCode, String) {
+    let mapped = map_error(error);
+    cassie
+        .runtime
+        .record_rest_request(method, route, mapped.0.as_u16(), started_at.elapsed());
+    mapped
+}
+
 async fn route_request(
     request: Request<RestRequestBody>,
     cassie: Arc<Cassie>,
@@ -111,11 +126,20 @@ async fn route_request(
         path
     };
     let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
+    let started_at = Instant::now();
     let body: RestBytes = request
         .into_body()
         .collect()
         .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?
+        .map_err(|e| {
+            cassie.runtime.record_rest_request(
+                method.as_str(),
+                &path,
+                StatusCode::BAD_REQUEST.as_u16(),
+                started_at.elapsed(),
+            );
+            (StatusCode::BAD_REQUEST, e.to_string())
+        })?
         .to_bytes();
 
     let response = match (method.clone(), segments.as_slice()) {
@@ -134,46 +158,71 @@ async fn route_request(
         (Method::POST, ["v1", "collections"]) => {
             let value = crate::rest::collections::create(&cassie, body.as_ref())
                 .await
-                .map_err(map_error)?;
+                .map_err(|error| {
+                    record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                })?;
             json_response(StatusCode::OK, &value)
         }
         (Method::POST, ["v1", "collections", collection, "documents"]) => {
             let value = crate::rest::documents::create(&cassie, collection, body.as_ref())
                 .await
-                .map_err(map_error)?;
+                .map_err(|error| {
+                    record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                })?;
             json_response(StatusCode::OK, &value)
         }
         (Method::POST, ["v1", "collections", collection, "indexes"]) => {
             let value = crate::rest::indexes::create(&cassie, collection, body.as_ref())
                 .await
-                .map_err(map_error)?;
+                .map_err(|error| {
+                    record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                })?;
             json_response(StatusCode::OK, &value)
         }
         (Method::POST, ["v1", "collections", collection, "search"]) => {
             let value = crate::rest::search::vector_search(&cassie, collection, body.as_ref())
                 .await
-                .map_err(map_error)?;
+                .map_err(|error| {
+                    record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                })?;
             json_response(StatusCode::OK, &value)
         }
         (Method::GET, ["v1", "collections", collection, "documents", id]) => {
             let value = crate::rest::documents::get(&cassie, collection, id)
                 .await
-                .map_err(map_error)?;
+                .map_err(|error| {
+                    record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                })?;
             json_response(StatusCode::OK, &value)
         }
         (Method::DELETE, ["v1", "collections", collection, "documents", id]) => {
             let value = crate::rest::documents::delete(&cassie, collection, id)
                 .await
-                .map_err(map_error)?;
+                .map_err(|error| {
+                    record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                })?;
             json_response(StatusCode::OK, &value)
         }
         _ => {
+            cassie.runtime.record_rest_request(
+                method.as_str(),
+                &path,
+                StatusCode::NOT_FOUND.as_u16(),
+                started_at.elapsed(),
+            );
             return Err((
                 StatusCode::NOT_FOUND,
                 format!("unsupported route: {} {}", method, path),
             ));
         }
     };
+
+    cassie.runtime.record_rest_request(
+        method.as_str(),
+        &path,
+        response.status().as_u16(),
+        started_at.elapsed(),
+    );
 
     Ok(response)
 }

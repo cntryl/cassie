@@ -8,7 +8,17 @@ pub struct CassieRuntimeConfig {
     pub rest_listen: String,
     pub user: String,
     pub password: String,
+    pub limits: CassieRuntimeLimits,
     pub embeddings: EmbeddingsRuntimeConfig,
+}
+
+#[derive(Debug, Clone)]
+pub struct CassieRuntimeLimits {
+    pub query_timeout_ms: u64,
+    pub max_result_rows: usize,
+    pub cte_recursion_depth: usize,
+    pub temp_spill_budget_bytes: usize,
+    pub plan_cache_entries: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -36,7 +46,20 @@ impl Default for CassieRuntimeConfig {
             rest_listen: "127.0.0.1:8080".to_string(),
             user: "postgres".to_string(),
             password: "postgres".to_string(),
+            limits: CassieRuntimeLimits::default(),
             embeddings: EmbeddingsRuntimeConfig::Disabled,
+        }
+    }
+}
+
+impl Default for CassieRuntimeLimits {
+    fn default() -> Self {
+        Self {
+            query_timeout_ms: 30_000,
+            max_result_rows: 100_000,
+            cte_recursion_depth: 64,
+            temp_spill_budget_bytes: 10 * 1024 * 1024,
+            plan_cache_entries: 128,
         }
     }
 }
@@ -74,6 +97,22 @@ impl CassieRuntimeConfig {
 
         let provider = env::var("EMBEDDINGS_PROVIDER").unwrap_or_else(|_| "disabled".to_string());
         config.embeddings = parse_provider_config(provider.to_lowercase().as_str());
+        config.limits = CassieRuntimeLimits {
+            query_timeout_ms: parse_u64("CASSIE_QUERY_TIMEOUT_MS", config.limits.query_timeout_ms),
+            max_result_rows: parse_usize("CASSIE_MAX_RESULT_ROWS", config.limits.max_result_rows),
+            cte_recursion_depth: parse_usize(
+                "CASSIE_CTE_RECURSION_DEPTH",
+                config.limits.cte_recursion_depth,
+            ),
+            temp_spill_budget_bytes: parse_usize(
+                "CASSIE_TEMP_SPILL_BUDGET_BYTES",
+                config.limits.temp_spill_budget_bytes,
+            ),
+            plan_cache_entries: parse_usize(
+                "CASSIE_PLAN_CACHE_ENTRIES",
+                config.limits.plan_cache_entries,
+            ),
+        };
 
         config
     }

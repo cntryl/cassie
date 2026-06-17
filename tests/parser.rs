@@ -404,3 +404,224 @@ fn should_allow_snippet_function_binding() {
         assert!(bound.is_ok());
     });
 }
+
+#[test]
+fn should_reject_non_select_statement() {
+    // Arrange
+    let sql = "INSERT INTO docs VALUES (1)";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+}
+
+#[test]
+fn should_reject_unknown_clause_in_query() {
+    // Arrange
+    let sql = "SELECT * FROM docs GROUP BY title";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+}
+
+#[test]
+fn should_reject_duplicate_limit_clauses() {
+    // Arrange
+    let sql = "SELECT * FROM docs LIMIT 1 LIMIT 2";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+}
+
+#[test]
+fn should_reject_invalid_limit_values() {
+    // Arrange
+    let negative_limit = parse_statement("SELECT * FROM docs LIMIT -1");
+    let zero_limit = parse_statement("SELECT * FROM docs LIMIT 0");
+
+    // Act
+    let zero_offset = parse_statement("SELECT * FROM docs OFFSET 0");
+
+    // Assert
+    assert!(negative_limit.is_err());
+    assert!(zero_limit.is_ok());
+    assert!(zero_offset.is_ok());
+}
+
+#[test]
+fn should_accept_zero_offset_values() {
+    // Arrange
+    let zero_offset = parse_statement("SELECT * FROM docs OFFSET 0");
+
+    // Act
+    let parsed = zero_offset;
+
+    // Assert
+    assert!(parsed.is_ok());
+}
+
+#[test]
+fn should_reject_malformed_parameter_tokens() {
+    // Arrange
+    let missing_number = parse_statement("SELECT * FROM docs WHERE title = $");
+    let non_numeric = parse_statement("SELECT * FROM docs WHERE title = $x");
+
+    // Act
+    let zero_index = parse_statement("SELECT * FROM docs WHERE title = $0");
+
+    // Assert
+    assert!(missing_number.is_err());
+    assert!(non_numeric.is_err());
+    assert!(zero_index.is_err());
+}
+
+#[test]
+fn should_reject_unknown_trailing_tokens_after_query() {
+    // Arrange
+    let sql = "SELECT * FROM docs WHERE title = 'a' FOO";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+}
+
+#[test]
+fn should_reject_unresolvable_order_by_identifier_during_binding() {
+    // Arrange
+    let cassie =
+        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "binder_docs_order_alias".to_string(),
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "body".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "SELECT search_score(body, 'world') AS score FROM binder_docs_order_alias ORDER BY missing_alias",
+        )
+        .unwrap();
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_allow_projection_alias_order_by_during_binding() {
+    // Arrange
+    let cassie =
+        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "binder_docs_order_alias_ok".to_string(),
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "body".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "SELECT search_score(body, 'world') AS Score FROM binder_docs_order_alias_ok ORDER BY score",
+        )
+        .unwrap();
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(bound.is_ok());
+    });
+}
+
+#[test]
+fn should_reject_unknown_projection_column_during_binding() {
+    // Arrange
+    let cassie =
+        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-{}", Uuid::new_v4())).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .register_collection(
+                "binder_docs_projection_col".to_string(),
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "body".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .await;
+
+        // Act
+        let parsed = parse_statement(
+            "SELECT unknown FROM binder_docs_projection_col",
+        )
+        .unwrap();
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_parse_deterministically_across_invocations() {
+    // Arrange
+    let sql_one =
+        "SELECT title AS doc_title, search_score(body, 'world') AS score FROM docs WHERE active = true ORDER BY score DESC LIMIT 1 OFFSET 0";
+    let sql_two =
+        "select title AS doc_title, search_score(body, 'world') AS score from docs where active = true order by score desc limit 1 offset 0";
+
+    // Act
+    let first = parse_statement(sql_one).unwrap();
+    let second = parse_statement(sql_two).unwrap();
+
+    // Assert
+    let (_, first_statement) = match first.statement {
+        QueryStatement::Select(statement) => ((), statement),
+    };
+    let (_, second_statement) = match second.statement {
+        QueryStatement::Select(statement) => ((), statement),
+    };
+
+    assert_eq!(format!("{:?}", first_statement), format!("{:?}", second_statement));
+}

@@ -110,6 +110,11 @@ impl Cassie {
     pub async fn hydrate_catalog(&self) -> Result<(), CassieError> {
         self.catalog.clear().await;
 
+        let namespaces = self.midge.list_namespaces().await;
+        for namespace in namespaces {
+            self.catalog.register_namespace(&namespace, None).await;
+        }
+
         let mut collections = self.midge.list_collections().await;
         if collections.is_empty() {
             collections = self.midge.list_collections_from_schema().await;

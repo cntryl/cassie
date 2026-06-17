@@ -344,3 +344,74 @@ fn should_execute_sql_with_recursive_cte() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_persist_namespace_on_create_schema() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("create_schema");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie
+            .midge
+            .ensure_families_ready()
+            .expect("families ready");
+
+        // Act
+        let session = cassie.create_session("tester", None).await;
+        let result = cassie
+            .execute_sql(&session, "CREATE SCHEMA analytics", vec![])
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.command, "CREATE SCHEMA");
+        assert!(cassie.catalog.namespace_exists("analytics").await);
+        assert!(cassie
+            .midge
+            .list_namespaces()
+            .await
+            .iter()
+            .any(|name| name == "analytics"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("create_schema_if_not_exists");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.midge.create_namespace("analytics").await.unwrap();
+
+        let initial = cassie.midge.list_namespaces().await;
+
+        // Act
+        let session = cassie.create_session("tester", None).await;
+        let result = cassie
+            .execute_sql(&session, "CREATE SCHEMA IF NOT EXISTS analytics", vec![])
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.command, "CREATE SCHEMA");
+        let namespaced = cassie.midge.list_namespaces().await;
+        assert_eq!(namespaced.len(), initial.len());
+        assert!(namespaced.iter().any(|name| name == "analytics"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

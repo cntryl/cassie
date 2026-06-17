@@ -181,11 +181,31 @@ async fn execute_command(
                 command: "ALTER TABLE".to_string(),
             })
         }
-        LogicalCommand::CreateSchema(_statement) => Ok(QueryResult {
-            columns: Vec::new(),
-            rows: Vec::new(),
-            command: "CREATE SCHEMA".to_string(),
-        }),
+        LogicalCommand::CreateSchema(statement) => {
+            if statement.if_not_exists && cassie.catalog.namespace_exists(&statement.schema).await {
+                return Ok(QueryResult {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    command: "CREATE SCHEMA".to_string(),
+                });
+            }
+
+            cassie
+                .midge
+                .create_namespace(&statement.schema)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie
+                .catalog
+                .register_namespace(&statement.schema, None)
+                .await;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "CREATE SCHEMA".to_string(),
+            })
+        }
     }
 }
 

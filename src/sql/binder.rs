@@ -6,8 +6,8 @@ use std::pin::Pin;
 use crate::app::CassieError;
 use crate::catalog::Catalog;
 use crate::sql::ast::{
-    AlterTableOperation, AlterTableStatement, CteQuery, Expr, FunctionCall, ParsedStatement,
-    QuerySource, QueryStatement, SelectItem, SelectStatement,
+    AlterTableOperation, AlterTableStatement, CreateSchemaStatement, CteQuery, Expr, FunctionCall,
+    ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
 };
 
 type CteScope = HashMap<String, Vec<String>>;
@@ -62,13 +62,23 @@ fn bind_statement<'a>(
                 })
             }
             QueryStatement::CreateSchema(statement) => {
-                if statement.schema.trim().is_empty() {
+                let schema = statement.schema.trim().to_string();
+                if schema.is_empty() {
                     return Err(CassieError::Planner("CREATE SCHEMA requires a name".into()));
+                }
+
+                if !statement.if_not_exists && catalog.namespace_exists(&schema).await {
+                    return Err(CassieError::Planner(format!(
+                        "namespace '{schema}' already exists"
+                    )));
                 }
 
                 Ok(ParsedStatement {
                     raw_sql,
-                    statement: QueryStatement::CreateSchema(statement),
+                    statement: QueryStatement::CreateSchema(CreateSchemaStatement {
+                        schema,
+                        if_not_exists: statement.if_not_exists,
+                    }),
                 })
             }
         }

@@ -3,13 +3,14 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use crate::catalog::{CollectionMeta, CollectionSchema};
+use crate::catalog::{CollectionMeta, CollectionSchema, NamespaceMeta};
 use crate::embeddings::VectorIndexRecord;
 use crate::types::DataType;
 
 #[derive(Debug, Clone)]
 pub struct Catalog {
     pub collections: Arc<RwLock<HashMap<String, CollectionMeta>>>,
+    pub namespaces: Arc<RwLock<HashMap<String, NamespaceMeta>>>,
     pub schemas: Arc<RwLock<HashMap<String, CollectionSchema>>>,
     pub vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
 }
@@ -18,6 +19,7 @@ impl Catalog {
     pub fn new() -> Self {
         Self {
             collections: Arc::new(RwLock::new(HashMap::new())),
+            namespaces: Arc::new(RwLock::new(HashMap::new())),
             schemas: Arc::new(RwLock::new(HashMap::new())),
             vector_indexes: Arc::new(RwLock::new(HashMap::new())),
         }
@@ -48,11 +50,30 @@ impl Catalog {
 
     pub async fn list_collections(&self) -> Vec<CollectionMeta> {
         let collections = self.collections.read().await;
-        collections.values().cloned().collect()
+        let mut out = collections.values().cloned().collect::<Vec<_>>();
+        out.sort_by_key(|entry| entry.name.to_ascii_lowercase());
+        out
+    }
+
+    pub async fn register_namespace(&self, name: &str, description: Option<String>) {
+        let mut namespaces = self.namespaces.write().await;
+        namespaces.insert(name.to_string(), NamespaceMeta::new(name, description));
+    }
+
+    pub async fn list_namespaces(&self) -> Vec<NamespaceMeta> {
+        let namespaces = self.namespaces.read().await;
+        let mut out = namespaces.values().cloned().collect::<Vec<_>>();
+        out.sort_by_key(|entry| entry.name.to_ascii_lowercase());
+        out
+    }
+
+    pub async fn namespace_exists(&self, namespace: &str) -> bool {
+        self.namespaces.read().await.contains_key(namespace)
     }
 
     pub async fn clear(&self) {
         self.collections.write().await.clear();
+        self.namespaces.write().await.clear();
         self.schemas.write().await.clear();
         self.vector_indexes.write().await.clear();
     }

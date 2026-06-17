@@ -789,6 +789,32 @@ fn should_parse_create_schema_if_not_exists() {
 }
 
 #[test]
+fn should_reject_create_schema_when_schema_exists_without_if_not_exists() {
+    // Arrange
+    let cassie =
+        Cassie::new_with_data_dir(format!("/tmp/cassie-parser-schema-{}", Uuid::new_v4())).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie
+            .catalog
+            .register_namespace("reporting", None)
+            .await;
+
+        // Act
+        let parsed = parse_statement("CREATE SCHEMA reporting")
+            .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        // Assert
+        assert!(matches!(bound, Err(err) if err.to_string().contains("namespace 'reporting' already exists")));
+    });
+}
+
+#[test]
 fn should_parse_rename_table_alter_statement() {
     // Arrange
     let sql = "ALTER TABLE docs RENAME TO docs_archive";

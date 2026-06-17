@@ -6,6 +6,7 @@ use cntryl_midge::{ColumnFamilyHandle, Engine, Query, TransactionMode, WriteOpti
 use uuid::Uuid;
 
 use crate::app::CassieError;
+use crate::catalog::NamespaceMeta;
 use crate::types::{DataType, FieldSchema, Schema, Value, Vector};
 
 fn allow_memory_fallback() -> bool {
@@ -25,6 +26,8 @@ const TEMP_FAMILY_NAME: &str = "cf2";
 const DEFAULT_FAMILY_NAME: &str = "default";
 const VECTOR_INDEX_PREFIX: &str = "__cassie__/vector-index/";
 const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
+const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
+const NAMESPACES_KEY: &str = "__cassie__/namespaces";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StorageFamily {
@@ -283,6 +286,18 @@ impl Midge {
         format!("{VECTOR_INDEX_PREFIX}{collection}/").into_bytes()
     }
 
+    fn namespace_key(namespace: &str) -> Vec<u8> {
+        format!("{SCHEMA_NAMESPACE_KEY_PREFIX}{namespace}").into_bytes()
+    }
+
+    fn namespace_prefix() -> Vec<u8> {
+        SCHEMA_NAMESPACE_KEY_PREFIX.as_bytes().to_vec()
+    }
+
+    fn namespaces_key() -> Vec<u8> {
+        NAMESPACES_KEY.as_bytes().to_vec()
+    }
+
     fn collections_key() -> Vec<u8> {
         b"__cassie__/collections".to_vec()
     }
@@ -391,6 +406,19 @@ impl Midge {
         Ok(parsed)
     }
 
+    async fn load_namespaces(
+        &self,
+        tx: &cntryl_midge::Transaction,
+    ) -> Result<Vec<String>, CassieError> {
+        let raw = tx.get(&Self::namespaces_key()).map_err(CassieError::from)?;
+        if raw.is_none() {
+            return Ok(Vec::new());
+        }
+        let parsed: Vec<String> = serde_json::from_slice(&raw.unwrap())
+            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        Ok(parsed)
+    }
+
     async fn save_collections(
         &self,
         tx: &mut cntryl_midge::Transaction,
@@ -399,6 +427,18 @@ impl Midge {
         let value = serde_json::to_vec(collections)
             .map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::collections_key(), value, None)
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    async fn save_namespaces(
+        &self,
+        tx: &mut cntryl_midge::Transaction,
+        namespaces: &[String],
+    ) -> Result<(), CassieError> {
+        let value = serde_json::to_vec(namespaces)
+            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(Self::namespaces_key(), value, None)
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -423,6 +463,65 @@ impl Midge {
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
+    }
+
+    pub async fn create_namespace(&self, namespace: &str) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+
+        let namespace_key = Self::namespace_key(namespace);
+        if tx.get(&namespace_key).map_err(CassieError::from)?.is_none() {
+            let metadata = NamespaceMeta::new(namespace, None);
+            let serialized = serde_json::to_vec(&metadata)
+                .map_err(|error| CassieError::Parse(error.to_string()))?;
+            tx.put(namespace_key, serialized, None)
+                .map_err(CassieError::from)?;
+        }
+
+        let mut namespaces = self.load_namespaces(&tx).await?;
+        if !namespaces.iter().any(|entry| entry == namespace) {
+            namespaces.push(namespace.to_string());
+            namespaces.sort();
+            self.save_namespaces(&mut tx, &namespaces).await?;
+        }
+
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn list_namespaces(&self) -> Vec<String> {
+        let tx = match self.begin_schema_readonly_tx() {
+            Ok(tx) => tx,
+            Err(_) => return Vec::new(),
+        };
+
+        if let Ok(namespaces) = self.load_namespaces(&tx).await {
+            if !namespaces.is_empty() {
+                let mut namespaces = namespaces;
+                namespaces.sort();
+                namespaces.dedup();
+                return namespaces;
+            }
+        }
+
+        let Ok(mut scan) = tx.scan(&Query::new().prefix(Self::namespace_prefix().into())) else {
+            return Vec::new();
+        };
+
+        let mut namespaces = Vec::new();
+        while let Some((raw_key, _raw_value)) = scan.next() {
+            let key = String::from_utf8(raw_key).unwrap_or_default();
+            let name = key
+                .strip_prefix(SCHEMA_NAMESPACE_KEY_PREFIX)
+                .unwrap_or("")
+                .to_string();
+            if !name.is_empty() {
+                namespaces.push(name);
+            }
+        }
+
+        namespaces.sort();
+        namespaces.dedup();
+        namespaces
     }
 
     pub async fn drop_collection(&self, name: &str) -> Result<(), CassieError> {

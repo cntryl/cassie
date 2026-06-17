@@ -1,7 +1,7 @@
 # Sprint 02 - Midge Storage Contract and Catalog Hydration
 
-Previous: [Sprint 01 - Foundation, Repo Contract, Runtime Baseline](completed/sprint-01.md)  
-Next: [Sprint 03 - SQL Parser and Binder V1](sprint-03.md)
+Previous: [Sprint 01 - Foundation, Repo Contract, Runtime Baseline](sprint-01.md)  
+Next: [Sprint 03 - SQL Parser and Binder V1](../sprint-03.md)
 
 ## Goal
 

@@ -1,7 +1,7 @@
 use cassie::app::Cassie;
 use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::sql::ast::{
-    BinaryOp, CteQuery, Expr, QuerySource, QueryStatement, SelectItem, SortDirection,
+    BinaryOp, CteQuery, Expr, InsertSource, QuerySource, QueryStatement, SelectItem, SortDirection,
 };
 use cassie::sql::parse_statement;
 use cassie::types::{DataType, FieldSchema, Schema};
@@ -481,6 +481,7 @@ fn should_parse_non_select_statement() {
     assert!(matches!(parsed.statement, QueryStatement::Insert(_)));
 }
 
+
 #[test]
 fn should_reject_unsupported_non_select_statement() {
     // Arrange
@@ -504,6 +505,65 @@ fn should_reject_unsupported_non_select_statement() {
             Err(cassie::app::CassieError::Unsupported(_))
         ));
     });
+}
+
+#[test]
+fn should_parse_insert_with_explicit_columns() {
+    // Arrange
+    let sql = "INSERT INTO docs (title) VALUES ('alpha')";
+
+    // Act
+    let parsed = parse_statement(sql).expect("insert parse");
+
+    // Assert
+    let QueryStatement::Insert(statement) = parsed.statement else {
+        panic!("expected insert statement");
+    };
+    assert_eq!(statement.table, "docs");
+    assert_eq!(statement.columns, vec!["title".to_string()]);
+    let value = match &statement.source {
+        InsertSource::Values(values) => {
+            let value = values.first().expect("missing insert value");
+            if let Expr::StringLiteral(value) = value {
+                value
+            } else {
+                panic!("expected string literal");
+            }
+        }
+        _ => panic!("expected values source"),
+    };
+    assert_eq!(value, "alpha");
+}
+
+#[test]
+fn should_parse_insert_select_source() {
+    // Arrange
+    let sql = "INSERT INTO docs SELECT title FROM docs";
+
+    // Act
+    let parsed = parse_statement(sql).expect("insert parse");
+
+    // Assert
+    let QueryStatement::Insert(statement) = parsed.statement else {
+        panic!("expected insert statement");
+    };
+    assert_eq!(statement.table, "docs");
+    match statement.source {
+        InsertSource::Select(_) => {}
+        InsertSource::Values(_) => panic!("expected select source"),
+    }
+}
+
+#[test]
+fn should_reject_insert_on_conflict() {
+    // Arrange
+    let sql = "INSERT INTO docs VALUES (1) ON CONFLICT DO NOTHING";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
 }
 
 #[test]

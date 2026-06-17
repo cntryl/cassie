@@ -4,8 +4,8 @@ use crate::sql::ast::{
     CommonTableExpression, CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
     CreateSchemaStatement, CreateTableStatement, CteQuery, DropFunctionStatement,
     DropIndexStatement, DropProcedureStatement, DropTableStatement, Expr, FieldDefinition,
-    FunctionArg, FunctionCall, OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem,
-    SelectStatement, SortDirection, Volatility,
+    FunctionArg, FunctionCall, InsertSource, OrderExpr, ParsedStatement, QuerySource,
+    QueryStatement, SelectItem, SelectStatement, SortDirection, Volatility,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -530,89 +530,194 @@ fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         return Err(SqlError("INSERT requires INTO clause".into()));
     }
 
+    if find_top_level_keyword(&trimmed.to_lowercase(), 0, "on conflict").is_some() {
+        return Err(SqlError(
+            "INSERT ON CONFLICT is not supported in this version".into(),
+        ));
+    }
+
     let remainder = trimmed[11..].trim();
-    let values_pos = find_top_level_keyword(remainder, 0, "values")
-        .ok_or_else(|| SqlError("INSERT requires VALUES".into()))?;
-    let before_values = remainder[..values_pos].trim();
-    let values_part = remainder[values_pos + 6..].trim();
-    if before_values.is_empty() {
-        return Err(SqlError("INSERT INTO requires a table name".into()));
+    let (statement_source, returning) = split_statement_and_returning(remainder)?;
+    if statement_source.trim().is_empty() {
+        return Err(SqlError("INSERT requires VALUES or SELECT source".into()));
     }
-    if values_part.is_empty() {
-        return Err(SqlError("INSERT requires VALUES list".into()));
-    }
-    if !values_part.starts_with('(') {
-        return Err(SqlError("INSERT VALUES requires parenthesized list".into()));
-    }
+    let (table, columns, source) = parse_insert_target(statement_source)?;
+    let table = table.to_string();
 
-    let (table, columns) = if let Some(open) = before_values.find('(') {
-        let close = find_matching_paren(before_values, open)
-            .ok_or_else(|| SqlError("INSERT columns list requires closing ')'".into()))?;
-        if close < open {
-            return Err(SqlError("INSERT columns list is malformed".into()));
+    let values_pos = find_top_level_keyword(source, 0, "values");
+    if let Some(values_pos) = values_pos {
+        if values_pos != 0 {
+            return Err(SqlError(
+                "INSERT expects VALUES or SELECT at source position".into(),
+            ));
         }
-        let table = before_values[..open].trim();
-        if table.is_empty() {
-            return Err(SqlError("INSERT INTO requires a table name".into()));
+
+        let values_part = source[values_pos + 6..].trim();
+        if values_part.is_empty() {
+            return Err(SqlError("INSERT requires VALUES list".into()));
         }
-        let tail = before_values[close + 1..].trim();
-        if !tail.is_empty() {
-            return Err(SqlError("INSERT column list is malformed".into()));
+        if !values_part.starts_with('(') {
+            return Err(SqlError("INSERT VALUES requires parenthesized list".into()));
         }
-        let inside = &before_values[open + 1..close];
-        let columns = split_csv(inside)
+
+        let close = find_matching_paren(values_part, 0)
+            .ok_or_else(|| SqlError("INSERT VALUES requires closing ')'".into()))?;
+        let values_raw = &values_part[1..close];
+        if values_raw.trim().is_empty() {
+            return Err(SqlError("INSERT VALUES cannot be empty".into()));
+        }
+
+        let values = split_csv(values_raw)
             .into_iter()
-            .map(|column| {
-                let column = column.trim();
-                if column.is_empty() {
-                    return Err(SqlError(
-                        "INSERT column list cannot include empty columns".into(),
-                    ));
-                }
-                Ok(column.to_string())
-            })
+            .map(parse_expr_token)
             .collect::<Result<Vec<_>, _>>()?;
-        (table, columns)
-    } else {
-        (before_values, Vec::new())
+
+        if !columns.is_empty() && columns.len() != values.len() {
+            return Err(SqlError(format!(
+                "INSERT column/value counts mismatch: {} columns, {} values",
+                columns.len(),
+                values.len()
+            )));
+        }
+
+        let trailing = values_part[close + 1..].trim();
+        if !trailing.is_empty() {
+            return Err(SqlError("unexpected tokens after INSERT source".into()));
+        }
+
+        return Ok(ParsedStatement {
+            raw_sql: trimmed.to_string(),
+            statement: QueryStatement::Insert(crate::sql::ast::InsertStatement {
+                table,
+                columns,
+                source: InsertSource::Values(values),
+                returning,
+            }),
+        });
+    }
+
+    if returning.is_empty() {
+        // Keep parsing behavior consistent for select sources with explicit and implicit `RETURNING`.
+        let parsed = parse_statement(source)?;
+        let QueryStatement::Select(select) = parsed.statement else {
+            return Err(SqlError(
+                "INSERT source must be a SELECT statement".into(),
+            ));
+        };
+
+        return Ok(ParsedStatement {
+            raw_sql: trimmed.to_string(),
+            statement: QueryStatement::Insert(crate::sql::ast::InsertStatement {
+                table,
+                columns,
+                source: InsertSource::Select(select),
+                returning: Vec::new(),
+            }),
+        });
+    }
+
+    let parsed = parse_statement(source)?;
+    let QueryStatement::Select(select) = parsed.statement else {
+        return Err(SqlError("INSERT source must be a SELECT statement".into()));
     };
-
-    if !values_part.starts_with('(') {
-        return Err(SqlError("INSERT VALUES requires parenthesized list".into()));
-    }
-
-    let close = find_matching_paren(values_part, 0)
-        .ok_or_else(|| SqlError("INSERT VALUES requires closing ')'".into()))?;
-    let values_raw = &values_part[1..close];
-    if values_raw.trim().is_empty() {
-        return Err(SqlError("INSERT VALUES cannot be empty".into()));
-    }
-
-    let values = split_csv(values_raw)
-        .into_iter()
-        .map(parse_expr_token)
-        .collect::<Result<Vec<_>, _>>()?;
-
-    if !columns.is_empty() && columns.len() != values.len() {
-        return Err(SqlError(format!(
-            "INSERT column/value counts mismatch: {} columns, {} values",
-            columns.len(),
-            values.len()
-        )));
-    }
-
-    let trailing = values_part[close + 1..].trim();
-    let returning = parse_returning_clause(trailing)?;
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::Insert(crate::sql::ast::InsertStatement {
-            table: table.to_string(),
+            table,
             columns,
-            values,
+            source: InsertSource::Select(select),
             returning,
         }),
     })
+}
+
+fn split_statement_and_returning(raw: &str) -> Result<(&str, Vec<SelectItem>), SqlError> {
+    let raw = raw.trim();
+    let returning_pos = find_top_level_keyword(raw, 0, "returning");
+    if let Some(pos) = returning_pos {
+        let source = raw[..pos].trim();
+        let returning = parse_projection_items(&raw[pos + 9..])?;
+        Ok((source, returning))
+    } else {
+        Ok((raw, Vec::new()))
+    }
+}
+
+fn parse_insert_target(
+    raw: &str,
+) -> Result<(String, Vec<String>, &str), SqlError> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err(SqlError("INSERT INTO requires a table name".into()));
+    }
+
+    let values_pos = find_top_level_keyword(raw, 0, "values");
+    let select_pos = find_top_level_keyword(raw, 0, "select");
+    let source_pos = match (values_pos, select_pos) {
+        (Some(values_pos), Some(select_pos)) => Some(values_pos.min(select_pos)),
+        (Some(values_pos), None) => Some(values_pos),
+        (None, Some(select_pos)) => Some(select_pos),
+        (None, None) => None,
+    };
+
+    let source_pos = source_pos.ok_or_else(|| {
+        SqlError("INSERT requires VALUES or SELECT source".to_string())
+    })?;
+
+    let target = raw[..source_pos].trim();
+    let source = raw[source_pos..].trim();
+    if source.is_empty() {
+        return Err(SqlError("INSERT requires VALUES or SELECT source".into()));
+    }
+    if target.is_empty() {
+        return Err(SqlError("INSERT INTO requires a table name".into()));
+    }
+
+    let Some(open_paren) = target.find('(') else {
+        let mut split = target.splitn(2, char::is_whitespace);
+        let table = split.next().unwrap_or_default();
+        if table.is_empty() {
+            return Err(SqlError("INSERT INTO requires a table name".into()));
+        }
+        if let Some(extra) = split.next() {
+            if !extra.trim().is_empty() {
+                return Err(SqlError("INSERT INTO requires a table name".into()));
+            }
+        }
+        return Ok((table.to_string(), Vec::new(), source));
+    };
+
+    let close = find_matching_paren(target, open_paren)
+        .ok_or_else(|| SqlError("INSERT columns list requires closing ')'".to_string()))?;
+    if close < open_paren {
+        return Err(SqlError("INSERT columns list is malformed".to_string()));
+    }
+
+    let table = target[..open_paren].trim();
+    if table.is_empty() {
+        return Err(SqlError("INSERT INTO requires a table name".into()));
+    }
+
+    if !target[close + 1..].starts_with(' ') && target[close + 1..].chars().next().is_some() {
+        return Err(SqlError("INSERT column list is malformed".into()));
+    }
+
+    let inside = &target[open_paren + 1..close];
+    let columns = split_csv(inside)
+        .into_iter()
+        .map(|column| {
+            let column = column.trim();
+            if column.is_empty() {
+                return Err(SqlError(
+                    "INSERT column list cannot include empty columns".into(),
+                ));
+            }
+            Ok(column.to_string())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok((table.to_string(), columns, source))
 }
 
 fn parse_update_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
@@ -624,6 +729,14 @@ fn parse_update_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
 
     let set_pos = find_top_level_keyword(remainder, 0, "set")
         .ok_or_else(|| SqlError("UPDATE requires SET".into()))?;
+    if find_top_level_keyword(remainder, 0, "from").is_some() {
+        return Err(SqlError(
+            "UPDATE FROM is not supported in this version".into(),
+        ));
+    }
+    if find_top_level_keyword(remainder, 0, "where") == Some(0) {
+        return Err(SqlError("UPDATE requires a table name".into()));
+    }
 
     let table = remainder[..set_pos].trim();
     if table.is_empty() {
@@ -633,14 +746,13 @@ fn parse_update_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let after_set = remainder[(set_pos + 3)..].trim();
     let (set_clause, remaining) = split_trailing_update_clauses(after_set)?;
     let assignments = parse_assignment_list(set_clause)?;
-
     if assignments.is_empty() {
         return Err(SqlError(
             "UPDATE SET requires at least one assignment".into(),
         ));
     }
-
     let (filter, returning) = parse_filter_and_returning(remaining)?;
+
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::Update(crate::sql::ast::UpdateStatement {
@@ -684,19 +796,6 @@ fn parse_delete_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
             returning,
         }),
     })
-}
-
-fn parse_returning_clause(raw: &str) -> Result<Vec<crate::sql::ast::SelectItem>, SqlError> {
-    let raw = raw.trim();
-    if raw.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    if !starts_with_keyword(raw, "returning") {
-        return Err(SqlError("unexpected tokens after VALUES".into()));
-    }
-
-    parse_projection_items(&raw[8..])
 }
 
 fn parse_filter_and_returning(

@@ -64,10 +64,16 @@ pub enum QueryStatement {
 }
 
 #[derive(Debug, Clone)]
+pub enum InsertSource {
+    Values(Vec<Expr>),
+    Select(SelectStatement),
+}
+
+#[derive(Debug, Clone)]
 pub struct InsertStatement {
     pub table: String,
     pub columns: Vec<String>,
-    pub values: Vec<Expr>,
+    pub source: InsertSource,
     pub returning: Vec<SelectItem>,
 }
 

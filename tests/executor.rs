@@ -1,4 +1,8 @@
 use cassie::app::Cassie;
+use cassie::executor;
+use cassie::planner::logical::LogicalPlan;
+use cassie::planner::physical::PhysicalPlan;
+use cassie::sql::ast::{Expr, FunctionCall, SelectItem};
 use cassie::sql::binder;
 use cassie::sql::parser;
 use cassie::types::{DataType, FieldSchema, Schema, Value};
@@ -1851,5 +1855,80 @@ fn should_be_deterministic_for_repeated_execution_metadata() {
             .collect::<Vec<_>>();
         assert_eq!(first_columns, second_columns);
         assert_eq!(first.rows, second.rows);
+    });
+}
+
+#[test]
+fn should_fail_unknown_function_during_execution() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new().unwrap();
+        let collection = "exec_unknown_function";
+
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .await
+            .unwrap();
+
+        let logical = LogicalPlan {
+            collection: collection.to_string(),
+            projection: vec![SelectItem::Function {
+                function: FunctionCall {
+                    name: "unknown_fn".to_string(),
+                    args: vec![Expr::Column("title".to_string())],
+                },
+                alias: Some("score".to_string()),
+            }],
+            filter: None,
+            order: vec![],
+            limit: Some(10),
+            offset: Some(0),
+        };
+
+        let physical = PhysicalPlan {
+            collection: logical.collection.clone(),
+            operators: vec![cassie::planner::physical::Operator::Project],
+            logical,
+        };
+
+        // Act
+        let result = executor::run(&cassie, physical, vec![]).await;
+
+        // Assert
+        assert!(result.is_err());
     });
 }

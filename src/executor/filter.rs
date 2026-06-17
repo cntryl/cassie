@@ -444,11 +444,15 @@ fn evaluate_function(
         }
         "vector_score" => {
             let (left, right) = vector_operands(function, &args)?;
-            Ok(Value::Float64(1.0 / (1.0 + crate::vector::l2_distance(&left, &right))))
+            Ok(Value::Float64(
+                1.0 / (1.0 + crate::vector::l2_distance(&left, &right)),
+            ))
         }
         "cosine_distance" => {
             let (left, right) = vector_operands(function, &args)?;
-            Ok(Value::Float64(crate::vector::cosine_distance(&left, &right)))
+            Ok(Value::Float64(crate::vector::cosine_distance(
+                &left, &right,
+            )))
         }
         "dot_product" => {
             let (left, right) = vector_operands(function, &args)?;
@@ -478,7 +482,9 @@ fn evaluate_function(
             let terms = crate::search::tokenizer::tokenize(&query);
             Ok(Value::String(crate::search::snippet(&source, &terms)))
         }
-        _ => Ok(Value::Null),
+        _ => Err(QueryError::General(format!(
+            "unsupported function '{name}'",
+        ))),
     }
 }
 

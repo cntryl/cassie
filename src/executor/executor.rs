@@ -4,7 +4,7 @@ use crate::planner::physical::PhysicalPlan;
 use crate::types::Value;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct ColumnMeta {
     pub name: String,
     pub data_type: String,

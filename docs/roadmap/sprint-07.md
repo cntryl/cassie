@@ -1,6 +1,6 @@
 # Sprint 07 - Schema Objects and DDL Compatibility
 
-Previous: [Sprint 06 - Common Table Expressions](sprint-06.md)  
+Previous: [Sprint 06 - Common Table Expressions](completed/sprint-06.md)  
 Next: [Sprint 08 - Indexes and Constraints](sprint-08.md)
 
 ## Goal
@@ -54,4 +54,3 @@ Add PostgreSQL-compatible schema object handling for Cassie's V1 catalog so prac
 ## Exit Gate
 
 This sprint is complete when schema object DDL is covered by validator-clean tests, targeted DDL tests pass, `cargo build` passes, and Clippy is clean with warnings denied.
-

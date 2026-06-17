@@ -1,7 +1,7 @@
 # Sprint 07 - Schema Objects and DDL Compatibility
 
-Previous: [Sprint 06 - Common Table Expressions](completed/sprint-06.md)  
-Next: [Sprint 08 - Indexes and Constraints](completed/sprint-08.md)
+Previous: [Sprint 06 - Common Table Expressions](sprint-06.md)  
+Next: [Sprint 08 - Indexes and Constraints](sprint-08.md)
 
 ## Goal
 

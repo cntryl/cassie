@@ -1,7 +1,7 @@
 # Sprint 06 - Common Table Expressions
 
 Previous: [Sprint 05 - Executor Semantics and Query Result Contract](sprint-05.md)  
-Next: [Sprint 07 - Schema Objects and DDL Compatibility](../sprint-07.md)
+Next: [Sprint 07 - Schema Objects and DDL Compatibility](sprint-07.md)
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Sprint 08 - Indexes and Constraints
 
-Previous: [Sprint 07 - Schema Objects and DDL Compatibility](../sprint-07.md)  
+Previous: [Sprint 07 - Schema Objects and DDL Compatibility](sprint-07.md)  
 Next: [Sprint 09 - UDFs and Stored Procedures](../sprint-09.md)
 
 ## Goal

@@ -718,6 +718,10 @@ fn evaluate_function<R: RowAccess + ?Sized>(
     local_args: Option<&HashMap<String, Value>>,
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
+    if name == "coalesce" {
+        return evaluate_coalesce(function, row, params, search_context, user_functions, session, local_args);
+    }
+
     let args: Vec<Value> = function
         .args
         .iter()
@@ -766,6 +770,100 @@ fn evaluate_function<R: RowAccess + ?Sized>(
                     .map(|session| session.user.clone())
                     .unwrap_or_else(|| "postgres".to_string()),
             ))
+        }
+        "length" | "len" => {
+            if args.len() != 1 {
+                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+            }
+            let text = text_arg(&name, &args[0])?;
+            match text {
+                Some(text) => Ok(Value::Int64(text.chars().count() as i64)),
+                None => Ok(Value::Null),
+            }
+        }
+        "lower" => {
+            if args.len() != 1 {
+                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+            }
+            let text = text_arg(&name, &args[0])?;
+            match text {
+                Some(text) => Ok(Value::String(text.to_lowercase())),
+                None => Ok(Value::Null),
+            }
+        }
+        "upper" => {
+            if args.len() != 1 {
+                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+            }
+            let text = text_arg(&name, &args[0])?;
+            match text {
+                Some(text) => Ok(Value::String(text.to_uppercase())),
+                None => Ok(Value::Null),
+            }
+        }
+        "trim" => {
+            if args.len() != 1 {
+                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+            }
+            let text = text_arg(&name, &args[0])?;
+            match text {
+                Some(text) => Ok(Value::String(text.trim().to_string())),
+                None => Ok(Value::Null),
+            }
+        }
+        "substring" => {
+            if !(2..=3).contains(&args.len()) {
+                return Err(QueryError::General(format!(
+                    "{} requires 2 or 3 args, got {}",
+                    name,
+                    args.len()
+                )));
+            }
+            let text = text_arg(&name, &args[0])?;
+            let Some(text) = text else {
+                return Ok(Value::Null);
+            };
+            let Some(start) = integer_arg(&name, &args[1])? else {
+                return Ok(Value::Null);
+            };
+            let length = if args.len() == 3 {
+                match integer_arg(&name, &args[2])? {
+                    Some(length) => Some(length),
+                    None => return Ok(Value::Null),
+                }
+            } else {
+                None
+            };
+            Ok(Value::String(substring_text(&text, start, length)))
+        }
+        "concat" => {
+            if args.is_empty() {
+                return Err(QueryError::General(format!(
+                    "{} requires at least 1 arg",
+                    name
+                )));
+            }
+            let mut out = String::new();
+            for arg in &args {
+                if !matches!(arg, Value::Null) {
+                    out.push_str(&to_text(arg));
+                }
+            }
+            Ok(Value::String(out))
+        }
+        "abs" => {
+            if args.len() != 1 {
+                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+            }
+            match &args[0] {
+                Value::Null => Ok(Value::Null),
+                Value::Int64(v) => Ok(Value::Int64(v.checked_abs().unwrap_or(i64::MAX))),
+                Value::Float64(v) => Ok(Value::Float64(v.abs())),
+                _ => Err(QueryError::General(format!(
+                    "function '{}' expects a numeric input",
+                    name
+                ))),
+            }
         }
         "search" | "search_score" => {
             if args.len() != 2 {
@@ -895,6 +993,85 @@ fn evaluate_function<R: RowAccess + ?Sized>(
             .map(|value| value.to_value())
         }
     }
+}
+
+fn evaluate_coalesce<R: RowAccess + ?Sized>(
+    function: &FunctionCall,
+    row: &R,
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+    local_args: Option<&HashMap<String, Value>>,
+) -> Result<Value, QueryError> {
+    if function.args.is_empty() {
+        return Err(QueryError::General(
+            "coalesce requires at least 1 arg".to_string(),
+        ));
+    }
+
+    for arg in &function.args {
+        let value = evaluate_expr_value(
+            row,
+            arg,
+            params,
+            search_context,
+            user_functions,
+            session,
+            local_args,
+        )?;
+        if !matches!(value, Value::Null) {
+            return Ok(value);
+        }
+    }
+
+    Ok(Value::Null)
+}
+
+fn text_arg(name: &str, value: &Value) -> Result<Option<String>, QueryError> {
+    match value {
+        Value::Null => Ok(None),
+        Value::String(text) => Ok(Some(text.clone())),
+        _ => Err(QueryError::General(format!(
+            "function '{}' expects text input",
+            name
+        ))),
+    }
+}
+
+fn integer_arg(name: &str, value: &Value) -> Result<Option<usize>, QueryError> {
+    match value {
+        Value::Null => Ok(None),
+        Value::Int64(value) if *value >= 0 => Ok(Some(*value as usize)),
+        Value::Float64(value)
+            if value.is_finite() && *value >= 0.0 && value.fract().abs() < f64::EPSILON =>
+        {
+            Ok(Some(*value as usize))
+        }
+        _ => Err(QueryError::General(format!(
+            "function '{}' expects a non-negative integer input",
+            name
+        ))),
+    }
+}
+
+fn substring_text(value: &str, start: usize, length: Option<usize>) -> String {
+    let chars = value.chars().collect::<Vec<_>>();
+    if chars.is_empty() {
+        return String::new();
+    }
+
+    let start_index = start.max(1).saturating_sub(1);
+    if start_index >= chars.len() {
+        return String::new();
+    }
+
+    let end_index = match length {
+        Some(length) => start_index.saturating_add(length).min(chars.len()),
+        None => chars.len(),
+    };
+
+    chars[start_index..end_index].iter().collect()
 }
 
 fn scalar_to_f64(value: &Value) -> f64 {

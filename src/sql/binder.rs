@@ -1648,7 +1648,7 @@ fn infer_projection_schema(
                     .to_string();
                 fields.push(FieldSchema {
                     name: output_name,
-                    data_type: infer_function_return_type(&function.name, user_functions)
+                    data_type: infer_function_return_type(function, source_schema, user_functions)
                         .unwrap_or(DataType::Text),
                     nullable: true,
                 });
@@ -1668,21 +1668,53 @@ fn schema_field_type(schema: &Schema, name: &str) -> Option<DataType> {
 }
 
 fn infer_function_return_type(
-    name: &str,
+    function: &FunctionCall,
+    source_schema: &Schema,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
 ) -> Option<DataType> {
-    if let Some(metadata) = user_functions.get(&name.to_ascii_lowercase()) {
+    let name = function.name.to_ascii_lowercase();
+    if let Some(metadata) = user_functions.get(&name) {
         return Some(metadata.return_type.clone());
     }
 
-    match name.to_ascii_lowercase().as_str() {
+    match name.as_str() {
         "count" => Some(DataType::Int),
         "sum" | "avg" => Some(DataType::Float),
         "min" | "max" => Some(DataType::Text),
+        "length" | "len" => Some(DataType::Int),
+        "lower" | "upper" | "substring" | "trim" | "concat" => Some(DataType::Text),
+        "coalesce" => function
+            .args
+            .iter()
+            .find_map(|arg| infer_expr_type(arg, source_schema))
+            .filter(|data_type| !matches!(data_type, DataType::Null))
+            .or(Some(DataType::Text)),
+        "abs" => function
+            .args
+            .first()
+            .and_then(|expr| infer_expr_type(expr, source_schema))
+            .map(|data_type| match data_type {
+                DataType::Int => DataType::Int,
+                DataType::Float => DataType::Float,
+                _ => DataType::Float,
+            })
+            .or(Some(DataType::Float)),
         "search" | "search_score" | "vector_distance" | "vector_score" | "cosine_distance"
         | "dot_product" | "hybrid_score" => Some(DataType::Float),
         "snippet" | "version" | "current_schema" | "current_database" | "current_user"
         | "session_user" | "current_role" => Some(DataType::Text),
+        _ => None,
+    }
+}
+
+fn infer_expr_type(expr: &Expr, source_schema: &Schema) -> Option<DataType> {
+    match expr {
+        Expr::Column(name) => schema_field_type(source_schema, name),
+        Expr::Cast { data_type, .. } => Some(data_type.clone()),
+        Expr::StringLiteral(_) => Some(DataType::Text),
+        Expr::NumberLiteral(_) => Some(DataType::Float),
+        Expr::BoolLiteral(_) => Some(DataType::Boolean),
+        Expr::Null => Some(DataType::Null),
         _ => None,
     }
 }
@@ -1830,7 +1862,10 @@ async fn validate_functions(
         .collect::<HashMap<_, _>>();
 
     for function in catalog.list_functions().await {
-        signatures.insert(function.name.to_ascii_lowercase(), function.args.len());
+        signatures.insert(
+            function.name.to_ascii_lowercase(),
+            crate::sql::functions::FunctionArity::Exact(function.args.len()),
+        );
     }
 
     let mut seen = Vec::new();
@@ -1863,11 +1898,11 @@ async fn validate_functions(
                 function.name
             )));
         };
-        if function.args.len() != *arity {
+        if !arity.matches(function.args.len()) {
             return Err(CassieError::Planner(format!(
-                "function '{}' expects {} args, got {}",
+                "function '{}' expects {}, got {}",
                 function.name,
-                arity,
+                arity.describe(),
                 function.args.len()
             )));
         }

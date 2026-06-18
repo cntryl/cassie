@@ -14,13 +14,46 @@ pub enum FunctionId {
     CurrentUser,
     SessionUser,
     CurrentRole,
+    Length,
+    Lower,
+    Upper,
+    Substring,
+    Trim,
+    Concat,
+    Coalesce,
+    Abs,
 }
 
 #[derive(Debug, Clone)]
 pub struct ScalarFunction {
     pub id: FunctionId,
     pub name: &'static str,
-    pub arity: usize,
+    pub arity: FunctionArity,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FunctionArity {
+    Exact(usize),
+    AtLeast(usize),
+    Range { min: usize, max: usize },
+}
+
+impl FunctionArity {
+    pub fn matches(self, actual: usize) -> bool {
+        match self {
+            FunctionArity::Exact(expected) => actual == expected,
+            FunctionArity::AtLeast(min) => actual >= min,
+            FunctionArity::Range { min, max } => (min..=max).contains(&actual),
+        }
+    }
+
+    pub fn describe(self) -> String {
+        match self {
+            FunctionArity::Exact(expected) => format!("{expected} args"),
+            FunctionArity::AtLeast(min) => format!("at least {min} args"),
+            FunctionArity::Range { min, max } => format!("{min} to {max} args"),
+        }
+    }
 }
 
 pub fn is_aggregate_function(name: &str) -> bool {
@@ -39,72 +72,117 @@ pub fn registry() -> Vec<ScalarFunction> {
         ScalarFunction {
             id: FunctionId::Search,
             name: "search",
-            arity: 2,
+            arity: FunctionArity::Exact(2),
         },
         ScalarFunction {
             id: FunctionId::SearchScore,
             name: "search_score",
-            arity: 2,
+            arity: FunctionArity::Exact(2),
         },
         ScalarFunction {
             id: FunctionId::VectorDistance,
             name: "vector_distance",
-            arity: 2,
+            arity: FunctionArity::Exact(2),
         },
         ScalarFunction {
             id: FunctionId::VectorScore,
             name: "vector_score",
-            arity: 2,
+            arity: FunctionArity::Exact(2),
         },
         ScalarFunction {
             id: FunctionId::CosineDistance,
             name: "cosine_distance",
-            arity: 2,
+            arity: FunctionArity::Exact(2),
         },
         ScalarFunction {
             id: FunctionId::DotProduct,
             name: "dot_product",
-            arity: 2,
+            arity: FunctionArity::Exact(2),
         },
         ScalarFunction {
             id: FunctionId::HybridScore,
             name: "hybrid_score",
-            arity: 2,
+            arity: FunctionArity::Exact(2),
         },
         ScalarFunction {
             id: FunctionId::Snippet,
             name: "snippet",
-            arity: 2,
+            arity: FunctionArity::Exact(2),
         },
         ScalarFunction {
             id: FunctionId::Version,
             name: "version",
-            arity: 0,
+            arity: FunctionArity::Exact(0),
         },
         ScalarFunction {
             id: FunctionId::CurrentSchema,
             name: "current_schema",
-            arity: 0,
+            arity: FunctionArity::Exact(0),
         },
         ScalarFunction {
             id: FunctionId::CurrentDatabase,
             name: "current_database",
-            arity: 0,
+            arity: FunctionArity::Exact(0),
         },
         ScalarFunction {
             id: FunctionId::CurrentUser,
             name: "current_user",
-            arity: 0,
+            arity: FunctionArity::Exact(0),
         },
         ScalarFunction {
             id: FunctionId::SessionUser,
             name: "session_user",
-            arity: 0,
+            arity: FunctionArity::Exact(0),
         },
         ScalarFunction {
             id: FunctionId::CurrentRole,
             name: "current_role",
-            arity: 0,
+            arity: FunctionArity::Exact(0),
+        },
+        ScalarFunction {
+            id: FunctionId::Length,
+            name: "length",
+            arity: FunctionArity::Exact(1),
+        },
+        ScalarFunction {
+            id: FunctionId::Length,
+            name: "len",
+            arity: FunctionArity::Exact(1),
+        },
+        ScalarFunction {
+            id: FunctionId::Lower,
+            name: "lower",
+            arity: FunctionArity::Exact(1),
+        },
+        ScalarFunction {
+            id: FunctionId::Upper,
+            name: "upper",
+            arity: FunctionArity::Exact(1),
+        },
+        ScalarFunction {
+            id: FunctionId::Substring,
+            name: "substring",
+            arity: FunctionArity::Range { min: 2, max: 3 },
+        },
+        ScalarFunction {
+            id: FunctionId::Trim,
+            name: "trim",
+            arity: FunctionArity::Exact(1),
+        },
+        ScalarFunction {
+            id: FunctionId::Concat,
+            name: "concat",
+            arity: FunctionArity::AtLeast(1),
+        },
+        ScalarFunction {
+            id: FunctionId::Coalesce,
+            name: "coalesce",
+            arity: FunctionArity::AtLeast(1),
+        },
+        ScalarFunction {
+            id: FunctionId::Abs,
+            name: "abs",
+            arity: FunctionArity::Exact(1),
         },
     ]
 }

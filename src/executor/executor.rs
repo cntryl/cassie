@@ -1624,7 +1624,9 @@ fn execute_query_source<'a>(
     Box::pin(async move {
         match source {
             QuerySource::Collection(name) => {
-                if let Some(rows) = virtual_views::rows(&env.cassie.catalog, name).await {
+                if let Some(rows) =
+                    virtual_views::rows(&env.cassie.catalog, &env.cassie.auth_user, name).await
+                {
                     let mut batches = materialize_virtual_rows(rows);
                     if qualify {
                         batches = qualify_batches(batches, name);

@@ -6,6 +6,7 @@ use std::time::Instant;
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::{
+    body::Incoming,
     header::{HeaderValue, CONTENT_TYPE},
     server::conn::http1,
     service::service_fn,
@@ -46,10 +47,10 @@ pub async fn run(addr: String, cassie: Cassie) -> Result<(), crate::app::CassieE
 }
 
 type RestBody = Full<Bytes>;
-type RestRequestBody = hyper::body::Incoming;
+const AUTH_TOKEN_PREFIX: &str = "Bearer ";
 
 async fn route(
-    request: Request<RestRequestBody>,
+    request: Request<hyper::body::Incoming>,
     cassie: Arc<Cassie>,
 ) -> Result<Response<RestBody>, Infallible> {
     let response = match route_request(request, cassie).await {
@@ -114,8 +115,8 @@ fn record_rest_error(
     mapped
 }
 
-async fn route_request(
-    request: Request<RestRequestBody>,
+pub async fn route_request(
+    request: Request<Incoming>,
     cassie: Arc<Cassie>,
 ) -> Result<Response<RestBody>, (StatusCode, String)> {
     let method = request.method().clone();
@@ -127,6 +128,17 @@ async fn route_request(
     };
     let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     let started_at = Instant::now();
+    if !is_route_public(&method, segments.as_slice())
+        && !is_rest_request_authorized(request.headers(), &cassie.auth_password)
+    {
+        cassie.runtime.record_rest_request(
+            method.as_str(),
+            &path,
+            StatusCode::UNAUTHORIZED.as_u16(),
+            started_at.elapsed(),
+        );
+        return Err((StatusCode::UNAUTHORIZED, "unauthorized".to_string()));
+    }
     let body: RestBytes = request
         .into_body()
         .collect()
@@ -225,4 +237,26 @@ async fn route_request(
     );
 
     Ok(response)
+}
+
+fn is_route_public(method: &Method, segments: &[&str]) -> bool {
+    matches!(
+        (method, segments),
+        (&Method::GET, ["health"]) | (&Method::GET, ["metrics"])
+    )
+}
+
+fn is_rest_request_authorized(headers: &hyper::HeaderMap, expected_password: &str) -> bool {
+    if expected_password.is_empty() {
+        return true;
+    }
+
+    let Some(raw) = headers
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+    else {
+        return false;
+    };
+
+    raw.starts_with(AUTH_TOKEN_PREFIX) && raw[AUTH_TOKEN_PREFIX.len()..].trim() == expected_password
 }

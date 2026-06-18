@@ -189,6 +189,8 @@ pub struct Cassie {
     pub embedding_provider: Arc<dyn EmbeddingProvider>,
     pub(crate) runtime: Arc<RuntimeState>,
     pub(crate) auth_user: String,
+    pub(crate) auth_password: String,
+    pub(crate) default_database: String,
     pub started: Arc<AtomicBool>,
 }
 
@@ -256,12 +258,16 @@ impl Cassie {
         let embedding_provider = build_embedding_provider(&runtime_config)?;
         let runtime = Arc::new(RuntimeState::new(runtime_config.limits.clone()));
         let auth_user = runtime_config.user.clone();
+        let auth_password = runtime_config.password.clone();
+        let default_database = runtime_config.database.clone();
         Ok(Self {
             midge,
             catalog: Catalog::new(),
             embedding_provider,
             runtime,
             auth_user,
+            auth_password,
+            default_database,
             started: Arc::new(AtomicBool::new(false)),
         })
     }
@@ -1350,6 +1356,7 @@ impl Cassie {
     }
 
     pub async fn create_session(&self, user: &str, database: Option<String>) -> CassieSession {
+        let database = database.or_else(|| Some(self.default_database.clone()));
         CassieSession::new(user.to_string(), database)
     }
 

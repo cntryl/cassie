@@ -31,6 +31,8 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         parse_transaction_statement(trimmed)
     } else if is_unsupported_transaction_control_statement(&lower) {
         Err(SqlError("unsupported transaction control statement".into()))
+    } else if let Some(message) = unsupported_privilege_statement(&lower) {
+        Err(SqlError(message.to_string()))
     } else if lower.starts_with("create function ") || lower == "create function" {
         parse_create_function_statement(trimmed)
     } else if lower.starts_with("create procedure ") || lower == "create procedure" {
@@ -76,6 +78,49 @@ fn is_transaction_control_statement(lower: &str) -> bool {
         || lower.starts_with("commit ")
         || lower == "rollback"
         || lower.starts_with("rollback ")
+}
+
+fn unsupported_privilege_statement(lower: &str) -> Option<&'static str> {
+    if lower == "create role" || lower.starts_with("create role ") {
+        return Some("CREATE ROLE is not supported in this version");
+    }
+    if lower == "create user" || lower.starts_with("create user ") {
+        return Some("CREATE USER is not supported in this version");
+    }
+    if lower == "drop role" || lower.starts_with("drop role ") {
+        return Some("DROP ROLE is not supported in this version");
+    }
+    if lower == "drop user" || lower.starts_with("drop user ") {
+        return Some("DROP USER is not supported in this version");
+    }
+    if lower == "alter role" || lower.starts_with("alter role ") {
+        return Some("ALTER ROLE is not supported in this version");
+    }
+    if lower == "grant" || lower.starts_with("grant ") {
+        return Some("GRANT is not supported in this version");
+    }
+    if lower == "revoke" || lower.starts_with("revoke ") {
+        return Some("REVOKE is not supported in this version");
+    }
+    if lower == "create policy" || lower.starts_with("create policy ") {
+        return Some("ROW-LEVEL SECURITY policies are not supported in this version");
+    }
+    if lower == "alter policy" || lower.starts_with("alter policy ") {
+        return Some("ROW-LEVEL SECURITY policies are not supported in this version");
+    }
+    if lower == "drop policy" || lower.starts_with("drop policy ") {
+        return Some("ROW-LEVEL SECURITY policies are not supported in this version");
+    }
+    if lower == "alter table"
+        || lower.starts_with("alter table ")
+            && (lower.contains(" row level security") || lower.contains("row level security "))
+    {
+        return Some("ROW-LEVEL SECURITY is not supported in this version");
+    }
+    if lower == "set row level security" || lower.starts_with("set row level security ") {
+        return Some("ROW-LEVEL SECURITY is not supported in this version");
+    }
+    None
 }
 
 fn is_unsupported_transaction_control_statement(lower: &str) -> bool {
@@ -200,6 +245,17 @@ fn parse_set_statement(trimmed: &str) -> Result<ParsedStatement, SqlError> {
         return Err(SqlError("invalid SET statement".into()));
     }
 
+    let variable_lower = variable.to_lowercase();
+    if variable_lower == "role"
+        || variable_lower.starts_with("role ")
+        || variable_lower == "session authorization"
+        || variable_lower.starts_with("session authorization ")
+    {
+        return Err(SqlError(
+            "SET ROLE and SET SESSION AUTHORIZATION are not supported in this version".into(),
+        ));
+    }
+
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::Set(SetStatement {
@@ -212,6 +268,11 @@ fn parse_set_statement(trimmed: &str) -> Result<ParsedStatement, SqlError> {
 fn parse_create_function_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[15..].trim();
+    if rest.to_lowercase().contains("security definer") {
+        return Err(SqlError(
+            "SECURITY DEFINER is not supported in this version".into(),
+        ));
+    }
 
     let (if_not_exists, rest) = parse_if_not_exists(rest)?;
 
@@ -259,6 +320,11 @@ fn parse_create_function_statement(sql: &str) -> Result<ParsedStatement, SqlErro
 fn parse_create_procedure_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[16..].trim();
+    if rest.to_lowercase().contains("security definer") {
+        return Err(SqlError(
+            "SECURITY DEFINER is not supported in this version".into(),
+        ));
+    }
 
     let (if_not_exists, rest) = parse_if_not_exists(rest)?;
 

@@ -285,6 +285,42 @@ fn should_parse_vector_function_argument_with_commas() {
 }
 
 #[test]
+fn should_reject_privilege_sql_statements() {
+    // Arrange
+    let statements = [
+        "CREATE ROLE analytics",
+        "DROP USER reporter",
+        "GRANT SELECT ON table TO public",
+        "REVOKE ALL ON table FROM public",
+        "CREATE POLICY tenant_policy ON docs USING (tenant_id = current_user)",
+        "ALTER TABLE docs ENABLE ROW LEVEL SECURITY",
+    ];
+
+    for statement in statements {
+        // Act
+        let result = parse_statement(statement);
+
+        // Assert
+        assert!(
+            result.is_err(),
+            "expected unsupported statement: {statement}"
+        );
+    }
+}
+
+#[test]
+fn should_reject_set_role_sql() {
+    // Arrange
+    let statement = "SET ROLE analytics";
+
+    // Act
+    let result = parse_statement(statement);
+
+    // Assert
+    assert!(result.is_err(), "SET ROLE should be rejected");
+}
+
+#[test]
 fn should_parse_pgvector_l2_ordering() {
     // Arrange
     let sql = "SELECT * FROM docs ORDER BY embedding <-> $1 LIMIT 5";

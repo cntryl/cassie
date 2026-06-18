@@ -11,6 +11,9 @@ pub enum FunctionId {
     Version,
     CurrentSchema,
     CurrentDatabase,
+    CurrentUser,
+    SessionUser,
+    CurrentRole,
 }
 
 #[derive(Debug, Clone)]
@@ -86,6 +89,21 @@ pub fn registry() -> Vec<ScalarFunction> {
         ScalarFunction {
             id: FunctionId::CurrentDatabase,
             name: "current_database",
+            arity: 0,
+        },
+        ScalarFunction {
+            id: FunctionId::CurrentUser,
+            name: "current_user",
+            arity: 0,
+        },
+        ScalarFunction {
+            id: FunctionId::SessionUser,
+            name: "session_user",
+            arity: 0,
+        },
+        ScalarFunction {
+            id: FunctionId::CurrentRole,
+            name: "current_role",
             arity: 0,
         },
     ]

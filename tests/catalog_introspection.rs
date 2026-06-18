@@ -24,7 +24,14 @@ fn should_list_user_tables_through_information_schema() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = Cassie::new_with_data_dir_and_config(
+            &path,
+            cassie::config::CassieRuntimeConfig {
+                user: "postgres".to_string(),
+                ..cassie::config::CassieRuntimeConfig::default()
+            },
+        )
+        .unwrap();
         cassie.startup().await.unwrap();
         let session = cassie.create_session("tester", None).await;
         cassie
@@ -67,7 +74,14 @@ fn should_list_columns_through_information_schema_after_restart() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = Cassie::new_with_data_dir_and_config(
+            &path,
+            cassie::config::CassieRuntimeConfig {
+                user: "postgres".to_string(),
+                ..cassie::config::CassieRuntimeConfig::default()
+            },
+        )
+        .unwrap();
         cassie.startup().await.unwrap();
         let session = cassie.create_session("tester", None).await;
         cassie
@@ -255,7 +269,7 @@ fn should_list_constraints_through_information_schema() {
 }
 
 #[test]
-fn should_return_empty_rows_for_unimplemented_pg_catalog_view() {
+fn should_return_admin_role_for_pg_roles_catalog_view() {
     // Arrange
     with_fallback();
     let path = data_dir("empty_pg_roles");
@@ -276,7 +290,10 @@ fn should_return_empty_rows_for_unimplemented_pg_catalog_view() {
             .unwrap();
 
         // Assert
-        assert!(selected.rows.is_empty());
+        assert_eq!(
+            selected.rows,
+            vec![vec![Value::String("postgres".to_string())]]
+        );
 
         let _ = std::fs::remove_dir_all(path);
     });

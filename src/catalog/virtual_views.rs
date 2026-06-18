@@ -60,7 +60,7 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
     Some(fields)
 }
 
-pub async fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
+pub async fn rows(catalog: &Catalog, admin_role: &str, name: &str) -> Option<Vec<VirtualRow>> {
     let name = normalize_name(name);
     let rows = match name.as_str() {
         "information_schema.tables" => information_schema_tables(catalog).await,
@@ -75,7 +75,10 @@ pub async fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
         "pg_catalog.pg_indexes" => pg_indexes(catalog).await,
         "pg_catalog.pg_constraint" => pg_constraint(catalog).await,
         "pg_catalog.pg_type" => pg_type(catalog),
-        "pg_catalog.pg_roles" => Vec::new(),
+        "pg_catalog.pg_roles" => vec![vec![(
+            "rolname".to_string(),
+            Value::String(admin_role.to_string()),
+        )]],
         _ => return None,
     };
     Some(rows)

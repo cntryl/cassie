@@ -21,6 +21,7 @@ const DEFAULT_STATEMENT: &str = "_pstmt_";
 struct SessionState {
     session: Option<CassieSession>,
     startup_user: Option<String>,
+    startup_database: Option<String>,
     authenticated: bool,
     ready: ReadyState,
     prepared: HashMap<String, PreparedStatement>,
@@ -32,6 +33,7 @@ impl SessionState {
         Self {
             session: None,
             startup_user: None,
+            startup_database: None,
             authenticated: false,
             ready: ReadyState::InTransaction,
             prepared: HashMap::new(),
@@ -77,9 +79,11 @@ pub async fn run_connection(
             ClientMessage::Startup { user, database } => {
                 runtime.record_pgwire_message("startup");
                 state.startup_user = Some(user.clone());
+                state.startup_database = database.clone();
                 if config.password.is_empty() {
                     state.authenticated = true;
-                    state.session = Some(CassieSession::new(user.clone(), database.clone()));
+                    let session = cassie.create_session(user, database.clone()).await;
+                    state.session = Some(session);
                     state.ready = ReadyState::Idle;
                     runtime.record_pgwire_auth_ok();
                     response.push(ServerMessage::AuthenticationOk);
@@ -104,7 +108,10 @@ pub async fn run_connection(
                 .is_ok()
                 {
                     state.authenticated = true;
-                    state.session = Some(CassieSession::new(auth_user.to_string(), None));
+                    let session = cassie
+                        .create_session(auth_user, state.startup_database.clone())
+                        .await;
+                    state.session = Some(session);
                     state.ready = ReadyState::Idle;
                     runtime.record_pgwire_auth_ok();
                     response.push(ServerMessage::AuthenticationOk);

@@ -7,6 +7,7 @@ pub struct CassieRuntimeConfig {
     pub pgwire_listen: String,
     pub rest_listen: String,
     pub user: String,
+    pub database: String,
     pub password: String,
     pub limits: CassieRuntimeLimits,
     pub embeddings: EmbeddingsRuntimeConfig,
@@ -45,6 +46,7 @@ impl Default for CassieRuntimeConfig {
             pgwire_listen: "127.0.0.1:5432".to_string(),
             rest_listen: "127.0.0.1:8080".to_string(),
             user: "postgres".to_string(),
+            database: "postgres".to_string(),
             password: "postgres".to_string(),
             limits: CassieRuntimeLimits::default(),
             embeddings: EmbeddingsRuntimeConfig::Disabled,
@@ -91,7 +93,13 @@ impl CassieRuntimeConfig {
         if let Ok(v) = env::var("CASSIE_PGWIRE_USER") {
             config.user = v;
         }
-        if let Ok(v) = env::var("CASSIE_PGWIRE_PASSWORD") {
+        if let Ok(v) = env::var("CASSIE_PGWIRE_DATABASE") {
+            config.database = v;
+        }
+
+        if let Some(v) = read_password_from_file() {
+            config.password = v;
+        } else if let Ok(v) = env::var("CASSIE_PGWIRE_PASSWORD") {
             config.password = v;
         }
 
@@ -116,6 +124,12 @@ impl CassieRuntimeConfig {
 
         config
     }
+}
+
+fn read_password_from_file() -> Option<String> {
+    let path = env::var("CASSIE_PGWIRE_PASSWORD_FILE").ok()?;
+    let value = std::fs::read_to_string(path).ok()?;
+    Some(value.trim().to_string())
 }
 
 fn parse_provider_config(provider: &str) -> EmbeddingsRuntimeConfig {

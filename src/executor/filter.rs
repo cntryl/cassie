@@ -757,6 +757,16 @@ fn evaluate_function<R: RowAccess + ?Sized>(
                     .unwrap_or_default(),
             ))
         }
+        "current_user" | "session_user" | "current_role" => {
+            if !args.is_empty() {
+                return Err(QueryError::General(format!("{} requires 0 args", name)));
+            }
+            Ok(Value::String(
+                session
+                    .map(|session| session.user.clone())
+                    .unwrap_or_else(|| "postgres".to_string()),
+            ))
+        }
         "search" | "search_score" => {
             if args.len() != 2 {
                 return Err(QueryError::General(format!("{} requires 2 args", name)));

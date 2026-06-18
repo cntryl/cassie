@@ -4,8 +4,8 @@ use crate::sql::ast::{
     CommonTableExpression, CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
     CreateSchemaStatement, CreateTableStatement, CteQuery, DropFunctionStatement,
     DropIndexStatement, DropProcedureStatement, DropTableStatement, Expr, FieldDefinition,
-    FunctionArg, FunctionCall, InsertSource, NullsOrder, OrderExpr, ParsedStatement, QuerySource,
-    QueryStatement, SelectItem, SelectStatement, SortDirection, TransactionAction,
+    FunctionArg, FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement,
+    QuerySource, QueryStatement, SelectItem, SelectStatement, SortDirection, TransactionAction,
     TransactionIsolation, TransactionStatement, Volatility,
 };
 use crate::types::DataType;
@@ -694,7 +694,7 @@ fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
             statement: QueryStatement::Insert(crate::sql::ast::InsertStatement {
                 table,
                 columns,
-                source: InsertSource::Select(select),
+                source: InsertSource::Select(Box::new(select)),
                 returning: Vec::new(),
             }),
         });
@@ -710,7 +710,7 @@ fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         statement: QueryStatement::Insert(crate::sql::ast::InsertStatement {
             table,
             columns,
-            source: InsertSource::Select(select),
+            source: InsertSource::Select(Box::new(select)),
             returning,
         }),
     })
@@ -959,6 +959,97 @@ fn parse_projection_items(raw: &str) -> Result<Vec<crate::sql::ast::SelectItem>,
     }
 
     Ok(projection)
+}
+
+fn parse_query_source(raw: &str) -> Result<QuerySource, SqlError> {
+    let raw = raw.trim();
+    let lower = raw.to_lowercase();
+    for unsupported in [" full join ", " right join ", " cross join ", " lateral "] {
+        if lower.contains(unsupported) {
+            return Err(SqlError("unsupported JOIN syntax".into()));
+        }
+    }
+
+    if let Some((left, right)) = split_top_level(raw, " left join ") {
+        return parse_join_source(left, right, JoinKind::Left);
+    }
+    if let Some((left, right)) = split_top_level(raw, " join ") {
+        return parse_join_source(left, right, JoinKind::Inner);
+    }
+
+    parse_single_query_source(raw)
+}
+
+fn parse_join_source(left: &str, right: &str, kind: JoinKind) -> Result<QuerySource, SqlError> {
+    let (right, on) = split_top_level(right, " on ")
+        .ok_or_else(|| SqlError("JOIN requires ON predicate".into()))?;
+    Ok(QuerySource::Join {
+        left: Box::new(parse_query_source(left)?),
+        right: Box::new(parse_query_source(right)?),
+        kind,
+        on: parse_expression(on)?,
+    })
+}
+
+fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlError> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err(SqlError("missing collection in FROM".into()));
+    }
+
+    if raw.starts_with('(') {
+        let close = matching_closing_paren(raw)
+            .ok_or_else(|| SqlError("invalid FROM subquery syntax".into()))?;
+        let subquery_sql = &raw[1..close];
+        let alias_raw = raw[close + 1..].trim();
+        let alias = alias_raw
+            .strip_prefix("AS ")
+            .or_else(|| alias_raw.strip_prefix("as "))
+            .unwrap_or(alias_raw)
+            .trim();
+        if alias.is_empty() || alias.split_whitespace().count() != 1 {
+            return Err(SqlError(
+                "FROM subquery requires a deterministic alias".into(),
+            ));
+        }
+
+        let parsed = parse_statement(subquery_sql)?;
+        let QueryStatement::Select(select) = parsed.statement else {
+            return Err(SqlError("FROM subquery must be a SELECT statement".into()));
+        };
+        return Ok(QuerySource::Subquery {
+            alias: alias.to_string(),
+            select: Box::new(select),
+        });
+    }
+
+    let tokens = split_csv_quoted_by_space(raw);
+    if tokens.len() != 1 {
+        return Err(SqlError("unsupported FROM syntax".into()));
+    }
+
+    Ok(QuerySource::Collection(tokens[0].trim().to_string()))
+}
+
+fn matching_closing_paren(raw: &str) -> Option<usize> {
+    let mut depth = 0i32;
+    let mut in_single = false;
+    let mut in_double = false;
+    for (index, ch) in raw.char_indices() {
+        match ch {
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            '(' if !in_single && !in_double => depth += 1,
+            ')' if !in_single && !in_double => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn parse_assignment_list(raw: &str) -> Result<Vec<(String, Expr)>, SqlError> {
@@ -1719,16 +1810,7 @@ fn parse_select_statement(
         }
     }
 
-    let from_tokens: Vec<&str> = split_csv_quoted_by_space(from_source);
-    if from_tokens.is_empty() {
-        return Err(SqlError("missing collection in FROM".into()));
-    }
-
-    if from_tokens.len() != 1 {
-        return Err(SqlError("unsupported FROM syntax".into()));
-    }
-
-    let source = from_tokens[0].trim().to_string();
+    let source = parse_query_source(from_source)?;
 
     let projection_tokens: Vec<&str> = split_csv(select_part);
     let mut projection = Vec::with_capacity(projection_tokens.len());
@@ -1765,7 +1847,7 @@ fn parse_select_statement(
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::Select(SelectStatement {
-            source: QuerySource::Collection(source),
+            source,
             ctes: withs,
             recursive,
             projection,
@@ -2358,7 +2440,6 @@ fn parse_clauses(rest: &str) -> Result<Vec<ClauseMatch>, SqlError> {
         ("union", ClauseToken::Unsupported("UNION")),
         ("intersect", ClauseToken::Unsupported("INTERSECT")),
         ("except", ClauseToken::Unsupported("EXCEPT")),
-        ("join", ClauseToken::Unsupported("JOIN")),
     ] {
         let mut cursor = 0;
         while let Some(position) = find_top_level_clause(rest, cursor, token.0) {

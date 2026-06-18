@@ -7,12 +7,12 @@ use crate::app::{Cassie, CassieSession};
 use crate::catalog;
 use crate::catalog::{CollectionSchema, FieldMeta, FunctionMeta, ProcedureMeta, Volatility};
 use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
-use crate::executor::batch::{self, BatchRow, RowAccess};
+use crate::executor::batch::{self, Batch, BatchRow, RowAccess};
 use crate::executor::{aggregate, filter, projection, scan, sort};
 use crate::planner::logical::{LogicalCommand, LogicalPlan};
 use crate::planner::physical::PhysicalPlan;
 use crate::runtime::QueryExecutionControls;
-use crate::sql::ast::{CommonTableExpression, CteQuery, Expr, InsertSource, QuerySource};
+use crate::sql::ast::{CommonTableExpression, CteQuery, Expr, InsertSource, JoinKind, QuerySource};
 use crate::types::{DataType, FieldSchema, Schema, Value};
 
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
@@ -37,6 +37,16 @@ type CteRows = Vec<Vec<(String, Value)>>;
 type CteContext = HashMap<String, CteRows>;
 type CteExecution<'a> = Pin<Box<dyn Future<Output = Result<CteRows, QueryError>> + Send + 'a>>;
 type ExprResolution<'a> = Pin<Box<dyn Future<Output = Result<Expr, QueryError>> + Send + 'a>>;
+type SourceExecution<'a> =
+    Pin<Box<dyn Future<Output = Result<(Vec<Batch>, Vec<String>), QueryError>> + Send + 'a>>;
+
+struct SourceExecutionEnv<'a> {
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    controls: &'a QueryExecutionControls,
+}
 
 pub async fn run(
     cassie: &Cassie,
@@ -647,6 +657,8 @@ async fn insert_source_rows(
                 source: select.source.clone(),
                 collection: match &select.source {
                     QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
+                    QuerySource::Subquery { alias, .. } => alias.clone(),
+                    QuerySource::Join { .. } => "join".to_string(),
                 },
                 ctes: select.ctes.clone(),
                 projection: select.projection.clone(),
@@ -1482,6 +1494,175 @@ fn build_logical_plan(
     Ok(plan)
 }
 
+fn execute_query_source<'a>(
+    env: &'a SourceExecutionEnv<'a>,
+    source: &'a QuerySource,
+    cte_context: &'a mut CteContext,
+    qualify: bool,
+) -> SourceExecution<'a> {
+    Box::pin(async move {
+        match source {
+            QuerySource::Collection(name) => {
+                let mut batches = scan::scan(env.cassie, env.session, name).await?;
+                if qualify {
+                    batches = qualify_batches(batches, name);
+                }
+                ensure_temp_budget(env.controls, &batches)?;
+                Ok((batches, env.cassie.catalog.text_fields(name).await))
+            }
+            QuerySource::Cte(name) => {
+                let key = name.to_ascii_lowercase();
+                let rows = cte_context.get(&key).cloned().ok_or_else(|| {
+                    QueryError::General(format!("relation '{name}' does not exist"))
+                })?;
+                let text_fields = deduce_text_fields(&rows);
+                let mut batches = batch::chunk_rows(
+                    rows.into_iter().map(BatchRow::new).collect::<Vec<_>>(),
+                    batch::DEFAULT_BATCH_SIZE,
+                );
+                if qualify {
+                    batches = qualify_batches(batches, name);
+                }
+                ensure_temp_budget(env.controls, &batches)?;
+                Ok((batches, text_fields))
+            }
+            QuerySource::Subquery { alias, select } => {
+                let logical = LogicalPlan {
+                    command: None,
+                    source: select.source.clone(),
+                    collection: alias.clone(),
+                    ctes: select.ctes.clone(),
+                    projection: select.projection.clone(),
+                    filter: select.filter.clone(),
+                    order: select.order.clone(),
+                    limit: select.limit,
+                    offset: select.offset,
+                };
+                let mut subquery_context = cte_context.clone();
+                let rows = execute_plan(
+                    env.cassie,
+                    env.session,
+                    &logical,
+                    &mut subquery_context,
+                    env.user_functions,
+                    env.params,
+                    env.controls,
+                )
+                .await?;
+                let text_fields = deduce_text_fields(
+                    &rows
+                        .iter()
+                        .map(|row| row.entries().to_vec())
+                        .collect::<Vec<_>>(),
+                );
+                let batches =
+                    qualify_batches(batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE), alias);
+                ensure_temp_budget(env.controls, &batches)?;
+                Ok((batches, text_fields))
+            }
+            QuerySource::Join {
+                left,
+                right,
+                kind,
+                on,
+            } => {
+                let (left_batches, _left_text) =
+                    execute_query_source(env, left, cte_context, true).await?;
+                let (right_batches, _right_text) =
+                    execute_query_source(env, right, cte_context, true).await?;
+                let left_rows = batch::flatten_batches(left_batches);
+                let right_rows = batch::flatten_batches(right_batches);
+                let right_columns = row_columns(&right_rows);
+                let mut joined = Vec::new();
+
+                for left_row in &left_rows {
+                    let mut matched = false;
+                    for right_row in &right_rows {
+                        let combined = combine_rows(left_row, right_row);
+                        if filter::eval_scalar(
+                            &combined,
+                            on,
+                            env.params,
+                            None,
+                            env.user_functions,
+                            None,
+                        )?
+                        .as_bool()
+                        {
+                            matched = true;
+                            joined.push(combined);
+                        }
+                    }
+
+                    if !matched && matches!(kind, JoinKind::Left) {
+                        joined.push(combine_row_with_nulls(left_row, &right_columns));
+                    }
+                }
+
+                let text_fields = deduce_text_fields(
+                    &joined
+                        .iter()
+                        .map(|row| row.entries().to_vec())
+                        .collect::<Vec<_>>(),
+                );
+                let batches = batch::chunk_rows(joined, batch::DEFAULT_BATCH_SIZE);
+                ensure_temp_budget(env.controls, &batches)?;
+                Ok((batches, text_fields))
+            }
+        }
+    })
+}
+
+fn qualify_batches(batches: Vec<Batch>, qualifier: &str) -> Vec<Batch> {
+    batches
+        .into_iter()
+        .map(|batch| {
+            batch
+                .into_iter()
+                .map(|row| qualify_row(row, qualifier))
+                .collect()
+        })
+        .collect()
+}
+
+fn qualify_row(row: BatchRow, qualifier: &str) -> BatchRow {
+    let qualifier = qualifier.to_ascii_lowercase();
+    let mut values = Vec::new();
+    for (name, value) in row.into_entries() {
+        values.push((name.clone(), value.clone()));
+        values.push((format!("{qualifier}.{name}"), value));
+    }
+    BatchRow::new(values)
+}
+
+fn combine_rows(left: &BatchRow, right: &BatchRow) -> BatchRow {
+    let mut values = left.entries().to_vec();
+    values.extend(right.entries().iter().cloned());
+    BatchRow::new(values)
+}
+
+fn combine_row_with_nulls(left: &BatchRow, right_columns: &[String]) -> BatchRow {
+    let mut values = left.entries().to_vec();
+    values.extend(
+        right_columns
+            .iter()
+            .map(|column| (column.clone(), Value::Null)),
+    );
+    BatchRow::new(values)
+}
+
+fn row_columns(rows: &[BatchRow]) -> Vec<String> {
+    let mut columns = Vec::new();
+    for row in rows {
+        for (column, _) in row.entries() {
+            if !columns.contains(column) {
+                columns.push(column.clone());
+            }
+        }
+    }
+    columns
+}
+
 async fn execute_source_query(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -1493,27 +1674,15 @@ async fn execute_source_query(
 ) -> Result<Vec<BatchRow>, QueryError> {
     check_timeout(controls)?;
     let started_at = Instant::now();
-    let (mut batches, text_fields) = match &plan.source {
-        QuerySource::Collection(name) => {
-            let batches = scan::scan(cassie, session, name).await?;
-            ensure_temp_budget(controls, &batches)?;
-            (batches, cassie.catalog.text_fields(name).await)
-        }
-        QuerySource::Cte(name) => {
-            let key = name.to_ascii_lowercase();
-            let rows = cte_context
-                .get(&key)
-                .cloned()
-                .ok_or_else(|| QueryError::General(format!("relation '{name}' does not exist")))?;
-            let text_fields = deduce_text_fields(&rows);
-            let batches = batch::chunk_rows(
-                rows.into_iter().map(BatchRow::new).collect::<Vec<_>>(),
-                batch::DEFAULT_BATCH_SIZE,
-            );
-            ensure_temp_budget(controls, &batches)?;
-            (batches, text_fields)
-        }
+    let env = SourceExecutionEnv {
+        cassie,
+        session,
+        user_functions,
+        params,
+        controls,
     };
+    let (mut batches, text_fields) =
+        execute_query_source(&env, &plan.source, cte_context, false).await?;
     let candidate_rows = batches.iter().map(|batch| batch.len()).sum::<usize>();
 
     let fulltext_fields = fulltext_query_fields(plan);

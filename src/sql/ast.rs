@@ -38,10 +38,38 @@ pub enum CteQuery {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum QuerySource {
     Collection(String),
     Cte(String),
+    Subquery {
+        alias: String,
+        select: Box<SelectStatement>,
+    },
+    Join {
+        left: Box<QuerySource>,
+        right: Box<QuerySource>,
+        kind: JoinKind,
+        on: Expr,
+    },
+}
+
+impl PartialEq for QuerySource {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Collection(left), Self::Collection(right)) => left == right,
+            (Self::Cte(left), Self::Cte(right)) => left == right,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for QuerySource {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JoinKind {
+    Inner,
+    Left,
 }
 
 #[derive(Debug, Clone)]
@@ -87,7 +115,7 @@ pub enum TransactionIsolation {
 #[derive(Debug, Clone)]
 pub enum InsertSource {
     Values(Vec<Expr>),
-    Select(SelectStatement),
+    Select(Box<SelectStatement>),
 }
 
 #[derive(Debug, Clone)]

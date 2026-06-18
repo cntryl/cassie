@@ -350,6 +350,8 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
 fn source_name(source: &QuerySource) -> String {
     match source {
         QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
+        QuerySource::Subquery { alias, .. } => alias.clone(),
+        QuerySource::Join { .. } => "join".to_string(),
     }
 }
 

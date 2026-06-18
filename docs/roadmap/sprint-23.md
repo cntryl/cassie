@@ -1,6 +1,6 @@
 # Sprint 23 - Aggregates, DISTINCT, and Set Operations
 
-Previous: [Sprint 22 - Joins and FROM Subqueries](sprint-22.md)
+Previous: [Sprint 22 - Joins and FROM Subqueries](completed/sprint-22.md)
 Next: [Sprint 24 - PostgreSQL Catalog Basics](sprint-24.md)
 
 ## Goal

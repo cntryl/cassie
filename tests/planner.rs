@@ -2,8 +2,8 @@ use cassie::app::CassieError;
 use cassie::catalog::Catalog;
 use cassie::planner::{logical, optimizer, physical, physical::Operator};
 use cassie::sql::ast::{
-    BinaryOp, Expr, InsertSource, ParsedStatement, QuerySource, QueryStatement, SelectItem,
-    SelectStatement, SortDirection,
+    BinaryOp, Expr, InsertSource, JoinKind, ParsedStatement, QuerySource, QueryStatement,
+    SelectItem, SelectStatement, SortDirection,
 };
 use cassie::sql::binder::BoundStatement;
 use cassie::sql::{binder, parser};
@@ -160,6 +160,44 @@ fn should_build_physical_operators_in_execution_order() {
         assert!(matches!(
             physical_plan.operators.get(5),
             Some(Operator::Limit)
+        ));
+    });
+}
+
+#[test]
+fn should_plan_join_source_with_physical_join_operator() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_join_left");
+    register_test_collection(&catalog, "planner_join_right");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT planner_join_left.title FROM planner_join_left JOIN planner_join_right ON planner_join_left.title = planner_join_right.title",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert_eq!(physical_plan.collection, "join");
+        assert!(matches!(
+            physical_plan.logical.source,
+            QuerySource::Join {
+                kind: JoinKind::Inner,
+                ..
+            }
+        ));
+        assert!(matches!(
+            physical_plan.operators.get(1),
+            Some(Operator::Join)
         ));
     });
 }

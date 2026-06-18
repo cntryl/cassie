@@ -212,8 +212,8 @@ async fn bind_insert(
     }
 
     if let InsertSource::Select(select) = statement.source {
-        let source = bind_select(select, catalog, &HashMap::new()).await?;
-        statement.source = InsertSource::Select(source);
+        let source = bind_select(*select, catalog, &HashMap::new()).await?;
+        statement.source = InsertSource::Select(Box::new(source));
     }
 
     for item in &statement.returning {
@@ -876,19 +876,7 @@ async fn bind_select(
         });
     }
 
-    let source_name = match &select.source {
-        QuerySource::Collection(name) | QuerySource::Cte(name) => name.to_string(),
-    };
-    let source_name_lc = source_name.to_ascii_lowercase();
-    let source = if scope.contains_key(&source_name_lc) {
-        QuerySource::Cte(source_name)
-    } else {
-        if !catalog.exists(&source_name).await {
-            return Err(CassieError::CollectionNotFound(source_name));
-        }
-        QuerySource::Collection(source_name)
-    };
-
+    let source = bind_query_source(select.source.clone(), catalog, &scope).await?;
     let known_fields = source_fields(catalog, &source, &scope).await?;
     select.source = source;
     select.ctes = bound_ctes;
@@ -1158,29 +1146,100 @@ fn matches_wildcard(item: &SelectItem) -> bool {
     matches!(item, SelectItem::Wildcard)
 }
 
-async fn source_fields(
-    catalog: &Catalog,
-    source: &QuerySource,
-    scope: &CteScope,
-) -> Result<HashSet<String>, CassieError> {
-    match source {
-        QuerySource::Collection(name) => {
-            let schema = catalog
-                .get_schema(name)
-                .await
-                .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?;
-            Ok(schema
-                .fields
-                .iter()
-                .map(|field| field.name.to_ascii_lowercase())
-                .collect())
+fn bind_query_source<'a>(
+    source: QuerySource,
+    catalog: &'a Catalog,
+    scope: &'a CteScope,
+) -> Pin<Box<dyn Future<Output = Result<QuerySource, CassieError>> + Send + 'a>> {
+    Box::pin(async move {
+        match source {
+            QuerySource::Collection(name) => {
+                let source_name_lc = name.to_ascii_lowercase();
+                if scope.contains_key(&source_name_lc) {
+                    Ok(QuerySource::Cte(name))
+                } else if catalog.exists(&name).await {
+                    Ok(QuerySource::Collection(name))
+                } else {
+                    Err(CassieError::CollectionNotFound(name))
+                }
+            }
+            QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
+            QuerySource::Subquery { alias, select } => {
+                let select = bind_select(*select, catalog, scope).await?;
+                Ok(QuerySource::Subquery {
+                    alias,
+                    select: Box::new(select),
+                })
+            }
+            QuerySource::Join {
+                left,
+                right,
+                kind,
+                on,
+            } => {
+                let left = bind_query_source(*left, catalog, scope).await?;
+                let right = bind_query_source(*right, catalog, scope).await?;
+                let joined = QuerySource::Join {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    kind,
+                    on: on.clone(),
+                };
+                let known_fields = source_fields(catalog, &joined, scope).await?;
+                validate_expression(&on, &known_fields, &HashSet::new(), false)?;
+                Ok(joined)
+            }
         }
-        QuerySource::Cte(name) => scope
-            .get(&name.to_ascii_lowercase())
-            .cloned()
-            .map(|fields| fields.into_iter().collect())
-            .ok_or_else(|| CassieError::CollectionNotFound(name.clone())),
+    })
+}
+
+fn source_fields<'a>(
+    catalog: &'a Catalog,
+    source: &'a QuerySource,
+    scope: &'a CteScope,
+) -> Pin<Box<dyn Future<Output = Result<HashSet<String>, CassieError>> + Send + 'a>> {
+    Box::pin(async move {
+        match source {
+            QuerySource::Collection(name) => {
+                let schema = catalog
+                    .get_schema(name)
+                    .await
+                    .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?;
+                Ok(qualified_fields(
+                    name,
+                    schema
+                        .fields
+                        .iter()
+                        .map(|field| field.name.to_ascii_lowercase()),
+                ))
+            }
+            QuerySource::Cte(name) => scope
+                .get(&name.to_ascii_lowercase())
+                .cloned()
+                .map(|fields| qualified_fields(name, fields))
+                .ok_or_else(|| CassieError::CollectionNotFound(name.clone())),
+            QuerySource::Subquery { alias, select } => Ok(qualified_fields(
+                alias,
+                projected_column_names(&select.projection),
+            )),
+            QuerySource::Join { left, right, .. } => {
+                let mut fields = source_fields(catalog, left, scope).await?;
+                fields.extend(source_fields(catalog, right, scope).await?);
+                Ok(fields)
+            }
+        }
+    })
+}
+
+fn qualified_fields(qualifier: &str, fields: impl IntoIterator<Item = String>) -> HashSet<String> {
+    let qualifier = qualifier.to_ascii_lowercase();
+    let mut out = HashSet::new();
+    for field in fields {
+        let field = field.to_ascii_lowercase();
+        out.insert(field.clone());
+        out.insert(format!("{qualifier}.{field}"));
     }
+    out
 }
 
 fn collect_projection_aliases(select: &SelectStatement) -> HashSet<String> {
@@ -1470,11 +1529,19 @@ fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
 
 fn recursive_cte_references_self(statement: &ParsedStatement, cte_name: &str) -> bool {
     match &statement.statement {
-        QueryStatement::Select(select) => match &select.source {
-            QuerySource::Cte(name) | QuerySource::Collection(name) => {
-                name.eq_ignore_ascii_case(cte_name)
-            }
-        },
+        QueryStatement::Select(select) => source_references_cte(&select.source, cte_name),
         _ => false,
+    }
+}
+
+fn source_references_cte(source: &QuerySource, cte_name: &str) -> bool {
+    match source {
+        QuerySource::Cte(name) | QuerySource::Collection(name) => {
+            name.eq_ignore_ascii_case(cte_name)
+        }
+        QuerySource::Subquery { select, .. } => source_references_cte(&select.source, cte_name),
+        QuerySource::Join { left, right, .. } => {
+            source_references_cte(left, cte_name) || source_references_cte(right, cte_name)
+        }
     }
 }

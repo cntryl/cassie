@@ -1,4 +1,5 @@
 use crate::planner::logical::LogicalPlan;
+use crate::sql::ast::QuerySource;
 
 #[derive(Debug, Clone)]
 pub enum Operator {
@@ -10,6 +11,7 @@ pub enum Operator {
     Offset,
     VectorSearch,
     FullTextSearch,
+    Join,
 }
 
 #[derive(Debug, Clone)]
@@ -29,6 +31,9 @@ pub fn build(plan: LogicalPlan) -> PhysicalPlan {
     }
 
     let mut operators = vec![Operator::Scan];
+    if source_contains_join(&plan.source) {
+        operators.push(Operator::Join);
+    }
     if plan.filter.is_some() {
         operators.push(Operator::Filter);
     }
@@ -48,5 +53,13 @@ pub fn build(plan: LogicalPlan) -> PhysicalPlan {
         collection: plan.collection.clone(),
         operators,
         logical: plan,
+    }
+}
+
+fn source_contains_join(source: &QuerySource) -> bool {
+    match source {
+        QuerySource::Join { .. } => true,
+        QuerySource::Subquery { select, .. } => source_contains_join(&select.source),
+        QuerySource::Collection(_) | QuerySource::Cte(_) => false,
     }
 }

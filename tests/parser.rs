@@ -1,7 +1,8 @@
 use cassie::app::Cassie;
 use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::sql::ast::{
-    BinaryOp, CteQuery, Expr, InsertSource, QuerySource, QueryStatement, SelectItem, SortDirection,
+    BinaryOp, CteQuery, Expr, InsertSource, JoinKind, QuerySource, QueryStatement, SelectItem,
+    SortDirection,
 };
 use cassie::sql::parse_statement;
 use cassie::types::{DataType, FieldSchema, Schema};
@@ -784,6 +785,71 @@ fn should_reject_exists_without_select_subquery() {
     // Assert
     assert!(parsed.is_err());
     assert!(parsed.unwrap_err().0.contains("EXISTS requires"));
+}
+
+#[test]
+fn should_parse_inner_join_source() {
+    // Arrange
+    let sql = "SELECT users.name FROM users JOIN orders ON users.id = orders.user_id";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.source,
+        QuerySource::Join {
+            kind: JoinKind::Inner,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn should_parse_from_subquery_source() {
+    // Arrange
+    let sql = "SELECT recent.title FROM (SELECT title FROM docs) AS recent";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.source,
+        QuerySource::Subquery { ref alias, .. } if alias == "recent"
+    ));
+}
+
+#[test]
+fn should_reject_unsupported_full_join_source() {
+    // Arrange
+    let sql = "SELECT users.name FROM users FULL JOIN orders ON users.key = orders.user_key";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+    assert!(parsed.unwrap_err().0.contains("unsupported JOIN"));
+}
+
+#[test]
+fn should_reject_unsupported_lateral_source() {
+    // Arrange
+    let sql = "SELECT users.name FROM users JOIN LATERAL (SELECT user_key FROM orders) AS recent ON users.key = recent.user_key";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+    assert!(parsed.unwrap_err().0.contains("unsupported JOIN"));
 }
 
 #[test]

@@ -566,6 +566,39 @@ fn should_plan_insert_values_as_command() {
 }
 
 #[test]
+fn should_plan_insert_select_as_command() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_insert_select_target");
+    register_test_collection(&catalog, "planner_insert_select_source");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        // Act
+        let parsed = parser::parse_statement(
+            "INSERT INTO planner_insert_select_target (title) SELECT title FROM planner_insert_select_source",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let plan = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert_eq!(plan.collection, "planner_insert_select_target");
+        match plan.command.as_ref().expect("insert command") {
+            logical::LogicalCommand::Insert(statement) => {
+                assert_eq!(statement.table, "planner_insert_select_target");
+                assert_eq!(statement.columns, vec!["title".to_string()]);
+                assert!(matches!(statement.source, InsertSource::Select(_)));
+            }
+            _ => panic!("expected insert command"),
+        }
+    });
+}
+
+#[test]
 fn should_plan_alter_table_command() {
     // Arrange
     let catalog = Catalog::new();

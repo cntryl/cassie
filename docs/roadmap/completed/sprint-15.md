@@ -1,7 +1,7 @@
 # Sprint 15 - SQL INSERT VALUES
 
 Previous: [Sprint 14 - Row Storage Rebuild and Decode Controls](sprint-14.md)
-Next: [Sprint 16 - SQL INSERT SELECT](../sprint-16.md)
+Next: [Sprint 16 - SQL INSERT SELECT](sprint-16.md)
 
 ## Goal
 

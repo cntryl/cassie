@@ -1,6 +1,6 @@
 # Sprint 17 - SQL UPDATE
 
-Previous: [Sprint 16 - SQL INSERT SELECT](sprint-16.md)
+Previous: [Sprint 16 - SQL INSERT SELECT](completed/sprint-16.md)
 Next: [Sprint 18 - SQL DELETE](sprint-18.md)
 
 ## Goal

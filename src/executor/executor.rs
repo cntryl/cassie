@@ -61,7 +61,7 @@ pub async fn run_with_controls(
         .collect::<HashMap<String, FunctionMeta>>();
 
     if let Some(command) = plan.logical.command.as_ref() {
-        return execute_command(cassie, command, &params, controls).await;
+        return execute_command(cassie, command, &params, &user_functions, controls).await;
     }
 
     let mut cte_context: CteContext = HashMap::new();
@@ -97,12 +97,15 @@ async fn execute_command(
     cassie: &Cassie,
     command: &LogicalCommand,
     params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
     let mut invalidate_plan_cache = false;
     let result = match command {
-        LogicalCommand::Insert(statement) => execute_insert_values(cassie, statement, params).await,
+        LogicalCommand::Insert(statement) => {
+            execute_insert(cassie, statement, params, user_functions, controls).await
+        }
         LogicalCommand::CreateTable(statement) => {
             if statement.if_not_exists && cassie.catalog.exists(&statement.table).await {
                 return Ok(QueryResult {
@@ -509,17 +512,13 @@ async fn execute_command(
     result
 }
 
-async fn execute_insert_values(
+async fn execute_insert(
     cassie: &Cassie,
     statement: &crate::sql::ast::InsertStatement,
     params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    let InsertSource::Values(values) = &statement.source else {
-        return Err(QueryError::General(
-            "INSERT SELECT is not supported in this version".to_string(),
-        ));
-    };
-
     let schema = cassie
         .catalog
         .get_schema(&statement.table)
@@ -528,49 +527,69 @@ async fn execute_insert_values(
             QueryError::General(format!("collection '{}' not found", statement.table))
         })?;
 
-    let target_fields = insert_target_fields(statement, &schema, values.len())?;
-    let mut payload = serde_json::Map::with_capacity(target_fields.len());
-    for (field, expr) in target_fields.iter().zip(values.iter()) {
-        payload.insert(
-            field.name.clone(),
-            insert_expr_to_json(expr, params).map_err(QueryError::General)?,
-        );
+    let source_rows =
+        insert_source_rows(cassie, statement, params, user_functions, controls).await?;
+    let source_width = source_rows
+        .first()
+        .map(Vec::len)
+        .unwrap_or_else(|| insert_source_width(statement, &schema));
+    let target_fields = insert_target_fields(statement, &schema, source_width)?;
+    for row in &source_rows {
+        if row.len() != target_fields.len() {
+            return Err(QueryError::General(format!(
+                "INSERT column/value counts mismatch: {} columns, {} values",
+                target_fields.len(),
+                row.len()
+            )));
+        }
     }
 
-    let row_id = cassie
-        .write_document(
-            &statement.table,
-            None,
-            serde_json::Value::Object(payload),
-            true,
-            None,
-        )
-        .await
-        .map_err(|error| QueryError::General(error.to_string()))?;
+    let inserted_count = source_rows.len();
+    let mut returning_rows = Vec::new();
+    for source_row in source_rows {
+        let payload = payload_from_insert_row(&target_fields, &source_row);
+        let row_id = cassie
+            .write_document(
+                &statement.table,
+                None,
+                serde_json::Value::Object(payload),
+                true,
+                None,
+            )
+            .await
+            .map_err(|error| QueryError::General(error.to_string()))?;
+
+        if !statement.returning.is_empty() {
+            let document = cassie
+                .midge
+                .get_document(&statement.table, &row_id)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?
+                .ok_or_else(|| {
+                    QueryError::General(format!(
+                        "inserted row '{row_id}' was not found in '{}'",
+                        statement.table
+                    ))
+                })?;
+
+            returning_rows.push(inserted_row_to_batch_row(
+                &row_id,
+                &schema,
+                &document.payload,
+            ));
+        }
+    }
 
     if statement.returning.is_empty() {
         return Ok(QueryResult {
             columns: Vec::new(),
             rows: Vec::new(),
-            command: "INSERT 0 1".to_string(),
+            command: format!("INSERT 0 {inserted_count}"),
         });
     }
 
-    let document = cassie
-        .midge
-        .get_document(&statement.table, &row_id)
-        .await
-        .map_err(|error| QueryError::General(error.to_string()))?
-        .ok_or_else(|| {
-            QueryError::General(format!(
-                "inserted row '{row_id}' was not found in '{}'",
-                statement.table
-            ))
-        })?;
-
-    let row = inserted_row_to_batch_row(&row_id, &schema, &document.payload);
     let projected = projection::project_rows(
-        vec![row],
+        returning_rows,
         &statement.returning,
         params,
         None,
@@ -580,8 +599,92 @@ async fn execute_insert_values(
     Ok(QueryResult {
         columns: aggregate::columns_from_projection(&statement.returning),
         rows: projected.into_iter().map(BatchRow::into_values).collect(),
-        command: "INSERT 0 1".to_string(),
+        command: format!("INSERT 0 {inserted_count}"),
     })
+}
+
+async fn insert_source_rows(
+    cassie: &Cassie,
+    statement: &crate::sql::ast::InsertStatement,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<Vec<Value>>, QueryError> {
+    match &statement.source {
+        InsertSource::Values(values) => values
+            .iter()
+            .map(|expr| {
+                insert_expr_to_json(expr, params)
+                    .map_err(QueryError::General)
+                    .map(|value| json_to_value(&value))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(|row| vec![row]),
+        InsertSource::Select(select) => {
+            let logical = LogicalPlan {
+                command: None,
+                source: select.source.clone(),
+                collection: match &select.source {
+                    QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
+                },
+                ctes: select.ctes.clone(),
+                projection: select.projection.clone(),
+                filter: select.filter.clone(),
+                order: select.order.clone(),
+                limit: select.limit,
+                offset: select.offset,
+            };
+            let mut cte_context = CteContext::new();
+            let rows = execute_plan(
+                cassie,
+                &logical,
+                &mut cte_context,
+                user_functions,
+                params,
+                controls,
+            )
+            .await?;
+            Ok(rows
+                .into_iter()
+                .map(|row| {
+                    row.into_entries()
+                        .into_iter()
+                        .map(|(_, value)| value)
+                        .collect()
+                })
+                .collect())
+        }
+    }
+}
+
+fn insert_source_width(
+    statement: &crate::sql::ast::InsertStatement,
+    schema: &CollectionSchema,
+) -> usize {
+    match &statement.source {
+        InsertSource::Values(values) => values.len(),
+        InsertSource::Select(select) => {
+            if matches!(
+                select.projection.as_slice(),
+                [crate::sql::ast::SelectItem::Wildcard]
+            ) {
+                schema.fields.len()
+            } else {
+                select.projection.len()
+            }
+        }
+    }
+}
+
+fn payload_from_insert_row(
+    target_fields: &[FieldMeta],
+    source_row: &[Value],
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut payload = serde_json::Map::with_capacity(target_fields.len());
+    for (field, value) in target_fields.iter().zip(source_row.iter()) {
+        payload.insert(field.name.clone(), value_to_json(value));
+    }
+    payload
 }
 
 fn insert_target_fields(

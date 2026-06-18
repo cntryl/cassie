@@ -1,13 +1,13 @@
 use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, IndexKind};
 use crate::sql::ast::{
-    AlterTableOperation, AlterTableStatement, BinaryOp, CallProcedureStatement,
+    AlterRoleStatement, AlterTableOperation, AlterTableStatement, BinaryOp, CallProcedureStatement,
     CommonTableExpression, CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
-    CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, CteQuery, DropFunctionStatement,
-    DropIndexStatement, DropProcedureStatement, DropRoleStatement, DropTableStatement, Expr, FieldDefinition,
-    FunctionArg, FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement,
-    QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement,
-    ShowStatement, SortDirection, TransactionAction, TransactionIsolation, TransactionStatement,
-    Volatility, AlterRoleStatement,
+    CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, CteQuery,
+    DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropRoleStatement,
+    DropTableStatement, Expr, FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind,
+    NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectSet,
+    SelectStatement, SetOperator, SetStatement, ShowStatement, SortDirection, TransactionAction,
+    TransactionIsolation, TransactionStatement, Volatility,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -767,7 +767,9 @@ fn parse_create_role_statement(sql: &str, user_alias: bool) -> Result<ParsedStat
                 password = parse_optional_role_password(&raw_password)?;
             }
             other => {
-                return Err(SqlError(format!("unsupported CREATE ROLE option '{other}'")));
+                return Err(SqlError(format!(
+                    "unsupported CREATE ROLE option '{other}'"
+                )));
             }
         }
     }
@@ -786,8 +788,8 @@ fn parse_create_role_statement(sql: &str, user_alias: bool) -> Result<ParsedStat
 fn parse_alter_role_statement(sql: &str, _user_alias: bool) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[10..].trim();
-    let (name, rest) = split_first_token(rest)
-        .ok_or_else(|| SqlError("missing role name".into()))?;
+    let (name, rest) =
+        split_first_token(rest).ok_or_else(|| SqlError("missing role name".into()))?;
     let mut tokens = tokenize_schema_field(rest).into_iter();
     let mut login = None;
     let mut password = None;
@@ -831,7 +833,9 @@ fn parse_drop_role_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         return Err(SqlError("missing role name".into()));
     }
     if role.split_whitespace().count() != 1 {
-        return Err(SqlError("DROP ROLE supports only a single role name".into()));
+        return Err(SqlError(
+            "DROP ROLE supports only a single role name".into(),
+        ));
     }
 
     Ok(ParsedStatement {

@@ -90,20 +90,21 @@ impl CassieRuntimeConfig {
         if let Ok(v) = env::var("CASSIE_REST_LISTEN") {
             config.rest_listen = v;
         }
-        if let Ok(v) = env::var("CASSIE_PGWIRE_USER") {
+        if let Ok(v) = env::var("CASSIE_ADMIN_USER") {
             config.user = v;
         }
-        if let Ok(v) = env::var("CASSIE_PGWIRE_DATABASE") {
+        if let Ok(v) = env::var("CASSIE_DEFAULT_DATABASE") {
             config.database = v;
         }
 
         if let Some(v) = read_password_from_file() {
             config.password = v;
-        } else if let Ok(v) = env::var("CASSIE_PGWIRE_PASSWORD") {
+        } else if let Ok(v) = env::var("CASSIE_ADMIN_PASSWORD") {
             config.password = v;
         }
 
-        let provider = env::var("EMBEDDINGS_PROVIDER").unwrap_or_else(|_| "disabled".to_string());
+        let provider =
+            env::var("CASSIE_EMBEDDINGS_PROVIDER").unwrap_or_else(|_| "disabled".to_string());
         config.embeddings = parse_provider_config(provider.to_lowercase().as_str());
         config.limits = CassieRuntimeLimits {
             query_timeout_ms: parse_u64("CASSIE_QUERY_TIMEOUT_MS", config.limits.query_timeout_ms),
@@ -127,7 +128,7 @@ impl CassieRuntimeConfig {
 }
 
 fn read_password_from_file() -> Option<String> {
-    let path = env::var("CASSIE_PGWIRE_PASSWORD_FILE").ok()?;
+    let path = env::var("CASSIE_ADMIN_PASSWORD_FILE").ok()?;
     let value = std::fs::read_to_string(path).ok()?;
     Some(value.trim().to_string())
 }
@@ -136,14 +137,14 @@ fn parse_provider_config(provider: &str) -> EmbeddingsRuntimeConfig {
     match provider {
         "openai" => EmbeddingsRuntimeConfig::OpenAI(OpenAiRuntimeConfig {
             config: OpenAiConfig {
-                api_key: env::var("OPENAI_API_KEY").unwrap_or_default(),
-                model: env::var("OPENAI_MODEL")
+                api_key: env::var("CASSIE_OPENAI_API_KEY").unwrap_or_default(),
+                model: env::var("CASSIE_OPENAI_MODEL")
                     .unwrap_or_else(|_| crate::embeddings::DEFAULT_EMBEDDING_MODEL.to_string()),
             },
-            timeout_seconds: parse_u64("OPENAI_TIMEOUT_SECONDS", 30),
-            max_batch_size: parse_usize("OPENAI_MAX_BATCH_SIZE", 16),
-            max_retries: parse_usize("OPENAI_MAX_RETRIES", 3),
-            base_url: env::var("OPENAI_BASE_URL").ok(),
+            timeout_seconds: parse_u64("CASSIE_OPENAI_TIMEOUT_SECONDS", 30),
+            max_batch_size: parse_usize("CASSIE_OPENAI_MAX_BATCH_SIZE", 16),
+            max_retries: parse_usize("CASSIE_OPENAI_MAX_RETRIES", 3),
+            base_url: env::var("CASSIE_OPENAI_BASE_URL").ok(),
         }),
         "voyage" => EmbeddingsRuntimeConfig::Voyage,
         "cohere" => EmbeddingsRuntimeConfig::Cohere,

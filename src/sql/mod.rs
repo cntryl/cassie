@@ -22,7 +22,10 @@ pub fn parameter_type_oids(statement: &ParsedStatement, provided: &[i32]) -> Vec
     let count = parameter_count(statement);
     let mut oids = provided.iter().copied().take(count).collect::<Vec<_>>();
     if oids.len() < count {
-        oids.extend(std::iter::repeat_n(UNKNOWN_PARAMETER_TYPE_OID, count - oids.len()));
+        oids.extend(std::iter::repeat_n(
+            UNKNOWN_PARAMETER_TYPE_OID,
+            count - oids.len(),
+        ));
     }
     oids
 }
@@ -95,9 +98,13 @@ fn parameter_count_cte_query(query: &ast::CteQuery) -> usize {
 
 fn parameter_count_query_source(source: &ast::QuerySource) -> usize {
     match source {
-        ast::QuerySource::Collection(_) | ast::QuerySource::Cte(_) | ast::QuerySource::SingleRow => 0,
+        ast::QuerySource::Collection(_)
+        | ast::QuerySource::Cte(_)
+        | ast::QuerySource::SingleRow => 0,
         ast::QuerySource::Subquery { select, .. } => parameter_count_select(select),
-        ast::QuerySource::Join { left, right, on, .. } => parameter_count_query_source(left)
+        ast::QuerySource::Join {
+            left, right, on, ..
+        } => parameter_count_query_source(left)
             .max(parameter_count_query_source(right))
             .max(parameter_count_expr(on)),
     }
@@ -162,8 +169,11 @@ fn parameter_count_function(function: &ast::FunctionCall) -> usize {
 
 fn parameter_count_expr(expr: &ast::Expr) -> usize {
     match expr {
-        ast::Expr::Column(_) | ast::Expr::StringLiteral(_) | ast::Expr::NumberLiteral(_)
-        | ast::Expr::BoolLiteral(_) | ast::Expr::Null => 0,
+        ast::Expr::Column(_)
+        | ast::Expr::StringLiteral(_)
+        | ast::Expr::NumberLiteral(_)
+        | ast::Expr::BoolLiteral(_)
+        | ast::Expr::Null => 0,
         ast::Expr::Param(index) => index + 1,
         ast::Expr::Binary { left, right, .. } => {
             parameter_count_expr(left).max(parameter_count_expr(right))
@@ -175,10 +185,7 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
                 count.max(parameter_count_expr(value))
             }),
         ast::Expr::Between {
-            expr,
-            low,
-            high,
-            ..
+            expr, low, high, ..
         } => parameter_count_expr(expr)
             .max(parameter_count_expr(low))
             .max(parameter_count_expr(high)),

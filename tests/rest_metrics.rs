@@ -45,6 +45,13 @@ fn should_record_rest_request_metrics_for_http_routes() {
             .expect("health request");
         assert!(health.status().is_success());
 
+        let liveness = client
+            .get(format!("http://{addr}/liveness"))
+            .send()
+            .await
+            .expect("liveness request");
+        assert!(liveness.status().is_success());
+
         let metrics = client
             .get(format!("http://{addr}/metrics"))
             .send()
@@ -75,6 +82,13 @@ fn should_record_rest_request_metrics_for_http_routes() {
                 .unwrap_or_default()
                 >= 1,
             "rest route counter should be recorded"
+        );
+        assert!(
+            metrics["rest"]["by_route"]["/liveness"]
+                .as_u64()
+                .unwrap_or_default()
+                >= 1,
+            "liveness route counter should be recorded"
         );
         assert!(
             metrics["rest"]["by_status_class"]["2xx"]

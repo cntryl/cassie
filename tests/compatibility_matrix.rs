@@ -99,9 +99,7 @@ fn should_read_catalog_metadata_after_connect() {
         // Act
         let messages = tokio::time::timeout(
             Duration::from_secs(5),
-            client.simple_query(
-                "SELECT version(), current_schema(), current_database()",
-            ),
+            client.simple_query("SELECT version(), current_schema(), current_database()"),
         )
         .await
         .expect("metadata query should complete within the timeout")
@@ -139,10 +137,13 @@ fn should_query_prepared_statement_with_tokio_postgres() {
             .expect("connect should complete within the timeout");
 
         // Act
-        let row = tokio::time::timeout(Duration::from_secs(5), client.query_one("SELECT version()", &[]))
-            .await
-            .expect("prepared query should complete within the timeout")
-            .expect("query row");
+        let row = tokio::time::timeout(
+            Duration::from_secs(5),
+            client.query_one("SELECT version()", &[]),
+        )
+        .await
+        .expect("prepared query should complete within the timeout")
+        .expect("query row");
 
         // Assert
         let version: String = row.try_get(0).expect("version column");
@@ -173,9 +174,7 @@ fn should_round_trip_ddl_dml_with_tokio_postgres() {
             .await
             .expect("schema creation should succeed");
         client
-            .batch_execute(
-                "CREATE TABLE compat_pgwire_round_trip_items (title TEXT)",
-            )
+            .batch_execute("CREATE TABLE compat_pgwire_round_trip_items (title TEXT)")
             .await
             .expect("table creation should succeed");
 

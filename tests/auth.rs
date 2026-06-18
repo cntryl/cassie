@@ -265,15 +265,13 @@ fn should_rotate_login_role_password() {
 
         // Act
         cassie
-            .execute_sql(
-                &admin,
-                "ALTER ROLE alice PASSWORD 'alice-rotated'",
-                vec![],
-            )
+            .execute_sql(&admin, "ALTER ROLE alice PASSWORD 'alice-rotated'", vec![])
             .await
             .expect("rotate password");
 
-        let old_password = cassie.authenticate_role("alice", Some("alice-secret"), None).await;
+        let old_password = cassie
+            .authenticate_role("alice", Some("alice-secret"), None)
+            .await;
         let new_password = cassie
             .authenticate_role("alice", Some("alice-rotated"), None)
             .await;
@@ -377,7 +375,9 @@ fn should_reject_authentication_for_dropped_login_role() {
             .expect("drop role");
 
         // Act
-        let result = cassie.authenticate_role("alice", Some("alice-secret"), None).await;
+        let result = cassie
+            .authenticate_role("alice", Some("alice-secret"), None)
+            .await;
 
         // Assert
         assert!(result.is_err(), "dropped role should not authenticate");

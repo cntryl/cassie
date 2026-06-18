@@ -180,10 +180,7 @@ fn should_record_pgwire_connection_metrics() {
                 "startup should return an authentication frame"
             );
             let startup_ready = read_wire_frame(&mut reader).await;
-            assert_eq!(
-                startup_ready.0, b'Z',
-                "startup should end ready-for-query"
-            );
+            assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
             assert_eq!(startup_ready.1, vec![b'I']);
 
             tokio::io::AsyncWriteExt::write_all(

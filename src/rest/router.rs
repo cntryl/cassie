@@ -13,11 +13,20 @@ use hyper::{
     Method, Request, Response, StatusCode,
 };
 use hyper_util::rt::TokioIo;
+use tokio::sync::Notify;
 
 use crate::app::Cassie;
 use crate::catalog::RoleMeta;
 
 pub async fn run(addr: String, cassie: Cassie) -> Result<(), crate::app::CassieError> {
+    run_with_shutdown(addr, cassie, Arc::new(Notify::new())).await
+}
+
+pub async fn run_with_shutdown(
+    addr: String,
+    cassie: Cassie,
+    shutdown: Arc<Notify>,
+) -> Result<(), crate::app::CassieError> {
     let listen: SocketAddr = addr.parse().map_err(|e| {
         crate::app::CassieError::Execution(format!("invalid rest address '{}': {}", addr, e))
     })?;
@@ -27,24 +36,32 @@ pub async fn run(addr: String, cassie: Cassie) -> Result<(), crate::app::CassieE
         .map_err(|e| crate::app::CassieError::Execution(e.to_string()))?;
 
     loop {
-        let (stream, _) = listener
-            .accept()
-            .await
-            .map_err(|e| crate::app::CassieError::Execution(e.to_string()))?;
-        let cassie = cassie.clone();
-        tokio::spawn(async move {
-            let service = service_fn(move |request: Request<hyper::body::Incoming>| {
-                let cassie = cassie.clone();
-                async move { route(request, cassie).await }
-            });
-            let io = TokioIo::new(stream);
-
-            let connection = http1::Builder::new().serve_connection(io, service).await;
-            if let Err(error) = connection {
-                tracing::warn!(%error, "rest connection error");
+        tokio::select! {
+            biased;
+            _ = shutdown.notified() => {
+                tracing::info!(target: "rest", address = %listen, "shutdown requested");
+                break;
             }
-        });
+            accept = listener.accept() => {
+                let (stream, _) = accept.map_err(|e| crate::app::CassieError::Execution(e.to_string()))?;
+                let cassie = cassie.clone();
+                tokio::spawn(async move {
+                    let service = service_fn(move |request: Request<hyper::body::Incoming>| {
+                        let cassie = cassie.clone();
+                        async move { route(request, cassie).await }
+                    });
+                    let io = TokioIo::new(stream);
+
+                    let connection = http1::Builder::new().serve_connection(io, service).await;
+                    if let Err(error) = connection {
+                        tracing::warn!(%error, "rest connection error");
+                    }
+                });
+            }
+        }
     }
+
+    Ok(())
 }
 
 type RestBody = Full<Bytes>;
@@ -173,6 +190,10 @@ pub async fn route_request(
             let value = crate::rest::health::health(&cassie).await;
             json_response(StatusCode::OK, &value)
         }
+        (Method::GET, ["liveness"]) => {
+            let value = crate::rest::health::liveness(&cassie).await;
+            json_response(StatusCode::OK, &value)
+        }
         (Method::GET, ["metrics"]) => {
             let value = crate::rest::health::metrics(&cassie).await;
             json_response(StatusCode::OK, &value)
@@ -256,7 +277,7 @@ pub async fn route_request(
 fn is_route_public(method: &Method, segments: &[&str]) -> bool {
     matches!(
         (method, segments),
-        (&Method::GET, ["health"]) | (&Method::GET, ["metrics"])
+        (&Method::GET, ["health"]) | (&Method::GET, ["liveness"]) | (&Method::GET, ["metrics"])
     )
 }
 

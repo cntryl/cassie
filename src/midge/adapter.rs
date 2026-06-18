@@ -1224,9 +1224,7 @@ impl Midge {
 
     pub async fn get_role(&self, name: &str) -> Result<Option<RoleMeta>, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
-        let raw = tx
-            .get(&Self::role_key(name))
-            .map_err(CassieError::from)?;
+        let raw = tx.get(&Self::role_key(name)).map_err(CassieError::from)?;
         let Some(raw) = raw else {
             return Ok(None);
         };
@@ -1253,8 +1251,7 @@ impl Midge {
 
     pub async fn delete_role(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::role_key(name))
-            .map_err(CassieError::from)?;
+        tx.delete(Self::role_key(name)).map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
         Ok(())

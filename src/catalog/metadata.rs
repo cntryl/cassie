@@ -5,8 +5,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::catalog::{
-    CollectionMeta, CollectionSchema, FieldConstraint, FunctionMeta, IndexMeta, NamespaceMeta,
-    ProcedureMeta, RoleMeta, normalize_role_name,
+    normalize_role_name, CollectionMeta, CollectionSchema, FieldConstraint, FunctionMeta,
+    IndexMeta, NamespaceMeta, ProcedureMeta, RoleMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::DataType;

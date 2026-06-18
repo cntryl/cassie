@@ -6,9 +6,7 @@ use std::time::Instant;
 use crate::app::{Cassie, CassieSession};
 use crate::catalog;
 use crate::catalog::virtual_views;
-use crate::catalog::{
-    CollectionSchema, FieldMeta, FunctionMeta, ProcedureMeta, Volatility,
-};
+use crate::catalog::{CollectionSchema, FieldMeta, FunctionMeta, ProcedureMeta, Volatility};
 use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
 use crate::executor::batch::{self, Batch, BatchRow, RowAccess};
 use crate::executor::{aggregate, filter, projection, scan, sort};
@@ -405,11 +403,7 @@ async fn execute_command(
         }
         LogicalCommand::AlterRole(statement) => {
             cassie
-                .alter_role(
-                    &statement.name,
-                    statement.login,
-                    statement.password.clone(),
-                )
+                .alter_role(&statement.name, statement.login, statement.password.clone())
                 .await
                 .map_err(|error| QueryError::General(error.to_string()))?;
             invalidate_plan_cache = true;

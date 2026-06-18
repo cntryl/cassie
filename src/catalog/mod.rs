@@ -3,8 +3,8 @@ pub mod constraints;
 pub mod indexes;
 pub mod metadata;
 pub mod programs;
-pub mod schemas;
 pub mod roles;
+pub mod schemas;
 pub mod virtual_views;
 
 pub use collections::{CollectionMeta, NamespaceMeta};
@@ -12,5 +12,5 @@ pub use constraints::{ConstraintCheck, ConstraintOperator, FieldConstraint};
 pub use indexes::{IndexKind, IndexMeta};
 pub use metadata::Catalog;
 pub use programs::{FunctionArgMeta, FunctionMeta, ProcedureMeta, Volatility};
-pub use schemas::{CollectionSchema, FieldMeta};
 pub use roles::{normalize_role_name, RoleMeta};
+pub use schemas::{CollectionSchema, FieldMeta};

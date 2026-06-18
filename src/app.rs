@@ -1429,9 +1429,10 @@ impl Cassie {
             return Ok(Some(role));
         }
 
-        self.midge.get_role(&normalized).await.map_err(|error| {
-            CassieError::Storage(format!("load role '{normalized}': {error}"))
-        })
+        self.midge
+            .get_role(&normalized)
+            .await
+            .map_err(|error| CassieError::Storage(format!("load role '{normalized}': {error}")))
     }
 
     pub async fn authenticate_role(
@@ -1474,20 +1475,26 @@ impl Cassie {
     ) -> Result<(), CassieError> {
         let normalized = normalize_role_name(name);
         if normalized.is_empty() {
-            return Err(CassieError::Planner("CREATE ROLE requires a name".to_string()));
+            return Err(CassieError::Planner(
+                "CREATE ROLE requires a name".to_string(),
+            ));
         }
 
         if self.lookup_role(&normalized).await?.is_some() {
             if if_not_exists {
                 return Ok(());
             }
-            return Err(CassieError::Planner(format!("role '{normalized}' already exists")));
+            return Err(CassieError::Planner(format!(
+                "role '{normalized}' already exists"
+            )));
         }
 
         let password_hash = match (login, password) {
             (true, Some(password)) => Some(hash_password(&password)?),
             (true, None) => {
-                return Err(CassieError::Planner("login roles require a password".into()));
+                return Err(CassieError::Planner(
+                    "login roles require a password".into(),
+                ));
             }
             (false, Some(_)) => {
                 return Err(CassieError::Unsupported(
@@ -1514,7 +1521,9 @@ impl Cassie {
     ) -> Result<(), CassieError> {
         let normalized = normalize_role_name(name);
         let Some(mut role) = self.lookup_role(&normalized).await? else {
-            return Err(CassieError::NotFound(format!("role '{normalized}' not found")));
+            return Err(CassieError::NotFound(format!(
+                "role '{normalized}' not found"
+            )));
         };
 
         if role.is_admin {
@@ -1553,7 +1562,9 @@ impl Cassie {
             if if_exists {
                 return Ok(());
             }
-            return Err(CassieError::NotFound(format!("role '{normalized}' not found")));
+            return Err(CassieError::NotFound(format!(
+                "role '{normalized}' not found"
+            )));
         };
 
         if role.is_admin {

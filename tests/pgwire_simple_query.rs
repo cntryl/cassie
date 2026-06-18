@@ -236,10 +236,7 @@ fn should_execute_binary_simple_query_return_backend_frames() {
             "passwordless auth should succeed"
         );
         let startup_ready = read_wire_frame(&mut reader).await;
-        assert_eq!(
-            startup_ready.0, b'Z',
-            "startup should end ready-for-query"
-        );
+        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
         assert_eq!(startup_ready.1, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(

@@ -488,16 +488,14 @@ pub async fn run_connection(
                             }
                             match crate::sql::parser::parse_statement(&query) {
                                 Ok(_) => {
-                                    let existed = state
-                                        .prepared
-                                        .insert(
-                                            name.clone(),
-                                            PreparedStatement {
-                                                name,
-                                                query,
-                                                parameter_types,
-                                            },
-                                        );
+                                    let existed = state.prepared.insert(
+                                        name.clone(),
+                                        PreparedStatement {
+                                            name,
+                                            query,
+                                            parameter_types,
+                                        },
+                                    );
                                     if existed.is_none() {
                                         runtime.record_pgwire_prepared_delta(1);
                                     }
@@ -595,12 +593,10 @@ pub async fn run_connection(
                                 DescribeTarget::Portal => match state.portals.get(&name) {
                                     Some(portal) => {
                                         match state.prepared.get(&portal.statement_name) {
-                                            Some(prepared) => {
-                                                (
-                                                    prepared.query.clone(),
-                                                    prepared.parameter_types.clone(),
-                                                )
-                                            }
+                                            Some(prepared) => (
+                                                prepared.query.clone(),
+                                                prepared.parameter_types.clone(),
+                                            ),
                                             None => {
                                                 runtime.record_pgwire_protocol_error();
                                                 awaiting_sync = true;

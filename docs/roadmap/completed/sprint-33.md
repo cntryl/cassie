@@ -1,7 +1,7 @@
 # Sprint 33 - Compatibility Matrix and CI Gate
 
 Previous: [Sprint 32 - Extended Query Portals and Recovery](sprint-32.md)
-Next: [Sprint 34 - REST, Operations, Packaging, and V1 Release Gate](../sprint-34.md)
+Next: [Sprint 34 - REST, Operations, Packaging, and V1 Release Gate](sprint-34.md)
 
 ## Goal
 

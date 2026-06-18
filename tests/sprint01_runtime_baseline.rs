@@ -194,14 +194,44 @@ fn should_health_after_startup_reports_ready_state() {
 }
 
 #[test]
+fn should_clear_ready_state_after_shutdown() {
+    // Arrange
+    let path = data_dir("shutdown_state");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        // Act
+        cassie.shutdown().await;
+        let after_health = cassie.health().await;
+        let after_metrics = cassie.metrics().await;
+
+        // Assert
+        assert_eq!(after_health["ready"].as_bool(), Some(false));
+        assert_eq!(after_health["status"], "starting");
+        assert_eq!(after_metrics["runtime"]["started"].as_bool(), Some(false));
+        assert_eq!(after_metrics["runtime"]["shutdown_total"].as_u64(), Some(1));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_startup_respects_runtime_config_defaults() {
     // Arrange
     let keys = [
         "CASSIE_PGWIRE_LISTEN",
         "CASSIE_REST_LISTEN",
-        "CASSIE_PGWIRE_USER",
-        "CASSIE_PGWIRE_PASSWORD",
-        "EMBEDDINGS_PROVIDER",
+        "CASSIE_ADMIN_USER",
+        "CASSIE_DEFAULT_DATABASE",
+        "CASSIE_ADMIN_PASSWORD",
+        "CASSIE_ADMIN_PASSWORD_FILE",
+        "CASSIE_EMBEDDINGS_PROVIDER",
     ];
     let backup: Vec<(String, Option<String>)> = keys
         .iter()

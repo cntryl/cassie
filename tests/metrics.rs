@@ -420,10 +420,7 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
             "startup should return an authentication response"
         );
         let startup_ready = read_wire_frame(&mut reader).await;
-        assert_eq!(
-            startup_ready.0, b'Z',
-            "startup should end ready-for-query"
-        );
+        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
         assert_eq!(startup_ready.1, vec![b'I']);
 
         // Act

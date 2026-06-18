@@ -2,8 +2,8 @@ use cassie::app::CassieError;
 use cassie::catalog::Catalog;
 use cassie::planner::{logical, optimizer, physical, physical::Operator};
 use cassie::sql::ast::{
-    BinaryOp, Expr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
-    SortDirection,
+    BinaryOp, Expr, InsertSource, ParsedStatement, QuerySource, QueryStatement, SelectItem,
+    SelectStatement, SortDirection,
 };
 use cassie::sql::binder::BoundStatement;
 use cassie::sql::{binder, parser};
@@ -531,6 +531,37 @@ fn should_plan_drop_table_as_command() {
         // Assert
         assert_eq!(plan.collection, "planner_drop");
         assert!(plan.command.is_some());
+    });
+}
+
+#[test]
+fn should_plan_insert_values_as_command() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_insert_values");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        // Act
+        let parsed =
+            parser::parse_statement("INSERT INTO planner_insert_values (title) VALUES ('alpha')")
+                .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let plan = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert_eq!(plan.collection, "planner_insert_values");
+        match plan.command.as_ref().expect("insert command") {
+            logical::LogicalCommand::Insert(statement) => {
+                assert_eq!(statement.table, "planner_insert_values");
+                assert_eq!(statement.columns, vec!["title".to_string()]);
+                assert!(matches!(statement.source, InsertSource::Values(_)));
+            }
+            _ => panic!("expected insert command"),
+        }
     });
 }
 

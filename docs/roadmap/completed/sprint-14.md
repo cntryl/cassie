@@ -1,7 +1,7 @@
 # Sprint 14 - Row Storage Rebuild and Decode Controls
 
 Previous: [Sprint 13 - Row Blob Persistence Core](sprint-13.md)
-Next: [Sprint 15 - SQL INSERT VALUES](../sprint-15.md)
+Next: [Sprint 15 - SQL INSERT VALUES](sprint-15.md)
 
 ## Goal
 

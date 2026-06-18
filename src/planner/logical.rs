@@ -4,8 +4,8 @@ use crate::sql::{
         AlterTableOperation, AlterTableStatement, CommonTableExpression, CreateFunctionStatement,
         CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement,
         CreateTableStatement, DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
-        DropTableStatement, Expr, OrderExpr, QuerySource, QueryStatement, SelectItem,
-        SelectStatement,
+        DropTableStatement, Expr, InsertStatement, OrderExpr, QuerySource, QueryStatement,
+        SelectItem, SelectStatement,
     },
     binder::BoundStatement,
 };
@@ -36,6 +36,7 @@ pub enum LogicalCommand {
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
     CallProcedure(crate::sql::ast::CallProcedureStatement),
+    Insert(InsertStatement),
 }
 
 pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
@@ -54,10 +55,25 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 offset: select.offset,
             })
         }
-        QueryStatement::Insert(statement) => Err(CassieError::Planner(format!(
-            "INSERT statement is not supported: {}",
-            statement.table
-        ))),
+        QueryStatement::Insert(statement) => {
+            if statement.table.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "INSERT requires a target table".into(),
+                ));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::Insert(statement.clone())),
+                source: QuerySource::Collection(statement.table.clone()),
+                collection: statement.table.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
         QueryStatement::Update(statement) => Err(CassieError::Planner(format!(
             "UPDATE statement is not supported: {}",
             statement.table

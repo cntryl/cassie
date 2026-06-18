@@ -5,14 +5,14 @@ use std::time::Instant;
 
 use crate::app::Cassie;
 use crate::catalog;
-use crate::catalog::{FunctionMeta, ProcedureMeta, Volatility};
+use crate::catalog::{CollectionSchema, FieldMeta, FunctionMeta, ProcedureMeta, Volatility};
 use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
 use crate::executor::batch::{self, BatchRow, RowAccess};
 use crate::executor::{aggregate, filter, projection, scan, sort};
 use crate::planner::logical::{LogicalCommand, LogicalPlan};
 use crate::planner::physical::PhysicalPlan;
 use crate::runtime::QueryExecutionControls;
-use crate::sql::ast::{CommonTableExpression, CteQuery, QuerySource};
+use crate::sql::ast::{CommonTableExpression, CteQuery, Expr, InsertSource, QuerySource};
 use crate::types::{DataType, FieldSchema, Schema, Value};
 
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
@@ -61,7 +61,7 @@ pub async fn run_with_controls(
         .collect::<HashMap<String, FunctionMeta>>();
 
     if let Some(command) = plan.logical.command.as_ref() {
-        return execute_command(cassie, command, controls).await;
+        return execute_command(cassie, command, &params, controls).await;
     }
 
     let mut cte_context: CteContext = HashMap::new();
@@ -96,11 +96,13 @@ pub async fn run_with_controls(
 async fn execute_command(
     cassie: &Cassie,
     command: &LogicalCommand,
+    params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
     let mut invalidate_plan_cache = false;
     let result = match command {
+        LogicalCommand::Insert(statement) => execute_insert_values(cassie, statement, params).await,
         LogicalCommand::CreateTable(statement) => {
             if statement.if_not_exists && cassie.catalog.exists(&statement.table).await {
                 return Ok(QueryResult {
@@ -505,6 +507,218 @@ async fn execute_command(
     }
 
     result
+}
+
+async fn execute_insert_values(
+    cassie: &Cassie,
+    statement: &crate::sql::ast::InsertStatement,
+    params: &[Value],
+) -> Result<QueryResult, QueryError> {
+    let InsertSource::Values(values) = &statement.source else {
+        return Err(QueryError::General(
+            "INSERT SELECT is not supported in this version".to_string(),
+        ));
+    };
+
+    let schema = cassie
+        .catalog
+        .get_schema(&statement.table)
+        .await
+        .ok_or_else(|| {
+            QueryError::General(format!("collection '{}' not found", statement.table))
+        })?;
+
+    let target_fields = insert_target_fields(statement, &schema, values.len())?;
+    let mut payload = serde_json::Map::with_capacity(target_fields.len());
+    for (field, expr) in target_fields.iter().zip(values.iter()) {
+        payload.insert(
+            field.name.clone(),
+            insert_expr_to_json(expr, params).map_err(QueryError::General)?,
+        );
+    }
+
+    let row_id = cassie
+        .write_document(
+            &statement.table,
+            None,
+            serde_json::Value::Object(payload),
+            true,
+            None,
+        )
+        .await
+        .map_err(|error| QueryError::General(error.to_string()))?;
+
+    if statement.returning.is_empty() {
+        return Ok(QueryResult {
+            columns: Vec::new(),
+            rows: Vec::new(),
+            command: "INSERT 0 1".to_string(),
+        });
+    }
+
+    let document = cassie
+        .midge
+        .get_document(&statement.table, &row_id)
+        .await
+        .map_err(|error| QueryError::General(error.to_string()))?
+        .ok_or_else(|| {
+            QueryError::General(format!(
+                "inserted row '{row_id}' was not found in '{}'",
+                statement.table
+            ))
+        })?;
+
+    let row = inserted_row_to_batch_row(&row_id, &schema, &document.payload);
+    let projected = projection::project_rows(
+        vec![row],
+        &statement.returning,
+        params,
+        None,
+        &HashMap::new(),
+    )?;
+
+    Ok(QueryResult {
+        columns: aggregate::columns_from_projection(&statement.returning),
+        rows: projected.into_iter().map(BatchRow::into_values).collect(),
+        command: "INSERT 0 1".to_string(),
+    })
+}
+
+fn insert_target_fields(
+    statement: &crate::sql::ast::InsertStatement,
+    schema: &CollectionSchema,
+    value_count: usize,
+) -> Result<Vec<FieldMeta>, QueryError> {
+    if statement.columns.is_empty() {
+        if schema.fields.len() != value_count {
+            return Err(QueryError::General(format!(
+                "INSERT column/value counts mismatch: {} columns, {} values",
+                schema.fields.len(),
+                value_count
+            )));
+        }
+
+        return Ok(schema.fields.clone());
+    }
+
+    if statement.columns.len() != value_count {
+        return Err(QueryError::General(format!(
+            "INSERT column/value counts mismatch: {} columns, {} values",
+            statement.columns.len(),
+            value_count
+        )));
+    }
+
+    statement
+        .columns
+        .iter()
+        .map(|column| {
+            schema
+                .fields
+                .iter()
+                .find(|field| field.name.eq_ignore_ascii_case(column))
+                .cloned()
+                .ok_or_else(|| {
+                    QueryError::General(format!(
+                        "INSERT target column '{}' does not exist in '{}'",
+                        column, statement.table
+                    ))
+                })
+        })
+        .collect()
+}
+
+fn insert_expr_to_json(expr: &Expr, params: &[Value]) -> Result<serde_json::Value, String> {
+    match expr {
+        Expr::StringLiteral(value) => Ok(serde_json::Value::String(value.clone())),
+        Expr::NumberLiteral(value) => number_literal_to_json(*value),
+        Expr::BoolLiteral(value) => Ok(serde_json::Value::Bool(*value)),
+        Expr::Null => Ok(serde_json::Value::Null),
+        Expr::Param(index) => params
+            .get(*index)
+            .map(value_to_json)
+            .ok_or_else(|| format!("missing bind parameter ${}", index + 1)),
+        Expr::Column(_)
+        | Expr::Function(_)
+        | Expr::Binary {
+            left: _,
+            op: _,
+            right: _,
+        } => Err("INSERT VALUES only supports literals and bind parameters".to_string()),
+    }
+}
+
+fn number_literal_to_json(value: f64) -> Result<serde_json::Value, String> {
+    if !value.is_finite() {
+        return Err("INSERT VALUES requires finite numeric literals".to_string());
+    }
+
+    if value.fract() == 0.0 && value >= i64::MIN as f64 && value <= i64::MAX as f64 {
+        return Ok(serde_json::Value::Number((value as i64).into()));
+    }
+
+    serde_json::Number::from_f64(value)
+        .map(serde_json::Value::Number)
+        .ok_or_else(|| "INSERT VALUES requires finite numeric literals".to_string())
+}
+
+fn value_to_json(value: &Value) -> serde_json::Value {
+    match value {
+        Value::Null => serde_json::Value::Null,
+        Value::Bool(value) => serde_json::Value::Bool(*value),
+        Value::Int64(value) => serde_json::Value::Number((*value).into()),
+        Value::Float64(value) => serde_json::Number::from_f64(*value)
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
+        Value::String(value) => serde_json::Value::String(value.clone()),
+        Value::Vector(value) => serde_json::Value::Array(
+            value
+                .values
+                .iter()
+                .filter_map(|value| serde_json::Number::from_f64((*value).into()))
+                .map(serde_json::Value::Number)
+                .collect(),
+        ),
+        Value::Json(value) => value.clone(),
+    }
+}
+
+fn inserted_row_to_batch_row(
+    row_id: &str,
+    schema: &CollectionSchema,
+    payload: &serde_json::Value,
+) -> BatchRow {
+    let mut row = Vec::with_capacity(schema.fields.len() + 1);
+    row.push(("_id".to_string(), Value::String(row_id.to_string())));
+
+    for field in &schema.fields {
+        let value = payload
+            .get(&field.name)
+            .map(json_to_value)
+            .unwrap_or(Value::Null);
+        row.push((field.name.clone(), value));
+    }
+
+    BatchRow::new(row)
+}
+
+fn json_to_value(value: &serde_json::Value) -> Value {
+    if let Some(value) = value.as_str() {
+        return Value::String(value.to_string());
+    }
+    if let Some(value) = value.as_bool() {
+        return Value::Bool(value);
+    }
+    if let Some(value) = value.as_i64() {
+        return Value::Int64(value);
+    }
+    if let Some(value) = value.as_u64().and_then(|value| i64::try_from(value).ok()) {
+        return Value::Int64(value);
+    }
+    if let Some(value) = value.as_f64() {
+        return Value::Float64(value);
+    }
+    Value::Json(value.clone())
 }
 
 async fn vector_index_metadata(

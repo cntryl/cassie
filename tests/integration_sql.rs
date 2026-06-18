@@ -1,5 +1,6 @@
 use cassie::app::Cassie;
-use cassie::types::{DataType, FieldSchema, Schema, Value};
+use cassie::midge::adapter::StorageFamily;
+use cassie::types::{DataType, FieldSchema, Schema, Value, Vector};
 use uuid::Uuid;
 
 fn with_fallback() {
@@ -533,6 +534,318 @@ fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
         let namespaced = cassie.midge.list_namespaces().await;
         assert_eq!(namespaced.len(), initial.len());
         assert!(namespaced.iter().any(|name| name == "analytics"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_execute_insert_values_with_explicit_columns_returning_columns() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("insert_values_returning");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE insert_values_returning (title TEXT, body TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO insert_values_returning (title, body) VALUES ('alpha', 'first') RETURNING title, body",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.command, "INSERT 0 1");
+        assert_eq!(result.columns[0].name, "title");
+        assert_eq!(result.columns[1].name, "body");
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("alpha".to_string()));
+        assert_eq!(result.rows[0][1], Value::String("first".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_insert_values_using_table_column_order() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("insert_values_table_order");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE insert_values_table_order (title TEXT, score INT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO insert_values_table_order VALUES ('alpha', 7)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT title, score FROM insert_values_table_order",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(selected.rows.len(), 1);
+        assert_eq!(selected.rows[0][0], Value::String("alpha".to_string()));
+        assert_eq!(selected.rows[0][1], Value::Int64(7));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_return_generated_row_id_from_insert_values() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("insert_values_id");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE insert_values_id (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO insert_values_id (title) VALUES ('alpha') RETURNING _id",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(inserted.columns[0].name, "_id");
+        assert_eq!(inserted.rows.len(), 1);
+        assert!(matches!(&inserted.rows[0][0], Value::String(id) if !id.is_empty()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_insert_values_when_not_null_constraint_fails() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("insert_values_not_null");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE insert_values_not_null (title TEXT NOT NULL)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO insert_values_not_null (title) VALUES (NULL)",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(inserted.is_err());
+        assert!(inserted.unwrap_err().to_string().contains("cannot be null"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_apply_default_values_for_insert_values() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("insert_values_defaults");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE insert_values_defaults (id INT PRIMARY KEY, status TEXT DEFAULT 'pending')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO insert_values_defaults (id) VALUES (1) RETURNING status",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(inserted.rows.len(), 1);
+        assert_eq!(inserted.rows[0][0], Value::String("pending".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_insert_values_when_vector_dimensions_mismatch() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("insert_values_vector_dimensions");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE insert_values_vector_dimensions (embedding VECTOR(2))",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO insert_values_vector_dimensions (embedding) VALUES ($1)",
+                vec![Value::Vector(Vector::new(vec![1.0]))],
+            )
+            .await;
+
+        // Assert
+        assert!(inserted.is_err());
+        assert!(inserted
+            .unwrap_err()
+            .to_string()
+            .contains("expects vector(2)"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_store_insert_values_as_row_blobs() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("insert_values_row_blob");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE insert_values_row_blob (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO insert_values_row_blob (title) VALUES ('alpha')",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let row_entries = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, b"r/insert_values_row_blob/")
+            .await
+            .unwrap();
+        let legacy_entries = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, b"doc:insert_values_row_blob:")
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(row_entries.len(), 1);
+        assert!(legacy_entries.is_empty());
 
         let _ = std::fs::remove_dir_all(path);
     });

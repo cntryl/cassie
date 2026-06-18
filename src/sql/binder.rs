@@ -118,6 +118,18 @@ fn bind_statement<'a>(
                     }),
                 })
             }
+            QueryStatement::CreateRole(statement) => Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::CreateRole(statement),
+            }),
+            QueryStatement::AlterRole(statement) => Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::AlterRole(statement),
+            }),
+            QueryStatement::DropRole(statement) => Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::DropRole(statement),
+            }),
             QueryStatement::CreateFunction(statement) => {
                 let statement = bind_create_function(statement, catalog).await?;
                 Ok(ParsedStatement {

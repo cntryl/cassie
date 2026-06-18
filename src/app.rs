@@ -8,7 +8,14 @@ use serde::Serialize;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use crate::catalog::{Catalog, ConstraintCheck, ConstraintOperator, FieldConstraint};
+use argon2::{
+    password_hash::{rand_core::OsRng, SaltString},
+    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
+};
+
+use crate::catalog::{
+    normalize_role_name, Catalog, ConstraintCheck, ConstraintOperator, FieldConstraint, RoleMeta,
+};
 use crate::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
 use crate::embeddings::{
     cohere::CohereProvider,
@@ -56,7 +63,7 @@ pub(crate) enum TransactionRowChange {
 impl CassieSession {
     pub fn new(user: String, database: Option<String>) -> Self {
         Self {
-            user,
+            user: normalize_role_name(user),
             database,
             transaction: Arc::new(Mutex::new(SessionTransactionState {
                 status: SessionTransactionStatus::Idle,
@@ -363,6 +370,7 @@ impl Cassie {
             self.catalog.register_procedure(metadata).await;
         }
 
+        self.hydrate_roles().await?;
         self.runtime.record_catalog_hydration(started_at.elapsed());
         Ok(())
     }
@@ -399,6 +407,36 @@ impl Cassie {
             self.runtime.record_shutdown();
             self.runtime.mark_shutdown();
         }
+    }
+
+    async fn hydrate_roles(&self) -> Result<(), CassieError> {
+        let mut roles = self.midge.list_roles().await.map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list roles: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+
+        let admin_name = normalize_role_name(&self.auth_user);
+        if !roles.iter().any(|role| role.name == admin_name) {
+            let password_hash = if self.auth_password.is_empty() {
+                None
+            } else {
+                Some(hash_password(&self.auth_password)?)
+            };
+            let role = RoleMeta::bootstrap_admin(&self.auth_user, password_hash);
+            self.midge.put_role(role.clone()).await.map_err(|error| {
+                self.runtime.record_storage_access("schema", false, false);
+                CassieError::Storage(format!("create bootstrap role: {error}"))
+            })?;
+            self.runtime.record_storage_access("schema", false, true);
+            roles.push(role);
+        }
+
+        for role in roles {
+            self.catalog.register_role(role).await;
+        }
+
+        Ok(())
     }
 
     pub async fn execute_sql(
@@ -1381,6 +1419,157 @@ impl Cassie {
         CassieSession::new(user.to_string(), database)
     }
 
+    pub(crate) async fn lookup_role(&self, name: &str) -> Result<Option<RoleMeta>, CassieError> {
+        let normalized = normalize_role_name(name);
+        if normalized.is_empty() {
+            return Ok(None);
+        }
+
+        if let Some(role) = self.catalog.get_role(&normalized).await {
+            return Ok(Some(role));
+        }
+
+        self.midge.get_role(&normalized).await.map_err(|error| {
+            CassieError::Storage(format!("load role '{normalized}': {error}"))
+        })
+    }
+
+    pub async fn authenticate_role(
+        &self,
+        user: &str,
+        password: Option<&str>,
+        database: Option<String>,
+    ) -> Result<CassieSession, CassieError> {
+        let normalized = normalize_role_name(user);
+        let Some(role) = self.lookup_role(&normalized).await? else {
+            return Err(CassieError::Unauthorized);
+        };
+        if !role.can_login {
+            return Err(CassieError::Unauthorized);
+        }
+
+        if let Some(hash) = role.password_hash.as_deref() {
+            let Some(password) = password else {
+                return Err(CassieError::Unauthorized);
+            };
+            if !verify_password(hash, password)? {
+                return Err(CassieError::Unauthorized);
+            }
+        } else if password.is_some_and(|value| !value.is_empty()) {
+            return Err(CassieError::Unauthorized);
+        }
+
+        Ok(CassieSession::new(
+            role.name,
+            database.or_else(|| Some(self.default_database.clone())),
+        ))
+    }
+
+    pub async fn create_role(
+        &self,
+        name: &str,
+        login: bool,
+        password: Option<String>,
+        if_not_exists: bool,
+    ) -> Result<(), CassieError> {
+        let normalized = normalize_role_name(name);
+        if normalized.is_empty() {
+            return Err(CassieError::Planner("CREATE ROLE requires a name".to_string()));
+        }
+
+        if self.lookup_role(&normalized).await?.is_some() {
+            if if_not_exists {
+                return Ok(());
+            }
+            return Err(CassieError::Planner(format!("role '{normalized}' already exists")));
+        }
+
+        let password_hash = match (login, password) {
+            (true, Some(password)) => Some(hash_password(&password)?),
+            (true, None) => {
+                return Err(CassieError::Planner("login roles require a password".into()));
+            }
+            (false, Some(_)) => {
+                return Err(CassieError::Unsupported(
+                    "PASSWORD is only supported for login roles".into(),
+                ));
+            }
+            (false, None) => None,
+        };
+
+        let role = RoleMeta::new(normalized, login, false, password_hash);
+        self.midge
+            .put_role(role.clone())
+            .await
+            .map_err(|error| CassieError::Storage(format!("persist role '{name}': {error}")))?;
+        self.catalog.register_role(role).await;
+        Ok(())
+    }
+
+    pub async fn alter_role(
+        &self,
+        name: &str,
+        login: Option<bool>,
+        password: Option<String>,
+    ) -> Result<(), CassieError> {
+        let normalized = normalize_role_name(name);
+        let Some(mut role) = self.lookup_role(&normalized).await? else {
+            return Err(CassieError::NotFound(format!("role '{normalized}' not found")));
+        };
+
+        if role.is_admin {
+            if let Some(false) = login {
+                return Err(CassieError::Unsupported(
+                    "cannot disable the bootstrap admin role".into(),
+                ));
+            }
+        }
+
+        if let Some(login) = login {
+            role.can_login = login;
+        }
+
+        if let Some(password) = password {
+            role.password_hash = Some(hash_password(&password)?);
+        }
+
+        if role.can_login && role.password_hash.is_none() {
+            return Err(CassieError::Planner(
+                "login roles require a password".into(),
+            ));
+        }
+
+        self.midge
+            .put_role(role.clone())
+            .await
+            .map_err(|error| CassieError::Storage(format!("persist role '{name}': {error}")))?;
+        self.catalog.register_role(role).await;
+        Ok(())
+    }
+
+    pub async fn drop_role(&self, name: &str, if_exists: bool) -> Result<(), CassieError> {
+        let normalized = normalize_role_name(name);
+        let Some(role) = self.lookup_role(&normalized).await? else {
+            if if_exists {
+                return Ok(());
+            }
+            return Err(CassieError::NotFound(format!("role '{normalized}' not found")));
+        };
+
+        if role.is_admin {
+            return Err(CassieError::Unsupported(
+                "cannot drop the bootstrap admin role".into(),
+            ));
+        }
+
+        self.midge
+            .delete_role(&normalized)
+            .await
+            .map_err(|error| CassieError::Storage(format!("delete role '{name}': {error}")))?;
+        self.catalog.unregister_role(&normalized).await;
+        Ok(())
+    }
+
     pub async fn metrics(&self) -> serde_json::Value {
         let snapshot = self.runtime.snapshot();
         serde_json::json!({
@@ -1438,6 +1627,22 @@ fn build_openai_provider(
 
     let provider = OpenAiProvider::with_config(config)?;
     Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
+}
+
+fn hash_password(password: &str) -> Result<String, CassieError> {
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map(|hash| hash.to_string())
+        .map_err(|error| CassieError::Execution(format!("failed to hash role password: {error}")))
+}
+
+fn verify_password(hash: &str, password: &str) -> Result<bool, CassieError> {
+    let parsed = PasswordHash::new(hash)
+        .map_err(|error| CassieError::Execution(format!("invalid password hash: {error}")))?;
+    Ok(Argon2::default()
+        .verify_password(password.as_bytes(), &parsed)
+        .is_ok())
 }
 
 impl From<QueryError> for CassieError {

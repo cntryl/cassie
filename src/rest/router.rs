@@ -15,6 +15,7 @@ use hyper::{
 use hyper_util::rt::TokioIo;
 
 use crate::app::Cassie;
+use crate::catalog::RoleMeta;
 
 pub async fn run(addr: String, cassie: Cassie) -> Result<(), crate::app::CassieError> {
     let listen: SocketAddr = addr.parse().map_err(|e| {
@@ -128,16 +129,29 @@ pub async fn route_request(
     };
     let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     let started_at = Instant::now();
-    if !is_route_public(&method, segments.as_slice())
-        && !is_rest_request_authorized(request.headers(), &cassie.auth_password)
-    {
-        cassie.runtime.record_rest_request(
-            method.as_str(),
-            &path,
-            StatusCode::UNAUTHORIZED.as_u16(),
-            started_at.elapsed(),
-        );
-        return Err((StatusCode::UNAUTHORIZED, "unauthorized".to_string()));
+    if !is_route_public(&method, segments.as_slice()) && !cassie.auth_password.is_empty() {
+        let role = match authenticate_rest_request(&cassie, request.headers()).await {
+            Ok(role) => role,
+            Err((status, message)) => {
+                cassie.runtime.record_rest_request(
+                    method.as_str(),
+                    &path,
+                    status.as_u16(),
+                    started_at.elapsed(),
+                );
+                return Err((status, message));
+            }
+        };
+
+        if !role.is_admin {
+            cassie.runtime.record_rest_request(
+                method.as_str(),
+                &path,
+                StatusCode::FORBIDDEN.as_u16(),
+                started_at.elapsed(),
+            );
+            return Err((StatusCode::FORBIDDEN, "forbidden".to_string()));
+        }
     }
     let body: RestBytes = request
         .into_body()
@@ -246,17 +260,56 @@ fn is_route_public(method: &Method, segments: &[&str]) -> bool {
     )
 }
 
-fn is_rest_request_authorized(headers: &hyper::HeaderMap, expected_password: &str) -> bool {
-    if expected_password.is_empty() {
-        return true;
-    }
-
-    let Some(raw) = headers
-        .get("authorization")
-        .and_then(|value| value.to_str().ok())
-    else {
-        return false;
+async fn authenticate_rest_request(
+    cassie: &Arc<Cassie>,
+    headers: &hyper::HeaderMap,
+) -> Result<RoleMeta, (StatusCode, String)> {
+    let Some((user, password)) = parse_rest_credentials(cassie, headers) else {
+        return Err((StatusCode::UNAUTHORIZED, "unauthorized".to_string()));
     };
 
-    raw.starts_with(AUTH_TOKEN_PREFIX) && raw[AUTH_TOKEN_PREFIX.len()..].trim() == expected_password
+    let session = cassie
+        .authenticate_role(&user, password.as_deref(), None)
+        .await
+        .map_err(|error| match error {
+            crate::app::CassieError::Unauthorized => {
+                (StatusCode::UNAUTHORIZED, "unauthorized".to_string())
+            }
+            other => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                format!("authentication unavailable: {other}"),
+            ),
+        })?;
+
+    let Some(role) = cassie
+        .lookup_role(&session.user)
+        .await
+        .map_err(|error| (StatusCode::SERVICE_UNAVAILABLE, error.to_string()))?
+    else {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            format!("role '{}' disappeared during authentication", session.user),
+        ));
+    };
+
+    Ok(role)
+}
+
+fn parse_rest_credentials(
+    cassie: &Arc<Cassie>,
+    headers: &hyper::HeaderMap,
+) -> Option<(String, Option<String>)> {
+    let raw = headers
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())?;
+    let token = raw.strip_prefix(AUTH_TOKEN_PREFIX)?.trim();
+    if token.is_empty() {
+        return None;
+    }
+
+    if let Some((user, password)) = token.split_once(':') {
+        Some((user.trim().to_string(), Some(password.trim().to_string())))
+    } else {
+        Some((cassie.auth_user.clone(), Some(token.to_string())))
+    }
 }

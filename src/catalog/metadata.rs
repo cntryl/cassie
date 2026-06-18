@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 
 use crate::catalog::{
     CollectionMeta, CollectionSchema, FieldConstraint, FunctionMeta, IndexMeta, NamespaceMeta,
-    ProcedureMeta,
+    ProcedureMeta, RoleMeta, normalize_role_name,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::DataType;
@@ -20,6 +20,7 @@ pub struct Catalog {
     pub indexes: Arc<RwLock<HashMap<String, IndexMeta>>>,
     pub functions: Arc<RwLock<HashMap<String, FunctionMeta>>>,
     pub procedures: Arc<RwLock<HashMap<String, ProcedureMeta>>>,
+    pub roles: Arc<RwLock<HashMap<String, RoleMeta>>>,
     pub vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
     version: Arc<AtomicU64>,
 }
@@ -34,6 +35,7 @@ impl Catalog {
             indexes: Arc::new(RwLock::new(HashMap::new())),
             functions: Arc::new(RwLock::new(HashMap::new())),
             procedures: Arc::new(RwLock::new(HashMap::new())),
+            roles: Arc::new(RwLock::new(HashMap::new())),
             vector_indexes: Arc::new(RwLock::new(HashMap::new())),
             version: Arc::new(AtomicU64::new(0)),
         }
@@ -174,6 +176,37 @@ impl Catalog {
         out
     }
 
+    pub async fn register_role(&self, metadata: RoleMeta) {
+        let mut roles = self.roles.write().await;
+        roles.insert(normalize_role_name(&metadata.name), metadata);
+        self.bump_version();
+    }
+
+    pub async fn unregister_role(&self, name: &str) {
+        self.roles.write().await.remove(&normalize_role_name(name));
+        self.bump_version();
+    }
+
+    pub async fn get_role(&self, name: &str) -> Option<RoleMeta> {
+        self.roles
+            .read()
+            .await
+            .get(&normalize_role_name(name))
+            .cloned()
+    }
+
+    pub async fn list_roles(&self) -> Vec<RoleMeta> {
+        let mut out = self
+            .roles
+            .read()
+            .await
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        out.sort_by_key(|role| role.name.to_ascii_lowercase());
+        out
+    }
+
     pub async fn namespace_exists(&self, namespace: &str) -> bool {
         self.namespaces.read().await.contains_key(namespace)
     }
@@ -185,6 +218,7 @@ impl Catalog {
         self.constraints.write().await.clear();
         self.functions.write().await.clear();
         self.procedures.write().await.clear();
+        self.roles.write().await.clear();
         self.indexes.write().await.clear();
         self.vector_indexes.write().await.clear();
         self.bump_version();

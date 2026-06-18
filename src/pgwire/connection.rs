@@ -7,9 +7,8 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
-use crate::app::{Cassie, CassieSession};
+use crate::app::{Cassie, CassieError, CassieSession};
 use crate::config::CassieRuntimeConfig;
-use crate::pgwire::auth;
 use crate::pgwire::handlers::query;
 use crate::pgwire::protocol::{Portal, PreparedStatement, ReadyState, WireError};
 use crate::runtime::ExecutionMode;
@@ -50,11 +49,13 @@ enum FrontendMessage {
     Parse {
         name: String,
         query: String,
+        parameter_types: Vec<i32>,
     },
     Bind {
         portal_name: String,
         statement_name: String,
         params: Vec<Value>,
+        result_formats: Vec<i16>,
     },
     Describe {
         target: DescribeTarget,
@@ -165,10 +166,16 @@ pub async fn run_connection(
                         let session = cassie
                             .create_session(&startup_user, startup_database.clone())
                             .await;
-                        state.session = Some(session);
+                        state.session = Some(session.clone());
                         state.ready = ReadyState::Idle;
                         runtime.record_pgwire_auth_ok();
                         if write_auth_ok(&mut write_half).await.is_err() {
+                            break;
+                        }
+                        if write_ready_for_query(&mut write_half, &session)
+                            .await
+                            .is_err()
+                        {
                             break;
                         }
                         handshake_state = HandshakeState::Ready;
@@ -205,36 +212,54 @@ pub async fn run_connection(
                 match read_password_message(&mut reader).await {
                     Ok(password) => {
                         runtime.record_pgwire_message("password");
-                        if auth::validate_user_password(
-                            &config.user,
-                            &config.password,
-                            &user,
-                            Some(&password),
-                        )
-                        .is_ok()
-                        {
-                            state.authenticated = true;
-                            let session = cassie.create_session(&user, database).await;
-                            state.session = Some(session);
-                            state.ready = ReadyState::Idle;
-                            runtime.record_pgwire_auth_ok();
-                            if write_auth_ok(&mut write_half).await.is_err() {
-                                break;
-                            }
-                            handshake_state = HandshakeState::Ready;
-                        } else {
-                            runtime.record_pgwire_auth_failed();
-                            runtime.record_pgwire_protocol_error();
-                            if write_error_response(
-                                &mut write_half,
-                                "FATAL",
-                                "28000",
-                                "authentication failed",
-                            )
+                        match cassie
+                            .authenticate_role(&user, Some(&password), database.clone())
                             .await
-                            .is_err()
-                            {
-                                break;
+                        {
+                            Ok(session) => {
+                                state.authenticated = true;
+                                state.session = Some(session.clone());
+                                state.ready = ReadyState::Idle;
+                                runtime.record_pgwire_auth_ok();
+                                if write_auth_ok(&mut write_half).await.is_err() {
+                                    break;
+                                }
+                                if write_ready_for_query(&mut write_half, &session)
+                                    .await
+                                    .is_err()
+                                {
+                                    break;
+                                }
+                                handshake_state = HandshakeState::Ready;
+                            }
+                            Err(CassieError::Unauthorized) => {
+                                runtime.record_pgwire_auth_failed();
+                                runtime.record_pgwire_protocol_error();
+                                if write_error_response(
+                                    &mut write_half,
+                                    "FATAL",
+                                    "28000",
+                                    "authentication failed",
+                                )
+                                .await
+                                .is_err()
+                                {
+                                    break;
+                                }
+                            }
+                            Err(error) => {
+                                runtime.record_pgwire_protocol_error();
+                                if write_error_response(
+                                    &mut write_half,
+                                    "FATAL",
+                                    "XX000",
+                                    &error.to_string(),
+                                )
+                                .await
+                                .is_err()
+                                {
+                                    break;
+                                }
                             }
                         }
                     }
@@ -439,7 +464,11 @@ pub async fn run_connection(
                         }
                     }
                     other => match other {
-                        FrontendMessage::Parse { name, query } => {
+                        FrontendMessage::Parse {
+                            name,
+                            query,
+                            parameter_types,
+                        } => {
                             runtime.record_pgwire_message("parse");
                             if let Some(error) = crate::app::unsupported_sql_error(&query) {
                                 runtime.record_pgwire_protocol_error();
@@ -461,7 +490,14 @@ pub async fn run_connection(
                                 Ok(_) => {
                                     let existed = state
                                         .prepared
-                                        .insert(name.clone(), PreparedStatement { name, query });
+                                        .insert(
+                                            name.clone(),
+                                            PreparedStatement {
+                                                name,
+                                                query,
+                                                parameter_types,
+                                            },
+                                        );
                                     if existed.is_none() {
                                         runtime.record_pgwire_prepared_delta(1);
                                     }
@@ -493,6 +529,7 @@ pub async fn run_connection(
                             portal_name,
                             statement_name,
                             params,
+                            result_formats,
                         } => {
                             runtime.record_pgwire_message("bind");
                             if !state.prepared.contains_key(&statement_name) {
@@ -518,6 +555,7 @@ pub async fn run_connection(
                                     name: portal_name,
                                     statement_name,
                                     params,
+                                    result_formats,
                                 },
                             );
                             if existed.is_none() {
@@ -532,9 +570,11 @@ pub async fn run_connection(
                         }
                         FrontendMessage::Describe { target, name } => {
                             runtime.record_pgwire_message("describe");
-                            let sql = match target {
+                            let (sql, parameter_types) = match target {
                                 DescribeTarget::Statement => match state.prepared.get(&name) {
-                                    Some(prepared) => prepared.query.clone(),
+                                    Some(prepared) => {
+                                        (prepared.query.clone(), prepared.parameter_types.clone())
+                                    }
                                     None => {
                                         runtime.record_pgwire_protocol_error();
                                         awaiting_sync = true;
@@ -555,7 +595,12 @@ pub async fn run_connection(
                                 DescribeTarget::Portal => match state.portals.get(&name) {
                                     Some(portal) => {
                                         match state.prepared.get(&portal.statement_name) {
-                                            Some(prepared) => prepared.query.clone(),
+                                            Some(prepared) => {
+                                                (
+                                                    prepared.query.clone(),
+                                                    prepared.parameter_types.clone(),
+                                                )
+                                            }
                                             None => {
                                                 runtime.record_pgwire_protocol_error();
                                                 awaiting_sync = true;
@@ -595,6 +640,36 @@ pub async fn run_connection(
 
                             match query::describe_query(&cassie, &sql).await {
                                 Ok(columns) => {
+                                    let parsed = match crate::sql::parser::parse_statement(&sql) {
+                                        Ok(parsed) => parsed,
+                                        Err(error) => {
+                                            runtime.record_pgwire_protocol_error();
+                                            awaiting_sync = true;
+                                            if write_error_response(
+                                                &mut write_half,
+                                                "ERROR",
+                                                "42601",
+                                                &error.0,
+                                            )
+                                            .await
+                                            .is_err()
+                                            {
+                                                break;
+                                            }
+                                            continue;
+                                        }
+                                    };
+                                    let parameter_types =
+                                        crate::sql::parameter_type_oids(&parsed, &parameter_types);
+                                    if write_parameter_description(
+                                        &mut write_half,
+                                        &parameter_types,
+                                    )
+                                    .await
+                                    .is_err()
+                                    {
+                                        break;
+                                    }
                                     if columns.is_empty() {
                                         if write_backend_frame(&mut write_half, b'n', &[])
                                             .await
@@ -680,7 +755,15 @@ pub async fn run_connection(
                                         result.rows = result.rows.into_iter().take(limit).collect();
                                     }
                                     for row in result.rows {
-                                        if write_data_row(&mut write_half, row).await.is_err() {
+                                        if write_data_row(
+                                            &mut write_half,
+                                            row,
+                                            &result.columns,
+                                            &portal.result_formats,
+                                        )
+                                        .await
+                                        .is_err()
+                                        {
                                             break;
                                         }
                                     }
@@ -875,7 +958,7 @@ async fn write_simple_query_result(
     if !columns.is_empty() {
         write_row_description(write_half, &columns).await?;
         for row in rows {
-            write_data_row(write_half, row).await?;
+            write_data_row(write_half, row, &columns, &[]).await?;
         }
     }
 
@@ -914,10 +997,39 @@ async fn write_row_description(
     write_backend_frame(write_half, b'T', &payload).await
 }
 
+async fn write_parameter_description(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    parameter_types: &[i32],
+) -> io::Result<()> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(
+        &i16::try_from(parameter_types.len())
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "too many parameters"))?
+            .to_be_bytes(),
+    );
+    for oid in parameter_types {
+        payload.extend_from_slice(&oid.to_be_bytes());
+    }
+
+    write_backend_frame(write_half, b't', &payload).await
+}
+
 async fn write_data_row(
     write_half: &mut (impl AsyncWrite + Unpin),
     row: Vec<Value>,
+    columns: &[crate::executor::ColumnMeta],
+    result_formats: &[i16],
 ) -> io::Result<()> {
+    if !result_formats.is_empty()
+        && result_formats.len() != 1
+        && result_formats.len() != columns.len()
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "unsupported result format count",
+        ));
+    }
+
     let mut payload = Vec::new();
     payload.extend_from_slice(
         &i16::try_from(row.len())
@@ -925,19 +1037,33 @@ async fn write_data_row(
             .to_be_bytes(),
     );
 
-    for value in row {
+    for (index, value) in row.into_iter().enumerate() {
         match value {
             Value::Null => payload.extend_from_slice(&(-1_i32).to_be_bytes()),
             other => {
-                let text = value_to_text(other);
+                let format_code = match result_formats.len() {
+                    0 => 0,
+                    1 => result_formats[0],
+                    _ => result_formats[index],
+                };
+                let bytes = if format_code == 0 {
+                    value_to_text(other).into_bytes()
+                } else if format_code == 1 {
+                    value_to_binary(other, columns[index].type_oid)?
+                } else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "unsupported result format",
+                    ));
+                };
                 payload.extend_from_slice(
-                    &i32::try_from(text.len())
+                    &i32::try_from(bytes.len())
                         .map_err(|_| {
                             io::Error::new(io::ErrorKind::InvalidInput, "value too large")
                         })?
                         .to_be_bytes(),
                 );
-                payload.extend_from_slice(text.as_bytes());
+                payload.extend_from_slice(&bytes);
             }
         }
     }
@@ -1100,10 +1226,15 @@ async fn read_frontend_message(
             let parameter_count = usize::try_from(parameter_count).map_err(|_| {
                 HandshakeError::Invalid("invalid parse parameter count".to_string())
             })?;
+            let mut parameter_types = Vec::with_capacity(parameter_count);
             for _ in 0..parameter_count {
-                let _ = read_frontend_i32(&payload, &mut cursor)?;
+                parameter_types.push(read_frontend_i32(&payload, &mut cursor)?);
             }
-            FrontendMessage::Parse { name, query }
+            FrontendMessage::Parse {
+                name,
+                query,
+                parameter_types,
+            }
         }
         b'B' => {
             let portal_name = read_null_terminated(&payload, &mut cursor)?;
@@ -1137,7 +1268,7 @@ async fn read_frontend_message(
                     .get(cursor..end)
                     .ok_or_else(|| HandshakeError::Invalid("invalid bind payload".to_string()))?;
 
-                let format_code = match format_codes.as_slice() {
+                let _format_code = match format_codes.as_slice() {
                     [] => 0,
                     [single] => *single,
                     codes if codes.len() == parameter_count => codes[index],
@@ -1147,12 +1278,6 @@ async fn read_frontend_message(
                         ))
                     }
                 };
-
-                if format_code != 0 {
-                    return Err(HandshakeError::Invalid(
-                        "binary bind parameters are not supported".to_string(),
-                    ));
-                }
 
                 let text = str::from_utf8(value).map_err(|_| {
                     HandshakeError::Invalid("invalid UTF-8 in bind parameter".to_string())
@@ -1164,19 +1289,16 @@ async fn read_frontend_message(
             let result_format_count = read_frontend_i16(&payload, &mut cursor)?;
             let result_format_count = usize::try_from(result_format_count)
                 .map_err(|_| HandshakeError::Invalid("invalid result format count".to_string()))?;
+            let mut result_formats = Vec::with_capacity(result_format_count);
             for _ in 0..result_format_count {
-                let format_code = read_frontend_i16(&payload, &mut cursor)?;
-                if format_code != 0 {
-                    return Err(HandshakeError::Invalid(
-                        "binary result formats are not supported".to_string(),
-                    ));
-                }
+                result_formats.push(read_frontend_i16(&payload, &mut cursor)?);
             }
 
             FrontendMessage::Bind {
                 portal_name,
                 statement_name,
                 params,
+                result_formats,
             }
         }
         b'D' => {
@@ -1497,5 +1619,26 @@ fn value_to_text(value: Value) -> String {
                 .join(",")
         ),
         Value::Json(v) => v.to_string(),
+    }
+}
+
+fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
+    match type_oid {
+        16 => match value {
+            Value::Bool(v) => Ok(vec![if v { 1 } else { 0 }]),
+            other => Ok(value_to_text(other).into_bytes()),
+        },
+        20 => match value {
+            Value::Int64(v) => Ok(v.to_be_bytes().to_vec()),
+            Value::Float64(v) => Ok((v as i64).to_be_bytes().to_vec()),
+            other => Ok(value_to_text(other).into_bytes()),
+        },
+        701 => match value {
+            Value::Float64(v) => Ok(v.to_be_bytes().to_vec()),
+            Value::Int64(v) => Ok((v as f64).to_be_bytes().to_vec()),
+            other => Ok(value_to_text(other).into_bytes()),
+        },
+        25 | 1043 | 705 | 114 => Ok(value_to_text(value).into_bytes()),
+        _ => Ok(value_to_text(value).into_bytes()),
     }
 }

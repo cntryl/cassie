@@ -99,6 +99,9 @@ pub enum QueryStatement {
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
     CreateSchema(CreateSchemaStatement),
+    CreateRole(CreateRoleStatement),
+    AlterRole(AlterRoleStatement),
+    DropRole(DropRoleStatement),
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
     CreateFunction(CreateFunctionStatement),
@@ -252,6 +255,27 @@ pub enum AlterTableOperation {
 pub struct CreateSchemaStatement {
     pub schema: String,
     pub if_not_exists: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateRoleStatement {
+    pub name: String,
+    pub if_not_exists: bool,
+    pub login: bool,
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AlterRoleStatement {
+    pub name: String,
+    pub login: Option<bool>,
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DropRoleStatement {
+    pub name: String,
+    pub if_exists: bool,
 }
 
 #[derive(Debug, Clone)]

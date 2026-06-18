@@ -285,15 +285,68 @@ fn should_parse_vector_function_argument_with_commas() {
 }
 
 #[test]
+fn should_parse_create_role_statement() {
+    // Arrange
+    let sql = "CREATE ROLE analytics LOGIN PASSWORD 'secret'";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateRole(statement) = parsed.statement else {
+        panic!("expected create role");
+    };
+
+    assert_eq!(statement.name, "analytics");
+    assert!(statement.login);
+    assert_eq!(statement.password.as_deref(), Some("secret"));
+}
+
+#[test]
+fn should_parse_alter_role_password_statement() {
+    // Arrange
+    let sql = "ALTER ROLE analytics PASSWORD 'rotated'";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::AlterRole(statement) = parsed.statement else {
+        panic!("expected alter role");
+    };
+
+    assert_eq!(statement.name, "analytics");
+    assert_eq!(statement.login, None);
+    assert_eq!(statement.password.as_deref(), Some("rotated"));
+}
+
+#[test]
+fn should_parse_drop_role_statement() {
+    // Arrange
+    let sql = "DROP ROLE analytics";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::DropRole(statement) = parsed.statement else {
+        panic!("expected drop role");
+    };
+
+    assert_eq!(statement.name, "analytics");
+    assert!(!statement.if_exists);
+}
+
+#[test]
 fn should_reject_privilege_sql_statements() {
     // Arrange
     let statements = [
-        "CREATE ROLE analytics",
-        "DROP USER reporter",
         "GRANT SELECT ON table TO public",
         "REVOKE ALL ON table FROM public",
         "CREATE POLICY tenant_policy ON docs USING (tenant_id = current_user)",
         "ALTER TABLE docs ENABLE ROW LEVEL SECURITY",
+        "SET ROLE analytics",
+        "SET SESSION AUTHORIZATION analytics",
     ];
 
     for statement in statements {
@@ -306,18 +359,6 @@ fn should_reject_privilege_sql_statements() {
             "expected unsupported statement: {statement}"
         );
     }
-}
-
-#[test]
-fn should_reject_set_role_sql() {
-    // Arrange
-    let statement = "SET ROLE analytics";
-
-    // Act
-    let result = parse_statement(statement);
-
-    // Assert
-    assert!(result.is_err(), "SET ROLE should be rejected");
 }
 
 #[test]

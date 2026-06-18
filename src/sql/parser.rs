@@ -2,12 +2,12 @@ use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, Index
 use crate::sql::ast::{
     AlterTableOperation, AlterTableStatement, BinaryOp, CallProcedureStatement,
     CommonTableExpression, CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
-    CreateSchemaStatement, CreateTableStatement, CteQuery, DropFunctionStatement,
-    DropIndexStatement, DropProcedureStatement, DropTableStatement, Expr, FieldDefinition,
+    CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, CteQuery, DropFunctionStatement,
+    DropIndexStatement, DropProcedureStatement, DropRoleStatement, DropTableStatement, Expr, FieldDefinition,
     FunctionArg, FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement,
     QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement,
     ShowStatement, SortDirection, TransactionAction, TransactionIsolation, TransactionStatement,
-    Volatility,
+    Volatility, AlterRoleStatement,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -31,6 +31,20 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         parse_transaction_statement(trimmed)
     } else if is_unsupported_transaction_control_statement(&lower) {
         Err(SqlError("unsupported transaction control statement".into()))
+    } else if lower.starts_with("create role ") || lower == "create role" {
+        parse_create_role_statement(trimmed, false)
+    } else if lower.starts_with("create user ") || lower == "create user" {
+        parse_create_role_statement(trimmed, true)
+    } else if lower.starts_with("alter role ") || lower == "alter role" {
+        parse_alter_role_statement(trimmed, false)
+    } else if lower.starts_with("alter user ") || lower == "alter user" {
+        parse_alter_role_statement(trimmed, true)
+    } else if lower.starts_with("drop role ")
+        || lower == "drop role"
+        || lower.starts_with("drop user ")
+        || lower == "drop user"
+    {
+        parse_drop_role_statement(trimmed)
     } else if let Some(message) = unsupported_privilege_statement(&lower) {
         Err(SqlError(message.to_string()))
     } else if lower.starts_with("create function ") || lower == "create function" {
@@ -81,21 +95,6 @@ fn is_transaction_control_statement(lower: &str) -> bool {
 }
 
 fn unsupported_privilege_statement(lower: &str) -> Option<&'static str> {
-    if lower == "create role" || lower.starts_with("create role ") {
-        return Some("CREATE ROLE is not supported in this version");
-    }
-    if lower == "create user" || lower.starts_with("create user ") {
-        return Some("CREATE USER is not supported in this version");
-    }
-    if lower == "drop role" || lower.starts_with("drop role ") {
-        return Some("DROP ROLE is not supported in this version");
-    }
-    if lower == "drop user" || lower.starts_with("drop user ") {
-        return Some("DROP USER is not supported in this version");
-    }
-    if lower == "alter role" || lower.starts_with("alter role ") {
-        return Some("ALTER ROLE is not supported in this version");
-    }
     if lower == "grant" || lower.starts_with("grant ") {
         return Some("GRANT is not supported in this version");
     }
@@ -742,6 +741,108 @@ fn parse_create_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError>
     })
 }
 
+fn parse_create_role_statement(sql: &str, user_alias: bool) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[11..].trim();
+    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+    let mut tokens = tokenize_schema_field(rest).into_iter();
+
+    let name = tokens
+        .next()
+        .ok_or_else(|| SqlError("missing role name".into()))?;
+    if name.trim().is_empty() {
+        return Err(SqlError("missing role name".into()));
+    }
+
+    let mut login = user_alias;
+    let mut password = None;
+    while let Some(token) = tokens.next() {
+        match token.to_ascii_lowercase().as_str() {
+            "login" => login = true,
+            "nologin" => login = false,
+            "password" => {
+                let raw_password = tokens
+                    .next()
+                    .ok_or_else(|| SqlError("PASSWORD requires a value".into()))?;
+                password = parse_optional_role_password(&raw_password)?;
+            }
+            other => {
+                return Err(SqlError(format!("unsupported CREATE ROLE option '{other}'")));
+            }
+        }
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CreateRole(CreateRoleStatement {
+            name,
+            if_not_exists,
+            login,
+            password,
+        }),
+    })
+}
+
+fn parse_alter_role_statement(sql: &str, _user_alias: bool) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[10..].trim();
+    let (name, rest) = split_first_token(rest)
+        .ok_or_else(|| SqlError("missing role name".into()))?;
+    let mut tokens = tokenize_schema_field(rest).into_iter();
+    let mut login = None;
+    let mut password = None;
+
+    while let Some(token) = tokens.next() {
+        match token.to_ascii_lowercase().as_str() {
+            "login" => login = Some(true),
+            "nologin" => login = Some(false),
+            "password" => {
+                let raw_password = tokens
+                    .next()
+                    .ok_or_else(|| SqlError("PASSWORD requires a value".into()))?;
+                password = parse_optional_role_password(&raw_password)?;
+            }
+            other => {
+                return Err(SqlError(format!("unsupported ALTER ROLE option '{other}'")));
+            }
+        }
+    }
+
+    if login.is_none() && password.is_none() {
+        return Err(SqlError("ALTER ROLE requires at least one option".into()));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::AlterRole(AlterRoleStatement {
+            name,
+            login,
+            password,
+        }),
+    })
+}
+
+fn parse_drop_role_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[9..].trim();
+    let (if_exists, rest) = parse_if_exists(rest)?;
+    let role = rest.trim();
+    if role.is_empty() {
+        return Err(SqlError("missing role name".into()));
+    }
+    if role.split_whitespace().count() != 1 {
+        return Err(SqlError("DROP ROLE supports only a single role name".into()));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::DropRole(DropRoleStatement {
+            name: role.to_string(),
+            if_exists,
+        }),
+    })
+}
+
 fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     if !trimmed.to_lowercase().starts_with("insert into ") {
@@ -1305,6 +1406,34 @@ fn parse_if_exists(raw: &str) -> Result<(bool, &str), SqlError> {
         return Ok((true, raw["if exists ".len()..].trim()));
     }
     Ok((false, raw.trim()))
+}
+
+fn split_first_token(raw: &str) -> Option<(String, &str)> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+
+    let mut parts = raw.splitn(2, char::is_whitespace);
+    let first = parts.next()?.trim();
+    if first.is_empty() {
+        return None;
+    }
+
+    Some((first.to_string(), parts.next().unwrap_or("").trim_start()))
+}
+
+fn parse_optional_role_password(raw: &str) -> Result<Option<String>, SqlError> {
+    if raw.eq_ignore_ascii_case("null") {
+        return Ok(None);
+    }
+
+    let value = parse_constraint_literal(raw)?;
+    match value {
+        Value::String(password) => Ok(Some(password)),
+        Value::Null => Ok(None),
+        other => Ok(Some(other.to_string())),
+    }
 }
 
 fn parse_function_args(raw: &str) -> Result<Vec<FunctionArg>, SqlError> {

@@ -1,11 +1,12 @@
 use crate::app::CassieError;
 use crate::sql::{
     ast::{
-        AlterTableOperation, AlterTableStatement, CommonTableExpression, CreateFunctionStatement,
-        CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement,
-        CreateTableStatement, DeleteStatement, DropFunctionStatement, DropIndexStatement,
-        DropProcedureStatement, DropTableStatement, Expr, InsertStatement, OrderExpr, QuerySource,
-        QueryStatement, SelectItem, SelectStatement, SetStatement, ShowStatement, UpdateStatement,
+        AlterRoleStatement, AlterTableOperation, AlterTableStatement, CommonTableExpression,
+        CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
+        CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, DeleteStatement,
+        DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropRoleStatement,
+        DropTableStatement, Expr, InsertStatement, OrderExpr, QuerySource, QueryStatement,
+        SelectItem, SelectStatement, SetStatement, ShowStatement, UpdateStatement,
     },
     binder::BoundStatement,
 };
@@ -32,6 +33,9 @@ pub enum LogicalCommand {
     CreateTable(CreateTableStatement),
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
+    CreateRole(CreateRoleStatement),
+    AlterRole(AlterRoleStatement),
+    DropRole(DropRoleStatement),
     CreateFunction(CreateFunctionStatement),
     DropFunction(DropFunctionStatement),
     CreateProcedure(CreateProcedureStatement),
@@ -251,6 +255,69 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 command: Some(LogicalCommand::CreateSchema(statement.clone())),
                 source: QuerySource::Collection(statement.schema.clone()),
                 collection: statement.schema.clone(),
+                ctes: Vec::new(),
+                distinct: false,
+                projection: Vec::new(),
+                filter: None,
+                group_by: Vec::new(),
+                having: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+                set: None,
+            })
+        }
+        QueryStatement::CreateRole(statement) => {
+            if statement.name.trim().is_empty() {
+                return Err(CassieError::Planner("CREATE ROLE requires a name".into()));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::CreateRole(statement.clone())),
+                source: QuerySource::Collection(statement.name.clone()),
+                collection: statement.name.clone(),
+                ctes: Vec::new(),
+                distinct: false,
+                projection: Vec::new(),
+                filter: None,
+                group_by: Vec::new(),
+                having: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+                set: None,
+            })
+        }
+        QueryStatement::AlterRole(statement) => {
+            if statement.name.trim().is_empty() {
+                return Err(CassieError::Planner("ALTER ROLE requires a name".into()));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::AlterRole(statement.clone())),
+                source: QuerySource::Collection(statement.name.clone()),
+                collection: statement.name.clone(),
+                ctes: Vec::new(),
+                distinct: false,
+                projection: Vec::new(),
+                filter: None,
+                group_by: Vec::new(),
+                having: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+                set: None,
+            })
+        }
+        QueryStatement::DropRole(statement) => {
+            if statement.name.trim().is_empty() {
+                return Err(CassieError::Planner("DROP ROLE requires a name".into()));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::DropRole(statement.clone())),
+                source: QuerySource::Collection(statement.name.clone()),
+                collection: statement.name.clone(),
                 ctes: Vec::new(),
                 distinct: false,
                 projection: Vec::new(),

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bytes = "1.10"
+bytes = "1.12"
 http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["tokio"] }
 tokio = { version = "1.52", features = ["full"] }
@@ -16,7 +16,11 @@ cntryl-midge = { package = "cntryl-midge", git = "https://github.com/cntryl/midg
 hyper = { version = "1.10", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "blocking", "json"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking", "json"] }
+argon2 = "0.5"
+
+[dev-dependencies]
+tokio-postgres = "0.7"
 
 [profile.dev]
 opt-level = 0

@@ -33,7 +33,7 @@ Cassie is PostgreSQL-wire compatible, but it is not PostgreSQL. Unsupported Post
 25. [Sprint 25 - Catalog Compatibility Probes](completed/sprint-25.md)
 26. [Sprint 26 - Type Catalog and SQL Casts](completed/sprint-26.md)
 27. [Sprint 27 - Wire Type Metadata Policy](completed/sprint-27.md)
-28. [Sprint 28 - Auth and Session Identity](sprint-28.md)
+28. [Sprint 28 - Auth and Session Identity](completed/sprint-28.md)
 29. [Sprint 29 - Binary Pgwire Startup and Auth](completed/sprint-29.md)
 30. [Sprint 30 - Binary Pgwire Simple Query](completed/sprint-30.md)
 31. [Sprint 31 - Extended Query Parse/Bind/Execute](completed/sprint-31.md)

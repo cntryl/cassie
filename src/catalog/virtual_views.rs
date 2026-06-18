@@ -44,7 +44,7 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             text("indexdef"),
         ],
         "pg_catalog.pg_constraint" => vec![text("conname"), text("conrelid"), text("contype")],
-        "pg_catalog.pg_roles" => vec![text("rolname")],
+        "pg_catalog.pg_roles" => vec![text("rolname"), bool("rolcanlogin"), bool("rolsuper")],
         "pg_catalog.pg_type" => vec![
             int("oid"),
             text("typname"),
@@ -60,7 +60,7 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
     Some(fields)
 }
 
-pub async fn rows(catalog: &Catalog, admin_role: &str, name: &str) -> Option<Vec<VirtualRow>> {
+pub async fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
     let name = normalize_name(name);
     let rows = match name.as_str() {
         "information_schema.tables" => information_schema_tables(catalog).await,
@@ -75,10 +75,18 @@ pub async fn rows(catalog: &Catalog, admin_role: &str, name: &str) -> Option<Vec
         "pg_catalog.pg_indexes" => pg_indexes(catalog).await,
         "pg_catalog.pg_constraint" => pg_constraint(catalog).await,
         "pg_catalog.pg_type" => pg_type(catalog),
-        "pg_catalog.pg_roles" => vec![vec![(
-            "rolname".to_string(),
-            Value::String(admin_role.to_string()),
-        )]],
+        "pg_catalog.pg_roles" => catalog
+            .list_roles()
+            .await
+            .into_iter()
+            .map(|role| {
+                vec![
+                    ("rolname".to_string(), Value::String(role.name)),
+                    ("rolcanlogin".to_string(), Value::Bool(role.can_login)),
+                    ("rolsuper".to_string(), Value::Bool(role.is_admin)),
+                ]
+            })
+            .collect(),
         _ => return None,
     };
     Some(rows)

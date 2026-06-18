@@ -6,7 +6,9 @@ use std::time::Instant;
 use crate::app::{Cassie, CassieSession};
 use crate::catalog;
 use crate::catalog::virtual_views;
-use crate::catalog::{CollectionSchema, FieldMeta, FunctionMeta, ProcedureMeta, Volatility};
+use crate::catalog::{
+    CollectionSchema, FieldMeta, FunctionMeta, ProcedureMeta, Volatility,
+};
 use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
 use crate::executor::batch::{self, Batch, BatchRow, RowAccess};
 use crate::executor::{aggregate, filter, projection, scan, sort};
@@ -381,6 +383,54 @@ async fn execute_command(
                 columns: Vec::new(),
                 rows: Vec::new(),
                 command: "CREATE SCHEMA".to_string(),
+            })
+        }
+        LogicalCommand::CreateRole(statement) => {
+            cassie
+                .create_role(
+                    &statement.name,
+                    statement.login,
+                    statement.password.clone(),
+                    statement.if_not_exists,
+                )
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            invalidate_plan_cache = true;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "CREATE ROLE".to_string(),
+            })
+        }
+        LogicalCommand::AlterRole(statement) => {
+            cassie
+                .alter_role(
+                    &statement.name,
+                    statement.login,
+                    statement.password.clone(),
+                )
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            invalidate_plan_cache = true;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "ALTER ROLE".to_string(),
+            })
+        }
+        LogicalCommand::DropRole(statement) => {
+            cassie
+                .drop_role(&statement.name, statement.if_exists)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            invalidate_plan_cache = true;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "DROP ROLE".to_string(),
             })
         }
         LogicalCommand::CreateIndex(statement) => {
@@ -1624,9 +1674,7 @@ fn execute_query_source<'a>(
     Box::pin(async move {
         match source {
             QuerySource::Collection(name) => {
-                if let Some(rows) =
-                    virtual_views::rows(&env.cassie.catalog, &env.cassie.auth_user, name).await
-                {
+                if let Some(rows) = virtual_views::rows(&env.cassie.catalog, name).await {
                     let mut batches = materialize_virtual_rows(rows);
                     if qualify {
                         batches = qualify_batches(batches, name);

@@ -1,6 +1,6 @@
 # Sprint 29 - Binary Pgwire Startup and Auth
 
-Previous: [Sprint 28 - Auth and Session Identity](../sprint-28.md)
+Previous: [Sprint 28 - Auth and Session Identity](sprint-28.md)
 Next: [Sprint 30 - Binary Pgwire Simple Query](sprint-30.md)
 
 ## Goal

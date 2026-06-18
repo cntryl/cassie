@@ -7,7 +7,7 @@ use cntryl_midge::{ColumnFamilyHandle, Engine, Query, TransactionMode, WriteOpti
 use uuid::Uuid;
 
 use crate::app::CassieError;
-use crate::catalog::{FieldConstraint, IndexMeta, NamespaceMeta};
+use crate::catalog::{FieldConstraint, IndexMeta, NamespaceMeta, RoleMeta};
 use crate::midge::row_blob::{decode_projected_row, decode_row, encode_row, RowSchema};
 use crate::types::{DataType, FieldSchema, Schema, Value, Vector};
 
@@ -31,6 +31,7 @@ const INDEX_PREFIX: &str = "__cassie__/index/";
 const CONSTRAINTS_PREFIX: &str = "__cassie__/constraints/";
 const FUNCTION_PREFIX: &str = "__cassie__/function/";
 const PROCEDURE_PREFIX: &str = "__cassie__/procedure/";
+const ROLE_PREFIX: &str = "__cassie__/role/";
 const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
 const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
 const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
@@ -329,6 +330,14 @@ impl Midge {
 
     fn procedure_prefix() -> Vec<u8> {
         PROCEDURE_PREFIX.as_bytes().to_vec()
+    }
+
+    fn role_key(name: &str) -> Vec<u8> {
+        format!("{ROLE_PREFIX}{}", name.to_ascii_lowercase()).into_bytes()
+    }
+
+    fn role_prefix() -> Vec<u8> {
+        ROLE_PREFIX.as_bytes().to_vec()
     }
 
     fn constraints_key(collection: &str) -> Vec<u8> {
@@ -1196,6 +1205,55 @@ impl Midge {
     pub async fn delete_procedure(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::procedure_key(name))
+            .map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn put_role(&self, metadata: RoleMeta) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let key = Self::role_key(&metadata.name);
+        let value =
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(key, value, None).map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn get_role(&self, name: &str) -> Result<Option<RoleMeta>, CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        let raw = tx
+            .get(&Self::role_key(name))
+            .map_err(CassieError::from)?;
+        let Some(raw) = raw else {
+            return Ok(None);
+        };
+
+        serde_json::from_slice(&raw)
+            .map(Some)
+            .map_err(|error| CassieError::Parse(format!("invalid role metadata: {error}")))
+    }
+
+    pub async fn list_roles(&self) -> Result<Vec<RoleMeta>, CassieError> {
+        let entries = self
+            .raw_scan_prefix(StorageFamily::Schema, &Self::role_prefix())
+            .await?;
+        let mut out: Vec<RoleMeta> = Vec::with_capacity(entries.len());
+        for (_key, raw_value) in entries {
+            let Ok(record) = serde_json::from_slice(&raw_value) else {
+                continue;
+            };
+            out.push(record);
+        }
+        out.sort_by_key(|metadata| metadata.name.to_ascii_lowercase());
+        Ok(out)
+    }
+
+    pub async fn delete_role(&self, name: &str) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.delete(Self::role_key(name))
             .map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;

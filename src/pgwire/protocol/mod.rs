@@ -96,6 +96,7 @@ pub enum ReadyState {
 pub struct PreparedStatement {
     pub name: String,
     pub query: String,
+    pub parameter_types: Vec<i32>,
 }
 
 #[derive(Debug, Clone)]
@@ -103,6 +104,7 @@ pub struct Portal {
     pub name: String,
     pub statement_name: String,
     pub params: Vec<crate::types::Value>,
+    pub result_formats: Vec<i16>,
 }
 
 impl ServerMessage {

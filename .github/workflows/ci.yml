@@ -30,5 +30,8 @@ jobs:
       - name: Cargo fmt check
         run: cargo fmt --all -- --check
 
+      - name: Compatibility matrix
+        run: cargo test --locked --test compatibility_matrix -- --nocapture
+
       - name: Cargo test
         run: cargo test --locked

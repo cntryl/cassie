@@ -243,6 +243,18 @@ fn parse_row_description(payload: &[u8]) -> Vec<(String, i32, i16, i32, i16)> {
     fields
 }
 
+fn parse_parameter_description(payload: &[u8]) -> Vec<i32> {
+    let mut cursor = 0usize;
+    let parameter_count = read_i16(payload, &mut cursor);
+    let mut parameters = Vec::new();
+
+    for _ in 0..parameter_count {
+        parameters.push(read_i32(payload, &mut cursor));
+    }
+
+    parameters
+}
+
 fn parse_data_row(payload: &[u8]) -> Vec<Option<String>> {
     let mut cursor = 0usize;
     let field_count = read_i16(payload, &mut cursor);
@@ -386,6 +398,9 @@ fn should_reject_copy_data_message_with_unsupported_error() {
             .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
+        let startup_ready = read_wire_frame(&mut reader).await;
+        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
+        assert_eq!(startup_ready.1, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,
@@ -492,6 +507,9 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
             .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
+        let startup_ready = read_wire_frame(&mut reader).await;
+        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
+        assert_eq!(startup_ready.1, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,
@@ -661,6 +679,9 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
             .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
+        let startup_ready = read_wire_frame(&mut reader).await;
+        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
+        assert_eq!(startup_ready.1, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,
@@ -781,6 +802,9 @@ fn should_return_unsupported_error_for_copy_statement() {
             .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
+        let startup_ready = read_wire_frame(&mut reader).await;
+        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
+        assert_eq!(startup_ready.1, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,
@@ -884,6 +908,9 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
             .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
+        let startup_ready = read_wire_frame(&mut reader).await;
+        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
+        assert_eq!(startup_ready.1, vec![b'I']);
         assert_eq!(
             i32::from_be_bytes(auth.1[0..4].try_into().expect("auth payload")),
             0,
@@ -941,34 +968,41 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
         // Assert
         assert_eq!(
             frames.len(),
-            6,
-            "extended query should return six backend frames"
+            7,
+            "extended query should return seven backend frames"
         );
         assert_eq!(frames[0].0, b'1', "parse should complete first");
-        assert_eq!(frames[1].0, b'T', "describe should return row metadata");
-        assert_eq!(frames[2].0, b'2', "bind should complete after describe");
-        assert_eq!(frames[3].0, b'D', "execute should return a data row");
         assert_eq!(
-            frames[4].0, b'C',
+            frames[1].0, b't',
+            "describe should return parameter metadata first"
+        );
+        assert_eq!(frames[2].0, b'T', "describe should return row metadata");
+        assert_eq!(frames[3].0, b'2', "bind should complete after describe");
+        assert_eq!(frames[4].0, b'D', "execute should return a data row");
+        assert_eq!(
+            frames[5].0, b'C',
             "execute should end with command complete"
         );
-        assert_eq!(frames[5].0, b'Z', "sync should finish with ready-for-query");
+        assert_eq!(frames[6].0, b'Z', "sync should finish with ready-for-query");
 
-        let fields = parse_row_description(&frames[1].1);
+        let parameters = parse_parameter_description(&frames[1].1);
+        assert_eq!(parameters, vec![705]);
+
+        let fields = parse_row_description(&frames[2].1);
         assert_eq!(fields.len(), 1);
         assert_eq!(fields[0].0, "title");
         assert_eq!(fields[0].3, 25, "text columns should use the text OID");
 
-        let values = parse_data_row(&frames[3].1);
+        let values = parse_data_row(&frames[4].1);
         assert_eq!(values, vec![Some("alpha".to_string())]);
 
         let mut command_cursor = 0usize;
-        let command = read_cstring(&frames[4].1, &mut command_cursor);
+        let command = read_cstring(&frames[5].1, &mut command_cursor);
         assert!(
             command.starts_with("SELECT"),
             "command completion should identify the select command"
         );
-        assert_eq!(frames[5].1, vec![b'I']);
+        assert_eq!(frames[6].1, vec![b'I']);
 
         drop(socket);
         server.abort();
@@ -1051,6 +1085,9 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
             .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
+        let startup_ready = read_wire_frame(&mut reader).await;
+        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
+        assert_eq!(startup_ready.1, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,

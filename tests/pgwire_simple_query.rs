@@ -235,6 +235,12 @@ fn should_execute_binary_simple_query_return_backend_frames() {
             0,
             "passwordless auth should succeed"
         );
+        let startup_ready = read_wire_frame(&mut reader).await;
+        assert_eq!(
+            startup_ready.0, b'Z',
+            "startup should end ready-for-query"
+        );
+        assert_eq!(startup_ready.1, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,
@@ -329,7 +335,14 @@ fn should_recover_ready_after_simple_query_error() {
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
             .await
             .expect("write startup");
-        let _ = read_wire_frame(&mut reader).await;
+        let auth = read_wire_frame(&mut reader).await;
+        assert_eq!(auth.0, b'R', "startup should return an auth response");
+        let startup_ready = read_wire_frame(&mut reader).await;
+        assert_eq!(
+            startup_ready.0, b'Z',
+            "startup should end ready-for-query"
+        );
+        assert_eq!(startup_ready.1, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,

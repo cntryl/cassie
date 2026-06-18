@@ -632,6 +632,38 @@ fn should_plan_update_as_command() {
 }
 
 #[test]
+fn should_plan_delete_as_command() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_delete");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        // Act
+        let parsed = parser::parse_statement(
+            "DELETE FROM planner_delete WHERE title = 'alpha' RETURNING title",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let plan = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert_eq!(plan.collection, "planner_delete");
+        match plan.command.as_ref().expect("delete command") {
+            logical::LogicalCommand::Delete(statement) => {
+                assert_eq!(statement.table, "planner_delete");
+                assert!(statement.filter.is_some());
+                assert_eq!(statement.returning.len(), 1);
+            }
+            _ => panic!("expected delete command"),
+        }
+    });
+}
+
+#[test]
 fn should_plan_alter_table_command() {
     // Arrange
     let catalog = Catalog::new();

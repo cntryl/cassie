@@ -109,6 +109,9 @@ async fn execute_command(
         LogicalCommand::Update(statement) => {
             execute_update(cassie, statement, params, user_functions, controls).await
         }
+        LogicalCommand::Delete(statement) => {
+            execute_delete(cassie, statement, params, user_functions, controls).await
+        }
         LogicalCommand::CreateTable(statement) => {
             if statement.if_not_exists && cassie.catalog.exists(&statement.table).await {
                 return Ok(QueryResult {
@@ -951,6 +954,88 @@ fn row_id_from_batch_row(row: &BatchRow) -> Result<String, QueryError> {
             "scanned row is missing internal row id".to_string(),
         )),
     }
+}
+
+async fn execute_delete(
+    cassie: &Cassie,
+    statement: &crate::sql::ast::DeleteStatement,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    check_timeout(controls)?;
+    let schema = cassie
+        .catalog
+        .get_schema(&statement.table)
+        .await
+        .ok_or_else(|| {
+            QueryError::General(format!("collection '{}' not found", statement.table))
+        })?;
+
+    let batches = scan::scan(cassie, &statement.table).await?;
+    ensure_temp_budget(controls, &batches)?;
+    let rows = batch::flatten_batches(batches);
+    let matched_rows = if let Some(filter_expr) = &statement.filter {
+        filter::filter_rows(rows, filter_expr, params, None, user_functions)?
+    } else {
+        rows
+    };
+
+    let mut delete_ids = Vec::with_capacity(matched_rows.len());
+    let mut returning_rows = Vec::new();
+    for row in &matched_rows {
+        let row_id = row_id_from_batch_row(row)?;
+        if !statement.returning.is_empty() {
+            let current = cassie
+                .midge
+                .get_document(&statement.table, &row_id)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?
+                .ok_or_else(|| {
+                    QueryError::General(format!(
+                        "row '{row_id}' was not found in '{}'",
+                        statement.table
+                    ))
+                })?;
+            returning_rows.push(inserted_row_to_batch_row(
+                &row_id,
+                &schema,
+                &current.payload,
+            ));
+        }
+        delete_ids.push(row_id);
+    }
+
+    for row_id in &delete_ids {
+        cassie
+            .midge
+            .delete_document(&statement.table, row_id)
+            .await
+            .map_err(|error| QueryError::General(error.to_string()))?;
+    }
+
+    let deleted_count = delete_ids.len();
+    if statement.returning.is_empty() {
+        return Ok(QueryResult {
+            columns: Vec::new(),
+            rows: Vec::new(),
+            command: format!("DELETE {deleted_count}"),
+        });
+    }
+
+    let projected = projection::project_rows(
+        returning_rows,
+        &statement.returning,
+        params,
+        None,
+        &HashMap::new(),
+    )?;
+
+    Ok(QueryResult {
+        columns: aggregate::columns_from_projection(&statement.returning),
+        rows: projected.into_iter().map(BatchRow::into_values).collect(),
+        command: format!("DELETE {deleted_count}"),
+    })
 }
 
 async fn vector_index_metadata(

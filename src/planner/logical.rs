@@ -3,9 +3,9 @@ use crate::sql::{
     ast::{
         AlterTableOperation, AlterTableStatement, CommonTableExpression, CreateFunctionStatement,
         CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement,
-        CreateTableStatement, DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
-        DropTableStatement, Expr, InsertStatement, OrderExpr, QuerySource, QueryStatement,
-        SelectItem, SelectStatement, UpdateStatement,
+        CreateTableStatement, DeleteStatement, DropFunctionStatement, DropIndexStatement,
+        DropProcedureStatement, DropTableStatement, Expr, InsertStatement, OrderExpr, QuerySource,
+        QueryStatement, SelectItem, SelectStatement, UpdateStatement,
     },
     binder::BoundStatement,
 };
@@ -38,6 +38,7 @@ pub enum LogicalCommand {
     CallProcedure(crate::sql::ast::CallProcedureStatement),
     Insert(InsertStatement),
     Update(UpdateStatement),
+    Delete(DeleteStatement),
 }
 
 pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
@@ -94,10 +95,25 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 offset: Some(0),
             })
         }
-        QueryStatement::Delete(statement) => Err(CassieError::Planner(format!(
-            "DELETE statement is not supported: {}",
-            statement.table
-        ))),
+        QueryStatement::Delete(statement) => {
+            if statement.table.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "DELETE requires a target table".into(),
+                ));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::Delete(statement.clone())),
+                source: QuerySource::Collection(statement.table.clone()),
+                collection: statement.table.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
         QueryStatement::CreateTable(statement) => {
             if statement.table.trim().is_empty() {
                 return Err(CassieError::Planner(

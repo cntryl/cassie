@@ -1,6 +1,7 @@
 use cassie::app::Cassie;
 use cassie::midge::adapter::StorageFamily;
 use cassie::types::{DataType, FieldSchema, Schema, Value, Vector};
+use cntryl_midge::{TransactionMode, WriteOptions};
 use uuid::Uuid;
 
 fn with_fallback() {
@@ -11,6 +12,17 @@ fn data_dir(label: &str) -> String {
     let mut dir = std::env::temp_dir();
     dir.push(format!("cassie-sql-{}-{}", label, Uuid::new_v4()));
     dir.to_string_lossy().to_string()
+}
+
+fn put_legacy_document(cassie: &Cassie, collection: &str, id: &str, payload: serde_json::Value) {
+    let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
+    tx.put(
+        format!("doc:{collection}:{id}").into_bytes(),
+        payload.to_string().into_bytes(),
+        None,
+    )
+    .unwrap();
+    tx.commit(WriteOptions::sync()).unwrap();
 }
 
 #[test]
@@ -1219,6 +1231,191 @@ fn should_reject_update_validation_failure_without_mutating_row() {
         assert!(updated.is_err());
         assert!(updated.unwrap_err().to_string().contains("cannot be null"));
         assert_eq!(selected.rows[0][0], Value::String("alpha".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_execute_delete_where_returning_rows() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("delete_where_returning");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE delete_where_returning (title TEXT, status TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO delete_where_returning (title, status) VALUES ('alpha', 'old')",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO delete_where_returning (title, status) VALUES ('beta', 'old')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let deleted = cassie
+            .execute_sql(
+                &session,
+                "DELETE FROM delete_where_returning WHERE title = 'alpha' RETURNING _id, title",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM delete_where_returning ORDER BY title ASC",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(deleted.command, "DELETE 1");
+        assert_eq!(deleted.rows.len(), 1);
+        assert!(matches!(&deleted.rows[0][0], Value::String(id) if !id.is_empty()));
+        assert_eq!(deleted.rows[0][1], Value::String("alpha".to_string()));
+        assert_eq!(selected.rows, vec![vec![Value::String("beta".to_string())]]);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_report_zero_rows_for_delete_without_matches() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("delete_no_match");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE delete_no_match (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO delete_no_match (title) VALUES ('alpha')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let deleted = cassie
+            .execute_sql(
+                &session,
+                "DELETE FROM delete_no_match WHERE title = 'missing' RETURNING title",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let selected = cassie
+            .execute_sql(&session, "SELECT title FROM delete_no_match", vec![])
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(deleted.command, "DELETE 0");
+        assert!(deleted.rows.is_empty());
+        assert_eq!(selected.rows.len(), 1);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_delete_legacy_fallback_key_for_sql_delete() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("delete_legacy_cleanup");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE delete_legacy_cleanup (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO delete_legacy_cleanup (title) VALUES ('alpha') RETURNING _id",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let row_id = match &inserted.rows[0][0] {
+            Value::String(value) => value.clone(),
+            _ => panic!("expected row id"),
+        };
+        put_legacy_document(
+            &cassie,
+            "delete_legacy_cleanup",
+            &row_id,
+            serde_json::json!({"title": "stale"}),
+        );
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "DELETE FROM delete_legacy_cleanup WHERE title = 'alpha'",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let deleted = cassie
+            .midge
+            .get_document("delete_legacy_cleanup", &row_id)
+            .await
+            .unwrap();
+
+        // Assert
+        assert!(deleted.is_none());
 
         let _ = std::fs::remove_dir_all(path);
     });

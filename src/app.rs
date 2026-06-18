@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -5,6 +6,7 @@ use std::time::Instant;
 
 use serde::Serialize;
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 use crate::catalog::{Catalog, ConstraintCheck, ConstraintOperator, FieldConstraint};
 use crate::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
@@ -16,7 +18,7 @@ use crate::embeddings::{
     DistanceMetric, Embedding, EmbeddingError, EmbeddingProvider, VectorIndexRecord,
 };
 use crate::executor::{QueryError, QueryResult};
-use crate::midge::adapter::Midge;
+use crate::midge::adapter::{DocumentRef, Midge};
 use crate::runtime::{ExecutionMode, PlanCacheKey, RuntimeState};
 use crate::sql::ast::{
     QueryStatement, TransactionAction, TransactionIsolation, TransactionStatement,
@@ -31,16 +33,24 @@ pub struct CassieSession {
     transaction: Arc<Mutex<SessionTransactionState>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct SessionTransactionState {
     status: SessionTransactionStatus,
     isolation: Option<TransactionIsolation>,
+    writes: BTreeMap<String, BTreeMap<String, TransactionRowChange>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SessionTransactionStatus {
     Idle,
     InTransaction,
+    Failed,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum TransactionRowChange {
+    Upsert(serde_json::Value),
+    Delete,
 }
 
 impl CassieSession {
@@ -51,6 +61,7 @@ impl CassieSession {
             transaction: Arc::new(Mutex::new(SessionTransactionState {
                 status: SessionTransactionStatus::Idle,
                 isolation: None,
+                writes: BTreeMap::new(),
             })),
         }
     }
@@ -59,6 +70,7 @@ impl CassieSession {
         match self.transaction.lock().await.status {
             SessionTransactionStatus::Idle => "idle",
             SessionTransactionStatus::InTransaction => "in_transaction",
+            SessionTransactionStatus::Failed => "failed",
         }
     }
 
@@ -67,7 +79,7 @@ impl CassieSession {
         isolation: Option<TransactionIsolation>,
     ) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock().await;
-        if transaction.status == SessionTransactionStatus::InTransaction {
+        if transaction.status != SessionTransactionStatus::Idle {
             return Err(CassieError::Unsupported(
                 "transaction already in progress".to_string(),
             ));
@@ -75,6 +87,7 @@ impl CassieSession {
 
         transaction.status = SessionTransactionStatus::InTransaction;
         transaction.isolation = isolation;
+        transaction.writes.clear();
         Ok(())
     }
 
@@ -82,12 +95,84 @@ impl CassieSession {
         let mut transaction = self.transaction.lock().await;
         transaction.status = SessionTransactionStatus::Idle;
         transaction.isolation = None;
+        transaction.writes.clear();
     }
 
     pub(crate) async fn rollback_transaction(&self) {
         let mut transaction = self.transaction.lock().await;
         transaction.status = SessionTransactionStatus::Idle;
         transaction.isolation = None;
+        transaction.writes.clear();
+    }
+
+    pub(crate) async fn is_transaction_active(&self) -> bool {
+        self.transaction.lock().await.status == SessionTransactionStatus::InTransaction
+    }
+
+    pub(crate) async fn is_transaction_failed(&self) -> bool {
+        self.transaction.lock().await.status == SessionTransactionStatus::Failed
+    }
+
+    pub(crate) async fn mark_transaction_failed(&self) {
+        let mut transaction = self.transaction.lock().await;
+        if transaction.status == SessionTransactionStatus::InTransaction {
+            transaction.status = SessionTransactionStatus::Failed;
+        }
+    }
+
+    pub(crate) async fn stage_document_write(
+        &self,
+        collection: &str,
+        id: String,
+        payload: serde_json::Value,
+    ) {
+        let mut transaction = self.transaction.lock().await;
+        transaction
+            .writes
+            .entry(collection.to_string())
+            .or_default()
+            .insert(id, TransactionRowChange::Upsert(payload));
+    }
+
+    pub(crate) async fn stage_document_delete(&self, collection: &str, id: String) {
+        let mut transaction = self.transaction.lock().await;
+        transaction
+            .writes
+            .entry(collection.to_string())
+            .or_default()
+            .insert(id, TransactionRowChange::Delete);
+    }
+
+    pub(crate) async fn document_change(
+        &self,
+        collection: &str,
+        id: &str,
+    ) -> Option<TransactionRowChange> {
+        self.transaction
+            .lock()
+            .await
+            .writes
+            .get(collection)
+            .and_then(|collection_writes| collection_writes.get(id).cloned())
+    }
+
+    pub(crate) async fn collection_changes(
+        &self,
+        collection: &str,
+    ) -> BTreeMap<String, TransactionRowChange> {
+        self.transaction
+            .lock()
+            .await
+            .writes
+            .get(collection)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub(crate) async fn transaction_writes(
+        &self,
+    ) -> BTreeMap<String, BTreeMap<String, TransactionRowChange>> {
+        self.transaction.lock().await.writes.clone()
     }
 }
 
@@ -366,7 +451,12 @@ impl Cassie {
             Ok(result) => self
                 .runtime
                 .record_query_success(elapsed, result.rows.len()),
-            Err(error) => self.runtime.record_query_error(elapsed, error),
+            Err(error) => {
+                self.runtime.record_query_error(elapsed, error);
+                if session.is_transaction_active().await {
+                    session.mark_transaction_failed().await;
+                }
+            }
         }
 
         drop(running_guard);
@@ -393,6 +483,19 @@ impl Cassie {
         let parsed = parser::parse_statement(sql)?;
         if controls.is_timed_out() {
             return Err(CassieError::Execution("query timeout exceeded".to_string()));
+        }
+        if session.is_transaction_failed().await
+            && !matches!(
+                &parsed.statement,
+                QueryStatement::Transaction(TransactionStatement {
+                    action: TransactionAction::Rollback,
+                    ..
+                })
+            )
+        {
+            return Err(CassieError::Execution(
+                "transaction is failed; rollback required".to_string(),
+            ));
         }
         if let QueryStatement::Transaction(statement) = &parsed.statement {
             return self.execute_transaction_statement(session, statement).await;
@@ -424,9 +527,15 @@ impl Cassie {
             return Err(CassieError::Execution("query timeout exceeded".to_string()));
         }
 
-        let result = crate::executor::run_with_controls(self, physical, params, &controls)
-            .await
-            .map_err(CassieError::from)?;
+        let result = crate::executor::run_with_session_controls(
+            self,
+            Some(session),
+            physical,
+            params,
+            &controls,
+        )
+        .await
+        .map_err(CassieError::from)?;
 
         if result.rows.len() > controls.max_result_rows {
             return Err(CassieError::Execution(format!(
@@ -450,6 +559,31 @@ impl Cassie {
                 "BEGIN"
             }
             TransactionAction::Commit => {
+                if session.is_transaction_failed().await {
+                    return Err(CassieError::Execution(
+                        "transaction is failed; rollback required".to_string(),
+                    ));
+                }
+                for (collection, writes) in session.transaction_writes().await {
+                    for (id, change) in writes {
+                        let result = match change {
+                            TransactionRowChange::Upsert(payload) => self
+                                .midge
+                                .put_document(&collection, Some(id), payload)
+                                .await
+                                .map(|_| ()),
+                            TransactionRowChange::Delete => self
+                                .midge
+                                .delete_document(&collection, &id)
+                                .await
+                                .map(|_| ()),
+                        };
+                        if let Err(error) = result {
+                            session.mark_transaction_failed().await;
+                            return Err(error);
+                        }
+                    }
+                }
                 session.commit_transaction().await;
                 "COMMIT"
             }
@@ -531,15 +665,45 @@ impl Cassie {
         apply_defaults: bool,
         exclude_id: Option<&str>,
     ) -> Result<String, CassieError> {
+        self.write_document_for_session(None, collection, id, payload, apply_defaults, exclude_id)
+            .await
+    }
+
+    pub(crate) async fn write_document_for_session(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        id: Option<String>,
+        payload: serde_json::Value,
+        apply_defaults: bool,
+        exclude_id: Option<&str>,
+    ) -> Result<String, CassieError> {
         let payload = self
-            .prepare_document_write(collection, payload, apply_defaults, exclude_id)
+            .prepare_document_write_for_session(
+                session,
+                collection,
+                payload,
+                apply_defaults,
+                exclude_id,
+            )
             .await?;
+
+        if let Some(session) = session {
+            if session.is_transaction_active().await {
+                let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+                session
+                    .stage_document_write(collection, id.clone(), payload)
+                    .await;
+                return Ok(id);
+            }
+        }
 
         self.midge.put_document(collection, id, payload).await
     }
 
-    pub(crate) async fn prepare_document_write(
+    pub(crate) async fn prepare_document_write_for_session(
         &self,
+        session: Option<&CassieSession>,
         collection: &str,
         mut payload: serde_json::Value,
         apply_defaults: bool,
@@ -558,10 +722,122 @@ impl Cassie {
                 .await?;
         }
 
-        self.validate_constraints(collection, &payload, &constraints, exclude_id)
-            .await?;
+        self.validate_constraints_for_session(
+            session,
+            collection,
+            &payload,
+            &constraints,
+            exclude_id,
+        )
+        .await?;
 
         Ok(payload)
+    }
+
+    pub(crate) async fn put_prepared_document_for_session(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        id: String,
+        payload: serde_json::Value,
+    ) -> Result<String, CassieError> {
+        if let Some(session) = session {
+            if session.is_transaction_active().await {
+                session
+                    .stage_document_write(collection, id.clone(), payload)
+                    .await;
+                return Ok(id);
+            }
+        }
+
+        self.midge.put_document(collection, Some(id), payload).await
+    }
+
+    pub(crate) async fn delete_document_for_session(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        id: &str,
+    ) -> Result<bool, CassieError> {
+        if let Some(session) = session {
+            if session.is_transaction_active().await {
+                let existed = self
+                    .get_document_for_session(Some(session), collection, id)
+                    .await?
+                    .is_some();
+                session
+                    .stage_document_delete(collection, id.to_string())
+                    .await;
+                return Ok(existed);
+            }
+        }
+
+        self.midge.delete_document(collection, id).await
+    }
+
+    pub(crate) async fn get_document_for_session(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        id: &str,
+    ) -> Result<Option<DocumentRef>, CassieError> {
+        if let Some(session) = session {
+            if let Some(change) = session.document_change(collection, id).await {
+                return Ok(match change {
+                    TransactionRowChange::Upsert(payload) => Some(DocumentRef {
+                        id: id.to_string(),
+                        payload,
+                    }),
+                    TransactionRowChange::Delete => None,
+                });
+            }
+        }
+
+        self.midge.get_document(collection, id).await
+    }
+
+    pub(crate) async fn scan_documents_batched_for_session(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        batch_size: usize,
+    ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
+        let mut rows = self
+            .midge
+            .scan_documents(collection)
+            .await?
+            .into_iter()
+            .map(|document| (document.id.clone(), document))
+            .collect::<BTreeMap<_, _>>();
+
+        if let Some(session) = session {
+            for (id, change) in session.collection_changes(collection).await {
+                match change {
+                    TransactionRowChange::Upsert(payload) => {
+                        rows.insert(id.clone(), DocumentRef { id, payload });
+                    }
+                    TransactionRowChange::Delete => {
+                        rows.remove(&id);
+                    }
+                }
+            }
+        }
+
+        let batch_size = batch_size.max(1);
+        let mut batches = Vec::new();
+        let mut current = Vec::with_capacity(batch_size);
+        for document in rows.into_values() {
+            current.push(document);
+            if current.len() >= batch_size {
+                batches.push(current);
+                current = Vec::with_capacity(batch_size);
+            }
+        }
+        if !current.is_empty() {
+            batches.push(current);
+        }
+
+        Ok(batches)
     }
 
     async fn validate_payload_schema(
@@ -693,8 +969,9 @@ impl Cassie {
         Ok(())
     }
 
-    async fn validate_constraints(
+    async fn validate_constraints_for_session(
         &self,
+        session: Option<&CassieSession>,
         collection: &str,
         payload: &serde_json::Value,
         constraints: &[FieldConstraint],
@@ -729,7 +1006,7 @@ impl Cassie {
             }
         }
 
-        self.validate_uniques(collection, object, constraints, exclude_id)
+        self.validate_uniques(session, collection, object, constraints, exclude_id)
             .await
     }
 
@@ -807,6 +1084,7 @@ impl Cassie {
 
     async fn validate_uniques(
         &self,
+        session: Option<&CassieSession>,
         collection: &str,
         payload: &serde_json::Map<String, serde_json::Value>,
         constraints: &[FieldConstraint],
@@ -825,7 +1103,13 @@ impl Cassie {
             }
 
             if self
-                .value_exists_for_collection_field(collection, &constraint.field, value, exclude_id)
+                .value_exists_for_collection_field(
+                    session,
+                    collection,
+                    &constraint.field,
+                    value,
+                    exclude_id,
+                )
                 .await?
             {
                 return Err(CassieError::InvalidVector(format!(
@@ -840,12 +1124,18 @@ impl Cassie {
 
     async fn value_exists_for_collection_field(
         &self,
+        session: Option<&CassieSession>,
         collection: &str,
         field: &str,
         value: &serde_json::Value,
         exclude_id: Option<&str>,
     ) -> Result<bool, CassieError> {
-        for document in self.midge.scan_documents(collection).await? {
+        for document in self
+            .scan_documents_batched_for_session(session, collection, 1024)
+            .await?
+            .into_iter()
+            .flatten()
+        {
             if exclude_id.is_some_and(|id| document.id == id) {
                 continue;
             }

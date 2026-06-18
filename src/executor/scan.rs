@@ -1,14 +1,14 @@
-use crate::app::Cassie;
+use crate::app::{Cassie, CassieSession};
 use crate::executor::batch::{Batch, BatchRow, DEFAULT_BATCH_SIZE};
 use crate::types::Value;
 
 pub(crate) async fn scan(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     collection: &str,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
     let document_batches = cassie
-        .midge
-        .scan_documents_batched(collection, DEFAULT_BATCH_SIZE)
+        .scan_documents_batched_for_session(session, collection, DEFAULT_BATCH_SIZE)
         .await
         .map_err(|error| {
             cassie.runtime.record_storage_access("data", false, false);

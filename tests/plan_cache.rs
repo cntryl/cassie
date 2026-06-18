@@ -289,3 +289,41 @@ fn should_evict_oldest_plan_when_cache_capacity_is_one() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_not_cache_transaction_control_statements() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("transaction_controls_bypass_cache");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("alice", None).await;
+        let before = cassie.metrics().await;
+
+        // Act
+        cassie.execute_sql(&session, "BEGIN", vec![]).await.unwrap();
+        cassie
+            .execute_sql(&session, "COMMIT", vec![])
+            .await
+            .unwrap();
+        let after = cassie.metrics().await;
+
+        // Assert
+        assert_eq!(
+            after["plan_cache"]["hits"].as_u64(),
+            before["plan_cache"]["hits"].as_u64()
+        );
+        assert_eq!(
+            after["plan_cache"]["misses"].as_u64(),
+            before["plan_cache"]["misses"].as_u64()
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

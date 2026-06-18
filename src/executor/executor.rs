@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::time::Instant;
 
-use crate::app::Cassie;
+use crate::app::{Cassie, CassieSession};
 use crate::catalog;
 use crate::catalog::{CollectionSchema, FieldMeta, FunctionMeta, ProcedureMeta, Volatility};
 use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
@@ -52,6 +52,16 @@ pub async fn run_with_controls(
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    run_with_session_controls(cassie, None, plan, params, controls).await
+}
+
+pub(crate) async fn run_with_session_controls(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: PhysicalPlan,
+    params: Vec<Value>,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
     let user_functions = cassie
         .catalog
         .list_functions()
@@ -61,12 +71,13 @@ pub async fn run_with_controls(
         .collect::<HashMap<String, FunctionMeta>>();
 
     if let Some(command) = plan.logical.command.as_ref() {
-        return execute_command(cassie, command, &params, &user_functions, controls).await;
+        return execute_command(cassie, session, command, &params, &user_functions, controls).await;
     }
 
     let mut cte_context: CteContext = HashMap::new();
     let rows = execute_plan(
         cassie,
+        session,
         &plan.logical,
         &mut cte_context,
         &user_functions,
@@ -95,6 +106,7 @@ pub async fn run_with_controls(
 
 async fn execute_command(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     command: &LogicalCommand,
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
@@ -104,13 +116,13 @@ async fn execute_command(
     let mut invalidate_plan_cache = false;
     let result = match command {
         LogicalCommand::Insert(statement) => {
-            execute_insert(cassie, statement, params, user_functions, controls).await
+            execute_insert(cassie, session, statement, params, user_functions, controls).await
         }
         LogicalCommand::Update(statement) => {
-            execute_update(cassie, statement, params, user_functions, controls).await
+            execute_update(cassie, session, statement, params, user_functions, controls).await
         }
         LogicalCommand::Delete(statement) => {
-            execute_delete(cassie, statement, params, user_functions, controls).await
+            execute_delete(cassie, session, statement, params, user_functions, controls).await
         }
         LogicalCommand::CreateTable(statement) => {
             if statement.if_not_exists && cassie.catalog.exists(&statement.table).await {
@@ -520,6 +532,7 @@ async fn execute_command(
 
 async fn execute_insert(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     statement: &crate::sql::ast::InsertStatement,
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
@@ -534,7 +547,7 @@ async fn execute_insert(
         })?;
 
     let source_rows =
-        insert_source_rows(cassie, statement, params, user_functions, controls).await?;
+        insert_source_rows(cassie, session, statement, params, user_functions, controls).await?;
     let source_width = source_rows
         .first()
         .map(Vec::len)
@@ -555,7 +568,8 @@ async fn execute_insert(
     for source_row in source_rows {
         let payload = payload_from_insert_row(&target_fields, &source_row);
         let row_id = cassie
-            .write_document(
+            .write_document_for_session(
+                session,
                 &statement.table,
                 None,
                 serde_json::Value::Object(payload),
@@ -567,8 +581,7 @@ async fn execute_insert(
 
         if !statement.returning.is_empty() {
             let document = cassie
-                .midge
-                .get_document(&statement.table, &row_id)
+                .get_document_for_session(session, &statement.table, &row_id)
                 .await
                 .map_err(|error| QueryError::General(error.to_string()))?
                 .ok_or_else(|| {
@@ -611,6 +624,7 @@ async fn execute_insert(
 
 async fn insert_source_rows(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     statement: &crate::sql::ast::InsertStatement,
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
@@ -643,6 +657,7 @@ async fn insert_source_rows(
             let mut cte_context = CteContext::new();
             let rows = execute_plan(
                 cassie,
+                session,
                 &logical,
                 &mut cte_context,
                 user_functions,
@@ -832,6 +847,7 @@ fn json_to_value(value: &serde_json::Value) -> Value {
 
 async fn execute_update(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     statement: &crate::sql::ast::UpdateStatement,
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
@@ -846,7 +862,7 @@ async fn execute_update(
             QueryError::General(format!("collection '{}' not found", statement.table))
         })?;
 
-    let batches = scan::scan(cassie, &statement.table).await?;
+    let batches = scan::scan(cassie, session, &statement.table).await?;
     ensure_temp_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);
     let matched_rows = if let Some(filter_expr) = &statement.filter {
@@ -859,8 +875,7 @@ async fn execute_update(
     for row in &matched_rows {
         let row_id = row_id_from_batch_row(row)?;
         let current = cassie
-            .midge
-            .get_document(&statement.table, &row_id)
+            .get_document_for_session(session, &statement.table, &row_id)
             .await
             .map_err(|error| QueryError::General(error.to_string()))?
             .ok_or_else(|| {
@@ -880,7 +895,8 @@ async fn execute_update(
         }
 
         let payload = cassie
-            .prepare_document_write(
+            .prepare_document_write_for_session(
+                session,
                 &statement.table,
                 serde_json::Value::Object(payload),
                 true,
@@ -894,15 +910,13 @@ async fn execute_update(
     let mut returning_rows = Vec::new();
     for (row_id, payload) in prepared_rows {
         cassie
-            .midge
-            .put_document(&statement.table, Some(row_id.clone()), payload)
+            .put_prepared_document_for_session(session, &statement.table, row_id.clone(), payload)
             .await
             .map_err(|error| QueryError::General(error.to_string()))?;
 
         if !statement.returning.is_empty() {
             let document = cassie
-                .midge
-                .get_document(&statement.table, &row_id)
+                .get_document_for_session(session, &statement.table, &row_id)
                 .await
                 .map_err(|error| QueryError::General(error.to_string()))?
                 .ok_or_else(|| {
@@ -958,6 +972,7 @@ fn row_id_from_batch_row(row: &BatchRow) -> Result<String, QueryError> {
 
 async fn execute_delete(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     statement: &crate::sql::ast::DeleteStatement,
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
@@ -972,7 +987,7 @@ async fn execute_delete(
             QueryError::General(format!("collection '{}' not found", statement.table))
         })?;
 
-    let batches = scan::scan(cassie, &statement.table).await?;
+    let batches = scan::scan(cassie, session, &statement.table).await?;
     ensure_temp_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);
     let matched_rows = if let Some(filter_expr) = &statement.filter {
@@ -987,8 +1002,7 @@ async fn execute_delete(
         let row_id = row_id_from_batch_row(row)?;
         if !statement.returning.is_empty() {
             let current = cassie
-                .midge
-                .get_document(&statement.table, &row_id)
+                .get_document_for_session(session, &statement.table, &row_id)
                 .await
                 .map_err(|error| QueryError::General(error.to_string()))?
                 .ok_or_else(|| {
@@ -1008,8 +1022,7 @@ async fn execute_delete(
 
     for row_id in &delete_ids {
         cassie
-            .midge
-            .delete_document(&statement.table, row_id)
+            .delete_document_for_session(session, &statement.table, row_id)
             .await
             .map_err(|error| QueryError::General(error.to_string()))?;
     }
@@ -1121,6 +1134,7 @@ async fn vector_index_metadata(
 
 async fn execute_plan(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
     user_functions: &HashMap<String, FunctionMeta>,
@@ -1135,15 +1149,34 @@ async fn execute_plan(
     }
 
     for cte in &plan.ctes {
-        let rows = execute_cte(cassie, cte, cte_context, user_functions, params, controls).await?;
+        let rows = execute_cte(
+            cassie,
+            session,
+            cte,
+            cte_context,
+            user_functions,
+            params,
+            controls,
+        )
+        .await?;
         cte_context.insert(cte.name.to_ascii_lowercase(), rows);
     }
 
-    execute_source_query(cassie, plan, cte_context, user_functions, params, controls).await
+    execute_source_query(
+        cassie,
+        session,
+        plan,
+        cte_context,
+        user_functions,
+        params,
+        controls,
+    )
+    .await
 }
 
 fn execute_cte<'a>(
     cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
     cte: &'a CommonTableExpression,
     cte_context: &'a mut CteContext,
     user_functions: &'a HashMap<String, FunctionMeta>,
@@ -1160,6 +1193,7 @@ fn execute_cte<'a>(
                 let logical = build_logical_plan(statement.as_ref())?;
                 execute_plan(
                     cassie,
+                    session,
                     &logical,
                     cte_context,
                     user_functions,
@@ -1175,6 +1209,7 @@ fn execute_cte<'a>(
                 let base_plan = build_logical_plan(base.as_ref())?;
                 let mut rows = execute_plan(
                     cassie,
+                    session,
                     &base_plan,
                     cte_context,
                     user_functions,
@@ -1196,6 +1231,7 @@ fn execute_cte<'a>(
                     let recursive_plan = build_logical_plan(recursive.as_ref())?;
                     let recursive_rows = execute_plan(
                         cassie,
+                        session,
                         &recursive_plan,
                         cte_context,
                         user_functions,
@@ -1265,6 +1301,7 @@ fn build_logical_plan(
 
 async fn execute_source_query(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
     user_functions: &HashMap<String, FunctionMeta>,
@@ -1275,7 +1312,7 @@ async fn execute_source_query(
     let started_at = Instant::now();
     let (mut batches, text_fields) = match &plan.source {
         QuerySource::Collection(name) => {
-            let batches = scan::scan(cassie, name).await?;
+            let batches = scan::scan(cassie, session, name).await?;
             ensure_temp_budget(controls, &batches)?;
             (batches, cassie.catalog.text_fields(name).await)
         }

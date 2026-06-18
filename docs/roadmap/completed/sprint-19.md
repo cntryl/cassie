@@ -1,7 +1,7 @@
 # Sprint 19 - Transaction Control Basics
 
 Previous: [Sprint 18 - SQL DELETE](sprint-18.md)
-Next: [Sprint 20 - Transaction Write Semantics](../sprint-20.md)
+Next: [Sprint 20 - Transaction Write Semantics](sprint-20.md)
 
 ## Goal
 

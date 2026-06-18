@@ -25,7 +25,7 @@ Cassie is PostgreSQL-wire compatible, but it is not PostgreSQL. Unsupported Post
 17. [Sprint 17 - SQL UPDATE](completed/sprint-17.md)
 18. [Sprint 18 - SQL DELETE](completed/sprint-18.md)
 19. [Sprint 19 - Transaction Control Basics](completed/sprint-19.md)
-20. [Sprint 20 - Transaction Write Semantics](sprint-20.md)
+20. [Sprint 20 - Transaction Write Semantics](completed/sprint-20.md)
 21. [Sprint 21 - Relational Predicates and Scalar SQL](sprint-21.md)
 22. [Sprint 22 - Joins and FROM Subqueries](sprint-22.md)
 23. [Sprint 23 - Aggregates, DISTINCT, and Set Operations](sprint-23.md)

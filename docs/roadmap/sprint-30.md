@@ -1,6 +1,6 @@
 # Sprint 30 - Binary Pgwire Simple Query
 
-Previous: [Sprint 29 - Binary Pgwire Startup and Auth](sprint-29.md)
+Previous: [Sprint 29 - Binary Pgwire Startup and Auth](completed/sprint-29.md)
 Next: [Sprint 31 - Extended Query Parse/Bind/Execute](sprint-31.md)
 
 ## Goal

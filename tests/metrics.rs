@@ -12,6 +12,46 @@ fn data_dir(label: &str) -> String {
     path.to_string_lossy().to_string()
 }
 
+fn startup_frame(user: &str, database: &str) -> Vec<u8> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(&0x0003_0000_i32.to_be_bytes());
+    payload.extend_from_slice(b"user\0");
+    payload.extend_from_slice(user.as_bytes());
+    payload.push(0);
+    payload.extend_from_slice(b"database\0");
+    payload.extend_from_slice(database.as_bytes());
+    payload.push(0);
+    payload.push(0);
+
+    let mut frame = Vec::new();
+    frame.extend_from_slice(
+        &i32::try_from(payload.len() + 4)
+            .expect("startup payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(&payload);
+    frame
+}
+
+async fn read_auth_frame(
+    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
+) -> (u8, i32, Vec<u8>) {
+    let mut header = [0u8; 5];
+    tokio::io::AsyncReadExt::read_exact(reader, &mut header)
+        .await
+        .expect("read auth frame header");
+
+    let tag = header[0];
+    let len = i32::from_be_bytes(header[1..].try_into().expect("auth frame length"));
+    let mut payload =
+        vec![0u8; usize::try_from(len - 4).expect("non-negative auth payload length")];
+    tokio::io::AsyncReadExt::read_exact(reader, &mut payload)
+        .await
+        .expect("read auth frame payload");
+
+    (tag, len, payload)
+}
+
 #[test]
 fn should_report_runtime_metrics_snapshot() {
     // Arrange
@@ -327,13 +367,19 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
         let mut socket = tokio::net::TcpStream::connect(addr)
             .await
             .expect("connect pgwire");
-        let (_read_half, mut write_half) = socket.split();
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            b"STARTUP user=postgres database=testdb\n",
-        )
-        .await
-        .expect("startup write");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+        let startup = startup_frame("postgres", "testdb");
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
+            .await
+            .expect("startup write");
+
+        let auth_frame = read_auth_frame(&mut reader).await;
+        assert_eq!(
+            auth_frame.0, b'R',
+            "startup should return an authentication response"
+        );
+
         // Act
         tokio::io::AsyncWriteExt::write_all(&mut write_half, b"DESCRIBE missing\n")
             .await
@@ -341,6 +387,19 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
         tokio::io::AsyncWriteExt::flush(&mut write_half)
             .await
             .expect("flush");
+        let mut line = String::new();
+        let read = tokio::time::timeout(
+            std::time::Duration::from_millis(500),
+            tokio::io::AsyncBufReadExt::read_line(&mut reader, &mut line),
+        )
+        .await
+        .expect("read describe response timed out")
+        .expect("read response");
+        let _ = read;
+        assert!(
+            !line.trim_end().is_empty(),
+            "describe should return an error"
+        );
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         drop(socket);

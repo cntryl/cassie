@@ -1,7 +1,7 @@
 # Sprint 28 - Auth and Session Identity
 
 Previous: [Sprint 27 - Wire Type Metadata Policy](completed/sprint-27.md)
-Next: [Sprint 29 - Binary Pgwire Startup and Auth](sprint-29.md)
+Next: [Sprint 29 - Binary Pgwire Startup and Auth](completed/sprint-29.md)
 
 ## Goal
 

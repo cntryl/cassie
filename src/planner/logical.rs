@@ -5,7 +5,7 @@ use crate::sql::{
         CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement,
         CreateTableStatement, DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
         DropTableStatement, Expr, InsertStatement, OrderExpr, QuerySource, QueryStatement,
-        SelectItem, SelectStatement,
+        SelectItem, SelectStatement, UpdateStatement,
     },
     binder::BoundStatement,
 };
@@ -37,6 +37,7 @@ pub enum LogicalCommand {
     DropIndex(DropIndexStatement),
     CallProcedure(crate::sql::ast::CallProcedureStatement),
     Insert(InsertStatement),
+    Update(UpdateStatement),
 }
 
 pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
@@ -74,10 +75,25 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 offset: Some(0),
             })
         }
-        QueryStatement::Update(statement) => Err(CassieError::Planner(format!(
-            "UPDATE statement is not supported: {}",
-            statement.table
-        ))),
+        QueryStatement::Update(statement) => {
+            if statement.table.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "UPDATE requires a target table".into(),
+                ));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::Update(statement.clone())),
+                source: QuerySource::Collection(statement.table.clone()),
+                collection: statement.table.clone(),
+                ctes: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+            })
+        }
         QueryStatement::Delete(statement) => Err(CassieError::Planner(format!(
             "DELETE statement is not supported: {}",
             statement.table

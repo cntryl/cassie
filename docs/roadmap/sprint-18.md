@@ -1,6 +1,6 @@
 # Sprint 18 - SQL DELETE
 
-Previous: [Sprint 17 - SQL UPDATE](sprint-17.md)
+Previous: [Sprint 17 - SQL UPDATE](completed/sprint-17.md)
 Next: [Sprint 19 - Transaction Control Basics](sprint-19.md)
 
 ## Goal

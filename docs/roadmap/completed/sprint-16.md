@@ -1,7 +1,7 @@
 # Sprint 16 - SQL INSERT SELECT
 
 Previous: [Sprint 15 - SQL INSERT VALUES](sprint-15.md)
-Next: [Sprint 17 - SQL UPDATE](../sprint-17.md)
+Next: [Sprint 17 - SQL UPDATE](sprint-17.md)
 
 ## Goal
 

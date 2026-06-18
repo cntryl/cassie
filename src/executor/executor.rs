@@ -106,6 +106,9 @@ async fn execute_command(
         LogicalCommand::Insert(statement) => {
             execute_insert(cassie, statement, params, user_functions, controls).await
         }
+        LogicalCommand::Update(statement) => {
+            execute_update(cassie, statement, params, user_functions, controls).await
+        }
         LogicalCommand::CreateTable(statement) => {
             if statement.if_not_exists && cassie.catalog.exists(&statement.table).await {
                 return Ok(QueryResult {
@@ -822,6 +825,132 @@ fn json_to_value(value: &serde_json::Value) -> Value {
         return Value::Float64(value);
     }
     Value::Json(value.clone())
+}
+
+async fn execute_update(
+    cassie: &Cassie,
+    statement: &crate::sql::ast::UpdateStatement,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    check_timeout(controls)?;
+    let schema = cassie
+        .catalog
+        .get_schema(&statement.table)
+        .await
+        .ok_or_else(|| {
+            QueryError::General(format!("collection '{}' not found", statement.table))
+        })?;
+
+    let batches = scan::scan(cassie, &statement.table).await?;
+    ensure_temp_budget(controls, &batches)?;
+    let rows = batch::flatten_batches(batches);
+    let matched_rows = if let Some(filter_expr) = &statement.filter {
+        filter::filter_rows(rows, filter_expr, params, None, user_functions)?
+    } else {
+        rows
+    };
+
+    let mut prepared_rows = Vec::with_capacity(matched_rows.len());
+    for row in &matched_rows {
+        let row_id = row_id_from_batch_row(row)?;
+        let current = cassie
+            .midge
+            .get_document(&statement.table, &row_id)
+            .await
+            .map_err(|error| QueryError::General(error.to_string()))?
+            .ok_or_else(|| {
+                QueryError::General(format!(
+                    "row '{row_id}' was not found in '{}'",
+                    statement.table
+                ))
+            })?;
+        let mut payload =
+            current.payload.as_object().cloned().ok_or_else(|| {
+                QueryError::General("stored row payload must be object".to_string())
+            })?;
+
+        for (field, expr) in &statement.assignments {
+            let value = filter::evaluate_expr_value(row, expr, params, None, user_functions, None)?;
+            payload.insert(field.clone(), value_to_json(&value));
+        }
+
+        let payload = cassie
+            .prepare_document_write(
+                &statement.table,
+                serde_json::Value::Object(payload),
+                true,
+                Some(&row_id),
+            )
+            .await
+            .map_err(|error| QueryError::General(error.to_string()))?;
+        prepared_rows.push((row_id, payload));
+    }
+
+    let mut returning_rows = Vec::new();
+    for (row_id, payload) in prepared_rows {
+        cassie
+            .midge
+            .put_document(&statement.table, Some(row_id.clone()), payload)
+            .await
+            .map_err(|error| QueryError::General(error.to_string()))?;
+
+        if !statement.returning.is_empty() {
+            let document = cassie
+                .midge
+                .get_document(&statement.table, &row_id)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?
+                .ok_or_else(|| {
+                    QueryError::General(format!(
+                        "updated row '{row_id}' was not found in '{}'",
+                        statement.table
+                    ))
+                })?;
+            returning_rows.push(inserted_row_to_batch_row(
+                &row_id,
+                &schema,
+                &document.payload,
+            ));
+        }
+    }
+
+    let updated_count = if statement.returning.is_empty() {
+        matched_rows.len()
+    } else {
+        returning_rows.len()
+    };
+    if statement.returning.is_empty() {
+        return Ok(QueryResult {
+            columns: Vec::new(),
+            rows: Vec::new(),
+            command: format!("UPDATE {updated_count}"),
+        });
+    }
+
+    let projected = projection::project_rows(
+        returning_rows,
+        &statement.returning,
+        params,
+        None,
+        &HashMap::new(),
+    )?;
+
+    Ok(QueryResult {
+        columns: aggregate::columns_from_projection(&statement.returning),
+        rows: projected.into_iter().map(BatchRow::into_values).collect(),
+        command: format!("UPDATE {updated_count}"),
+    })
+}
+
+fn row_id_from_batch_row(row: &BatchRow) -> Result<String, QueryError> {
+    match row.get("id") {
+        Some(Value::String(value)) if !value.is_empty() => Ok(value.clone()),
+        _ => Err(QueryError::General(
+            "scanned row is missing internal row id".to_string(),
+        )),
+    }
 }
 
 async fn vector_index_metadata(

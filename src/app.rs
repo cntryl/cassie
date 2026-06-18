@@ -427,10 +427,24 @@ impl Cassie {
         &self,
         collection: &str,
         id: Option<String>,
-        mut payload: serde_json::Value,
+        payload: serde_json::Value,
         apply_defaults: bool,
         exclude_id: Option<&str>,
     ) -> Result<String, CassieError> {
+        let payload = self
+            .prepare_document_write(collection, payload, apply_defaults, exclude_id)
+            .await?;
+
+        self.midge.put_document(collection, id, payload).await
+    }
+
+    pub(crate) async fn prepare_document_write(
+        &self,
+        collection: &str,
+        mut payload: serde_json::Value,
+        apply_defaults: bool,
+        exclude_id: Option<&str>,
+    ) -> Result<serde_json::Value, CassieError> {
         let constraints = self.catalog.get_constraints(collection).await;
         if apply_defaults && !constraints.is_empty() {
             self.apply_default_values(&mut payload, &constraints)?;
@@ -447,7 +461,7 @@ impl Cassie {
         self.validate_constraints(collection, &payload, &constraints, exclude_id)
             .await?;
 
-        self.midge.put_document(collection, id, payload).await
+        Ok(payload)
     }
 
     async fn validate_payload_schema(

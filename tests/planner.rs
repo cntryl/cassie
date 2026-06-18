@@ -599,6 +599,39 @@ fn should_plan_insert_select_as_command() {
 }
 
 #[test]
+fn should_plan_update_as_command() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_update");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        // Act
+        let parsed = parser::parse_statement(
+            "UPDATE planner_update SET title = 'alpha' WHERE body = 'old' RETURNING title",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let plan = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert_eq!(plan.collection, "planner_update");
+        match plan.command.as_ref().expect("update command") {
+            logical::LogicalCommand::Update(statement) => {
+                assert_eq!(statement.table, "planner_update");
+                assert_eq!(statement.assignments.len(), 1);
+                assert!(statement.filter.is_some());
+                assert_eq!(statement.returning.len(), 1);
+            }
+            _ => panic!("expected update command"),
+        }
+    });
+}
+
+#[test]
 fn should_plan_alter_table_command() {
     // Arrange
     let catalog = Catalog::new();

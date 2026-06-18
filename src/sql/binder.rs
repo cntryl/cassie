@@ -289,6 +289,33 @@ async fn bind_update(
         *field = normalized_field;
     }
 
+    for item in &statement.returning {
+        match item {
+            crate::sql::ast::SelectItem::Wildcard => {}
+            crate::sql::ast::SelectItem::Column { name, .. } => {
+                if name == "_id" {
+                    continue;
+                }
+
+                if !schema
+                    .fields
+                    .iter()
+                    .any(|field| field.name.eq_ignore_ascii_case(name))
+                {
+                    return Err(CassieError::Planner(format!(
+                        "UPDATE RETURNING column '{name}' does not exist in '{table}'"
+                    )));
+                }
+            }
+            crate::sql::ast::SelectItem::Function { function, .. } => {
+                return Err(CassieError::Unsupported(format!(
+                    "UPDATE RETURNING function '{}' is not supported in this version",
+                    function.name
+                )));
+            }
+        }
+    }
+
     statement.table = table;
     Ok(statement)
 }

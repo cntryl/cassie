@@ -11,6 +11,6 @@ pub use collections::{CollectionMeta, NamespaceMeta};
 pub use constraints::{ConstraintCheck, ConstraintOperator, FieldConstraint};
 pub use indexes::{IndexKind, IndexMeta};
 pub use metadata::Catalog;
-pub use programs::{FunctionArgMeta, FunctionMeta, ProcedureMeta, Volatility};
+pub use programs::{FunctionArgMeta, FunctionMeta, ProcedureMeta, ViewMeta, Volatility};
 pub use roles::{normalize_role_name, RoleMeta};
 pub use schemas::{CollectionSchema, FieldMeta};

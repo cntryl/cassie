@@ -1,6 +1,6 @@
 # Cassie V1 Sprint Roadmap
 
-This roadmap breaks Cassie V1 into thirty-four implementation sprints. The target is a single-container, Midge-direct query engine with real PostgreSQL binary wire compatibility for practical clients such as `psql`, libpq, common language drivers, ORMs, migration tools, and BI tools.
+This roadmap breaks Cassie V1 into thirty-nine implementation sprints. The first thirty-five are complete; sprints 36-39 are the next backlog slice. The target is a single-container, Midge-direct query engine with real PostgreSQL binary wire compatibility for practical clients such as `psql`, libpq, common language drivers, ORMs, migration tools, and BI tools.
 
 Cassie is PostgreSQL-wire compatible, but it is not PostgreSQL. Unsupported PostgreSQL features must return deterministic PostgreSQL-style errors rather than partial or surprising behavior.
 
@@ -40,6 +40,14 @@ Cassie is PostgreSQL-wire compatible, but it is not PostgreSQL. Unsupported Post
 32. [Sprint 32 - Extended Query Portals and Recovery](completed/sprint-32.md)
 33. [Sprint 33 - Compatibility Matrix and CI Gate](completed/sprint-33.md)
 34. [Sprint 34 - REST, Operations, Packaging, and V1 Release Gate](completed/sprint-34.md)
+
+## Planned Backlog
+
+35. [Sprint 35 - User-Defined Views and View Expansion](completed/sprint-35.md)
+36. [Sprint 36 - Stored Procedure Execution and CALL Semantics](sprint-36.md)
+37. [Sprint 37 - Common Scalar Functions](sprint-37.md)
+38. [Sprint 38 - SQL Type Coverage and Metadata Fidelity](sprint-38.md)
+39. [Sprint 39 - Schema DDL Breadth and Index Variants](sprint-39.md)
 
 ## Shared Invariants
 

@@ -17,6 +17,11 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             int("ordinal_position"),
             text("is_nullable"),
         ],
+        "information_schema.views" => vec![
+            text("table_schema"),
+            text("table_name"),
+            text("view_definition"),
+        ],
         "information_schema.table_constraints" => vec![
             text("table_schema"),
             text("table_name"),
@@ -65,6 +70,7 @@ pub async fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
     let rows = match name.as_str() {
         "information_schema.tables" => information_schema_tables(catalog).await,
         "information_schema.columns" => information_schema_columns(catalog).await,
+        "information_schema.views" => information_schema_views(catalog).await,
         "information_schema.table_constraints" => {
             information_schema_table_constraints(catalog).await
         }
@@ -213,7 +219,7 @@ fn bool_value(name: &str, value: bool) -> (String, Value) {
 }
 
 async fn information_schema_tables(catalog: &Catalog) -> Vec<VirtualRow> {
-    catalog
+    let mut rows = catalog
         .list_collections()
         .await
         .into_iter()
@@ -224,7 +230,18 @@ async fn information_schema_tables(catalog: &Catalog) -> Vec<VirtualRow> {
                 string("table_type", "BASE TABLE"),
             ]
         })
-        .collect()
+        .collect::<Vec<_>>();
+
+    rows.extend(catalog.list_views().await.into_iter().map(|view| {
+        vec![
+            string("table_schema", "public"),
+            string("table_name", view.name),
+            string("table_type", "VIEW"),
+        ]
+    }));
+
+    rows.sort_by_key(row_sort_key);
+    rows
 }
 
 async fn information_schema_columns(catalog: &Catalog) -> Vec<VirtualRow> {
@@ -244,6 +261,35 @@ async fn information_schema_columns(catalog: &Catalog) -> Vec<VirtualRow> {
             ]);
         }
     }
+    for view in catalog.list_views().await {
+        for (index, field) in view.schema.fields.iter().enumerate() {
+            rows.push(vec![
+                string("table_schema", "public"),
+                string("table_name", &view.name),
+                string("column_name", &field.name),
+                string("data_type", data_type_name(&field.data_type)),
+                int_value("ordinal_position", (index + 1) as i64),
+                string("is_nullable", "YES"),
+            ]);
+        }
+    }
+    rows
+}
+
+async fn information_schema_views(catalog: &Catalog) -> Vec<VirtualRow> {
+    let mut rows = catalog
+        .list_views()
+        .await
+        .into_iter()
+        .map(|view| {
+            vec![
+                string("table_schema", "public"),
+                string("table_name", view.name),
+                string("view_definition", view.query),
+            ]
+        })
+        .collect::<Vec<_>>();
+    rows.sort_by_key(row_sort_key);
     rows
 }
 
@@ -338,6 +384,13 @@ async fn pg_class(catalog: &Catalog) -> Vec<VirtualRow> {
             ]
         })
         .collect::<Vec<_>>();
+    rows.extend(catalog.list_views().await.into_iter().map(|view| {
+        vec![
+            string("relname", view.name),
+            string("relkind", "v"),
+            string("relnamespace", "public"),
+        ]
+    }));
     rows.extend(pg_indexes(catalog).await.into_iter().map(|index| {
         let indexname = lookup_string(&index, "indexname");
         vec![
@@ -359,6 +412,16 @@ async fn pg_attribute(catalog: &Catalog) -> Vec<VirtualRow> {
         for (index, field) in schema.fields.iter().enumerate() {
             rows.push(vec![
                 string("attrelid", &schema.collection),
+                string("attname", &field.name),
+                int_value("attnum", (index + 1) as i64),
+                int_value("atttypid", field.data_type.type_oid()),
+            ]);
+        }
+    }
+    for view in catalog.list_views().await {
+        for (index, field) in view.schema.fields.iter().enumerate() {
+            rows.push(vec![
+                string("attrelid", &view.name),
                 string("attname", &field.name),
                 int_value("attnum", (index + 1) as i64),
                 int_value("atttypid", field.data_type.type_oid()),

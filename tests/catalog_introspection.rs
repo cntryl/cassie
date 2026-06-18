@@ -358,3 +358,69 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_list_user_defined_views_through_catalog_views() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("views");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE catalog_views_docs (title TEXT, score INT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE VIEW catalog_views_ready AS SELECT title, score FROM catalog_views_docs",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let tables = cassie
+            .execute_sql(
+                &session,
+                "SELECT table_type FROM information_schema.tables WHERE table_name = 'catalog_views_ready'",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let views = cassie
+            .execute_sql(
+                &session,
+                "SELECT table_name FROM information_schema.views WHERE table_name = 'catalog_views_ready'",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let classes = cassie
+            .execute_sql(
+                &session,
+                "SELECT relkind FROM pg_catalog.pg_class WHERE relname = 'catalog_views_ready'",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(tables.rows, vec![vec![Value::String("VIEW".to_string())]]);
+        assert_eq!(views.rows, vec![vec![Value::String("catalog_views_ready".to_string())]]);
+        assert_eq!(classes.rows, vec![vec![Value::String("v".to_string())]]);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

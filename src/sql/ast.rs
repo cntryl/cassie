@@ -99,6 +99,8 @@ pub enum QueryStatement {
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
     CreateSchema(CreateSchemaStatement),
+    CreateView(CreateViewStatement),
+    DropView(DropViewStatement),
     CreateRole(CreateRoleStatement),
     AlterRole(AlterRoleStatement),
     DropRole(DropRoleStatement),
@@ -255,6 +257,19 @@ pub enum AlterTableOperation {
 pub struct CreateSchemaStatement {
     pub schema: String,
     pub if_not_exists: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateViewStatement {
+    pub name: String,
+    pub if_not_exists: bool,
+    pub query: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DropViewStatement {
+    pub name: String,
+    pub if_exists: bool,
 }
 
 #[derive(Debug, Clone)]

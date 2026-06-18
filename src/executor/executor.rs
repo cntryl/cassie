@@ -15,7 +15,7 @@ use crate::planner::physical::PhysicalPlan;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
     CommonTableExpression, CteQuery, Expr, FunctionCall, InsertSource, JoinKind, QuerySource,
-    SelectItem, SelectSet, SelectStatement, SetOperator,
+    QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator,
 };
 use crate::types::{DataType, FieldSchema, Schema, Value};
 
@@ -220,7 +220,10 @@ async fn execute_command(
             execute_delete(cassie, session, statement, params, user_functions, controls).await
         }
         LogicalCommand::CreateTable(statement) => {
-            if statement.if_not_exists && cassie.catalog.exists(&statement.table).await {
+            if statement.if_not_exists
+                && (cassie.catalog.relation_exists(&statement.table).await
+                    || virtual_views::schema(&statement.table).is_some())
+            {
                 return Ok(QueryResult {
                     columns: Vec::new(),
                     rows: Vec::new(),
@@ -275,6 +278,83 @@ async fn execute_command(
                 columns: Vec::new(),
                 rows: Vec::new(),
                 command: "CREATE TABLE".to_string(),
+            })
+        }
+        LogicalCommand::CreateView(statement) => {
+            if statement.if_not_exists
+                && (cassie.catalog.relation_exists(&statement.name).await
+                    || virtual_views::schema(&statement.name).is_some())
+            {
+                return Ok(QueryResult {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    command: "CREATE VIEW".to_string(),
+                });
+            }
+
+            let parsed = crate::sql::parser::parse_statement(&statement.query)
+                .map_err(|error| QueryError::General(error.0))?;
+            let bound = crate::sql::binder::bind(parsed, &cassie.catalog)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            let QueryStatement::Select(select) = &bound.statement.statement else {
+                return Err(QueryError::General(
+                    "CREATE VIEW requires a SELECT query body".to_string(),
+                ));
+            };
+
+            let schema = crate::sql::binder::infer_select_schema(select, &cassie.catalog)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            let metadata = crate::catalog::ViewMeta::new(
+                statement.name.clone(),
+                statement.query.clone(),
+                schema,
+            );
+
+            cassie
+                .midge
+                .put_view(metadata.clone())
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.register_view(metadata).await;
+            invalidate_plan_cache = true;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "CREATE VIEW".to_string(),
+            })
+        }
+        LogicalCommand::DropView(statement) => {
+            let view = cassie.catalog.get_view(&statement.name).await;
+            if statement.if_exists && view.is_none() {
+                return Ok(QueryResult {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    command: "DROP VIEW".to_string(),
+                });
+            }
+
+            let Some(_) = view else {
+                return Err(QueryError::General(format!(
+                    "view '{}' does not exist",
+                    statement.name
+                )));
+            };
+
+            cassie
+                .midge
+                .delete_view(&statement.name)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.unregister_view(&statement.name).await;
+            invalidate_plan_cache = true;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "DROP VIEW".to_string(),
             })
         }
         LogicalCommand::DropTable(statement) => {
@@ -1677,6 +1757,37 @@ fn execute_query_source<'a>(
                     return Ok((batches, Vec::new()));
                 }
 
+                if let Some(view) = env.cassie.catalog.get_view(name).await {
+                    let parsed = crate::sql::parser::parse_statement(&view.query)
+                        .map_err(|error| QueryError::General(error.0))?;
+                    let logical = build_logical_plan(&parsed)?;
+                    let mut view_cte_context = CteContext::new();
+                    let rows = execute_plan(
+                        env.cassie,
+                        env.session,
+                        &logical,
+                        &mut view_cte_context,
+                        env.user_functions,
+                        env.params,
+                        env.controls,
+                    )
+                    .await?;
+                    let rows = project_rows_to_schema(rows, &view.schema, name)?;
+                    let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
+                    if qualify {
+                        batches = qualify_batches(batches, name);
+                    }
+                    ensure_temp_budget(env.controls, &batches)?;
+                    let text_fields = view
+                        .schema
+                        .fields
+                        .iter()
+                        .filter(|field| field.data_type == DataType::Text)
+                        .map(|field| field.name.clone())
+                        .collect::<Vec<_>>();
+                    return Ok((batches, text_fields));
+                }
+
                 let mut batches = scan::scan(env.cassie, env.session, name).await?;
                 if qualify {
                     batches = qualify_batches(batches, name);
@@ -1853,6 +1964,32 @@ fn materialize_virtual_rows(rows: Vec<virtual_views::VirtualRow>) -> Vec<Batch> 
         rows.into_iter().map(BatchRow::new).collect::<Vec<_>>(),
         batch::DEFAULT_BATCH_SIZE,
     )
+}
+
+fn project_rows_to_schema(
+    rows: Vec<BatchRow>,
+    schema: &Schema,
+    relation: &str,
+) -> Result<Vec<BatchRow>, QueryError> {
+    let mut projected = Vec::with_capacity(rows.len());
+    for row in rows {
+        let entries = row.into_entries();
+        if entries.len() < schema.fields.len() {
+            return Err(QueryError::General(format!(
+                "view '{}' produced {} columns but schema expects {}",
+                relation,
+                entries.len(),
+                schema.fields.len()
+            )));
+        }
+
+        let mut values = Vec::with_capacity(schema.fields.len());
+        for (field, (_name, value)) in schema.fields.iter().zip(entries) {
+            values.push((field.name.clone(), value));
+        }
+        projected.push(BatchRow::new(values));
+    }
+    Ok(projected)
 }
 
 #[derive(Clone)]

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::types::DataType;
+use crate::types::{DataType, Schema};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -40,4 +40,21 @@ pub struct ProcedureMeta {
     pub name: String,
     pub args: Vec<FunctionArgMeta>,
     pub body: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewMeta {
+    pub name: String,
+    pub query: String,
+    pub schema: Schema,
+}
+
+impl ViewMeta {
+    pub fn new(name: impl Into<String>, query: impl Into<String>, schema: Schema) -> Self {
+        Self {
+            name: name.into(),
+            query: query.into(),
+            schema,
+        }
+    }
 }

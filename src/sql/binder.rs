@@ -8,13 +8,14 @@ use crate::catalog::{virtual_views, Catalog};
 use crate::embeddings::DistanceMetric;
 use crate::search::bm25;
 use crate::sql::ast::{
-    AlterTableOperation, AlterTableStatement, CallProcedureStatement, CreateFunctionStatement,
-    CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement, CteQuery,
-    DropFunctionStatement, DropIndexStatement, DropProcedureStatement, Expr, FunctionCall,
+    AlterTableOperation, AlterTableStatement, CallProcedureStatement, CommonTableExpression,
+    CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
+    CreateSchemaStatement, CreateViewStatement, CteQuery, DropFunctionStatement,
+    DropIndexStatement, DropProcedureStatement, DropViewStatement, Expr, FunctionCall,
     InsertSource, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectSet,
     SelectStatement,
 };
-use crate::types::DataType;
+use crate::types::{DataType, FieldSchema, Schema};
 
 type CteScope = HashMap<String, Vec<String>>;
 
@@ -118,6 +119,20 @@ fn bind_statement<'a>(
                     }),
                 })
             }
+            QueryStatement::CreateView(statement) => {
+                let statement = bind_create_view(statement, catalog).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::CreateView(statement),
+                })
+            }
+            QueryStatement::DropView(statement) => {
+                let statement = bind_drop_view(statement, catalog).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::DropView(statement),
+                })
+            }
             QueryStatement::CreateRole(statement) => Ok(ParsedStatement {
                 raw_sql,
                 statement: QueryStatement::CreateRole(statement),
@@ -204,6 +219,11 @@ async fn bind_insert(
             "INSERT requires a target table".into(),
         ));
     }
+    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).await.is_some() {
+        return Err(CassieError::Unsupported(format!(
+            "relation '{table}' is read-only"
+        )));
+    }
     if !catalog.exists(&table).await {
         return Err(CassieError::CollectionNotFound(table));
     }
@@ -287,6 +307,11 @@ async fn bind_update(
             "UPDATE requires a target table".into(),
         ));
     }
+    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).await.is_some() {
+        return Err(CassieError::Unsupported(format!(
+            "relation '{table}' is read-only"
+        )));
+    }
     if !catalog.exists(&table).await {
         return Err(CassieError::CollectionNotFound(table));
     }
@@ -364,6 +389,11 @@ async fn bind_delete(
             "DELETE requires a target table".into(),
         ));
     }
+    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).await.is_some() {
+        return Err(CassieError::Unsupported(format!(
+            "relation '{table}' is read-only"
+        )));
+    }
     if !catalog.exists(&table).await {
         return Err(CassieError::CollectionNotFound(table));
     }
@@ -413,7 +443,9 @@ async fn bind_create_table(
             "CREATE TABLE requires a table name".into(),
         ));
     }
-    if !statement.if_not_exists && catalog.exists(&name).await {
+    if !statement.if_not_exists
+        && (catalog.relation_exists(&name).await || virtual_views::schema(&name).is_some())
+    {
         return Err(CassieError::Planner(format!(
             "collection '{name}' already exists"
         )));
@@ -450,6 +482,69 @@ async fn bind_create_table(
     }
 
     statement.table = name;
+    Ok(statement)
+}
+
+async fn bind_create_view(
+    mut statement: CreateViewStatement,
+    catalog: &Catalog,
+) -> Result<CreateViewStatement, CassieError> {
+    let name = statement.name.trim().to_string();
+    if name.is_empty() {
+        return Err(CassieError::Planner("CREATE VIEW requires a name".into()));
+    }
+    if !statement.if_not_exists
+        && (catalog.relation_exists(&name).await || virtual_views::schema(&name).is_some())
+    {
+        return Err(CassieError::Planner(format!(
+            "relation '{name}' already exists"
+        )));
+    }
+
+    let parsed = crate::sql::parser::parse_statement(&statement.query)
+        .map_err(|error| CassieError::Parse(error.0))?;
+    let raw_sql = parsed.raw_sql.clone();
+    let QueryStatement::Select(select) = parsed.statement else {
+        return Err(CassieError::Planner(
+            "CREATE VIEW requires a SELECT query body".into(),
+        ));
+    };
+
+    let bound = bind_select(select, catalog, &HashMap::new()).await?;
+    if select_contains_parameters(&bound) {
+        return Err(CassieError::Planner(
+            "CREATE VIEW cannot contain bind parameters".into(),
+        ));
+    }
+
+    let _schema = infer_select_schema(&bound, catalog).await?;
+
+    statement.name = name;
+    statement.query = raw_sql;
+    Ok(statement)
+}
+
+async fn bind_drop_view(
+    mut statement: DropViewStatement,
+    catalog: &Catalog,
+) -> Result<DropViewStatement, CassieError> {
+    let name = statement.name.trim().to_string();
+    if name.is_empty() {
+        return Err(CassieError::Planner("DROP VIEW requires a name".into()));
+    }
+
+    if catalog.get_view(&name).await.is_none() {
+        if virtual_views::schema(&name).is_some() || catalog.exists(&name).await {
+            return Err(CassieError::Planner(format!(
+                "relation '{name}' is not a view"
+            )));
+        }
+        if !statement.if_exists {
+            return Err(CassieError::Planner(format!("view '{name}' does not exist")));
+        }
+    }
+
+    statement.name = name;
     Ok(statement)
 }
 
@@ -735,6 +830,9 @@ async fn bind_drop_table(
             "DROP TABLE requires a table name".into(),
         ));
     }
+    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).await.is_some() {
+        return Err(CassieError::Planner(format!("relation '{table}' is a view")));
+    }
     if !statement.if_exists && !catalog.exists(&table).await {
         return Err(CassieError::CollectionNotFound(table));
     }
@@ -751,6 +849,9 @@ async fn bind_alter_table(
         return Err(CassieError::Planner(
             "ALTER TABLE requires a table name".into(),
         ));
+    }
+    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).await.is_some() {
+        return Err(CassieError::Planner(format!("relation '{table}' is a view")));
     }
 
     let schema = catalog
@@ -1206,7 +1307,9 @@ fn bind_query_source<'a>(
                 let source_name_lc = name.to_ascii_lowercase();
                 if scope.contains_key(&source_name_lc) {
                     Ok(QuerySource::Cte(name))
-                } else if catalog.exists(&name).await || virtual_views::schema(&name).is_some() {
+                } else if catalog.relation_exists(&name).await
+                    || virtual_views::schema(&name).is_some()
+                {
                     Ok(QuerySource::Collection(name))
                 } else {
                     Err(CassieError::CollectionNotFound(name))
@@ -1287,6 +1390,379 @@ fn source_fields<'a>(
             }
         }
     })
+}
+
+pub async fn infer_select_schema(
+    select: &SelectStatement,
+    catalog: &Catalog,
+) -> Result<Schema, CassieError> {
+    let user_functions = catalog
+        .list_functions()
+        .await
+        .into_iter()
+        .map(|function| (function.name.to_ascii_lowercase(), function))
+        .collect::<HashMap<_, _>>();
+
+    infer_select_schema_with_scope(select, catalog, &HashMap::new(), &user_functions).await
+}
+
+fn infer_select_schema_with_scope<'a>(
+    select: &'a SelectStatement,
+    catalog: &'a Catalog,
+    outer_ctes: &'a HashMap<String, Schema>,
+    user_functions: &'a HashMap<String, crate::catalog::FunctionMeta>,
+) -> Pin<Box<dyn Future<Output = Result<Schema, CassieError>> + Send + 'a>> {
+    Box::pin(async move {
+        let mut cte_schemas = outer_ctes.clone();
+        for cte in &select.ctes {
+            let schema = infer_cte_schema(cte, catalog, &cte_schemas, user_functions).await?;
+            cte_schemas.insert(cte.name.to_ascii_lowercase(), schema);
+        }
+
+        let source_schema = infer_source_schema(
+            &select.source,
+            catalog,
+            &cte_schemas,
+            user_functions,
+            false,
+        )
+        .await?;
+        let mut fields = infer_projection_schema(&select.projection, &source_schema, user_functions);
+
+        if let Some(set) = &select.set {
+            let right_schema =
+                infer_select_schema_with_scope(&set.right, catalog, &cte_schemas, user_functions)
+                    .await?;
+            if fields.fields.len() != right_schema.fields.len() {
+                return Err(CassieError::Planner(format!(
+                    "set operation column count mismatch: {} != {}",
+                    fields.fields.len(),
+                    right_schema.fields.len()
+                )));
+            }
+        }
+
+        for group_expr in &select.group_by {
+            if let Expr::Column(name) = group_expr {
+                let _ = schema_field_type(&source_schema, name);
+            }
+        }
+
+        fields.fields.iter_mut().for_each(|field| {
+            field.nullable = true;
+        });
+
+        Ok(fields)
+    })
+}
+
+fn infer_cte_schema<'a>(
+    cte: &'a CommonTableExpression,
+    catalog: &'a Catalog,
+    cte_schemas: &'a HashMap<String, Schema>,
+    user_functions: &'a HashMap<String, crate::catalog::FunctionMeta>,
+) -> Pin<Box<dyn Future<Output = Result<Schema, CassieError>> + Send + 'a>> {
+    Box::pin(async move {
+        let query = match &cte.query {
+            CteQuery::Simple(statement) => statement,
+            CteQuery::Recursive { base, .. } => base,
+        };
+
+        let QueryStatement::Select(select) = &query.statement else {
+            return Err(CassieError::Planner(
+                "CTE body must be a SELECT statement".into(),
+            ));
+        };
+
+        let mut schema = infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions)
+            .await?;
+
+        if !cte.aliases.is_empty() {
+            if schema.fields.len() != cte.aliases.len() {
+                return Err(CassieError::Planner(format!(
+                    "CTE '{}' alias count does not match output columns",
+                    cte.name
+                )));
+            }
+
+            for (field, alias) in schema.fields.iter_mut().zip(cte.aliases.iter()) {
+                field.name = alias.clone();
+            }
+        }
+
+        Ok(schema)
+    })
+}
+
+fn infer_source_schema<'a>(
+    source: &'a QuerySource,
+    catalog: &'a Catalog,
+    cte_schemas: &'a HashMap<String, Schema>,
+    user_functions: &'a HashMap<String, crate::catalog::FunctionMeta>,
+    qualify: bool,
+) -> Pin<Box<dyn Future<Output = Result<Schema, CassieError>> + Send + 'a>> {
+    Box::pin(async move {
+        let schema = match source {
+            QuerySource::Collection(name) => relation_output_schema(catalog, name).await?,
+            QuerySource::Cte(name) => cte_schemas
+                .get(&name.to_ascii_lowercase())
+                .cloned()
+                .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?,
+            QuerySource::SingleRow => Schema { fields: Vec::new() },
+            QuerySource::Subquery { alias, select } => {
+                let inner = infer_select_schema_with_scope(
+                    select,
+                    catalog,
+                    cte_schemas,
+                    user_functions,
+                )
+                .await?;
+                qualify_schema(&inner, alias)
+            }
+            QuerySource::Join { left, right, .. } => {
+                let left = infer_source_schema(left, catalog, cte_schemas, user_functions, true)
+                    .await?;
+                let right = infer_source_schema(right, catalog, cte_schemas, user_functions, true)
+                    .await?;
+                let mut fields = left.fields;
+                fields.extend(right.fields);
+                Schema { fields }
+            }
+        };
+
+        if qualify {
+            Ok(match source {
+                QuerySource::Collection(name) | QuerySource::Cte(name) => {
+                    qualify_schema(&schema, name)
+                }
+                QuerySource::SingleRow | QuerySource::Subquery { .. } | QuerySource::Join { .. } => {
+                    schema
+                }
+            })
+        } else {
+            Ok(schema)
+        }
+    })
+}
+
+async fn relation_output_schema(catalog: &Catalog, name: &str) -> Result<Schema, CassieError> {
+    if let Some(fields) = virtual_views::schema(name) {
+        return Ok(Schema {
+            fields: fields
+                .into_iter()
+                .map(|(field_name, data_type)| FieldSchema {
+                    name: field_name,
+                    data_type,
+                    nullable: true,
+                })
+                .collect(),
+        });
+    }
+
+    if let Some(view) = catalog.get_view(name).await {
+        return Ok(view.schema);
+    }
+
+    let schema = catalog
+        .get_schema(name)
+        .await
+        .ok_or_else(|| CassieError::CollectionNotFound(name.to_string()))?;
+
+    let mut fields = Vec::with_capacity(schema.fields.len() + 1);
+    fields.push(FieldSchema {
+        name: "id".to_string(),
+        data_type: DataType::Text,
+        nullable: true,
+    });
+    fields.extend(schema.fields.into_iter().map(|field| FieldSchema {
+        name: field.name,
+        data_type: field.data_type,
+        nullable: true,
+    }));
+
+    Ok(Schema { fields })
+}
+
+fn qualify_schema(schema: &Schema, qualifier: &str) -> Schema {
+    let qualifier = qualifier.to_ascii_lowercase();
+    let mut fields = Vec::with_capacity(schema.fields.len() * 2);
+    for field in &schema.fields {
+        fields.push(field.clone());
+        fields.push(FieldSchema {
+            name: format!("{qualifier}.{}", field.name),
+            data_type: field.data_type.clone(),
+            nullable: field.nullable,
+        });
+    }
+    Schema { fields }
+}
+
+fn infer_projection_schema(
+    projection: &[SelectItem],
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> Schema {
+    let mut fields = Vec::new();
+    for item in projection {
+        match item {
+            SelectItem::Wildcard => fields.extend(source_schema.fields.iter().cloned()),
+            SelectItem::Column { name, alias } => {
+                let output_name = alias.clone().unwrap_or_else(|| name.clone());
+                fields.push(FieldSchema {
+                    name: output_name,
+                    data_type: schema_field_type(source_schema, name)
+                        .unwrap_or(DataType::Text),
+                    nullable: true,
+                });
+            }
+            SelectItem::Function { function, alias } => {
+                let output_name = alias
+                    .as_deref()
+                    .unwrap_or(function.name.as_str())
+                    .to_string();
+                fields.push(FieldSchema {
+                    name: output_name,
+                    data_type: infer_function_return_type(&function.name, user_functions)
+                        .unwrap_or(DataType::Text),
+                    nullable: true,
+                });
+            }
+        }
+    }
+
+    Schema { fields }
+}
+
+fn schema_field_type(schema: &Schema, name: &str) -> Option<DataType> {
+    schema
+        .fields
+        .iter()
+        .find(|field| field.name.eq_ignore_ascii_case(name))
+        .map(|field| field.data_type.clone())
+}
+
+fn infer_function_return_type(
+    name: &str,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> Option<DataType> {
+    if let Some(metadata) = user_functions.get(&name.to_ascii_lowercase()) {
+        return Some(metadata.return_type.clone());
+    }
+
+    match name.to_ascii_lowercase().as_str() {
+        "count" => Some(DataType::Int),
+        "sum" | "avg" => Some(DataType::Float),
+        "min" | "max" => Some(DataType::Text),
+        "search" | "search_score" | "vector_distance" | "vector_score" | "cosine_distance"
+        | "dot_product" | "hybrid_score" => Some(DataType::Float),
+        "snippet" | "version" | "current_schema" | "current_database" | "current_user"
+        | "session_user" | "current_role" => Some(DataType::Text),
+        _ => None,
+    }
+}
+
+fn select_contains_parameters(select: &SelectStatement) -> bool {
+    select.ctes.iter().any(cte_contains_parameters)
+        || source_contains_parameters(&select.source)
+        || select
+            .projection
+            .iter()
+            .any(select_item_contains_parameters)
+        || select.filter.as_ref().is_some_and(expr_contains_parameters)
+        || select
+            .group_by
+            .iter()
+            .any(expr_contains_parameters)
+        || select.having.as_ref().is_some_and(expr_contains_parameters)
+        || select.order.iter().any(|order| expr_contains_parameters(&order.expr))
+        || select.set.as_ref().is_some_and(|set| select_contains_parameters(&set.right))
+}
+
+fn cte_contains_parameters(cte: &CommonTableExpression) -> bool {
+    match &cte.query {
+        CteQuery::Simple(statement) => parsed_statement_contains_parameters(statement.as_ref()),
+        CteQuery::Recursive { base, recursive } => {
+            parsed_statement_contains_parameters(base.as_ref())
+                || parsed_statement_contains_parameters(recursive.as_ref())
+        }
+    }
+}
+
+fn parsed_statement_contains_parameters(statement: &ParsedStatement) -> bool {
+    match &statement.statement {
+        QueryStatement::Select(select) => select_contains_parameters(select),
+        QueryStatement::Show(_)
+        | QueryStatement::Set(_)
+        | QueryStatement::Insert(_)
+        | QueryStatement::Update(_)
+        | QueryStatement::Delete(_)
+        | QueryStatement::Transaction(_)
+        | QueryStatement::CreateTable(_)
+        | QueryStatement::DropTable(_)
+        | QueryStatement::AlterTable(_)
+        | QueryStatement::CreateSchema(_)
+        | QueryStatement::CreateView(_)
+        | QueryStatement::DropView(_)
+        | QueryStatement::CreateRole(_)
+        | QueryStatement::AlterRole(_)
+        | QueryStatement::DropRole(_)
+        | QueryStatement::CreateIndex(_)
+        | QueryStatement::DropIndex(_)
+        | QueryStatement::CreateFunction(_)
+        | QueryStatement::DropFunction(_)
+        | QueryStatement::CreateProcedure(_)
+        | QueryStatement::DropProcedure(_)
+        | QueryStatement::CallProcedure(_) => false,
+    }
+}
+
+fn select_item_contains_parameters(item: &SelectItem) -> bool {
+    match item {
+        SelectItem::Wildcard => false,
+        SelectItem::Column { .. } => false,
+        SelectItem::Function { function, .. } => function.args.iter().any(expr_contains_parameters),
+    }
+}
+
+fn source_contains_parameters(source: &QuerySource) -> bool {
+    match source {
+        QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
+        QuerySource::Subquery { select, .. } => select_contains_parameters(select),
+        QuerySource::Join {
+            left, right, on, ..
+        } => {
+            source_contains_parameters(left)
+                || source_contains_parameters(right)
+                || expr_contains_parameters(on)
+        }
+    }
+}
+
+fn expr_contains_parameters(expr: &Expr) -> bool {
+    match expr {
+        Expr::Param(_) => true,
+        Expr::Binary { left, right, .. } => {
+            expr_contains_parameters(left) || expr_contains_parameters(right)
+        }
+        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } => expr_contains_parameters(expr),
+        Expr::InList { expr, values, .. } => {
+            expr_contains_parameters(expr) || values.iter().any(expr_contains_parameters)
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            expr_contains_parameters(expr)
+                || expr_contains_parameters(low)
+                || expr_contains_parameters(high)
+        }
+        Expr::Exists(statement) => parsed_statement_contains_parameters(statement),
+        Expr::Function(function) => function.args.iter().any(expr_contains_parameters),
+        Expr::Column(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null => false,
+    }
 }
 
 fn qualified_fields(qualifier: &str, fields: impl IntoIterator<Item = String>) -> HashSet<String> {

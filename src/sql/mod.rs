@@ -5,8 +5,9 @@ pub mod parser;
 
 pub use ast::{
     AlterTableOperation, AlterTableStatement, CommonTableExpression, CreateSchemaStatement,
-    CreateTableStatement, DeleteStatement, DropTableStatement, FieldDefinition, InsertStatement,
-    ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement, UpdateStatement,
+    CreateTableStatement, CreateViewStatement, DeleteStatement, DropTableStatement, DropViewStatement,
+    FieldDefinition, InsertStatement, ParsedStatement, QuerySource, QueryStatement, SelectItem,
+    SelectStatement, UpdateStatement,
 };
 pub use binder::{bind, BoundStatement};
 pub use functions::registry;
@@ -43,6 +44,7 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         QueryStatement::DropTable(_) => 0,
         QueryStatement::AlterTable(_) => 0,
         QueryStatement::CreateSchema(_) => 0,
+        QueryStatement::CreateView(_) => 0,
         QueryStatement::CreateRole(_) => 0,
         QueryStatement::AlterRole(_) => 0,
         QueryStatement::DropRole(_) => 0,
@@ -52,6 +54,7 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         QueryStatement::DropFunction(_) => 0,
         QueryStatement::CreateProcedure(_) => 0,
         QueryStatement::DropProcedure(_) => 0,
+        QueryStatement::DropView(_) => 0,
         QueryStatement::CallProcedure(statement) => statement
             .args
             .iter()

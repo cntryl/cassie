@@ -2,12 +2,12 @@ use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, Index
 use crate::sql::ast::{
     AlterRoleStatement, AlterTableOperation, AlterTableStatement, BinaryOp, CallProcedureStatement,
     CommonTableExpression, CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
-    CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, CteQuery,
+    CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, CreateViewStatement, CteQuery,
     DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropRoleStatement,
-    DropTableStatement, Expr, FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind,
-    NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectSet,
-    SelectStatement, SetOperator, SetStatement, ShowStatement, SortDirection, TransactionAction,
-    TransactionIsolation, TransactionStatement, Volatility,
+    DropTableStatement, DropViewStatement, Expr, FieldDefinition, FunctionArg, FunctionCall,
+    InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement,
+    SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement, ShowStatement,
+    SortDirection, TransactionAction, TransactionIsolation, TransactionStatement, Volatility,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -51,6 +51,8 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         parse_create_function_statement(trimmed)
     } else if lower.starts_with("create procedure ") || lower == "create procedure" {
         parse_create_procedure_statement(trimmed)
+    } else if lower.starts_with("create view ") || lower == "create view" {
+        parse_create_view_statement(trimmed)
     } else if lower.starts_with("select ") {
         parse_select_statement(trimmed, Vec::new(), false)
     } else if lower.starts_with("create unique index ")
@@ -64,6 +66,8 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         parse_drop_function_statement(trimmed)
     } else if lower.starts_with("drop procedure ") || lower == "drop procedure" {
         parse_drop_procedure_statement(trimmed)
+    } else if lower.starts_with("drop view ") || lower == "drop view" {
+        parse_drop_view_statement(trimmed)
     } else if lower.starts_with("call ") {
         parse_call_statement(trimmed)
     } else if lower.starts_with("create table ") || lower == "create table" {
@@ -72,6 +76,8 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         parse_drop_table_statement(trimmed)
     } else if lower.starts_with("alter table ") || lower == "alter table" {
         parse_alter_table_statement(trimmed)
+    } else if lower.starts_with("alter view ") || lower == "alter view" {
+        Err(SqlError("ALTER VIEW is not supported in this version".into()))
     } else if lower.starts_with("create schema ") || lower == "create schema" {
         parse_create_schema_statement(trimmed)
     } else if lower.starts_with("show ") || lower == "show" {
@@ -362,6 +368,36 @@ fn parse_create_procedure_statement(sql: &str) -> Result<ParsedStatement, SqlErr
     })
 }
 
+fn parse_create_view_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[11..].trim();
+    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+
+    let as_pos = find_top_level_keyword(rest, 0, "as")
+        .ok_or_else(|| SqlError("CREATE VIEW requires AS clause".into()))?;
+    let name = rest[..as_pos].trim();
+    if name.is_empty() {
+        return Err(SqlError("CREATE VIEW requires a name".into()));
+    }
+    if name.split_whitespace().count() != 1 {
+        return Err(SqlError("CREATE VIEW supports only one view name".into()));
+    }
+
+    let body = rest[as_pos + 2..].trim();
+    if body.is_empty() {
+        return Err(SqlError("CREATE VIEW requires a query body".into()));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CreateView(CreateViewStatement {
+            name: name.to_string(),
+            if_not_exists,
+            query: body.to_string(),
+        }),
+    })
+}
+
 fn parse_drop_function_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[14..].trim();
@@ -392,6 +428,28 @@ fn parse_drop_procedure_statement(sql: &str) -> Result<ParsedStatement, SqlError
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::DropProcedure(DropProcedureStatement {
+            name: rest.to_string(),
+            if_exists,
+        }),
+    })
+}
+
+fn parse_drop_view_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[10..].trim();
+    let (if_exists, rest) = parse_if_exists(rest)?;
+
+    if rest.is_empty() {
+        return Err(SqlError("missing view name for DROP VIEW".into()));
+    }
+
+    if rest.split_whitespace().count() != 1 {
+        return Err(SqlError("DROP VIEW supports only one view name".into()));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::DropView(DropViewStatement {
             name: rest.to_string(),
             if_exists,
         }),

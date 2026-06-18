@@ -1,7 +1,7 @@
 # Sprint 34 - REST, Operations, Packaging, and V1 Release Gate
 
 Previous: [Sprint 33 - Compatibility Matrix and CI Gate](sprint-33.md)
-Next: [Roadmap README](../README.md)
+Next: [Sprint 35 - User-Defined Views and View Expansion](sprint-35.md)
 
 ## Goal
 

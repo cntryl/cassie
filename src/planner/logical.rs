@@ -3,10 +3,11 @@ use crate::sql::{
     ast::{
         AlterRoleStatement, AlterTableOperation, AlterTableStatement, CommonTableExpression,
         CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
-        CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, DeleteStatement,
-        DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropRoleStatement,
-        DropTableStatement, Expr, InsertStatement, OrderExpr, QuerySource, QueryStatement,
-        SelectItem, SelectStatement, SetStatement, ShowStatement, UpdateStatement,
+        CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, CreateViewStatement,
+        DeleteStatement, DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
+        DropRoleStatement, DropTableStatement, DropViewStatement, Expr, InsertStatement,
+        OrderExpr, QuerySource, QueryStatement, SelectItem, SelectStatement, SetStatement,
+        ShowStatement, UpdateStatement,
     },
     binder::BoundStatement,
 };
@@ -41,6 +42,8 @@ pub enum LogicalCommand {
     CreateProcedure(CreateProcedureStatement),
     DropProcedure(DropProcedureStatement),
     CreateSchema(CreateSchemaStatement),
+    CreateView(CreateViewStatement),
+    DropView(DropViewStatement),
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
     CallProcedure(crate::sql::ast::CallProcedureStatement),
@@ -255,6 +258,53 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 command: Some(LogicalCommand::CreateSchema(statement.clone())),
                 source: QuerySource::Collection(statement.schema.clone()),
                 collection: statement.schema.clone(),
+                ctes: Vec::new(),
+                distinct: false,
+                projection: Vec::new(),
+                filter: None,
+                group_by: Vec::new(),
+                having: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+                set: None,
+            })
+        }
+        QueryStatement::CreateView(statement) => {
+            if statement.name.trim().is_empty() {
+                return Err(CassieError::Planner("CREATE VIEW requires a name".into()));
+            }
+            if statement.query.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "CREATE VIEW requires a query body".into(),
+                ));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::CreateView(statement.clone())),
+                source: QuerySource::Collection(statement.name.clone()),
+                collection: statement.name.clone(),
+                ctes: Vec::new(),
+                distinct: false,
+                projection: Vec::new(),
+                filter: None,
+                group_by: Vec::new(),
+                having: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+                set: None,
+            })
+        }
+        QueryStatement::DropView(statement) => {
+            if statement.name.trim().is_empty() {
+                return Err(CassieError::Planner("DROP VIEW requires a name".into()));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::DropView(statement.clone())),
+                source: QuerySource::Collection(statement.name.clone()),
+                collection: statement.name.clone(),
                 ctes: Vec::new(),
                 distinct: false,
                 projection: Vec::new(),

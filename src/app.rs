@@ -370,6 +370,15 @@ impl Cassie {
             self.catalog.register_procedure(metadata).await;
         }
 
+        let views = self.midge.list_views().await.map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list views: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for metadata in views {
+            self.catalog.register_view(metadata).await;
+        }
+
         self.hydrate_roles().await?;
         self.runtime.record_catalog_hydration(started_at.elapsed());
         Ok(())

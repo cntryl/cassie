@@ -5,11 +5,11 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::catalog::{
-    normalize_role_name, CollectionMeta, CollectionSchema, FieldConstraint, FunctionMeta,
-    IndexMeta, NamespaceMeta, ProcedureMeta, RoleMeta,
+    normalize_role_name, CollectionMeta, CollectionSchema, FieldConstraint, FieldMeta,
+    FunctionMeta, IndexMeta, NamespaceMeta, ProcedureMeta, RoleMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
-use crate::types::DataType;
+use crate::types::{DataType, Schema};
 
 #[derive(Debug, Clone)]
 pub struct Catalog {
@@ -20,6 +20,7 @@ pub struct Catalog {
     pub indexes: Arc<RwLock<HashMap<String, IndexMeta>>>,
     pub functions: Arc<RwLock<HashMap<String, FunctionMeta>>>,
     pub procedures: Arc<RwLock<HashMap<String, ProcedureMeta>>>,
+    pub views: Arc<RwLock<HashMap<String, ViewMeta>>>,
     pub roles: Arc<RwLock<HashMap<String, RoleMeta>>>,
     pub vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
     version: Arc<AtomicU64>,
@@ -35,6 +36,7 @@ impl Catalog {
             indexes: Arc::new(RwLock::new(HashMap::new())),
             functions: Arc::new(RwLock::new(HashMap::new())),
             procedures: Arc::new(RwLock::new(HashMap::new())),
+            views: Arc::new(RwLock::new(HashMap::new())),
             roles: Arc::new(RwLock::new(HashMap::new())),
             vector_indexes: Arc::new(RwLock::new(HashMap::new())),
             version: Arc::new(AtomicU64::new(0)),
@@ -142,6 +144,33 @@ impl Catalog {
         out
     }
 
+    pub async fn register_view(&self, metadata: ViewMeta) {
+        let mut views = self.views.write().await;
+        views.insert(metadata.name.clone(), metadata);
+        self.bump_version();
+    }
+
+    pub async fn unregister_view(&self, name: &str) {
+        self.views.write().await.remove(name);
+        self.bump_version();
+    }
+
+    pub async fn get_view(&self, name: &str) -> Option<ViewMeta> {
+        self.views.read().await.get(name).cloned()
+    }
+
+    pub async fn list_views(&self) -> Vec<ViewMeta> {
+        let mut out = self
+            .views
+            .read()
+            .await
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        out.sort_by_key(|view| view.name.to_ascii_lowercase());
+        out
+    }
+
     pub async fn register_procedure(&self, metadata: ProcedureMeta) {
         let mut procedures = self.procedures.write().await;
         procedures.insert(metadata.name.to_ascii_lowercase(), metadata);
@@ -218,6 +247,7 @@ impl Catalog {
         self.constraints.write().await.clear();
         self.functions.write().await.clear();
         self.procedures.write().await.clear();
+        self.views.write().await.clear();
         self.roles.write().await.clear();
         self.indexes.write().await.clear();
         self.vector_indexes.write().await.clear();
@@ -341,7 +371,16 @@ impl Catalog {
 
     pub async fn get_schema(&self, collection: &str) -> Option<CollectionSchema> {
         let schemas = self.schemas.read().await;
-        schemas.get(collection).cloned()
+        if let Some(schema) = schemas.get(collection).cloned() {
+            return Some(schema);
+        }
+        drop(schemas);
+
+        self.views
+            .read()
+            .await
+            .get(collection)
+            .map(|view| view_schema_to_collection_schema(&view.name, &view.schema))
     }
 
     pub async fn add_collection_field(&self, collection: &str, name: String, data_type: DataType) {
@@ -432,6 +471,14 @@ impl Catalog {
 
     pub async fn exists(&self, collection: &str) -> bool {
         self.collections.read().await.contains_key(collection)
+    }
+
+    pub async fn relation_exists(&self, name: &str) -> bool {
+        if self.collections.read().await.contains_key(name) {
+            return true;
+        }
+
+        self.views.read().await.contains_key(name)
     }
 
     pub async fn get_field_boost(&self, collection: &str, field: &str) -> Option<f32> {
@@ -537,5 +584,21 @@ impl Catalog {
 impl Default for Catalog {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn view_schema_to_collection_schema(name: &str, schema: &Schema) -> CollectionSchema {
+    CollectionSchema {
+        collection: name.to_string(),
+        fields: schema
+            .fields
+            .iter()
+            .map(|field| FieldMeta {
+                name: field.name.clone(),
+                data_type: field.data_type.clone(),
+                is_indexed: false,
+                boost: None,
+            })
+            .collect(),
     }
 }

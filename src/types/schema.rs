@@ -4,11 +4,16 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "lowercase")]
 pub enum DataType {
     Null,
+    SmallInt,
     Int,
+    BigInt,
     Float,
     Boolean,
     Text,
+    Char { length: Option<u32> },
+    Varchar { length: Option<u32> },
     Uuid,
+    Bytea,
     Date,
     Time,
     Timestamp,
@@ -25,11 +30,22 @@ impl DataType {
     pub fn type_name(&self) -> String {
         match self {
             Self::Null => "null".to_string(),
+            Self::SmallInt => "smallint".to_string(),
             Self::Int => "int".to_string(),
+            Self::BigInt => "bigint".to_string(),
             Self::Float => "float".to_string(),
             Self::Boolean => "boolean".to_string(),
             Self::Text => "text".to_string(),
+            Self::Char { length } => match length {
+                Some(length) => format!("char({length})"),
+                None => "char".to_string(),
+            },
+            Self::Varchar { length } => match length {
+                Some(length) => format!("varchar({length})"),
+                None => "varchar".to_string(),
+            },
             Self::Uuid => "uuid".to_string(),
+            Self::Bytea => "bytea".to_string(),
             Self::Date => "date".to_string(),
             Self::Time => "time".to_string(),
             Self::Timestamp => "timestamp".to_string(),
@@ -41,8 +57,13 @@ impl DataType {
 
     pub fn type_oid(&self) -> i64 {
         const OID_BOOL: i64 = 16;
+        const OID_INT2: i64 = 21;
         const OID_INT8: i64 = 20;
+        const OID_INT4: i64 = 23;
         const OID_TEXT: i64 = 25;
+        const OID_BYTEA: i64 = 17;
+        const OID_BPCHAR: i64 = 1042;
+        const OID_VARCHAR: i64 = 1043;
         const OID_JSON: i64 = 114;
         const OID_FLOAT8: i64 = 701;
         const OID_UUID: i64 = 2950;
@@ -55,11 +76,16 @@ impl DataType {
 
         match self {
             Self::Null => OID_UNKNOWN,
-            Self::Int => OID_INT8,
+            Self::SmallInt => OID_INT2,
+            Self::Int => OID_INT4,
+            Self::BigInt => OID_INT8,
             Self::Float => OID_FLOAT8,
             Self::Boolean => OID_BOOL,
             Self::Text => OID_TEXT,
+            Self::Char { .. } => OID_BPCHAR,
+            Self::Varchar { .. } => OID_VARCHAR,
             Self::Uuid => OID_UUID,
+            Self::Bytea => OID_BYTEA,
             Self::Date => OID_DATE,
             Self::Time => OID_TIME,
             Self::Timestamp => OID_TIMESTAMP,
@@ -72,11 +98,16 @@ impl DataType {
     pub fn typlen(&self) -> i16 {
         match self {
             Self::Null => 0,
-            Self::Int => 8,
+            Self::SmallInt => 2,
+            Self::Int => 4,
+            Self::BigInt => 8,
             Self::Float => 8,
             Self::Boolean => 1,
+            Self::Char { .. } => -1,
+            Self::Varchar { .. } => -1,
             Self::Text => -1,
             Self::Uuid => 16,
+            Self::Bytea => -1,
             Self::Date => 4,
             Self::Time => 8,
             Self::Timestamp => 8,
@@ -88,6 +119,18 @@ impl DataType {
 
     pub fn atttypmod(&self) -> i32 {
         match self {
+            Self::Varchar { length } => {
+                let length = *length;
+                length
+                    .and_then(|length| i32::try_from(length).ok())
+                    .and_then(|length| length.checked_add(4))
+                    .unwrap_or(-1)
+            }
+            Self::Char { length } => length
+                .unwrap_or(1)
+                .checked_add(4)
+                .and_then(|length| i32::try_from(length).ok())
+                .unwrap_or(5),
             Self::Vector(_) => -1,
             _ => -1,
         }
@@ -119,18 +162,64 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
         return Ok(DataType::Vector(dimensions));
     }
 
+    if let Some(length) = parse_string_type_with_length(&lower, "char") {
+        return length;
+    }
+
+    if let Some(length) = parse_string_type_with_length(&lower, "varchar") {
+        return length;
+    }
+
     match lower.as_str() {
         "null" => Ok(DataType::Null),
-        "int" | "integer" => Ok(DataType::Int),
+        "smallint" | "int2" => Ok(DataType::SmallInt),
+        "int" | "integer" | "int4" => Ok(DataType::Int),
+        "bigint" | "int8" => Ok(DataType::BigInt),
         "float" | "double" | "numeric" | "decimal" => Ok(DataType::Float),
         "boolean" | "bool" => Ok(DataType::Boolean),
         "text" | "string" | "varchar" => Ok(DataType::Text),
         "uuid" => Ok(DataType::Uuid),
+        "bytea" => Ok(DataType::Bytea),
         "date" => Ok(DataType::Date),
         "time" => Ok(DataType::Time),
         "timestamp" => Ok(DataType::Timestamp),
         "json" => Ok(DataType::Json),
         _ => Err(format!("unsupported data type '{raw}'")),
+    }
+}
+
+fn parse_string_type_with_length(raw: &str, kind: &str) -> Option<Result<DataType, String>> {
+    if raw == kind {
+        return if kind == "char" {
+            Some(Ok(DataType::Char { length: Some(1) }))
+        } else {
+            Some(Ok(DataType::Varchar { length: None }))
+        };
+    }
+
+    let rest = raw.strip_prefix(&format!("{kind}("))?;
+    let Some(rest) = rest.strip_suffix(')') else {
+        return Some(Err(format!("unsupported modifier in '{raw}'")));
+    };
+
+    let length = match rest.trim().parse::<u32>() {
+        Ok(length) => length,
+        Err(_) => {
+            return Some(Err(format!("invalid {kind} length '{raw}'")));
+        }
+    };
+    if length == 0 {
+        return Some(Err(format!("{kind} length cannot be zero")));
+    }
+
+    if kind == "char" {
+        Some(Ok(DataType::Char {
+            length: Some(length),
+        }))
+    } else {
+        Some(Ok(DataType::Varchar {
+            length: Some(length),
+        }))
     }
 }
 

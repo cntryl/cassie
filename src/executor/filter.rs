@@ -501,16 +501,17 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
 
     match data_type {
         DataType::Null => Ok(ScalarValue::Null),
-        DataType::Int => value
-            .to_f64()
+        DataType::SmallInt => scalar_to_i64(value)
+            .and_then(|value| i16::try_from(value).ok())
             .map(|value| ScalarValue::Int(value as i64))
-            .or_else(|| {
-                value
-                    .as_str()
-                    .and_then(|value| value.parse::<i64>().ok())
-                    .map(ScalarValue::Int)
-            })
+            .ok_or_else(|| QueryError::General("cannot cast value to SMALLINT".to_string())),
+        DataType::Int => scalar_to_i64(value)
+            .and_then(|value| i32::try_from(value).ok())
+            .map(|value| ScalarValue::Int(value as i64))
             .ok_or_else(|| QueryError::General("cannot cast value to INT".to_string())),
+        DataType::BigInt => scalar_to_i64(value)
+            .map(ScalarValue::Int)
+            .ok_or_else(|| QueryError::General("cannot cast value to BIGINT".to_string())),
         DataType::Float => value
             .to_f64()
             .map(ScalarValue::Float)
@@ -541,6 +542,27 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             ScalarValue::Str(value) => value.clone(),
             ScalarValue::Null => String::new(),
         })),
+        DataType::Char { length } => {
+            let value = cast_to_text(value)
+                .filter(|value| value.chars().count() <= length.unwrap_or(1) as usize)
+                .ok_or_else(|| QueryError::General("cannot cast value to CHAR".to_string()))?;
+            Ok(ScalarValue::Str(value))
+        }
+        DataType::Varchar { length } => {
+            let value = cast_to_text(value)
+                .filter(|value| {
+                    length.is_none_or(|length| value.chars().count() <= length as usize)
+                })
+                .ok_or_else(|| QueryError::General("cannot cast value to VARCHAR".to_string()))?;
+            Ok(ScalarValue::Str(value))
+        }
+        DataType::Bytea => {
+            let value = value
+                .as_str()
+                .ok_or_else(|| QueryError::General("cannot cast value to BYTEA".to_string()))?;
+            decode_bytea(value)?;
+            Ok(ScalarValue::Str(value.to_string()))
+        }
         DataType::Uuid => {
             let value = value
                 .as_str()
@@ -569,6 +591,50 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             "cannot cast scalar value to VECTOR".to_string(),
         )),
     }
+}
+
+fn cast_to_text(value: &ScalarValue) -> Option<String> {
+    match value {
+        ScalarValue::Bool(value) => Some(value.to_string()),
+        ScalarValue::Int(value) => Some(value.to_string()),
+        ScalarValue::Float(value) => Some(value.to_string()),
+        ScalarValue::Str(value) => Some(value.clone()),
+        ScalarValue::Null => None,
+    }
+}
+
+fn scalar_to_i64(value: &ScalarValue) -> Option<i64> {
+    match value {
+        ScalarValue::Int(value) => Some(*value),
+        ScalarValue::Bool(value) => Some(if *value { 1 } else { 0 }),
+        ScalarValue::Float(value) if value.is_finite() && value.fract() == 0.0 => {
+            Some(*value as i64)
+        }
+        ScalarValue::Float(_) => None,
+        ScalarValue::Str(value) => value.parse().ok(),
+        ScalarValue::Null => None,
+    }
+}
+
+fn decode_bytea(value: &str) -> Result<(), QueryError> {
+    if !value.starts_with("\\x") {
+        return Err(QueryError::General(
+            "cannot cast value to BYTEA".to_string(),
+        ));
+    }
+    if (value.len() - 2).rem_euclid(2) != 0 {
+        return Err(QueryError::General(
+            "cannot cast value to BYTEA".to_string(),
+        ));
+    }
+    for byte in value.as_bytes()[2..].iter() {
+        if !byte.is_ascii_hexdigit() {
+            return Err(QueryError::General(
+                "cannot cast value to BYTEA".to_string(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn binary_scalar(left: &ScalarValue, op: &BinaryOp, right: &ScalarValue) -> ScalarValue {
@@ -719,7 +785,15 @@ fn evaluate_function<R: RowAccess + ?Sized>(
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
     if name == "coalesce" {
-        return evaluate_coalesce(function, row, params, search_context, user_functions, session, local_args);
+        return evaluate_coalesce(
+            function,
+            row,
+            params,
+            search_context,
+            user_functions,
+            session,
+            local_args,
+        );
     }
 
     let args: Vec<Value> = function

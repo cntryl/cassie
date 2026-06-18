@@ -125,9 +125,14 @@ fn builtin_type_rows() -> Vec<VirtualRow> {
     let mut rows = vec![
         type_row(DataType::Null, namespace),
         type_row(DataType::Boolean, namespace),
+        type_row(DataType::SmallInt, namespace),
         type_row(DataType::Int, namespace),
+        type_row(DataType::BigInt, namespace),
         type_row(DataType::Float, namespace),
         type_row(DataType::Text, namespace),
+        type_row(DataType::Char { length: Some(1) }, namespace),
+        type_row(DataType::Varchar { length: Some(8) }, namespace),
+        type_row(DataType::Bytea, namespace),
         type_row(DataType::Uuid, namespace),
         type_row(DataType::Date, namespace),
         type_row(DataType::Time, namespace),
@@ -138,9 +143,20 @@ fn builtin_type_rows() -> Vec<VirtualRow> {
 
     rows.extend([
         type_row(DataType::Array(Box::new(DataType::Boolean)), namespace),
+        type_row(DataType::Array(Box::new(DataType::SmallInt)), namespace),
         type_row(DataType::Array(Box::new(DataType::Int)), namespace),
+        type_row(DataType::Array(Box::new(DataType::BigInt)), namespace),
         type_row(DataType::Array(Box::new(DataType::Float)), namespace),
         type_row(DataType::Array(Box::new(DataType::Text)), namespace),
+        type_row(
+            DataType::Array(Box::new(DataType::Char { length: Some(1) })),
+            namespace,
+        ),
+        type_row(
+            DataType::Array(Box::new(DataType::Varchar { length: Some(8) })),
+            namespace,
+        ),
+        type_row(DataType::Array(Box::new(DataType::Bytea)), namespace),
         type_row(DataType::Array(Box::new(DataType::Uuid)), namespace),
         type_row(DataType::Array(Box::new(DataType::Json)), namespace),
     ]);
@@ -166,13 +182,18 @@ fn type_length(data_type: &DataType) -> i64 {
     match data_type {
         DataType::Null => -1,
         DataType::Boolean => 1,
-        DataType::Int => 8,
+        DataType::SmallInt => 2,
+        DataType::Int => 4,
+        DataType::BigInt => 8,
         DataType::Float => 8,
         DataType::Uuid => 16,
+        DataType::Char { .. } => -1,
+        DataType::Varchar { .. } => -1,
         DataType::Date => 4,
         DataType::Time => 8,
         DataType::Timestamp => 8,
         DataType::Text => -1,
+        DataType::Bytea => -1,
         DataType::Json => -1,
         DataType::Vector(_) => -1,
         DataType::Array(_) => -1,
@@ -182,7 +203,13 @@ fn type_length(data_type: &DataType) -> i64 {
 fn is_type_passed_by_value(data_type: &DataType) -> bool {
     matches!(
         data_type,
-        DataType::Boolean | DataType::Int | DataType::Float | DataType::Date | DataType::Time
+        DataType::Boolean
+            | DataType::SmallInt
+            | DataType::Int
+            | DataType::BigInt
+            | DataType::Float
+            | DataType::Date
+            | DataType::Time
     )
 }
 
@@ -198,8 +225,11 @@ fn type_category(data_type: &DataType) -> String {
     match data_type {
         DataType::Null => "Z".to_string(),
         DataType::Boolean => "B".to_string(),
-        DataType::Int | DataType::Float => "N".to_string(),
-        DataType::Text | DataType::Json => "S".to_string(),
+        DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float => "N".to_string(),
+        DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } | DataType::Json => {
+            "S".to_string()
+        }
+        DataType::Bytea => "U".to_string(),
         DataType::Uuid => "U".to_string(),
         DataType::Date | DataType::Time | DataType::Timestamp => "D".to_string(),
         DataType::Vector(_) => "V".to_string(),
@@ -525,10 +555,21 @@ fn constraint_name(collection: &str, field: &str, kind: &str) -> String {
 fn data_type_name(data_type: &DataType) -> String {
     match data_type {
         DataType::Null => "null".to_string(),
+        DataType::SmallInt => "smallint".to_string(),
         DataType::Int => "int".to_string(),
+        DataType::BigInt => "bigint".to_string(),
         DataType::Float => "float".to_string(),
         DataType::Boolean => "boolean".to_string(),
         DataType::Text => "text".to_string(),
+        DataType::Char { length } => match length {
+            Some(length) => format!("char({length})"),
+            None => "char".to_string(),
+        },
+        DataType::Varchar { length } => match length {
+            Some(length) => format!("varchar({length})"),
+            None => "varchar".to_string(),
+        },
+        DataType::Bytea => "bytea".to_string(),
         DataType::Uuid => "uuid".to_string(),
         DataType::Date => "date".to_string(),
         DataType::Time => "time".to_string(),

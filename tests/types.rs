@@ -18,15 +18,25 @@ fn should_parse_supported_scalar_sql_types() {
     // Arrange
     // Act
     let int = DataType::parse_sql("INT").unwrap();
+    let smallint = DataType::parse_sql("SMALLINT").unwrap();
+    let bigint = DataType::parse_sql("BIGINT").unwrap();
     let vector = DataType::parse_sql("vector(2)").unwrap();
     let json = DataType::parse_sql("json").unwrap();
     let uuid = DataType::parse_sql("uuid").unwrap();
+    let char = DataType::parse_sql("char(3)").unwrap();
+    let varchar = DataType::parse_sql("varchar(12)").unwrap();
+    let bytea = DataType::parse_sql("bytea").unwrap();
 
     // Assert
     assert_eq!(int, DataType::Int);
+    assert_eq!(smallint, DataType::SmallInt);
+    assert_eq!(bigint, DataType::BigInt);
     assert_eq!(vector, DataType::Vector(2));
     assert_eq!(json, DataType::Json);
     assert_eq!(uuid, DataType::Uuid);
+    assert_eq!(char, DataType::Char { length: Some(3) });
+    assert_eq!(varchar, DataType::Varchar { length: Some(12) });
+    assert_eq!(bytea, DataType::Bytea);
 }
 
 #[test]
@@ -75,7 +85,7 @@ fn should_roundtrip_supported_sql_values() {
         cassie
             .execute_sql(
                 &session,
-                "CREATE TABLE type_round_trip (item_id TEXT, item_uuid UUID, created_on DATE, created_at TIME, created_at_ts TIMESTAMP, payload JSON, values INT[], embedding VECTOR(2))",
+                "CREATE TABLE type_round_trip (item_id TEXT, item_uuid UUID, created_on DATE, created_at TIME, created_at_ts TIMESTAMP, payload JSON, values INT[], embedding VECTOR(2), short SMALLINT, wide BIGINT, code CHAR(4), title VARCHAR(10), blob BYTEA)",
                 vec![],
             )
             .await
@@ -83,7 +93,7 @@ fn should_roundtrip_supported_sql_values() {
         cassie
             .execute_sql(
                 &session,
-                "INSERT INTO type_round_trip (item_id, item_uuid, created_on, created_at, created_at_ts, payload, values, embedding) VALUES ('row-1', $1, $2, $3, $4, $5, $6, $7)",
+                "INSERT INTO type_round_trip (item_id, item_uuid, created_on, created_at, created_at_ts, payload, values, embedding, short, wide, code, title, blob) VALUES ('row-1', $1, $2, $3, $4, $5, $6, $7, $8, $9, 'ABCD', 'sample', '\\x01020a')",
                 vec![
                     Value::String("550e8400-e29b-41d4-a716-446655440000".to_string()),
                     Value::String("2026-06-18".to_string()),
@@ -92,6 +102,8 @@ fn should_roundtrip_supported_sql_values() {
                     Value::Json(serde_json::json!({"source": "types", "value": 1})),
                     Value::Json(serde_json::json!([1, 2, 3])),
                     Value::Json(serde_json::json!([0.25, 0.75])),
+                    Value::Int64(12),
+                    Value::Int64(9_223_372_036_854_775_807),
                 ],
             )
             .await
@@ -101,7 +113,7 @@ fn should_roundtrip_supported_sql_values() {
         let selected = cassie
             .execute_sql(
                 &session,
-                "SELECT item_id, item_uuid, created_on, created_at, created_at_ts, payload, values, embedding FROM type_round_trip WHERE item_id = 'row-1'",
+                "SELECT item_id, item_uuid, created_on, created_at, created_at_ts, payload, values, embedding, short, wide, code, title, blob FROM type_round_trip WHERE item_id = 'row-1'",
                 vec![],
             )
             .await
@@ -129,6 +141,14 @@ fn should_roundtrip_supported_sql_values() {
             selected.rows[0][7],
             Value::Json(serde_json::json!([0.25, 0.75]))
         );
+        assert_eq!(selected.rows[0][8], Value::Int64(12));
+        assert_eq!(
+            selected.rows[0][9],
+            Value::Int64(9_223_372_036_854_775_807)
+        );
+        assert_eq!(selected.rows[0][10], Value::String("ABCD".to_string()));
+        assert_eq!(selected.rows[0][11], Value::String("sample".to_string()));
+        assert_eq!(selected.rows[0][12], Value::String("\\x01020a".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });

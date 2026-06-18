@@ -318,7 +318,7 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
         let selected = cassie
             .execute_sql(
                 &session,
-                "SELECT typname, oid, typelem, typnamespace FROM pg_catalog.pg_type WHERE typname IN ('int', 'vector(2)', 'text', 'int[]') ORDER BY typname",
+                "SELECT typname, oid, typelem, typnamespace FROM pg_catalog.pg_type WHERE typname IN ('smallint', 'bigint', 'bytea', 'char(1)', 'varchar(8)', 'int', 'int[]', 'vector(2)', 'text', 'bytea[]') ORDER BY typname",
                 vec![],
             )
             .await
@@ -328,6 +328,30 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
         assert_eq!(
             selected.rows,
             vec![
+                vec![
+                    Value::String("bigint".to_string()),
+                    Value::Int64(DataType::BigInt.type_oid()),
+                    Value::Int64(0),
+                    Value::String("pg_catalog".to_string())
+                ],
+                vec![
+                    Value::String("bytea".to_string()),
+                    Value::Int64(DataType::Bytea.type_oid()),
+                    Value::Int64(0),
+                    Value::String("pg_catalog".to_string())
+                ],
+                vec![
+                    Value::String("bytea[]".to_string()),
+                    Value::Int64(DataType::Array(Box::new(DataType::Bytea)).type_oid()),
+                    Value::Int64(DataType::Bytea.type_oid()),
+                    Value::String("pg_catalog".to_string())
+                ],
+                vec![
+                    Value::String("char(1)".to_string()),
+                    Value::Int64(DataType::Char { length: Some(1) }.type_oid()),
+                    Value::Int64(0),
+                    Value::String("pg_catalog".to_string())
+                ],
                 vec![
                     Value::String("int".to_string()),
                     Value::Int64(DataType::Int.type_oid()),
@@ -341,8 +365,20 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
                     Value::String("pg_catalog".to_string())
                 ],
                 vec![
+                    Value::String("smallint".to_string()),
+                    Value::Int64(DataType::SmallInt.type_oid()),
+                    Value::Int64(0),
+                    Value::String("pg_catalog".to_string())
+                ],
+                vec![
                     Value::String("text".to_string()),
                     Value::Int64(DataType::Text.type_oid()),
+                    Value::Int64(0),
+                    Value::String("pg_catalog".to_string())
+                ],
+                vec![
+                    Value::String("varchar(8)".to_string()),
+                    Value::Int64(DataType::Varchar { length: Some(8) }.type_oid()),
                     Value::Int64(0),
                     Value::String("pg_catalog".to_string())
                 ],

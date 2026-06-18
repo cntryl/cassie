@@ -229,7 +229,7 @@ fn should_create_call_user_defined_function_with_tokio_postgres() {
             .expect("function call should succeed");
 
         // Assert
-        let echoed: i64 = row.try_get(0).expect("function return value");
+        let echoed: i32 = row.try_get(0).expect("function return value");
         assert_eq!(echoed, 7);
 
         drop(client);

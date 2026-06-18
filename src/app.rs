@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::path::Path;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::pin::Pin;
 use std::time::Instant;
 
 use serde::Serialize;
@@ -1008,19 +1008,46 @@ impl Cassie {
             crate::types::DataType::Null => Err(CassieError::InvalidVector(format!(
                 "field '{field}' expects null"
             ))),
-            crate::types::DataType::Int => {
-                if value.is_number() && value.as_i64().is_none() {
-                    return Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects int"
-                    )));
-                }
+            crate::types::DataType::SmallInt => {
+                let number = value
+                    .as_i64()
+                    .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+                    .ok_or_else(|| {
+                        CassieError::InvalidVector(format!("field '{field}' expects smallint"))
+                    })?;
 
-                if value.is_number() {
+                if i16::try_from(number).is_ok() {
                     return Ok(());
                 }
+
                 Err(CassieError::InvalidVector(format!(
-                    "field '{field}' expects int"
+                    "field '{field}' expects smallint"
                 )))
+            }
+            crate::types::DataType::Int => {
+                let number = value
+                    .as_i64()
+                    .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+                    .ok_or_else(|| {
+                        CassieError::InvalidVector(format!("field '{field}' expects int"))
+                    })?;
+
+                if i32::try_from(number).is_ok() {
+                    Ok(())
+                } else {
+                    Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects int"
+                    )))
+                }
+            }
+            crate::types::DataType::BigInt => {
+                if value.is_i64() || value.as_u64().is_some() {
+                    Ok(())
+                } else {
+                    Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects bigint"
+                    )))
+                }
             }
             crate::types::DataType::Float => {
                 if value.is_number() {
@@ -1057,6 +1084,47 @@ impl Cassie {
                     }
                 }
 
+                Ok(())
+            }
+            crate::types::DataType::Char { length } => {
+                let value = value.as_str().ok_or_else(|| {
+                    CassieError::InvalidVector(format!("field '{field}' expects char"))
+                })?;
+
+                let max = length.unwrap_or(1) as usize;
+                if value.chars().count() <= max {
+                    Ok(())
+                } else {
+                    Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects char({max})"
+                    )))
+                }
+            }
+            crate::types::DataType::Varchar { length } => {
+                let value = value.as_str().ok_or_else(|| {
+                    CassieError::InvalidVector(format!("field '{field}' expects varchar"))
+                })?;
+
+                if let Some(length) = length {
+                    if value.chars().count() <= (*length as usize) {
+                        Ok(())
+                    } else {
+                        Err(CassieError::InvalidVector(format!(
+                            "field '{field}' expects varchar({length})"
+                        )))
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+            crate::types::DataType::Bytea => {
+                if !value.is_string() {
+                    return Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects bytea"
+                    )));
+                }
+
+                Self::decode_bytea(value.as_str().unwrap_or_default())?;
                 Ok(())
             }
             crate::types::DataType::Date
@@ -1117,6 +1185,47 @@ impl Cassie {
 
                 Ok(())
             }
+        }
+    }
+
+    fn decode_bytea(value: &str) -> Result<Vec<u8>, CassieError> {
+        if !value.starts_with("\\x") {
+            return Err(CassieError::InvalidVector(
+                "bytea expects hex format '\\x'".to_string(),
+            ));
+        }
+
+        if value.len() == 2 {
+            return Ok(Vec::new());
+        }
+
+        if (value.len() - 2).rem_euclid(2) != 0 {
+            return Err(CassieError::InvalidVector(
+                "bytea expects an even number of hex digits".to_string(),
+            ));
+        }
+
+        let raw = value.as_bytes();
+        let mut out = Vec::with_capacity((value.len() - 2) / 2);
+        let mut index = 2;
+        while index < value.len() {
+            let high = Self::decode_hex_digit(raw[index])
+                .ok_or_else(|| CassieError::InvalidVector("invalid bytea hex digit".to_string()))?;
+            let low = Self::decode_hex_digit(raw[index + 1])
+                .ok_or_else(|| CassieError::InvalidVector("invalid bytea hex digit".to_string()))?;
+            out.push(high << 4 | low);
+            index += 2;
+        }
+
+        Ok(out)
+    }
+
+    fn decode_hex_digit(byte: u8) -> Option<u8> {
+        match byte {
+            b'0'..=b'9' => Some(byte - b'0'),
+            b'a'..=b'f' => Some(byte - b'a' + 10),
+            b'A'..=b'F' => Some(byte - b'A' + 10),
+            _ => None,
         }
     }
 

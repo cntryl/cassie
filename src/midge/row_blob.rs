@@ -18,6 +18,7 @@ const TYPE_DATE: u8 = 0x09;
 const TYPE_TIME: u8 = 0x0A;
 const TYPE_TIMESTAMP: u8 = 0x0B;
 const TYPE_ARRAY: u8 = 0x0C;
+const TYPE_BYTEA: u8 = 0x0D;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct RowSchema {
@@ -178,6 +179,10 @@ fn write_field_value(
             write_varint(encoded.len() as u64, out);
             out.extend_from_slice(encoded);
         }
+        TYPE_BYTEA => {
+            write_varint(encoded.len() as u64, out);
+            out.extend_from_slice(encoded);
+        }
         _ => {
             return Err(CassieError::Parse(format!(
                 "unsupported row blob type tag {type_tag}"
@@ -292,11 +297,27 @@ fn encode_value(
 
     match data_type {
         DataType::Null => Ok((TYPE_NULL, Vec::new())),
+        DataType::SmallInt => {
+            let value = value
+                .as_i64()
+                .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+                .and_then(|value| i16::try_from(value).ok())
+                .ok_or_else(|| CassieError::InvalidVector("smallint field expects i16".into()))?;
+            Ok((TYPE_I64, i64::from(value).to_be_bytes().to_vec()))
+        }
         DataType::Int => {
             let value = value
                 .as_i64()
                 .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
-                .ok_or_else(|| CassieError::InvalidVector("integer field expects i64".into()))?;
+                .and_then(|value| i32::try_from(value).ok())
+                .ok_or_else(|| CassieError::InvalidVector("integer field expects i32".into()))?;
+            Ok((TYPE_I64, i64::from(value).to_be_bytes().to_vec()))
+        }
+        DataType::BigInt => {
+            let value = value
+                .as_i64()
+                .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+                .ok_or_else(|| CassieError::InvalidVector("bigint field expects i64".into()))?;
             Ok((TYPE_I64, value.to_be_bytes().to_vec()))
         }
         DataType::Float => {
@@ -315,6 +336,31 @@ fn encode_value(
             let value = value
                 .as_str()
                 .ok_or_else(|| CassieError::InvalidVector("text field expects string".into()))?;
+            Ok((TYPE_STRING, value.as_bytes().to_vec()))
+        }
+        DataType::Char { length } => {
+            let value = value
+                .as_str()
+                .ok_or_else(|| CassieError::InvalidVector("char field expects string".into()))?;
+            let length = length.unwrap_or(1);
+            if value.chars().count() > length as usize {
+                return Err(CassieError::InvalidVector(format!(
+                    "char field expects up to {length} characters"
+                )));
+            }
+            Ok((TYPE_STRING, value.as_bytes().to_vec()))
+        }
+        DataType::Varchar { length } => {
+            let value = value
+                .as_str()
+                .ok_or_else(|| CassieError::InvalidVector("varchar field expects string".into()))?;
+            if let Some(length) = length {
+                if value.chars().count() > *length as usize {
+                    return Err(CassieError::InvalidVector(format!(
+                        "varchar field expects up to {length} characters"
+                    )));
+                }
+            }
             Ok((TYPE_STRING, value.as_bytes().to_vec()))
         }
         DataType::Uuid => {
@@ -343,6 +389,13 @@ fn encode_value(
             })?;
             Ok((TYPE_TIMESTAMP, value.as_bytes().to_vec()))
         }
+        DataType::Bytea => {
+            let value = value
+                .as_str()
+                .ok_or_else(|| CassieError::InvalidVector("bytea field expects string".into()))?;
+            let decoded = decode_bytea(value)?;
+            Ok((TYPE_BYTEA, decoded))
+        }
         DataType::Array(inner) => {
             let values = value
                 .as_array()
@@ -358,7 +411,7 @@ fn encode_value(
                         out.extend_from_slice(&value_data)
                     }
                     TYPE_NULL | TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE
-                    | TYPE_TIME | TYPE_TIMESTAMP | TYPE_ARRAY => {
+                    | TYPE_TIME | TYPE_TIMESTAMP | TYPE_ARRAY | TYPE_BYTEA => {
                         write_varint(value_data.len() as u64, &mut out);
                         out.extend_from_slice(&value_data);
                     }
@@ -452,6 +505,10 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
                     CassieError::Parse(format!("invalid timestamp in row blob: {error}"))
                 })
         }
+        TYPE_BYTEA => {
+            let bytes = cursor.read_len_prefixed()?;
+            Ok(serde_json::Value::String(encode_bytea(&bytes)))
+        }
         TYPE_ARRAY => {
             let count = cursor.read_varint()? as usize;
             let mut values = Vec::with_capacity(count);
@@ -502,6 +559,57 @@ fn write_varint(mut value: u64, out: &mut Vec<u8>) {
         value >>= 7;
     }
     out.push(value as u8);
+}
+
+fn decode_bytea(value: &str) -> Result<Vec<u8>, CassieError> {
+    if !value.starts_with("\\x") {
+        return Err(CassieError::InvalidVector(
+            "bytea field expects '\\x' hexadecimal format".to_string(),
+        ));
+    }
+    if value.len() == 2 {
+        return Ok(Vec::new());
+    }
+    if (value.len() - 2).rem_euclid(2) != 0 {
+        return Err(CassieError::InvalidVector(
+            "bytea field expects an even number of hex digits".to_string(),
+        ));
+    }
+
+    let bytes = value.as_bytes();
+    let mut out = Vec::with_capacity((value.len() - 2) / 2);
+    let mut index = 2;
+    while index < value.len() {
+        let high = decode_hex_digit(bytes[index]).ok_or_else(|| {
+            CassieError::InvalidVector("bytea field expects hexadecimal input".to_string())
+        })?;
+        let low = decode_hex_digit(bytes[index + 1]).ok_or_else(|| {
+            CassieError::InvalidVector("bytea field expects hexadecimal input".to_string())
+        })?;
+        out.push((high << 4) | low);
+        index += 2;
+    }
+    Ok(out)
+}
+
+fn decode_hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn encode_bytea(value: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(2 + value.len() * 2);
+    output.push_str("\\x");
+    for byte in value {
+        output.push(HEX[(byte >> 4) as usize] as char);
+        output.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    output
 }
 
 struct Cursor<'a> {
@@ -737,5 +845,104 @@ mod tests {
         assert!(schema.fields[0].retired);
         assert_eq!(schema.fields[1].field_id, 2);
         assert!(!schema.fields[1].retired);
+    }
+
+    #[test]
+    fn should_roundtrip_extended_scalar_types() {
+        // Arrange
+        let schema = RowSchema::from_schema(&Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "tiny".to_string(),
+                    data_type: DataType::SmallInt,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "score".to_string(),
+                    data_type: DataType::Int,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "balance".to_string(),
+                    data_type: DataType::BigInt,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "code".to_string(),
+                    data_type: DataType::Char { length: Some(4) },
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "label".to_string(),
+                    data_type: DataType::Varchar { length: Some(8) },
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "payload".to_string(),
+                    data_type: DataType::Bytea,
+                    nullable: true,
+                },
+            ],
+        });
+        let payload = serde_json::json!({
+            "tiny": 7,
+            "score": 42,
+            "balance": 9_223_372_036_854_775_807_i64,
+            "code": "ab12",
+            "label": "alpha",
+            "payload": "\\x01020aff"
+        });
+
+        // Act
+        let encoded = encode_row(&schema, &payload).unwrap();
+        let mut cursor = Cursor::new(&encoded);
+        cursor.expect_bytes(MAGIC).unwrap();
+        let version = cursor.read_u8().unwrap();
+        assert_eq!(version, FORMAT_VERSION);
+        let _schema_version = cursor.read_u32().unwrap();
+        let _flags = cursor.read_u8().unwrap();
+        let field_count = cursor.read_varint().unwrap();
+        for index in 0..field_count {
+            let field_id = cursor.read_varint().unwrap();
+            let tag = cursor.read_u8().unwrap();
+            let value = decode_value(tag, &mut cursor);
+            assert!(
+                value.is_ok(),
+                "field {index} id={field_id} tag={tag}: {value:?}"
+            );
+        }
+        let decoded = decode_row(&schema, &encoded).unwrap();
+
+        // Assert
+        assert_eq!(
+            decoded,
+            serde_json::json!({
+                "tiny": 7,
+                "score": 42,
+                "balance": 9_223_372_036_854_775_807_i64,
+                "code": "ab12",
+                "label": "alpha",
+                "payload": "\\x01020aff"
+            })
+        );
+    }
+
+    #[test]
+    fn should_reject_invalid_bytea_payloads_for_row_blob_encoding() {
+        // Arrange
+        let schema = RowSchema::from_schema(&Schema {
+            fields: vec![FieldSchema {
+                name: "payload".to_string(),
+                data_type: DataType::Bytea,
+                nullable: true,
+            }],
+        });
+        let payload = serde_json::json!({"payload": "not-a-bytea"});
+
+        // Act
+        let result = encode_row(&schema, &payload);
+
+        // Assert
+        assert!(result.is_err());
     }
 }

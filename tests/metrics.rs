@@ -33,6 +33,23 @@ fn startup_frame(user: &str, database: &str) -> Vec<u8> {
     frame
 }
 
+fn describe_statement_frame(statement_name: &str) -> Vec<u8> {
+    let mut payload = Vec::new();
+    payload.push(b'S');
+    payload.extend_from_slice(statement_name.as_bytes());
+    payload.push(0);
+
+    let mut frame = Vec::new();
+    frame.push(b'D');
+    frame.extend_from_slice(
+        &i32::try_from(payload.len() + 4)
+            .expect("describe payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(&payload);
+    frame
+}
+
 async fn read_auth_frame(
     reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
 ) -> (u8, i32, Vec<u8>) {
@@ -50,6 +67,29 @@ async fn read_auth_frame(
         .expect("read auth frame payload");
 
     (tag, len, payload)
+}
+
+async fn read_wire_frame(
+    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
+) -> (u8, Vec<u8>) {
+    let mut tag = [0u8; 1];
+    tokio::io::AsyncReadExt::read_exact(reader, &mut tag)
+        .await
+        .expect("read frame tag");
+
+    let mut len = [0u8; 4];
+    tokio::io::AsyncReadExt::read_exact(reader, &mut len)
+        .await
+        .expect("read frame length");
+    let len = i32::from_be_bytes(len);
+    let mut payload = vec![0u8; usize::try_from(len - 4).expect("non-negative payload length")];
+    if !payload.is_empty() {
+        tokio::io::AsyncReadExt::read_exact(reader, &mut payload)
+            .await
+            .expect("read frame payload");
+    }
+
+    (tag[0], payload)
 }
 
 #[test]
@@ -381,25 +421,14 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
         );
 
         // Act
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, b"DESCRIBE missing\n")
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &describe_statement_frame("missing"))
             .await
             .expect("describe write");
         tokio::io::AsyncWriteExt::flush(&mut write_half)
             .await
             .expect("flush");
-        let mut line = String::new();
-        let read = tokio::time::timeout(
-            std::time::Duration::from_millis(500),
-            tokio::io::AsyncBufReadExt::read_line(&mut reader, &mut line),
-        )
-        .await
-        .expect("read describe response timed out")
-        .expect("read response");
-        let _ = read;
-        assert!(
-            !line.trim_end().is_empty(),
-            "describe should return an error"
-        );
+        let response = read_wire_frame(&mut reader).await;
+        assert_eq!(response.0, b'E', "describe should return an error frame");
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         drop(socket);

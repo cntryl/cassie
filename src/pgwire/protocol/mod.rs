@@ -102,8 +102,7 @@ pub struct PreparedStatement {
 pub struct Portal {
     pub name: String,
     pub statement_name: String,
-    pub limit: Option<i64>,
-    pub params: Vec<String>,
+    pub params: Vec<crate::types::Value>,
 }
 
 impl ServerMessage {

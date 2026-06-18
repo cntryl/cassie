@@ -38,6 +38,22 @@ fn startup_frame(user: &str, database: &str) -> Vec<u8> {
     frame
 }
 
+fn simple_query_frame(sql: &str) -> Vec<u8> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(sql.as_bytes());
+    payload.push(0);
+
+    let mut frame = Vec::new();
+    frame.push(b'Q');
+    frame.extend_from_slice(
+        &i32::try_from(payload.len() + 4)
+            .expect("simple query payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(&payload);
+    frame
+}
+
 async fn read_auth_frame(
     reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
 ) -> (u8, i32, Vec<u8>) {
@@ -55,6 +71,29 @@ async fn read_auth_frame(
         .expect("read auth frame payload");
 
     (tag, len, payload)
+}
+
+async fn read_wire_frame(
+    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
+) -> (u8, Vec<u8>) {
+    let mut tag = [0u8; 1];
+    tokio::io::AsyncReadExt::read_exact(reader, &mut tag)
+        .await
+        .expect("read frame tag");
+
+    let mut len = [0u8; 4];
+    tokio::io::AsyncReadExt::read_exact(reader, &mut len)
+        .await
+        .expect("read frame length");
+    let len = i32::from_be_bytes(len);
+    let mut payload = vec![0u8; usize::try_from(len - 4).expect("non-negative payload length")];
+    if !payload.is_empty() {
+        tokio::io::AsyncReadExt::read_exact(reader, &mut payload)
+            .await
+            .expect("read frame payload");
+    }
+
+    (tag[0], payload)
 }
 
 #[test]
@@ -143,7 +182,7 @@ fn should_record_pgwire_connection_metrics() {
 
             tokio::io::AsyncWriteExt::write_all(
                 &mut write_half,
-                b"QUERY SELECT title FROM pgwire_metrics_docs ORDER BY title\n",
+                &simple_query_frame("SELECT title FROM pgwire_metrics_docs ORDER BY title"),
             )
             .await
             .expect("query write");
@@ -151,23 +190,17 @@ fn should_record_pgwire_connection_metrics() {
                 .await
                 .expect("flush");
 
-            let mut lines = Vec::new();
+            let mut frames = Vec::new();
             loop {
-                let mut line = String::new();
-                let read = tokio::io::AsyncBufReadExt::read_line(&mut reader, &mut line)
-                    .await
-                    .expect("read response");
-                if read == 0 {
-                    break;
-                }
-                let trimmed = line.trim_end().to_string();
-                lines.push(trimmed.clone());
-                if trimmed == "READY_FOR_QUERY" {
+                let frame = read_wire_frame(&mut reader).await;
+                let tag = frame.0;
+                frames.push(frame);
+                if tag == b'Z' {
                     break;
                 }
             }
 
-            lines
+            frames
         };
 
         drop(socket);
@@ -177,13 +210,15 @@ fn should_record_pgwire_connection_metrics() {
 
         // Assert
         assert!(
-            lines.iter().any(|line| line.starts_with("ROWDESC ")),
-            "pgwire query should return a row description"
+            lines.iter().any(|frame| frame.0 == b'T'),
+            "pgwire query should return a row description frame"
         );
         assert!(
-            lines.iter().any(|line| line.starts_with("DATAROW ")),
-            "pgwire query should return a data row"
+            lines.iter().any(|frame| frame.0 == b'D'),
+            "pgwire query should return a data row frame"
         );
+        assert!(lines.iter().any(|frame| frame.0 == b'C'));
+        assert!(lines.iter().any(|frame| frame.0 == b'Z'));
         assert_eq!(
             metrics["pgwire"]["sessions_started_total"].as_u64(),
             Some(1)

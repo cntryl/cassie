@@ -239,6 +239,19 @@ pub enum CassieError {
     StorageRetryable(String),
 }
 
+pub(crate) fn unsupported_sql_error(sql: &str) -> Option<CassieError> {
+    let keyword = sql.split_whitespace().next()?;
+    let keyword = keyword.trim_matches(|character: char| !character.is_ascii_alphabetic());
+    let keyword = keyword.to_ascii_uppercase();
+
+    match keyword.as_str() {
+        "COPY" | "LISTEN" | "NOTIFY" | "UNLISTEN" => Some(CassieError::Unsupported(format!(
+            "{keyword} is not supported"
+        ))),
+        _ => None,
+    }
+}
+
 impl Cassie {
     pub fn new() -> Result<Self, CassieError> {
         let data_dir = std::env::var("CASSIE_MIDGE_DATA_DIR")
@@ -402,6 +415,10 @@ impl Cassie {
         &self,
         sql: &str,
     ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
+        if let Some(error) = unsupported_sql_error(sql) {
+            return Err(error);
+        }
+
         let parsed = parser::parse_statement(sql)?;
         if matches!(parsed.statement, QueryStatement::Transaction(_)) {
             return Ok(Vec::new());
@@ -490,6 +507,10 @@ impl Cassie {
     ) -> Result<QueryResult, CassieError> {
         if session.user.is_empty() {
             return Err(CassieError::Unauthorized);
+        }
+
+        if let Some(error) = unsupported_sql_error(sql) {
+            return Err(error);
         }
 
         let controls = self.runtime.query_controls(started_at);

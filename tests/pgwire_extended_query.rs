@@ -40,6 +40,27 @@ fn startup_frame(user: &str, database: &str) -> Vec<u8> {
     frame
 }
 
+fn cancel_request_frame(process_id: i32, secret_key: i32) -> Vec<u8> {
+    let mut frame = Vec::new();
+    frame.extend_from_slice(&16_i32.to_be_bytes());
+    frame.extend_from_slice(&80_877_102_i32.to_be_bytes());
+    frame.extend_from_slice(&process_id.to_be_bytes());
+    frame.extend_from_slice(&secret_key.to_be_bytes());
+    frame
+}
+
+fn frontend_frame(tag: u8, payload: &[u8]) -> Vec<u8> {
+    let mut frame = Vec::new();
+    frame.push(tag);
+    frame.extend_from_slice(
+        &i32::try_from(payload.len() + 4)
+            .expect("frontend payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(payload);
+    frame
+}
+
 fn parse_frame(statement_name: &str, sql: &str) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(statement_name.as_bytes());
@@ -121,6 +142,23 @@ fn execute_frame(portal_name: &str) -> Vec<u8> {
     frame.extend_from_slice(
         &i32::try_from(payload.len() + 4)
             .expect("execute payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(&payload);
+    frame
+}
+
+fn close_frame(target: u8, name: &str) -> Vec<u8> {
+    let mut payload = Vec::new();
+    payload.push(target);
+    payload.extend_from_slice(name.as_bytes());
+    payload.push(0);
+
+    let mut frame = Vec::new();
+    frame.push(b'C');
+    frame.extend_from_slice(
+        &i32::try_from(payload.len() + 4)
+            .expect("close payload size must fit into i32")
             .to_be_bytes(),
     );
     frame.extend_from_slice(&payload);
@@ -224,6 +262,561 @@ fn parse_data_row(payload: &[u8]) -> Vec<Option<String>> {
     }
 
     values
+}
+
+fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
+    let mut cursor = 0usize;
+    let mut fields = Vec::new();
+
+    while cursor < payload.len() {
+        let field_type = payload[cursor];
+        cursor += 1;
+        if field_type == 0 {
+            break;
+        }
+        let value = read_cstring(payload, &mut cursor);
+        fields.push((char::from(field_type), value));
+    }
+
+    fields
+}
+
+#[test]
+fn should_close_connection_on_cancel_request_without_response() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("cancel");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        let config = CassieRuntimeConfig::from_env();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener address");
+        drop(listener);
+
+        let server = tokio::spawn(cassie::pgwire::server::run(
+            addr.to_string(),
+            std::sync::Arc::new(cassie.clone()),
+            config,
+        ));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+
+        // Act
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &cancel_request_frame(11_223_344, 55_667_788),
+        )
+        .await
+        .expect("write cancel request");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("flush cancel request");
+
+        let mut buffer = [0u8; 1];
+        let read = tokio::time::timeout(
+            Duration::from_secs(1),
+            tokio::io::AsyncReadExt::read(&mut reader, &mut buffer),
+        )
+        .await
+        .expect("cancel request should close promptly")
+        .expect("read cancel response");
+
+        // Assert
+        assert_eq!(read, 0, "cancel request should not produce a response");
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_copy_data_message_with_unsupported_error() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("copy_data");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        let mut config = CassieRuntimeConfig::from_env();
+        config.password.clear();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener address");
+        drop(listener);
+
+        let server = tokio::spawn(cassie::pgwire::server::run(
+            addr.to_string(),
+            std::sync::Arc::new(cassie.clone()),
+            config,
+        ));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+
+        // Act
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
+            .await
+            .expect("write startup");
+        let auth = read_wire_frame(&mut reader).await;
+        assert_eq!(auth.0, b'R', "startup should return an auth response");
+
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &frontend_frame(b'd', b"copy payload"),
+        )
+        .await
+        .expect("write copy data");
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &sync_frame())
+            .await
+            .expect("write sync");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("flush copy data batch");
+
+        let error = read_wire_frame(&mut reader).await;
+        let ready = read_wire_frame(&mut reader).await;
+
+        // Assert
+        assert_eq!(
+            error.0, b'E',
+            "copy data should be rejected with an error frame"
+        );
+        assert_eq!(ready.0, b'Z', "sync after copy rejection should recover");
+        assert_eq!(ready.1, vec![b'I']);
+        let error_fields = parse_error_fields(&error.1);
+        assert_eq!(
+            error_fields
+                .iter()
+                .find(|(field, _)| *field == 'C')
+                .map(|(_, value)| value.as_str()),
+            Some("0A000"),
+            "copy data should return an unsupported-feature SQLSTATE"
+        );
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("recovery");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        let collection = "extended_query_recovery_docs";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie.register_collection(collection, schema).await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .await
+            .unwrap();
+
+        let mut config = CassieRuntimeConfig::from_env();
+        config.password.clear();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener address");
+        drop(listener);
+
+        let server = tokio::spawn(cassie::pgwire::server::run(
+            addr.to_string(),
+            std::sync::Arc::new(cassie.clone()),
+            config,
+        ));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+
+        // Act
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
+            .await
+            .expect("write startup");
+        let auth = read_wire_frame(&mut reader).await;
+        assert_eq!(auth.0, b'R', "startup should return an auth response");
+
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &parse_frame("stmt_recovery_error", "SELECT * FROM"),
+        )
+        .await
+        .expect("write invalid parse");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &parse_frame(
+                "stmt_recovery_valid",
+                "SELECT title FROM extended_query_recovery_docs WHERE title = $1 ORDER BY title",
+            ),
+        )
+        .await
+        .expect("write ignored parse");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &bind_frame("portal_recovery", "stmt_recovery_valid", &["alpha"]),
+        )
+        .await
+        .expect("write ignored bind");
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &execute_frame("portal_recovery"))
+            .await
+            .expect("write ignored execute");
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &sync_frame())
+            .await
+            .expect("write sync");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("flush recovery batch");
+
+        let error = read_wire_frame(&mut reader).await;
+        let ready = read_wire_frame(&mut reader).await;
+
+        // Assert
+        assert_eq!(error.0, b'E', "parse failure should return an error frame");
+        assert_eq!(
+            ready.0, b'Z',
+            "sync after a parse failure should restore ready-for-query"
+        );
+        assert_eq!(
+            parse_error_fields(&error.1)
+                .iter()
+                .find(|(field, _)| *field == 'C')
+                .map(|(_, value)| value.as_str()),
+            Some("42601"),
+            "parse failure should be reported as a syntax error"
+        );
+        assert_eq!(ready.1, vec![b'I']);
+
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &parse_frame(
+                "stmt_recovery_valid",
+                "SELECT title FROM extended_query_recovery_docs WHERE title = $1 ORDER BY title",
+            ),
+        )
+        .await
+        .expect("write recovery parse");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &bind_frame("portal_recovery", "stmt_recovery_valid", &["alpha"]),
+        )
+        .await
+        .expect("write recovery bind");
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &execute_frame("portal_recovery"))
+            .await
+            .expect("write recovery execute");
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &sync_frame())
+            .await
+            .expect("write recovery sync");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("flush recovery follow-up");
+
+        let mut frames = Vec::new();
+        loop {
+            let frame = read_wire_frame(&mut reader).await;
+            let tag = frame.0;
+            frames.push(frame);
+            if tag == b'Z' {
+                break;
+            }
+        }
+
+        assert_eq!(frames.len(), 5, "recovered query should execute normally");
+        assert_eq!(frames[0].0, b'1');
+        assert_eq!(frames[1].0, b'2');
+        assert_eq!(frames[2].0, b'D');
+        assert_eq!(frames[3].0, b'C');
+        assert_eq!(frames[4].0, b'Z');
+        assert_eq!(frames[4].1, vec![b'I']);
+
+        let values = parse_data_row(&frames[2].1);
+        assert_eq!(values, vec![Some("alpha".to_string())]);
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_close_statement_cascade_referenced_portals_before_reuse() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("close_cascade");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        let collection = "extended_query_close_docs";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie.register_collection(collection, schema).await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .await
+            .unwrap();
+
+        let mut config = CassieRuntimeConfig::from_env();
+        config.password.clear();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener address");
+        drop(listener);
+
+        let server = tokio::spawn(cassie::pgwire::server::run(
+            addr.to_string(),
+            std::sync::Arc::new(cassie.clone()),
+            config,
+        ));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+
+        // Act
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
+            .await
+            .expect("write startup");
+        let auth = read_wire_frame(&mut reader).await;
+        assert_eq!(auth.0, b'R', "startup should return an auth response");
+
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &parse_frame(
+                "stmt_close_cascade",
+                "SELECT title FROM extended_query_close_docs WHERE title = $1 ORDER BY title",
+            ),
+        )
+        .await
+        .expect("write parse");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &bind_frame("portal_close_cascade", "stmt_close_cascade", &["alpha"]),
+        )
+        .await
+        .expect("write bind");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &close_frame(b'S', "stmt_close_cascade"),
+        )
+        .await
+        .expect("write statement close");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &execute_frame("portal_close_cascade"),
+        )
+        .await
+        .expect("write execute");
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &sync_frame())
+            .await
+            .expect("write sync");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("flush close batch");
+
+        let mut frames = Vec::new();
+        loop {
+            let frame = read_wire_frame(&mut reader).await;
+            let tag = frame.0;
+            frames.push(frame);
+            if tag == b'Z' {
+                break;
+            }
+        }
+
+        // Assert
+        assert_eq!(
+            frames.len(),
+            5,
+            "statement close should remove dependent portals before execute"
+        );
+        assert_eq!(frames[0].0, b'1');
+        assert_eq!(frames[1].0, b'2');
+        assert_eq!(frames[2].0, b'3');
+        assert_eq!(frames[3].0, b'E');
+        assert_eq!(frames[4].0, b'Z');
+        assert_eq!(frames[4].1, vec![b'I']);
+
+        let error_fields = parse_error_fields(&frames[3].1);
+        assert!(
+            error_fields
+                .iter()
+                .any(|(field, value)| *field == 'M' && value.contains("portal")),
+            "execute after statement close should fail because the portal was removed"
+        );
+        assert!(
+            error_fields
+                .iter()
+                .any(|(field, value)| *field == 'M' && value.contains("not bound")),
+            "execute after statement close should mention the missing portal"
+        );
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_return_unsupported_error_for_copy_statement() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("copy_unsupported");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        let mut config = CassieRuntimeConfig::from_env();
+        config.password.clear();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener address");
+        drop(listener);
+
+        let server = tokio::spawn(cassie::pgwire::server::run(
+            addr.to_string(),
+            std::sync::Arc::new(cassie.clone()),
+            config,
+        ));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+
+        // Act
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
+            .await
+            .expect("write startup");
+        let auth = read_wire_frame(&mut reader).await;
+        assert_eq!(auth.0, b'R', "startup should return an auth response");
+
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &parse_frame("stmt_copy", "COPY extended_query_close_docs TO STDOUT"),
+        )
+        .await
+        .expect("write copy parse");
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &sync_frame())
+            .await
+            .expect("write sync");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("flush copy batch");
+
+        let error = read_wire_frame(&mut reader).await;
+        let ready = read_wire_frame(&mut reader).await;
+
+        // Assert
+        assert_eq!(error.0, b'E', "copy should be rejected with an error frame");
+        assert_eq!(ready.0, b'Z', "sync after copy rejection should recover");
+        assert_eq!(ready.1, vec![b'I']);
+        let error_fields = parse_error_fields(&error.1);
+        assert_eq!(
+            error_fields
+                .iter()
+                .find(|(field, _)| *field == 'C')
+                .map(|(_, value)| value.as_str()),
+            Some("0A000"),
+            "copy should return an unsupported-feature SQLSTATE"
+        );
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
 #[test]

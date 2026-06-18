@@ -1,7 +1,7 @@
 # Sprint 31 - Extended Query Parse/Bind/Execute
 
 Previous: [Sprint 30 - Binary Pgwire Simple Query](sprint-30.md)
-Next: [Sprint 32 - Extended Query Portals and Recovery](../sprint-32.md)
+Next: [Sprint 32 - Extended Query Portals and Recovery](sprint-32.md)
 
 ## Goal
 

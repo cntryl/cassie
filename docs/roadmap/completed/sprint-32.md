@@ -1,7 +1,7 @@
 # Sprint 32 - Extended Query Portals and Recovery
 
-Previous: [Sprint 31 - Extended Query Parse/Bind/Execute](completed/sprint-31.md)
-Next: [Sprint 33 - Compatibility Matrix and CI Gate](sprint-33.md)
+Previous: [Sprint 31 - Extended Query Parse/Bind/Execute](sprint-31.md)
+Next: [Sprint 33 - Compatibility Matrix and CI Gate](../sprint-33.md)
 
 ## Goal
 

@@ -17,6 +17,7 @@ use crate::types::Value;
 
 const PROTOCOL_VERSION_3: i32 = 0x0003_0000;
 const SSL_REQUEST_CODE: i32 = 80_877_103;
+const CANCEL_REQUEST_CODE: i32 = 80_877_102;
 const MIN_STARTUP_MESSAGE_BYTES: usize = 8;
 const PASSWORD_MESSAGE_TAG: u8 = b'p';
 const MAX_SIMPLE_QUERY_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
@@ -34,6 +35,7 @@ enum HandshakeState {
 #[derive(Debug)]
 enum StartupFrame {
     SslRequest,
+    CancelRequest,
     Startup(HashMap<String, String>),
 }
 
@@ -66,6 +68,10 @@ enum FrontendMessage {
         target: CloseTarget,
         name: String,
     },
+    CopyData,
+    CopyDone,
+    CopyFail,
+    FunctionCall,
     Sync,
     Flush,
     Terminate,
@@ -120,6 +126,7 @@ pub async fn run_connection(
     let mut reader = BufReader::new(read_half);
     let mut state = SessionState::new();
     let mut handshake_state = HandshakeState::AwaitStartup;
+    let mut awaiting_sync = false;
 
     loop {
         match handshake_state {
@@ -129,6 +136,7 @@ pub async fn run_connection(
                         break;
                     }
                 }
+                Ok(StartupFrame::CancelRequest) => break,
                 Ok(StartupFrame::Startup(parameters)) => {
                     runtime.record_pgwire_message("startup");
                     state.startup_user = Some(
@@ -246,17 +254,66 @@ pub async fn run_connection(
                 }
             }
             HandshakeState::Ready => {
-                let is_simple_query = match reader.fill_buf().await {
+                let next_tag = match reader.fill_buf().await {
                     Ok(buffer) => {
                         if buffer.is_empty() {
                             break;
                         }
-                        buffer[0] == b'Q'
+                        buffer[0]
                     }
                     Err(_) => break,
                 };
 
-                if is_simple_query {
+                let Some(session) = state.session.as_ref().cloned() else {
+                    runtime.record_pgwire_protocol_error();
+                    let _ = write_error_response(
+                        &mut write_half,
+                        "ERROR",
+                        "28000",
+                        &WireError::NotAuthenticated.to_string(),
+                    )
+                    .await;
+                    continue;
+                };
+
+                if awaiting_sync {
+                    if next_tag == b'Q' {
+                        match read_simple_query_message(&mut reader).await {
+                            Ok(_) => {}
+                            Err(HandshakeError::Closed) => break,
+                            Err(HandshakeError::Invalid(_)) => continue,
+                        }
+                        continue;
+                    }
+
+                    let message = match read_frontend_message(&mut reader).await {
+                        Ok(message) => message,
+                        Err(HandshakeError::Closed) => break,
+                        Err(HandshakeError::Invalid(_)) => continue,
+                    };
+
+                    match message {
+                        FrontendMessage::Sync => {
+                            runtime.record_pgwire_message("sync");
+                            awaiting_sync = false;
+                            state.ready = ReadyState::Idle;
+                            if write_ready_for_query(&mut write_half, &session)
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        FrontendMessage::Terminate => break,
+                        FrontendMessage::Flush => {
+                            runtime.record_pgwire_message("flush");
+                        }
+                        _ => {}
+                    }
+                    continue;
+                }
+
+                if next_tag == b'Q' {
                     runtime.record_pgwire_message("query");
                     runtime.record_pgwire_simple_query();
 
@@ -347,316 +404,374 @@ pub async fn run_connection(
                         continue;
                     }
                     FrontendMessage::Terminate => break,
-                    other => {
-                        let Some(session) = state.session.as_ref().cloned() else {
-                            runtime.record_pgwire_protocol_error();
-                            let _ = write_error_response(
-                                &mut write_half,
-                                "ERROR",
-                                "28000",
-                                &WireError::NotAuthenticated.to_string(),
-                            )
-                            .await;
-                            continue;
-                        };
-
-                        match other {
-                            FrontendMessage::Parse { name, query } => {
-                                runtime.record_pgwire_message("parse");
-                                match crate::sql::parser::parse_statement(&query) {
-                                    Ok(_) => {
-                                        let existed = state.prepared.insert(
-                                            name.clone(),
-                                            PreparedStatement { name, query },
-                                        );
-                                        if existed.is_none() {
-                                            runtime.record_pgwire_prepared_delta(1);
-                                        }
-                                        if write_backend_frame(&mut write_half, b'1', &[])
-                                            .await
-                                            .is_err()
-                                        {
-                                            break;
-                                        }
-                                    }
-                                    Err(error) => {
-                                        runtime.record_pgwire_protocol_error();
-                                        if write_error_response(
-                                            &mut write_half,
-                                            "ERROR",
-                                            "42601",
-                                            &error.0,
-                                        )
-                                        .await
-                                        .is_err()
-                                        {
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            FrontendMessage::Bind {
-                                portal_name,
-                                statement_name,
-                                params,
-                            } => {
-                                runtime.record_pgwire_message("bind");
-                                if !state.prepared.contains_key(&statement_name) {
-                                    runtime.record_pgwire_protocol_error();
-                                    if write_error_response(
-                                        &mut write_half,
-                                        "ERROR",
-                                        "26000",
-                                        &format!("statement '{}' is not prepared", statement_name),
-                                    )
-                                    .await
-                                    .is_err()
-                                    {
-                                        break;
-                                    }
-                                    continue;
-                                }
-
-                                let existed = state.portals.insert(
-                                    portal_name.clone(),
-                                    Portal {
-                                        name: portal_name,
-                                        statement_name,
-                                        params,
-                                    },
-                                );
-                                if existed.is_none() {
-                                    runtime.record_pgwire_portal_delta(1);
-                                }
-                                if write_backend_frame(&mut write_half, b'2', &[])
-                                    .await
-                                    .is_err()
-                                {
-                                    break;
-                                }
-                            }
-                            FrontendMessage::Describe { target, name } => {
-                                runtime.record_pgwire_message("describe");
-                                let sql = match target {
-                                    DescribeTarget::Statement => match state.prepared.get(&name) {
-                                        Some(prepared) => prepared.query.clone(),
-                                        None => {
-                                            runtime.record_pgwire_protocol_error();
-                                            if write_error_response(
-                                                &mut write_half,
-                                                "ERROR",
-                                                "26000",
-                                                &format!("statement '{}' is not prepared", name),
-                                            )
-                                            .await
-                                            .is_err()
-                                            {
-                                                break;
-                                            }
-                                            continue;
-                                        }
-                                    },
-                                    DescribeTarget::Portal => match state.portals.get(&name) {
-                                        Some(portal) => {
-                                            match state.prepared.get(&portal.statement_name) {
-                                                Some(prepared) => prepared.query.clone(),
-                                                None => {
-                                                    runtime.record_pgwire_protocol_error();
-                                                    if write_error_response(
-                                                        &mut write_half,
-                                                        "ERROR",
-                                                        "26000",
-                                                        &format!("portal '{}' is not bound", name),
-                                                    )
-                                                    .await
-                                                    .is_err()
-                                                    {
-                                                        break;
-                                                    }
-                                                    continue;
-                                                }
-                                            }
-                                        }
-                                        None => {
-                                            runtime.record_pgwire_protocol_error();
-                                            if write_error_response(
-                                                &mut write_half,
-                                                "ERROR",
-                                                "26000",
-                                                &format!("portal '{}' is not bound", name),
-                                            )
-                                            .await
-                                            .is_err()
-                                            {
-                                                break;
-                                            }
-                                            continue;
-                                        }
-                                    },
-                                };
-
-                                match query::describe_query(&cassie, &sql).await {
-                                    Ok(columns) => {
-                                        if columns.is_empty() {
-                                            if write_backend_frame(&mut write_half, b'n', &[])
-                                                .await
-                                                .is_err()
-                                            {
-                                                break;
-                                            }
-                                        } else if write_row_description(&mut write_half, &columns)
-                                            .await
-                                            .is_err()
-                                        {
-                                            break;
-                                        }
-                                    }
-                                    Err(error) => {
-                                        runtime.record_pgwire_protocol_error();
-                                        if write_error_response(
-                                            &mut write_half,
-                                            "ERROR",
-                                            simple_query_error_code(&error),
-                                            &error.to_string(),
-                                        )
-                                        .await
-                                        .is_err()
-                                        {
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            FrontendMessage::Execute { portal_name, limit } => {
-                                runtime.record_pgwire_message("execute");
-                                runtime.record_pgwire_extended_query();
-                                let Some(portal) = state.portals.get(&portal_name) else {
-                                    runtime.record_pgwire_protocol_error();
-                                    if write_error_response(
-                                        &mut write_half,
-                                        "ERROR",
-                                        "26000",
-                                        &format!("portal '{}' is not bound", portal_name),
-                                    )
-                                    .await
-                                    .is_err()
-                                    {
-                                        break;
-                                    }
-                                    continue;
-                                };
-                                let Some(prepared) = state.prepared.get(&portal.statement_name)
-                                else {
-                                    runtime.record_pgwire_protocol_error();
-                                    if write_error_response(
-                                        &mut write_half,
-                                        "ERROR",
-                                        "26000",
-                                        &format!(
-                                            "statement '{}' is not prepared",
-                                            portal.statement_name
-                                        ),
-                                    )
-                                    .await
-                                    .is_err()
-                                    {
-                                        break;
-                                    }
-                                    continue;
-                                };
-
-                                let query_result = cassie
-                                    .execute_sql_with_mode(
-                                        &session,
-                                        &prepared.query,
-                                        portal.params.clone(),
-                                        ExecutionMode::ExtendedQuery,
-                                    )
-                                    .await;
-                                match query_result {
-                                    Ok(mut result) => {
-                                        if let Some(limit) = limit {
-                                            let limit = limit.max(0) as usize;
-                                            result.rows =
-                                                result.rows.into_iter().take(limit).collect();
-                                        }
-                                        for row in result.rows {
-                                            if write_data_row(&mut write_half, row).await.is_err() {
-                                                break;
-                                            }
-                                        }
-                                        if write_command_complete(&mut write_half, &result.command)
-                                            .await
-                                            .is_err()
-                                        {
-                                            break;
-                                        }
-                                    }
-                                    Err(error) => {
-                                        runtime.record_pgwire_protocol_error();
-                                        if write_error_response(
-                                            &mut write_half,
-                                            "ERROR",
-                                            simple_query_error_code(&error),
-                                            &error.to_string(),
-                                        )
-                                        .await
-                                        .is_err()
-                                        {
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            FrontendMessage::Close { target, name } => {
-                                runtime.record_pgwire_message("close");
-                                match target {
-                                    CloseTarget::Statement => {
-                                        if state.prepared.remove(&name).is_some() {
-                                            runtime.record_pgwire_prepared_delta(-1);
-                                        }
-                                    }
-                                    CloseTarget::Portal => {
-                                        if state.portals.remove(&name).is_some() {
-                                            runtime.record_pgwire_portal_delta(-1);
-                                        }
-                                    }
-                                }
-                                if write_backend_frame(&mut write_half, b'3', &[])
-                                    .await
-                                    .is_err()
-                                {
-                                    break;
-                                }
-                            }
-                            FrontendMessage::Sync => {
-                                runtime.record_pgwire_message("sync");
-                                state.ready = ReadyState::Idle;
-                                if write_ready_for_query(&mut write_half, &session)
-                                    .await
-                                    .is_err()
-                                {
-                                    break;
-                                }
-                            }
-                            FrontendMessage::Unknown(tag) => {
-                                runtime.record_pgwire_message("unknown");
+                    FrontendMessage::CopyData
+                    | FrontendMessage::CopyDone
+                    | FrontendMessage::CopyFail => {
+                        runtime.record_pgwire_message("copy");
+                        runtime.record_pgwire_protocol_error();
+                        awaiting_sync = true;
+                        if write_error_response(
+                            &mut write_half,
+                            "ERROR",
+                            "0A000",
+                            "COPY protocol messages are not supported",
+                        )
+                        .await
+                        .is_err()
+                        {
+                            break;
+                        }
+                    }
+                    FrontendMessage::FunctionCall => {
+                        runtime.record_pgwire_message("function_call");
+                        runtime.record_pgwire_protocol_error();
+                        awaiting_sync = true;
+                        if write_error_response(
+                            &mut write_half,
+                            "ERROR",
+                            "0A000",
+                            "function call protocol messages are not supported",
+                        )
+                        .await
+                        .is_err()
+                        {
+                            break;
+                        }
+                    }
+                    other => match other {
+                        FrontendMessage::Parse { name, query } => {
+                            runtime.record_pgwire_message("parse");
+                            if let Some(error) = crate::app::unsupported_sql_error(&query) {
                                 runtime.record_pgwire_protocol_error();
+                                awaiting_sync = true;
                                 if write_error_response(
                                     &mut write_half,
                                     "ERROR",
-                                    "08P01",
-                                    &format!("unsupported message: {}", char::from(tag)),
+                                    simple_query_error_code(&error),
+                                    &error.to_string(),
                                 )
                                 .await
                                 .is_err()
                                 {
                                     break;
                                 }
+                                continue;
                             }
-                            FrontendMessage::Flush | FrontendMessage::Terminate => unreachable!(),
+                            match crate::sql::parser::parse_statement(&query) {
+                                Ok(_) => {
+                                    let existed = state
+                                        .prepared
+                                        .insert(name.clone(), PreparedStatement { name, query });
+                                    if existed.is_none() {
+                                        runtime.record_pgwire_prepared_delta(1);
+                                    }
+                                    if write_backend_frame(&mut write_half, b'1', &[])
+                                        .await
+                                        .is_err()
+                                    {
+                                        break;
+                                    }
+                                }
+                                Err(error) => {
+                                    runtime.record_pgwire_protocol_error();
+                                    awaiting_sync = true;
+                                    if write_error_response(
+                                        &mut write_half,
+                                        "ERROR",
+                                        "42601",
+                                        &error.0,
+                                    )
+                                    .await
+                                    .is_err()
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
                         }
-                    }
+                        FrontendMessage::Bind {
+                            portal_name,
+                            statement_name,
+                            params,
+                        } => {
+                            runtime.record_pgwire_message("bind");
+                            if !state.prepared.contains_key(&statement_name) {
+                                runtime.record_pgwire_protocol_error();
+                                awaiting_sync = true;
+                                if write_error_response(
+                                    &mut write_half,
+                                    "ERROR",
+                                    "26000",
+                                    &format!("statement '{}' is not prepared", statement_name),
+                                )
+                                .await
+                                .is_err()
+                                {
+                                    break;
+                                }
+                                continue;
+                            }
+
+                            let existed = state.portals.insert(
+                                portal_name.clone(),
+                                Portal {
+                                    name: portal_name,
+                                    statement_name,
+                                    params,
+                                },
+                            );
+                            if existed.is_none() {
+                                runtime.record_pgwire_portal_delta(1);
+                            }
+                            if write_backend_frame(&mut write_half, b'2', &[])
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        FrontendMessage::Describe { target, name } => {
+                            runtime.record_pgwire_message("describe");
+                            let sql = match target {
+                                DescribeTarget::Statement => match state.prepared.get(&name) {
+                                    Some(prepared) => prepared.query.clone(),
+                                    None => {
+                                        runtime.record_pgwire_protocol_error();
+                                        awaiting_sync = true;
+                                        if write_error_response(
+                                            &mut write_half,
+                                            "ERROR",
+                                            "26000",
+                                            &format!("statement '{}' is not prepared", name),
+                                        )
+                                        .await
+                                        .is_err()
+                                        {
+                                            break;
+                                        }
+                                        continue;
+                                    }
+                                },
+                                DescribeTarget::Portal => match state.portals.get(&name) {
+                                    Some(portal) => {
+                                        match state.prepared.get(&portal.statement_name) {
+                                            Some(prepared) => prepared.query.clone(),
+                                            None => {
+                                                runtime.record_pgwire_protocol_error();
+                                                awaiting_sync = true;
+                                                if write_error_response(
+                                                    &mut write_half,
+                                                    "ERROR",
+                                                    "26000",
+                                                    &format!("portal '{}' is not bound", name),
+                                                )
+                                                .await
+                                                .is_err()
+                                                {
+                                                    break;
+                                                }
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                    None => {
+                                        runtime.record_pgwire_protocol_error();
+                                        awaiting_sync = true;
+                                        if write_error_response(
+                                            &mut write_half,
+                                            "ERROR",
+                                            "26000",
+                                            &format!("portal '{}' is not bound", name),
+                                        )
+                                        .await
+                                        .is_err()
+                                        {
+                                            break;
+                                        }
+                                        continue;
+                                    }
+                                },
+                            };
+
+                            match query::describe_query(&cassie, &sql).await {
+                                Ok(columns) => {
+                                    if columns.is_empty() {
+                                        if write_backend_frame(&mut write_half, b'n', &[])
+                                            .await
+                                            .is_err()
+                                        {
+                                            break;
+                                        }
+                                    } else if write_row_description(&mut write_half, &columns)
+                                        .await
+                                        .is_err()
+                                    {
+                                        break;
+                                    }
+                                }
+                                Err(error) => {
+                                    runtime.record_pgwire_protocol_error();
+                                    awaiting_sync = true;
+                                    if write_error_response(
+                                        &mut write_half,
+                                        "ERROR",
+                                        simple_query_error_code(&error),
+                                        &error.to_string(),
+                                    )
+                                    .await
+                                    .is_err()
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        FrontendMessage::Execute { portal_name, limit } => {
+                            runtime.record_pgwire_message("execute");
+                            runtime.record_pgwire_extended_query();
+                            let Some(portal) = state.portals.get(&portal_name) else {
+                                runtime.record_pgwire_protocol_error();
+                                awaiting_sync = true;
+                                if write_error_response(
+                                    &mut write_half,
+                                    "ERROR",
+                                    "26000",
+                                    &format!("portal '{}' is not bound", portal_name),
+                                )
+                                .await
+                                .is_err()
+                                {
+                                    break;
+                                }
+                                continue;
+                            };
+                            let Some(prepared) = state.prepared.get(&portal.statement_name) else {
+                                runtime.record_pgwire_protocol_error();
+                                awaiting_sync = true;
+                                if write_error_response(
+                                    &mut write_half,
+                                    "ERROR",
+                                    "26000",
+                                    &format!(
+                                        "statement '{}' is not prepared",
+                                        portal.statement_name
+                                    ),
+                                )
+                                .await
+                                .is_err()
+                                {
+                                    break;
+                                }
+                                continue;
+                            };
+
+                            let query_result = cassie
+                                .execute_sql_with_mode(
+                                    &session,
+                                    &prepared.query,
+                                    portal.params.clone(),
+                                    ExecutionMode::ExtendedQuery,
+                                )
+                                .await;
+                            match query_result {
+                                Ok(mut result) => {
+                                    if let Some(limit) = limit {
+                                        let limit = limit.max(0) as usize;
+                                        result.rows = result.rows.into_iter().take(limit).collect();
+                                    }
+                                    for row in result.rows {
+                                        if write_data_row(&mut write_half, row).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                    if write_command_complete(&mut write_half, &result.command)
+                                        .await
+                                        .is_err()
+                                    {
+                                        break;
+                                    }
+                                }
+                                Err(error) => {
+                                    runtime.record_pgwire_protocol_error();
+                                    awaiting_sync = true;
+                                    if write_error_response(
+                                        &mut write_half,
+                                        "ERROR",
+                                        simple_query_error_code(&error),
+                                        &error.to_string(),
+                                    )
+                                    .await
+                                    .is_err()
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        FrontendMessage::Close { target, name } => {
+                            runtime.record_pgwire_message("close");
+                            match target {
+                                CloseTarget::Statement => {
+                                    if state.prepared.remove(&name).is_some() {
+                                        runtime.record_pgwire_prepared_delta(-1);
+                                    }
+                                    let removed_portals = state
+                                        .portals
+                                        .iter()
+                                        .filter(|(_, portal)| portal.statement_name == name)
+                                        .map(|(portal_name, _)| portal_name.clone())
+                                        .collect::<Vec<_>>();
+                                    for portal_name in removed_portals {
+                                        if state.portals.remove(&portal_name).is_some() {
+                                            runtime.record_pgwire_portal_delta(-1);
+                                        }
+                                    }
+                                }
+                                CloseTarget::Portal => {
+                                    if state.portals.remove(&name).is_some() {
+                                        runtime.record_pgwire_portal_delta(-1);
+                                    }
+                                }
+                            }
+                            if write_backend_frame(&mut write_half, b'3', &[])
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        FrontendMessage::Sync => {
+                            runtime.record_pgwire_message("sync");
+                            state.ready = ReadyState::Idle;
+                            if write_ready_for_query(&mut write_half, &session)
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        FrontendMessage::Unknown(tag) => {
+                            runtime.record_pgwire_message("unknown");
+                            runtime.record_pgwire_protocol_error();
+                            awaiting_sync = true;
+                            if write_error_response(
+                                &mut write_half,
+                                "ERROR",
+                                "08P01",
+                                &format!("unsupported message: {}", char::from(tag)),
+                            )
+                            .await
+                            .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        FrontendMessage::Flush | FrontendMessage::Terminate => unreachable!(),
+                        FrontendMessage::CopyData
+                        | FrontendMessage::CopyDone
+                        | FrontendMessage::CopyFail
+                        | FrontendMessage::FunctionCall => unreachable!(),
+                    },
                 }
             }
         }
@@ -1132,6 +1247,22 @@ async fn read_frontend_message(
             let name = read_null_terminated(&payload, &mut cursor)?;
             FrontendMessage::Close { target, name }
         }
+        b'd' => {
+            cursor = payload.len();
+            FrontendMessage::CopyData
+        }
+        b'c' => {
+            cursor = payload.len();
+            FrontendMessage::CopyDone
+        }
+        b'f' => {
+            cursor = payload.len();
+            FrontendMessage::CopyFail
+        }
+        b'F' => {
+            cursor = payload.len();
+            FrontendMessage::FunctionCall
+        }
         b'H' => {
             if !payload.is_empty() {
                 return Err(HandshakeError::Invalid(
@@ -1251,6 +1382,10 @@ async fn read_startup_frame(
 
     if size == 8 && code == SSL_REQUEST_CODE {
         return Ok(StartupFrame::SslRequest);
+    }
+
+    if size == 16 && code == CANCEL_REQUEST_CODE {
+        return Ok(StartupFrame::CancelRequest);
     }
 
     if code != PROTOCOL_VERSION_3 {

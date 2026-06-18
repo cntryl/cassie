@@ -1,7 +1,7 @@
 # Sprint 12 - Runtime Observability, Plan Cache, and Operational Controls
 
 Previous: [Sprint 11 - Vector and Hybrid Retrieval](sprint-11.md)
-Next: [Sprint 13 - SQL DML and Mutation Semantics](../sprint-13.md)
+Next: [Sprint 13 - Row Blob Persistence Core](sprint-13.md)
 
 ## Goal
 

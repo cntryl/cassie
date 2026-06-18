@@ -1,53 +1,32 @@
-# Sprint 19 - Compatibility Matrix and CI Gate
+# Sprint 19 - Transaction Control Basics
 
-Previous: [Sprint 18 - Auth, Roles, and Security Posture](sprint-18.md)  
-Next: [Sprint 20 - Real PostgreSQL Wire Protocol Core](sprint-20.md)
+Previous: [Sprint 18 - SQL DELETE](sprint-18.md)
+Next: [Sprint 20 - Transaction Write Semantics](sprint-20.md)
 
 ## Goal
 
-Turn Cassie's PostgreSQL compatibility promise into a concrete, repeatable compatibility matrix with automated smoke tests for clients, drivers, ORMs, migration workflows, and BI-style metadata probes.
-
-## Invariants
-
-- TDD first: add or update single-behavior tests before implementation.
-- All touched tests use `should_` names plus `// Arrange`, `// Act`, `// Assert`.
-- Validate touched tests with `cntryl-tools validate-tests -f <file>`.
-- Keep Midge direct; no second storage abstraction.
-- Preserve Midge family contract: `cf0` metadata/schema/config, `cf1` documents/data, `cf2` temp, `default` engine-reserved.
-- Keep REST secondary and PostgreSQL wire primary.
-- No Axum and no third-party SQL parser.
-- Unsupported behavior returns deterministic `CassieError` or PostgreSQL-style wire errors.
-- Each sprint exits only when targeted tests are green, touched tests pass `cntryl-tools validate-tests`, `cargo build` passes, and `cargo clippy --all-targets --all-features -- -D warnings` passes.
-- Release sprints also run full `cargo test`.
+Define and implement basic session transaction control that practical PostgreSQL clients can reason about.
 
 ## Requirements
 
-- Define the V1 client compatibility matrix for `psql`, libpq, one Rust driver, one Python driver, one Node driver, one ORM, one migration tool, and one BI-style metadata probe.
-- Add compatibility fixtures that run representative connect, metadata, simple query, prepared query, DDL, DML, search, vector, and error-recovery flows.
-- Make optional external-client tests skippable when tools are unavailable, while keeping core protocol fixtures mandatory.
-- Document exact supported and unsupported PostgreSQL behavior observed by the matrix.
-- Ensure matrix failures are actionable and map to a sprint-owned behavior area.
-- Add CI commands or scripts that run the compatibility gate consistently.
+- Parse and execute `BEGIN`, `COMMIT`, and `ROLLBACK`.
+- Define autocommit behavior for single statements.
+- Add deterministic session transaction state.
+- Return explicit unsupported errors for savepoints, isolation-level changes, two-phase commit, advisory locks, and distributed transaction semantics.
 
 ## Acceptance Criteria
 
-- Compatibility matrix is documented and versioned.
-- Mandatory compatibility fixtures pass in local test runs.
-- Optional external-client fixtures skip clearly when prerequisites are unavailable.
-- At least one driver, one ORM or migration workflow, and one metadata probe are represented.
-- Failures include enough context to identify protocol, catalog, SQL, auth, or type-system causes.
-- `cargo build` passes.
-- `cargo clippy --all-targets --all-features -- -D warnings` passes.
-- All touched tests pass `cntryl-tools validate-tests`.
+- Autocommit statements remain visible after success.
+- Transaction control statements transition session state deterministically.
+- Unsupported transaction controls fail deterministically.
+- `cargo build`, Clippy, targeted tests, and touched-test validation pass.
 
 ## Tests
 
-- `tests/compatibility_matrix.rs`: core compatibility matrix metadata and mandatory fixture coverage.
-- `tests/pgwire.rs`: protocol-level client behavior fixtures.
-- External smoke fixtures for selected clients where available.
-- CI/documentation checks that list supported clients and skipped optional fixtures clearly.
+- Parser tests for transaction control and unsupported forms.
+- Executor/session tests for state transitions.
+- Integration SQL tests for autocommit visibility.
 
 ## Exit Gate
 
-This sprint is complete when compatibility expectations are automated, documented, validator-clean, and ready to run as a release gate alongside `cargo build`, Clippy, and targeted tests. When the exit gates are green, move this file from `docs/roadmap/sprint-19.md` to `docs/roadmap/completed/sprint-19.md` and update the roadmap links to point at the completed copy.
-
+This sprint is complete when transaction control basics are validator-clean, targeted tests pass, `cargo build` passes, and Clippy is clean with warnings denied.

@@ -1,55 +1,34 @@
-# Sprint 15 - Relational SQL Expansion
+# Sprint 15 - SQL INSERT VALUES
 
-Previous: [Sprint 14 - Transactions and Session Semantics](sprint-14.md)  
-Next: [Sprint 16 - PostgreSQL Catalog and Introspection](sprint-16.md)
+Previous: [Sprint 14 - Row Storage Rebuild and Decode Controls](completed/sprint-14.md)
+Next: [Sprint 16 - SQL INSERT SELECT](sprint-16.md)
 
 ## Goal
 
-Expand Cassie's PostgreSQL-inspired SQL dialect beyond single-source SELECT so common application, ORM, migration, and BI queries can run through the same deterministic planner and executor.
-
-## Invariants
-
-- TDD first: add or update single-behavior tests before implementation.
-- All touched tests use `should_` names plus `// Arrange`, `// Act`, `// Assert`.
-- Validate touched tests with `cntryl-tools validate-tests -f <file>`.
-- Keep Midge direct; no second storage abstraction.
-- Preserve Midge family contract: `cf0` metadata/schema/config, `cf1` documents/data, `cf2` temp, `default` engine-reserved.
-- Keep REST secondary and PostgreSQL wire primary.
-- No Axum and no third-party SQL parser.
-- Unsupported behavior returns deterministic `CassieError` or PostgreSQL-style wire errors.
-- Each sprint exits only when targeted tests are green, touched tests pass `cntryl-tools validate-tests`, `cargo build` passes, and `cargo clippy --all-targets --all-features -- -D warnings` passes.
-- Release sprints also run full `cargo test`.
+Support `INSERT INTO ... VALUES ...` through the primary SQL interface, writing row blobs through the same validation path used by REST ingest.
 
 ## Requirements
 
-- Support inner joins and left joins for V1 row sources.
-- Support subqueries in `FROM`, scalar subqueries where deterministic, `IN`, `EXISTS`, `BETWEEN`, `IS NULL`, and `IS NOT NULL`.
-- Support aggregates, `GROUP BY`, `HAVING`, and deterministic aggregate result metadata.
-- Support `DISTINCT`.
-- Support set operations needed for practical clients: `UNION` and `UNION ALL`.
-- Support casts with `CAST(...)` and PostgreSQL-style `::type` for V1 types.
-- Support `ORDER BY ... NULLS FIRST` and `ORDER BY ... NULLS LAST`.
-- Return explicit unsupported errors for outer join forms, window functions, lateral joins, advanced grouping sets, and unsupported set operations unless implemented.
+- Plan `INSERT INTO ... VALUES ...` as an explicit logical mutation operation.
+- Execute inserts through existing Cassie write validation: generated IDs, defaults, constraints, catalog type checks, vector validation, and row blob persistence.
+- Support explicit column lists and table-column order when the column list is omitted.
+- Support simple `RETURNING` for inserted rows.
+- Keep `ON CONFLICT` and advanced insert forms explicitly unsupported.
 
 ## Acceptance Criteria
 
-- Joins, subqueries, aggregates, grouping, distinct, union, casts, and null ordering parse, bind, plan, and execute deterministically.
-- Planner preserves clear operator order for relational features.
-- Executor produces stable rows and metadata across repeated runs.
-- Unsupported relational SQL features fail deterministically.
-- `cargo build` passes.
-- `cargo clippy --all-targets --all-features -- -D warnings` passes.
-- All touched tests pass `cntryl-tools validate-tests`.
+- SQL inserts create retrievable row blobs in `cf1`.
+- Constraint, default, vector, and type behavior matches REST ingest.
+- `RETURNING` rows and metadata are deterministic.
+- `cargo build`, Clippy, targeted tests, and touched-test validation pass.
 
 ## Tests
 
-- `tests/parser.rs`: parse relational SQL forms and unsupported variants.
-- `tests/planner.rs`: logical and physical plans for joins, subqueries, aggregates, and set operations.
-- `tests/executor.rs`: deterministic execution for each relational feature.
-- `tests/integration_sql.rs`: combined relational query scenarios against Midge-backed data.
-- `tests/pgwire.rs`: representative relational queries through pgwire after real protocol support lands.
+- Parser/binder regression tests for `INSERT VALUES` and unsupported `ON CONFLICT`.
+- Planner tests for mutation plan shape.
+- Executor/integration tests for inserts, generated IDs, validation, and `RETURNING`.
+- Storage tests proving inserted rows use row blobs in `cf1`.
 
 ## Exit Gate
 
-This sprint is complete when relational SQL expansion is covered by validator-clean tests, targeted relational tests pass, `cargo build` passes, and Clippy is clean with warnings denied. When the exit gates are green, move this file from `docs/roadmap/sprint-15.md` to `docs/roadmap/completed/sprint-15.md` and update the roadmap links to point at the completed copy.
-
+This sprint is complete when `INSERT VALUES` behavior is validator-clean, targeted DML tests pass, `cargo build` passes, and Clippy is clean with warnings denied.

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::env;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -7,6 +8,7 @@ use uuid::Uuid;
 
 use crate::app::CassieError;
 use crate::catalog::{FieldConstraint, IndexMeta, NamespaceMeta};
+use crate::midge::row_blob::{decode_projected_row, decode_row, encode_row, RowSchema};
 use crate::types::{DataType, FieldSchema, Schema, Value, Vector};
 
 fn allow_memory_fallback() -> bool {
@@ -30,6 +32,7 @@ const CONSTRAINTS_PREFIX: &str = "__cassie__/constraints/";
 const FUNCTION_PREFIX: &str = "__cassie__/function/";
 const PROCEDURE_PREFIX: &str = "__cassie__/procedure/";
 const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
+const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
 const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
 const NAMESPACES_KEY: &str = "__cassie__/namespaces";
 
@@ -123,6 +126,12 @@ pub struct Midge {
 pub struct DocumentRef {
     pub id: String,
     pub payload: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RowDecode {
+    Full,
+    Projected(Vec<String>),
 }
 
 impl Midge {
@@ -274,6 +283,10 @@ impl Midge {
         format!("{SCHEMA_COLLECTION_KEY_PREFIX}{collection}").into_bytes()
     }
 
+    fn row_schema_key(collection: &str) -> Vec<u8> {
+        format!("{ROW_SCHEMA_KEY_PREFIX}{collection}").into_bytes()
+    }
+
     fn schema_collection_prefix() -> Vec<u8> {
         SCHEMA_COLLECTION_KEY_PREFIX.as_bytes().to_vec()
     }
@@ -336,6 +349,14 @@ impl Midge {
 
     fn collections_key() -> Vec<u8> {
         b"__cassie__/collections".to_vec()
+    }
+
+    fn row_prefix(collection: &str) -> Vec<u8> {
+        format!("r/{collection}/").into_bytes()
+    }
+
+    fn row_key(collection: &str, id: &str) -> Vec<u8> {
+        format!("r/{collection}/{id}").into_bytes()
     }
 
     fn doc_prefix(collection: &str) -> Vec<u8> {
@@ -479,6 +500,50 @@ impl Midge {
         Ok(())
     }
 
+    fn load_row_schema_from_tx(
+        tx: &cntryl_midge::Transaction,
+        collection: &str,
+    ) -> Result<Option<RowSchema>, CassieError> {
+        let raw = tx
+            .get(&Self::row_schema_key(collection))
+            .map_err(CassieError::from)?;
+        let Some(raw) = raw else {
+            return Ok(None);
+        };
+
+        serde_json::from_slice(&raw).map(Some).map_err(|error| {
+            CassieError::Parse(format!("invalid row schema for '{collection}': {error}"))
+        })
+    }
+
+    fn save_row_schema_to_tx(
+        tx: &mut cntryl_midge::Transaction,
+        collection: &str,
+        row_schema: &RowSchema,
+    ) -> Result<(), CassieError> {
+        let value = serde_json::to_vec(row_schema)
+            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(Self::row_schema_key(collection), value, None)
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    async fn row_schema(&self, collection: &str) -> Result<RowSchema, CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        if let Some(row_schema) = Self::load_row_schema_from_tx(&tx, collection)? {
+            return Ok(row_schema);
+        }
+
+        let raw = tx
+            .get(&Self::collection_schema_key(collection))
+            .map_err(CassieError::from)?
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+        let schema: Schema = serde_json::from_slice(&raw).map_err(|error| {
+            CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
+        })?;
+        Ok(RowSchema::from_schema(&schema))
+    }
+
     pub async fn create_collection(&self, name: &str, schema: Schema) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
 
@@ -488,6 +553,13 @@ impl Midge {
                 .map_err(|error| CassieError::Parse(error.to_string()))?;
             tx.put(schema_key, schema_bytes, None)
                 .map_err(CassieError::from)?;
+        }
+        if tx
+            .get(&Self::row_schema_key(name))
+            .map_err(CassieError::from)?
+            .is_none()
+        {
+            Self::save_row_schema_to_tx(&mut tx, name, &RowSchema::from_schema(&schema))?;
         }
 
         let mut collections = self.load_collections(&tx).await?;
@@ -598,6 +670,9 @@ impl Midge {
         schema_tx
             .delete(Self::constraints_key(name))
             .map_err(CassieError::from)?;
+        schema_tx
+            .delete(Self::row_schema_key(name))
+            .map_err(CassieError::from)?;
 
         let mut collections = self.load_collections(&schema_tx).await?;
         collections.retain(|entry| entry != name);
@@ -608,13 +683,14 @@ impl Midge {
             .map_err(CassieError::from)?;
 
         let mut data_tx = self.begin_data_rw_tx()?;
-        let data_prefix = Self::doc_prefix(name);
-        let mut documents = data_tx
-            .scan(&Query::new().prefix(data_prefix.clone().into()))
-            .map_err(CassieError::from)?;
         let mut document_keys = Vec::new();
-        while let Some((key, _value)) = documents.next() {
-            document_keys.push(key);
+        for data_prefix in [Self::row_prefix(name), Self::doc_prefix(name)] {
+            let mut documents = data_tx
+                .scan(&Query::new().prefix(data_prefix.into()))
+                .map_err(CassieError::from)?;
+            while let Some((key, _value)) = documents.next() {
+                document_keys.push(key);
+            }
         }
 
         for key in document_keys {
@@ -650,6 +726,11 @@ impl Midge {
             )));
         }
 
+        let mut row_schema = Self::load_row_schema_from_tx(&tx, collection)?
+            .unwrap_or_else(|| RowSchema::from_schema(&schema));
+        row_schema.add_field(field.clone())?;
+        Self::save_row_schema_to_tx(&mut tx, collection, &row_schema)?;
+
         schema.fields.push(field);
         let schema_bytes =
             serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
@@ -675,6 +756,7 @@ impl Midge {
         let mut schema: Schema = serde_json::from_slice(&schema_raw).map_err(|error| {
             CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
         })?;
+        let original_schema = schema.clone();
 
         let field_count_before = schema.fields.len();
         schema.fields.retain(|entry| entry.name != field);
@@ -683,6 +765,15 @@ impl Midge {
                 "field '{field}' not found in collection '{collection}'",
             )));
         }
+
+        let mut row_schema = Self::load_row_schema_from_tx(&tx, collection)?
+            .unwrap_or_else(|| RowSchema::from_schema(&original_schema));
+        if !row_schema.retire_field(field) {
+            return Err(CassieError::Unsupported(format!(
+                "field '{field}' not found in collection '{collection}'",
+            )));
+        }
+        Self::save_row_schema_to_tx(&mut tx, collection, &row_schema)?;
 
         let schema_bytes =
             serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
@@ -723,6 +814,23 @@ impl Midge {
         schema_tx
             .put(next_schema_key, current_schema_bytes.to_vec(), None)
             .map_err(CassieError::from)?;
+
+        let current_row_schema_key = Self::row_schema_key(current_name);
+        if let Some(row_schema_bytes) = schema_tx
+            .get(&current_row_schema_key)
+            .map_err(CassieError::from)?
+        {
+            schema_tx
+                .delete(current_row_schema_key)
+                .map_err(CassieError::from)?;
+            schema_tx
+                .put(
+                    Self::row_schema_key(next_name),
+                    row_schema_bytes.to_vec(),
+                    None,
+                )
+                .map_err(CassieError::from)?;
+        }
 
         let mut collections = self.load_collections(&schema_tx).await?;
         if let Some(position) = collections.iter().position(|entry| entry == current_name) {
@@ -805,23 +913,26 @@ impl Midge {
             .map_err(CassieError::from)?;
 
         let mut data_tx = self.begin_data_rw_tx()?;
-        let current_prefix = Self::doc_prefix(current_name);
-        let next_prefix = Self::doc_prefix(next_name);
-        let mut documents = data_tx
-            .scan(&Query::new().prefix(current_prefix.clone().into()))
-            .map_err(CassieError::from)?;
-        let mut entries = Vec::new();
-        while let Some((key, value)) = documents.next() {
-            entries.push((key, value));
-        }
+        for (current_prefix, next_prefix) in [
+            (Self::row_prefix(current_name), Self::row_prefix(next_name)),
+            (Self::doc_prefix(current_name), Self::doc_prefix(next_name)),
+        ] {
+            let mut documents = data_tx
+                .scan(&Query::new().prefix(current_prefix.clone().into()))
+                .map_err(CassieError::from)?;
+            let mut entries = Vec::new();
+            while let Some((key, value)) = documents.next() {
+                entries.push((key, value));
+            }
 
-        for (key, value) in entries {
-            if let Some(id) = key.strip_prefix(current_prefix.as_slice()) {
-                let next_key = [next_prefix.as_slice(), id].concat();
-                data_tx.delete(key).map_err(CassieError::from)?;
-                data_tx
-                    .put(next_key, value, None)
-                    .map_err(CassieError::from)?;
+            for (key, value) in entries {
+                if let Some(id) = key.strip_prefix(current_prefix.as_slice()) {
+                    let next_key = [next_prefix.as_slice(), id].concat();
+                    data_tx.delete(key).map_err(CassieError::from)?;
+                    data_tx
+                        .put(next_key, value, None)
+                        .map_err(CassieError::from)?;
+                }
             }
         }
         data_tx
@@ -1093,6 +1204,9 @@ impl Midge {
 
     pub async fn collection_schema(&self, name: &str) -> Option<Schema> {
         let tx = self.begin_schema_readonly_tx().ok()?;
+        if let Ok(Some(row_schema)) = Self::load_row_schema_from_tx(&tx, name) {
+            return Some(row_schema.active_schema());
+        }
         let raw = tx.get(&Self::collection_schema_key(name)).ok()??;
         serde_json::from_slice(&raw).ok()
     }
@@ -1149,17 +1263,19 @@ impl Midge {
             .collection_schema(collection)
             .await
             .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+        let row_schema = self.row_schema(collection).await?;
 
         Self::validate_document(&schema, &payload)?;
+        let row_blob = encode_row(&row_schema, &payload)?;
 
         let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
         let mut tx = self.begin_data_rw_tx()?;
-        tx.put(
-            Self::doc_key(collection, &doc_id),
-            payload.to_string().into_bytes(),
-            None,
-        )
-        .map_err(CassieError::from)?;
+        tx.put(Self::row_key(collection, &doc_id), row_blob, None)
+            .map_err(CassieError::from)?;
+        let legacy_key = Self::doc_key(collection, &doc_id);
+        if tx.get(&legacy_key).map_err(CassieError::from)?.is_some() {
+            tx.delete(legacy_key).map_err(CassieError::from)?;
+        }
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(doc_id)
     }
@@ -1169,20 +1285,23 @@ impl Midge {
         collection: &str,
         id: &str,
     ) -> Result<Option<DocumentRef>, CassieError> {
-        if self.collection_schema(collection).await.is_none() {
-            return Err(CassieError::CollectionNotFound(collection.to_string()));
-        }
+        let row_schema = self.row_schema(collection).await?;
 
         let tx = self.begin_data_readonly_tx()?;
-        let payload = tx
-            .get(&Self::doc_key(collection, id))
-            .map_err(CassieError::from)?;
+        let payload = match tx
+            .get(&Self::row_key(collection, id))
+            .map_err(CassieError::from)?
+        {
+            Some(payload) => Some(payload),
+            None => tx
+                .get(&Self::doc_key(collection, id))
+                .map_err(CassieError::from)?,
+        };
 
         let Some(payload) = payload else {
             return Ok(None);
         };
-        let payload = serde_json::from_slice(&payload)
-            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        let payload = decode_row(&row_schema, &payload)?;
 
         Ok(Some(DocumentRef {
             id: id.to_string(),
@@ -1191,14 +1310,20 @@ impl Midge {
     }
 
     pub async fn delete_document(&self, collection: &str, id: &str) -> Result<bool, CassieError> {
-        if self.collection_schema(collection).await.is_none() {
-            return Err(CassieError::CollectionNotFound(collection.to_string()));
-        }
+        let _row_schema = self.row_schema(collection).await?;
 
-        let key = Self::doc_key(collection, id);
+        let key = Self::row_key(collection, id);
+        let legacy_key = Self::doc_key(collection, id);
         let mut tx = self.begin_data_rw_tx()?;
-        if tx.get(&key).map_err(CassieError::from)?.is_some() {
+        let row_exists = tx.get(&key).map_err(CassieError::from)?.is_some();
+        let legacy_exists = tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
+        if row_exists {
             tx.delete(key).map_err(CassieError::from)?;
+        }
+        if legacy_exists {
+            tx.delete(legacy_key).map_err(CassieError::from)?;
+        }
+        if row_exists || legacy_exists {
             tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
             return Ok(true);
         }
@@ -1212,35 +1337,77 @@ impl Midge {
         collection: &str,
         batch_size: usize,
     ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
-        if self.collection_schema(collection).await.is_none() {
-            return Err(CassieError::CollectionNotFound(collection.to_string()));
-        }
+        self.scan_rows_batched(collection, batch_size, RowDecode::Full)
+            .await
+    }
+
+    pub async fn scan_rows_for_rebuild(
+        &self,
+        collection: &str,
+        decode: RowDecode,
+    ) -> Result<Vec<DocumentRef>, CassieError> {
+        self.scan_rows_batched(collection, 1024, decode)
+            .await
+            .map(|batches| batches.into_iter().flatten().collect())
+    }
+
+    async fn scan_rows_batched(
+        &self,
+        collection: &str,
+        batch_size: usize,
+        decode: RowDecode,
+    ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
+        let row_schema = self.row_schema(collection).await?;
+        let projection = match decode {
+            RowDecode::Full => None,
+            RowDecode::Projected(fields) => Some(
+                fields
+                    .into_iter()
+                    .map(|field| field.to_ascii_lowercase())
+                    .collect::<HashSet<_>>(),
+            ),
+        };
 
         let tx = self.begin_data_readonly_tx()?;
-        let mut iter = tx
-            .scan(&Query::new().prefix(Self::doc_prefix(collection).into()))
-            .map_err(CassieError::from)?;
-        let needle = format!("doc:{collection}:");
         let batch_size = batch_size.max(1);
         let mut results = Vec::new();
         let mut current = Vec::with_capacity(batch_size);
+        let mut seen_ids = HashSet::new();
 
-        while let Some((raw_key, raw_value)) = iter.next() {
-            let raw_key = String::from_utf8(raw_key).map_err(|error| {
-                CassieError::Parse(format!("invalid document key in storage: {error}"))
-            })?;
-            let id = raw_key.strip_prefix(&needle).unwrap_or("").to_string();
-            if id.is_empty() {
-                continue;
-            }
+        for (prefix, needle, include_seen) in [
+            (
+                Self::row_prefix(collection),
+                format!("r/{collection}/"),
+                true,
+            ),
+            (
+                Self::doc_prefix(collection),
+                format!("doc:{collection}:"),
+                false,
+            ),
+        ] {
+            let mut iter = tx
+                .scan(&Query::new().prefix(prefix.into()))
+                .map_err(CassieError::from)?;
+            while let Some((raw_key, raw_value)) = iter.next() {
+                let raw_key = String::from_utf8(raw_key).map_err(|error| {
+                    CassieError::Parse(format!("invalid document key in storage: {error}"))
+                })?;
+                let id = raw_key.strip_prefix(&needle).unwrap_or("").to_string();
+                if id.is_empty() || (!include_seen && seen_ids.contains(&id)) {
+                    continue;
+                }
+                seen_ids.insert(id.clone());
 
-            let payload = serde_json::from_slice(&raw_value).map_err(|error| {
-                CassieError::Parse(format!("invalid document payload: {error}"))
-            })?;
-            current.push(DocumentRef { id, payload });
-            if current.len() >= batch_size {
-                results.push(current);
-                current = Vec::with_capacity(batch_size);
+                let payload = match projection.as_ref() {
+                    Some(projection) => decode_projected_row(&row_schema, &raw_value, projection)?,
+                    None => decode_row(&row_schema, &raw_value)?,
+                };
+                current.push(DocumentRef { id, payload });
+                if current.len() >= batch_size {
+                    results.push(current);
+                    current = Vec::with_capacity(batch_size);
+                }
             }
         }
 

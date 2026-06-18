@@ -1,58 +1,33 @@
-# Sprint 20 - Real PostgreSQL Wire Protocol Core
+# Sprint 20 - Transaction Write Semantics
 
-Previous: [Sprint 19 - Compatibility Matrix and CI Gate](sprint-19.md)  
-Next: [Sprint 21 - PostgreSQL Extended Query Protocol and Client Compatibility](sprint-21.md)
+Previous: [Sprint 19 - Transaction Control Basics](sprint-19.md)
+Next: [Sprint 21 - Relational Predicates and Scalar SQL](sprint-21.md)
 
 ## Goal
 
-Replace the current simplified line-oriented pgwire path with real PostgreSQL frontend/backend binary message framing for practical client compatibility.
-
-## Invariants
-
-- TDD first: add or update single-behavior tests before implementation.
-- All touched tests use `should_` names plus `// Arrange`, `// Act`, `// Assert`.
-- Validate touched tests with `cntryl-tools validate-tests -f <file>`.
-- Keep Midge direct; no second storage abstraction.
-- Preserve Midge family contract: `cf0` metadata/schema/config, `cf1` documents/data, `cf2` temp, `default` engine-reserved.
-- Keep REST secondary and PostgreSQL wire primary.
-- No Axum and no third-party SQL parser.
-- Unsupported behavior returns deterministic `CassieError` or PostgreSQL-style wire errors.
-- Each sprint exits only when targeted tests are green, touched tests pass `cntryl-tools validate-tests`, `cargo build` passes, and `cargo clippy --all-targets --all-features -- -D warnings` passes.
-- Release sprints also run full `cargo test`.
+Make writes inside transactions deterministic for row blob storage, including commit, rollback, read-your-writes, and failed transaction recovery.
 
 ## Requirements
 
-- Implement PostgreSQL frontend/backend binary message framing.
-- Implement startup packet parsing.
-- Define and implement SSL request behavior for V1.
-- Implement authentication negotiation compatible with practical clients.
-- Implement simple query protocol.
-- Emit PostgreSQL-compatible row description, data row, command complete, error response, and ready-for-query messages.
-- Map Cassie scalar types to PostgreSQL OIDs and text/binary format policies.
-- Preserve deterministic ready-state transitions.
-- Retire or convert existing simplified protocol tests.
-- Keep all simple-query execution routed through `Cassie::execute_sql`.
+- Define Midge transaction boundaries for reads and writes within Cassie sessions.
+- Support committed transaction persistence and rollback without persisted writes.
+- Support read-your-writes behavior inside a session transaction.
+- Move errors inside transactions into a deterministic failed state until rollback.
+- Keep runtime metrics and plan cache behavior correct across transaction boundaries.
 
 ## Acceptance Criteria
 
-- `psql` can connect, authenticate, run simple `SELECT`, and receive rows.
-- A libpq-style client smoke test passes.
-- Unsupported startup options fail with PostgreSQL-style errors without crashing the session.
-- Ready-for-query is emitted where practical clients expect it.
-- Existing simplified protocol tests are retired or converted to real wire tests.
-- Simple-query wire execution returns the same rows as direct SQL execution.
-- `cargo build` passes.
-- `cargo clippy --all-targets --all-features -- -D warnings` passes.
-- All touched tests pass `cntryl-tools validate-tests`.
+- Committed writes persist.
+- Rolled-back writes do not persist.
+- Failed transactions reject further work until rollback.
+- Full `cargo test`, `cargo build`, Clippy, and touched-test validation pass.
 
 ## Tests
 
-- `tests/pgwire.rs`: binary startup packet parse behavior.
-- `tests/pgwire.rs`: authentication success and failure behavior.
-- `tests/pgwire.rs`: simple query lifecycle with row metadata and data rows.
-- `tests/pgwire.rs`: unsupported startup or message behavior returns PostgreSQL-style error response.
-- Add a real client smoke test for `psql` or libpq when available in the environment.
+- Executor/integration tests for commit, rollback, read-your-writes, and failed state.
+- Storage tests confirming row blob family routing inside transactions.
+- Metrics/plan-cache regression tests for transaction boundaries.
 
 ## Exit Gate
 
-This sprint is complete when the real binary wire path supports startup, auth, simple query, row output, errors, ready-for-query, practical `psql` or libpq smoke compatibility, validator-clean tests, `cargo build`, and Clippy with warnings denied. When the exit gates are green, move this file from `docs/roadmap/sprint-20.md` to `docs/roadmap/completed/sprint-20.md` and update the roadmap links to point at the completed copy.
+This sprint is complete when transaction write behavior is validator-clean, full `cargo test` passes, `cargo build` passes, and Clippy is clean with warnings denied.

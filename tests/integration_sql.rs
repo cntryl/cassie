@@ -1420,3 +1420,185 @@ fn should_delete_legacy_fallback_key_for_sql_delete() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_transition_session_state_for_transaction_control() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("transaction_state");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let begin = cassie.execute_sql(&session, "BEGIN", vec![]).await.unwrap();
+        let during = session.transaction_status().await;
+        let commit = cassie
+            .execute_sql(&session, "COMMIT", vec![])
+            .await
+            .unwrap();
+        let after = session.transaction_status().await;
+
+        // Assert
+        assert_eq!(begin.command, "BEGIN");
+        assert_eq!(during, "in_transaction");
+        assert_eq!(commit.command, "COMMIT");
+        assert_eq!(after, "idle");
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_restore_idle_state_on_rollback() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("transaction_rollback");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie.execute_sql(&session, "BEGIN", vec![]).await.unwrap();
+
+        // Act
+        let rollback = cassie
+            .execute_sql(&session, "ROLLBACK", vec![])
+            .await
+            .unwrap();
+        let after = session.transaction_status().await;
+
+        // Assert
+        assert_eq!(rollback.command, "ROLLBACK");
+        assert_eq!(after, "idle");
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_keep_autocommit_writes_visible_after_success() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("transaction_autocommit");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE transaction_autocommit (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO transaction_autocommit (title) VALUES ('alpha')",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let selected = cassie
+            .execute_sql(&session, "SELECT title FROM transaction_autocommit", vec![])
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(session.transaction_status().await, "idle");
+        assert_eq!(
+            selected.rows,
+            vec![vec![Value::String("alpha".to_string())]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_unsupported_transaction_control_sql() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("transaction_unsupported");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let savepoint = cassie.execute_sql(&session, "SAVEPOINT sp", vec![]).await;
+
+        // Assert
+        assert!(savepoint.is_err());
+        assert!(savepoint.unwrap_err().to_string().contains("unsupported"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_advisory_lock_sql() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("transaction_advisory_lock");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE transaction_advisory_lock (id INT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let lock = cassie
+            .execute_sql(
+                &session,
+                "SELECT pg_advisory_lock(1) FROM transaction_advisory_lock",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(lock.is_err());
+        assert!(lock
+            .unwrap_err()
+            .to_string()
+            .contains("unsupported function"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

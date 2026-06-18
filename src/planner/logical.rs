@@ -341,6 +341,9 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 offset: Some(0),
             })
         }
+        QueryStatement::Transaction(_) => Err(CassieError::Planner(
+            "transaction control statements are handled by the session runtime".into(),
+        )),
     }
 }
 

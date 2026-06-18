@@ -573,6 +573,71 @@ fn should_reject_insert_on_conflict() {
 }
 
 #[test]
+fn should_parse_transaction_control_statements() {
+    // Arrange
+    let statements = ["BEGIN", "COMMIT", "ROLLBACK"];
+
+    // Act
+    let parsed = statements
+        .iter()
+        .map(|sql| parse_statement(sql))
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert!(parsed.iter().all(Result::is_ok));
+    assert!(matches!(
+        parsed[0].as_ref().unwrap().statement,
+        QueryStatement::Transaction(_)
+    ));
+    assert!(matches!(
+        parsed[1].as_ref().unwrap().statement,
+        QueryStatement::Transaction(_)
+    ));
+    assert!(matches!(
+        parsed[2].as_ref().unwrap().statement,
+        QueryStatement::Transaction(_)
+    ));
+}
+
+#[test]
+fn should_reject_unsupported_transaction_control() {
+    // Arrange
+    let sql = "SAVEPOINT sp";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+}
+
+#[test]
+fn should_reject_transaction_isolation_level_changes() {
+    // Arrange
+    let sql = "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+    assert!(parsed.unwrap_err().0.contains("unsupported"));
+}
+
+#[test]
+fn should_reject_two_phase_transaction_control() {
+    // Arrange
+    let sql = "PREPARE TRANSACTION 'tx1'";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+    assert!(parsed.unwrap_err().0.contains("unsupported"));
+}
+
+#[test]
 fn should_reject_unknown_clause_in_query() {
     // Arrange
     let sql = "SELECT * FROM docs GROUP BY title";

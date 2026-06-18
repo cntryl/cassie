@@ -50,6 +50,7 @@ pub enum QueryStatement {
     Insert(InsertStatement),
     Update(UpdateStatement),
     Delete(DeleteStatement),
+    Transaction(TransactionStatement),
     CreateTable(CreateTableStatement),
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
@@ -61,6 +62,26 @@ pub enum QueryStatement {
     CreateProcedure(CreateProcedureStatement),
     DropProcedure(DropProcedureStatement),
     CallProcedure(CallProcedureStatement),
+}
+
+#[derive(Debug, Clone)]
+pub struct TransactionStatement {
+    pub action: TransactionAction,
+    pub isolation: Option<TransactionIsolation>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransactionAction {
+    Begin,
+    Commit,
+    Rollback,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransactionIsolation {
+    ReadCommitted,
+    RepeatableRead,
+    Serializable,
 }
 
 #[derive(Debug, Clone)]

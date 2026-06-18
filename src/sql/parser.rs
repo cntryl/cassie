@@ -5,7 +5,8 @@ use crate::sql::ast::{
     CreateSchemaStatement, CreateTableStatement, CteQuery, DropFunctionStatement,
     DropIndexStatement, DropProcedureStatement, DropTableStatement, Expr, FieldDefinition,
     FunctionArg, FunctionCall, InsertSource, OrderExpr, ParsedStatement, QuerySource,
-    QueryStatement, SelectItem, SelectStatement, SortDirection, Volatility,
+    QueryStatement, SelectItem, SelectStatement, SortDirection, TransactionAction,
+    TransactionIsolation, TransactionStatement, Volatility,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -25,6 +26,10 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         parse_update_statement(trimmed)
     } else if lower.starts_with("delete ") || lower == "delete" {
         parse_delete_statement(trimmed)
+    } else if is_transaction_control_statement(&lower) {
+        parse_transaction_statement(trimmed)
+    } else if is_unsupported_transaction_control_statement(&lower) {
+        Err(SqlError("unsupported transaction control statement".into()))
     } else if lower.starts_with("create function ") || lower == "create function" {
         parse_create_function_statement(trimmed)
     } else if lower.starts_with("create procedure ") || lower == "create procedure" {
@@ -54,6 +59,87 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         parse_create_schema_statement(trimmed)
     } else {
         Err(SqlError("unsupported SQL statement".into()))
+    }
+}
+
+fn is_transaction_control_statement(lower: &str) -> bool {
+    lower == "begin"
+        || lower.starts_with("begin ")
+        || lower == "start transaction"
+        || lower.starts_with("start transaction ")
+        || lower == "commit"
+        || lower.starts_with("commit ")
+        || lower == "rollback"
+        || lower.starts_with("rollback ")
+}
+
+fn is_unsupported_transaction_control_statement(lower: &str) -> bool {
+    lower == "savepoint"
+        || lower.starts_with("savepoint ")
+        || lower == "release"
+        || lower.starts_with("release ")
+        || lower == "prepare transaction"
+        || lower.starts_with("prepare transaction ")
+        || lower == "commit prepared"
+        || lower.starts_with("commit prepared ")
+        || lower == "rollback prepared"
+        || lower.starts_with("rollback prepared ")
+        || lower == "set transaction"
+        || lower.starts_with("set transaction ")
+}
+
+fn parse_transaction_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let tokens = trimmed
+        .split_whitespace()
+        .map(str::to_lowercase)
+        .collect::<Vec<_>>();
+    let token_refs = tokens.iter().map(String::as_str).collect::<Vec<_>>();
+
+    let statement = match token_refs.as_slice() {
+        ["begin"] | ["begin", "transaction"] => TransactionStatement {
+            action: TransactionAction::Begin,
+            isolation: None,
+        },
+        ["begin", "isolation", "level", isolation @ ..]
+        | ["begin", "transaction", "isolation", "level", isolation @ ..]
+        | ["start", "transaction", "isolation", "level", isolation @ ..] => TransactionStatement {
+            action: TransactionAction::Begin,
+            isolation: Some(parse_transaction_isolation(isolation)?),
+        },
+        ["start", "transaction"] => TransactionStatement {
+            action: TransactionAction::Begin,
+            isolation: None,
+        },
+        ["commit"] | ["commit", "transaction"] => TransactionStatement {
+            action: TransactionAction::Commit,
+            isolation: None,
+        },
+        ["rollback"] | ["rollback", "transaction"] => TransactionStatement {
+            action: TransactionAction::Rollback,
+            isolation: None,
+        },
+        _ => {
+            return Err(SqlError(
+                "unsupported transaction control statement".to_string(),
+            ));
+        }
+    };
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::Transaction(statement),
+    })
+}
+
+fn parse_transaction_isolation(tokens: &[&str]) -> Result<TransactionIsolation, SqlError> {
+    match tokens {
+        ["read", "committed"] => Ok(TransactionIsolation::ReadCommitted),
+        ["repeatable", "read"] => Ok(TransactionIsolation::RepeatableRead),
+        ["serializable"] => Ok(TransactionIsolation::Serializable),
+        _ => Err(SqlError(
+            "unsupported transaction control statement".to_string(),
+        )),
     }
 }
 

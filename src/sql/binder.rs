@@ -156,6 +156,10 @@ fn bind_statement<'a>(
                     statement: QueryStatement::Delete(statement),
                 })
             }
+            QueryStatement::Transaction(statement) => Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::Transaction(statement),
+            }),
         }
     })
 }

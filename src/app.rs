@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use serde::Serialize;
+use tokio::sync::Mutex;
 
 use crate::catalog::{Catalog, ConstraintCheck, ConstraintOperator, FieldConstraint};
 use crate::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
@@ -17,12 +18,77 @@ use crate::embeddings::{
 use crate::executor::{QueryError, QueryResult};
 use crate::midge::adapter::Midge;
 use crate::runtime::{ExecutionMode, PlanCacheKey, RuntimeState};
+use crate::sql::ast::{
+    QueryStatement, TransactionAction, TransactionIsolation, TransactionStatement,
+};
 use crate::sql::{binder, parser};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CassieSession {
     pub user: String,
     pub database: Option<String>,
+    #[serde(skip)]
+    transaction: Arc<Mutex<SessionTransactionState>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SessionTransactionState {
+    status: SessionTransactionStatus,
+    isolation: Option<TransactionIsolation>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SessionTransactionStatus {
+    Idle,
+    InTransaction,
+}
+
+impl CassieSession {
+    pub fn new(user: String, database: Option<String>) -> Self {
+        Self {
+            user,
+            database,
+            transaction: Arc::new(Mutex::new(SessionTransactionState {
+                status: SessionTransactionStatus::Idle,
+                isolation: None,
+            })),
+        }
+    }
+
+    pub async fn transaction_status(&self) -> &'static str {
+        match self.transaction.lock().await.status {
+            SessionTransactionStatus::Idle => "idle",
+            SessionTransactionStatus::InTransaction => "in_transaction",
+        }
+    }
+
+    pub(crate) async fn begin_transaction(
+        &self,
+        isolation: Option<TransactionIsolation>,
+    ) -> Result<(), CassieError> {
+        let mut transaction = self.transaction.lock().await;
+        if transaction.status == SessionTransactionStatus::InTransaction {
+            return Err(CassieError::Unsupported(
+                "transaction already in progress".to_string(),
+            ));
+        }
+
+        transaction.status = SessionTransactionStatus::InTransaction;
+        transaction.isolation = isolation;
+        Ok(())
+    }
+
+    pub(crate) async fn commit_transaction(&self) {
+        let mut transaction = self.transaction.lock().await;
+        transaction.status = SessionTransactionStatus::Idle;
+        transaction.isolation = None;
+    }
+
+    pub(crate) async fn rollback_transaction(&self) {
+        let mut transaction = self.transaction.lock().await;
+        transaction.status = SessionTransactionStatus::Idle;
+        transaction.isolation = None;
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -243,6 +309,10 @@ impl Cassie {
 
     pub async fn describe_sql(&self, sql: &str) -> Result<Vec<String>, CassieError> {
         let parsed = parser::parse_statement(sql)?;
+        if matches!(parsed.statement, QueryStatement::Transaction(_)) {
+            return Ok(Vec::new());
+        }
+
         let controls = self.runtime.query_controls(Instant::now());
         if controls.is_timed_out() {
             return Err(CassieError::Execution("query timeout exceeded".to_string()));
@@ -324,6 +394,9 @@ impl Cassie {
         if controls.is_timed_out() {
             return Err(CassieError::Execution("query timeout exceeded".to_string()));
         }
+        if let QueryStatement::Transaction(statement) = &parsed.statement {
+            return self.execute_transaction_statement(session, statement).await;
+        }
 
         let key = PlanCacheKey {
             normalized_sql: crate::runtime::normalized_sql(&parsed),
@@ -364,6 +437,33 @@ impl Cassie {
         }
 
         Ok(result)
+    }
+
+    async fn execute_transaction_statement(
+        &self,
+        session: &CassieSession,
+        statement: &TransactionStatement,
+    ) -> Result<QueryResult, CassieError> {
+        let command = match statement.action {
+            TransactionAction::Begin => {
+                session.begin_transaction(statement.isolation).await?;
+                "BEGIN"
+            }
+            TransactionAction::Commit => {
+                session.commit_transaction().await;
+                "COMMIT"
+            }
+            TransactionAction::Rollback => {
+                session.rollback_transaction().await;
+                "ROLLBACK"
+            }
+        };
+
+        Ok(QueryResult {
+            columns: Vec::new(),
+            rows: Vec::new(),
+            command: command.to_string(),
+        })
     }
 
     pub async fn execute_vector_search(
@@ -895,10 +995,7 @@ impl Cassie {
     }
 
     pub async fn create_session(&self, user: &str, database: Option<String>) -> CassieSession {
-        CassieSession {
-            user: user.to_string(),
-            database,
-        }
+        CassieSession::new(user.to_string(), database)
     }
 
     pub async fn metrics(&self) -> serde_json::Value {

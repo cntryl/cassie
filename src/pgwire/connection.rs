@@ -78,10 +78,7 @@ pub async fn run_connection(
                 state.startup_user = Some(user.clone());
                 if config.password.is_empty() {
                     state.authenticated = true;
-                    state.session = Some(CassieSession {
-                        user: user.clone(),
-                        database: database.clone(),
-                    });
+                    state.session = Some(CassieSession::new(user.clone(), database.clone()));
                     state.ready = ReadyState::Idle;
                     runtime.record_pgwire_auth_ok();
                     response.push(ServerMessage::AuthenticationOk);
@@ -106,10 +103,7 @@ pub async fn run_connection(
                 .is_ok()
                 {
                     state.authenticated = true;
-                    state.session = Some(CassieSession {
-                        user: auth_user.to_string(),
-                        database: None,
-                    });
+                    state.session = Some(CassieSession::new(auth_user.to_string(), None));
                     state.ready = ReadyState::Idle;
                     runtime.record_pgwire_auth_ok();
                     response.push(ServerMessage::AuthenticationOk);

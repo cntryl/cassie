@@ -3084,3 +3084,321 @@ fn should_execute_from_subquery_query() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_execute_grouped_count_query() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("aggregate_count");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE aggregate_count_docs (category TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO aggregate_count_docs (category) VALUES ('b')",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO aggregate_count_docs (category) VALUES ('a')",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO aggregate_count_docs (category) VALUES ('a')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT category, COUNT(*) AS total FROM aggregate_count_docs GROUP BY category ORDER BY category",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![
+                vec![Value::String("a".to_string()), Value::Int64(2)],
+                vec![Value::String("b".to_string()), Value::Int64(1)]
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_filter_grouped_rows_with_having() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("aggregate_having");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE aggregate_having_sales (category TEXT, amount INT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        for sql in [
+            "INSERT INTO aggregate_having_sales (category, amount) VALUES ('a', 7)",
+            "INSERT INTO aggregate_having_sales (category, amount) VALUES ('a', 5)",
+            "INSERT INTO aggregate_having_sales (category, amount) VALUES ('b', 3)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).await.unwrap();
+        }
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT category, SUM(amount) AS total FROM aggregate_having_sales GROUP BY category HAVING SUM(amount) > 10",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![vec![Value::String("a".to_string()), Value::Int64(12)]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_execute_distinct_query() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("distinct_query");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE distinct_docs (category TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        for sql in [
+            "INSERT INTO distinct_docs (category) VALUES ('b')",
+            "INSERT INTO distinct_docs (category) VALUES ('a')",
+            "INSERT INTO distinct_docs (category) VALUES ('a')",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).await.unwrap();
+        }
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT DISTINCT category FROM distinct_docs ORDER BY category",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![
+                vec![Value::String("a".to_string())],
+                vec![Value::String("b".to_string())]
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_execute_union_all_query() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("union_all_query");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(&session, "CREATE TABLE union_all_left (title TEXT)", vec![])
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE union_all_right (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO union_all_left (title) VALUES ('beta')",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO union_all_right (title) VALUES ('alpha')",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO union_all_right (title) VALUES ('beta')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM union_all_left UNION ALL SELECT title FROM union_all_right",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![
+                vec![Value::String("alpha".to_string())],
+                vec![Value::String("beta".to_string())],
+                vec![Value::String("beta".to_string())]
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_execute_union_query_with_deduplication() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("union_query");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(&session, "CREATE TABLE union_left (title TEXT)", vec![])
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(&session, "CREATE TABLE union_right (title TEXT)", vec![])
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO union_left (title) VALUES ('beta')",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO union_right (title) VALUES ('alpha')",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO union_right (title) VALUES ('beta')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM union_left UNION SELECT title FROM union_right",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![
+                vec![Value::String("alpha".to_string())],
+                vec![Value::String("beta".to_string())]
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

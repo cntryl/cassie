@@ -72,6 +72,18 @@ pub enum JoinKind {
     Left,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetOperator {
+    Union,
+    UnionAll,
+}
+
+#[derive(Debug, Clone)]
+pub struct SelectSet {
+    pub operator: SetOperator,
+    pub right: Box<SelectStatement>,
+}
+
 #[derive(Debug, Clone)]
 pub enum QueryStatement {
     Select(SelectStatement),
@@ -239,11 +251,15 @@ pub struct SelectStatement {
     pub source: QuerySource,
     pub ctes: Vec<CommonTableExpression>,
     pub recursive: bool,
+    pub distinct: bool,
     pub projection: Vec<SelectItem>,
     pub filter: Option<Expr>,
+    pub group_by: Vec<Expr>,
+    pub having: Option<Expr>,
     pub order: Vec<OrderExpr>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+    pub set: Option<Box<SelectSet>>,
 }
 
 #[derive(Debug, Clone)]

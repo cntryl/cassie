@@ -2972,6 +2972,7 @@ fn should_fail_unknown_function_during_execution() {
             source: QuerySource::Collection(collection.to_string()),
             collection: collection.to_string(),
             ctes: vec![],
+            distinct: false,
             projection: vec![SelectItem::Function {
                 function: FunctionCall {
                     name: "unknown_fn".to_string(),
@@ -2980,9 +2981,12 @@ fn should_fail_unknown_function_during_execution() {
                 alias: Some("score".to_string()),
             }],
             filter: None,
+            group_by: vec![],
+            having: None,
             order: vec![],
             limit: Some(10),
             offset: Some(0),
+            set: None,
         };
 
         let physical = PhysicalPlan {

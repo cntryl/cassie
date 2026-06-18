@@ -23,8 +23,19 @@ pub fn columns_from_projection(projection: &[SelectItem]) -> Vec<ColumnMeta> {
             },
             SelectItem::Function { function, alias } => ColumnMeta {
                 name: alias.clone().unwrap_or_else(|| function.name.clone()),
-                data_type: "float".to_string(),
+                data_type: aggregate_type(&function.name)
+                    .unwrap_or("float")
+                    .to_string(),
             },
         })
         .collect()
+}
+
+fn aggregate_type(name: &str) -> Option<&'static str> {
+    match name.to_ascii_lowercase().as_str() {
+        "count" => Some("int"),
+        "sum" | "avg" => Some("float"),
+        "min" | "max" => Some("text"),
+        _ => None,
+    }
 }

@@ -203,6 +203,71 @@ fn should_plan_join_source_with_physical_join_operator() {
 }
 
 #[test]
+fn should_plan_grouped_distinct_select_controls() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_grouped");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT DISTINCT title, COUNT(*) AS total FROM planner_grouped GROUP BY title HAVING COUNT(*) > 1",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+
+        // Act
+        let logical = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert!(logical.distinct);
+        assert_eq!(logical.group_by.len(), 1);
+        assert!(logical.having.is_some());
+    });
+}
+
+#[test]
+fn should_build_physical_operators_for_aggregate_distinct_set() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_set_left");
+    register_test_collection(&catalog, "planner_set_right");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT DISTINCT title, COUNT(*) AS total FROM planner_set_left GROUP BY title UNION SELECT title, COUNT(*) AS total FROM planner_set_right GROUP BY title",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert!(physical_plan
+            .operators
+            .iter()
+            .any(|operator| matches!(operator, Operator::Aggregate)));
+        assert!(physical_plan
+            .operators
+            .iter()
+            .any(|operator| matches!(operator, Operator::Distinct)));
+        assert!(physical_plan
+            .operators
+            .iter()
+            .any(|operator| matches!(operator, Operator::SetOperation)));
+    });
+}
+
+#[test]
 fn should_emit_offset_node_even_with_default_zero() {
     // Arrange
     let catalog = Catalog::new();
@@ -291,14 +356,18 @@ fn should_reject_invalid_logical_plan_shape_missing_collection() {
                 source: QuerySource::Collection("".to_string()),
                 ctes: vec![],
                 recursive: false,
+                distinct: false,
                 projection: vec![SelectItem::Column {
                     name: "id".to_string(),
                     alias: None,
                 }],
                 filter: None,
+                group_by: vec![],
+                having: None,
                 order: vec![],
                 limit: Some(1),
                 offset: Some(0),
+                set: None,
             }),
         },
     };
@@ -324,11 +393,15 @@ fn should_reject_invalid_logical_plan_shape_empty_projection() {
                 source: QuerySource::Collection("planner_projectionless".to_string()),
                 ctes: vec![],
                 recursive: false,
+                distinct: false,
                 projection: vec![],
                 filter: None,
+                group_by: vec![],
+                having: None,
                 order: vec![],
                 limit: Some(1),
                 offset: Some(0),
+                set: None,
             }),
         },
     };
@@ -354,14 +427,18 @@ fn should_reject_invalid_logical_plan_shape_negative_offset() {
                 source: QuerySource::Collection("planner_negative_offset".to_string()),
                 ctes: vec![],
                 recursive: false,
+                distinct: false,
                 projection: vec![SelectItem::Column {
                     name: "id".to_string(),
                     alias: None,
                 }],
                 filter: None,
+                group_by: vec![],
+                having: None,
                 order: vec![],
                 limit: Some(10),
                 offset: Some(-1),
+                set: None,
             }),
         },
     };
@@ -387,14 +464,18 @@ fn should_reject_invalid_logical_plan_shape_negative_limit() {
                 source: QuerySource::Collection("planner_negative_limit".to_string()),
                 ctes: vec![],
                 recursive: false,
+                distinct: false,
                 projection: vec![SelectItem::Column {
                     name: "id".to_string(),
                     alias: None,
                 }],
                 filter: None,
+                group_by: vec![],
+                having: None,
                 order: vec![],
                 limit: Some(-10),
                 offset: Some(0),
+                set: None,
             }),
         },
     };

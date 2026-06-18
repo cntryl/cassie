@@ -16,11 +16,15 @@ pub struct LogicalPlan {
     pub source: QuerySource,
     pub collection: String,
     pub ctes: Vec<CommonTableExpression>,
+    pub distinct: bool,
     pub projection: Vec<SelectItem>,
     pub filter: Option<Expr>,
+    pub group_by: Vec<Expr>,
+    pub having: Option<Expr>,
     pub order: Vec<OrderExpr>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+    pub set: Option<Box<crate::sql::ast::SelectSet>>,
 }
 
 #[derive(Debug, Clone)]
@@ -50,11 +54,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: select.source.clone(),
                 collection: source_name(&select.source),
                 ctes: select.ctes.clone(),
+                distinct: select.distinct,
                 projection: select.projection.clone(),
                 filter: select.filter.clone(),
+                group_by: select.group_by.clone(),
+                having: select.having.clone(),
                 order: select.order.clone(),
                 limit: select.limit,
                 offset: select.offset,
+                set: select.set.clone(),
             })
         }
         QueryStatement::Insert(statement) => {
@@ -69,11 +77,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.table.clone()),
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::Update(statement) => {
@@ -88,11 +100,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.table.clone()),
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::Delete(statement) => {
@@ -107,11 +123,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.table.clone()),
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::CreateTable(statement) => {
@@ -131,11 +151,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.table.clone()),
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::DropTable(statement) => {
@@ -150,11 +174,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.table.clone()),
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::AlterTable(statement) => {
@@ -171,11 +199,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.table.clone()),
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::CreateSchema(statement) => {
@@ -188,11 +220,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.schema.clone()),
                 collection: statement.schema.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::CreateFunction(statement) => {
@@ -207,11 +243,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.name.clone()),
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::DropFunction(statement) => {
@@ -224,11 +264,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.name.clone()),
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::CreateProcedure(statement) => {
@@ -243,11 +287,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.name.clone()),
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::DropProcedure(statement) => {
@@ -262,11 +310,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.name.clone()),
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::CallProcedure(statement) => {
@@ -281,11 +333,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.name.clone()),
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::CreateIndex(statement) => {
@@ -310,11 +366,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.table.clone()),
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::DropIndex(statement) => {
@@ -334,11 +394,15 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 source: QuerySource::Collection(statement.table.clone()),
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
+                distinct: false,
                 projection: Vec::new(),
                 filter: None,
+                group_by: Vec::new(),
+                having: None,
                 order: Vec::new(),
                 limit: None,
                 offset: Some(0),
+                set: None,
             })
         }
         QueryStatement::Transaction(_) => Err(CassieError::Planner(

@@ -5,8 +5,8 @@ use crate::sql::ast::{
     CreateSchemaStatement, CreateTableStatement, CteQuery, DropFunctionStatement,
     DropIndexStatement, DropProcedureStatement, DropTableStatement, Expr, FieldDefinition,
     FunctionArg, FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement,
-    QuerySource, QueryStatement, SelectItem, SelectStatement, SortDirection, TransactionAction,
-    TransactionIsolation, TransactionStatement, Volatility,
+    QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator,
+    SortDirection, TransactionAction, TransactionIsolation, TransactionStatement, Volatility,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -1718,6 +1718,30 @@ fn parse_select_statement(
     }
 
     let trimmed = sql.trim().trim_end_matches(';').trim();
+    if find_top_level_keyword(trimmed, 0, "intersect").is_some()
+        || find_top_level_keyword(trimmed, 0, "except").is_some()
+    {
+        return Err(SqlError("unsupported set operation".into()));
+    }
+    if let Some(union_pos) = find_top_level_keyword(trimmed, 0, "union all") {
+        return parse_set_select_statement(
+            trimmed,
+            withs,
+            recursive,
+            union_pos,
+            SetOperator::UnionAll,
+        );
+    }
+    if let Some(union_pos) = find_top_level_keyword(trimmed, 0, "union") {
+        return parse_set_select_statement(
+            trimmed,
+            withs,
+            recursive,
+            union_pos,
+            SetOperator::Union,
+        );
+    }
+
     let lower = trimmed.to_lowercase();
     let from_pos = lower
         .find(" from ")
@@ -1728,7 +1752,17 @@ fn parse_select_statement(
         return Err(SqlError("missing projection in SELECT statement".into()));
     }
 
-    let select_part = &trimmed[6..from_pos].trim();
+    let select_part = trimmed[6..from_pos].trim();
+    let select_part_lower = select_part.to_lowercase();
+    if select_part_lower.starts_with("distinct on") {
+        return Err(SqlError("unsupported DISTINCT ON syntax".into()));
+    }
+    let (distinct, select_part) =
+        if select_part_lower == "distinct" || select_part_lower.starts_with("distinct ") {
+            (true, select_part["distinct".len()..].trim())
+        } else {
+            (false, select_part)
+        };
     let rest = trimmed[(from_pos + 6)..].trim();
 
     let clauses = parse_clauses(rest)?;
@@ -1744,6 +1778,8 @@ fn parse_select_statement(
     }
 
     let mut where_clause: Option<String> = None;
+    let mut group_clause: Option<String> = None;
+    let mut having_clause: Option<String> = None;
     let mut order_clause: Option<String> = None;
     let mut limit_clause: Option<i64> = None;
     let mut offset_clause: Option<i64> = None;
@@ -1786,6 +1822,24 @@ fn parse_select_statement(
                     }
                     where_clause = Some(raw_value.to_string());
                 }
+                Clause::Group => {
+                    if !seen.insert("group by") {
+                        return Err(SqlError("duplicate GROUP BY clause".into()));
+                    }
+                    if raw_value.to_lowercase().contains("grouping sets")
+                        || raw_value.to_lowercase().contains("rollup")
+                        || raw_value.to_lowercase().contains("cube")
+                    {
+                        return Err(SqlError("unsupported GROUP BY syntax".into()));
+                    }
+                    group_clause = Some(raw_value.to_string());
+                }
+                Clause::Having => {
+                    if !seen.insert("having") {
+                        return Err(SqlError("duplicate HAVING clause".into()));
+                    }
+                    having_clause = Some(raw_value.to_string());
+                }
                 Clause::Order => {
                     if !seen.insert("order by") {
                         return Err(SqlError("duplicate ORDER BY clause".into()));
@@ -1812,6 +1866,9 @@ fn parse_select_statement(
 
     let source = parse_query_source(from_source)?;
 
+    if select_part.to_lowercase().contains(" over ") {
+        return Err(SqlError("unsupported window function syntax".into()));
+    }
     let projection_tokens: Vec<&str> = split_csv(select_part);
     let mut projection = Vec::with_capacity(projection_tokens.len());
     for token in projection_tokens {
@@ -1842,6 +1899,17 @@ fn parse_select_statement(
     }
 
     let filter = where_clause.as_deref().map(parse_expression).transpose()?;
+    let group_by = group_clause
+        .as_deref()
+        .map(|raw| {
+            split_csv(raw)
+                .into_iter()
+                .map(parse_expression)
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let having = having_clause.as_deref().map(parse_expression).transpose()?;
     let order = order_clause.as_deref().map(parse_order_by).transpose()?;
 
     Ok(ParsedStatement {
@@ -1850,13 +1918,51 @@ fn parse_select_statement(
             source,
             ctes: withs,
             recursive,
+            distinct,
             projection,
             filter,
+            group_by,
+            having,
             order: order.unwrap_or_default(),
             limit: limit_clause,
             offset: offset_clause,
+            set: None,
         }),
     })
+}
+
+fn parse_set_select_statement(
+    trimmed: &str,
+    withs: Vec<CommonTableExpression>,
+    recursive: bool,
+    union_pos: usize,
+    operator: SetOperator,
+) -> Result<ParsedStatement, SqlError> {
+    let token_len = match operator {
+        SetOperator::Union => "union".len(),
+        SetOperator::UnionAll => "union all".len(),
+    };
+    let left_sql = trimmed[..union_pos].trim();
+    let right_sql = trimmed[union_pos + token_len..].trim();
+    if left_sql.is_empty() || right_sql.is_empty() {
+        return Err(SqlError(
+            "set operation requires both SELECT operands".into(),
+        ));
+    }
+
+    let mut left = parse_select_statement(left_sql, withs, recursive)?;
+    let right = parse_select_statement(right_sql, Vec::new(), false)?;
+    let QueryStatement::Select(left_select) = &mut left.statement else {
+        return Err(SqlError("set operation requires SELECT operands".into()));
+    };
+    let QueryStatement::Select(right_select) = right.statement else {
+        return Err(SqlError("set operation requires SELECT operands".into()));
+    };
+    left_select.set = Some(Box::new(SelectSet {
+        operator,
+        right: Box::new(right_select),
+    }));
+    Ok(left)
 }
 
 fn parse_cte_definitions(
@@ -2381,6 +2487,8 @@ fn parse_alias(raw: &str) -> (&str, Option<String>) {
 #[derive(Debug, Clone, Copy)]
 enum Clause {
     Where,
+    Group,
+    Having,
     Order,
     Limit,
     Offset,
@@ -2390,6 +2498,8 @@ impl Clause {
     fn token(self) -> &'static str {
         match self {
             Self::Where => "where",
+            Self::Group => "group by",
+            Self::Having => "having",
             Self::Order => "order by",
             Self::Limit => "limit",
             Self::Offset => "offset",
@@ -2399,6 +2509,8 @@ impl Clause {
     fn name(self) -> &'static str {
         match self {
             Self::Where => "WHERE",
+            Self::Group => "GROUP BY",
+            Self::Having => "HAVING",
             Self::Order => "ORDER BY",
             Self::Limit => "LIMIT",
             Self::Offset => "OFFSET",
@@ -2432,12 +2544,11 @@ fn parse_clauses(rest: &str) -> Result<Vec<ClauseMatch>, SqlError> {
 
     for token in [
         ("where", ClauseToken::Recognized(Clause::Where)),
+        ("group by", ClauseToken::Recognized(Clause::Group)),
+        ("having", ClauseToken::Recognized(Clause::Having)),
         ("order by", ClauseToken::Recognized(Clause::Order)),
         ("limit", ClauseToken::Recognized(Clause::Limit)),
         ("offset", ClauseToken::Recognized(Clause::Offset)),
-        ("group by", ClauseToken::Unsupported("GROUP BY")),
-        ("having", ClauseToken::Unsupported("HAVING")),
-        ("union", ClauseToken::Unsupported("UNION")),
         ("intersect", ClauseToken::Unsupported("INTERSECT")),
         ("except", ClauseToken::Unsupported("EXCEPT")),
     ] {

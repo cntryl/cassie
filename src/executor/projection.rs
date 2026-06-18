@@ -38,6 +38,15 @@ where
                         .as_deref()
                         .unwrap_or(function.name.as_str())
                         .to_string();
+                    if crate::sql::functions::is_aggregate_function(&function.name) {
+                        let value = row
+                            .get(&key)
+                            .or_else(|| row.get(&function.name))
+                            .cloned()
+                            .unwrap_or(Value::Null);
+                        projected.push((key, value));
+                        continue;
+                    }
                     let value = filter::evaluate_expr_value(
                         &row,
                         &crate::sql::ast::Expr::Function(function.clone()),

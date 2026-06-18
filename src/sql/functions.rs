@@ -17,6 +17,17 @@ pub struct ScalarFunction {
     pub arity: usize,
 }
 
+pub fn is_aggregate_function(name: &str) -> bool {
+    aggregate_arity(name).is_some()
+}
+
+pub fn aggregate_arity(name: &str) -> Option<usize> {
+    match name.to_ascii_lowercase().as_str() {
+        "count" | "sum" | "avg" | "min" | "max" => Some(1),
+        _ => None,
+    }
+}
+
 pub fn registry() -> Vec<ScalarFunction> {
     vec![
         ScalarFunction {

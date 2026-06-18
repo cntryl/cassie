@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Instant;
@@ -12,7 +12,10 @@ use crate::executor::{aggregate, filter, projection, scan, sort};
 use crate::planner::logical::{LogicalCommand, LogicalPlan};
 use crate::planner::physical::PhysicalPlan;
 use crate::runtime::QueryExecutionControls;
-use crate::sql::ast::{CommonTableExpression, CteQuery, Expr, InsertSource, JoinKind, QuerySource};
+use crate::sql::ast::{
+    CommonTableExpression, CteQuery, Expr, FunctionCall, InsertSource, JoinKind, QuerySource,
+    SelectItem, SelectSet, SelectStatement, SetOperator,
+};
 use crate::types::{DataType, FieldSchema, Schema, Value};
 
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
@@ -661,11 +664,15 @@ async fn insert_source_rows(
                     QuerySource::Join { .. } => "join".to_string(),
                 },
                 ctes: select.ctes.clone(),
+                distinct: select.distinct,
                 projection: select.projection.clone(),
                 filter: select.filter.clone(),
+                group_by: select.group_by.clone(),
+                having: select.having.clone(),
                 order: select.order.clone(),
                 limit: select.limit,
                 offset: select.offset,
+                set: select.set.clone(),
             };
             let mut cte_context = CteContext::new();
             let rows = execute_plan(
@@ -1532,11 +1539,15 @@ fn execute_query_source<'a>(
                     source: select.source.clone(),
                     collection: alias.clone(),
                     ctes: select.ctes.clone(),
+                    distinct: select.distinct,
                     projection: select.projection.clone(),
                     filter: select.filter.clone(),
+                    group_by: select.group_by.clone(),
+                    having: select.having.clone(),
                     order: select.order.clone(),
                     limit: select.limit,
                     offset: select.offset,
+                    set: select.set.clone(),
                 };
                 let mut subquery_context = cte_context.clone();
                 let rows = execute_plan(
@@ -1663,6 +1674,545 @@ fn row_columns(rows: &[BatchRow]) -> Vec<String> {
     columns
 }
 
+#[derive(Clone)]
+struct AggregateSpec {
+    function: FunctionCall,
+    output_names: Vec<String>,
+}
+
+fn aggregate_query_batches(
+    batches: Vec<Batch>,
+    plan: &LogicalPlan,
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+) -> Result<Vec<Batch>, QueryError> {
+    let rows = batch::flatten_batches(batches);
+    let specs = aggregate_specs(plan);
+    let mut groups = BTreeMap::<String, (Vec<(String, Value)>, Vec<BatchRow>)>::new();
+
+    for row in rows {
+        let group_values = plan
+            .group_by
+            .iter()
+            .map(|expr| {
+                let name = group_expr_name(expr);
+                let value = filter::evaluate_expr_value(
+                    &row,
+                    expr,
+                    params,
+                    search_context,
+                    user_functions,
+                    None,
+                )?;
+                Ok((name, value))
+            })
+            .collect::<Result<Vec<_>, QueryError>>()?;
+        let signature = if group_values.is_empty() {
+            "__all__".to_string()
+        } else {
+            group_values
+                .iter()
+                .map(|(_, value)| value_sort_key(value))
+                .collect::<Vec<_>>()
+                .join("|")
+        };
+        groups
+            .entry(signature)
+            .or_insert_with(|| (group_values, Vec::new()))
+            .1
+            .push(row);
+    }
+
+    if groups.is_empty() && plan.group_by.is_empty() {
+        groups.insert("__all__".to_string(), (Vec::new(), Vec::new()));
+    }
+
+    let mut out = Vec::with_capacity(groups.len());
+    for (_signature, (group_values, group_rows)) in groups {
+        let mut values = group_values;
+        for spec in &specs {
+            let value = evaluate_aggregate(
+                &spec.function,
+                &group_rows,
+                params,
+                search_context,
+                user_functions,
+            )?;
+            for name in &spec.output_names {
+                values.push((name.clone(), value.clone()));
+            }
+        }
+        out.push(BatchRow::new(values));
+    }
+
+    Ok(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE))
+}
+
+fn aggregate_specs(plan: &LogicalPlan) -> Vec<AggregateSpec> {
+    let mut specs = Vec::<AggregateSpec>::new();
+    for item in &plan.projection {
+        if let SelectItem::Function { function, alias } = item {
+            register_aggregate_spec(&mut specs, function, alias.clone());
+        }
+    }
+    if let Some(having) = &plan.having {
+        collect_aggregate_specs_from_expr(having, &mut specs);
+    }
+    for order in &plan.order {
+        collect_aggregate_specs_from_expr(&order.expr, &mut specs);
+    }
+    specs
+}
+
+fn register_aggregate_spec(
+    specs: &mut Vec<AggregateSpec>,
+    function: &FunctionCall,
+    alias: Option<String>,
+) {
+    if !crate::sql::functions::is_aggregate_function(&function.name) {
+        return;
+    }
+    let signature = aggregate_signature(function);
+    let output_name = alias.unwrap_or_else(|| function.name.clone());
+    if let Some(existing) = specs
+        .iter_mut()
+        .find(|spec| aggregate_signature(&spec.function) == signature)
+    {
+        if !existing.output_names.contains(&output_name) {
+            existing.output_names.push(output_name);
+        }
+        return;
+    }
+    let mut output_names = vec![function.name.clone()];
+    if !output_names.contains(&output_name) {
+        output_names.push(output_name);
+    }
+    specs.push(AggregateSpec {
+        function: function.clone(),
+        output_names,
+    });
+}
+
+fn collect_aggregate_specs_from_expr(expr: &Expr, specs: &mut Vec<AggregateSpec>) {
+    match expr {
+        Expr::Function(function) => register_aggregate_spec(specs, function, None),
+        Expr::Binary { left, right, .. } => {
+            collect_aggregate_specs_from_expr(left, specs);
+            collect_aggregate_specs_from_expr(right, specs);
+        }
+        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } => {
+            collect_aggregate_specs_from_expr(expr, specs);
+        }
+        Expr::InList { expr, values, .. } => {
+            collect_aggregate_specs_from_expr(expr, specs);
+            for value in values {
+                collect_aggregate_specs_from_expr(value, specs);
+            }
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            collect_aggregate_specs_from_expr(expr, specs);
+            collect_aggregate_specs_from_expr(low, specs);
+            collect_aggregate_specs_from_expr(high, specs);
+        }
+        Expr::Exists(_)
+        | Expr::Column(_)
+        | Expr::Param(_)
+        | Expr::Null
+        | Expr::BoolLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::StringLiteral(_) => {}
+    }
+}
+
+fn evaluate_aggregate(
+    function: &FunctionCall,
+    rows: &[BatchRow],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+) -> Result<Value, QueryError> {
+    let name = function.name.to_ascii_lowercase();
+    match name.as_str() {
+        "count" => Ok(Value::Int64(count_aggregate(
+            function,
+            rows,
+            params,
+            search_context,
+            user_functions,
+        )?)),
+        "sum" => sum_aggregate(function, rows, params, search_context, user_functions),
+        "avg" => avg_aggregate(function, rows, params, search_context, user_functions),
+        "min" => minmax_aggregate(
+            function,
+            rows,
+            params,
+            search_context,
+            user_functions,
+            false,
+        ),
+        "max" => minmax_aggregate(function, rows, params, search_context, user_functions, true),
+        _ => Ok(Value::Null),
+    }
+}
+
+fn count_aggregate(
+    function: &FunctionCall,
+    rows: &[BatchRow],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+) -> Result<i64, QueryError> {
+    if matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*") {
+        return Ok(rows.len() as i64);
+    }
+    let mut count = 0i64;
+    for row in rows {
+        let value = filter::evaluate_expr_value(
+            row,
+            &function.args[0],
+            params,
+            search_context,
+            user_functions,
+            None,
+        )?;
+        if !matches!(value, Value::Null) {
+            count += 1;
+        }
+    }
+    Ok(count)
+}
+
+fn sum_aggregate(
+    function: &FunctionCall,
+    rows: &[BatchRow],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+) -> Result<Value, QueryError> {
+    let mut sum = 0.0;
+    let mut all_int = true;
+    let mut seen = false;
+    for row in rows {
+        match filter::evaluate_expr_value(
+            row,
+            &function.args[0],
+            params,
+            search_context,
+            user_functions,
+            None,
+        )? {
+            Value::Int64(value) => {
+                sum += value as f64;
+                seen = true;
+            }
+            Value::Float64(value) => {
+                sum += value;
+                all_int = false;
+                seen = true;
+            }
+            Value::Null => {}
+            _ => all_int = false,
+        }
+    }
+    if !seen {
+        return Ok(Value::Null);
+    }
+    if all_int {
+        Ok(Value::Int64(sum as i64))
+    } else {
+        Ok(Value::Float64(sum))
+    }
+}
+
+fn avg_aggregate(
+    function: &FunctionCall,
+    rows: &[BatchRow],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+) -> Result<Value, QueryError> {
+    let mut sum = 0.0;
+    let mut count = 0.0;
+    for row in rows {
+        match filter::evaluate_expr_value(
+            row,
+            &function.args[0],
+            params,
+            search_context,
+            user_functions,
+            None,
+        )? {
+            Value::Int64(value) => {
+                sum += value as f64;
+                count += 1.0;
+            }
+            Value::Float64(value) => {
+                sum += value;
+                count += 1.0;
+            }
+            _ => {}
+        }
+    }
+    if count == 0.0 {
+        Ok(Value::Null)
+    } else {
+        Ok(Value::Float64(sum / count))
+    }
+}
+
+fn minmax_aggregate(
+    function: &FunctionCall,
+    rows: &[BatchRow],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    max: bool,
+) -> Result<Value, QueryError> {
+    let mut selected: Option<Value> = None;
+    for row in rows {
+        let value = filter::evaluate_expr_value(
+            row,
+            &function.args[0],
+            params,
+            search_context,
+            user_functions,
+            None,
+        )?;
+        if matches!(value, Value::Null) {
+            continue;
+        }
+        let replace = selected
+            .as_ref()
+            .map(|current| {
+                let current_key = value_sort_key(current);
+                let value_key = value_sort_key(&value);
+                if max {
+                    value_key > current_key
+                } else {
+                    value_key < current_key
+                }
+            })
+            .unwrap_or(true);
+        if replace {
+            selected = Some(value);
+        }
+    }
+    Ok(selected.unwrap_or(Value::Null))
+}
+
+fn rewrite_aggregate_expr(expr: &Expr) -> Expr {
+    match expr {
+        Expr::Function(function)
+            if crate::sql::functions::is_aggregate_function(&function.name) =>
+        {
+            Expr::Column(function.name.clone())
+        }
+        Expr::Binary { left, op, right } => Expr::Binary {
+            left: Box::new(rewrite_aggregate_expr(left)),
+            op: op.clone(),
+            right: Box::new(rewrite_aggregate_expr(right)),
+        },
+        Expr::IsNull { expr, negated } => Expr::IsNull {
+            expr: Box::new(rewrite_aggregate_expr(expr)),
+            negated: *negated,
+        },
+        Expr::InList {
+            expr,
+            values,
+            negated,
+        } => Expr::InList {
+            expr: Box::new(rewrite_aggregate_expr(expr)),
+            values: values.iter().map(rewrite_aggregate_expr).collect(),
+            negated: *negated,
+        },
+        Expr::Between {
+            expr,
+            low,
+            high,
+            negated,
+        } => Expr::Between {
+            expr: Box::new(rewrite_aggregate_expr(expr)),
+            low: Box::new(rewrite_aggregate_expr(low)),
+            high: Box::new(rewrite_aggregate_expr(high)),
+            negated: *negated,
+        },
+        Expr::Cast { expr, data_type } => Expr::Cast {
+            expr: Box::new(rewrite_aggregate_expr(expr)),
+            data_type: data_type.clone(),
+        },
+        Expr::Exists(_)
+        | Expr::Function(_)
+        | Expr::Column(_)
+        | Expr::Param(_)
+        | Expr::Null
+        | Expr::BoolLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::StringLiteral(_) => expr.clone(),
+    }
+}
+
+fn distinct_batches(batches: Vec<Batch>) -> Vec<Batch> {
+    let mut rows = BTreeMap::<String, BatchRow>::new();
+    for row in batch::flatten_batches(batches) {
+        rows.entry(row_signature(&row)).or_insert(row);
+    }
+    batch::chunk_rows(rows.into_values().collect(), batch::DEFAULT_BATCH_SIZE)
+}
+
+fn apply_set_operation(
+    left: Vec<BatchRow>,
+    right: Vec<BatchRow>,
+    set: &SelectSet,
+) -> Result<Vec<BatchRow>, QueryError> {
+    validate_set_width(&left, &right)?;
+    let mut rows = left;
+    rows.extend(right);
+    match set.operator {
+        SetOperator::UnionAll => {
+            rows.sort_by_key(row_signature);
+            Ok(rows)
+        }
+        SetOperator::Union => {
+            let mut unique = BTreeMap::<String, BatchRow>::new();
+            for row in rows {
+                unique.entry(row_signature(&row)).or_insert(row);
+            }
+            Ok(unique.into_values().collect())
+        }
+    }
+}
+
+fn validate_set_width(left: &[BatchRow], right: &[BatchRow]) -> Result<(), QueryError> {
+    let left_width = left.first().map(|row| row.entries().len());
+    let right_width = right.first().map(|row| row.entries().len());
+    if let (Some(left_width), Some(right_width)) = (left_width, right_width) {
+        if left_width != right_width {
+            return Err(QueryError::General(format!(
+                "set operation column count mismatch: {left_width} != {right_width}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan {
+    LogicalPlan {
+        command: None,
+        source: select.source.clone(),
+        collection: execution_source_name(&select.source),
+        ctes: select.ctes.clone(),
+        distinct: select.distinct,
+        projection: select.projection.clone(),
+        filter: select.filter.clone(),
+        group_by: select.group_by.clone(),
+        having: select.having.clone(),
+        order: select.order.clone(),
+        limit: select.limit,
+        offset: select.offset,
+        set: select.set.clone(),
+    }
+}
+
+fn execution_source_name(source: &QuerySource) -> String {
+    match source {
+        QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
+        QuerySource::Subquery { alias, .. } => alias.clone(),
+        QuerySource::Join { .. } => "join".to_string(),
+    }
+}
+
+fn plan_uses_aggregate(plan: &LogicalPlan) -> bool {
+    !plan.group_by.is_empty()
+        || plan.having.is_some()
+        || plan.projection.iter().any(|item| match item {
+            SelectItem::Function { function, .. } => {
+                crate::sql::functions::is_aggregate_function(&function.name)
+            }
+            SelectItem::Wildcard | SelectItem::Column { .. } => false,
+        })
+}
+
+fn group_expr_name(expr: &Expr) -> String {
+    match expr {
+        Expr::Column(name) => name.clone(),
+        _ => expr_key(expr),
+    }
+}
+
+fn aggregate_signature(function: &FunctionCall) -> String {
+    format!(
+        "{}({})",
+        function.name.to_ascii_lowercase(),
+        function
+            .args
+            .iter()
+            .map(expr_key)
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
+fn expr_key(expr: &Expr) -> String {
+    match expr {
+        Expr::Column(name) => name.clone(),
+        Expr::Param(index) => format!("${}", index + 1),
+        Expr::Null => "null".to_string(),
+        Expr::BoolLiteral(value) => value.to_string(),
+        Expr::NumberLiteral(value) => value.to_string(),
+        Expr::StringLiteral(value) => format!("'{value}'"),
+        Expr::Function(function) => aggregate_signature(function),
+        Expr::Binary { left, op, right } => {
+            format!("{}{:?}{}", expr_key(left), op, expr_key(right))
+        }
+        Expr::IsNull { expr, negated } => {
+            format!(
+                "{} is{} null",
+                expr_key(expr),
+                if *negated { " not" } else { "" }
+            )
+        }
+        Expr::InList {
+            expr,
+            values,
+            negated,
+        } => format!(
+            "{}{} in ({})",
+            expr_key(expr),
+            if *negated { " not" } else { "" },
+            values.iter().map(expr_key).collect::<Vec<_>>().join(",")
+        ),
+        Expr::Between {
+            expr,
+            low,
+            high,
+            negated,
+        } => format!(
+            "{}{} between {} and {}",
+            expr_key(expr),
+            if *negated { " not" } else { "" },
+            expr_key(low),
+            expr_key(high)
+        ),
+        Expr::Cast { expr, data_type } => format!("{}::{data_type:?}", expr_key(expr)),
+        Expr::Exists(_) => "exists".to_string(),
+    }
+}
+
+fn value_sort_key(value: &Value) -> String {
+    match value {
+        Value::Null => "0:null".to_string(),
+        Value::Bool(value) => format!("1:{value}"),
+        Value::Int64(value) => format!("2:{value:020}"),
+        Value::Float64(value) => format!("3:{value:020.12}"),
+        Value::String(value) => format!("4:{value}"),
+        Value::Vector(value) => format!("5:{:?}", value.values),
+        Value::Json(value) => format!("6:{value}"),
+    }
+}
+
 async fn execute_source_query(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -1748,6 +2298,28 @@ async fn execute_source_query(
         ensure_temp_budget(controls, &batches)?;
     }
 
+    if plan_uses_aggregate(plan) {
+        batches = aggregate_query_batches(
+            batches,
+            plan,
+            params,
+            search_context.as_ref(),
+            user_functions,
+        )?;
+        ensure_temp_budget(controls, &batches)?;
+        if let Some(having) = &plan.having {
+            let having = rewrite_aggregate_expr(having);
+            batches = filter::filter_batches(
+                batches,
+                &having,
+                params,
+                search_context.as_ref(),
+                user_functions,
+            )?;
+            ensure_temp_budget(controls, &batches)?;
+        }
+    }
+
     if !plan.order.is_empty() {
         batches = sort::sort_batches(
             batches,
@@ -1769,6 +2341,11 @@ async fn execute_source_query(
     )?;
     ensure_temp_budget(controls, &batches)?;
 
+    if plan.distinct {
+        batches = distinct_batches(batches);
+        ensure_temp_budget(controls, &batches)?;
+    }
+
     if let Some(offset) = plan.offset {
         let offset = offset.max(0) as usize;
         let limit = plan.limit.map(|value| value.max(0) as usize);
@@ -1778,7 +2355,22 @@ async fn execute_source_query(
         batches = batch::slice_batches(batches, 0, Some(limit));
     }
 
-    let rows = batch::flatten_batches(batches);
+    let mut rows = batch::flatten_batches(batches);
+    if let Some(set) = &plan.set {
+        let right_plan = logical_plan_from_select(&set.right);
+        let right_rows = Box::pin(execute_plan(
+            cassie,
+            session,
+            &right_plan,
+            cte_context,
+            user_functions,
+            params,
+            controls,
+        ))
+        .await?;
+        rows = apply_set_operation(rows, right_rows, set)?;
+    }
+
     let elapsed = started_at.elapsed();
     if !fulltext_fields.is_empty() {
         cassie

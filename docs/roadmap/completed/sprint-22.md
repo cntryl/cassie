@@ -1,7 +1,7 @@
 # Sprint 22 - Joins and FROM Subqueries
 
 Previous: [Sprint 21 - Relational Predicates and Scalar SQL](sprint-21.md)
-Next: [Sprint 23 - Aggregates, DISTINCT, and Set Operations](../sprint-23.md)
+Next: [Sprint 23 - Aggregates, DISTINCT, and Set Operations](sprint-23.md)
 
 ## Goal
 

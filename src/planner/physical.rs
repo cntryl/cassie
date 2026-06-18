@@ -1,5 +1,5 @@
 use crate::planner::logical::LogicalPlan;
-use crate::sql::ast::QuerySource;
+use crate::sql::ast::{QuerySource, SelectItem};
 
 #[derive(Debug, Clone)]
 pub enum Operator {
@@ -12,6 +12,9 @@ pub enum Operator {
     VectorSearch,
     FullTextSearch,
     Join,
+    Aggregate,
+    Distinct,
+    SetOperation,
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +39,15 @@ pub fn build(plan: LogicalPlan) -> PhysicalPlan {
     }
     if plan.filter.is_some() {
         operators.push(Operator::Filter);
+    }
+    if plan_uses_aggregate(&plan) {
+        operators.push(Operator::Aggregate);
+    }
+    if plan.distinct {
+        operators.push(Operator::Distinct);
+    }
+    if plan.set.is_some() {
+        operators.push(Operator::SetOperation);
     }
     if !plan.order.is_empty() {
         operators.push(Operator::Sort);
@@ -62,4 +74,15 @@ fn source_contains_join(source: &QuerySource) -> bool {
         QuerySource::Subquery { select, .. } => source_contains_join(&select.source),
         QuerySource::Collection(_) | QuerySource::Cte(_) => false,
     }
+}
+
+fn plan_uses_aggregate(plan: &LogicalPlan) -> bool {
+    !plan.group_by.is_empty()
+        || plan.having.is_some()
+        || plan.projection.iter().any(|item| match item {
+            SelectItem::Function { function, .. } => {
+                crate::sql::functions::is_aggregate_function(&function.name)
+            }
+            SelectItem::Wildcard | SelectItem::Column { .. } => false,
+        })
 }

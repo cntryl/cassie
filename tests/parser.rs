@@ -2,7 +2,7 @@ use cassie::app::Cassie;
 use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::sql::ast::{
     BinaryOp, CteQuery, Expr, InsertSource, JoinKind, QuerySource, QueryStatement, SelectItem,
-    SortDirection,
+    SetOperator, SortDirection,
 };
 use cassie::sql::parse_statement;
 use cassie::types::{DataType, FieldSchema, Schema};
@@ -853,9 +853,95 @@ fn should_reject_unsupported_lateral_source() {
 }
 
 #[test]
+fn should_parse_distinct_select() {
+    // Arrange
+    let sql = "SELECT DISTINCT category FROM docs";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(statement.distinct);
+}
+
+#[test]
+fn should_parse_group_by_with_having() {
+    // Arrange
+    let sql = "SELECT category, COUNT(*) AS total FROM docs GROUP BY category HAVING COUNT(*) > 1";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert_eq!(statement.group_by.len(), 1);
+    assert!(statement.having.is_some());
+}
+
+#[test]
+fn should_parse_union_all_select() {
+    // Arrange
+    let sql = "SELECT title FROM left_docs UNION ALL SELECT title FROM right_docs";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    let set = statement.set.expect("set clause should exist");
+    assert!(matches!(set.operator, SetOperator::UnionAll));
+}
+
+#[test]
+fn should_reject_unsupported_intersect_query() {
+    // Arrange
+    let sql = "SELECT title FROM left_docs INTERSECT SELECT title FROM right_docs";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+    assert!(parsed.unwrap_err().0.contains("unsupported set operation"));
+}
+
+#[test]
+fn should_reject_unsupported_window_function_query() {
+    // Arrange
+    let sql = "SELECT COUNT(*) OVER () FROM docs";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+    assert!(parsed.unwrap_err().0.contains("window function"));
+}
+
+#[test]
+fn should_reject_unsupported_grouping_sets_query() {
+    // Arrange
+    let sql = "SELECT category, COUNT(*) FROM docs GROUP BY GROUPING SETS (category)";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+    assert!(parsed.unwrap_err().0.contains("GROUP BY"));
+}
+
+#[test]
 fn should_reject_unknown_clause_in_query() {
     // Arrange
-    let sql = "SELECT * FROM docs GROUP BY title";
+    let sql = "SELECT * FROM docs WINDOW ranked AS (PARTITION BY title)";
 
     // Act
     let parsed = parse_statement(sql);

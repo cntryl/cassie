@@ -11,7 +11,8 @@ use crate::sql::ast::{
     AlterTableOperation, AlterTableStatement, CallProcedureStatement, CreateFunctionStatement,
     CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement, CteQuery,
     DropFunctionStatement, DropIndexStatement, DropProcedureStatement, Expr, FunctionCall,
-    InsertSource, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
+    InsertSource, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectSet,
+    SelectStatement,
 };
 use crate::types::DataType;
 
@@ -808,6 +809,7 @@ async fn bind_select(
     let mut local_names = HashSet::new();
     let mut select = select;
     let ctes = mem::take(&mut select.ctes);
+    let set = mem::take(&mut select.set);
 
     let mut bound_ctes = Vec::with_capacity(ctes.len());
     for cte in ctes {
@@ -889,7 +891,25 @@ async fn bind_select(
         &projection_aliases,
         false,
     )?;
+    for group_expr in &select.group_by {
+        validate_expression(group_expr, &known_fields, &projection_aliases, false)?;
+    }
+    validate_expression_references(
+        select.having.as_ref(),
+        &known_fields,
+        &projection_aliases,
+        false,
+    )?;
     validate_order_by_references(&select.order, &known_fields, &projection_aliases)?;
+
+    if let Some(set) = set {
+        let right = Box::pin(bind_select(*set.right, catalog, &scope)).await?;
+        select.set = Some(Box::new(SelectSet {
+            operator: set.operator,
+            right: Box::new(right),
+        }));
+    }
+
     validate_functions(&select, catalog).await?;
 
     Ok(select)
@@ -1277,6 +1297,17 @@ async fn validate_functions(
     collect_functions(statement, &mut seen);
 
     for function in seen {
+        if let Some(arity) = crate::sql::functions::aggregate_arity(&function.name) {
+            if function.args.len() != arity {
+                return Err(CassieError::Planner(format!(
+                    "aggregate function '{}' expects {} args, got {}",
+                    function.name,
+                    arity,
+                    function.args.len()
+                )));
+            }
+            continue;
+        }
         let Some(arity) = signatures.get(&function.name.to_ascii_lowercase()) else {
             return Err(CassieError::Planner(format!(
                 "unsupported function '{}'",
@@ -1312,6 +1343,10 @@ fn validate_projection_references(
                 )?;
             }
             SelectItem::Function { function, .. } => {
+                if crate::sql::functions::is_aggregate_function(&function.name) {
+                    validate_aggregate_function_args(function, known_fields)?;
+                    continue;
+                }
                 for arg in &function.args {
                     validate_expression(arg, known_fields, &HashSet::new(), false)?;
                 }
@@ -1438,6 +1473,10 @@ fn validate_expression(
         ),
         Expr::Exists(_) => Ok(()),
         Expr::Function(function) => {
+            if crate::sql::functions::is_aggregate_function(&function.name) {
+                validate_aggregate_function_args(function, known_fields)?;
+                return Ok(());
+            }
             for arg in &function.args {
                 validate_expression(
                     arg,
@@ -1456,6 +1495,32 @@ fn validate_expression(
     }
 }
 
+fn validate_aggregate_function_args(
+    function: &FunctionCall,
+    known_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    let Some(arity) = crate::sql::functions::aggregate_arity(&function.name) else {
+        return Ok(());
+    };
+    if function.args.len() != arity {
+        return Err(CassieError::Planner(format!(
+            "aggregate function '{}' expects {} args, got {}",
+            function.name,
+            arity,
+            function.args.len()
+        )));
+    }
+    if function.name.eq_ignore_ascii_case("count")
+        && matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*")
+    {
+        return Ok(());
+    }
+    for arg in &function.args {
+        validate_expression(arg, known_fields, &HashSet::new(), false)?;
+    }
+    Ok(())
+}
+
 fn collect_functions(statement: &SelectStatement, out: &mut Vec<FunctionCall>) {
     for item in &statement.projection {
         collect_item(item, out);
@@ -1463,8 +1528,17 @@ fn collect_functions(statement: &SelectStatement, out: &mut Vec<FunctionCall>) {
     if let Some(expr) = &statement.filter {
         collect_expr(expr, out);
     }
+    if let Some(expr) = &statement.having {
+        collect_expr(expr, out);
+    }
+    for expr in &statement.group_by {
+        collect_expr(expr, out);
+    }
     for order in &statement.order {
         collect_expr(&order.expr, out);
+    }
+    if let Some(set) = &statement.set {
+        collect_functions(&set.right, out);
     }
     for cte in &statement.ctes {
         match &cte.query {

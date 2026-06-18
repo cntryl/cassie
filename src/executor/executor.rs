@@ -23,6 +23,30 @@ use crate::types::{DataType, FieldSchema, Schema, Value};
 pub struct ColumnMeta {
     pub name: String,
     pub data_type: String,
+    pub type_oid: i64,
+    pub typlen: i16,
+    pub atttypmod: i32,
+    pub format_code: i16,
+    pub nullable: bool,
+}
+
+impl ColumnMeta {
+    pub fn text(name: impl Into<String>) -> Self {
+        Self::from_data_type(name, DataType::Text)
+    }
+
+    pub fn from_data_type(name: impl Into<String>, data_type: DataType) -> Self {
+        let data_type_name = data_type.type_name();
+        Self {
+            name: name.into(),
+            data_type: data_type_name,
+            type_oid: data_type.type_oid(),
+            typlen: data_type.typlen(),
+            atttypmod: data_type.atttypmod(),
+            format_code: 0,
+            nullable: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -101,7 +125,12 @@ pub(crate) async fn run_with_session_controls(
     )
     .await?;
 
-    let columns = aggregate::columns_from_projection(&plan.logical.projection);
+    let collection_schema = cassie.catalog.get_schema(&plan.logical.collection).await;
+    let columns = aggregate::columns_from_projection(
+        &plan.logical.projection,
+        collection_schema.as_ref(),
+        &user_functions,
+    );
     let rows: Vec<Vec<Value>> = rows.into_iter().map(BatchRow::into_values).collect();
 
     if rows.len() > controls.max_result_rows {
@@ -138,18 +167,12 @@ async fn execute_command(
 
             match variable.as_str() {
                 "search_path" => Ok(QueryResult {
-                    columns: vec![ColumnMeta {
-                        name: "search_path".to_string(),
-                        data_type: "text".to_string(),
-                    }],
+                    columns: vec![ColumnMeta::text("search_path")],
                     rows: vec![vec![Value::String("public".to_string())]],
                     command: "SHOW".to_string(),
                 }),
                 "server_version" => Ok(QueryResult {
-                    columns: vec![ColumnMeta {
-                        name: "server_version".to_string(),
-                        data_type: "text".to_string(),
-                    }],
+                    columns: vec![ColumnMeta::text("server_version")],
                     rows: vec![vec![Value::String(env!("CARGO_PKG_VERSION").to_string())]],
                     command: "SHOW".to_string(),
                 }),
@@ -688,8 +711,15 @@ async fn execute_insert(
         session,
     )?;
 
+    let column_schema = cassie.catalog.get_schema(&statement.table).await;
+    let columns = aggregate::columns_from_projection(
+        &statement.returning,
+        column_schema.as_ref(),
+        user_functions,
+    );
+
     Ok(QueryResult {
-        columns: aggregate::columns_from_projection(&statement.returning),
+        columns,
         rows: projected.into_iter().map(BatchRow::into_values).collect(),
         command: format!("INSERT 0 {inserted_count}"),
     })
@@ -1051,8 +1081,15 @@ async fn execute_update(
         session,
     )?;
 
+    let column_schema = cassie.catalog.get_schema(&statement.table).await;
+    let columns = aggregate::columns_from_projection(
+        &statement.returning,
+        column_schema.as_ref(),
+        user_functions,
+    );
+
     Ok(QueryResult {
-        columns: aggregate::columns_from_projection(&statement.returning),
+        columns,
         rows: projected.into_iter().map(BatchRow::into_values).collect(),
         command: format!("UPDATE {updated_count}"),
     })
@@ -1142,8 +1179,15 @@ async fn execute_delete(
         session,
     )?;
 
+    let column_schema = cassie.catalog.get_schema(&statement.table).await;
+    let columns = aggregate::columns_from_projection(
+        &statement.returning,
+        column_schema.as_ref(),
+        user_functions,
+    );
+
     Ok(QueryResult {
-        columns: aggregate::columns_from_projection(&statement.returning),
+        columns,
         rows: projected.into_iter().map(BatchRow::into_values).collect(),
         command: format!("DELETE {deleted_count}"),
     })

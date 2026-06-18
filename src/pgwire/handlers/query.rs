@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use crate::app::{Cassie, CassieSession};
-use crate::pgwire::protocol::ServerMessage;
+use crate::executor::ColumnMeta;
+use crate::pgwire::protocol::{RowDescriptionField, ServerMessage};
 use crate::types::Value;
 
 pub async fn run_simple_query(
@@ -14,7 +15,11 @@ pub async fn run_simple_query(
         Ok(result) => {
             let mut out = Vec::new();
             out.push(ServerMessage::RowDescription(
-                result.columns.into_iter().map(|c| c.name).collect(),
+                result
+                    .columns
+                    .into_iter()
+                    .map(RowDescriptionField::from)
+                    .collect(),
             ));
             for row in result.rows {
                 out.push(ServerMessage::DataRow(
@@ -31,7 +36,7 @@ pub async fn run_simple_query(
 pub async fn describe_query(
     cassie: &Cassie,
     sql: &str,
-) -> Result<Vec<String>, crate::app::CassieError> {
+) -> Result<Vec<ColumnMeta>, crate::app::CassieError> {
     cassie.describe_sql(sql).await
 }
 

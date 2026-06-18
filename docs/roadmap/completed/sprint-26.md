@@ -1,7 +1,7 @@
 # Sprint 26 - Type Catalog and SQL Casts
 
 Previous: [Sprint 25 - Catalog Compatibility Probes](sprint-25.md)
-Next: [Sprint 27 - Wire Type Metadata Policy](sprint-27.md)
+Next: [Sprint 27 - Wire Type Metadata Policy](completed/sprint-27.md)
 
 ## Goal
 

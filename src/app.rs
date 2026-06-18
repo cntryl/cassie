@@ -392,7 +392,10 @@ impl Cassie {
             .await
     }
 
-    pub async fn describe_sql(&self, sql: &str) -> Result<Vec<String>, CassieError> {
+    pub async fn describe_sql(
+        &self,
+        sql: &str,
+    ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
         let parsed = parser::parse_statement(sql)?;
         if matches!(parsed.statement, QueryStatement::Transaction(_)) {
             return Ok(Vec::new());
@@ -421,16 +424,24 @@ impl Cassie {
             physical
         };
 
+        let user_functions = self
+            .catalog
+            .list_functions()
+            .await
+            .into_iter()
+            .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
+            .collect::<std::collections::HashMap<String, _>>();
+        let collection_schema = self.catalog.get_schema(&physical.logical.collection).await;
+
         if physical.logical.command.is_some() {
             return Ok(Vec::new());
         }
 
-        Ok(
-            crate::executor::columns_from_projection(&physical.logical.projection)
-                .into_iter()
-                .map(|column| column.name)
-                .collect(),
-        )
+        Ok(crate::executor::columns_from_projection(
+            &physical.logical.projection,
+            collection_schema.as_ref(),
+            &user_functions,
+        ))
     }
 
     pub(crate) async fn execute_sql_with_mode(

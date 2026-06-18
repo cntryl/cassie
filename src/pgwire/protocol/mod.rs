@@ -34,12 +34,37 @@ pub enum ServerMessage {
     ParseComplete,
     BindComplete,
     CloseComplete,
-    RowDescription(Vec<String>),
+    RowDescription(Vec<RowDescriptionField>),
     DataRow(Vec<String>),
     CommandComplete(String),
     ReadyForQuery,
     ErrorResponse(String),
     SyncComplete,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct RowDescriptionField {
+    pub name: String,
+    pub data_type: String,
+    pub type_oid: i64,
+    pub typlen: i16,
+    pub atttypmod: i32,
+    pub format_code: i16,
+    pub nullable: bool,
+}
+
+impl From<crate::executor::ColumnMeta> for RowDescriptionField {
+    fn from(column: crate::executor::ColumnMeta) -> Self {
+        Self {
+            name: column.name,
+            data_type: column.data_type,
+            type_oid: column.type_oid,
+            typlen: column.typlen,
+            atttypmod: column.atttypmod,
+            format_code: column.format_code,
+            nullable: column.nullable,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -89,7 +114,10 @@ impl ServerMessage {
             ServerMessage::ParseComplete => "PARSE_OK".to_string(),
             ServerMessage::BindComplete => "BIND_OK".to_string(),
             ServerMessage::CloseComplete => "CLOSE_OK".to_string(),
-            ServerMessage::RowDescription(cols) => format!("ROWDESC {}", cols.join(",")),
+            ServerMessage::RowDescription(cols) => {
+                let payload = serde_json::to_string(cols).unwrap_or_else(|_| "[]".to_string());
+                format!("ROWDESC {payload}")
+            }
             ServerMessage::DataRow(values) => format!("DATAROW {}", values.join("\t")),
             ServerMessage::CommandComplete(msg) => format!("DONE {}", msg),
             ServerMessage::ReadyForQuery => "READY_FOR_QUERY".to_string(),

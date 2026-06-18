@@ -68,6 +68,30 @@ impl DataType {
             Self::Array(inner) => OID_ARRAY_BASE + (inner.type_oid() % 10000),
         }
     }
+
+    pub fn typlen(&self) -> i16 {
+        match self {
+            Self::Null => 0,
+            Self::Int => 8,
+            Self::Float => 8,
+            Self::Boolean => 1,
+            Self::Text => -1,
+            Self::Uuid => 16,
+            Self::Date => 4,
+            Self::Time => 8,
+            Self::Timestamp => 8,
+            Self::Vector(_) => -1,
+            Self::Json => -1,
+            Self::Array(_) => -1,
+        }
+    }
+
+    pub fn atttypmod(&self) -> i32 {
+        match self {
+            Self::Vector(_) => -1,
+            _ => -1,
+        }
+    }
 }
 
 fn parse_sql_type(raw: &str) -> Result<DataType, String> {

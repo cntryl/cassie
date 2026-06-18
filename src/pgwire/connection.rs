@@ -9,7 +9,8 @@ use crate::config::CassieRuntimeConfig;
 use crate::pgwire::auth;
 use crate::pgwire::handlers::query;
 use crate::pgwire::protocol::{
-    decode, encode, ClientMessage, Portal, PreparedStatement, ReadyState, ServerMessage, WireError,
+    decode, encode, ClientMessage, Portal, PreparedStatement, ReadyState, RowDescriptionField,
+    ServerMessage, WireError,
 };
 use crate::runtime::ExecutionMode;
 use crate::types::Value;
@@ -224,7 +225,9 @@ pub async fn run_connection(
                     }
                 };
                 match query::describe_query(&cassie, &prepared_query).await {
-                    Ok(columns) => response.push(ServerMessage::RowDescription(columns)),
+                    Ok(columns) => response.push(ServerMessage::RowDescription(
+                        columns.into_iter().map(RowDescriptionField::from).collect(),
+                    )),
                     Err(error) => {
                         runtime.record_pgwire_protocol_error();
                         response.push(ServerMessage::ErrorResponse(error.to_string()))
@@ -287,7 +290,11 @@ pub async fn run_connection(
                             result.rows = result.rows.into_iter().take(limit).collect();
                         }
                         response.push(ServerMessage::RowDescription(
-                            result.columns.into_iter().map(|c| c.name).collect(),
+                            result
+                                .columns
+                                .into_iter()
+                                .map(RowDescriptionField::from)
+                                .collect(),
                         ));
                         for row in result.rows {
                             response.push(ServerMessage::DataRow(

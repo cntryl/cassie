@@ -1,5 +1,5 @@
 use cassie::app::Cassie;
-use cassie::types::Value;
+use cassie::types::{DataType, Value};
 use std::env;
 use uuid::Uuid;
 
@@ -137,6 +137,11 @@ fn should_return_search_path_from_show_statement() {
             vec![cassie::executor::ColumnMeta {
                 name: "search_path".to_string(),
                 data_type: "text".to_string(),
+                type_oid: DataType::Text.type_oid(),
+                typlen: DataType::Text.typlen(),
+                atttypmod: DataType::Text.atttypmod(),
+                format_code: 0,
+                nullable: true,
             }]
         );
         assert_eq!(result.rows, vec![vec![Value::String("public".to_string())]]);

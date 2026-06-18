@@ -1,4 +1,4 @@
-use cassie::pgwire::protocol::{decode, encode, ClientMessage, ServerMessage};
+use cassie::pgwire::protocol::{decode, encode, ClientMessage, RowDescriptionField, ServerMessage};
 
 #[test]
 fn should_decode_basic_protocol_messages() {
@@ -8,9 +8,32 @@ fn should_decode_basic_protocol_messages() {
 
     // Act
     let encoded = encode(&ServerMessage::RowDescription(vec![
-        "id".to_string(),
-        "score".to_string(),
+        RowDescriptionField {
+            name: "id".to_string(),
+            data_type: "text".to_string(),
+            type_oid: 25,
+            typlen: -1,
+            atttypmod: -1,
+            format_code: 0,
+            nullable: true,
+        },
+        RowDescriptionField {
+            name: "score".to_string(),
+            data_type: "float".to_string(),
+            type_oid: 701,
+            typlen: 8,
+            atttypmod: -1,
+            format_code: 0,
+            nullable: true,
+        },
     ]));
+    let raw = String::from_utf8_lossy(&encoded);
+    let payload = raw
+        .strip_prefix("ROWDESC ")
+        .and_then(|value| value.strip_suffix('\n'))
+        .unwrap_or_default();
+    let decoded: Vec<RowDescriptionField> =
+        serde_json::from_str(payload).expect("row description payload should be valid json");
 
     // Assert
     let ClientMessage::Startup { user, database } = startup else {
@@ -23,7 +46,8 @@ fn should_decode_basic_protocol_messages() {
         panic!("expected query message");
     };
     assert_eq!(sql, "select 1");
-    assert!(String::from_utf8_lossy(&encoded).starts_with("ROWDESC id,score"));
+    assert_eq!(decoded[0].name, "id");
+    assert_eq!(decoded[1].type_oid, 701);
     assert_eq!(encoded.last(), Some(&b'\n'));
 }
 

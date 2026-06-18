@@ -1,0 +1,283 @@
+use cassie::app::Cassie;
+use cassie::types::Value;
+use std::path::PathBuf;
+use uuid::Uuid;
+
+fn with_fallback() {
+    if std::env::var("CASSIE_EMBEDDINGS_PROVIDER").is_err() {
+        std::env::set_var("CASSIE_EMBEDDINGS_PROVIDER", "fallback");
+    }
+}
+
+fn data_dir(name: &str) -> PathBuf {
+    std::env::temp_dir().join(format!("cassie-catalog-{name}-{}", Uuid::new_v4()))
+}
+
+#[test]
+fn should_list_user_tables_through_information_schema() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("tables");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE catalog_tables_docs (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT table_name FROM information_schema.tables WHERE table_name = 'catalog_tables_docs'",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![vec![Value::String("catalog_tables_docs".to_string())]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_list_columns_through_information_schema_after_restart() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("columns_restart");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE catalog_columns_docs (title TEXT, score INT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        drop(cassie);
+
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().await.unwrap();
+        let session = restarted.create_session("tester", None).await;
+
+        // Act
+        let selected = restarted
+            .execute_sql(
+                &session,
+                "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'catalog_columns_docs' ORDER BY ordinal_position",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![
+                vec![
+                    Value::String("title".to_string()),
+                    Value::String("text".to_string())
+                ],
+                vec![
+                    Value::String("score".to_string()),
+                    Value::String("int".to_string())
+                ]
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_list_indexes_through_pg_catalog() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("indexes");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE catalog_index_docs (email TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE UNIQUE INDEX catalog_email_idx ON catalog_index_docs USING btree (email)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT indexname FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_index_docs'",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![vec![Value::String("catalog_email_idx".to_string())]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_list_namespaces_through_pg_catalog() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("namespaces");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(&session, "CREATE SCHEMA analytics", vec![])
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT nspname FROM pg_catalog.pg_namespace ORDER BY nspname",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![
+                vec![Value::String("analytics".to_string())],
+                vec![Value::String("information_schema".to_string())],
+                vec![Value::String("pg_catalog".to_string())],
+                vec![Value::String("public".to_string())],
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_list_constraints_through_information_schema() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("constraints");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE catalog_constraint_docs (email TEXT UNIQUE, score INT CHECK (score >= 0))",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT constraint_type FROM information_schema.table_constraints WHERE table_name = 'catalog_constraint_docs' ORDER BY constraint_type",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![
+                vec![Value::String("CHECK".to_string())],
+                vec![Value::String("UNIQUE".to_string())]
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_return_empty_rows_for_unimplemented_pg_catalog_view() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("empty_pg_roles");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let selected = cassie
+            .execute_sql(&session, "SELECT rolname FROM pg_catalog.pg_roles", vec![])
+            .await
+            .unwrap();
+
+        // Assert
+        assert!(selected.rows.is_empty());
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

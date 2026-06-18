@@ -4,7 +4,7 @@ use std::mem;
 use std::pin::Pin;
 
 use crate::app::CassieError;
-use crate::catalog::Catalog;
+use crate::catalog::{virtual_views, Catalog};
 use crate::embeddings::DistanceMetric;
 use crate::search::bm25;
 use crate::sql::ast::{
@@ -44,6 +44,23 @@ fn bind_statement<'a>(
                 Ok(ParsedStatement {
                     raw_sql,
                     statement: QueryStatement::Select(select),
+                })
+            }
+            QueryStatement::Show(statement) => {
+                let mut clone = statement.clone();
+                clone.variable = clone.variable.trim().to_string();
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::Show(clone),
+                })
+            }
+            QueryStatement::Set(statement) => {
+                let mut clone = statement.clone();
+                clone.variable = clone.variable.trim().to_string();
+                clone.value = clone.value.map(|value| value.trim().to_string());
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::Set(clone),
                 })
             }
             QueryStatement::CreateTable(statement) => {
@@ -1177,13 +1194,14 @@ fn bind_query_source<'a>(
                 let source_name_lc = name.to_ascii_lowercase();
                 if scope.contains_key(&source_name_lc) {
                     Ok(QuerySource::Cte(name))
-                } else if catalog.exists(&name).await {
+                } else if catalog.exists(&name).await || virtual_views::schema(&name).is_some() {
                     Ok(QuerySource::Collection(name))
                 } else {
                     Err(CassieError::CollectionNotFound(name))
                 }
             }
             QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
+            QuerySource::SingleRow => Ok(QuerySource::SingleRow),
             QuerySource::Subquery { alias, select } => {
                 let select = bind_select(*select, catalog, scope).await?;
                 Ok(QuerySource::Subquery {
@@ -1221,23 +1239,31 @@ fn source_fields<'a>(
     Box::pin(async move {
         match source {
             QuerySource::Collection(name) => {
-                let schema = catalog
-                    .get_schema(name)
-                    .await
-                    .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?;
-                Ok(qualified_fields(
-                    name,
-                    schema
-                        .fields
-                        .iter()
-                        .map(|field| field.name.to_ascii_lowercase()),
-                ))
+                if let Some(fields) = virtual_views::schema(name) {
+                    Ok(qualified_fields(
+                        name,
+                        fields.into_iter().map(|(field, _)| field),
+                    ))
+                } else {
+                    let schema = catalog
+                        .get_schema(name)
+                        .await
+                        .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?;
+                    Ok(qualified_fields(
+                        name,
+                        schema
+                            .fields
+                            .iter()
+                            .map(|field| field.name.to_ascii_lowercase()),
+                    ))
+                }
             }
             QuerySource::Cte(name) => scope
                 .get(&name.to_ascii_lowercase())
                 .cloned()
                 .map(|fields| qualified_fields(name, fields))
                 .ok_or_else(|| CassieError::CollectionNotFound(name.clone())),
+            QuerySource::SingleRow => Ok(HashSet::new()),
             QuerySource::Subquery { alias, select } => Ok(qualified_fields(
                 alias,
                 projected_column_names(&select.projection),
@@ -1613,6 +1639,7 @@ fn source_references_cte(source: &QuerySource, cte_name: &str) -> bool {
         QuerySource::Cte(name) | QuerySource::Collection(name) => {
             name.eq_ignore_ascii_case(cte_name)
         }
+        QuerySource::SingleRow => false,
         QuerySource::Subquery { select, .. } => source_references_cte(&select.source, cte_name),
         QuerySource::Join { left, right, .. } => {
             source_references_cte(left, cte_name) || source_references_cte(right, cte_name)

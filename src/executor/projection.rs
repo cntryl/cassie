@@ -1,3 +1,4 @@
+use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::{Batch, BatchRow, RowAccess};
 use crate::executor::filter;
@@ -12,6 +13,7 @@ pub(crate) fn project_rows<R>(
     params: &[Value],
     search_context: Option<&SearchContext>,
     user_functions: &std::collections::HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
 ) -> Result<Vec<BatchRow>, QueryError>
 where
     R: RowAccess,
@@ -53,6 +55,7 @@ where
                         params,
                         search_context,
                         user_functions,
+                        session,
                         None,
                     )?;
                     projected.push((key, value));
@@ -71,9 +74,19 @@ pub(crate) fn project_batches(
     params: &[Value],
     search_context: Option<&SearchContext>,
     user_functions: &std::collections::HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
 ) -> Result<Vec<Batch>, QueryError> {
     batches
         .into_iter()
-        .map(|batch| project_rows(batch, projection, params, search_context, user_functions))
+        .map(|batch| {
+            project_rows(
+                batch,
+                projection,
+                params,
+                search_context,
+                user_functions,
+                session,
+            )
+        })
         .collect()
 }

@@ -4,6 +4,7 @@ pub mod indexes;
 pub mod metadata;
 pub mod programs;
 pub mod schemas;
+pub mod virtual_views;
 
 pub use collections::{CollectionMeta, NamespaceMeta};
 pub use constraints::{ConstraintCheck, ConstraintOperator, FieldConstraint};

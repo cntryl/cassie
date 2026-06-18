@@ -5,6 +5,7 @@ use std::time::Instant;
 
 use crate::app::{Cassie, CassieSession};
 use crate::catalog;
+use crate::catalog::virtual_views;
 use crate::catalog::{CollectionSchema, FieldMeta, FunctionMeta, ProcedureMeta, Volatility};
 use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
 use crate::executor::batch::{self, Batch, BatchRow, RowAccess};
@@ -129,6 +130,63 @@ async fn execute_command(
     check_timeout(controls)?;
     let mut invalidate_plan_cache = false;
     let result = match command {
+        LogicalCommand::Show(statement) => {
+            let variable = statement.variable.trim().to_ascii_lowercase();
+            if variable.is_empty() {
+                return Err(QueryError::General("SHOW requires a variable".to_string()));
+            }
+
+            match variable.as_str() {
+                "search_path" => Ok(QueryResult {
+                    columns: vec![ColumnMeta {
+                        name: "search_path".to_string(),
+                        data_type: "text".to_string(),
+                    }],
+                    rows: vec![vec![Value::String("public".to_string())]],
+                    command: "SHOW".to_string(),
+                }),
+                "server_version" => Ok(QueryResult {
+                    columns: vec![ColumnMeta {
+                        name: "server_version".to_string(),
+                        data_type: "text".to_string(),
+                    }],
+                    rows: vec![vec![Value::String(env!("CARGO_PKG_VERSION").to_string())]],
+                    command: "SHOW".to_string(),
+                }),
+                _ => Err(QueryError::General(format!(
+                    "unsupported SHOW variable '{}'",
+                    statement.variable
+                ))),
+            }
+        }
+        LogicalCommand::Set(statement) => {
+            let variable = statement.variable.trim().to_ascii_lowercase();
+            if variable.is_empty() {
+                return Err(QueryError::General("SET requires a variable".to_string()));
+            }
+
+            match variable.as_str() {
+                "search_path" => {
+                    let value = statement.value.as_deref().unwrap_or("").trim();
+                    if value.is_empty() || value.eq_ignore_ascii_case("public") {
+                        Ok(QueryResult {
+                            columns: Vec::new(),
+                            rows: Vec::new(),
+                            command: "SET".to_string(),
+                        })
+                    } else {
+                        Err(QueryError::General(format!(
+                            "unsupported search_path value '{}' for SET",
+                            value
+                        )))
+                    }
+                }
+                _ => Err(QueryError::General(format!(
+                    "unsupported SET variable '{}', supported variables: search_path",
+                    statement.variable
+                ))),
+            }
+        }
         LogicalCommand::Insert(statement) => {
             execute_insert(cassie, session, statement, params, user_functions, controls).await
         }
@@ -626,7 +684,8 @@ async fn execute_insert(
         &statement.returning,
         params,
         None,
-        &HashMap::new(),
+        user_functions,
+        session,
     )?;
 
     Ok(QueryResult {
@@ -661,6 +720,7 @@ async fn insert_source_rows(
                 collection: match &select.source {
                     QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
                     QuerySource::Subquery { alias, .. } => alias.clone(),
+                    QuerySource::SingleRow => "single_row".to_string(),
                     QuerySource::Join { .. } => "join".to_string(),
                 },
                 ctes: select.ctes.clone(),
@@ -894,7 +954,7 @@ async fn execute_update(
     ensure_temp_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);
     let matched_rows = if let Some(filter_expr) = &statement.filter {
-        filter::filter_rows(rows, filter_expr, params, None, user_functions)?
+        filter::filter_rows(rows, filter_expr, params, None, user_functions, session)?
     } else {
         rows
     };
@@ -918,7 +978,15 @@ async fn execute_update(
             })?;
 
         for (field, expr) in &statement.assignments {
-            let value = filter::evaluate_expr_value(row, expr, params, None, user_functions, None)?;
+            let value = filter::evaluate_expr_value(
+                row,
+                expr,
+                params,
+                None,
+                user_functions,
+                session,
+                None,
+            )?;
             payload.insert(field.clone(), value_to_json(&value));
         }
 
@@ -979,7 +1047,8 @@ async fn execute_update(
         &statement.returning,
         params,
         None,
-        &HashMap::new(),
+        user_functions,
+        session,
     )?;
 
     Ok(QueryResult {
@@ -1019,7 +1088,7 @@ async fn execute_delete(
     ensure_temp_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);
     let matched_rows = if let Some(filter_expr) = &statement.filter {
-        filter::filter_rows(rows, filter_expr, params, None, user_functions)?
+        filter::filter_rows(rows, filter_expr, params, None, user_functions, session)?
     } else {
         rows
     };
@@ -1069,7 +1138,8 @@ async fn execute_delete(
         &statement.returning,
         params,
         None,
-        &HashMap::new(),
+        user_functions,
+        session,
     )?;
 
     Ok(QueryResult {
@@ -1510,12 +1580,27 @@ fn execute_query_source<'a>(
     Box::pin(async move {
         match source {
             QuerySource::Collection(name) => {
+                if let Some(rows) = virtual_views::rows(&env.cassie.catalog, name).await {
+                    let mut batches = materialize_virtual_rows(rows);
+                    if qualify {
+                        batches = qualify_batches(batches, name);
+                    }
+                    ensure_temp_budget(env.controls, &batches)?;
+                    return Ok((batches, Vec::new()));
+                }
+
                 let mut batches = scan::scan(env.cassie, env.session, name).await?;
                 if qualify {
                     batches = qualify_batches(batches, name);
                 }
                 ensure_temp_budget(env.controls, &batches)?;
                 Ok((batches, env.cassie.catalog.text_fields(name).await))
+            }
+            QuerySource::SingleRow => {
+                let batches =
+                    batch::chunk_rows(vec![BatchRow::new(Vec::new())], batch::DEFAULT_BATCH_SIZE);
+                ensure_temp_budget(env.controls, &batches)?;
+                Ok((batches, Vec::new()))
             }
             QuerySource::Cte(name) => {
                 let key = name.to_ascii_lowercase();
@@ -1597,6 +1682,7 @@ fn execute_query_source<'a>(
                             None,
                             env.user_functions,
                             None,
+                            env.session,
                         )?
                         .as_bool()
                         {
@@ -1674,6 +1760,13 @@ fn row_columns(rows: &[BatchRow]) -> Vec<String> {
     columns
 }
 
+fn materialize_virtual_rows(rows: Vec<virtual_views::VirtualRow>) -> Vec<Batch> {
+    batch::chunk_rows(
+        rows.into_iter().map(BatchRow::new).collect::<Vec<_>>(),
+        batch::DEFAULT_BATCH_SIZE,
+    )
+}
+
 #[derive(Clone)]
 struct AggregateSpec {
     function: FunctionCall,
@@ -1686,6 +1779,7 @@ fn aggregate_query_batches(
     params: &[Value],
     search_context: Option<&filter::SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
 ) -> Result<Vec<Batch>, QueryError> {
     let rows = batch::flatten_batches(batches);
     let specs = aggregate_specs(plan);
@@ -1703,6 +1797,7 @@ fn aggregate_query_batches(
                     params,
                     search_context,
                     user_functions,
+                    session,
                     None,
                 )?;
                 Ok((name, value))
@@ -1738,6 +1833,7 @@ fn aggregate_query_batches(
                 params,
                 search_context,
                 user_functions,
+                session,
             )?;
             for name in &spec.output_names {
                 values.push((name.clone(), value.clone()));
@@ -1833,6 +1929,7 @@ fn evaluate_aggregate(
     params: &[Value],
     search_context: Option<&filter::SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
     match name.as_str() {
@@ -1842,9 +1939,24 @@ fn evaluate_aggregate(
             params,
             search_context,
             user_functions,
+            session,
         )?)),
-        "sum" => sum_aggregate(function, rows, params, search_context, user_functions),
-        "avg" => avg_aggregate(function, rows, params, search_context, user_functions),
+        "sum" => sum_aggregate(
+            function,
+            rows,
+            params,
+            search_context,
+            user_functions,
+            session,
+        ),
+        "avg" => avg_aggregate(
+            function,
+            rows,
+            params,
+            search_context,
+            user_functions,
+            session,
+        ),
         "min" => minmax_aggregate(
             function,
             rows,
@@ -1852,8 +1964,17 @@ fn evaluate_aggregate(
             search_context,
             user_functions,
             false,
+            session,
         ),
-        "max" => minmax_aggregate(function, rows, params, search_context, user_functions, true),
+        "max" => minmax_aggregate(
+            function,
+            rows,
+            params,
+            search_context,
+            user_functions,
+            true,
+            session,
+        ),
         _ => Ok(Value::Null),
     }
 }
@@ -1864,6 +1985,7 @@ fn count_aggregate(
     params: &[Value],
     search_context: Option<&filter::SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
 ) -> Result<i64, QueryError> {
     if matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*") {
         return Ok(rows.len() as i64);
@@ -1876,6 +1998,7 @@ fn count_aggregate(
             params,
             search_context,
             user_functions,
+            session,
             None,
         )?;
         if !matches!(value, Value::Null) {
@@ -1891,6 +2014,7 @@ fn sum_aggregate(
     params: &[Value],
     search_context: Option<&filter::SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
 ) -> Result<Value, QueryError> {
     let mut sum = 0.0;
     let mut all_int = true;
@@ -1902,6 +2026,7 @@ fn sum_aggregate(
             params,
             search_context,
             user_functions,
+            session,
             None,
         )? {
             Value::Int64(value) => {
@@ -1933,6 +2058,7 @@ fn avg_aggregate(
     params: &[Value],
     search_context: Option<&filter::SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
 ) -> Result<Value, QueryError> {
     let mut sum = 0.0;
     let mut count = 0.0;
@@ -1943,6 +2069,7 @@ fn avg_aggregate(
             params,
             search_context,
             user_functions,
+            session,
             None,
         )? {
             Value::Int64(value) => {
@@ -1970,6 +2097,7 @@ fn minmax_aggregate(
     search_context: Option<&filter::SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
     max: bool,
+    session: Option<&CassieSession>,
 ) -> Result<Value, QueryError> {
     let mut selected: Option<Value> = None;
     for row in rows {
@@ -1979,6 +2107,7 @@ fn minmax_aggregate(
             params,
             search_context,
             user_functions,
+            session,
             None,
         )?;
         if matches!(value, Value::Null) {
@@ -2120,6 +2249,7 @@ fn execution_source_name(source: &QuerySource) -> String {
     match source {
         QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
         QuerySource::Subquery { alias, .. } => alias.clone(),
+        QuerySource::SingleRow => "single_row".to_string(),
         QuerySource::Join { .. } => "join".to_string(),
     }
 }
@@ -2294,6 +2424,7 @@ async fn execute_source_query(
             params,
             search_context.as_ref(),
             user_functions,
+            session,
         )?;
         ensure_temp_budget(controls, &batches)?;
     }
@@ -2305,6 +2436,7 @@ async fn execute_source_query(
             params,
             search_context.as_ref(),
             user_functions,
+            session,
         )?;
         ensure_temp_budget(controls, &batches)?;
         if let Some(having) = &plan.having {
@@ -2315,6 +2447,7 @@ async fn execute_source_query(
                 params,
                 search_context.as_ref(),
                 user_functions,
+                session,
             )?;
             ensure_temp_budget(controls, &batches)?;
         }
@@ -2328,6 +2461,7 @@ async fn execute_source_query(
             params,
             search_context.as_ref(),
             user_functions,
+            session,
         )?;
         ensure_temp_budget(controls, &batches)?;
     }
@@ -2338,6 +2472,7 @@ async fn execute_source_query(
         params,
         search_context.as_ref(),
         user_functions,
+        session,
     )?;
     ensure_temp_budget(controls, &batches)?;
 

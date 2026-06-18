@@ -52,6 +52,7 @@ pub enum QuerySource {
         kind: JoinKind,
         on: Expr,
     },
+    SingleRow,
 }
 
 impl PartialEq for QuerySource {
@@ -59,6 +60,7 @@ impl PartialEq for QuerySource {
         match (self, other) {
             (Self::Collection(left), Self::Collection(right)) => left == right,
             (Self::Cte(left), Self::Cte(right)) => left == right,
+            (Self::SingleRow, Self::SingleRow) => true,
             _ => false,
         }
     }
@@ -87,6 +89,8 @@ pub struct SelectSet {
 #[derive(Debug, Clone)]
 pub enum QueryStatement {
     Select(SelectStatement),
+    Show(ShowStatement),
+    Set(SetStatement),
     Insert(InsertStatement),
     Update(UpdateStatement),
     Delete(DeleteStatement),
@@ -205,6 +209,17 @@ pub struct DropProcedureStatement {
 pub struct CallProcedureStatement {
     pub name: String,
     pub args: Vec<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ShowStatement {
+    pub variable: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SetStatement {
+    pub variable: String,
+    pub value: Option<String>,
 }
 
 #[derive(Debug, Clone)]

@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::{Batch, RowAccess};
 use crate::executor::QueryError;
@@ -225,6 +226,7 @@ pub(crate) fn filter_rows<R>(
     params: &[Value],
     search_context: Option<&SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
 ) -> Result<Vec<R>, QueryError>
 where
     R: RowAccess,
@@ -232,7 +234,15 @@ where
     Ok(rows
         .into_iter()
         .filter(|row| {
-            eval_filter(row, expression, params, search_context, user_functions).unwrap_or(false)
+            eval_filter(
+                row,
+                expression,
+                params,
+                search_context,
+                user_functions,
+                session,
+            )
+            .unwrap_or(false)
         })
         .collect())
 }
@@ -243,10 +253,20 @@ pub(crate) fn filter_batches(
     params: &[Value],
     search_context: Option<&SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
 ) -> Result<Vec<Batch>, QueryError> {
     batches
         .into_iter()
-        .map(|batch| filter_rows(batch, expression, params, search_context, user_functions))
+        .map(|batch| {
+            filter_rows(
+                batch,
+                expression,
+                params,
+                search_context,
+                user_functions,
+                session,
+            )
+        })
         .collect()
 }
 
@@ -256,6 +276,7 @@ pub(crate) fn evaluate_expr_value<R: RowAccess + ?Sized>(
     params: &[Value],
     search_context: Option<&SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
     local_args: Option<&HashMap<String, Value>>,
 ) -> Result<Value, QueryError> {
     match expr {
@@ -265,9 +286,19 @@ pub(crate) fn evaluate_expr_value<R: RowAccess + ?Sized>(
             params,
             search_context,
             user_functions,
+            session,
             local_args,
         ),
-        _ => Ok(eval_scalar(row, expr, params, search_context, user_functions, None)?.to_value()),
+        _ => Ok(eval_scalar(
+            row,
+            expr,
+            params,
+            search_context,
+            user_functions,
+            None,
+            session,
+        )?
+        .to_value()),
     }
 }
 
@@ -277,6 +308,7 @@ fn eval_filter<R: RowAccess + ?Sized>(
     params: &[Value],
     search_context: Option<&SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
 ) -> Result<bool, QueryError> {
     let value = eval_scalar(
         row,
@@ -285,6 +317,7 @@ fn eval_filter<R: RowAccess + ?Sized>(
         search_context,
         user_functions,
         None,
+        session,
     )?;
     Ok(value.as_bool())
 }
@@ -296,6 +329,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
     search_context: Option<&SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
     local_args: Option<&HashMap<String, Value>>,
+    session: Option<&CassieSession>,
 ) -> Result<ScalarValue, QueryError> {
     match expr {
         Expr::Column(name) => {
@@ -326,6 +360,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
             params,
             search_context,
             user_functions,
+            session,
             local_args,
         )?)
         .unwrap_or(ScalarValue::Null)),
@@ -337,6 +372,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
                 search_context,
                 user_functions,
                 local_args,
+                session,
             )?,
             op,
             &eval_scalar(
@@ -346,6 +382,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
                 search_context,
                 user_functions,
                 local_args,
+                session,
             )?,
         )),
         Expr::IsNull { expr, negated } => {
@@ -356,6 +393,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
                 search_context,
                 user_functions,
                 local_args,
+                session,
             )?;
             let is_null = matches!(value, ScalarValue::Null);
             Ok(ScalarValue::Bool(if *negated { !is_null } else { is_null }))
@@ -372,6 +410,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
                 search_context,
                 user_functions,
                 local_args,
+                session,
             )?;
             let contains = values
                 .iter()
@@ -383,6 +422,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
                         search_context,
                         user_functions,
                         local_args,
+                        session,
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?
@@ -407,8 +447,17 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
                 search_context,
                 user_functions,
                 local_args,
+                session,
             )?;
-            let low = eval_scalar(row, low, params, search_context, user_functions, local_args)?;
+            let low = eval_scalar(
+                row,
+                low,
+                params,
+                search_context,
+                user_functions,
+                local_args,
+                session,
+            )?;
             let high = eval_scalar(
                 row,
                 high,
@@ -416,6 +465,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
                 search_context,
                 user_functions,
                 local_args,
+                session,
             )?;
             let in_range = number_cmp(&value, &low, |left, right| left >= right)
                 && number_cmp(&value, &high, |left, right| left <= right);
@@ -433,6 +483,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
                 search_context,
                 user_functions,
                 local_args,
+                session,
             )?;
             cast_scalar(&value, data_type)
         }
@@ -644,6 +695,7 @@ fn evaluate_function<R: RowAccess + ?Sized>(
     params: &[Value],
     search_context: Option<&SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
     local_args: Option<&HashMap<String, Value>>,
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
@@ -651,11 +703,41 @@ fn evaluate_function<R: RowAccess + ?Sized>(
         .args
         .iter()
         .map(|arg| {
-            evaluate_expr_value(row, arg, params, search_context, user_functions, local_args)
+            evaluate_expr_value(
+                row,
+                arg,
+                params,
+                search_context,
+                user_functions,
+                session,
+                local_args,
+            )
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     match name.as_str() {
+        "version" => {
+            if !args.is_empty() {
+                return Err(QueryError::General(format!("{} requires 0 args", name)));
+            }
+            Ok(Value::String(env!("CARGO_PKG_VERSION").to_string()))
+        }
+        "current_schema" => {
+            if !args.is_empty() {
+                return Err(QueryError::General(format!("{} requires 0 args", name)));
+            }
+            Ok(Value::String("public".to_string()))
+        }
+        "current_database" => {
+            if !args.is_empty() {
+                return Err(QueryError::General(format!("{} requires 0 args", name)));
+            }
+            Ok(Value::String(
+                session
+                    .and_then(|session| session.database.clone())
+                    .unwrap_or_default(),
+            ))
+        }
         "search" | "search_score" => {
             if args.len() != 2 {
                 return Err(QueryError::General(format!("{} requires 2 args", name)));
@@ -765,6 +847,7 @@ fn evaluate_function<R: RowAccess + ?Sized>(
                 search_context,
                 user_functions,
                 Some(&merged_args),
+                session,
             )
             .map(|value| value.to_value())
         }

@@ -1,3 +1,4 @@
+use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::{
     chunk_rows, flatten_batches, row_tie_key, Batch, RowAccess, DEFAULT_BATCH_SIZE,
@@ -14,6 +15,7 @@ pub(crate) fn sort_rows<R>(
     params: &[Value],
     search_context: Option<&SearchContext>,
     user_functions: &std::collections::HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
 ) -> Result<Vec<R>, crate::executor::QueryError>
 where
     R: RowAccess,
@@ -36,6 +38,7 @@ where
                 params,
                 search_context,
                 user_functions,
+                session,
             );
             let right_value = sort_value(
                 right,
@@ -44,6 +47,7 @@ where
                 params,
                 search_context,
                 user_functions,
+                session,
             );
 
             if let Some(cmp) = compare_nulls(&left_value, &right_value, *nulls) {
@@ -74,6 +78,7 @@ pub(crate) fn sort_batches(
     params: &[Value],
     search_context: Option<&SearchContext>,
     user_functions: &std::collections::HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
     if order.is_empty() {
         return Ok(batches);
@@ -87,6 +92,7 @@ pub(crate) fn sort_batches(
         params,
         search_context,
         user_functions,
+        session,
     )?;
     Ok(chunk_rows(rows, DEFAULT_BATCH_SIZE))
 }
@@ -98,9 +104,18 @@ fn sort_value<R: RowAccess + ?Sized>(
     params: &[Value],
     search_context: Option<&SearchContext>,
     user_functions: &std::collections::HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
 ) -> crate::executor::filter::ScalarValue {
-    let base = filter::eval_scalar(row, expr, params, search_context, user_functions, None)
-        .unwrap_or(crate::executor::filter::ScalarValue::Null);
+    let base = filter::eval_scalar(
+        row,
+        expr,
+        params,
+        search_context,
+        user_functions,
+        None,
+        session,
+    )
+    .unwrap_or(crate::executor::filter::ScalarValue::Null);
     if !matches!(base, crate::executor::filter::ScalarValue::Null) {
         return base;
     }
@@ -113,6 +128,7 @@ fn sort_value<R: RowAccess + ?Sized>(
             search_context,
             user_functions,
             None,
+            session,
         )
         .unwrap_or(crate::executor::filter::ScalarValue::Null)
     })

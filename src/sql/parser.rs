@@ -5,8 +5,9 @@ use crate::sql::ast::{
     CreateSchemaStatement, CreateTableStatement, CteQuery, DropFunctionStatement,
     DropIndexStatement, DropProcedureStatement, DropTableStatement, Expr, FieldDefinition,
     FunctionArg, FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement,
-    QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator,
-    SortDirection, TransactionAction, TransactionIsolation, TransactionStatement, Volatility,
+    QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement,
+    ShowStatement, SortDirection, TransactionAction, TransactionIsolation, TransactionStatement,
+    Volatility,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -57,6 +58,10 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         parse_alter_table_statement(trimmed)
     } else if lower.starts_with("create schema ") || lower == "create schema" {
         parse_create_schema_statement(trimmed)
+    } else if lower.starts_with("show ") || lower == "show" {
+        parse_show_statement(trimmed)
+    } else if lower.starts_with("set ") || lower == "set" {
+        parse_set_statement(trimmed)
     } else {
         Err(SqlError("unsupported SQL statement".into()))
     }
@@ -141,6 +146,67 @@ fn parse_transaction_isolation(tokens: &[&str]) -> Result<TransactionIsolation, 
             "unsupported transaction control statement".to_string(),
         )),
     }
+}
+
+fn parse_show_statement(trimmed: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = trimmed.trim().trim_end_matches(';').trim();
+    let argument = trimmed[4..].trim();
+    if argument.is_empty() {
+        return Err(SqlError("SHOW requires a parameter".into()));
+    }
+
+    let variable = argument
+        .split_whitespace()
+        .next()
+        .ok_or_else(|| SqlError("invalid SHOW statement".into()))?;
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::Show(ShowStatement {
+            variable: variable.to_string(),
+        }),
+    })
+}
+
+fn normalize_set_value(value: &str) -> String {
+    let trimmed = value.trim();
+    if (trimmed.starts_with('\'') && trimmed.ends_with('\''))
+        || (trimmed.starts_with('\"') && trimmed.ends_with('\"'))
+    {
+        return trimmed[1..trimmed.len() - 1].to_string();
+    }
+    trimmed.to_string()
+}
+
+fn parse_set_statement(trimmed: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = trimmed.trim().trim_end_matches(';').trim();
+    let argument = trimmed[3..].trim();
+    if argument.is_empty() {
+        return Err(SqlError("SET requires a parameter".into()));
+    }
+
+    let mut variable = argument;
+    let mut value = None;
+
+    if let Some((left, right)) = argument.split_once('=') {
+        variable = left.trim();
+        value = Some(normalize_set_value(right.trim()));
+    } else if let Some(pos) = argument.to_lowercase().find(" to ") {
+        variable = argument[..pos].trim();
+        value = Some(normalize_set_value(argument[pos + 4..].trim()));
+    }
+
+    if variable.trim().is_empty() {
+        return Err(SqlError("invalid SET statement".into()));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::Set(SetStatement {
+            variable: variable.to_string(),
+            value,
+        }),
+    })
 }
 
 fn parse_create_function_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
@@ -1742,40 +1808,70 @@ fn parse_select_statement(
         );
     }
 
-    let lower = trimmed.to_lowercase();
-    let from_pos = lower
-        .find(" from ")
-        .ok_or_else(|| SqlError("missing FROM clause".into()))?;
+    let after_select = trimmed[6..].trim();
+    let from_pos = find_top_level_keyword(after_select, 0, "from");
+    let (mut select_part, rest, source) = if let Some(from_pos) = from_pos {
+        let select_part = after_select[..from_pos].trim();
+        if select_part.is_empty() {
+            return Err(SqlError("missing projection in SELECT statement".into()));
+        }
 
-    let select_clause = &trimmed[..from_pos].trim();
-    if select_clause.is_empty() || !select_clause.to_lowercase().starts_with("select") {
-        return Err(SqlError("missing projection in SELECT statement".into()));
-    }
+        let rest = after_select[from_pos + 4..].trim();
+        if rest.is_empty() {
+            return Err(SqlError("missing collection in FROM".into()));
+        }
 
-    let select_part = trimmed[6..from_pos].trim();
+        (select_part.to_string(), rest.to_string(), None)
+    } else {
+        let clauses = parse_clauses(after_select)?;
+        let first_clause = clauses
+            .first()
+            .map(|clause| clause.position)
+            .unwrap_or_else(|| after_select.len());
+        let select_part = after_select[..first_clause].trim();
+        if select_part.is_empty() {
+            return Err(SqlError("missing projection in SELECT statement".into()));
+        }
+
+        let rest = after_select[first_clause..].trim();
+        if !rest.is_empty() && clauses.is_empty() {
+            return Err(SqlError("unexpected tokens after SELECT projection".into()));
+        }
+
+        (
+            select_part.to_string(),
+            rest.to_string(),
+            Some(QuerySource::SingleRow),
+        )
+    };
+
     let select_part_lower = select_part.to_lowercase();
     if select_part_lower.starts_with("distinct on") {
         return Err(SqlError("unsupported DISTINCT ON syntax".into()));
     }
-    let (distinct, select_part) =
-        if select_part_lower == "distinct" || select_part_lower.starts_with("distinct ") {
-            (true, select_part["distinct".len()..].trim())
-        } else {
-            (false, select_part)
-        };
-    let rest = trimmed[(from_pos + 6)..].trim();
+    let distinct = if select_part_lower == "distinct" || select_part_lower.starts_with("distinct ")
+    {
+        select_part = select_part["distinct".len()..].trim().to_string();
+        true
+    } else {
+        false
+    };
 
-    let clauses = parse_clauses(rest)?;
+    let clauses = parse_clauses(&rest)?;
 
     let first_clause = clauses
         .first()
         .map(|clause| clause.position)
         .unwrap_or_else(|| rest.len());
-    let from_source = rest[..first_clause].trim();
-
-    if from_source.is_empty() {
-        return Err(SqlError("missing collection in FROM".into()));
-    }
+    let source = if let Some(source) = source {
+        source
+    } else {
+        let from_source = rest[..first_clause].trim();
+        if from_source.is_empty() {
+            return Err(SqlError("missing collection in FROM".into()));
+        }
+        parse_query_source(from_source)?
+    };
 
     let mut where_clause: Option<String> = None;
     let mut group_clause: Option<String> = None;
@@ -1864,12 +1960,10 @@ fn parse_select_statement(
         }
     }
 
-    let source = parse_query_source(from_source)?;
-
     if select_part.to_lowercase().contains(" over ") {
         return Err(SqlError("unsupported window function syntax".into()));
     }
-    let projection_tokens: Vec<&str> = split_csv(select_part);
+    let projection_tokens: Vec<&str> = split_csv(&select_part);
     let mut projection = Vec::with_capacity(projection_tokens.len());
     for token in projection_tokens {
         let token = token.trim();

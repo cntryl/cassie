@@ -98,6 +98,56 @@ fn should_parse_create_procedure_statement() {
 }
 
 #[test]
+fn should_parse_show_statement_with_variable() {
+    // Arrange
+    let sql = "SHOW search_path";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Show(statement) = parsed.statement else {
+        panic!("expected show statement");
+    };
+
+    assert_eq!(statement.variable, "search_path");
+}
+
+#[test]
+fn should_parse_set_statement_with_equals_form() {
+    // Arrange
+    let sql = "SET search_path = public";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Set(statement) = parsed.statement else {
+        panic!("expected set statement");
+    };
+
+    assert_eq!(statement.variable, "search_path");
+    assert_eq!(statement.value.as_deref(), Some("public"));
+}
+
+#[test]
+fn should_parse_set_statement_with_to_form() {
+    // Arrange
+    let sql = "SET search_path TO public";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Set(statement) = parsed.statement else {
+        panic!("expected set statement");
+    };
+
+    assert_eq!(statement.variable, "search_path");
+    assert_eq!(statement.value.as_deref(), Some("public"));
+}
+
+#[test]
 fn should_reject_unknown_function_during_binding() {
     // Arrange
     let cassie =

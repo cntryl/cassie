@@ -8,6 +8,9 @@ pub enum FunctionId {
     DotProduct,
     HybridScore,
     Snippet,
+    Version,
+    CurrentSchema,
+    CurrentDatabase,
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +72,21 @@ pub fn registry() -> Vec<ScalarFunction> {
             id: FunctionId::Snippet,
             name: "snippet",
             arity: 2,
+        },
+        ScalarFunction {
+            id: FunctionId::Version,
+            name: "version",
+            arity: 0,
+        },
+        ScalarFunction {
+            id: FunctionId::CurrentSchema,
+            name: "current_schema",
+            arity: 0,
+        },
+        ScalarFunction {
+            id: FunctionId::CurrentDatabase,
+            name: "current_database",
+            arity: 0,
         },
     ]
 }

@@ -5,7 +5,7 @@ use crate::sql::{
         CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement,
         CreateTableStatement, DeleteStatement, DropFunctionStatement, DropIndexStatement,
         DropProcedureStatement, DropTableStatement, Expr, InsertStatement, OrderExpr, QuerySource,
-        QueryStatement, SelectItem, SelectStatement, UpdateStatement,
+        QueryStatement, SelectItem, SelectStatement, SetStatement, ShowStatement, UpdateStatement,
     },
     binder::BoundStatement,
 };
@@ -40,6 +40,8 @@ pub enum LogicalCommand {
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
     CallProcedure(crate::sql::ast::CallProcedureStatement),
+    Show(ShowStatement),
+    Set(SetStatement),
     Insert(InsertStatement),
     Update(UpdateStatement),
     Delete(DeleteStatement),
@@ -65,6 +67,36 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 set: select.set.clone(),
             })
         }
+        QueryStatement::Show(statement) => Ok(LogicalPlan {
+            command: Some(LogicalCommand::Show(statement.clone())),
+            source: QuerySource::SingleRow,
+            collection: String::new(),
+            ctes: Vec::new(),
+            distinct: false,
+            projection: Vec::new(),
+            filter: None,
+            group_by: Vec::new(),
+            having: None,
+            order: Vec::new(),
+            limit: None,
+            offset: None,
+            set: None,
+        }),
+        QueryStatement::Set(statement) => Ok(LogicalPlan {
+            command: Some(LogicalCommand::Set(statement.clone())),
+            source: QuerySource::SingleRow,
+            collection: String::new(),
+            ctes: Vec::new(),
+            distinct: false,
+            projection: Vec::new(),
+            filter: None,
+            group_by: Vec::new(),
+            having: None,
+            order: Vec::new(),
+            limit: None,
+            offset: None,
+            set: None,
+        }),
         QueryStatement::Insert(statement) => {
             if statement.table.trim().is_empty() {
                 return Err(CassieError::Planner(
@@ -414,6 +446,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
 fn source_name(source: &QuerySource) -> String {
     match source {
         QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
+        QuerySource::SingleRow => "single_row".to_string(),
         QuerySource::Subquery { alias, .. } => alias.clone(),
         QuerySource::Join { .. } => "join".to_string(),
     }

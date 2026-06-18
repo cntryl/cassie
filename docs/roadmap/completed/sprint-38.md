@@ -1,7 +1,7 @@
 # Sprint 38 - SQL Type Coverage and Metadata Fidelity
 
-Previous: [Sprint 37 - Common Scalar Functions](sprint-37.md)
-Next: [Sprint 39 - Schema DDL Breadth and Index Variants](sprint-39.md)
+Previous: [Sprint 37 - Common Scalar Functions](completed/sprint-37.md)
+Next: [Sprint 39 - Schema DDL Breadth and Index Variants](../sprint-39.md)
 
 ## Goal
 

@@ -9,11 +9,10 @@ use crate::embeddings::DistanceMetric;
 use crate::search::bm25;
 use crate::sql::ast::{
     AlterTableOperation, AlterTableStatement, CallProcedureStatement, CommonTableExpression,
-    CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
-    CreateSchemaStatement, CreateViewStatement, CteQuery, DropFunctionStatement,
-    DropIndexStatement, DropProcedureStatement, DropViewStatement, Expr, FunctionCall,
-    InsertSource, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectSet,
-    SelectStatement,
+    CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement,
+    CreateViewStatement, CteQuery, DropFunctionStatement, DropIndexStatement,
+    DropProcedureStatement, DropViewStatement, Expr, FunctionCall, InsertSource, ParsedStatement,
+    QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement,
 };
 use crate::types::{DataType, FieldSchema, Schema};
 
@@ -540,7 +539,9 @@ async fn bind_drop_view(
             )));
         }
         if !statement.if_exists {
-            return Err(CassieError::Planner(format!("view '{name}' does not exist")));
+            return Err(CassieError::Planner(format!(
+                "view '{name}' does not exist"
+            )));
         }
     }
 
@@ -831,7 +832,9 @@ async fn bind_drop_table(
         ));
     }
     if virtual_views::schema(&table).is_some() || catalog.get_view(&table).await.is_some() {
-        return Err(CassieError::Planner(format!("relation '{table}' is a view")));
+        return Err(CassieError::Planner(format!(
+            "relation '{table}' is a view"
+        )));
     }
     if !statement.if_exists && !catalog.exists(&table).await {
         return Err(CassieError::CollectionNotFound(table));
@@ -851,7 +854,9 @@ async fn bind_alter_table(
         ));
     }
     if virtual_views::schema(&table).is_some() || catalog.get_view(&table).await.is_some() {
-        return Err(CassieError::Planner(format!("relation '{table}' is a view")));
+        return Err(CassieError::Planner(format!(
+            "relation '{table}' is a view"
+        )));
     }
 
     let schema = catalog
@@ -1445,15 +1450,11 @@ fn infer_select_schema_with_scope<'a>(
             cte_schemas.insert(cte.name.to_ascii_lowercase(), schema);
         }
 
-        let source_schema = infer_source_schema(
-            &select.source,
-            catalog,
-            &cte_schemas,
-            user_functions,
-            false,
-        )
-        .await?;
-        let mut fields = infer_projection_schema(&select.projection, &source_schema, user_functions);
+        let source_schema =
+            infer_source_schema(&select.source, catalog, &cte_schemas, user_functions, false)
+                .await?;
+        let mut fields =
+            infer_projection_schema(&select.projection, &source_schema, user_functions);
 
         if let Some(set) = &select.set {
             let right_schema =
@@ -1500,8 +1501,8 @@ fn infer_cte_schema<'a>(
             ));
         };
 
-        let mut schema = infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions)
-            .await?;
+        let mut schema =
+            infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions).await?;
 
         if !cte.aliases.is_empty() {
             if schema.fields.len() != cte.aliases.len() {
@@ -1536,20 +1537,16 @@ fn infer_source_schema<'a>(
                 .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?,
             QuerySource::SingleRow => Schema { fields: Vec::new() },
             QuerySource::Subquery { alias, select } => {
-                let inner = infer_select_schema_with_scope(
-                    select,
-                    catalog,
-                    cte_schemas,
-                    user_functions,
-                )
-                .await?;
+                let inner =
+                    infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions)
+                        .await?;
                 qualify_schema(&inner, alias)
             }
             QuerySource::Join { left, right, .. } => {
-                let left = infer_source_schema(left, catalog, cte_schemas, user_functions, true)
-                    .await?;
-                let right = infer_source_schema(right, catalog, cte_schemas, user_functions, true)
-                    .await?;
+                let left =
+                    infer_source_schema(left, catalog, cte_schemas, user_functions, true).await?;
+                let right =
+                    infer_source_schema(right, catalog, cte_schemas, user_functions, true).await?;
                 let mut fields = left.fields;
                 fields.extend(right.fields);
                 Schema { fields }
@@ -1561,9 +1558,9 @@ fn infer_source_schema<'a>(
                 QuerySource::Collection(name) | QuerySource::Cte(name) => {
                     qualify_schema(&schema, name)
                 }
-                QuerySource::SingleRow | QuerySource::Subquery { .. } | QuerySource::Join { .. } => {
-                    schema
-                }
+                QuerySource::SingleRow
+                | QuerySource::Subquery { .. }
+                | QuerySource::Join { .. } => schema,
             })
         } else {
             Ok(schema)
@@ -1636,8 +1633,7 @@ fn infer_projection_schema(
                 let output_name = alias.clone().unwrap_or_else(|| name.clone());
                 fields.push(FieldSchema {
                     name: output_name,
-                    data_type: schema_field_type(source_schema, name)
-                        .unwrap_or(DataType::Text),
+                    data_type: schema_field_type(source_schema, name).unwrap_or(DataType::Text),
                     nullable: true,
                 });
             }
@@ -1727,13 +1723,16 @@ fn select_contains_parameters(select: &SelectStatement) -> bool {
             .iter()
             .any(select_item_contains_parameters)
         || select.filter.as_ref().is_some_and(expr_contains_parameters)
-        || select
-            .group_by
-            .iter()
-            .any(expr_contains_parameters)
+        || select.group_by.iter().any(expr_contains_parameters)
         || select.having.as_ref().is_some_and(expr_contains_parameters)
-        || select.order.iter().any(|order| expr_contains_parameters(&order.expr))
-        || select.set.as_ref().is_some_and(|set| select_contains_parameters(&set.right))
+        || select
+            .order
+            .iter()
+            .any(|order| expr_contains_parameters(&order.expr))
+        || select
+            .set
+            .as_ref()
+            .is_some_and(|set| select_contains_parameters(&set.right))
 }
 
 fn cte_contains_parameters(cte: &CommonTableExpression) -> bool {

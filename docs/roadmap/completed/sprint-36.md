@@ -1,7 +1,7 @@
 # Sprint 36 - Stored Procedure Execution and CALL Semantics
 
 Previous: [Sprint 35 - User-Defined Views and View Expansion](completed/sprint-35.md)
-Next: [Sprint 37 - Common Scalar Functions](../sprint-37.md)
+Next: [Sprint 37 - Common Scalar Functions](completed/sprint-37.md)
 
 ## Goal
 

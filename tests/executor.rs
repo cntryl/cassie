@@ -3491,16 +3491,18 @@ fn should_reject_procedure_bodies_with_transaction_control() {
 
         // Act
         let result = cassie
-            .execute_sql(&session, r#"CREATE PROCEDURE stop_here() AS "BEGIN""#, vec![])
+            .execute_sql(
+                &session,
+                r#"CREATE PROCEDURE stop_here() AS "BEGIN""#,
+                vec![],
+            )
             .await;
 
         // Assert
         let error = result.expect_err("procedure creation should fail");
-        assert!(
-            error
-                .to_string()
-                .contains("transaction control statements inside procedures")
-        );
+        assert!(error
+            .to_string()
+            .contains("transaction control statements inside procedures"));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -3522,11 +3524,19 @@ fn should_reject_recursive_procedure_calls() {
         let session = cassie.create_session("tester", None).await;
 
         cassie
-            .execute_sql(&session, r#"CREATE PROCEDURE loop_a() AS "CALL loop_b()""#, vec![])
+            .execute_sql(
+                &session,
+                r#"CREATE PROCEDURE loop_a() AS "CALL loop_b()""#,
+                vec![],
+            )
             .await
             .unwrap();
         cassie
-            .execute_sql(&session, r#"CREATE PROCEDURE loop_b() AS "CALL loop_a()""#, vec![])
+            .execute_sql(
+                &session,
+                r#"CREATE PROCEDURE loop_b() AS "CALL loop_a()""#,
+                vec![],
+            )
             .await
             .unwrap();
 

@@ -17,7 +17,11 @@ fn with_fallback() {
 
 fn data_dir(label: &str) -> String {
     let mut path = std::env::temp_dir();
-    path.push(format!("cassie-scalar-functions-{}-{}", label, Uuid::new_v4()));
+    path.push(format!(
+        "cassie-scalar-functions-{}-{}",
+        label,
+        Uuid::new_v4()
+    ));
     path.to_string_lossy().to_string()
 }
 
@@ -85,7 +89,8 @@ impl CompatibilityServer {
 #[test]
 fn should_parse_common_scalar_function_calls() {
     // Arrange
-    let sql = "SELECT concat(lower(title), coalesce(status, 'unknown'), substring(code, 2, 3)) FROM docs";
+    let sql =
+        "SELECT concat(lower(title), coalesce(status, 'unknown'), substring(code, 2, 3)) FROM docs";
 
     // Act
     let parsed = parse_statement(sql).expect("parse should succeed");
@@ -467,13 +472,21 @@ fn should_reject_scalar_function_with_unsupported_type() {
             .await;
         cassie
             .midge
-            .put_document(table, Some("d1".to_string()), serde_json::json!({"score": 7}))
+            .put_document(
+                table,
+                Some("d1".to_string()),
+                serde_json::json!({"score": 7}),
+            )
             .await
             .unwrap();
 
         // Act
         let result = cassie
-            .execute_sql(&session, "SELECT lower(score) FROM scalar_type_error", vec![])
+            .execute_sql(
+                &session,
+                "SELECT lower(score) FROM scalar_type_error",
+                vec![],
+            )
             .await;
 
         // Assert

@@ -5,9 +5,9 @@ use crate::sql::{
         CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
         CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, CreateViewStatement,
         DeleteStatement, DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
-        DropRoleStatement, DropTableStatement, DropViewStatement, Expr, InsertStatement,
-        OrderExpr, QuerySource, QueryStatement, SelectItem, SelectStatement, SetStatement,
-        ShowStatement, UpdateStatement,
+        DropRoleStatement, DropTableStatement, DropViewStatement, Expr, InsertStatement, OrderExpr,
+        QuerySource, QueryStatement, SelectItem, SelectStatement, SetStatement, ShowStatement,
+        UpdateStatement,
     },
     binder::BoundStatement,
 };

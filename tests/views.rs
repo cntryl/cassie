@@ -97,20 +97,13 @@ fn should_create_select_drop_user_defined_view() {
             .await
             .unwrap();
         let dropped = cassie
-            .execute_sql(
-                &session,
-                "SELECT title FROM view_docs_ready",
-                vec![],
-            )
+            .execute_sql(&session, "SELECT title FROM view_docs_ready", vec![])
             .await;
 
         // Assert
         assert_eq!(
             selected.rows,
-            vec![vec![
-                Value::String("alpha".to_string()),
-                Value::Int64(7),
-            ]]
+            vec![vec![Value::String("alpha".to_string()), Value::Int64(7),]]
         );
         assert!(dropped.is_err());
 
@@ -162,7 +155,10 @@ fn should_select_from_nested_user_defined_views() {
             .unwrap();
 
         // Assert
-        assert_eq!(selected.rows, vec![vec![Value::String("alpha".to_string())]]);
+        assert_eq!(
+            selected.rows,
+            vec![vec![Value::String("alpha".to_string())]]
+        );
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -252,11 +248,7 @@ fn should_reject_dml_against_user_defined_view() {
             )
             .await;
         let update = cassie
-            .execute_sql(
-                &session,
-                "UPDATE view_read_only SET score = 9",
-                vec![],
-            )
+            .execute_sql(&session, "UPDATE view_read_only SET score = 9", vec![])
             .await;
         let delete = cassie
             .execute_sql(&session, "DELETE FROM view_read_only", vec![])

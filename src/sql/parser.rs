@@ -2,8 +2,8 @@ use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, Index
 use crate::sql::ast::{
     AlterRoleStatement, AlterTableOperation, AlterTableStatement, BinaryOp, CallProcedureStatement,
     CommonTableExpression, CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
-    CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, CreateViewStatement, CteQuery,
-    DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropRoleStatement,
+    CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, CreateViewStatement,
+    CteQuery, DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropRoleStatement,
     DropTableStatement, DropViewStatement, Expr, FieldDefinition, FunctionArg, FunctionCall,
     InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement,
     SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement, ShowStatement,
@@ -77,7 +77,9 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     } else if lower.starts_with("alter table ") || lower == "alter table" {
         parse_alter_table_statement(trimmed)
     } else if lower.starts_with("alter view ") || lower == "alter view" {
-        Err(SqlError("ALTER VIEW is not supported in this version".into()))
+        Err(SqlError(
+            "ALTER VIEW is not supported in this version".into(),
+        ))
     } else if lower.starts_with("create schema ") || lower == "create schema" {
         parse_create_schema_statement(trimmed)
     } else if lower.starts_with("show ") || lower == "show" {

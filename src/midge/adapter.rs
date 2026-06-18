@@ -1263,8 +1263,7 @@ impl Midge {
 
     pub async fn delete_view(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::view_key(name))
-            .map_err(CassieError::from)?;
+        tx.delete(Self::view_key(name)).map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
         Ok(())

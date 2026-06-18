@@ -241,12 +241,19 @@ pub struct FunctionCall {
 pub struct OrderExpr {
     pub expr: Expr,
     pub direction: SortDirection,
+    pub nulls: Option<NullsOrder>,
 }
 
 #[derive(Debug, Clone)]
 pub enum SortDirection {
     Asc,
     Desc,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NullsOrder {
+    First,
+    Last,
 }
 
 #[derive(Debug, Clone)]
@@ -262,6 +269,26 @@ pub enum Expr {
         op: BinaryOp,
         right: Box<Expr>,
     },
+    IsNull {
+        expr: Box<Expr>,
+        negated: bool,
+    },
+    InList {
+        expr: Box<Expr>,
+        values: Vec<Expr>,
+        negated: bool,
+    },
+    Between {
+        expr: Box<Expr>,
+        low: Box<Expr>,
+        high: Box<Expr>,
+        negated: bool,
+    },
+    Cast {
+        expr: Box<Expr>,
+        data_type: DataType,
+    },
+    Exists(Box<ParsedStatement>),
     Function(FunctionCall),
 }
 

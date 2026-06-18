@@ -4,7 +4,7 @@ use crate::sql::ast::{
     CommonTableExpression, CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
     CreateSchemaStatement, CreateTableStatement, CteQuery, DropFunctionStatement,
     DropIndexStatement, DropProcedureStatement, DropTableStatement, Expr, FieldDefinition,
-    FunctionArg, FunctionCall, InsertSource, OrderExpr, ParsedStatement, QuerySource,
+    FunctionArg, FunctionCall, InsertSource, NullsOrder, OrderExpr, ParsedStatement, QuerySource,
     QueryStatement, SelectItem, SelectStatement, SortDirection, TransactionAction,
     TransactionIsolation, TransactionStatement, Volatility,
 };
@@ -2035,6 +2035,10 @@ fn parse_or_expression(raw: &str) -> Result<Expr, SqlError> {
 }
 
 fn parse_and_expression(raw: &str) -> Result<Expr, SqlError> {
+    if contains_top_level_between(raw) {
+        return parse_comparison_expression(raw);
+    }
+
     if let Some((left, right)) = split_top_level(raw, " and ") {
         return Ok(Expr::Binary {
             left: Box::new(parse_and_expression(left)?),
@@ -2056,6 +2060,34 @@ fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         }
     }
 
+    if let Some((left, right)) = split_top_level(raw, " is not null") {
+        if right.trim().is_empty() {
+            return Ok(Expr::IsNull {
+                expr: Box::new(parse_comparison_expression(left)?),
+                negated: true,
+            });
+        }
+    }
+    if let Some((left, right)) = split_top_level(raw, " is null") {
+        if right.trim().is_empty() {
+            return Ok(Expr::IsNull {
+                expr: Box::new(parse_comparison_expression(left)?),
+                negated: false,
+            });
+        }
+    }
+    if let Some((left, right)) = split_top_level(raw, " not in ") {
+        return parse_in_list_expression(left, right, true);
+    }
+    if let Some((left, right)) = split_top_level(raw, " in ") {
+        return parse_in_list_expression(left, right, false);
+    }
+    if let Some((left, right)) = split_top_level(raw, " not between ") {
+        return parse_between_expression(left, right, true);
+    }
+    if let Some((left, right)) = split_top_level(raw, " between ") {
+        return parse_between_expression(left, right, false);
+    }
     for (op, parsed) in [
         (" <=> ", BinaryOp::PgvectorCosine),
         (" <-> ", BinaryOp::PgvectorL2),
@@ -2078,13 +2110,77 @@ fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         }
     }
 
+    if let Some((left, right)) = split_top_level(raw, "::") {
+        let data_type = parse_data_type(right.trim())?;
+        return Ok(Expr::Cast {
+            expr: Box::new(parse_comparison_expression(left)?),
+            data_type,
+        });
+    }
+
     parse_expr_token(raw)
+}
+
+fn contains_top_level_between(raw: &str) -> bool {
+    split_top_level(raw, " between ").is_some() || split_top_level(raw, " not between ").is_some()
+}
+
+fn parse_between_expression(left: &str, right: &str, negated: bool) -> Result<Expr, SqlError> {
+    let (low, high) = split_top_level(right, " and ")
+        .ok_or_else(|| SqlError("BETWEEN predicate requires AND upper bound".into()))?;
+    if high.trim().is_empty() {
+        return Err(SqlError(
+            "BETWEEN predicate requires an upper bound".to_string(),
+        ));
+    }
+
+    Ok(Expr::Between {
+        expr: Box::new(parse_comparison_expression(left)?),
+        low: Box::new(parse_comparison_expression(low)?),
+        high: Box::new(parse_comparison_expression(high)?),
+        negated,
+    })
+}
+
+fn parse_in_list_expression(left: &str, right: &str, negated: bool) -> Result<Expr, SqlError> {
+    let values_raw = strip_parentheses(right.trim())
+        .ok_or_else(|| SqlError("IN predicate requires a parenthesized value list".into()))?;
+    if values_raw.trim().is_empty() {
+        return Err(SqlError("IN predicate requires at least one value".into()));
+    }
+    let values = split_csv(values_raw)
+        .into_iter()
+        .map(parse_expression)
+        .collect::<Result<Vec<_>, _>>()?;
+    if values.is_empty() {
+        return Err(SqlError("IN predicate requires at least one value".into()));
+    }
+
+    Ok(Expr::InList {
+        expr: Box::new(parse_comparison_expression(left)?),
+        values,
+        negated,
+    })
 }
 
 fn parse_order_by(raw: &str) -> Result<Vec<OrderExpr>, SqlError> {
     let mut items = Vec::new();
     for token in split_csv(raw) {
         let token = token.trim();
+        let lower = token.to_lowercase();
+        let (token, nulls) = if lower.ends_with(" nulls first") {
+            (
+                token[..token.len() - " nulls first".len()].trim(),
+                Some(NullsOrder::First),
+            )
+        } else if lower.ends_with(" nulls last") {
+            (
+                token[..token.len() - " nulls last".len()].trim(),
+                Some(NullsOrder::Last),
+            )
+        } else {
+            (token, None)
+        };
         let lower = token.to_lowercase();
         let (expr, direction) = if lower.ends_with(" desc") {
             (&token[..token.len() - 5], SortDirection::Desc)
@@ -2096,6 +2192,7 @@ fn parse_order_by(raw: &str) -> Result<Vec<OrderExpr>, SqlError> {
         items.push(OrderExpr {
             expr: parse_expression(expr)?,
             direction,
+            nulls,
         });
     }
     Ok(items)
@@ -2139,6 +2236,12 @@ fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     if let Ok(v) = raw.parse::<f64>() {
         return Ok(Expr::NumberLiteral(v));
     }
+    if let Some(exists) = parse_exists_expression(raw)? {
+        return Ok(exists);
+    }
+    if let Some(cast) = parse_cast_expression(raw)? {
+        return Ok(cast);
+    }
     if let Some(func) = parse_function(raw)? {
         return Ok(Expr::Function(func));
     }
@@ -2148,6 +2251,38 @@ fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     }
 
     Ok(Expr::Column(raw.to_string()))
+}
+
+fn parse_exists_expression(raw: &str) -> Result<Option<Expr>, SqlError> {
+    let trimmed = raw.trim();
+    if !starts_with_keyword(trimmed, "exists") {
+        return Ok(None);
+    }
+    let inner = strip_parentheses(trimmed[6..].trim())
+        .ok_or_else(|| SqlError("EXISTS requires a parenthesized subquery".into()))?;
+    let parsed = parse_statement(inner)?;
+    if !matches!(parsed.statement, QueryStatement::Select(_)) {
+        return Err(SqlError("EXISTS requires a SELECT subquery".into()));
+    }
+
+    Ok(Some(Expr::Exists(Box::new(parsed))))
+}
+
+fn parse_cast_expression(raw: &str) -> Result<Option<Expr>, SqlError> {
+    let trimmed = raw.trim();
+    if !starts_with_keyword(trimmed, "cast") {
+        return Ok(None);
+    }
+    let inner = strip_parentheses(trimmed[4..].trim())
+        .ok_or_else(|| SqlError("CAST requires parenthesized expression".into()))?;
+    let (expr_raw, type_raw) = split_top_level(inner, " as ")
+        .ok_or_else(|| SqlError("CAST requires AS type clause".into()))?;
+    let data_type = parse_data_type(type_raw.trim())?;
+
+    Ok(Some(Expr::Cast {
+        expr: Box::new(parse_expression(expr_raw)?),
+        data_type,
+    }))
 }
 
 fn parse_alias(raw: &str) -> (&str, Option<String>) {

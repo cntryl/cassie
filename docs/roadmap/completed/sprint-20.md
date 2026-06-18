@@ -1,7 +1,7 @@
 # Sprint 20 - Transaction Write Semantics
 
 Previous: [Sprint 19 - Transaction Control Basics](sprint-19.md)
-Next: [Sprint 21 - Relational Predicates and Scalar SQL](../sprint-21.md)
+Next: [Sprint 21 - Relational Predicates and Scalar SQL](sprint-21.md)
 
 ## Goal
 

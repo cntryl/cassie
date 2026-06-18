@@ -638,6 +638,155 @@ fn should_reject_two_phase_transaction_control() {
 }
 
 #[test]
+fn should_parse_is_null_predicate() {
+    // Arrange
+    let sql = "SELECT title FROM docs WHERE archived_at IS NULL";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.filter,
+        Some(Expr::IsNull { negated: false, .. })
+    ));
+}
+
+#[test]
+fn should_parse_in_list_predicate() {
+    // Arrange
+    let sql = "SELECT title FROM docs WHERE title IN ('alpha', 'beta')";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.filter,
+        Some(Expr::InList { negated: false, .. })
+    ));
+}
+
+#[test]
+fn should_parse_between_predicate() {
+    // Arrange
+    let sql = "SELECT title FROM docs WHERE score BETWEEN 10 AND 20";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.filter,
+        Some(Expr::Between { negated: false, .. })
+    ));
+}
+
+#[test]
+fn should_parse_cast_function_expression() {
+    // Arrange
+    let sql = "SELECT title FROM docs WHERE CAST(score AS TEXT) = '10'";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    let Some(Expr::Binary { left, .. }) = statement.filter else {
+        panic!("expected binary predicate");
+    };
+    assert!(matches!(*left, Expr::Cast { .. }));
+}
+
+#[test]
+fn should_parse_postgres_style_cast_expression() {
+    // Arrange
+    let sql = "SELECT title FROM docs WHERE score::TEXT = '10'";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    let Some(Expr::Binary { left, .. }) = statement.filter else {
+        panic!("expected binary predicate");
+    };
+    assert!(matches!(*left, Expr::Cast { .. }));
+}
+
+#[test]
+fn should_parse_order_by_nulls_last() {
+    // Arrange
+    let sql = "SELECT title FROM docs ORDER BY archived_at ASC NULLS LAST";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.order[0].nulls,
+        Some(cassie::sql::ast::NullsOrder::Last)
+    ));
+}
+
+#[test]
+fn should_parse_exists_predicate() {
+    // Arrange
+    let sql = "SELECT title FROM docs WHERE EXISTS (SELECT title FROM archive)";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(statement.filter, Some(Expr::Exists(_))));
+}
+
+#[test]
+fn should_reject_empty_in_list_predicate() {
+    // Arrange
+    let sql = "SELECT title FROM docs WHERE title IN ()";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+    assert!(parsed.unwrap_err().0.contains("IN predicate"));
+}
+
+#[test]
+fn should_reject_exists_without_select_subquery() {
+    // Arrange
+    let sql = "SELECT title FROM docs WHERE EXISTS (INSERT INTO docs (title) VALUES ('x'))";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+    assert!(parsed.unwrap_err().0.contains("EXISTS requires"));
+}
+
+#[test]
 fn should_reject_unknown_clause_in_query() {
     // Arrange
     let sql = "SELECT * FROM docs GROUP BY title";

@@ -37,6 +37,9 @@ pub(crate) async fn scan(
 }
 
 fn json_to_value(value: &serde_json::Value) -> Value {
+    if value.is_null() {
+        return Value::Null;
+    }
     if let Some(v) = value.as_str() {
         return Value::String(v.to_string());
     }

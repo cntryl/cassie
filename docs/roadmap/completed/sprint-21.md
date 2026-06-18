@@ -1,7 +1,7 @@
 # Sprint 21 - Relational Predicates and Scalar SQL
 
-Previous: [Sprint 20 - Transaction Write Semantics](completed/sprint-20.md)
-Next: [Sprint 22 - Joins and FROM Subqueries](sprint-22.md)
+Previous: [Sprint 20 - Transaction Write Semantics](sprint-20.md)
+Next: [Sprint 22 - Joins and FROM Subqueries](../sprint-22.md)
 
 ## Goal
 

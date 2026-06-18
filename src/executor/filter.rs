@@ -5,7 +5,7 @@ use crate::executor::batch::{Batch, RowAccess};
 use crate::executor::QueryError;
 use crate::sql::ast::FunctionCall;
 use crate::sql::ast::{BinaryOp, Expr};
-use crate::types::Value;
+use crate::types::{DataType, Value};
 
 #[derive(Debug, Clone)]
 pub(crate) enum ScalarValue {
@@ -347,6 +347,156 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
                 user_functions,
                 local_args,
             )?,
+        )),
+        Expr::IsNull { expr, negated } => {
+            let value = eval_scalar(
+                row,
+                expr,
+                params,
+                search_context,
+                user_functions,
+                local_args,
+            )?;
+            let is_null = matches!(value, ScalarValue::Null);
+            Ok(ScalarValue::Bool(if *negated { !is_null } else { is_null }))
+        }
+        Expr::InList {
+            expr,
+            values,
+            negated,
+        } => {
+            let left = eval_scalar(
+                row,
+                expr,
+                params,
+                search_context,
+                user_functions,
+                local_args,
+            )?;
+            let contains = values
+                .iter()
+                .map(|value| {
+                    eval_scalar(
+                        row,
+                        value,
+                        params,
+                        search_context,
+                        user_functions,
+                        local_args,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .iter()
+                .any(|right| eq_value(&left, right));
+            Ok(ScalarValue::Bool(if *negated {
+                !contains
+            } else {
+                contains
+            }))
+        }
+        Expr::Between {
+            expr,
+            low,
+            high,
+            negated,
+        } => {
+            let value = eval_scalar(
+                row,
+                expr,
+                params,
+                search_context,
+                user_functions,
+                local_args,
+            )?;
+            let low = eval_scalar(row, low, params, search_context, user_functions, local_args)?;
+            let high = eval_scalar(
+                row,
+                high,
+                params,
+                search_context,
+                user_functions,
+                local_args,
+            )?;
+            let in_range = number_cmp(&value, &low, |left, right| left >= right)
+                && number_cmp(&value, &high, |left, right| left <= right);
+            Ok(ScalarValue::Bool(if *negated {
+                !in_range
+            } else {
+                in_range
+            }))
+        }
+        Expr::Cast { expr, data_type } => {
+            let value = eval_scalar(
+                row,
+                expr,
+                params,
+                search_context,
+                user_functions,
+                local_args,
+            )?;
+            cast_scalar(&value, data_type)
+        }
+        Expr::Exists(_) => Err(QueryError::General(
+            "EXISTS predicate was not resolved before filtering".to_string(),
+        )),
+    }
+}
+
+fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue, QueryError> {
+    if matches!(value, ScalarValue::Null) {
+        return Ok(ScalarValue::Null);
+    }
+
+    match data_type {
+        DataType::Int => value
+            .to_f64()
+            .map(|value| ScalarValue::Int(value as i64))
+            .or_else(|| {
+                value
+                    .as_str()
+                    .and_then(|value| value.parse::<i64>().ok())
+                    .map(ScalarValue::Int)
+            })
+            .ok_or_else(|| QueryError::General("cannot cast value to INT".to_string())),
+        DataType::Float => value
+            .to_f64()
+            .map(ScalarValue::Float)
+            .or_else(|| {
+                value
+                    .as_str()
+                    .and_then(|value| value.parse::<f64>().ok())
+                    .map(ScalarValue::Float)
+            })
+            .ok_or_else(|| QueryError::General("cannot cast value to FLOAT".to_string())),
+        DataType::Boolean => match value {
+            ScalarValue::Bool(value) => Ok(ScalarValue::Bool(*value)),
+            ScalarValue::Int(value) => Ok(ScalarValue::Bool(*value != 0)),
+            ScalarValue::Float(value) => Ok(ScalarValue::Bool(*value != 0.0)),
+            ScalarValue::Str(value) => match value.to_ascii_lowercase().as_str() {
+                "true" | "t" | "1" => Ok(ScalarValue::Bool(true)),
+                "false" | "f" | "0" => Ok(ScalarValue::Bool(false)),
+                _ => Err(QueryError::General(
+                    "cannot cast value to BOOLEAN".to_string(),
+                )),
+            },
+            ScalarValue::Null => Ok(ScalarValue::Null),
+        },
+        DataType::Text => Ok(ScalarValue::Str(match value {
+            ScalarValue::Bool(value) => value.to_string(),
+            ScalarValue::Int(value) => value.to_string(),
+            ScalarValue::Float(value) => value.to_string(),
+            ScalarValue::Str(value) => value.clone(),
+            ScalarValue::Null => String::new(),
+        })),
+        DataType::Json => Ok(ScalarValue::Str(match value {
+            ScalarValue::Bool(value) => value.to_string(),
+            ScalarValue::Int(value) => value.to_string(),
+            ScalarValue::Float(value) => value.to_string(),
+            ScalarValue::Str(value) => value.clone(),
+            ScalarValue::Null => "null".to_string(),
+        })),
+        DataType::Vector(_) => Err(QueryError::General(
+            "cannot cast scalar value to VECTOR".to_string(),
         )),
     }
 }

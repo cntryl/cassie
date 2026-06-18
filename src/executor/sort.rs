@@ -4,7 +4,7 @@ use crate::executor::batch::{
 };
 use crate::executor::filter;
 use crate::executor::filter::SearchContext;
-use crate::sql::ast::{Expr, OrderExpr, SelectItem, SortDirection};
+use crate::sql::ast::{Expr, NullsOrder, OrderExpr, SelectItem, SortDirection};
 use crate::types::Value;
 
 pub(crate) fn sort_rows<R>(
@@ -23,7 +23,12 @@ where
     }
 
     rows.sort_by(|left, right| {
-        for OrderExpr { expr, direction } in order {
+        for OrderExpr {
+            expr,
+            direction,
+            nulls,
+        } in order
+        {
             let left_value = sort_value(
                 left,
                 expr,
@@ -40,6 +45,10 @@ where
                 search_context,
                 user_functions,
             );
+
+            if let Some(cmp) = compare_nulls(&left_value, &right_value, *nulls) {
+                return cmp;
+            }
 
             let cmp = compare_scalar(&left_value, &right_value);
             if cmp != std::cmp::Ordering::Equal {
@@ -150,4 +159,25 @@ fn compare_scalar(
     }
 
     std::cmp::Ordering::Equal
+}
+
+fn compare_nulls(
+    left: &crate::executor::filter::ScalarValue,
+    right: &crate::executor::filter::ScalarValue,
+    nulls: Option<NullsOrder>,
+) -> Option<std::cmp::Ordering> {
+    if let Some(nulls) = nulls {
+        let left_null = matches!(left, crate::executor::filter::ScalarValue::Null);
+        let right_null = matches!(right, crate::executor::filter::ScalarValue::Null);
+        if left_null != right_null {
+            return Some(match (left_null, nulls) {
+                (true, NullsOrder::First) | (false, NullsOrder::Last) => std::cmp::Ordering::Less,
+                (true, NullsOrder::Last) | (false, NullsOrder::First) => {
+                    std::cmp::Ordering::Greater
+                }
+            });
+        }
+    }
+
+    None
 }

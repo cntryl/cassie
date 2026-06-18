@@ -36,6 +36,7 @@ pub enum QueryError {
 type CteRows = Vec<Vec<(String, Value)>>;
 type CteContext = HashMap<String, CteRows>;
 type CteExecution<'a> = Pin<Box<dyn Future<Output = Result<CteRows, QueryError>> + Send + 'a>>;
+type ExprResolution<'a> = Pin<Box<dyn Future<Output = Result<Expr, QueryError>> + Send + 'a>>;
 
 pub async fn run(
     cassie: &Cassie,
@@ -764,6 +765,11 @@ fn insert_expr_to_json(expr: &Expr, params: &[Value]) -> Result<serde_json::Valu
             .ok_or_else(|| format!("missing bind parameter ${}", index + 1)),
         Expr::Column(_)
         | Expr::Function(_)
+        | Expr::IsNull { .. }
+        | Expr::InList { .. }
+        | Expr::Between { .. }
+        | Expr::Cast { .. }
+        | Expr::Exists(_)
         | Expr::Binary {
             left: _,
             op: _,
@@ -827,6 +833,9 @@ fn inserted_row_to_batch_row(
 }
 
 fn json_to_value(value: &serde_json::Value) -> Value {
+    if value.is_null() {
+        return Value::Null;
+    }
     if let Some(value) = value.as_str() {
         return Value::String(value.to_string());
     }
@@ -1282,6 +1291,180 @@ fn execute_cte<'a>(
     })
 }
 
+fn resolve_exists_expr<'a>(
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    expr: &'a Expr,
+    cte_context: &'a CteContext,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    controls: &'a QueryExecutionControls,
+) -> ExprResolution<'a> {
+    Box::pin(async move {
+        match expr {
+            Expr::Binary { left, op, right } => Ok(Expr::Binary {
+                left: Box::new(
+                    resolve_exists_expr(
+                        cassie,
+                        session,
+                        left,
+                        cte_context,
+                        user_functions,
+                        params,
+                        controls,
+                    )
+                    .await?,
+                ),
+                op: op.clone(),
+                right: Box::new(
+                    resolve_exists_expr(
+                        cassie,
+                        session,
+                        right,
+                        cte_context,
+                        user_functions,
+                        params,
+                        controls,
+                    )
+                    .await?,
+                ),
+            }),
+            Expr::IsNull { expr, negated } => Ok(Expr::IsNull {
+                expr: Box::new(
+                    resolve_exists_expr(
+                        cassie,
+                        session,
+                        expr,
+                        cte_context,
+                        user_functions,
+                        params,
+                        controls,
+                    )
+                    .await?,
+                ),
+                negated: *negated,
+            }),
+            Expr::InList {
+                expr,
+                values,
+                negated,
+            } => {
+                let expr = resolve_exists_expr(
+                    cassie,
+                    session,
+                    expr,
+                    cte_context,
+                    user_functions,
+                    params,
+                    controls,
+                )
+                .await?;
+                let mut resolved_values = Vec::with_capacity(values.len());
+                for value in values {
+                    resolved_values.push(
+                        resolve_exists_expr(
+                            cassie,
+                            session,
+                            value,
+                            cte_context,
+                            user_functions,
+                            params,
+                            controls,
+                        )
+                        .await?,
+                    );
+                }
+                Ok(Expr::InList {
+                    expr: Box::new(expr),
+                    values: resolved_values,
+                    negated: *negated,
+                })
+            }
+            Expr::Between {
+                expr,
+                low,
+                high,
+                negated,
+            } => Ok(Expr::Between {
+                expr: Box::new(
+                    resolve_exists_expr(
+                        cassie,
+                        session,
+                        expr,
+                        cte_context,
+                        user_functions,
+                        params,
+                        controls,
+                    )
+                    .await?,
+                ),
+                low: Box::new(
+                    resolve_exists_expr(
+                        cassie,
+                        session,
+                        low,
+                        cte_context,
+                        user_functions,
+                        params,
+                        controls,
+                    )
+                    .await?,
+                ),
+                high: Box::new(
+                    resolve_exists_expr(
+                        cassie,
+                        session,
+                        high,
+                        cte_context,
+                        user_functions,
+                        params,
+                        controls,
+                    )
+                    .await?,
+                ),
+                negated: *negated,
+            }),
+            Expr::Cast { expr, data_type } => Ok(Expr::Cast {
+                expr: Box::new(
+                    resolve_exists_expr(
+                        cassie,
+                        session,
+                        expr,
+                        cte_context,
+                        user_functions,
+                        params,
+                        controls,
+                    )
+                    .await?,
+                ),
+                data_type: data_type.clone(),
+            }),
+            Expr::Exists(statement) => {
+                let logical = build_logical_plan(statement.as_ref())?;
+                let mut subquery_context = cte_context.clone();
+                let rows = execute_plan(
+                    cassie,
+                    session,
+                    &logical,
+                    &mut subquery_context,
+                    user_functions,
+                    params,
+                    controls,
+                )
+                .await?;
+                Ok(Expr::BoolLiteral(!rows.is_empty()))
+            }
+            Expr::Column(_)
+            | Expr::Param(_)
+            | Expr::StringLiteral(_)
+            | Expr::NumberLiteral(_)
+            | Expr::BoolLiteral(_)
+            | Expr::Null
+            | Expr::Function(_) => Ok(expr.clone()),
+        }
+    })
+}
+
 fn build_logical_plan(
     statement: &crate::sql::ast::ParsedStatement,
 ) -> Result<LogicalPlan, QueryError> {
@@ -1368,7 +1551,24 @@ async fn execute_source_query(
         ))
     };
 
-    if let Some(filter_expr) = &plan.filter {
+    let resolved_filter = if let Some(filter_expr) = &plan.filter {
+        Some(
+            resolve_exists_expr(
+                cassie,
+                session,
+                filter_expr,
+                cte_context,
+                user_functions,
+                params,
+                controls,
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
+
+    if let Some(filter_expr) = &resolved_filter {
         batches = filter::filter_batches(
             batches,
             filter_expr,
@@ -1624,6 +1824,18 @@ fn expr_uses_vector_operator(expr: &crate::sql::ast::Expr) -> bool {
                 || expr_uses_vector_operator(right)
         }
         crate::sql::ast::Expr::Function(function) => function_uses_vector_operator(function),
+        crate::sql::ast::Expr::IsNull { expr, .. } => expr_uses_vector_operator(expr),
+        crate::sql::ast::Expr::InList { expr, values, .. } => {
+            expr_uses_vector_operator(expr) || values.iter().any(expr_uses_vector_operator)
+        }
+        crate::sql::ast::Expr::Between {
+            expr, low, high, ..
+        } => {
+            expr_uses_vector_operator(expr)
+                || expr_uses_vector_operator(low)
+                || expr_uses_vector_operator(high)
+        }
+        crate::sql::ast::Expr::Cast { expr, .. } => expr_uses_vector_operator(expr),
         _ => false,
     }
 }
@@ -1695,6 +1907,21 @@ fn expr_uses_function(expr: &crate::sql::ast::Expr, function_name: &str) -> bool
         crate::sql::ast::Expr::Function(function) => {
             function_uses_function(function, function_name)
         }
+        crate::sql::ast::Expr::IsNull { expr, .. } => expr_uses_function(expr, function_name),
+        crate::sql::ast::Expr::InList { expr, values, .. } => {
+            expr_uses_function(expr, function_name)
+                || values
+                    .iter()
+                    .any(|value| expr_uses_function(value, function_name))
+        }
+        crate::sql::ast::Expr::Between {
+            expr, low, high, ..
+        } => {
+            expr_uses_function(expr, function_name)
+                || expr_uses_function(low, function_name)
+                || expr_uses_function(high, function_name)
+        }
+        crate::sql::ast::Expr::Cast { expr, .. } => expr_uses_function(expr, function_name),
         _ => false,
     }
 }
@@ -1724,6 +1951,25 @@ fn collect_fulltext_fields_from_expr(expr: &crate::sql::ast::Expr, fields: &mut 
         }
         crate::sql::ast::Expr::Function(function) => {
             collect_fulltext_fields_from_function(function, fields);
+        }
+        crate::sql::ast::Expr::IsNull { expr, .. } => {
+            collect_fulltext_fields_from_expr(expr, fields);
+        }
+        crate::sql::ast::Expr::InList { expr, values, .. } => {
+            collect_fulltext_fields_from_expr(expr, fields);
+            for value in values {
+                collect_fulltext_fields_from_expr(value, fields);
+            }
+        }
+        crate::sql::ast::Expr::Between {
+            expr, low, high, ..
+        } => {
+            collect_fulltext_fields_from_expr(expr, fields);
+            collect_fulltext_fields_from_expr(low, fields);
+            collect_fulltext_fields_from_expr(high, fields);
+        }
+        crate::sql::ast::Expr::Cast { expr, .. } => {
+            collect_fulltext_fields_from_expr(expr, fields);
         }
         _ => {}
     }

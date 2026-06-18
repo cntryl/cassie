@@ -1092,6 +1092,22 @@ fn function_body_references(expr: &Expr, function_name: &str) -> bool {
             function_body_references(left, function_name)
                 || function_body_references(right, function_name)
         }
+        Expr::IsNull { expr, .. } => function_body_references(expr, function_name),
+        Expr::InList { expr, values, .. } => {
+            function_body_references(expr, function_name)
+                || values
+                    .iter()
+                    .any(|value| function_body_references(value, function_name))
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            function_body_references(expr, function_name)
+                || function_body_references(low, function_name)
+                || function_body_references(high, function_name)
+        }
+        Expr::Cast { expr, .. } => function_body_references(expr, function_name),
+        Expr::Exists(_) => false,
         Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::BoolLiteral(_)
@@ -1310,6 +1326,58 @@ fn validate_expression(
                 allow_projection_alias,
             )
         }
+        Expr::IsNull { expr, .. } => validate_expression(
+            expr,
+            known_fields,
+            projection_aliases,
+            allow_projection_alias,
+        ),
+        Expr::InList { expr, values, .. } => {
+            validate_expression(
+                expr,
+                known_fields,
+                projection_aliases,
+                allow_projection_alias,
+            )?;
+            for value in values {
+                validate_expression(
+                    value,
+                    known_fields,
+                    projection_aliases,
+                    allow_projection_alias,
+                )?;
+            }
+            Ok(())
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            validate_expression(
+                expr,
+                known_fields,
+                projection_aliases,
+                allow_projection_alias,
+            )?;
+            validate_expression(
+                low,
+                known_fields,
+                projection_aliases,
+                allow_projection_alias,
+            )?;
+            validate_expression(
+                high,
+                known_fields,
+                projection_aliases,
+                allow_projection_alias,
+            )
+        }
+        Expr::Cast { expr, .. } => validate_expression(
+            expr,
+            known_fields,
+            projection_aliases,
+            allow_projection_alias,
+        ),
+        Expr::Exists(_) => Ok(()),
         Expr::Function(function) => {
             for arg in &function.args {
                 validate_expression(
@@ -1377,6 +1445,26 @@ fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
     if let Expr::Binary { left, right, .. } = expr {
         collect_expr(left, out);
         collect_expr(right, out);
+    }
+    if let Expr::IsNull { expr, .. } = expr {
+        collect_expr(expr, out);
+    }
+    if let Expr::InList { expr, values, .. } = expr {
+        collect_expr(expr, out);
+        for value in values {
+            collect_expr(value, out);
+        }
+    }
+    if let Expr::Between {
+        expr, low, high, ..
+    } = expr
+    {
+        collect_expr(expr, out);
+        collect_expr(low, out);
+        collect_expr(high, out);
+    }
+    if let Expr::Cast { expr, .. } = expr {
+        collect_expr(expr, out);
     }
 }
 

@@ -1,7 +1,7 @@
 # Sprint 24 - PostgreSQL Catalog Basics
 
 Previous: [Sprint 23 - Aggregates, DISTINCT, and Set Operations](sprint-23.md)
-Next: [Sprint 25 - Catalog Compatibility Probes](../sprint-25.md)
+Next: [Sprint 25 - Catalog Compatibility Probes](completed/sprint-25.md)
 
 ## Goal
 

@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use crate::app::CassieError;
 use crate::types::{DataType, FieldSchema, Schema};
+use uuid::Uuid;
 
 const MAGIC: &[u8; 4] = b"CRB1";
 const FORMAT_VERSION: u8 = 1;
@@ -10,8 +11,13 @@ const TYPE_BOOL: u8 = 0x01;
 const TYPE_I64: u8 = 0x02;
 const TYPE_F64: u8 = 0x04;
 const TYPE_STRING: u8 = 0x05;
+const TYPE_UUID: u8 = 0x06;
 const TYPE_JSON: u8 = 0x07;
 const TYPE_VECTOR_F32: u8 = 0x08;
+const TYPE_DATE: u8 = 0x09;
+const TYPE_TIME: u8 = 0x0A;
+const TYPE_TIMESTAMP: u8 = 0x0B;
+const TYPE_ARRAY: u8 = 0x0C;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct RowSchema {
@@ -150,24 +156,36 @@ pub(crate) fn encode_row(
     write_varint(fields.len() as u64, &mut out);
 
     for (field_id, type_tag, encoded) in fields {
-        write_varint(field_id as u64, &mut out);
-        out.push(type_tag);
-        match type_tag {
-            TYPE_NULL => {}
-            TYPE_BOOL | TYPE_I64 | TYPE_F64 => out.extend_from_slice(&encoded),
-            TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 => {
-                write_varint(encoded.len() as u64, &mut out);
-                out.extend_from_slice(&encoded);
-            }
-            _ => {
-                return Err(CassieError::Parse(format!(
-                    "unsupported row blob type tag {type_tag}"
-                )));
-            }
-        }
+        write_field_value(field_id, type_tag, &encoded, &mut out)?;
     }
 
     Ok(out)
+}
+
+fn write_field_value(
+    field_id: u32,
+    type_tag: u8,
+    encoded: &[u8],
+    out: &mut Vec<u8>,
+) -> Result<(), CassieError> {
+    write_varint(field_id as u64, out);
+    out.push(type_tag);
+
+    match type_tag {
+        TYPE_NULL => {}
+        TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID | TYPE_ARRAY => out.extend_from_slice(encoded),
+        TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME | TYPE_TIMESTAMP => {
+            write_varint(encoded.len() as u64, out);
+            out.extend_from_slice(encoded);
+        }
+        _ => {
+            return Err(CassieError::Parse(format!(
+                "unsupported row blob type tag {type_tag}"
+            )));
+        }
+    }
+
+    Ok(())
 }
 
 pub(crate) fn decode_row(schema: &RowSchema, row: &[u8]) -> Result<serde_json::Value, CassieError> {
@@ -273,6 +291,7 @@ fn encode_value(
     }
 
     match data_type {
+        DataType::Null => Ok((TYPE_NULL, Vec::new())),
         DataType::Int => {
             let value = value
                 .as_i64()
@@ -297,6 +316,61 @@ fn encode_value(
                 .as_str()
                 .ok_or_else(|| CassieError::InvalidVector("text field expects string".into()))?;
             Ok((TYPE_STRING, value.as_bytes().to_vec()))
+        }
+        DataType::Uuid => {
+            let value = value
+                .as_str()
+                .ok_or_else(|| CassieError::InvalidVector("uuid field expects string".into()))?;
+            let uuid = Uuid::parse_str(value)
+                .map_err(|_| CassieError::InvalidVector("uuid field expects UUID".into()))?;
+            Ok((TYPE_UUID, uuid.as_bytes().to_vec()))
+        }
+        DataType::Date => {
+            let value = value
+                .as_str()
+                .ok_or_else(|| CassieError::InvalidVector("date field expects string".into()))?;
+            Ok((TYPE_DATE, value.as_bytes().to_vec()))
+        }
+        DataType::Time => {
+            let value = value
+                .as_str()
+                .ok_or_else(|| CassieError::InvalidVector("time field expects string".into()))?;
+            Ok((TYPE_TIME, value.as_bytes().to_vec()))
+        }
+        DataType::Timestamp => {
+            let value = value.as_str().ok_or_else(|| {
+                CassieError::InvalidVector("timestamp field expects string".into())
+            })?;
+            Ok((TYPE_TIMESTAMP, value.as_bytes().to_vec()))
+        }
+        DataType::Array(inner) => {
+            let values = value
+                .as_array()
+                .ok_or_else(|| CassieError::InvalidVector("array field expects array".into()))?;
+
+            let mut out = Vec::new();
+            write_varint(values.len() as u64, &mut out);
+            for value in values {
+                let (value_type, value_data) = encode_value(inner, value)?;
+                out.push(value_type);
+                match value_type {
+                    TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID => {
+                        out.extend_from_slice(&value_data)
+                    }
+                    TYPE_NULL | TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE
+                    | TYPE_TIME | TYPE_TIMESTAMP | TYPE_ARRAY => {
+                        write_varint(value_data.len() as u64, &mut out);
+                        out.extend_from_slice(&value_data);
+                    }
+                    _ => {
+                        return Err(CassieError::Parse(format!(
+                            "unsupported array element type tag {value_type}"
+                        )));
+                    }
+                }
+            }
+
+            Ok((TYPE_ARRAY, out))
         }
         DataType::Json => {
             let encoded = serde_json::to_vec(value)
@@ -330,6 +404,13 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
     match type_tag {
         TYPE_NULL => Ok(serde_json::Value::Null),
         TYPE_BOOL => Ok(serde_json::Value::Bool(cursor.read_u8()? != 0)),
+        TYPE_UUID => {
+            let bytes = cursor.read_exact(16)?;
+            let uuid = Uuid::from_slice(bytes).map_err(|error| {
+                CassieError::Parse(format!("invalid UUID in row blob: {error}"))
+            })?;
+            Ok(serde_json::Value::String(uuid.to_string()))
+        }
         TYPE_I64 => {
             let value = cursor.read_i64()?;
             Ok(serde_json::Value::Number(value.into()))
@@ -350,6 +431,35 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
             let bytes = cursor.read_len_prefixed()?;
             serde_json::from_slice(&bytes)
                 .map_err(|error| CassieError::Parse(format!("invalid JSON in row blob: {error}")))
+        }
+        TYPE_DATE => {
+            let bytes = cursor.read_len_prefixed()?;
+            String::from_utf8(bytes)
+                .map(serde_json::Value::String)
+                .map_err(|error| CassieError::Parse(format!("invalid date in row blob: {error}")))
+        }
+        TYPE_TIME => {
+            let bytes = cursor.read_len_prefixed()?;
+            String::from_utf8(bytes)
+                .map(serde_json::Value::String)
+                .map_err(|error| CassieError::Parse(format!("invalid time in row blob: {error}")))
+        }
+        TYPE_TIMESTAMP => {
+            let bytes = cursor.read_len_prefixed()?;
+            String::from_utf8(bytes)
+                .map(serde_json::Value::String)
+                .map_err(|error| {
+                    CassieError::Parse(format!("invalid timestamp in row blob: {error}"))
+                })
+        }
+        TYPE_ARRAY => {
+            let count = cursor.read_varint()? as usize;
+            let mut values = Vec::with_capacity(count);
+            for _ in 0..count {
+                let value_type = cursor.read_u8()?;
+                values.push(decode_value(value_type, cursor)?);
+            }
+            Ok(serde_json::Value::Array(values))
         }
         TYPE_VECTOR_F32 => {
             let bytes = cursor.read_len_prefixed()?;
@@ -505,6 +615,100 @@ mod tests {
         assert_eq!(decoded, serde_json::json!({"score": 42}));
         let raw = String::from_utf8_lossy(&encoded);
         assert!(!raw.contains("score"));
+    }
+
+    #[test]
+    fn should_roundtrip_binary_temporal_uuid_array_fields() {
+        // Arrange
+        let schema = RowSchema::from_schema(&Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "id".to_string(),
+                    data_type: DataType::Uuid,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "created_on".to_string(),
+                    data_type: DataType::Date,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "created_at".to_string(),
+                    data_type: DataType::Timestamp,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "updated_at".to_string(),
+                    data_type: DataType::Time,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "ints".to_string(),
+                    data_type: DataType::Array(Box::new(DataType::Int)),
+                    nullable: true,
+                },
+            ],
+        });
+        let payload = serde_json::json!({
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "created_on": "2026-06-18",
+            "created_at": "2026-06-18T12:34:56Z",
+            "updated_at": "12:34:56",
+            "ints": [1, 2, 3],
+        });
+
+        // Act
+        let encoded = encode_row(&schema, &payload).unwrap();
+        let mut cursor = Cursor::new(&encoded);
+        cursor.expect_bytes(MAGIC).unwrap();
+        let version = cursor.read_u8().unwrap();
+        assert_eq!(version, FORMAT_VERSION);
+        let _schema_version = cursor.read_u32().unwrap();
+        let _flags = cursor.read_u8().unwrap();
+        let field_count = cursor.read_varint().unwrap();
+        for index in 0..field_count {
+            let field_id = cursor.read_varint().unwrap();
+            let tag = cursor.read_u8().unwrap();
+            let value = decode_value(tag, &mut cursor);
+            assert!(
+                value.is_ok(),
+                "field {index} id={field_id} tag={tag}: {value:?}"
+            );
+        }
+
+        let decoded = decode_row(&schema, &encoded).unwrap();
+
+        // Assert
+        assert_eq!(
+            decoded,
+            serde_json::json!({
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "created_on": "2026-06-18",
+                "created_at": "2026-06-18T12:34:56Z",
+                "updated_at": "12:34:56",
+                "ints": [1, 2, 3],
+            })
+        );
+        assert_eq!(&encoded[0..4], b"CRB1");
+    }
+
+    #[test]
+    fn should_reject_invalid_uuid_values_during_row_blob_encoding() {
+        // Arrange
+        let schema = RowSchema::from_schema(&Schema {
+            fields: vec![FieldSchema {
+                name: "id".to_string(),
+                data_type: DataType::Uuid,
+                nullable: true,
+            }],
+        });
+        let payload = serde_json::json!({"id": "not-a-uuid"});
+
+        // Act
+        let result = encode_row(&schema, &payload);
+
+        // Assert
+        assert!(result.is_err());
     }
 
     #[test]

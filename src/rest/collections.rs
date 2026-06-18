@@ -29,7 +29,7 @@ pub async fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> 
 
     let mut schema_fields = Vec::new();
     for field in request.fields {
-        let parsed = parse_data_type(field.data_type.as_str());
+        let parsed = parse_data_type(field.data_type.as_str())?;
         schema_fields.push(FieldSchema {
             name: field.name,
             data_type: parsed,
@@ -63,20 +63,6 @@ pub async fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> 
     }))
 }
 
-fn parse_data_type(value: &str) -> DataType {
-    let lowered = value.trim().to_lowercase();
-    if let Some(dim) = lowered.strip_prefix("vector(") {
-        if let Some(end) = dim.strip_suffix(')') {
-            let dim = end.parse::<usize>().unwrap_or(0);
-            return DataType::Vector(dim);
-        }
-    }
-
-    match lowered.as_str() {
-        "int" | "integer" => DataType::Int,
-        "float" | "double" => DataType::Float,
-        "bool" | "boolean" => DataType::Boolean,
-        "json" => DataType::Json,
-        _ => DataType::Text,
-    }
+fn parse_data_type(value: &str) -> Result<DataType, CassieError> {
+    DataType::parse_sql(value).map_err(CassieError::Parse)
 }

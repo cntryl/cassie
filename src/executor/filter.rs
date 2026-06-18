@@ -7,6 +7,7 @@ use crate::executor::QueryError;
 use crate::sql::ast::FunctionCall;
 use crate::sql::ast::{BinaryOp, Expr};
 use crate::types::{DataType, Value};
+use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub(crate) enum ScalarValue {
@@ -499,6 +500,7 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
     }
 
     match data_type {
+        DataType::Null => Ok(ScalarValue::Null),
         DataType::Int => value
             .to_f64()
             .map(|value| ScalarValue::Int(value as i64))
@@ -539,6 +541,20 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             ScalarValue::Str(value) => value.clone(),
             ScalarValue::Null => String::new(),
         })),
+        DataType::Uuid => {
+            let value = value
+                .as_str()
+                .ok_or_else(|| QueryError::General("cannot cast value to UUID".to_string()))?;
+            Uuid::parse_str(value)
+                .map_err(|_| QueryError::General("cannot cast value to UUID".to_string()))?;
+            Ok(ScalarValue::Str(value.to_string()))
+        }
+        DataType::Date | DataType::Time | DataType::Timestamp => match value {
+            ScalarValue::Str(value) => Ok(ScalarValue::Str(value.clone())),
+            _ => Err(QueryError::General(
+                "cannot cast value to timestamp/time/date type".to_string(),
+            )),
+        },
         DataType::Json => Ok(ScalarValue::Str(match value {
             ScalarValue::Bool(value) => value.to_string(),
             ScalarValue::Int(value) => value.to_string(),
@@ -546,6 +562,9 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             ScalarValue::Str(value) => value.clone(),
             ScalarValue::Null => "null".to_string(),
         })),
+        DataType::Array(_) => Err(QueryError::General(
+            "cannot cast scalar value to ARRAY".to_string(),
+        )),
         DataType::Vector(_) => Err(QueryError::General(
             "cannot cast scalar value to VECTOR".to_string(),
         )),
@@ -802,6 +821,20 @@ fn evaluate_function<R: RowAccess + ?Sized>(
             let query = to_text(&args[1]);
             let terms = crate::search::tokenizer::tokenize(&query);
             Ok(Value::String(crate::search::snippet(&source, &terms)))
+        }
+        "cast" => {
+            if args.len() != 2 {
+                return Err(QueryError::General(format!(
+                    "cast requires 2 args, got {}",
+                    args.len()
+                )));
+            }
+            let target = DataType::parse_sql(&to_text(&args[1]))
+                .map_err(|_| QueryError::General("cannot cast value".to_string()))?;
+            let scalar = scalar_from_value(&args[0])
+                .ok_or_else(|| QueryError::General("invalid cast input".to_string()))?;
+            let value = cast_scalar(&scalar, &target)?;
+            Ok(value.to_value())
         }
         _ => {
             let Some(metadata) = user_functions.get(&name) else {

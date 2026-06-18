@@ -1,5 +1,5 @@
 use cassie::app::Cassie;
-use cassie::types::Value;
+use cassie::types::{DataType, Value};
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -277,6 +277,66 @@ fn should_return_empty_rows_for_unimplemented_pg_catalog_view() {
 
         // Assert
         assert!(selected.rows.is_empty());
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_list_supported_types_through_pg_catalog_type_view() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("pg_type");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT typname, oid, typelem, typnamespace FROM pg_catalog.pg_type WHERE typname IN ('int', 'vector(2)', 'text', 'int[]') ORDER BY typname",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![
+                vec![
+                    Value::String("int".to_string()),
+                    Value::Int64(DataType::Int.type_oid()),
+                    Value::Int64(0),
+                    Value::String("pg_catalog".to_string())
+                ],
+                vec![
+                    Value::String("int[]".to_string()),
+                    Value::Int64(DataType::Array(Box::new(DataType::Int)).type_oid()),
+                    Value::Int64(DataType::Int.type_oid()),
+                    Value::String("pg_catalog".to_string())
+                ],
+                vec![
+                    Value::String("text".to_string()),
+                    Value::Int64(DataType::Text.type_oid()),
+                    Value::Int64(0),
+                    Value::String("pg_catalog".to_string())
+                ],
+                vec![
+                    Value::String("vector(2)".to_string()),
+                    Value::Int64(DataType::Vector(2).type_oid()),
+                    Value::Int64(0),
+                    Value::String("pg_catalog".to_string())
+                ],
+            ]
+        );
 
         let _ = std::fs::remove_dir_all(path);
     });

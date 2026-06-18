@@ -1323,6 +1323,15 @@ async fn validate_functions(
     collect_functions(statement, &mut seen);
 
     for function in seen {
+        if function.name.eq_ignore_ascii_case("cast") {
+            if function.args.len() != 2 {
+                return Err(CassieError::Planner(format!(
+                    "function '{}' expects 2 args",
+                    function.name
+                )));
+            }
+            continue;
+        }
         if let Some(arity) = crate::sql::functions::aggregate_arity(&function.name) {
             if function.args.len() != arity {
                 return Err(CassieError::Planner(format!(

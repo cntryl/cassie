@@ -998,33 +998,38 @@ fn parse_projection_items(raw: &str) -> Result<Vec<crate::sql::ast::SelectItem>,
 
     let mut projection = Vec::new();
     for token in split_csv(raw) {
-        let token = token.trim();
-        if token == "*" {
-            projection.push(SelectItem::Wildcard);
-            continue;
-        }
-
-        if let Some(function) = parse_function(token)? {
-            let (expr, alias) = parse_alias(token);
-            if expr.is_empty() {
-                return Err(SqlError("invalid function in projection".into()));
-            }
-            projection.push(SelectItem::Function { function, alias });
-            continue;
-        }
-
-        let (name, alias) = parse_alias(token);
-        if name.is_empty() {
-            return Err(SqlError("invalid projection item".into()));
-        }
-
-        projection.push(SelectItem::Column {
-            name: name.to_string(),
-            alias,
-        });
+        projection.push(parse_projection_item(token)?);
     }
 
     Ok(projection)
+}
+
+fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
+    let token = raw.trim();
+    if token == "*" {
+        return Ok(SelectItem::Wildcard);
+    }
+
+    let (expr_raw, alias) = parse_alias(token);
+    if expr_raw.trim().is_empty() {
+        return Err(SqlError("invalid projection item".into()));
+    }
+
+    let expr = parse_expression(expr_raw)?;
+    Ok(match expr {
+        Expr::Function(function) => SelectItem::Function { function, alias },
+        Expr::Cast { expr, data_type } => SelectItem::Function {
+            function: FunctionCall {
+                name: "CAST".to_string(),
+                args: vec![*expr, Expr::StringLiteral(data_type.type_name())],
+            },
+            alias,
+        },
+        Expr::Column(name) => SelectItem::Column { name, alias },
+        _ => {
+            return Err(SqlError("unsupported projection expression".into()));
+        }
+    })
 }
 
 fn parse_query_source(raw: &str) -> Result<QuerySource, SqlError> {
@@ -1737,39 +1742,7 @@ fn starts_with_keyword(raw: &str, keyword: &str) -> bool {
 }
 
 fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {
-    let raw = raw.trim();
-    let lower = raw.to_lowercase();
-    if let Some(inner) = lower.strip_prefix("vector(") {
-        let Some(inner) = inner.strip_suffix(')') else {
-            return Err(SqlError(format!("invalid VECTOR type '{raw}'")));
-        };
-        let dim = inner
-            .trim()
-            .parse::<usize>()
-            .map_err(|_| SqlError(format!("invalid VECTOR dimension '{raw}'")))?;
-        if dim == 0 {
-            return Err(SqlError(format!("invalid VECTOR dimension '{raw}'")));
-        }
-        return Ok(DataType::Vector(dim));
-    }
-
-    if lower == "int" || lower == "integer" {
-        return Ok(DataType::Int);
-    }
-    if lower == "float" || lower == "double" || lower == "numeric" || lower == "decimal" {
-        return Ok(DataType::Float);
-    }
-    if lower == "boolean" || lower == "bool" {
-        return Ok(DataType::Boolean);
-    }
-    if lower == "json" {
-        return Ok(DataType::Json);
-    }
-    if lower == "text" || lower == "string" {
-        return Ok(DataType::Text);
-    }
-
-    Err(SqlError(format!("unsupported data type '{raw}'")))
+    DataType::parse_sql(raw).map_err(SqlError)
 }
 
 fn parse_select_statement(
@@ -1967,29 +1940,7 @@ fn parse_select_statement(
     let mut projection = Vec::with_capacity(projection_tokens.len());
     for token in projection_tokens {
         let token = token.trim();
-        if token == "*" {
-            projection.push(SelectItem::Wildcard);
-        } else if let Some(call) = parse_function(token)? {
-            let (_expr, alias) = parse_alias(token);
-            let function = call;
-            if let Some(raw) = alias {
-                projection.push(SelectItem::Function {
-                    function,
-                    alias: Some(raw),
-                });
-            } else {
-                projection.push(SelectItem::Function {
-                    function,
-                    alias: None,
-                });
-            }
-        } else {
-            let (expr, alias) = parse_alias(token);
-            projection.push(SelectItem::Column {
-                name: expr.to_string(),
-                alias,
-            });
-        }
+        projection.push(parse_projection_item(token)?);
     }
 
     let filter = where_clause.as_deref().map(parse_expression).transpose()?;
@@ -2569,11 +2520,11 @@ fn parse_cast_expression(raw: &str) -> Result<Option<Expr>, SqlError> {
 
 fn parse_alias(raw: &str) -> (&str, Option<String>) {
     let token = raw.trim();
-    let lower = token.to_lowercase();
-    if let Some(at) = lower.rfind(" as ") {
-        let left = &token[..at].trim();
-        let alias = token[(at + 4)..].trim().to_string();
-        return (left, Some(alias));
+    if let Some((left, right)) = split_top_level(token, " as ") {
+        if right.trim().is_empty() {
+            return (token, None);
+        }
+        return (left.trim(), Some(right.trim().to_string()));
     }
     (token, None)
 }

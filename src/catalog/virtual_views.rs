@@ -35,7 +35,7 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             text("attrelid"),
             text("attname"),
             int("attnum"),
-            text("atttypid"),
+            int("atttypid"),
         ],
         "pg_catalog.pg_indexes" => vec![
             text("schemaname"),
@@ -45,6 +45,16 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
         ],
         "pg_catalog.pg_constraint" => vec![text("conname"), text("conrelid"), text("contype")],
         "pg_catalog.pg_roles" => vec![text("rolname")],
+        "pg_catalog.pg_type" => vec![
+            int("oid"),
+            text("typname"),
+            text("typnamespace"),
+            int("typlen"),
+            bool("typbyval"),
+            text("typtype"),
+            text("typcategory"),
+            int("typelem"),
+        ],
         _ => return None,
     };
     Some(fields)
@@ -64,6 +74,7 @@ pub async fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
         "pg_catalog.pg_attribute" => pg_attribute(catalog).await,
         "pg_catalog.pg_indexes" => pg_indexes(catalog).await,
         "pg_catalog.pg_constraint" => pg_constraint(catalog).await,
+        "pg_catalog.pg_type" => pg_type(catalog),
         "pg_catalog.pg_roles" => Vec::new(),
         _ => return None,
     };
@@ -80,6 +91,114 @@ fn text(name: &str) -> (String, DataType) {
 
 fn int(name: &str) -> (String, DataType) {
     (name.to_string(), DataType::Int)
+}
+
+fn bool(name: &str) -> (String, DataType) {
+    (name.to_string(), DataType::Boolean)
+}
+
+fn pg_type(_catalog: &Catalog) -> Vec<VirtualRow> {
+    let mut rows = builtin_type_rows();
+    rows.sort_by_key(row_sort_key);
+    rows
+}
+
+fn builtin_type_rows() -> Vec<VirtualRow> {
+    let namespace = "pg_catalog";
+    let mut rows = vec![
+        type_row(DataType::Null, namespace),
+        type_row(DataType::Boolean, namespace),
+        type_row(DataType::Int, namespace),
+        type_row(DataType::Float, namespace),
+        type_row(DataType::Text, namespace),
+        type_row(DataType::Uuid, namespace),
+        type_row(DataType::Date, namespace),
+        type_row(DataType::Time, namespace),
+        type_row(DataType::Timestamp, namespace),
+        type_row(DataType::Json, namespace),
+        type_row(DataType::Vector(2), namespace),
+    ];
+
+    rows.extend([
+        type_row(DataType::Array(Box::new(DataType::Boolean)), namespace),
+        type_row(DataType::Array(Box::new(DataType::Int)), namespace),
+        type_row(DataType::Array(Box::new(DataType::Float)), namespace),
+        type_row(DataType::Array(Box::new(DataType::Text)), namespace),
+        type_row(DataType::Array(Box::new(DataType::Uuid)), namespace),
+        type_row(DataType::Array(Box::new(DataType::Json)), namespace),
+    ]);
+
+    rows
+}
+
+fn type_row(data_type: DataType, namespace: &str) -> VirtualRow {
+    let typname = data_type.type_name();
+    vec![
+        int_value("oid", data_type.type_oid()),
+        string("typname", typname),
+        string("typnamespace", namespace),
+        int_value("typlen", type_length(&data_type)),
+        bool_value("typbyval", is_type_passed_by_value(&data_type)),
+        string("typtype", type_kind(&data_type)),
+        string("typcategory", type_category(&data_type)),
+        int_value("typelem", element_type_oid(&data_type)),
+    ]
+}
+
+fn type_length(data_type: &DataType) -> i64 {
+    match data_type {
+        DataType::Null => -1,
+        DataType::Boolean => 1,
+        DataType::Int => 8,
+        DataType::Float => 8,
+        DataType::Uuid => 16,
+        DataType::Date => 4,
+        DataType::Time => 8,
+        DataType::Timestamp => 8,
+        DataType::Text => -1,
+        DataType::Json => -1,
+        DataType::Vector(_) => -1,
+        DataType::Array(_) => -1,
+    }
+}
+
+fn is_type_passed_by_value(data_type: &DataType) -> bool {
+    matches!(
+        data_type,
+        DataType::Boolean | DataType::Int | DataType::Float | DataType::Date | DataType::Time
+    )
+}
+
+fn type_kind(data_type: &DataType) -> String {
+    if matches!(data_type, DataType::Array(_)) {
+        "a".to_string()
+    } else {
+        "b".to_string()
+    }
+}
+
+fn type_category(data_type: &DataType) -> String {
+    match data_type {
+        DataType::Null => "Z".to_string(),
+        DataType::Boolean => "B".to_string(),
+        DataType::Int | DataType::Float => "N".to_string(),
+        DataType::Text | DataType::Json => "S".to_string(),
+        DataType::Uuid => "U".to_string(),
+        DataType::Date | DataType::Time | DataType::Timestamp => "D".to_string(),
+        DataType::Vector(_) => "V".to_string(),
+        DataType::Array(_) => "A".to_string(),
+    }
+}
+
+fn element_type_oid(data_type: &DataType) -> i64 {
+    match data_type {
+        DataType::Array(inner) => inner.type_oid(),
+        _ => 0,
+    }
+}
+
+fn bool_value(name: &str, value: bool) -> (String, Value) {
+    (name.to_string(), Value::Bool(value))
 }
 
 async fn information_schema_tables(catalog: &Catalog) -> Vec<VirtualRow> {
@@ -231,7 +350,7 @@ async fn pg_attribute(catalog: &Catalog) -> Vec<VirtualRow> {
                 string("attrelid", &schema.collection),
                 string("attname", &field.name),
                 int_value("attnum", (index + 1) as i64),
-                string("atttypid", data_type_name(&field.data_type)),
+                int_value("atttypid", field.data_type.type_oid()),
             ]);
         }
     }
@@ -331,12 +450,18 @@ fn constraint_name(collection: &str, field: &str, kind: &str) -> String {
 
 fn data_type_name(data_type: &DataType) -> String {
     match data_type {
+        DataType::Null => "null".to_string(),
         DataType::Int => "int".to_string(),
         DataType::Float => "float".to_string(),
         DataType::Boolean => "boolean".to_string(),
         DataType::Text => "text".to_string(),
+        DataType::Uuid => "uuid".to_string(),
+        DataType::Date => "date".to_string(),
+        DataType::Time => "time".to_string(),
+        DataType::Timestamp => "timestamp".to_string(),
         DataType::Vector(dimensions) => format!("vector({dimensions})"),
         DataType::Json => "json".to_string(),
+        DataType::Array(inner) => format!("{}[]", inner.type_name()),
     }
 }
 

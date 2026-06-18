@@ -1,6 +1,6 @@
 # Sprint 25 - Catalog Compatibility Probes
 
-Previous: [Sprint 24 - PostgreSQL Catalog Basics](completed/sprint-24.md)
+Previous: [Sprint 24 - PostgreSQL Catalog Basics](sprint-24.md)
 Next: [Sprint 26 - Type Catalog and SQL Casts](sprint-26.md)
 
 ## Goal

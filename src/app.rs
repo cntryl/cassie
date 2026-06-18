@@ -867,84 +867,138 @@ impl Cassie {
                 })?
                 .data_type
                 .clone();
-
-            match expected {
-                crate::types::DataType::Int => match value {
-                    serde_json::Value::Number(number) => {
-                        if number.as_i64().is_none() {
-                            return Err(CassieError::InvalidVector(format!(
-                                "field '{field}' expects int"
-                            )));
-                        }
-                    }
-                    serde_json::Value::Null => {}
-                    _ => {
-                        return Err(CassieError::InvalidVector(format!(
-                            "field '{field}' expects int"
-                        )));
-                    }
-                },
-                crate::types::DataType::Float => match value {
-                    serde_json::Value::Number(_) => {}
-                    serde_json::Value::Null => {}
-                    _ => {
-                        return Err(CassieError::InvalidVector(format!(
-                            "field '{field}' expects float"
-                        )));
-                    }
-                },
-                crate::types::DataType::Boolean => match value {
-                    serde_json::Value::Bool(_) => {}
-                    serde_json::Value::Null => {}
-                    _ => {
-                        return Err(CassieError::InvalidVector(format!(
-                            "field '{field}' expects boolean"
-                        )));
-                    }
-                },
-                crate::types::DataType::Text => match value {
-                    serde_json::Value::String(_) => {}
-                    serde_json::Value::Null => {}
-                    _ => {
-                        return Err(CassieError::InvalidVector(format!(
-                            "field '{field}' expects text"
-                        )));
-                    }
-                },
-                crate::types::DataType::Json => {
-                    if !value.is_object()
-                        && !value.is_array()
-                        && !value.is_string()
-                        && !value.is_number()
-                        && !value.is_boolean()
-                        && !value.is_null()
-                    {
-                        return Err(CassieError::InvalidVector(format!(
-                            "field '{field}' expects json"
-                        )));
-                    }
-                }
-                crate::types::DataType::Vector(size) => {
-                    let Some(array) = value.as_array() else {
-                        return Err(CassieError::InvalidVector(format!(
-                            "field '{field}' expects vector({size})"
-                        )));
-                    };
-                    if array.len() != size {
-                        return Err(CassieError::InvalidVector(format!(
-                            "field '{field}' expects vector({size})"
-                        )));
-                    }
-                    if array.iter().any(|value| value.as_f64().is_none()) {
-                        return Err(CassieError::InvalidVector(format!(
-                            "field '{field}' expects vector({size})"
-                        )));
-                    }
-                }
-            }
+            Self::validate_value_against_data_type(field, &expected, value)?;
         }
 
         Ok(())
+    }
+
+    fn validate_value_against_data_type(
+        field: &str,
+        expected: &crate::types::DataType,
+        value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        if value.is_null() {
+            if matches!(expected, crate::types::DataType::Null) {
+                return Ok(());
+            }
+            return Ok(());
+        }
+
+        match expected {
+            crate::types::DataType::Null => Err(CassieError::InvalidVector(format!(
+                "field '{field}' expects null"
+            ))),
+            crate::types::DataType::Int => {
+                if value.is_number() && value.as_i64().is_none() {
+                    return Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects int"
+                    )));
+                }
+
+                if value.is_number() {
+                    return Ok(());
+                }
+                Err(CassieError::InvalidVector(format!(
+                    "field '{field}' expects int"
+                )))
+            }
+            crate::types::DataType::Float => {
+                if value.is_number() {
+                    Ok(())
+                } else {
+                    Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects float"
+                    )))
+                }
+            }
+            crate::types::DataType::Boolean => {
+                if value.is_boolean() {
+                    Ok(())
+                } else {
+                    Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects boolean"
+                    )))
+                }
+            }
+            crate::types::DataType::Text | crate::types::DataType::Uuid => {
+                if !value.is_string() {
+                    return Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects {}",
+                        expected.type_name()
+                    )));
+                }
+
+                if let crate::types::DataType::Uuid = expected {
+                    let value = value.as_str().unwrap_or_default();
+                    if Uuid::parse_str(value).is_err() {
+                        return Err(CassieError::InvalidVector(format!(
+                            "field '{field}' expects UUID"
+                        )));
+                    }
+                }
+
+                Ok(())
+            }
+            crate::types::DataType::Date
+            | crate::types::DataType::Time
+            | crate::types::DataType::Timestamp => {
+                if value.is_string() {
+                    Ok(())
+                } else {
+                    Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects {}",
+                        expected.type_name()
+                    )))
+                }
+            }
+            crate::types::DataType::Json => {
+                if value.is_object()
+                    || value.is_array()
+                    || value.is_string()
+                    || value.is_number()
+                    || value.is_boolean()
+                    || value.is_null()
+                {
+                    Ok(())
+                } else {
+                    Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects json"
+                    )))
+                }
+            }
+            crate::types::DataType::Vector(size) => {
+                let Some(array) = value.as_array() else {
+                    return Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects vector({size})"
+                    )));
+                };
+                if array.len() != *size {
+                    return Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects vector({size})"
+                    )));
+                }
+                if array.iter().any(|value| value.as_f64().is_none()) {
+                    return Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects vector({size})"
+                    )));
+                }
+                Ok(())
+            }
+            crate::types::DataType::Array(inner) => {
+                let Some(values) = value.as_array() else {
+                    return Err(CassieError::InvalidVector(format!(
+                        "field '{field}' expects array"
+                    )));
+                };
+
+                for value in values {
+                    Self::validate_value_against_data_type(field, inner, value)?;
+                }
+
+                Ok(())
+            }
+        }
     }
 
     fn apply_default_values(

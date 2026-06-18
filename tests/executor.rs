@@ -3417,34 +3417,126 @@ async fn should_execute_drop_function_and_reject_subsequent_use() {
     let _ = std::fs::remove_dir_all(path);
 }
 
-#[tokio::test]
-async fn should_execute_create_call_and_drop_procedure_commands() {
+#[test]
+fn should_execute_procedure_body_with_arguments_after_restart() {
     // Arrange
     with_fallback();
     let path = data_dir("procedure_exec");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let session = cassie.create_session("tester", None).await;
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
 
-    let create = cassie
-        .execute_sql(&session, "CREATE PROCEDURE noop() AS \"noop\"", vec![])
-        .await
-        .unwrap();
-    let call = cassie
-        .execute_sql(&session, "CALL noop()", vec![])
-        .await
-        .unwrap();
-    let drop = cassie
-        .execute_sql(&session, "DROP PROCEDURE noop", vec![])
-        .await
-        .unwrap();
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
 
-    let missing = cassie.catalog.get_procedure("noop").await.is_none();
+        cassie
+            .execute_sql(&session, "CREATE TABLE procedure_exec (title TEXT)", vec![])
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                r#"CREATE PROCEDURE store_title(title TEXT) AS "INSERT INTO procedure_exec (title) VALUES ($1)""#,
+                vec![],
+            )
+            .await
+            .unwrap();
 
-    // Assert
-    assert_eq!(create.command, "CREATE PROCEDURE");
-    assert_eq!(call.command, "CALL");
-    assert_eq!(drop.command, "DROP PROCEDURE");
-    assert!(missing);
+        drop(cassie);
 
-    let _ = std::fs::remove_dir_all(path);
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().await.unwrap();
+        let session = restarted.create_session("tester", None).await;
+
+        // Act
+        let call = restarted
+            .execute_sql(&session, "CALL store_title('alpha')", vec![])
+            .await
+            .unwrap();
+        let rows = restarted
+            .execute_sql(
+                &session,
+                "SELECT title FROM procedure_exec ORDER BY title",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(call.command, "CALL");
+        assert_eq!(rows.rows.len(), 1);
+        assert_eq!(rows.rows[0][0], Value::String("alpha".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_procedure_bodies_with_transaction_control() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("procedure_transaction_control");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let result = cassie
+            .execute_sql(&session, r#"CREATE PROCEDURE stop_here() AS "BEGIN""#, vec![])
+            .await;
+
+        // Assert
+        let error = result.expect_err("procedure creation should fail");
+        assert!(
+            error
+                .to_string()
+                .contains("transaction control statements inside procedures")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_recursive_procedure_calls() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("procedure_recursion");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        cassie
+            .execute_sql(&session, r#"CREATE PROCEDURE loop_a() AS "CALL loop_b()""#, vec![])
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(&session, r#"CREATE PROCEDURE loop_b() AS "CALL loop_a()""#, vec![])
+            .await
+            .unwrap();
+
+        // Act
+        let result = cassie.execute_sql(&session, "CALL loop_a()", vec![]).await;
+
+        // Assert
+        let error = result.expect_err("recursive call should fail");
+        assert!(error.to_string().contains("recursively invoked"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
 }

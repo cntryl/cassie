@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
+use std::future::Future;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::pin::Pin;
 use std::time::Instant;
 
 use serde::Serialize;
@@ -26,7 +28,7 @@ use crate::embeddings::{
 };
 use crate::executor::{QueryError, QueryResult};
 use crate::midge::adapter::{DocumentRef, Midge};
-use crate::runtime::{ExecutionMode, PlanCacheKey, RuntimeState};
+use crate::runtime::{ExecutionMode, PlanCacheKey, QueryExecutionControls, RuntimeState};
 use crate::sql::ast::{
     QueryStatement, TransactionAction, TransactionIsolation, TransactionStatement,
 };
@@ -38,6 +40,8 @@ pub struct CassieSession {
     pub database: Option<String>,
     #[serde(skip)]
     transaction: Arc<Mutex<SessionTransactionState>>,
+    #[serde(skip)]
+    procedure_calls: Arc<Mutex<Vec<String>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -70,6 +74,7 @@ impl CassieSession {
                 isolation: None,
                 writes: BTreeMap::new(),
             })),
+            procedure_calls: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -125,6 +130,24 @@ impl CassieSession {
         if transaction.status == SessionTransactionStatus::InTransaction {
             transaction.status = SessionTransactionStatus::Failed;
         }
+    }
+
+    pub(crate) async fn enter_procedure_call(&self, name: &str) -> Result<(), CassieError> {
+        let mut procedure_calls = self.procedure_calls.lock().await;
+        let normalized = name.to_ascii_lowercase();
+        if procedure_calls.iter().any(|entry| entry == &normalized) {
+            return Err(CassieError::Execution(format!(
+                "procedure '{name}' is recursively invoked"
+            )));
+        }
+
+        procedure_calls.push(normalized);
+        Ok(())
+    }
+
+    pub(crate) async fn leave_procedure_call(&self) {
+        let mut procedure_calls = self.procedure_calls.lock().await;
+        procedure_calls.pop();
     }
 
     pub(crate) async fn stage_document_write(
@@ -523,8 +546,9 @@ impl Cassie {
     ) -> Result<QueryResult, CassieError> {
         let query_started = Instant::now();
         let running_guard = self.runtime.begin_running_query();
+        let controls = self.runtime.query_controls(query_started);
         let result = self
-            .execute_sql_inner(session, sql, params, mode, query_started)
+            .execute_sql_core(session, sql, params, mode, &controls)
             .await;
         let elapsed = query_started.elapsed();
 
@@ -544,13 +568,24 @@ impl Cassie {
         result
     }
 
-    async fn execute_sql_inner(
+    pub(crate) fn execute_sql_with_controls<'a>(
+        &'a self,
+        session: &'a CassieSession,
+        sql: &'a str,
+        params: Vec<crate::types::Value>,
+        mode: ExecutionMode,
+        controls: &'a QueryExecutionControls,
+    ) -> Pin<Box<dyn Future<Output = Result<QueryResult, CassieError>> + Send + 'a>> {
+        Box::pin(self.execute_sql_core(session, sql, params, mode, controls))
+    }
+
+    async fn execute_sql_core(
         &self,
         session: &CassieSession,
         sql: &str,
         params: Vec<crate::types::Value>,
         mode: ExecutionMode,
-        started_at: Instant,
+        controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
         if session.user.is_empty() {
             return Err(CassieError::Unauthorized);
@@ -560,7 +595,6 @@ impl Cassie {
             return Err(error);
         }
 
-        let controls = self.runtime.query_controls(started_at);
         if controls.is_timed_out() {
             return Err(CassieError::Execution("query timeout exceeded".to_string()));
         }
@@ -617,7 +651,7 @@ impl Cassie {
             Some(session),
             physical,
             params,
-            &controls,
+            controls,
         )
         .await
         .map_err(CassieError::from)?;

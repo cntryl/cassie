@@ -1,7 +1,7 @@
 # Sprint 35 - User-Defined Views and View Expansion
 
 Previous: [Sprint 34 - REST, Operations, Packaging, and V1 Release Gate](sprint-34.md)
-Next: [Sprint 36 - Stored Procedure Execution and CALL Semantics](../sprint-36.md)
+Next: [Sprint 36 - Stored Procedure Execution and CALL Semantics](sprint-36.md)
 
 ## Goal
 

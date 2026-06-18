@@ -1162,7 +1162,33 @@ async fn bind_create_procedure(
         arg.name = arg_name;
     }
 
+    let body = statement.body.trim().to_string();
+    if body.is_empty() {
+        return Err(CassieError::Planner(
+            "CREATE PROCEDURE requires a body".into(),
+        ));
+    }
+
+    let parsed_body = crate::sql::parse_statement(&body).map_err(|error| {
+        CassieError::Planner(format!("invalid procedure body for '{name}': {}", error.0))
+    })?;
+    if matches!(parsed_body.statement, QueryStatement::Transaction(_)) {
+        return Err(CassieError::Unsupported(
+            "transaction control statements inside procedures are not supported in this version"
+                .into(),
+        ));
+    }
+
+    let body_parameter_count = crate::sql::parameter_count(&parsed_body);
+    if body_parameter_count > statement.args.len() {
+        return Err(CassieError::Planner(format!(
+            "procedure '{name}' body references ${body_parameter_count} but only {} args are declared",
+            statement.args.len()
+        )));
+    }
+
     statement.name = name;
+    statement.body = body;
     Ok(statement)
 }
 

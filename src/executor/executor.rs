@@ -722,17 +722,48 @@ async fn execute_command(
             })
         }
         LogicalCommand::CallProcedure(statement) => {
-            if cassie
-                .catalog
-                .get_procedure(&statement.name)
-                .await
-                .is_none()
-            {
+            let Some(metadata) = cassie.catalog.get_procedure(&statement.name).await else {
                 return Err(QueryError::General(format!(
                     "procedure '{}' does not exist",
                     statement.name
                 )));
-            }
+            };
+
+            let call_session = session
+                .cloned()
+                .unwrap_or_else(|| CassieSession::new("postgres".to_string(), None));
+            let empty_row = Vec::<(String, Value)>::new();
+            let evaluated_args = statement
+                .args
+                .iter()
+                .map(|expr| {
+                    filter::evaluate_expr_value(
+                        &empty_row,
+                        expr,
+                        params,
+                        None,
+                        user_functions,
+                        Some(&call_session),
+                        None,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            call_session
+                .enter_procedure_call(&statement.name)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            let body_result = cassie
+                .execute_sql_with_controls(
+                    &call_session,
+                    &metadata.body,
+                    evaluated_args,
+                    crate::runtime::ExecutionMode::SimpleQuery,
+                    controls,
+                )
+                .await;
+            call_session.leave_procedure_call().await;
+            body_result.map_err(|error| QueryError::General(error.to_string()))?;
 
             Ok(QueryResult {
                 columns: Vec::new(),

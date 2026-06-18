@@ -1,6 +1,6 @@
 # Sprint 37 - Common Scalar Functions
 
-Previous: [Sprint 36 - Stored Procedure Execution and CALL Semantics](sprint-36.md)
+Previous: [Sprint 36 - Stored Procedure Execution and CALL Semantics](completed/sprint-36.md)
 Next: [Sprint 38 - SQL Type Coverage and Metadata Fidelity](sprint-38.md)
 
 ## Goal

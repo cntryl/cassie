@@ -253,15 +253,32 @@ fn should_create_call_procedure_with_tokio_postgres() {
 
         // Act
         client
-            .batch_execute(r#"CREATE PROCEDURE compat_noop() AS "noop""#)
+            .batch_execute(
+                "CREATE TABLE compat_procedure_calls (title TEXT)",
+            )
+            .await
+            .expect("table creation should succeed");
+        client
+            .batch_execute(
+                r#"CREATE PROCEDURE compat_store_title(title TEXT) AS "INSERT INTO compat_procedure_calls (title) VALUES ($1)""#,
+            )
             .await
             .expect("procedure creation should succeed");
-        client
-            .batch_execute("CALL compat_noop()")
+        let affected = client
+            .execute("CALL compat_store_title($1)", &[&"alpha"])
             .await
             .expect("procedure call should succeed");
+        let rows = client
+            .query("SELECT title FROM compat_procedure_calls ORDER BY title", &[])
+            .await
+            .expect("select should succeed");
 
         // Assert
+        assert_eq!(affected, 0);
+        assert_eq!(rows.len(), 1);
+        let title: String = rows[0].try_get(0).expect("title column");
+        assert_eq!(title, "alpha");
+
         drop(client);
         server.shutdown(connection).await;
     });

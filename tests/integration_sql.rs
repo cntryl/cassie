@@ -206,6 +206,680 @@ fn should_apply_limit_offset_after_ordering() {
 }
 
 #[test]
+fn should_order_column_top_k_with_deterministic_tie_break() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("column_top_k_tie");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+
+        let collection = "sql_column_top_k_tie";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "score".to_string(),
+                    data_type: DataType::Int,
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"title": "second", "score": 10}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"title": "first", "score": 10}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d3".to_string()),
+                serde_json::json!({"title": "third", "score": 1}),
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let session = cassie.create_session("tester", None).await;
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id FROM sql_column_top_k_tie ORDER BY score DESC LIMIT 2",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0][0], Value::String("d1".to_string()));
+        assert_eq!(result.rows[1][0], Value::String("d2".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_fall_back_for_filtered_ordered_column_query_without_changing_results() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("column_top_k_filter_fallback");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+
+        let collection = "sql_column_top_k_filter_fallback";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "score".to_string(),
+                    data_type: DataType::Int,
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"title": "skip", "score": 100}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"title": "keep", "score": 10}),
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let session = cassie.create_session("tester", None).await;
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id FROM sql_column_top_k_filter_fallback WHERE title = 'keep' ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_apply_vector_distance_offset_after_ordering() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("vector_distance_offset_order");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_vector_distance_offset_order";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "embedding".to_string(),
+                data_type: DataType::Vector(3),
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"embedding": [1.0, 0.0, 0.0]}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"embedding": [3.0, 0.0, 0.0]}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d3".to_string()),
+                serde_json::json!({"embedding": [2.0, 0.0, 0.0]}),
+            )
+            .await
+            .unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM sql_vector_distance_offset_order ORDER BY distance ASC LIMIT 1 OFFSET 1",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d3".to_string()));
+        assert_eq!(result.rows[0][1], Value::Float64(2.0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_order_fulltext_top_k_by_score_with_limit() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("fulltext_top_k_limit");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_fulltext_top_k_limit";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"body": "alpha beta"}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"body": "alpha alpha alpha beta"}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d3".to_string()),
+                serde_json::json!({"body": "beta gamma"}),
+            )
+            .await
+            .unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM sql_fulltext_top_k_limit WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
+        assert!(matches!(result.rows[0][1], Value::Float64(value) if value > 0.0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_apply_fulltext_offset_after_score_ordering() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("fulltext_top_k_offset");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_fulltext_top_k_offset";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"body": "alpha"}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"body": "alpha alpha alpha"}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d3".to_string()),
+                serde_json::json!({"body": "alpha alpha"}),
+            )
+            .await
+            .unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM sql_fulltext_top_k_offset WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1 OFFSET 1",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d3".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_order_hybrid_top_k_by_score_with_limit() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hybrid_top_k_limit");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_hybrid_top_k_limit";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "embedding".to_string(),
+                    data_type: DataType::Vector(2),
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"body": "red", "embedding": [10.0, 0.0]}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"body": "red", "embedding": [1.0, 0.0]}),
+            )
+            .await
+            .unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_top_k_limit ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
+        assert!(matches!(result.rows[0][1], Value::Float64(value) if value > 0.0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_apply_hybrid_offset_after_score_ordering() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hybrid_top_k_offset");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_hybrid_top_k_offset";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "embedding".to_string(),
+                    data_type: DataType::Vector(2),
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"body": "red", "embedding": [10.0, 0.0]}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"body": "red", "embedding": [1.0, 0.0]}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d3".to_string()),
+                serde_json::json!({"body": "red red", "embedding": [2.0, 0.0]}),
+            )
+            .await
+            .unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_top_k_offset ORDER BY score DESC LIMIT 1 OFFSET 1",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d3".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("fulltext_complex_fallback");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_fulltext_complex_fallback";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "status".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"body": "alpha alpha alpha", "status": "pending"}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"body": "alpha", "status": "approved"}),
+            )
+            .await
+            .unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM sql_fulltext_complex_fallback WHERE search(body, 'alpha') AND status = 'approved' ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_describe_select_projection_with_column_metadata() {
     // Arrange
     with_fallback();
@@ -491,10 +1165,7 @@ fn should_rename_schema_through_sql() {
         // Assert
         assert_eq!(result.command, "ALTER SCHEMA");
         assert!(!cassie.catalog.namespace_exists("reporting").await);
-        assert!(cassie
-            .catalog
-            .namespace_exists("reporting_archive")
-            .await);
+        assert!(cassie.catalog.namespace_exists("reporting_archive").await);
         assert!(!cassie
             .midge
             .list_namespaces()

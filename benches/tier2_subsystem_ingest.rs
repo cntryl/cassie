@@ -16,7 +16,13 @@ fn bench_ingest(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("projection_write_path", |b| {
-        b.iter(|| runtime.block_on(workloads::ingest_document(&ctx)))
+        b.iter_custom(|iterations| {
+            let mut elapsed = std::time::Duration::ZERO;
+            for _ in 0..iterations {
+                elapsed += runtime.block_on(workloads::timed_ingest_document_batch(&ctx, 64));
+            }
+            elapsed
+        })
     });
 
     group.finish();
@@ -24,7 +30,7 @@ fn bench_ingest(c: &mut Criterion) {
 
 criterion_group! {
     name = benches;
-    config = criterion_config::criterion_config_for_tier2();
+    config = criterion_config::criterion_config_for_tier2_write();
     targets = bench_ingest
 }
 

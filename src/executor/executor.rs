@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::cmp::Ordering as CmpOrdering;
+use std::collections::{BTreeMap, BinaryHeap, HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Instant;
@@ -10,12 +11,13 @@ use crate::catalog::{CollectionSchema, FieldMeta, FunctionMeta, ProcedureMeta, V
 use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
 use crate::executor::batch::{self, Batch, BatchRow, RowAccess};
 use crate::executor::{aggregate, filter, projection, scan, sort};
+use crate::midge::adapter::RowDecode;
 use crate::planner::logical::{LogicalCommand, LogicalPlan};
 use crate::planner::physical::PhysicalPlan;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
     CommonTableExpression, CteQuery, Expr, FunctionCall, InsertSource, JoinKind, QuerySource,
-    QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator,
+    QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator, SortDirection,
 };
 use crate::types::{DataType, FieldSchema, Schema, Value};
 
@@ -586,11 +588,7 @@ async fn execute_command(
             let metadata = catalog::IndexMeta {
                 collection: statement.table.clone(),
                 name: statement.name.clone(),
-                field: statement
-                    .fields
-                    .first()
-                    .cloned()
-                    .unwrap_or_default(),
+                field: statement.fields.first().cloned().unwrap_or_default(),
                 fields: statement.fields.clone(),
                 kind: statement.kind.clone(),
                 unique: statement.unique,
@@ -1442,11 +1440,7 @@ async fn vector_index_metadata(
                 .is_some_and(|value| field.name == *value)
         })
         .ok_or_else(|| {
-            let field = statement
-                .fields
-                .first()
-                .cloned()
-                .unwrap_or_default();
+            let field = statement.fields.first().cloned().unwrap_or_default();
             QueryError::General(format!(
                 "index field '{}' does not exist in collection '{}'",
                 field, statement.table
@@ -1536,6 +1530,18 @@ async fn execute_plan(
         )
         .await?;
         cte_context.insert(cte.name.to_ascii_lowercase(), rows);
+    }
+
+    if let Some(rows) = execute_vector_distance_top_k(cassie, plan).await? {
+        return Ok(rows);
+    }
+
+    if let Some(rows) = execute_scored_search_top_k(cassie, plan).await? {
+        return Ok(rows);
+    }
+
+    if let Some(rows) = execute_ordered_column_top_k(cassie, plan).await? {
+        return Ok(rows);
     }
 
     execute_source_query(
@@ -1656,6 +1662,999 @@ fn execute_cte<'a>(
 
         Ok(output)
     })
+}
+
+async fn execute_vector_distance_top_k(
+    cassie: &Cassie,
+    plan: &LogicalPlan,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let Some(spec) = vector_distance_top_k_spec(plan) else {
+        return Ok(None);
+    };
+
+    let candidates = cassie
+        .midge
+        .scan_rows_for_rebuild(
+            &spec.collection,
+            RowDecode::Projected(vec![spec.vector_field.clone()]),
+        )
+        .await
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let top_needed = spec.limit.saturating_add(spec.offset).max(1);
+    let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
+
+    for document in candidates {
+        let vector = document
+            .payload
+            .get(&spec.vector_field)
+            .and_then(vector_from_json)
+            .unwrap_or_default();
+        let score = if vector.len() == spec.query.len() && !vector.is_empty() {
+            crate::vector::dot_score(&vector, &spec.query)
+        } else {
+            f64::INFINITY
+        };
+        let candidate = SqlVectorCandidate {
+            sort_value: match spec.direction {
+                SortDirection::Asc => score,
+                SortDirection::Desc => -score,
+            },
+            score,
+            id: document.id,
+        };
+        if top.len() < top_needed {
+            top.push(candidate);
+        } else if let Some(worst) = top.peek() {
+            if candidate.is_better_than(worst) {
+                top.pop();
+                top.push(candidate);
+            }
+        }
+    }
+
+    let mut ranked = top.into_vec();
+    ranked.sort_by(compare_sql_vector_candidates);
+    let rows = ranked
+        .into_iter()
+        .skip(spec.offset)
+        .take(spec.limit)
+        .map(|candidate| {
+            BatchRow::new(vec![
+                (spec.id_column.clone(), Value::String(candidate.id)),
+                (spec.score_column.clone(), Value::Float64(candidate.score)),
+            ])
+        })
+        .collect();
+    Ok(Some(rows))
+}
+
+struct VectorDistanceTopKSpec {
+    collection: String,
+    vector_field: String,
+    query: Vec<f32>,
+    id_column: String,
+    score_column: String,
+    direction: SortDirection,
+    limit: usize,
+    offset: usize,
+}
+
+fn vector_distance_top_k_spec(plan: &LogicalPlan) -> Option<VectorDistanceTopKSpec> {
+    if plan.command.is_some()
+        || !plan.ctes.is_empty()
+        || plan.distinct
+        || plan.filter.is_some()
+        || !plan.group_by.is_empty()
+        || plan.having.is_some()
+        || plan.set.is_some()
+        || plan.order.len() != 1
+        || plan.projection.len() != 2
+    {
+        return None;
+    }
+
+    let QuerySource::Collection(collection) = &plan.source else {
+        return None;
+    };
+    let limit = usize::try_from(plan.limit?).ok()?.max(1);
+    let offset = plan
+        .offset
+        .and_then(|offset| usize::try_from(offset).ok())
+        .unwrap_or(0);
+
+    let (id_column, function, score_column) =
+        vector_distance_projection(plan.projection.as_slice())?;
+    if !order_matches_vector_distance_score(&plan.order[0], function, &score_column) {
+        return None;
+    }
+
+    let (vector_field, query) = vector_distance_args(function)?;
+    Some(VectorDistanceTopKSpec {
+        collection: collection.clone(),
+        vector_field,
+        query,
+        id_column,
+        score_column,
+        direction: plan.order[0].direction.clone(),
+        limit,
+        offset,
+    })
+}
+
+fn vector_distance_projection(
+    projection: &[SelectItem],
+) -> Option<(String, &FunctionCall, String)> {
+    let SelectItem::Column { name, alias: _ } = &projection[0] else {
+        return None;
+    };
+    if !name.eq_ignore_ascii_case("id") && !name.eq_ignore_ascii_case("_id") {
+        return None;
+    }
+    let SelectItem::Function { function, alias } = &projection[1] else {
+        return None;
+    };
+    if !function.name.eq_ignore_ascii_case("vector_distance") {
+        return None;
+    }
+    Some((
+        alias.clone().unwrap_or_else(|| name.clone()),
+        function,
+        alias.clone().unwrap_or_else(|| function.name.clone()),
+    ))
+}
+
+fn order_matches_vector_distance_score(
+    order: &crate::sql::ast::OrderExpr,
+    function: &FunctionCall,
+    score_column: &str,
+) -> bool {
+    match &order.expr {
+        Expr::Column(column) => column.eq_ignore_ascii_case(score_column),
+        Expr::Function(order_function) => {
+            order_function.name.eq_ignore_ascii_case("vector_distance")
+                && vector_distance_args(order_function) == vector_distance_args(function)
+        }
+        _ => false,
+    }
+}
+
+fn vector_distance_args(function: &FunctionCall) -> Option<(String, Vec<f32>)> {
+    if function.args.len() != 2 {
+        return None;
+    }
+    let Expr::Column(vector_field) = &function.args[0] else {
+        return None;
+    };
+    let Expr::StringLiteral(query) = &function.args[1] else {
+        return None;
+    };
+    Some((vector_field.clone(), parse_vector_literal(query)?))
+}
+
+fn parse_vector_literal(value: &str) -> Option<Vec<f32>> {
+    let values = serde_json::from_str::<Vec<f32>>(value).ok()?;
+    if values.is_empty() {
+        return None;
+    }
+    Some(values)
+}
+
+fn vector_from_json(value: &serde_json::Value) -> Option<Vec<f32>> {
+    let values = value.as_array()?;
+    let mut out = Vec::with_capacity(values.len());
+    for value in values {
+        out.push(value.as_f64()? as f32);
+    }
+    Some(out)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct SqlVectorCandidate {
+    sort_value: f64,
+    score: f64,
+    id: String,
+}
+
+impl SqlVectorCandidate {
+    fn is_better_than(&self, other: &Self) -> bool {
+        compare_sql_vector_candidates(self, other) == CmpOrdering::Less
+    }
+}
+
+impl Eq for SqlVectorCandidate {}
+
+impl PartialOrd for SqlVectorCandidate {
+    fn partial_cmp(&self, other: &Self) -> Option<CmpOrdering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SqlVectorCandidate {
+    fn cmp(&self, other: &Self) -> CmpOrdering {
+        compare_sql_vector_candidates(self, other)
+    }
+}
+
+fn compare_sql_vector_candidates(
+    left: &SqlVectorCandidate,
+    right: &SqlVectorCandidate,
+) -> CmpOrdering {
+    left.sort_value
+        .total_cmp(&right.sort_value)
+        .then_with(|| left.id.cmp(&right.id))
+}
+
+async fn execute_scored_search_top_k(
+    cassie: &Cassie,
+    plan: &LogicalPlan,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    if let Some(spec) = fulltext_top_k_spec(plan) {
+        return execute_fulltext_top_k(cassie, spec).await.map(Some);
+    }
+    if let Some(spec) = hybrid_top_k_spec(plan) {
+        return execute_hybrid_top_k(cassie, spec).await.map(Some);
+    }
+    Ok(None)
+}
+
+async fn execute_fulltext_top_k(
+    cassie: &Cassie,
+    spec: FulltextTopKSpec,
+) -> Result<Vec<BatchRow>, QueryError> {
+    let started_at = Instant::now();
+    let documents = cassie
+        .midge
+        .scan_rows_for_rebuild(
+            &spec.collection,
+            RowDecode::Projected(vec![spec.text_field.clone()]),
+        )
+        .await
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let rows = documents
+        .iter()
+        .map(|document| {
+            BatchRow::new(vec![
+                ("id".to_string(), Value::String(document.id.clone())),
+                (
+                    spec.text_field.clone(),
+                    json_text_value(document.payload.get(&spec.text_field)),
+                ),
+            ])
+        })
+        .collect::<Vec<_>>();
+    let search_context = search_context_for_fields(
+        cassie,
+        &spec.collection,
+        std::slice::from_ref(&spec.text_field),
+    )
+    .await?;
+    let search_context = filter::SearchContext::from_rows(
+        rows.iter(),
+        std::slice::from_ref(&spec.text_field),
+        &search_context.field_boost,
+        &search_context.field_k1,
+        &search_context.field_b,
+    );
+    let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
+
+    for row in &rows {
+        let id = row_text(row, "id");
+        let source = row_text(row, &spec.text_field);
+        let score = search_context.score_text(Some(&spec.text_field), &source, &spec.query);
+        if spec.require_match && score == 0.0 {
+            continue;
+        }
+        let candidate = ScoredSearchCandidate {
+            sort_value: -score,
+            score,
+            id,
+        };
+        push_top_k(&mut top, spec.top_needed(), candidate);
+    }
+
+    let rows = scored_candidates_to_rows(
+        top,
+        spec.offset,
+        spec.limit,
+        &spec.id_column,
+        &spec.score_column,
+    );
+    cassie
+        .runtime
+        .record_search_execution(started_at.elapsed(), documents.len(), rows.len());
+    Ok(rows)
+}
+
+async fn execute_hybrid_top_k(
+    cassie: &Cassie,
+    spec: HybridTopKSpec,
+) -> Result<Vec<BatchRow>, QueryError> {
+    let started_at = Instant::now();
+    let documents = cassie
+        .midge
+        .scan_rows_for_rebuild(
+            &spec.collection,
+            RowDecode::Projected(vec![spec.text_field.clone(), spec.vector_field.clone()]),
+        )
+        .await
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let rows = documents
+        .iter()
+        .map(|document| {
+            BatchRow::new(vec![
+                ("id".to_string(), Value::String(document.id.clone())),
+                (
+                    spec.text_field.clone(),
+                    json_text_value(document.payload.get(&spec.text_field)),
+                ),
+                (
+                    spec.vector_field.clone(),
+                    json_vector_value(document.payload.get(&spec.vector_field)),
+                ),
+            ])
+        })
+        .collect::<Vec<_>>();
+    let search_context = search_context_for_fields(
+        cassie,
+        &spec.collection,
+        std::slice::from_ref(&spec.text_field),
+    )
+    .await?;
+    let search_context = filter::SearchContext::from_rows(
+        rows.iter(),
+        std::slice::from_ref(&spec.text_field),
+        &search_context.field_boost,
+        &search_context.field_k1,
+        &search_context.field_b,
+    );
+    let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
+
+    for row in &rows {
+        let id = row_text(row, "id");
+        let source = row_text(row, &spec.text_field);
+        let search_score = search_context.score_text(Some(&spec.text_field), &source, &spec.query);
+        let vector = row
+            .get(&spec.vector_field)
+            .and_then(value_to_vector)
+            .ok_or_else(|| {
+                QueryError::General("vector_score expects vector in first argument".to_string())
+            })?;
+        if vector.len() != spec.vector_query.len() {
+            return Err(QueryError::General(format!(
+                "vector_score vector length mismatch: {} != {}",
+                vector.len(),
+                spec.vector_query.len()
+            )));
+        }
+        let vector_score = 1.0 / (1.0 + crate::vector::l2_distance(&vector, &spec.vector_query));
+        let score = crate::hybrid::hybrid_score(search_score, vector_score, None);
+        let candidate = ScoredSearchCandidate {
+            sort_value: -score,
+            score,
+            id,
+        };
+        push_top_k(&mut top, spec.top_needed(), candidate);
+    }
+
+    let rows = scored_candidates_to_rows(
+        top,
+        spec.offset,
+        spec.limit,
+        &spec.id_column,
+        &spec.score_column,
+    );
+    cassie
+        .runtime
+        .record_search_execution(started_at.elapsed(), documents.len(), rows.len());
+    cassie
+        .runtime
+        .record_vector_execution(started_at.elapsed(), documents.len(), rows.len());
+    cassie
+        .runtime
+        .record_hybrid_execution(started_at.elapsed(), documents.len(), rows.len());
+    Ok(rows)
+}
+
+struct SearchIndexOptions {
+    field_boost: HashMap<String, f64>,
+    field_k1: HashMap<String, f64>,
+    field_b: HashMap<String, f64>,
+}
+
+async fn search_context_for_fields(
+    cassie: &Cassie,
+    collection: &str,
+    fields: &[String],
+) -> Result<SearchIndexOptions, QueryError> {
+    let requested_fields = fields
+        .iter()
+        .map(|field| field.to_ascii_lowercase())
+        .collect::<HashSet<_>>();
+    let (field_boost, field_k1, field_b) =
+        load_fulltext_index_options(cassie, collection, &requested_fields).await?;
+    Ok(SearchIndexOptions {
+        field_boost,
+        field_k1,
+        field_b,
+    })
+}
+
+struct FulltextTopKSpec {
+    collection: String,
+    text_field: String,
+    query: String,
+    id_column: String,
+    score_column: String,
+    require_match: bool,
+    limit: usize,
+    offset: usize,
+}
+
+impl FulltextTopKSpec {
+    fn top_needed(&self) -> usize {
+        self.limit.saturating_add(self.offset).max(1)
+    }
+}
+
+struct HybridTopKSpec {
+    collection: String,
+    text_field: String,
+    query: String,
+    vector_field: String,
+    vector_query: Vec<f32>,
+    id_column: String,
+    score_column: String,
+    limit: usize,
+    offset: usize,
+}
+
+impl HybridTopKSpec {
+    fn top_needed(&self) -> usize {
+        self.limit.saturating_add(self.offset).max(1)
+    }
+}
+
+fn fulltext_top_k_spec(plan: &LogicalPlan) -> Option<FulltextTopKSpec> {
+    if !simple_scored_top_k_plan(plan) {
+        return None;
+    }
+    let QuerySource::Collection(collection) = &plan.source else {
+        return None;
+    };
+    let limit = usize::try_from(plan.limit?).ok()?.max(1);
+    let offset = plan
+        .offset
+        .and_then(|offset| usize::try_from(offset).ok())
+        .unwrap_or(0);
+    let (id_column, function, score_column) =
+        scored_projection(plan.projection.as_slice(), "search_score")?;
+    if !order_matches_function_score(&plan.order[0], function, &score_column) {
+        return None;
+    }
+    let (text_field, query) = search_function_args(function)?;
+    let require_match = match &plan.filter {
+        None => false,
+        Some(Expr::Function(filter)) => {
+            let (filter_field, filter_query) = search_predicate_args(filter)?;
+            filter_field.eq_ignore_ascii_case(&text_field) && filter_query == query
+        }
+        _ => return None,
+    };
+    if plan.filter.is_some() && !require_match {
+        return None;
+    }
+
+    Some(FulltextTopKSpec {
+        collection: collection.clone(),
+        text_field,
+        query,
+        id_column,
+        score_column,
+        require_match,
+        limit,
+        offset,
+    })
+}
+
+fn hybrid_top_k_spec(plan: &LogicalPlan) -> Option<HybridTopKSpec> {
+    if !simple_scored_top_k_plan(plan) || plan.filter.is_some() {
+        return None;
+    }
+    let QuerySource::Collection(collection) = &plan.source else {
+        return None;
+    };
+    let limit = usize::try_from(plan.limit?).ok()?.max(1);
+    let offset = plan
+        .offset
+        .and_then(|offset| usize::try_from(offset).ok())
+        .unwrap_or(0);
+    let (id_column, function, score_column) =
+        scored_projection(plan.projection.as_slice(), "hybrid_score")?;
+    if !order_matches_function_score(&plan.order[0], function, &score_column) {
+        return None;
+    }
+    let (text_field, query, vector_field, vector_query) = hybrid_function_args(function)?;
+
+    Some(HybridTopKSpec {
+        collection: collection.clone(),
+        text_field,
+        query,
+        vector_field,
+        vector_query,
+        id_column,
+        score_column,
+        limit,
+        offset,
+    })
+}
+
+fn simple_scored_top_k_plan(plan: &LogicalPlan) -> bool {
+    plan.command.is_none()
+        && plan.ctes.is_empty()
+        && !plan.distinct
+        && plan.group_by.is_empty()
+        && plan.having.is_none()
+        && plan.set.is_none()
+        && plan.order.len() == 1
+        && matches!(plan.order[0].direction, SortDirection::Desc)
+        && plan.order[0].nulls.is_none()
+        && plan.projection.len() == 2
+}
+
+fn scored_projection<'a>(
+    projection: &'a [SelectItem],
+    function_name: &str,
+) -> Option<(String, &'a FunctionCall, String)> {
+    let SelectItem::Column { name, alias } = &projection[0] else {
+        return None;
+    };
+    if !name.eq_ignore_ascii_case("id") && !name.eq_ignore_ascii_case("_id") {
+        return None;
+    }
+    let SelectItem::Function {
+        function,
+        alias: score_alias,
+    } = &projection[1]
+    else {
+        return None;
+    };
+    if !function.name.eq_ignore_ascii_case(function_name) {
+        return None;
+    }
+    Some((
+        alias.clone().unwrap_or_else(|| name.clone()),
+        function,
+        score_alias.clone().unwrap_or_else(|| function.name.clone()),
+    ))
+}
+
+fn order_matches_function_score(
+    order: &crate::sql::ast::OrderExpr,
+    function: &FunctionCall,
+    score_column: &str,
+) -> bool {
+    match &order.expr {
+        Expr::Column(column) => column.eq_ignore_ascii_case(score_column),
+        Expr::Function(order_function) => {
+            function_call_key(order_function) == function_call_key(function)
+        }
+        _ => false,
+    }
+}
+
+fn search_function_args(function: &FunctionCall) -> Option<(String, String)> {
+    if !function.name.eq_ignore_ascii_case("search_score") || function.args.len() != 2 {
+        return None;
+    }
+    let Expr::Column(field) = &function.args[0] else {
+        return None;
+    };
+    let Expr::StringLiteral(query) = &function.args[1] else {
+        return None;
+    };
+    Some((field.clone(), query.clone()))
+}
+
+fn search_predicate_args(function: &FunctionCall) -> Option<(String, String)> {
+    if !matches!(
+        function.name.to_ascii_lowercase().as_str(),
+        "search" | "search_score"
+    ) || function.args.len() != 2
+    {
+        return None;
+    }
+    let Expr::Column(field) = &function.args[0] else {
+        return None;
+    };
+    let Expr::StringLiteral(query) = &function.args[1] else {
+        return None;
+    };
+    Some((field.clone(), query.clone()))
+}
+
+fn hybrid_function_args(function: &FunctionCall) -> Option<(String, String, String, Vec<f32>)> {
+    if !function.name.eq_ignore_ascii_case("hybrid_score") || function.args.len() != 2 {
+        return None;
+    }
+    let Expr::Function(search_function) = &function.args[0] else {
+        return None;
+    };
+    let Expr::Function(vector_function) = &function.args[1] else {
+        return None;
+    };
+    let (text_field, query) = search_function_args(search_function)?;
+    let (vector_field, vector_query) = vector_score_args(vector_function)?;
+    Some((text_field, query, vector_field, vector_query))
+}
+
+fn vector_score_args(function: &FunctionCall) -> Option<(String, Vec<f32>)> {
+    if !function.name.eq_ignore_ascii_case("vector_score") || function.args.len() != 2 {
+        return None;
+    }
+    let Expr::Column(field) = &function.args[0] else {
+        return None;
+    };
+    let Expr::StringLiteral(query) = &function.args[1] else {
+        return None;
+    };
+    Some((field.clone(), parse_vector_literal(query)?))
+}
+
+fn function_call_key(function: &FunctionCall) -> String {
+    let args = function
+        .args
+        .iter()
+        .map(expr_key)
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("{}({})", function.name.to_ascii_lowercase(), args)
+}
+
+fn json_text_value(value: Option<&serde_json::Value>) -> Value {
+    value
+        .and_then(serde_json::Value::as_str)
+        .map(|value| Value::String(value.to_string()))
+        .unwrap_or(Value::Null)
+}
+
+fn json_vector_value(value: Option<&serde_json::Value>) -> Value {
+    value
+        .and_then(vector_from_json)
+        .map(|values| Value::Vector(crate::types::Vector::new(values)))
+        .unwrap_or(Value::Null)
+}
+
+fn row_text(row: &BatchRow, field: &str) -> String {
+    row.get(field)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_default()
+}
+
+fn value_to_vector(value: &Value) -> Option<Vec<f32>> {
+    match value {
+        Value::Vector(vector) => Some(vector.values.clone()),
+        Value::String(value) => parse_vector_literal(value),
+        Value::Json(value) => vector_from_json(value),
+        _ => None,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct ScoredSearchCandidate {
+    sort_value: f64,
+    score: f64,
+    id: String,
+}
+
+impl ScoredSearchCandidate {
+    fn is_better_than(&self, other: &Self) -> bool {
+        compare_scored_search_candidates(self, other) == CmpOrdering::Less
+    }
+}
+
+impl Eq for ScoredSearchCandidate {}
+
+impl PartialOrd for ScoredSearchCandidate {
+    fn partial_cmp(&self, other: &Self) -> Option<CmpOrdering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ScoredSearchCandidate {
+    fn cmp(&self, other: &Self) -> CmpOrdering {
+        compare_scored_search_candidates(self, other)
+    }
+}
+
+fn compare_scored_search_candidates(
+    left: &ScoredSearchCandidate,
+    right: &ScoredSearchCandidate,
+) -> CmpOrdering {
+    left.sort_value
+        .total_cmp(&right.sort_value)
+        .then_with(|| left.id.cmp(&right.id))
+}
+
+fn push_top_k(
+    top: &mut BinaryHeap<ScoredSearchCandidate>,
+    top_needed: usize,
+    candidate: ScoredSearchCandidate,
+) {
+    if top.len() < top_needed {
+        top.push(candidate);
+    } else if let Some(worst) = top.peek() {
+        if candidate.is_better_than(worst) {
+            top.pop();
+            top.push(candidate);
+        }
+    }
+}
+
+fn scored_candidates_to_rows(
+    top: BinaryHeap<ScoredSearchCandidate>,
+    offset: usize,
+    limit: usize,
+    id_column: &str,
+    score_column: &str,
+) -> Vec<BatchRow> {
+    let mut ranked = top.into_vec();
+    ranked.sort_by(compare_scored_search_candidates);
+    ranked
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .map(|candidate| {
+            BatchRow::new(vec![
+                (id_column.to_string(), Value::String(candidate.id)),
+                (score_column.to_string(), Value::Float64(candidate.score)),
+            ])
+        })
+        .collect()
+}
+
+async fn execute_ordered_column_top_k(
+    cassie: &Cassie,
+    plan: &LogicalPlan,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let Some(spec) = ordered_column_top_k_spec(plan) else {
+        return Ok(None);
+    };
+
+    let documents = cassie
+        .midge
+        .scan_rows_for_rebuild(
+            &spec.collection,
+            RowDecode::Projected(spec.projected_scan_fields()),
+        )
+        .await
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
+
+    for document in documents {
+        let order_value = if is_row_id_column(&spec.order_column) {
+            Value::String(document.id.clone())
+        } else {
+            document
+                .payload
+                .get(&spec.order_column)
+                .map(json_to_query_value)
+                .unwrap_or(Value::Null)
+        };
+        let values = spec
+            .projection
+            .iter()
+            .map(|column| {
+                let value = if is_row_id_column(&column.name) {
+                    Value::String(document.id.clone())
+                } else {
+                    document
+                        .payload
+                        .get(&column.name)
+                        .map(json_to_query_value)
+                        .unwrap_or(Value::Null)
+                };
+                (column.output_name.clone(), value)
+            })
+            .collect();
+        let candidate = OrderedColumnCandidate {
+            order_value,
+            id: document.id,
+            values,
+            direction: spec.direction.clone(),
+        };
+        push_ordered_column_top_k(&mut top, spec.top_needed(), candidate);
+    }
+
+    let mut ranked = top.into_vec();
+    ranked.sort_by(compare_ordered_column_candidates);
+    let rows = ranked
+        .into_iter()
+        .skip(spec.offset)
+        .take(spec.limit)
+        .map(|candidate| BatchRow::new(candidate.values))
+        .collect();
+    Ok(Some(rows))
+}
+
+struct OrderedColumnTopKSpec {
+    collection: String,
+    order_column: String,
+    direction: SortDirection,
+    projection: Vec<OrderedProjectionColumn>,
+    limit: usize,
+    offset: usize,
+}
+
+impl OrderedColumnTopKSpec {
+    fn top_needed(&self) -> usize {
+        self.limit.saturating_add(self.offset).max(1)
+    }
+
+    fn projected_scan_fields(&self) -> Vec<String> {
+        let mut fields = Vec::new();
+        if !is_row_id_column(&self.order_column) {
+            fields.push(self.order_column.clone());
+        }
+        for column in &self.projection {
+            if !is_row_id_column(&column.name) && !fields.contains(&column.name) {
+                fields.push(column.name.clone());
+            }
+        }
+        fields
+    }
+}
+
+struct OrderedProjectionColumn {
+    name: String,
+    output_name: String,
+}
+
+fn ordered_column_top_k_spec(plan: &LogicalPlan) -> Option<OrderedColumnTopKSpec> {
+    if plan.command.is_some()
+        || !plan.ctes.is_empty()
+        || plan.distinct
+        || plan.filter.is_some()
+        || !plan.group_by.is_empty()
+        || plan.having.is_some()
+        || plan.set.is_some()
+        || plan.order.len() != 1
+        || plan.order[0].nulls.is_some()
+    {
+        return None;
+    }
+
+    let QuerySource::Collection(collection) = &plan.source else {
+        return None;
+    };
+    let limit = usize::try_from(plan.limit?).ok()?.max(1);
+    let offset = plan
+        .offset
+        .and_then(|offset| usize::try_from(offset).ok())
+        .unwrap_or(0);
+    let Expr::Column(order_column) = &plan.order[0].expr else {
+        return None;
+    };
+    let projection = plan
+        .projection
+        .iter()
+        .map(|item| match item {
+            SelectItem::Column { name, alias } => Some(OrderedProjectionColumn {
+                name: name.clone(),
+                output_name: alias.clone().unwrap_or_else(|| name.clone()),
+            }),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if projection.is_empty() {
+        return None;
+    }
+
+    Some(OrderedColumnTopKSpec {
+        collection: collection.clone(),
+        order_column: order_column.clone(),
+        direction: plan.order[0].direction.clone(),
+        projection,
+        limit,
+        offset,
+    })
+}
+
+#[derive(Debug, Clone)]
+struct OrderedColumnCandidate {
+    order_value: Value,
+    id: String,
+    values: Vec<(String, Value)>,
+    direction: SortDirection,
+}
+
+impl OrderedColumnCandidate {
+    fn is_better_than(&self, other: &Self) -> bool {
+        compare_ordered_column_candidates(self, other) == CmpOrdering::Less
+    }
+}
+
+impl PartialEq for OrderedColumnCandidate {
+    fn eq(&self, other: &Self) -> bool {
+        compare_ordered_column_candidates(self, other) == CmpOrdering::Equal
+    }
+}
+
+impl Eq for OrderedColumnCandidate {}
+
+impl PartialOrd for OrderedColumnCandidate {
+    fn partial_cmp(&self, other: &Self) -> Option<CmpOrdering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for OrderedColumnCandidate {
+    fn cmp(&self, other: &Self) -> CmpOrdering {
+        compare_ordered_column_candidates(self, other)
+    }
+}
+
+fn compare_ordered_column_candidates(
+    left: &OrderedColumnCandidate,
+    right: &OrderedColumnCandidate,
+) -> CmpOrdering {
+    let value_order = compare_query_values(&left.order_value, &right.order_value);
+    let value_order = match &left.direction {
+        SortDirection::Asc => value_order,
+        SortDirection::Desc => value_order.reverse(),
+    };
+    value_order.then_with(|| left.id.cmp(&right.id))
+}
+
+fn compare_query_values(left: &Value, right: &Value) -> CmpOrdering {
+    if let (Some(left), Some(right)) = (left.as_f64(), right.as_f64()) {
+        return left.partial_cmp(&right).unwrap_or(CmpOrdering::Equal);
+    }
+    if let (Some(left), Some(right)) = (left.as_str(), right.as_str()) {
+        return left.cmp(right);
+    }
+    CmpOrdering::Equal
+}
+
+fn push_ordered_column_top_k(
+    top: &mut BinaryHeap<OrderedColumnCandidate>,
+    top_needed: usize,
+    candidate: OrderedColumnCandidate,
+) {
+    if top.len() < top_needed {
+        top.push(candidate);
+    } else if let Some(worst) = top.peek() {
+        if candidate.is_better_than(worst) {
+            top.pop();
+            top.push(candidate);
+        }
+    }
+}
+
+fn is_row_id_column(column: &str) -> bool {
+    column.eq_ignore_ascii_case("id") || column.eq_ignore_ascii_case("_id")
+}
+
+fn json_to_query_value(value: &serde_json::Value) -> Value {
+    if value.is_null() {
+        return Value::Null;
+    }
+    if let Some(value) = value.as_str() {
+        return Value::String(value.to_string());
+    }
+    if let Some(value) = value.as_bool() {
+        return Value::Bool(value);
+    }
+    if let Some(value) = value.as_i64() {
+        return Value::Int64(value);
+    }
+    if let Some(value) = value.as_u64().and_then(|value| i64::try_from(value).ok()) {
+        return Value::Int64(value);
+    }
+    if let Some(value) = value.as_f64() {
+        return Value::Float64(value);
+    }
+    Value::Json(value.clone())
 }
 
 fn resolve_exists_expr<'a>(

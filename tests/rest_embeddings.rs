@@ -425,6 +425,138 @@ fn should_search_vector_docs_with_tei_provider() {
 }
 
 #[test]
+fn should_apply_vector_search_offset_after_distance_ordering() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("vector_search_offset");
+    let path_for_cleanup = path.clone();
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(2)
+        .build()
+        .unwrap();
+
+    let embedding_server = MockOpenAiServer::spawn(vec![
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![5.0, 0.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![1.0, 0.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![3.0, 0.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![0.0, 0.0, 0.0]]),
+        },
+    ]);
+
+    let cassie = Cassie::new_with_data_dir_and_config(
+        &path,
+        tei_runtime_with_server(embedding_server.base_url()),
+    )
+    .unwrap();
+
+    runtime.block_on(async {
+        cassie.startup().await.unwrap();
+        rest::collections::create(
+            &cassie,
+            serde_json::json!({
+                "name": "vector_offset_collection",
+                "fields": [
+                    {"name": "content", "type": "text"},
+                    {"name": "label", "type": "text"},
+                    {"name": "embedding", "type": "vector(3)"},
+                ],
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .await
+        .unwrap();
+        rest::indexes::create(
+            &cassie,
+            "vector_offset_collection",
+            serde_json::json!({
+                "kind": "vector",
+                "field": "embedding",
+                "options": {
+                    "source_field": "content",
+                    "metric": "l2",
+                }
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .await
+        .unwrap();
+
+        rest::documents::create(
+            &cassie,
+            "vector_offset_collection",
+            serde_json::json!({"content": "far", "label": "third"})
+                .to_string()
+                .as_bytes(),
+        )
+        .await
+        .unwrap();
+        let nearest = rest::documents::create(
+            &cassie,
+            "vector_offset_collection",
+            serde_json::json!({"content": "near", "label": "first"})
+                .to_string()
+                .as_bytes(),
+        )
+        .await
+        .unwrap();
+        let middle = rest::documents::create(
+            &cassie,
+            "vector_offset_collection",
+            serde_json::json!({"content": "middle", "label": "second"})
+                .to_string()
+                .as_bytes(),
+        )
+        .await
+        .unwrap();
+        let nearest_id = nearest["id"].as_str().expect("nearest id");
+        let middle_id = middle["id"].as_str().expect("middle id");
+
+        // Act
+        let search = rest::search::vector_search(
+            &cassie,
+            "vector_offset_collection",
+            serde_json::json!({
+                "field": "embedding",
+                "query": "query text",
+                "metric": "l2",
+                "limit": 1,
+                "offset": 1,
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .await
+        .unwrap();
+
+        // Assert
+        let rows = search["rows"].as_array().expect("rows array");
+        assert_eq!(rows.len(), 1);
+        let returned_id = rows[0][0]
+            .get("String")
+            .and_then(serde_json::Value::as_str)
+            .expect("result id");
+        assert_ne!(returned_id, nearest_id);
+        assert_eq!(returned_id, middle_id);
+    });
+
+    let _ = std::fs::remove_dir_all(path_for_cleanup);
+}
+
+#[test]
 fn should_search_vector_docs_with_ollama_provider() {
     // Arrange
     with_fallback();

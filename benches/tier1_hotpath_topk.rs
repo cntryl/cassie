@@ -1,0 +1,26 @@
+use criterion::{criterion_group, criterion_main, Criterion, SamplingMode, Throughput};
+
+#[path = "support/criterion_config.rs"]
+mod criterion_config;
+#[path = "support/workloads.rs"]
+mod workloads;
+
+fn bench_topk(c: &mut Criterion) {
+    let mut group = c.benchmark_group("tier1_hotpath_topk");
+    group.sampling_mode(SamplingMode::Flat);
+    group.throughput(Throughput::Elements(1));
+
+    group.bench_function("top_k_heap_maintenance", |b| {
+        b.iter(workloads::top_k_update)
+    });
+
+    group.finish();
+}
+
+criterion_group! {
+    name = benches;
+    config = criterion_config::criterion_config_for_tier1();
+    targets = bench_topk
+}
+
+criterion_main!(benches);

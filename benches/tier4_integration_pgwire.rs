@@ -25,6 +25,23 @@ fn bench_pgwire(c: &mut Criterion) {
             ))
         })
     });
+    group.bench_function(
+        BenchmarkId::new("prepared_statement_loop", "protocol"),
+        |b| b.iter(workloads::pgwire_prepared_statement_protocol_loop),
+    );
+    group.bench_function(BenchmarkId::new("connection_churn", "10k"), |b| {
+        b.iter(|| runtime.block_on(workloads::pgwire_connection_churn(&ctx)))
+    });
+    group.bench_function(BenchmarkId::new("connection_pooling", "10k"), |b| {
+        b.iter(|| runtime.block_on(workloads::pgwire_connection_pooling(&ctx)))
+    });
+    group.bench_function(BenchmarkId::new("large_result_set", "512_rows"), |b| {
+        b.iter(|| runtime.block_on(workloads::pgwire_large_result_query(&ctx)))
+    });
+    group.throughput(Throughput::Elements(8));
+    group.bench_function(BenchmarkId::new("concurrent_connections", "8x10k"), |b| {
+        b.iter(|| runtime.block_on(workloads::pgwire_concurrent_connections(&ctx, 8)))
+    });
 
     group.finish();
 }

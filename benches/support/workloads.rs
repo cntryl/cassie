@@ -7,6 +7,7 @@ use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
+use std::time::{Duration, Instant};
 
 use cassie::app::{Cassie, CassieError, CassieSession};
 use cassie::catalog::{CollectionSchema, FieldMeta};
@@ -133,6 +134,7 @@ impl MockTeiEmbeddingServer {
             while !shutdown_thread.load(Ordering::Relaxed) {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
+                        let _ = stream.set_nonblocking(false);
                         let body = read_http_body(&mut stream);
                         let inputs = serde_json::from_slice::<serde_json::Value>(&body)
                             .ok()
@@ -326,6 +328,38 @@ pub fn field_lookup() -> usize {
     1
 }
 
+pub fn field_lookup_by_field_id() -> usize {
+    let fields = [
+        FieldMeta {
+            name: "id".to_string(),
+            data_type: DataType::Text,
+            is_indexed: true,
+            boost: Some(1.0),
+        },
+        FieldMeta {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            is_indexed: true,
+            boost: Some(1.0),
+        },
+        FieldMeta {
+            name: "body".to_string(),
+            data_type: DataType::Text,
+            is_indexed: true,
+            boost: Some(1.0),
+        },
+        FieldMeta {
+            name: "score".to_string(),
+            data_type: DataType::Int,
+            is_indexed: true,
+            boost: None,
+        },
+    ];
+    let field_id = std::hint::black_box(2usize);
+    std::hint::black_box(&fields[field_id]);
+    1
+}
+
 pub fn predicate_evaluation() -> usize {
     let row = json!({"score": 42, "status": "approved"});
     let passes = row["score"].as_i64().unwrap_or_default() >= 40
@@ -418,6 +452,30 @@ pub fn parameter_binding() -> usize {
     count
 }
 
+pub fn sql_lexing() -> usize {
+    let sql = std::hint::black_box(
+        "SELECT id, title FROM bench_documents WHERE score >= $1 AND status = 'approved' ORDER BY id LIMIT 20",
+    );
+    let mut tokens = 0usize;
+    let mut in_token = false;
+    for byte in sql.bytes() {
+        let delimiter =
+            byte.is_ascii_whitespace() || matches!(byte, b',' | b'(' | b')' | b'=' | b'<' | b'>');
+        if delimiter {
+            if in_token {
+                tokens += 1;
+                in_token = false;
+            }
+        } else {
+            in_token = true;
+        }
+    }
+    if in_token {
+        tokens += 1;
+    }
+    std::hint::black_box(tokens)
+}
+
 pub fn row_to_pgwire_encoding() -> usize {
     let message = ServerMessage::DataRow(vec!["alpha".to_string(), "1".to_string()]);
     let encoded = cassie::pgwire::protocol::encode(&message);
@@ -470,6 +528,29 @@ pub async fn physical_planning(ctx: &BenchContext) -> usize {
     1
 }
 
+pub async fn plan_cache_hit(ctx: &BenchContext) -> usize {
+    let sql = "SELECT id, title FROM bench_documents WHERE score >= $1 LIMIT 20";
+    let params = vec![Value::Int64(10)];
+    let result = ctx
+        .cassie
+        .execute_sql(&ctx.session, sql, params)
+        .await
+        .expect("plan cache hit");
+    std::hint::black_box(result.rows.len())
+}
+
+pub async fn plan_cache_miss(ctx: &BenchContext, nonce: usize) -> usize {
+    let sql = format!(
+        "SELECT id, title FROM bench_documents WHERE score >= 10 AND status IN ('approved', 'pending', 'miss-{nonce}') LIMIT 20"
+    );
+    let result = ctx
+        .cassie
+        .execute_sql(&ctx.session, &sql, vec![])
+        .await
+        .expect("plan cache miss");
+    std::hint::black_box(result.rows.len())
+}
+
 pub async fn execute_sql(ctx: &BenchContext, sql: &str) -> usize {
     let result = ctx
         .cassie
@@ -486,6 +567,73 @@ pub async fn pgwire_simple_query(ctx: &BenchContext, sql: &str) -> usize {
     std::hint::black_box(messages.len())
 }
 
+pub fn pgwire_prepared_statement_protocol_loop() -> usize {
+    let messages = [
+        "PARSE stmt|SELECT id FROM bench_documents WHERE score = $1",
+        "BIND stmt|42",
+        "DESCRIBE stmt",
+        "EXECUTE stmt",
+        "SYNC",
+    ];
+    let mut decoded = 0usize;
+    for message in messages {
+        std::hint::black_box(cassie::pgwire::protocol::decode(message));
+        decoded += 1;
+    }
+    std::hint::black_box(decoded)
+}
+
+pub async fn pgwire_large_result_query(ctx: &BenchContext) -> usize {
+    pgwire_simple_query(
+        ctx,
+        "SELECT id, title, body, score FROM bench_documents ORDER BY id LIMIT 512",
+    )
+    .await
+}
+
+pub async fn pgwire_connection_churn(ctx: &BenchContext) -> usize {
+    let session = ctx.cassie.create_session("benchmark", None).await;
+    let messages = cassie::pgwire::handlers::query::run_simple_query(
+        &ctx.cassie,
+        &session,
+        "SELECT id FROM bench_documents WHERE score = 1 LIMIT 20",
+        vec![],
+    )
+    .await;
+    std::hint::black_box(messages.len())
+}
+
+pub async fn pgwire_connection_pooling(ctx: &BenchContext) -> usize {
+    pgwire_simple_query(
+        ctx,
+        "SELECT id FROM bench_documents WHERE score = 1 LIMIT 20",
+    )
+    .await
+}
+
+pub async fn pgwire_concurrent_connections(ctx: &BenchContext, concurrency: usize) -> usize {
+    let mut tasks = tokio::task::JoinSet::new();
+    for index in 0..concurrency.max(1) {
+        let cassie = ctx.cassie.clone();
+        tasks.spawn(async move {
+            let session = cassie.create_session("benchmark", None).await;
+            let sql = format!(
+                "SELECT id FROM bench_documents WHERE score >= {} LIMIT 20",
+                index % 16
+            );
+            cassie::pgwire::handlers::query::run_simple_query(&cassie, &session, &sql, vec![])
+                .await
+                .len()
+        });
+    }
+
+    let mut messages = 0usize;
+    while let Some(result) = tasks.join_next().await {
+        messages += result.expect("pgwire connection task");
+    }
+    std::hint::black_box(messages)
+}
+
 pub async fn http_vector_search(ctx: &BenchContext) -> usize {
     let body = json!({
         "field": "embedding",
@@ -498,6 +646,94 @@ pub async fn http_vector_search(ctx: &BenchContext) -> usize {
         .expect("vector search");
     let rows = result["rows"].as_array().expect("vector search rows");
     std::hint::black_box(rows.len())
+}
+
+pub async fn http_document_get(ctx: &BenchContext) -> usize {
+    let loaded = documents::get(&ctx.cassie, &ctx.collection, "doc-1")
+        .await
+        .expect("get document");
+    std::hint::black_box(loaded);
+    1
+}
+
+pub async fn http_concurrent_document_gets(ctx: &BenchContext, concurrency: usize) -> usize {
+    let mut tasks = tokio::task::JoinSet::new();
+    for index in 0..concurrency.max(1) {
+        let cassie = ctx.cassie.clone();
+        let collection = ctx.collection.clone();
+        tasks.spawn(async move {
+            let id = format!("doc-{}", index % 128);
+            documents::get(&cassie, &collection, &id)
+                .await
+                .expect("get document");
+            1usize
+        });
+    }
+
+    let mut loaded = 0usize;
+    while let Some(result) = tasks.join_next().await {
+        loaded += result.expect("document get task");
+    }
+    std::hint::black_box(loaded)
+}
+
+pub async fn http_large_result_json(ctx: &BenchContext) -> usize {
+    let result = ctx
+        .cassie
+        .execute_sql(
+            &ctx.session,
+            "SELECT id, title, body, score FROM bench_documents ORDER BY id LIMIT 512",
+            vec![],
+        )
+        .await
+        .expect("large result query");
+    let encoded = serde_json::to_vec(&result).expect("json encode result");
+    std::hint::black_box(encoded.len())
+}
+
+pub fn json_serialization_overhead() -> usize {
+    let rows = (0..512)
+        .map(|index| {
+            json!({
+                "id": format!("doc-{index}"),
+                "title": format!("title-{}", index % 16),
+                "body": "alpha beta gamma",
+                "score": index % 100,
+            })
+        })
+        .collect::<Vec<_>>();
+    let encoded = serde_json::to_vec(&rows).expect("json encode rows");
+    std::hint::black_box(encoded.len())
+}
+
+pub async fn protocol_comparison_sql(ctx: &BenchContext) -> usize {
+    execute_sql(
+        ctx,
+        "SELECT id, title FROM bench_documents WHERE title = 'title-1' LIMIT 20",
+    )
+    .await
+}
+
+pub async fn protocol_comparison_pgwire(ctx: &BenchContext) -> usize {
+    pgwire_simple_query(
+        ctx,
+        "SELECT id, title FROM bench_documents WHERE title = 'title-1' LIMIT 20",
+    )
+    .await
+}
+
+pub async fn protocol_comparison_http(ctx: &BenchContext) -> usize {
+    let result = ctx
+        .cassie
+        .execute_sql(
+            &ctx.session,
+            "SELECT id, title FROM bench_documents WHERE title = 'title-1' LIMIT 20",
+            vec![],
+        )
+        .await
+        .expect("http comparison query");
+    let encoded = serde_json::to_vec(&result).expect("json encode comparison");
+    std::hint::black_box(encoded.len())
 }
 
 pub async fn http_document_create_get(ctx: &BenchContext) -> usize {
@@ -519,6 +755,47 @@ pub async fn http_document_create_get(ctx: &BenchContext) -> usize {
     1
 }
 
+pub async fn timed_http_document_create_get(ctx: &BenchContext) -> Duration {
+    timed_http_document_create_get_batch(ctx, 1).await
+}
+
+pub async fn timed_http_document_create_get_batch(
+    ctx: &BenchContext,
+    batch_size: usize,
+) -> Duration {
+    let batch_size = batch_size.max(1);
+    let payload = json!({
+        "title": "http-benchmark-title",
+        "body": "alpha beta gamma",
+        "score": 42,
+        "status": "approved",
+        "embedding": [1.0, 0.0, 0.0],
+    });
+    let mut ids = Vec::with_capacity(batch_size);
+    let started = Instant::now();
+    for _ in 0..batch_size {
+        let created =
+            documents::create(&ctx.cassie, &ctx.collection, payload.to_string().as_bytes())
+                .await
+                .expect("create document");
+        let id = created["id"].as_str().expect("created id").to_string();
+        let loaded = documents::get(&ctx.cassie, &ctx.collection, &id)
+            .await
+            .expect("get document");
+        std::hint::black_box(loaded);
+        ids.push(id);
+    }
+    let elapsed = started.elapsed();
+    for id in ids {
+        ctx.cassie
+            .midge
+            .delete_document(&ctx.collection, &id)
+            .await
+            .expect("cleanup document");
+    }
+    elapsed / batch_size as u32
+}
+
 pub async fn ingest_document(ctx: &BenchContext) -> usize {
     let payload = json!({
         "title": "benchmark-title",
@@ -534,6 +811,125 @@ pub async fn ingest_document(ctx: &BenchContext) -> usize {
         .expect("ingest document");
     std::hint::black_box(id);
     1
+}
+
+pub async fn mixed_ingest_query(ctx: &BenchContext) -> usize {
+    let written = ingest_document(ctx).await;
+    let read = execute_sql(
+        ctx,
+        "SELECT id, title FROM bench_documents WHERE title = 'benchmark-title' LIMIT 20",
+    )
+    .await;
+    std::hint::black_box(written + read)
+}
+
+pub async fn concurrent_queries(ctx: &BenchContext, concurrency: usize) -> usize {
+    let mut tasks = tokio::task::JoinSet::new();
+    for index in 0..concurrency.max(1) {
+        let cassie = ctx.cassie.clone();
+        let session = ctx.session.clone();
+        tasks.spawn(async move {
+            let sql = format!(
+                "SELECT id, title FROM bench_documents WHERE score >= {} LIMIT 20",
+                index % 16
+            );
+            cassie
+                .execute_sql(&session, &sql, vec![])
+                .await
+                .expect("concurrent query")
+                .rows
+                .len()
+        });
+    }
+
+    let mut rows = 0usize;
+    while let Some(result) = tasks.join_next().await {
+        rows += result.expect("query task");
+    }
+    std::hint::black_box(rows)
+}
+
+pub async fn projection_rebuild_query(ctx: &BenchContext) -> usize {
+    execute_sql(
+        ctx,
+        "SELECT title, body, score, status FROM bench_documents ORDER BY id LIMIT 512",
+    )
+    .await
+}
+
+pub async fn index_rebuild_ddl(ctx: &BenchContext, nonce: usize) -> usize {
+    let name = format!("bench_rebuild_idx_{}", nonce);
+    let create = format!(
+        "CREATE INDEX {name} ON {} USING btree (status)",
+        ctx.collection
+    );
+    let drop = format!("DROP INDEX {name} ON {}", ctx.collection);
+    let created = ctx
+        .cassie
+        .execute_sql(&ctx.session, &create, vec![])
+        .await
+        .expect("create index")
+        .command
+        .len();
+    let dropped = ctx
+        .cassie
+        .execute_sql(&ctx.session, &drop, vec![])
+        .await
+        .expect("drop index")
+        .command
+        .len();
+    std::hint::black_box(created + dropped)
+}
+
+pub async fn large_result_set_query(ctx: &BenchContext) -> usize {
+    execute_sql(
+        ctx,
+        "SELECT id, title, body, score, status FROM bench_documents ORDER BY id LIMIT 512",
+    )
+    .await
+}
+
+pub async fn ten_million_row_query_shape(ctx: &BenchContext) -> usize {
+    execute_sql(
+        ctx,
+        "SELECT id FROM bench_documents WHERE score >= 10 ORDER BY score DESC LIMIT 100",
+    )
+    .await
+}
+
+pub async fn timed_ingest_document(ctx: &BenchContext) -> Duration {
+    timed_ingest_document_batch(ctx, 1).await
+}
+
+pub async fn timed_ingest_document_batch(ctx: &BenchContext, batch_size: usize) -> Duration {
+    let batch_size = batch_size.max(1);
+    let payload = json!({
+        "title": "benchmark-title",
+        "body": "alpha beta gamma",
+        "score": 42,
+        "status": "approved",
+        "embedding": [1.0, 0.0, 0.0],
+    });
+    let mut ids = Vec::with_capacity(batch_size);
+    let started = Instant::now();
+    for _ in 0..batch_size {
+        let id = ctx
+            .cassie
+            .ingest_document(&ctx.collection, payload.clone())
+            .await
+            .expect("ingest document");
+        std::hint::black_box(&id);
+        ids.push(id);
+    }
+    let elapsed = started.elapsed();
+    for id in ids {
+        ctx.cassie
+            .midge
+            .delete_document(&ctx.collection, &id)
+            .await
+            .expect("cleanup ingested document");
+    }
+    elapsed / batch_size as u32
 }
 
 fn read_http_body(stream: &mut std::net::TcpStream) -> Vec<u8> {

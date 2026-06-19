@@ -49,9 +49,64 @@ harness = false
 path = "benches/tier1_hotpath_pgwire_json.rs"
 
 [[bench]]
+name = "tier1_hotpath_predicates"
+harness = false
+path = "benches/tier1_hotpath_predicates.rs"
+
+[[bench]]
+name = "tier1_hotpath_topk"
+harness = false
+path = "benches/tier1_hotpath_topk.rs"
+
+[[bench]]
+name = "tier1_hotpath_vector_distance"
+harness = false
+path = "benches/tier1_hotpath_vector_distance.rs"
+
+[[bench]]
+name = "tier1_hotpath_bm25"
+harness = false
+path = "benches/tier1_hotpath_bm25.rs"
+
+[[bench]]
 name = "tier2_subsystem_sql_planning"
 harness = false
 path = "benches/tier2_subsystem_sql_planning.rs"
+
+[[bench]]
+name = "tier2_subsystem_parser"
+harness = false
+path = "benches/tier2_subsystem_parser.rs"
+
+[[bench]]
+name = "tier2_subsystem_binder"
+harness = false
+path = "benches/tier2_subsystem_binder.rs"
+
+[[bench]]
+name = "tier2_subsystem_plan_cache"
+harness = false
+path = "benches/tier2_subsystem_plan_cache.rs"
+
+[[bench]]
+name = "tier2_subsystem_search"
+harness = false
+path = "benches/tier2_subsystem_search.rs"
+
+[[bench]]
+name = "tier2_subsystem_vector"
+harness = false
+path = "benches/tier2_subsystem_vector.rs"
+
+[[bench]]
+name = "tier2_subsystem_hybrid"
+harness = false
+path = "benches/tier2_subsystem_hybrid.rs"
+
+[[bench]]
+name = "tier2_subsystem_protocol_handlers"
+harness = false
+path = "benches/tier2_subsystem_protocol_handlers.rs"
 
 [[bench]]
 name = "tier2_subsystem_executor"
@@ -74,6 +129,21 @@ harness = false
 path = "benches/tier3_system_startup.rs"
 
 [[bench]]
+name = "tier3_system_concurrency"
+harness = false
+path = "benches/tier3_system_concurrency.rs"
+
+[[bench]]
+name = "tier3_system_mixed_load"
+harness = false
+path = "benches/tier3_system_mixed_load.rs"
+
+[[bench]]
+name = "tier3_system_rebuild"
+harness = false
+path = "benches/tier3_system_rebuild.rs"
+
+[[bench]]
 name = "tier4_integration_pgwire"
 harness = false
 path = "benches/tier4_integration_pgwire.rs"
@@ -82,6 +152,11 @@ path = "benches/tier4_integration_pgwire.rs"
 name = "tier4_integration_http"
 harness = false
 path = "benches/tier4_integration_http.rs"
+
+[[bench]]
+name = "tier4_integration_protocol_compare"
+harness = false
+path = "benches/tier4_integration_protocol_compare.rs"
 
 [profile.dev]
 opt-level = 0

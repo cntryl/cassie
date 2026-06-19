@@ -25,32 +25,32 @@ fn bench_query(c: &mut Criterion) {
         ),
         (
             "indexed_filter_query",
-            "1m",
+            "10k",
             "SELECT id FROM bench_documents WHERE score = 1",
         ),
         (
             "range_query",
-            "1m",
+            "10k",
             "SELECT id FROM bench_documents WHERE score >= 10 LIMIT 100",
         ),
         (
             "sort_limit_query",
-            "1m",
+            "10k",
             "SELECT id FROM bench_documents ORDER BY score DESC LIMIT 50",
         ),
         (
             "fulltext_search_query",
-            "1m",
+            "10k",
             "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 20",
         ),
         (
             "vector_search_query",
-            "1m",
+            "10k",
             "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20",
         ),
         (
             "hybrid_search_query",
-            "1m",
+            "10k",
             "SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0,0]')) AS score FROM bench_documents ORDER BY score DESC LIMIT 20",
         ),
     ];
@@ -60,10 +60,6 @@ fn bench_query(c: &mut Criterion) {
             b.iter(|| runtime.block_on(workloads::execute_sql(&ctx, sql)))
         });
     }
-
-    group.bench_function(BenchmarkId::new("mixed_ingest_query_load", "1m"), |b| {
-        b.iter(|| runtime.block_on(workloads::ingest_document(&ctx)))
-    });
 
     group.finish();
 }

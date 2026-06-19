@@ -1,4 +1,5 @@
-use std::collections::BTreeMap;
+use std::cmp::Ordering as CmpOrdering;
+use std::collections::{BTreeMap, BinaryHeap};
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
@@ -16,7 +17,8 @@ use argon2::{
 };
 
 use crate::catalog::{
-    normalize_role_name, Catalog, ConstraintCheck, ConstraintOperator, FieldConstraint, RoleMeta,
+    normalize_role_name, Catalog, CollectionSchema, ConstraintCheck, ConstraintOperator,
+    FieldConstraint, RoleMeta,
 };
 use crate::config::{
     CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiCompatibleRuntimeConfig,
@@ -32,13 +34,14 @@ use crate::embeddings::{
     voyage::VoyageProvider,
     DistanceMetric, Embedding, EmbeddingError, EmbeddingProvider, VectorIndexRecord,
 };
-use crate::executor::{QueryError, QueryResult};
-use crate::midge::adapter::{DocumentRef, Midge};
+use crate::executor::{ColumnMeta, QueryError, QueryResult};
+use crate::midge::adapter::{DocumentRef, Midge, RowDecode};
 use crate::runtime::{ExecutionMode, PlanCacheKey, QueryExecutionControls, RuntimeState};
 use crate::sql::ast::{
     QueryStatement, TransactionAction, TransactionIsolation, TransactionStatement,
 };
 use crate::sql::{binder, parser};
+use crate::types::{Value, Vector};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CassieSession {
@@ -753,24 +756,79 @@ impl Cassie {
             .map_err(CassieError::from)?;
         self.validate_embedding_payload(&index, &embedding)?;
 
-        let vector_text = serde_json::to_string(&embedding.values).map_err(|error| {
-            CassieError::InvalidEmbedding(format!("invalid vector serialization: {error}"))
-        })?;
         let metric = metric.unwrap_or(index.metadata.metric.clone());
-        let operator = metric.sql_operator();
-        let session = self.create_session("postgres", None).await;
-
-        let sql = format!(
-            "SELECT * FROM {} ORDER BY {} {} '{}' LIMIT {} OFFSET {}",
+        self.execute_projected_vector_search(
             collection,
             vector_field,
-            operator,
-            vector_text,
-            limit.max(1),
-            offset
-        );
-        let result = self.execute_sql(&session, &sql, Vec::new()).await;
-        result
+            &embedding.values,
+            metric,
+            limit,
+            offset,
+        )
+        .await
+    }
+
+    async fn execute_projected_vector_search(
+        &self,
+        collection: &str,
+        vector_field: &str,
+        query: &[f32],
+        metric: DistanceMetric,
+        limit: usize,
+        offset: usize,
+    ) -> Result<QueryResult, CassieError> {
+        let limit = limit.max(1);
+        let top_needed = limit.saturating_add(offset).max(1);
+        let schema = self
+            .catalog
+            .get_schema(collection)
+            .await
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+        let candidates = self
+            .midge
+            .scan_rows_for_rebuild(
+                collection,
+                RowDecode::Projected(vec![vector_field.to_string()]),
+            )
+            .await?;
+
+        let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
+        for candidate in candidates {
+            let vector = candidate
+                .payload
+                .get(vector_field)
+                .and_then(vector_from_json)
+                .unwrap_or_default();
+            let distance = vector_distance_for_metric(&metric, query, &vector);
+            let scored = ScoredVectorCandidate {
+                distance,
+                id: candidate.id,
+            };
+            if top.len() < top_needed {
+                top.push(scored);
+            } else if let Some(worst) = top.peek() {
+                if scored.is_better_than(worst) {
+                    top.pop();
+                    top.push(scored);
+                }
+            }
+        }
+
+        let mut ranked = top.into_vec();
+        ranked.sort_by(compare_scored_vector_candidates);
+        let selected = ranked.into_iter().skip(offset).take(limit);
+        let mut rows = Vec::new();
+        for candidate in selected {
+            if let Some(document) = self.midge.get_document(collection, &candidate.id).await? {
+                rows.push(vector_search_row(&schema, document));
+            }
+        }
+
+        Ok(QueryResult {
+            columns: vector_search_columns(&schema),
+            rows,
+            command: "SELECT".to_string(),
+        })
     }
 
     pub async fn ingest_document(
@@ -1844,6 +1902,123 @@ fn build_ollama_provider(
         max_retries: runtime.max_retries,
     })?;
     Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct ScoredVectorCandidate {
+    distance: f64,
+    id: String,
+}
+
+impl ScoredVectorCandidate {
+    fn is_better_than(&self, other: &Self) -> bool {
+        compare_scored_vector_candidates(self, other) == CmpOrdering::Less
+    }
+}
+
+impl Eq for ScoredVectorCandidate {}
+
+impl PartialOrd for ScoredVectorCandidate {
+    fn partial_cmp(&self, other: &Self) -> Option<CmpOrdering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ScoredVectorCandidate {
+    fn cmp(&self, other: &Self) -> CmpOrdering {
+        compare_scored_vector_candidates(self, other)
+    }
+}
+
+fn compare_scored_vector_candidates(
+    left: &ScoredVectorCandidate,
+    right: &ScoredVectorCandidate,
+) -> CmpOrdering {
+    left.distance
+        .total_cmp(&right.distance)
+        .then_with(|| left.id.cmp(&right.id))
+}
+
+fn vector_distance_for_metric(metric: &DistanceMetric, query: &[f32], target: &[f32]) -> f64 {
+    if query.is_empty() || target.is_empty() || query.len() != target.len() {
+        return f64::INFINITY;
+    }
+
+    match metric {
+        DistanceMetric::Cosine => crate::vector::cosine_distance(query, target),
+        DistanceMetric::L2 => crate::vector::l2_distance(query, target),
+        DistanceMetric::Dot => crate::vector::dot_distance(query, target),
+    }
+}
+
+fn vector_from_json(value: &serde_json::Value) -> Option<Vec<f32>> {
+    let values = value.as_array()?;
+    let mut vector = Vec::with_capacity(values.len());
+    for value in values {
+        vector.push(value.as_f64()? as f32);
+    }
+    Some(vector)
+}
+
+fn vector_search_columns(schema: &CollectionSchema) -> Vec<ColumnMeta> {
+    let mut columns = Vec::with_capacity(schema.fields.len() + 1);
+    columns.push(ColumnMeta::from_data_type(
+        "id".to_string(),
+        crate::types::DataType::Text,
+    ));
+    for field in &schema.fields {
+        if field.name != "id" {
+            columns.push(ColumnMeta::from_data_type(
+                field.name.clone(),
+                field.data_type.clone(),
+            ));
+        }
+    }
+    columns
+}
+
+fn vector_search_row(schema: &CollectionSchema, document: DocumentRef) -> Vec<Value> {
+    let mut row = Vec::with_capacity(schema.fields.len() + 1);
+    row.push(Value::String(document.id));
+    for field in &schema.fields {
+        if field.name == "id" {
+            continue;
+        }
+        let value = document
+            .payload
+            .get(&field.name)
+            .map(|value| json_to_query_value(value, &field.data_type))
+            .unwrap_or(Value::Null);
+        row.push(value);
+    }
+    row
+}
+
+fn json_to_query_value(value: &serde_json::Value, data_type: &crate::types::DataType) -> Value {
+    if value.is_null() {
+        return Value::Null;
+    }
+    if matches!(data_type, crate::types::DataType::Vector(_)) {
+        return vector_from_json(value)
+            .map(|vector| Value::Vector(Vector::new(vector)))
+            .unwrap_or(Value::Null);
+    }
+    if let Some(value) = value.as_str() {
+        return Value::String(value.to_string());
+    }
+    if let Some(value) = value.as_bool() {
+        return Value::Bool(value);
+    }
+    if let Some(value) = value.as_i64() {
+        return Value::Int64(value);
+    }
+    if let Some(value) = value.as_u64().and_then(|value| i64::try_from(value).ok()) {
+        return Value::Int64(value);
+    }
+    if let Some(value) = value.as_f64() {
+        return Value::Float64(value);
+    }
+    Value::Json(value.clone())
 }
 
 fn hash_password(password: &str) -> Result<String, CassieError> {

@@ -1,7 +1,7 @@
 # Sprint 39 - Schema DDL Breadth and Index Variants
 
-Previous: [Sprint 38 - SQL Type Coverage and Metadata Fidelity](completed/sprint-38.md)
-Next: [Roadmap README](README.md)
+Previous: [Sprint 38 - SQL Type Coverage and Metadata Fidelity](sprint-38.md)
+Next: [Sprint 40 - Benchmark Harness and Output Contract](../sprint-40.md)
 
 ## Goal
 

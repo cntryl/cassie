@@ -55,6 +55,59 @@ pub(crate) async fn scan(
         .collect())
 }
 
+pub(crate) async fn scan_projected(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    collection: &str,
+    fields: &[String],
+) -> Result<Vec<Batch>, crate::executor::QueryError> {
+    let document_batches = cassie
+        .scan_projected_documents_batched_for_session(
+            session,
+            collection,
+            DEFAULT_BATCH_SIZE,
+            fields,
+        )
+        .await
+        .map_err(|error| {
+            cassie.runtime.record_storage_access("data", false, false);
+            crate::executor::QueryError::General(error.to_string())
+        })?;
+    cassie.runtime.record_storage_access("data", false, true);
+
+    Ok(document_batches
+        .into_iter()
+        .map(|documents| {
+            documents
+                .into_iter()
+                .map(|document| {
+                    let mut row = Vec::with_capacity(fields.len() + 1);
+                    row.push(("id".to_string(), Value::String(document.id)));
+                    let object = document.payload.as_object();
+                    for field in fields {
+                        let value = object
+                            .and_then(|object| projected_field_value(object, field))
+                            .map(json_to_value)
+                            .unwrap_or(Value::Null);
+                        row.push((field.clone(), value));
+                    }
+                    BatchRow::new(row)
+                })
+                .collect::<Batch>()
+        })
+        .collect())
+}
+
+fn projected_field_value<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Option<&'a serde_json::Value> {
+    object
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case(field))
+        .map(|(_, value)| value)
+}
+
 fn json_to_value(value: &serde_json::Value) -> Value {
     if value.is_null() {
         return Value::Null;

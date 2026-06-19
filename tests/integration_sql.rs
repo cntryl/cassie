@@ -382,6 +382,324 @@ fn should_fall_back_for_filtered_ordered_column_query_without_changing_results()
 }
 
 #[test]
+fn should_filter_projected_scan_range_query_without_changing_results() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projected_scan_range");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_projected_scan_range";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "score".to_string(),
+                    data_type: DataType::Int,
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"title": "low", "score": 1}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"title": "mid", "score": 10}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d3".to_string()),
+                serde_json::json!({"title": "high", "score": 20}),
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let session = cassie.create_session("tester", None).await;
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, title FROM sql_projected_scan_range WHERE score >= 10 LIMIT 2",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
+        assert_eq!(result.rows[0][1], Value::String("mid".to_string()));
+        assert_eq!(result.rows[1][0], Value::String("d3".to_string()));
+        assert_eq!(result.rows[1][1], Value::String("high".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_filter_projected_scan_simple_equality_query_without_changing_results() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projected_scan_equality");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_projected_scan_equality";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"title": "alpha", "body": "first"}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"title": "beta", "body": "second"}),
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let session = cassie.create_session("tester", None).await;
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, title FROM sql_projected_scan_equality WHERE title = 'beta'",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
+        assert_eq!(result.rows[0][1], Value::String("beta".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_fall_back_for_function_projection_query_without_changing_results() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projected_scan_function_fallback");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_projected_scan_function_fallback";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let session = cassie.create_session("tester", None).await;
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT upper(title) FROM sql_projected_scan_function_fallback WHERE title = 'alpha'",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("ALPHA".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_fall_back_for_wildcard_projection_query_without_changing_results() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projected_scan_wildcard_fallback");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_projected_scan_wildcard_fallback";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "score".to_string(),
+                    data_type: DataType::Int,
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"title": "alpha", "score": 7}),
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let session = cassie.create_session("tester", None).await;
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT * FROM sql_projected_scan_wildcard_fallback WHERE score = 7",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d1".to_string()));
+        assert_eq!(result.rows[0][1], Value::String("alpha".to_string()));
+        assert_eq!(result.rows[0][2], Value::Int64(7));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_apply_vector_distance_offset_after_ordering() {
     // Arrange
     with_fallback();

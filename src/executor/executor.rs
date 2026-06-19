@@ -1544,6 +1544,13 @@ async fn execute_plan(
         return Ok(rows);
     }
 
+    if let Some(rows) =
+        execute_projected_filtered_read(cassie, session, plan, user_functions, params, controls)
+            .await?
+    {
+        return Ok(rows);
+    }
+
     execute_source_query(
         cassie,
         session,
@@ -2655,6 +2662,159 @@ fn json_to_query_value(value: &serde_json::Value) -> Value {
         return Value::Float64(value);
     }
     Value::Json(value.clone())
+}
+
+async fn execute_projected_filtered_read(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &LogicalPlan,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let Some(spec) = projected_filtered_read_spec(plan) else {
+        return Ok(None);
+    };
+    if virtual_views::schema(&spec.collection).is_some()
+        || cassie.catalog.get_view(&spec.collection).await.is_some()
+    {
+        return Ok(None);
+    }
+
+    let mut batches =
+        scan::scan_projected(cassie, session, &spec.collection, &spec.scan_fields).await?;
+    ensure_temp_budget(controls, &batches)?;
+
+    if let Some(filter_expr) = &plan.filter {
+        batches =
+            filter::filter_batches(batches, filter_expr, params, None, user_functions, session)?;
+        ensure_temp_budget(controls, &batches)?;
+    }
+
+    batches = projection::project_batches(
+        batches,
+        &plan.projection,
+        params,
+        None,
+        user_functions,
+        session,
+    )?;
+    ensure_temp_budget(controls, &batches)?;
+
+    if let Some(offset) = plan.offset {
+        let offset = offset.max(0) as usize;
+        let limit = plan.limit.map(|value| value.max(0) as usize);
+        batches = batch::slice_batches(batches, offset, limit);
+    } else if let Some(limit) = plan.limit {
+        let limit = limit.max(0) as usize;
+        batches = batch::slice_batches(batches, 0, Some(limit));
+    }
+
+    Ok(Some(batch::flatten_batches(batches)))
+}
+
+struct ProjectedFilteredReadSpec {
+    collection: String,
+    scan_fields: Vec<String>,
+}
+
+fn projected_filtered_read_spec(plan: &LogicalPlan) -> Option<ProjectedFilteredReadSpec> {
+    if plan.command.is_some()
+        || !plan.ctes.is_empty()
+        || plan.distinct
+        || !plan.group_by.is_empty()
+        || plan.having.is_some()
+        || plan.set.is_some()
+        || !plan.order.is_empty()
+    {
+        return None;
+    }
+
+    let QuerySource::Collection(collection) = &plan.source else {
+        return None;
+    };
+    let filter_columns = projected_scan_filter_columns(plan.filter.as_ref()?)?;
+    let projection_columns = plan
+        .projection
+        .iter()
+        .map(|item| match item {
+            SelectItem::Column { name, .. } => Some(name.clone()),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if projection_columns.is_empty() {
+        return None;
+    }
+
+    let mut scan_fields = Vec::new();
+    for column in projection_columns.into_iter().chain(filter_columns) {
+        if is_row_id_column(&column) || scan_fields.contains(&column) {
+            continue;
+        }
+        scan_fields.push(column);
+    }
+
+    Some(ProjectedFilteredReadSpec {
+        collection: collection.clone(),
+        scan_fields,
+    })
+}
+
+fn projected_scan_filter_columns(expr: &Expr) -> Option<Vec<String>> {
+    let mut fields = Vec::new();
+    collect_projected_scan_filter_columns(expr, &mut fields)?;
+    Some(fields)
+}
+
+fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) -> Option<()> {
+    match expr {
+        Expr::Column(name) => {
+            if !fields.iter().any(|field| field.eq_ignore_ascii_case(name)) {
+                fields.push(name.clone());
+            }
+            Some(())
+        }
+        Expr::Param(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null => Some(()),
+        Expr::Binary {
+            left, op, right, ..
+        } => {
+            match op {
+                crate::sql::ast::BinaryOp::Eq
+                | crate::sql::ast::BinaryOp::NotEq
+                | crate::sql::ast::BinaryOp::Lt
+                | crate::sql::ast::BinaryOp::Lte
+                | crate::sql::ast::BinaryOp::Gt
+                | crate::sql::ast::BinaryOp::Gte
+                | crate::sql::ast::BinaryOp::And
+                | crate::sql::ast::BinaryOp::Or
+                | crate::sql::ast::BinaryOp::Like => {}
+                _ => return None,
+            }
+            collect_projected_scan_filter_columns(left, fields)?;
+            collect_projected_scan_filter_columns(right, fields)
+        }
+        Expr::IsNull { expr, .. } => collect_projected_scan_filter_columns(expr, fields),
+        Expr::InList { expr, values, .. } => {
+            collect_projected_scan_filter_columns(expr, fields)?;
+            for value in values {
+                collect_projected_scan_filter_columns(value, fields)?;
+            }
+            Some(())
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            collect_projected_scan_filter_columns(expr, fields)?;
+            collect_projected_scan_filter_columns(low, fields)?;
+            collect_projected_scan_filter_columns(high, fields)
+        }
+        Expr::Cast { expr, .. } => collect_projected_scan_filter_columns(expr, fields),
+        Expr::Function(_) | Expr::Exists(_) => None,
+    }
 }
 
 fn resolve_exists_expr<'a>(

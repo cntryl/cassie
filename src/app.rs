@@ -1023,6 +1023,57 @@ impl Cassie {
         Ok(batches)
     }
 
+    pub(crate) async fn scan_projected_documents_batched_for_session(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        batch_size: usize,
+        fields: &[String],
+    ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
+        let mut rows = self
+            .midge
+            .scan_rows_for_rebuild(collection, RowDecode::Projected(fields.to_vec()))
+            .await?
+            .into_iter()
+            .map(|document| (document.id.clone(), document))
+            .collect::<BTreeMap<_, _>>();
+
+        if let Some(session) = session {
+            for (id, change) in session.collection_changes(collection).await {
+                match change {
+                    TransactionRowChange::Upsert(payload) => {
+                        rows.insert(
+                            id.clone(),
+                            DocumentRef {
+                                id,
+                                payload: project_payload_fields(&payload, fields),
+                            },
+                        );
+                    }
+                    TransactionRowChange::Delete => {
+                        rows.remove(&id);
+                    }
+                }
+            }
+        }
+
+        let batch_size = batch_size.max(1);
+        let mut batches = Vec::new();
+        let mut current = Vec::with_capacity(batch_size);
+        for document in rows.into_values() {
+            current.push(document);
+            if current.len() >= batch_size {
+                batches.push(current);
+                current = Vec::with_capacity(batch_size);
+            }
+        }
+        if !current.is_empty() {
+            batches.push(current);
+        }
+
+        Ok(batches)
+    }
+
     async fn validate_payload_schema(
         &self,
         collection: &str,
@@ -2019,6 +2070,24 @@ fn json_to_query_value(value: &serde_json::Value, data_type: &crate::types::Data
         return Value::Float64(value);
     }
     Value::Json(value.clone())
+}
+
+fn project_payload_fields(payload: &serde_json::Value, fields: &[String]) -> serde_json::Value {
+    let Some(object) = payload.as_object() else {
+        return serde_json::Value::Object(serde_json::Map::new());
+    };
+
+    let mut projected = serde_json::Map::new();
+    for field in fields {
+        if let Some((_, value)) = object
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case(field))
+        {
+            projected.insert(field.clone(), value.clone());
+        }
+    }
+
+    serde_json::Value::Object(projected)
 }
 
 fn hash_password(password: &str) -> Result<String, CassieError> {

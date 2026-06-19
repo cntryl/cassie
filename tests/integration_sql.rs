@@ -948,6 +948,252 @@ fn should_apply_fulltext_offset_after_score_ordering() {
 }
 
 #[test]
+fn should_execute_unordered_fulltext_query_with_matching_search_predicate() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("fulltext_unordered_match");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_fulltext_unordered_match";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"title": "first", "body": "alpha beta"}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"title": "second", "body": "bravo"}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d3".to_string()),
+                serde_json::json!({"title": "third", "body": "alpha alpha"}),
+            )
+            .await
+            .unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, title, search_score(body, 'alpha') AS score FROM sql_fulltext_unordered_match WHERE search(body, 'alpha') LIMIT 1 OFFSET 1",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d3".to_string()));
+        assert_eq!(result.rows[0][1], Value::String("third".to_string()));
+        assert!(matches!(result.rows[0][2], Value::Float64(value) if value > 0.0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_fall_back_for_unordered_fulltext_mismatched_search_query_without_changing_results() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("fulltext_unordered_mismatch");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_fulltext_unordered_mismatch";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"body": "alpha"}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"body": "bravo"}),
+            )
+            .await
+            .unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM sql_fulltext_unordered_mismatch WHERE search(body, 'bravo')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
+        assert_eq!(result.rows[0][1], Value::Float64(0.0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_fall_back_for_unordered_fulltext_additional_filters_without_changing_results() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("fulltext_unordered_extra_filter");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_fulltext_unordered_extra_filter";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "status".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .await
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"body": "alpha alpha", "status": "pending"}),
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"body": "alpha", "status": "approved"}),
+            )
+            .await
+            .unwrap();
+        let session = cassie.create_session("tester", None).await;
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM sql_fulltext_unordered_extra_filter WHERE search(body, 'alpha') AND status = 'approved'",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
+        assert!(matches!(result.rows[0][1], Value::Float64(value) if value > 0.0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_order_hybrid_top_k_by_score_with_limit() {
     // Arrange
     with_fallback();

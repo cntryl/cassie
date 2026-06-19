@@ -521,18 +521,21 @@ impl Cassie {
             let bound = binder::bind(parsed, &self.catalog).await?;
             let logical = crate::planner::logical::plan(&bound)?;
             let optimized = crate::planner::optimizer::optimize(logical);
-            let physical = crate::planner::physical::build(optimized);
+            let physical = Arc::new(crate::planner::physical::build(optimized));
             self.runtime.plan_cache_store(key, physical.clone());
             physical
         };
 
-        let user_functions = self
-            .catalog
-            .list_functions()
-            .await
-            .into_iter()
-            .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
-            .collect::<std::collections::HashMap<String, _>>();
+        let user_functions = if crate::executor::plan_needs_user_functions(&physical.logical) {
+            self.catalog
+                .list_functions()
+                .await
+                .into_iter()
+                .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
+                .collect::<std::collections::HashMap<String, _>>()
+        } else {
+            std::collections::HashMap::new()
+        };
         let collection_schema = self.catalog.get_schema(&physical.logical.collection).await;
 
         if physical.logical.command.is_some() {
@@ -646,7 +649,7 @@ impl Cassie {
 
             let logical = crate::planner::logical::plan(&bound)?;
             let optimized = crate::planner::optimizer::optimize(logical);
-            let physical = crate::planner::physical::build(optimized);
+            let physical = Arc::new(crate::planner::physical::build(optimized));
             self.runtime.plan_cache_store(key, physical.clone());
             physical
         };

@@ -2,6 +2,7 @@ use std::cmp::Ordering as CmpOrdering;
 use std::collections::{BTreeMap, BinaryHeap, HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Instant;
 
 use crate::app::{Cassie, CassieSession};
@@ -84,12 +85,12 @@ pub async fn run(
     params: Vec<Value>,
 ) -> Result<QueryResult, QueryError> {
     let controls = cassie.runtime.query_controls(std::time::Instant::now());
-    run_with_controls(cassie, plan, params, &controls).await
+    run_with_controls(cassie, Arc::new(plan), params, &controls).await
 }
 
 pub async fn run_with_controls(
     cassie: &Cassie,
-    plan: PhysicalPlan,
+    plan: Arc<PhysicalPlan>,
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
@@ -99,17 +100,22 @@ pub async fn run_with_controls(
 pub(crate) async fn run_with_session_controls(
     cassie: &Cassie,
     session: Option<&CassieSession>,
-    plan: PhysicalPlan,
+    plan: Arc<PhysicalPlan>,
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    let user_functions = cassie
-        .catalog
-        .list_functions()
-        .await
-        .into_iter()
-        .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
-        .collect::<HashMap<String, FunctionMeta>>();
+    let user_functions =
+        if plan.logical.command.is_some() || plan_needs_user_functions(&plan.logical) {
+            cassie
+                .catalog
+                .list_functions()
+                .await
+                .into_iter()
+                .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
+                .collect::<HashMap<String, FunctionMeta>>()
+        } else {
+            HashMap::new()
+        };
 
     if let Some(command) = plan.logical.command.as_ref() {
         return execute_command(cassie, session, command, &params, &user_functions, controls).await;
@@ -1536,7 +1542,7 @@ async fn execute_plan(
         return Ok(rows);
     }
 
-    if let Some(rows) = execute_scored_search_top_k(cassie, plan).await? {
+    if let Some(rows) = execute_scored_search_top_k(cassie, session, plan).await? {
         return Ok(rows);
     }
 
@@ -1893,6 +1899,7 @@ fn compare_sql_vector_candidates(
 
 async fn execute_scored_search_top_k(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     plan: &LogicalPlan,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     if let Some(spec) = fulltext_top_k_spec(plan) {
@@ -1901,11 +1908,27 @@ async fn execute_scored_search_top_k(
     if let Some(spec) = hybrid_top_k_spec(plan) {
         return execute_hybrid_top_k(cassie, spec).await.map(Some);
     }
+    if let Some(spec) = fulltext_filtered_read_spec(plan) {
+        if virtual_views::schema(&spec.collection).is_some()
+            || cassie.catalog.get_view(&spec.collection).await.is_some()
+        {
+            return Ok(None);
+        }
+        return execute_fulltext_filtered_read(cassie, session, spec)
+            .await
+            .map(Some);
+    }
     Ok(None)
 }
 
 struct TokenizedFulltextDocument {
     id: String,
+    text_stats: filter::SearchTermStats,
+}
+
+struct TokenizedFulltextReadDocument {
+    id: String,
+    payload: serde_json::Value,
     text_stats: filter::SearchTermStats,
 }
 
@@ -2074,6 +2097,93 @@ async fn execute_hybrid_top_k(
     Ok(rows)
 }
 
+async fn execute_fulltext_filtered_read(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    spec: FulltextFilteredReadSpec,
+) -> Result<Vec<BatchRow>, QueryError> {
+    let started_at = Instant::now();
+    let scan_fields = fulltext_filtered_scan_fields(&spec);
+    let document_batches = cassie
+        .scan_projected_documents_batched_for_session(
+            session,
+            &spec.collection,
+            batch::DEFAULT_BATCH_SIZE,
+            &scan_fields,
+        )
+        .await
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let search_documents = document_batches
+        .into_iter()
+        .flat_map(|documents| documents.into_iter())
+        .map(|document| TokenizedFulltextReadDocument {
+            id: document.id,
+            text_stats: json_search_term_stats(json_projected_value(
+                &document.payload,
+                &spec.text_field,
+            )),
+            payload: document.payload,
+        })
+        .collect::<Vec<_>>();
+    let search_index_options = search_context_for_fields(
+        cassie,
+        &spec.collection,
+        std::slice::from_ref(&spec.text_field),
+    )
+    .await?;
+    let search_context = filter::SearchContext::from_term_stats(
+        &spec.text_field,
+        search_documents.iter().map(|document| &document.text_stats),
+        &search_index_options.field_boost,
+        &search_index_options.field_k1,
+        &search_index_options.field_b,
+    );
+    let query_terms = filter::prepare_query_terms(&spec.query);
+
+    let mut skipped = 0usize;
+    let mut rows = Vec::new();
+    for document in &search_documents {
+        let score = search_context.score_term_stats(
+            Some(&spec.text_field),
+            &document.text_stats,
+            &query_terms,
+        );
+        if score == 0.0 {
+            continue;
+        }
+        if skipped < spec.offset {
+            skipped += 1;
+            continue;
+        }
+        if let Some(limit) = spec.limit {
+            if rows.len() >= limit {
+                break;
+            }
+        }
+
+        let mut entries = Vec::with_capacity(spec.columns.len().saturating_add(1));
+        for column in &spec.columns {
+            let value = if is_row_id_column(&column.name) {
+                Value::String(document.id.clone())
+            } else {
+                json_projected_value(&document.payload, &column.name)
+                    .map(json_to_query_value)
+                    .unwrap_or(Value::Null)
+            };
+            entries.push((column.output_name.clone(), value));
+        }
+        entries.push((spec.score_column.clone(), Value::Float64(score)));
+        rows.push(BatchRow::new(entries));
+    }
+
+    cassie.runtime.record_search_execution(
+        started_at.elapsed(),
+        search_documents.len(),
+        rows.len(),
+    );
+    Ok(rows)
+}
+
 struct SearchIndexOptions {
     field_boost: HashMap<String, f64>,
     field_k1: HashMap<String, f64>,
@@ -2113,6 +2223,21 @@ impl FulltextTopKSpec {
     fn top_needed(&self) -> usize {
         self.limit.saturating_add(self.offset).max(1)
     }
+}
+
+struct SearchProjectionColumn {
+    name: String,
+    output_name: String,
+}
+
+struct FulltextFilteredReadSpec {
+    collection: String,
+    text_field: String,
+    query: String,
+    columns: Vec<SearchProjectionColumn>,
+    score_column: String,
+    limit: Option<usize>,
+    offset: usize,
 }
 
 struct HybridTopKSpec {
@@ -2173,6 +2298,103 @@ fn fulltext_top_k_spec(plan: &LogicalPlan) -> Option<FulltextTopKSpec> {
         limit,
         offset,
     })
+}
+
+fn fulltext_filtered_read_spec(plan: &LogicalPlan) -> Option<FulltextFilteredReadSpec> {
+    if plan.command.is_some()
+        || !plan.ctes.is_empty()
+        || plan.distinct
+        || !plan.group_by.is_empty()
+        || plan.having.is_some()
+        || plan.set.is_some()
+        || !plan.order.is_empty()
+    {
+        return None;
+    }
+    let QuerySource::Collection(collection) = &plan.source else {
+        return None;
+    };
+    let (columns, function, score_column) =
+        fulltext_filtered_projection(plan.projection.as_slice())?;
+    let (text_field, query) = search_function_args(function)?;
+    let filter = plan.filter.as_ref()?;
+    let Expr::Function(filter_function) = filter else {
+        return None;
+    };
+    let (filter_field, filter_query) = search_predicate_args(filter_function)?;
+    if !filter_field.eq_ignore_ascii_case(&text_field) || filter_query != query {
+        return None;
+    }
+
+    let limit = if let Some(limit) = plan.limit {
+        Some(usize::try_from(limit.max(0)).ok()?)
+    } else {
+        None
+    };
+    let offset = plan
+        .offset
+        .and_then(|offset| usize::try_from(offset.max(0)).ok())
+        .unwrap_or(0);
+
+    Some(FulltextFilteredReadSpec {
+        collection: collection.clone(),
+        text_field,
+        query,
+        columns,
+        score_column,
+        limit,
+        offset,
+    })
+}
+
+fn fulltext_filtered_projection<'a>(
+    projection: &'a [SelectItem],
+) -> Option<(Vec<SearchProjectionColumn>, &'a FunctionCall, String)> {
+    let (last, columns) = projection.split_last()?;
+    let SelectItem::Function {
+        function,
+        alias: score_alias,
+    } = last
+    else {
+        return None;
+    };
+    if !function.name.eq_ignore_ascii_case("search_score") {
+        return None;
+    }
+    let columns = columns
+        .iter()
+        .map(|item| match item {
+            SelectItem::Column { name, alias } => Some(SearchProjectionColumn {
+                name: name.clone(),
+                output_name: alias.clone().unwrap_or_else(|| name.clone()),
+            }),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if columns.is_empty() {
+        return None;
+    }
+
+    Some((
+        columns,
+        function,
+        score_alias.clone().unwrap_or_else(|| function.name.clone()),
+    ))
+}
+
+fn fulltext_filtered_scan_fields(spec: &FulltextFilteredReadSpec) -> Vec<String> {
+    let mut fields = vec![spec.text_field.clone()];
+    for column in &spec.columns {
+        if is_row_id_column(&column.name)
+            || fields
+                .iter()
+                .any(|field| field.eq_ignore_ascii_case(&column.name))
+        {
+            continue;
+        }
+        fields.push(column.name.clone());
+    }
+    fields
 }
 
 fn hybrid_top_k_spec(plan: &LogicalPlan) -> Option<HybridTopKSpec> {
@@ -2331,6 +2553,17 @@ fn function_call_key(function: &FunctionCall) -> String {
 
 fn json_search_term_stats(value: Option<&serde_json::Value>) -> filter::SearchTermStats {
     filter::SearchTermStats::from_text(value.and_then(serde_json::Value::as_str))
+}
+
+fn json_projected_value<'a>(
+    payload: &'a serde_json::Value,
+    field: &str,
+) -> Option<&'a serde_json::Value> {
+    payload
+        .as_object()?
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case(field))
+        .map(|(_, value)| value)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -4123,6 +4356,147 @@ fn plan_uses_function(plan: &LogicalPlan, function_name: &str) -> bool {
         .any(|cte| cte_uses_function(cte, function_name))
 }
 
+pub(crate) fn plan_needs_user_functions(plan: &LogicalPlan) -> bool {
+    query_source_needs_user_functions(&plan.source)
+        || plan.projection.iter().any(select_item_needs_user_functions)
+        || plan.filter.as_ref().is_some_and(expr_needs_user_functions)
+        || plan.group_by.iter().any(expr_needs_user_functions)
+        || plan.having.as_ref().is_some_and(expr_needs_user_functions)
+        || plan
+            .order
+            .iter()
+            .any(|order| expr_needs_user_functions(&order.expr))
+        || plan.ctes.iter().any(cte_needs_user_functions)
+        || plan
+            .set
+            .as_ref()
+            .is_some_and(|set| select_needs_user_functions(&set.right))
+}
+
+fn cte_needs_user_functions(cte: &CommonTableExpression) -> bool {
+    match &cte.query {
+        CteQuery::Simple(statement) => parsed_statement_needs_user_functions(statement),
+        CteQuery::Recursive { base, recursive } => {
+            parsed_statement_needs_user_functions(base)
+                || parsed_statement_needs_user_functions(recursive)
+        }
+    }
+}
+
+fn parsed_statement_needs_user_functions(statement: &crate::sql::ast::ParsedStatement) -> bool {
+    match &statement.statement {
+        QueryStatement::Select(select) => select_needs_user_functions(select),
+        _ => false,
+    }
+}
+
+fn select_needs_user_functions(select: &SelectStatement) -> bool {
+    query_source_needs_user_functions(&select.source)
+        || select
+            .projection
+            .iter()
+            .any(select_item_needs_user_functions)
+        || select
+            .filter
+            .as_ref()
+            .is_some_and(expr_needs_user_functions)
+        || select.group_by.iter().any(expr_needs_user_functions)
+        || select
+            .having
+            .as_ref()
+            .is_some_and(expr_needs_user_functions)
+        || select
+            .order
+            .iter()
+            .any(|order| expr_needs_user_functions(&order.expr))
+        || select.ctes.iter().any(cte_needs_user_functions)
+        || select
+            .set
+            .as_ref()
+            .is_some_and(|set| select_needs_user_functions(&set.right))
+}
+
+fn query_source_needs_user_functions(source: &QuerySource) -> bool {
+    match source {
+        QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
+        QuerySource::Subquery { select, .. } => select_needs_user_functions(select),
+        QuerySource::Join {
+            left, right, on, ..
+        } => {
+            query_source_needs_user_functions(left)
+                || query_source_needs_user_functions(right)
+                || expr_needs_user_functions(on)
+        }
+    }
+}
+
+fn select_item_needs_user_functions(item: &SelectItem) -> bool {
+    match item {
+        SelectItem::Function { function, .. } => function_needs_user_functions(function),
+        SelectItem::Column { .. } | SelectItem::Wildcard => false,
+    }
+}
+
+fn expr_needs_user_functions(expr: &Expr) -> bool {
+    match expr {
+        Expr::Binary { left, right, .. } => {
+            expr_needs_user_functions(left) || expr_needs_user_functions(right)
+        }
+        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } => expr_needs_user_functions(expr),
+        Expr::InList { expr, values, .. } => {
+            expr_needs_user_functions(expr) || values.iter().any(expr_needs_user_functions)
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            expr_needs_user_functions(expr)
+                || expr_needs_user_functions(low)
+                || expr_needs_user_functions(high)
+        }
+        Expr::Exists(statement) => parsed_statement_needs_user_functions(statement),
+        Expr::Function(function) => function_needs_user_functions(function),
+        Expr::Column(_)
+        | Expr::Param(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null => false,
+    }
+}
+
+fn function_needs_user_functions(function: &FunctionCall) -> bool {
+    let name = function.name.to_ascii_lowercase();
+    let is_builtin = matches!(
+        name.as_str(),
+        "search"
+            | "search_score"
+            | "vector_distance"
+            | "vector_score"
+            | "cosine_distance"
+            | "dot_product"
+            | "hybrid_score"
+            | "snippet"
+            | "version"
+            | "current_schema"
+            | "current_database"
+            | "current_user"
+            | "session_user"
+            | "current_role"
+            | "length"
+            | "len"
+            | "lower"
+            | "upper"
+            | "substring"
+            | "trim"
+            | "concat"
+            | "coalesce"
+            | "abs"
+            | "cast"
+    ) || crate::sql::functions::is_aggregate_function(&function.name);
+
+    !is_builtin || function.args.iter().any(expr_needs_user_functions)
+}
+
 fn cte_uses_function(cte: &CommonTableExpression, function_name: &str) -> bool {
     match &cte.query {
         CteQuery::Simple(statement) => parsed_statement_uses_function(statement, function_name),
@@ -4498,4 +4872,101 @@ fn deduce_text_fields<R: RowAccess>(rows: &[R]) -> Vec<String> {
     }
 
     ordered
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn plan_for_sql(sql: &str) -> LogicalPlan {
+        let parsed = crate::sql::parse_statement(sql).expect("parse statement");
+        build_logical_plan(&parsed).expect("build logical plan")
+    }
+
+    #[test]
+    fn should_detect_unordered_fulltext_fast_path_for_matching_search_query() {
+        // Arrange
+        let plan = plan_for_sql(
+            "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha')",
+        );
+
+        // Act
+        let spec = fulltext_filtered_read_spec(&plan);
+
+        // Assert
+        let spec = spec.expect("unordered fulltext fast path");
+        assert_eq!(spec.collection, "bench_documents");
+        assert_eq!(spec.text_field, "body");
+        assert_eq!(spec.query, "alpha");
+        assert_eq!(spec.score_column, "score");
+        assert_eq!(spec.columns.len(), 1);
+        assert_eq!(spec.columns[0].name, "id");
+        assert_eq!(spec.columns[0].output_name, "id");
+    }
+
+    #[test]
+    fn should_reject_unordered_fulltext_fast_path_for_mismatched_search_query() {
+        // Arrange
+        let plan = plan_for_sql(
+            "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'bravo')",
+        );
+
+        // Act
+        let spec = fulltext_filtered_read_spec(&plan);
+
+        // Assert
+        assert!(spec.is_none());
+    }
+
+    #[test]
+    fn should_reject_unordered_fulltext_fast_path_for_additional_filters() {
+        // Arrange
+        let plan = plan_for_sql(
+            "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha') AND status = 'approved'",
+        );
+
+        // Act
+        let spec = fulltext_filtered_read_spec(&plan);
+
+        // Assert
+        assert!(spec.is_none());
+    }
+
+    #[test]
+    fn should_reject_unordered_fulltext_fast_path_for_wildcard_projection() {
+        // Arrange
+        let plan = plan_for_sql("SELECT * FROM bench_documents WHERE search(body, 'alpha')");
+
+        // Act
+        let spec = fulltext_filtered_read_spec(&plan);
+
+        // Assert
+        assert!(spec.is_none());
+    }
+
+    #[test]
+    fn should_skip_user_function_catalog_for_builtin_only_plan() {
+        // Arrange
+        let plan =
+            plan_for_sql("SELECT id FROM bench_documents WHERE score >= 10 ORDER BY id LIMIT 20");
+
+        // Act
+        let needs_user_functions = plan_needs_user_functions(&plan);
+
+        // Assert
+        assert!(!needs_user_functions);
+    }
+
+    #[test]
+    fn should_require_user_function_catalog_for_user_defined_function_plan() {
+        // Arrange
+        let plan =
+            plan_for_sql("SELECT my_udf(title) AS normalized_title FROM bench_documents LIMIT 20");
+
+        // Act
+        let needs_user_functions = plan_needs_user_functions(&plan);
+
+        // Assert
+        assert!(needs_user_functions);
+    }
 }

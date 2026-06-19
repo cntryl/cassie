@@ -163,7 +163,7 @@ struct RuntimeMetricsState {
 
 #[derive(Debug, Default)]
 struct PlanCacheState {
-    entries: HashMap<PlanCacheKey, PhysicalPlan>,
+    entries: HashMap<PlanCacheKey, Arc<PhysicalPlan>>,
     order: VecDeque<PlanCacheKey>,
 }
 
@@ -425,7 +425,7 @@ impl RuntimeState {
         metrics.plan_cache.evictions += evictions;
     }
 
-    pub fn plan_cache_lookup(&self, key: &PlanCacheKey) -> Option<PhysicalPlan> {
+    pub fn plan_cache_lookup(&self, key: &PlanCacheKey) -> Option<Arc<PhysicalPlan>> {
         let mut cache = self.plan_cache.lock().expect("plan cache");
         if let Some(plan) = cache.entries.get(key).cloned() {
             touch(&mut cache.order, key);
@@ -439,7 +439,7 @@ impl RuntimeState {
         None
     }
 
-    pub fn plan_cache_store(&self, key: PlanCacheKey, plan: PhysicalPlan) {
+    pub fn plan_cache_store(&self, key: PlanCacheKey, plan: Arc<PhysicalPlan>) {
         let max_entries = self.limits.plan_cache_entries.max(1);
         let mut cache = self.plan_cache.lock().expect("plan cache");
         let mut evictions = 0;
@@ -567,4 +567,54 @@ fn touch(order: &mut VecDeque<PlanCacheKey>, key: &PlanCacheKey) {
         order.remove(position);
     }
     order.push_back(key.clone());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::planner::logical::LogicalPlan;
+    use crate::planner::physical::{Operator, PhysicalPlan};
+    use crate::sql::ast::QuerySource;
+
+    fn sample_plan() -> PhysicalPlan {
+        PhysicalPlan {
+            collection: "bench_documents".to_string(),
+            operators: vec![Operator::Scan, Operator::Filter, Operator::Project],
+            logical: LogicalPlan {
+                command: None,
+                source: QuerySource::Collection("bench_documents".to_string()),
+                collection: "bench_documents".to_string(),
+                ctes: Vec::new(),
+                distinct: false,
+                projection: Vec::new(),
+                filter: None,
+                group_by: Vec::new(),
+                having: None,
+                order: Vec::new(),
+                limit: Some(20),
+                offset: None,
+                set: None,
+            },
+        }
+    }
+
+    #[test]
+    fn should_reuse_cached_plan_arc_on_lookup() {
+        // Arrange
+        let runtime = RuntimeState::new(crate::config::CassieRuntimeLimits::default());
+        let key = PlanCacheKey {
+            normalized_sql: "select".to_string(),
+            catalog_version: 1,
+            parameter_shape: vec!["int64".to_string()],
+            mode: ExecutionMode::SimpleQuery,
+        };
+        runtime.plan_cache_store(key.clone(), Arc::new(sample_plan()));
+
+        // Act
+        let first = runtime.plan_cache_lookup(&key).expect("cached plan");
+        let second = runtime.plan_cache_lookup(&key).expect("cached plan");
+
+        // Assert
+        assert!(Arc::ptr_eq(&first, &second));
+    }
 }

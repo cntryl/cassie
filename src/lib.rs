@@ -1,4 +1,5 @@
 pub mod app;
+pub mod bench;
 pub mod catalog;
 pub mod config;
 pub mod embeddings;

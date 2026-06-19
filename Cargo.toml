@@ -2,6 +2,7 @@
 name = "cassie"
 version = "0.1.0"
 edition = "2021"
+default-run = "cassie"
 
 [dependencies]
 bytes = "1.12"

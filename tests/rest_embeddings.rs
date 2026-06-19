@@ -3,7 +3,10 @@ use std::net::TcpListener;
 use std::thread;
 
 use cassie::app::Cassie;
-use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
+use cassie::config::{
+    CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig,
+    SelfHostedEmbeddingRuntimeConfig,
+};
 use cassie::embeddings::openai::OpenAiConfig;
 use cassie::embeddings::DEFAULT_EMBEDDING_MODEL;
 use cassie::rest;
@@ -92,6 +95,32 @@ fn openai_runtime_with_server(base_url: String) -> CassieRuntimeConfig {
     config
 }
 
+fn tei_runtime_with_server(base_url: String) -> CassieRuntimeConfig {
+    let mut config = CassieRuntimeConfig::from_env();
+    config.embeddings = EmbeddingsRuntimeConfig::Tei(SelfHostedEmbeddingRuntimeConfig {
+        base_url,
+        model: "BAAI/bge-small-en-v1.5".to_string(),
+        dimensions: 3,
+        timeout_seconds: 2,
+        max_batch_size: 3,
+        max_retries: 1,
+    });
+    config
+}
+
+fn ollama_runtime_with_server(base_url: String) -> CassieRuntimeConfig {
+    let mut config = CassieRuntimeConfig::from_env();
+    config.embeddings = EmbeddingsRuntimeConfig::Ollama(SelfHostedEmbeddingRuntimeConfig {
+        base_url,
+        model: "nomic-embed-text".to_string(),
+        dimensions: 3,
+        timeout_seconds: 2,
+        max_batch_size: 3,
+        max_retries: 1,
+    });
+    config
+}
+
 fn response_body(vectors: &[Vec<f32>]) -> String {
     let data: Vec<_> = vectors
         .iter()
@@ -104,6 +133,110 @@ fn response_body(vectors: &[Vec<f32>]) -> String {
         })
         .collect();
     serde_json::json!({"data": data}).to_string()
+}
+
+fn tei_response_body(vectors: &[Vec<f32>]) -> String {
+    serde_json::to_string(vectors).expect("tei response")
+}
+
+fn ollama_response_body(vectors: &[Vec<f32>]) -> String {
+    serde_json::json!({
+        "model": "nomic-embed-text",
+        "embeddings": vectors,
+    })
+    .to_string()
+}
+
+async fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Vec<String> {
+    rest::collections::create(
+        cassie,
+        serde_json::json!({
+            "name": collection,
+            "fields": [
+                {"name": "content", "type": "text"},
+                {"name": "label", "type": "text"},
+                {"name": "embedding", "type": "vector(3)"},
+            ],
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .await
+    .unwrap();
+
+    rest::indexes::create(
+        cassie,
+        collection,
+        serde_json::json!({
+            "kind": "vector",
+            "field": "embedding",
+            "options": {
+                "source_field": "content",
+                "metric": "l2",
+            }
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .await
+    .unwrap();
+
+    let doc_one = rest::documents::create(
+        cassie,
+        collection,
+        serde_json::json!({
+            "content": "alpha",
+            "label": "first",
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .await
+    .unwrap();
+    let doc_two = rest::documents::create(
+        cassie,
+        collection,
+        serde_json::json!({
+            "content": "beta",
+            "label": "second",
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .await
+    .unwrap();
+
+    let first_id = doc_one["id"].as_str().expect("doc one id").to_string();
+    let second_id = doc_two["id"].as_str().expect("doc two id").to_string();
+
+    let search = rest::search::vector_search(
+        cassie,
+        collection,
+        serde_json::json!({
+            "field": "embedding",
+            "query": "query text",
+            "metric": "l2",
+            "limit": 2,
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .await
+    .unwrap();
+
+    let rows = search["rows"].as_array().expect("rows array");
+    let returned = rows
+        .iter()
+        .map(|row| {
+            row[0]
+                .get("String")
+                .and_then(serde_json::Value::as_str)
+                .expect("result id")
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(returned, vec![first_id, second_id]);
+    returned
 }
 
 #[test]
@@ -240,6 +373,98 @@ fn should_search_vector_docs_after_ingest() {
             .expect("second result id");
         assert_eq!(returned_first_id, first_id);
         assert_eq!(returned_second_id, second_id);
+    });
+
+    let _ = std::fs::remove_dir_all(path_for_cleanup);
+}
+
+#[test]
+fn should_search_vector_docs_with_tei_provider() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("tei_search_flow");
+    let path_for_cleanup = path.clone();
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(2)
+        .build()
+        .unwrap();
+
+    let embedding_server = MockOpenAiServer::spawn(vec![
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![1.0, 0.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![5.0, 0.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![0.0, 0.0, 0.0]]),
+        },
+    ]);
+
+    let cassie = Cassie::new_with_data_dir_and_config(
+        &path,
+        tei_runtime_with_server(embedding_server.base_url()),
+    )
+    .unwrap();
+
+    runtime.block_on(async {
+        cassie.startup().await.unwrap();
+
+        // Act
+        let rows = search_self_hosted_vector_docs(&cassie, "tei_search_collection").await;
+
+        // Assert
+        assert_eq!(rows.len(), 2);
+    });
+
+    let _ = std::fs::remove_dir_all(path_for_cleanup);
+}
+
+#[test]
+fn should_search_vector_docs_with_ollama_provider() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ollama_search_flow");
+    let path_for_cleanup = path.clone();
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(2)
+        .build()
+        .unwrap();
+
+    let embedding_server = MockOpenAiServer::spawn(vec![
+        MockResponse {
+            status: 200,
+            body: ollama_response_body(&[vec![1.0, 0.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: ollama_response_body(&[vec![5.0, 0.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: ollama_response_body(&[vec![0.0, 0.0, 0.0]]),
+        },
+    ]);
+
+    let cassie = Cassie::new_with_data_dir_and_config(
+        &path,
+        ollama_runtime_with_server(embedding_server.base_url()),
+    )
+    .unwrap();
+
+    runtime.block_on(async {
+        cassie.startup().await.unwrap();
+
+        // Act
+        let rows = search_self_hosted_vector_docs(&cassie, "ollama_search_collection").await;
+
+        // Assert
+        assert_eq!(rows.len(), 2);
     });
 
     let _ = std::fs::remove_dir_all(path_for_cleanup);

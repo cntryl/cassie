@@ -2,7 +2,6 @@
 name = "cassie"
 version = "0.1.0"
 edition = "2021"
-default-run = "cassie"
 
 [dependencies]
 bytes = "1.12"
@@ -21,7 +20,68 @@ reqwest = { version = "0.13", default-features = false, features = ["rustls", "b
 argon2 = "0.5"
 
 [dev-dependencies]
+criterion = { version = "0.8", features = ["async_futures"] }
 tokio-postgres = "0.7"
+
+[[bench]]
+name = "tier1_hotpath_row_codec"
+harness = false
+path = "benches/tier1_hotpath_row_codec.rs"
+
+[[bench]]
+name = "tier1_hotpath_keys"
+harness = false
+path = "benches/tier1_hotpath_keys.rs"
+
+[[bench]]
+name = "tier1_hotpath_filter_projection"
+harness = false
+path = "benches/tier1_hotpath_filter_projection.rs"
+
+[[bench]]
+name = "tier1_hotpath_search_vector"
+harness = false
+path = "benches/tier1_hotpath_search_vector.rs"
+
+[[bench]]
+name = "tier1_hotpath_pgwire_json"
+harness = false
+path = "benches/tier1_hotpath_pgwire_json.rs"
+
+[[bench]]
+name = "tier2_subsystem_sql_planning"
+harness = false
+path = "benches/tier2_subsystem_sql_planning.rs"
+
+[[bench]]
+name = "tier2_subsystem_executor"
+harness = false
+path = "benches/tier2_subsystem_executor.rs"
+
+[[bench]]
+name = "tier2_subsystem_ingest"
+harness = false
+path = "benches/tier2_subsystem_ingest.rs"
+
+[[bench]]
+name = "tier3_system_query"
+harness = false
+path = "benches/tier3_system_query.rs"
+
+[[bench]]
+name = "tier3_system_startup"
+harness = false
+path = "benches/tier3_system_startup.rs"
+
+[[bench]]
+name = "tier4_integration_pgwire"
+harness = false
+path = "benches/tier4_integration_pgwire.rs"
+
+[[bench]]
+name = "tier4_integration_http"
+harness = false
+path = "benches/tier4_integration_http.rs"
 
 [profile.dev]
 opt-level = 0

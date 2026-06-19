@@ -32,9 +32,33 @@ pub struct OpenAiRuntimeConfig {
 }
 
 #[derive(Debug, Clone)]
+pub struct SelfHostedEmbeddingRuntimeConfig {
+    pub base_url: String,
+    pub model: String,
+    pub dimensions: usize,
+    pub timeout_seconds: u64,
+    pub max_batch_size: usize,
+    pub max_retries: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct OpenAiCompatibleRuntimeConfig {
+    pub base_url: String,
+    pub api_key: Option<String>,
+    pub model: String,
+    pub dimensions: usize,
+    pub timeout_seconds: u64,
+    pub max_batch_size: usize,
+    pub max_retries: usize,
+}
+
+#[derive(Debug, Clone)]
 pub enum EmbeddingsRuntimeConfig {
     Disabled,
     OpenAI(OpenAiRuntimeConfig),
+    OpenAiCompatible(OpenAiCompatibleRuntimeConfig),
+    Tei(SelfHostedEmbeddingRuntimeConfig),
+    Ollama(SelfHostedEmbeddingRuntimeConfig),
     Voyage,
     Cohere,
     Local,
@@ -134,17 +158,64 @@ fn read_password_from_file() -> Option<String> {
 }
 
 fn parse_provider_config(provider: &str) -> EmbeddingsRuntimeConfig {
+    parse_provider_config_from(provider, |key| env::var(key).ok())
+}
+
+fn parse_provider_config_from(
+    provider: &str,
+    env_reader: impl Fn(&str) -> Option<String>,
+) -> EmbeddingsRuntimeConfig {
     match provider {
         "openai" => EmbeddingsRuntimeConfig::OpenAI(OpenAiRuntimeConfig {
             config: OpenAiConfig {
-                api_key: env::var("CASSIE_OPENAI_API_KEY").unwrap_or_default(),
-                model: env::var("CASSIE_OPENAI_MODEL")
-                    .unwrap_or_else(|_| crate::embeddings::DEFAULT_EMBEDDING_MODEL.to_string()),
+                api_key: env_reader("CASSIE_OPENAI_API_KEY").unwrap_or_default(),
+                model: env_reader("CASSIE_OPENAI_MODEL")
+                    .unwrap_or_else(|| crate::embeddings::DEFAULT_EMBEDDING_MODEL.to_string()),
             },
-            timeout_seconds: parse_u64("CASSIE_OPENAI_TIMEOUT_SECONDS", 30),
-            max_batch_size: parse_usize("CASSIE_OPENAI_MAX_BATCH_SIZE", 16),
-            max_retries: parse_usize("CASSIE_OPENAI_MAX_RETRIES", 3),
-            base_url: env::var("CASSIE_OPENAI_BASE_URL").ok(),
+            timeout_seconds: parse_u64_from(&env_reader, "CASSIE_OPENAI_TIMEOUT_SECONDS", 30),
+            max_batch_size: parse_usize_from(&env_reader, "CASSIE_OPENAI_MAX_BATCH_SIZE", 16),
+            max_retries: parse_usize_from(&env_reader, "CASSIE_OPENAI_MAX_RETRIES", 3),
+            base_url: env_reader("CASSIE_OPENAI_BASE_URL"),
+        }),
+        "openai_compatible" => {
+            EmbeddingsRuntimeConfig::OpenAiCompatible(OpenAiCompatibleRuntimeConfig {
+                base_url: env_reader("CASSIE_EMBEDDINGS_BASE_URL").unwrap_or_default(),
+                api_key: env_reader("CASSIE_EMBEDDINGS_API_KEY").filter(|value| !value.is_empty()),
+                model: env_reader("CASSIE_EMBEDDINGS_MODEL")
+                    .unwrap_or_else(|| "BAAI/bge-small-en-v1.5".to_string()),
+                dimensions: parse_usize_from(&env_reader, "CASSIE_EMBEDDINGS_DIMENSIONS", 384),
+                timeout_seconds: parse_u64_from(
+                    &env_reader,
+                    "CASSIE_EMBEDDINGS_TIMEOUT_SECONDS",
+                    30,
+                ),
+                max_batch_size: parse_usize_from(
+                    &env_reader,
+                    "CASSIE_EMBEDDINGS_MAX_BATCH_SIZE",
+                    16,
+                ),
+                max_retries: parse_usize_from(&env_reader, "CASSIE_EMBEDDINGS_MAX_RETRIES", 3),
+            })
+        }
+        "tei" => EmbeddingsRuntimeConfig::Tei(SelfHostedEmbeddingRuntimeConfig {
+            base_url: env_reader("CASSIE_TEI_BASE_URL")
+                .unwrap_or_else(|| "http://127.0.0.1:8080".to_string()),
+            model: env_reader("CASSIE_TEI_MODEL")
+                .unwrap_or_else(|| "BAAI/bge-small-en-v1.5".to_string()),
+            dimensions: parse_usize_from(&env_reader, "CASSIE_TEI_DIMENSIONS", 384),
+            timeout_seconds: parse_u64_from(&env_reader, "CASSIE_TEI_TIMEOUT_SECONDS", 30),
+            max_batch_size: parse_usize_from(&env_reader, "CASSIE_TEI_MAX_BATCH_SIZE", 32),
+            max_retries: parse_usize_from(&env_reader, "CASSIE_TEI_MAX_RETRIES", 3),
+        }),
+        "ollama" => EmbeddingsRuntimeConfig::Ollama(SelfHostedEmbeddingRuntimeConfig {
+            base_url: env_reader("CASSIE_OLLAMA_BASE_URL")
+                .unwrap_or_else(|| "http://127.0.0.1:11434".to_string()),
+            model: env_reader("CASSIE_OLLAMA_MODEL")
+                .unwrap_or_else(|| "nomic-embed-text".to_string()),
+            dimensions: parse_usize_from(&env_reader, "CASSIE_OLLAMA_DIMENSIONS", 768),
+            timeout_seconds: parse_u64_from(&env_reader, "CASSIE_OLLAMA_TIMEOUT_SECONDS", 30),
+            max_batch_size: parse_usize_from(&env_reader, "CASSIE_OLLAMA_MAX_BATCH_SIZE", 16),
+            max_retries: parse_usize_from(&env_reader, "CASSIE_OLLAMA_MAX_RETRIES", 3),
         }),
         "voyage" => EmbeddingsRuntimeConfig::Voyage,
         "cohere" => EmbeddingsRuntimeConfig::Cohere,
@@ -165,4 +236,119 @@ fn parse_usize(key: &str, fallback: usize) -> usize {
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
         .unwrap_or(fallback)
+}
+
+fn parse_u64_from(env_reader: &impl Fn(&str) -> Option<String>, key: &str, fallback: u64) -> u64 {
+    env_reader(key)
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(fallback)
+}
+
+fn parse_usize_from(
+    env_reader: &impl Fn(&str) -> Option<String>,
+    key: &str,
+    fallback: usize,
+) -> usize {
+    env_reader(key)
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(fallback)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn env_reader(values: HashMap<&'static str, &'static str>) -> impl Fn(&str) -> Option<String> {
+        move |key| values.get(key).map(|value| value.to_string())
+    }
+
+    #[test]
+    fn should_parse_tei_embedding_runtime_config() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_TEI_BASE_URL", "http://tei.local:8080"),
+            ("CASSIE_TEI_MODEL", "BAAI/bge-base-en-v1.5"),
+            ("CASSIE_TEI_DIMENSIONS", "768"),
+            ("CASSIE_TEI_TIMEOUT_SECONDS", "45"),
+            ("CASSIE_TEI_MAX_BATCH_SIZE", "64"),
+            ("CASSIE_TEI_MAX_RETRIES", "5"),
+        ]);
+
+        // Act
+        let config = parse_provider_config_from("tei", env_reader(values));
+
+        // Assert
+        match config {
+            EmbeddingsRuntimeConfig::Tei(runtime) => {
+                assert_eq!(runtime.base_url, "http://tei.local:8080");
+                assert_eq!(runtime.model, "BAAI/bge-base-en-v1.5");
+                assert_eq!(runtime.dimensions, 768);
+                assert_eq!(runtime.timeout_seconds, 45);
+                assert_eq!(runtime.max_batch_size, 64);
+                assert_eq!(runtime.max_retries, 5);
+            }
+            _ => panic!("expected tei config"),
+        }
+    }
+
+    #[test]
+    fn should_parse_openai_compatible_embedding_runtime_config() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_EMBEDDINGS_BASE_URL", "http://embed.local:9000"),
+            ("CASSIE_EMBEDDINGS_MODEL", "custom-model"),
+            ("CASSIE_EMBEDDINGS_DIMENSIONS", "1024"),
+            ("CASSIE_EMBEDDINGS_API_KEY", "secret"),
+            ("CASSIE_EMBEDDINGS_TIMEOUT_SECONDS", "12"),
+            ("CASSIE_EMBEDDINGS_MAX_BATCH_SIZE", "24"),
+            ("CASSIE_EMBEDDINGS_MAX_RETRIES", "4"),
+        ]);
+
+        // Act
+        let config = parse_provider_config_from("openai_compatible", env_reader(values));
+
+        // Assert
+        match config {
+            EmbeddingsRuntimeConfig::OpenAiCompatible(runtime) => {
+                assert_eq!(runtime.base_url, "http://embed.local:9000");
+                assert_eq!(runtime.model, "custom-model");
+                assert_eq!(runtime.dimensions, 1024);
+                assert_eq!(runtime.api_key.as_deref(), Some("secret"));
+                assert_eq!(runtime.timeout_seconds, 12);
+                assert_eq!(runtime.max_batch_size, 24);
+                assert_eq!(runtime.max_retries, 4);
+            }
+            _ => panic!("expected openai compatible config"),
+        }
+    }
+
+    #[test]
+    fn should_parse_ollama_embedding_runtime_config() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_OLLAMA_BASE_URL", "http://ollama.local:11434"),
+            ("CASSIE_OLLAMA_MODEL", "embeddinggemma"),
+            ("CASSIE_OLLAMA_DIMENSIONS", "768"),
+            ("CASSIE_OLLAMA_TIMEOUT_SECONDS", "20"),
+            ("CASSIE_OLLAMA_MAX_BATCH_SIZE", "12"),
+            ("CASSIE_OLLAMA_MAX_RETRIES", "6"),
+        ]);
+
+        // Act
+        let config = parse_provider_config_from("ollama", env_reader(values));
+
+        // Assert
+        match config {
+            EmbeddingsRuntimeConfig::Ollama(runtime) => {
+                assert_eq!(runtime.base_url, "http://ollama.local:11434");
+                assert_eq!(runtime.model, "embeddinggemma");
+                assert_eq!(runtime.dimensions, 768);
+                assert_eq!(runtime.timeout_seconds, 20);
+                assert_eq!(runtime.max_batch_size, 12);
+                assert_eq!(runtime.max_retries, 6);
+            }
+            _ => panic!("expected ollama config"),
+        }
+    }
 }

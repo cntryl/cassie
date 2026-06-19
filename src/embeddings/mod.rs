@@ -1,8 +1,11 @@
 pub mod cohere;
+pub mod compatible;
 pub mod error;
 pub mod local;
+pub mod ollama;
 pub mod openai;
 pub mod provider;
+pub mod tei;
 pub mod types;
 pub mod voyage;
 

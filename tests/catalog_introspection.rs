@@ -179,6 +179,63 @@ fn should_list_indexes_through_pg_catalog() {
 }
 
 #[test]
+fn should_list_composite_indexes_through_pg_catalog() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("composite_indexes");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE catalog_composite_index_docs (title TEXT, score INT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX catalog_title_score_idx ON catalog_composite_index_docs USING btree (title, score)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT indexname, indexdef FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_composite_index_docs'",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![vec![
+                Value::String("catalog_title_score_idx".to_string()),
+                Value::String(
+                    "CREATE INDEX catalog_title_score_idx ON catalog_composite_index_docs (title, score)"
+                        .to_string()
+                ),
+            ]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_list_namespaces_through_pg_catalog() {
     // Arrange
     with_fallback();

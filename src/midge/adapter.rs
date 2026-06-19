@@ -650,6 +650,88 @@ impl Midge {
         namespaces
     }
 
+    pub async fn drop_namespace(&self, namespace: &str) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let namespace_key = Self::namespace_key(namespace);
+
+        let mut namespaces = self.load_namespaces(&tx).await?;
+        let namespace_exists = tx.get(&namespace_key).map_err(CassieError::from)?.is_some()
+            || namespaces.iter().any(|entry| entry == namespace);
+        if !namespace_exists {
+            return Err(CassieError::NotFound(format!(
+                "namespace '{namespace}' does not exist"
+            )));
+        }
+
+        tx.delete(namespace_key).map_err(CassieError::from)?;
+        namespaces.retain(|entry| entry != namespace);
+        self.save_namespaces(&mut tx, &namespaces).await?;
+
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn rename_namespace(
+        &self,
+        current_name: &str,
+        next_name: &str,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let current_key = Self::namespace_key(current_name);
+        let next_key = Self::namespace_key(next_name);
+
+        let current_raw = tx
+            .get(&current_key)
+            .map_err(CassieError::from)?
+            .ok_or_else(|| CassieError::NotFound(format!(
+                "namespace '{current_name}' does not exist"
+            )))?;
+
+        if tx.get(&next_key).map_err(CassieError::from)?.is_some() {
+            return Err(CassieError::Unsupported(format!(
+                "namespace '{next_name}' already exists"
+            )));
+        }
+
+        let metadata: NamespaceMeta = serde_json::from_slice(&current_raw)
+            .map_err(|error| CassieError::Parse(format!("invalid namespace metadata: {error}")))?;
+        let mut namespaces = self.load_namespaces(&tx).await?;
+        if namespaces.is_empty() {
+            let mut scan = tx
+                .scan(&Query::new().prefix(Self::namespace_prefix().into()))
+                .map_err(CassieError::from)?;
+            while let Some((raw_key, _raw_value)) = scan.next() {
+                let key = String::from_utf8(raw_key).unwrap_or_default();
+                let name = key
+                    .strip_prefix(SCHEMA_NAMESPACE_KEY_PREFIX)
+                    .unwrap_or("")
+                    .to_string();
+                if !name.is_empty() {
+                    namespaces.push(name);
+                }
+            }
+        }
+
+        namespaces.retain(|entry| entry != current_name);
+        namespaces.push(next_name.to_string());
+        namespaces.sort();
+        namespaces.dedup();
+
+        tx.delete(current_key).map_err(CassieError::from)?;
+        let mut renamed = metadata;
+        renamed.name = next_name.to_string();
+        tx.put(
+            next_key,
+            serde_json::to_vec(&renamed).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+        self.save_namespaces(&mut tx, &namespaces).await?;
+
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        Ok(())
+    }
+
     pub async fn drop_collection(&self, name: &str) -> Result<(), CassieError> {
         let mut schema_tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(name);
@@ -797,6 +879,153 @@ impl Midge {
             serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(schema_key, schema_bytes, None)
             .map_err(CassieError::from)?;
+
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub async fn alter_collection_rename_column(
+        &self,
+        collection: &str,
+        current_name: &str,
+        next_name: &str,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let schema_key = Self::collection_schema_key(collection);
+        let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
+        let Some(schema_raw) = schema_raw else {
+            return Err(CassieError::CollectionNotFound(collection.to_string()));
+        };
+
+        let mut schema: Schema = serde_json::from_slice(&schema_raw).map_err(|error| {
+            CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
+        })?;
+        let original_schema = schema.clone();
+
+        if schema
+            .fields
+            .iter()
+            .any(|entry| entry.name.eq_ignore_ascii_case(next_name))
+        {
+            return Err(CassieError::Unsupported(format!(
+                "field '{next_name}' already exists on collection '{collection}'"
+            )));
+        }
+
+        let Some(field) = schema
+            .fields
+            .iter_mut()
+            .find(|entry| entry.name.eq_ignore_ascii_case(current_name))
+        else {
+            return Err(CassieError::Unsupported(format!(
+                "field '{current_name}' not found in collection '{collection}'"
+            )));
+        };
+        field.name = next_name.to_string();
+
+        let mut row_schema = Self::load_row_schema_from_tx(&tx, collection)?
+            .unwrap_or_else(|| RowSchema::from_schema(&original_schema));
+        row_schema.rename_field(current_name, next_name)?;
+        Self::save_row_schema_to_tx(&mut tx, collection, &row_schema)?;
+
+        let schema_bytes =
+            serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(schema_key, schema_bytes, None)
+            .map_err(CassieError::from)?;
+
+        if let Some(raw_constraints) = tx
+            .get(&Self::constraints_key(collection))
+            .map_err(CassieError::from)?
+        {
+            let mut constraints: Vec<FieldConstraint> = serde_json::from_slice(&raw_constraints)
+                .map_err(|error| {
+                    CassieError::Parse(format!(
+                        "invalid constraint metadata for '{collection}': {error}"
+                    ))
+                })?;
+            let mut changed = false;
+            for constraint in &mut constraints {
+                if constraint.field.eq_ignore_ascii_case(current_name) {
+                    constraint.field = next_name.to_string();
+                    changed = true;
+                }
+                if let Some(check) = constraint.check.as_mut() {
+                    if check.field.eq_ignore_ascii_case(current_name) {
+                        check.field = next_name.to_string();
+                        changed = true;
+                    }
+                }
+            }
+            if changed {
+                let value = serde_json::to_vec(&constraints)
+                    .map_err(|error| CassieError::Parse(error.to_string()))?;
+                tx.put(Self::constraints_key(collection), value, None)
+                    .map_err(CassieError::from)?;
+            }
+        }
+
+        let index_prefix = Self::index_collection_prefix(collection);
+        let mut indexes = tx
+            .scan(&Query::new().prefix(index_prefix.into()))
+            .map_err(CassieError::from)?;
+        let mut index_keys = Vec::new();
+        while let Some((key, _value)) = indexes.next() {
+            index_keys.push(key);
+        }
+        for key in index_keys {
+            let Some(raw_value) = tx.get(&key).map_err(CassieError::from)? else {
+                continue;
+            };
+            let Ok(mut metadata) = serde_json::from_slice::<IndexMeta>(&raw_value) else {
+                continue;
+            };
+            if metadata.rename_field(current_name, next_name) {
+                let value = serde_json::to_vec(&metadata)
+                    .map_err(|error| CassieError::Parse(error.to_string()))?;
+                tx.put(key, value, None).map_err(CassieError::from)?;
+            }
+        }
+
+        let vector_prefix = Self::vector_index_collection_prefix(collection);
+        let mut vector_indexes = tx
+            .scan(&Query::new().prefix(vector_prefix.into()))
+            .map_err(CassieError::from)?;
+        let mut vector_keys = Vec::new();
+        while let Some((key, _value)) = vector_indexes.next() {
+            vector_keys.push(key);
+        }
+
+        for key in vector_keys {
+            let Some(raw_value) = tx.get(&key).map_err(CassieError::from)? else {
+                continue;
+            };
+            let Ok(mut record) =
+                serde_json::from_slice::<crate::embeddings::VectorIndexRecord>(&raw_value)
+            else {
+                continue;
+            };
+
+            let mut changed = false;
+            let mut next_key = key.clone();
+            if record.field.eq_ignore_ascii_case(current_name) {
+                record.field = next_name.to_string();
+                next_key = Self::vector_index_key(&record.collection, &record.field);
+                changed = true;
+            }
+            if record.source_field.eq_ignore_ascii_case(current_name) {
+                record.source_field = next_name.to_string();
+                changed = true;
+            }
+
+            if changed {
+                if next_key != key {
+                    tx.delete(key).map_err(CassieError::from)?;
+                }
+                let value = serde_json::to_vec(&record)
+                    .map_err(|error| CassieError::Parse(error.to_string()))?;
+                tx.put(next_key, value, None).map_err(CassieError::from)?;
+            }
+        }
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())

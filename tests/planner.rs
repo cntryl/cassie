@@ -859,6 +859,7 @@ fn should_plan_drop_index_as_command() {
                 collection: "planner_drop_index".to_string(),
                 name: "planner_idx_title".to_string(),
                 field: "title".to_string(),
+                fields: vec!["title".to_string()],
                 kind: cassie::catalog::IndexKind::Scalar,
                 unique: false,
                 options: std::collections::BTreeMap::new(),

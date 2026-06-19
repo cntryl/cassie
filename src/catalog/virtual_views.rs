@@ -490,7 +490,7 @@ async fn pg_indexes(catalog: &Catalog) -> Vec<VirtualRow> {
                         if index.unique { "UNIQUE " } else { "" },
                         index.name,
                         index.collection,
-                        index.field
+                        index.normalized_fields().join(", ")
                     ),
                 ),
             ]

@@ -1374,6 +1374,7 @@ fn should_reject_non_finite_fulltext_index_options_during_search_score() {
                 collection: collection.to_string(),
                 name: "idx_exec_fulltext_non_finite".to_string(),
                 field: "body".to_string(),
+                fields: vec!["body".to_string()],
                 kind: IndexKind::FullText,
                 unique: false,
                 options: BTreeMap::from_iter(vec![
@@ -1462,6 +1463,7 @@ fn should_reject_duplicate_fulltext_indexes_during_search_score() {
                 collection: collection.to_string(),
                 name: "idx_exec_fulltext_duplicate_a".to_string(),
                 field: "body".to_string(),
+                fields: vec!["body".to_string()],
                 kind: IndexKind::FullText,
                 unique: false,
                 options: BTreeMap::from_iter(vec![
@@ -1478,6 +1480,7 @@ fn should_reject_duplicate_fulltext_indexes_during_search_score() {
                 collection: collection.to_string(),
                 name: "idx_exec_fulltext_duplicate_b".to_string(),
                 field: "body".to_string(),
+                fields: vec!["body".to_string()],
                 kind: IndexKind::FullText,
                 unique: false,
                 options: BTreeMap::from_iter(vec![
@@ -1565,6 +1568,7 @@ fn should_allow_plain_select_with_non_finite_fulltext_metadata() {
                 collection: collection.to_string(),
                 name: "idx_exec_plain_select_bad_fulltext".to_string(),
                 field: "body".to_string(),
+                fields: vec!["body".to_string()],
                 kind: IndexKind::FullText,
                 unique: false,
                 options: BTreeMap::from_iter(vec![
@@ -3078,6 +3082,67 @@ async fn should_execute_create_alter_and_drop_table_commands() {
 }
 
 #[tokio::test]
+async fn should_execute_alter_table_rename_column_command() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ddl_rename_column_command");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let session = cassie.create_session("tester", None).await;
+
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE rename_column_docs (id TEXT, title TEXT)",
+            vec![],
+        )
+        .await
+        .unwrap();
+    cassie
+        .midge
+        .put_document(
+            "rename_column_docs",
+            Some("d1".to_string()),
+            serde_json::json!({"id": "d1", "title": "alpha"}),
+        )
+        .await
+        .unwrap();
+
+    // Act
+    let rename = cassie
+        .execute_sql(
+            &session,
+            "ALTER TABLE rename_column_docs RENAME COLUMN title TO headline",
+            vec![],
+        )
+        .await
+        .unwrap();
+    let rows = cassie
+        .execute_sql(
+            &session,
+            "SELECT id, headline FROM rename_column_docs ORDER BY id",
+            vec![],
+        )
+        .await
+        .unwrap();
+
+    let schema = cassie
+        .catalog
+        .get_schema("rename_column_docs")
+        .await
+        .expect("schema should exist");
+
+    // Assert
+    assert_eq!(rename.command, "ALTER TABLE");
+    assert_eq!(rows.rows.len(), 1);
+    assert_eq!(rows.rows[0][0], Value::String("d1".to_string()));
+    assert_eq!(rows.rows[0][1], Value::String("alpha".to_string()));
+    assert!(schema.fields.iter().any(|field| field.name == "headline"));
+    assert!(!schema.fields.iter().any(|field| field.name == "title"));
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[tokio::test]
 async fn should_execute_create_and_drop_index_commands() {
     // Arrange
     with_fallback();
@@ -3141,6 +3206,62 @@ async fn should_execute_create_and_drop_index_commands() {
     let _ = std::fs::remove_dir_all(path);
 }
 
+#[tokio::test]
+async fn should_execute_create_composite_index_command() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ddl_composite_index_command");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let session = cassie.create_session("tester", None).await;
+
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE composite_index_docs (id TEXT, title TEXT, score INT)",
+            vec![],
+        )
+        .await
+        .unwrap();
+
+    // Act
+    let create_index = cassie
+        .execute_sql(
+            &session,
+            "CREATE INDEX idx_title_score ON composite_index_docs USING btree (title, score)",
+            vec![],
+        )
+        .await
+        .unwrap();
+
+    let catalog_index = cassie
+        .catalog
+        .get_index("composite_index_docs", "idx_title_score")
+        .await
+        .expect("index should be in catalog");
+    let stored_index = cassie
+        .midge
+        .get_index("composite_index_docs", "idx_title_score")
+        .await
+        .unwrap()
+        .expect("index should be persisted");
+
+    // Assert
+    assert_eq!(create_index.command, "CREATE INDEX");
+    assert_eq!(create_index.columns.len(), 0);
+    assert_eq!(
+        catalog_index.fields,
+        vec!["title".to_string(), "score".to_string()]
+    );
+    assert_eq!(
+        stored_index.fields,
+        vec!["title".to_string(), "score".to_string()]
+    );
+    assert_eq!(catalog_index.field, "title");
+    assert_eq!(stored_index.field, "title");
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
 #[test]
 fn should_execute_create_vector_index_command() {
     // Arrange
@@ -3191,6 +3312,7 @@ fn should_execute_create_vector_index_command() {
         assert_eq!(create_index.columns.len(), 0);
         assert!(matches!(catalog_index.kind, IndexKind::Vector));
         assert_eq!(catalog_index.field, "embedding");
+        assert_eq!(catalog_index.fields, vec!["embedding".to_string()]);
         assert_eq!(
             catalog_index.options.get("source_field"),
             Some(&"content".to_string())

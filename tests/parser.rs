@@ -1416,6 +1416,43 @@ fn should_parse_create_schema_if_not_exists() {
 }
 
 #[test]
+fn should_parse_drop_schema_statement() {
+    // Arrange
+    let sql = "DROP SCHEMA IF EXISTS reporting";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::DropSchema(statement) = parsed.statement else {
+        panic!("expected drop schema statement");
+    };
+
+    assert_eq!(statement.schema, "reporting");
+    assert!(statement.if_exists);
+}
+
+#[test]
+fn should_parse_alter_schema_rename_statement() {
+    // Arrange
+    let sql = "ALTER SCHEMA reporting RENAME TO reporting_archive";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::AlterSchema(statement) = parsed.statement else {
+        panic!("expected alter schema statement");
+    };
+
+    match statement.operation {
+        cassie::sql::ast::AlterSchemaOperation::RenameTo { schema } => {
+            assert_eq!(schema, "reporting_archive");
+        }
+    }
+}
+
+#[test]
 fn should_reject_create_schema_when_schema_exists_without_if_not_exists() {
     // Arrange
     let cassie =
@@ -1460,6 +1497,29 @@ fn should_parse_rename_table_alter_statement() {
             assert_eq!(table, "docs_archive");
         }
         _ => panic!("expected rename operation"),
+    }
+}
+
+#[test]
+fn should_parse_rename_column_alter_statement() {
+    // Arrange
+    let sql = "ALTER TABLE docs RENAME COLUMN title TO headline";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::AlterTable(statement) = parsed.statement else {
+        panic!("expected alter table statement");
+    };
+
+    assert_eq!(statement.table, "docs");
+    match statement.operation {
+        cassie::sql::ast::AlterTableOperation::RenameColumn { from, to } => {
+            assert_eq!(from, "title");
+            assert_eq!(to, "headline");
+        }
+        _ => panic!("expected rename column operation"),
     }
 }
 
@@ -1538,7 +1598,7 @@ fn should_parse_create_index_statement() {
 
     assert_eq!(statement.name, "idx_users_email");
     assert_eq!(statement.table, "users");
-    assert_eq!(statement.field, "email");
+    assert_eq!(statement.fields, vec!["email".to_string()]);
     assert!(statement.unique);
     assert!(matches!(statement.kind, cassie::catalog::IndexKind::Scalar));
     assert_eq!(statement.options.get("fillfactor"), Some(&"90".to_string()));
@@ -1546,6 +1606,128 @@ fn should_parse_create_index_statement() {
         statement.options.get("case_sensitive"),
         Some(&"false".to_string())
     );
+}
+
+#[test]
+fn should_parse_composite_create_index_statement() {
+    // Arrange
+    let sql = "CREATE INDEX idx_docs_title_score ON docs USING btree (title, score)";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateIndex(statement) = parsed.statement else {
+        panic!("expected create index statement");
+    };
+
+    assert_eq!(statement.name, "idx_docs_title_score");
+    assert_eq!(statement.table, "docs");
+    assert_eq!(
+        statement.fields,
+        vec!["title".to_string(), "score".to_string()]
+    );
+    assert!(!statement.unique);
+    assert!(matches!(statement.kind, IndexKind::Scalar));
+}
+
+#[test]
+fn should_reject_composite_vector_create_index_statement() {
+    // Arrange
+    let sql = "CREATE INDEX idx_docs_embedding ON docs USING vector (embedding, source)";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+}
+
+#[test]
+fn should_reject_reserved_namespace_on_create_schema() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-parser-reserved-schema-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+
+    // Act
+    let parsed = parse_statement("CREATE SCHEMA public").expect("parse should succeed");
+
+    // Assert
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_reject_reserved_namespace_on_drop_schema() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-parser-reserved-drop-schema-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+
+    // Act
+    let parsed = parse_statement("DROP SCHEMA public").expect("parse should succeed");
+
+    // Assert
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_reject_reserved_namespace_on_alter_schema() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-parser-reserved-alter-schema-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+
+    // Act
+    let parsed = parse_statement("ALTER SCHEMA public RENAME TO archive").expect("parse should succeed");
+
+    // Assert
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_reject_composite_fulltext_create_index_statement() {
+    // Arrange
+    let sql = "CREATE INDEX idx_docs_body_title ON docs USING fulltext (body, title)";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
 }
 
 #[test]
@@ -1563,7 +1745,7 @@ fn should_parse_vector_create_index_statement() {
 
     assert_eq!(statement.name, "idx_docs_embedding");
     assert_eq!(statement.table, "docs");
-    assert_eq!(statement.field, "embedding");
+    assert_eq!(statement.fields, vec!["embedding".to_string()]);
     assert!(!statement.unique);
     assert!(matches!(statement.kind, IndexKind::Vector));
     assert_eq!(
@@ -1766,6 +1948,7 @@ fn should_reject_duplicate_fulltext_index_on_same_field() {
                 collection: "ft_docs_duplicate".to_string(),
                 name: "idx_ft_docs_duplicate_primary".to_string(),
                 field: "body".to_string(),
+                fields: vec!["body".to_string()],
                 kind: IndexKind::FullText,
                 unique: false,
                 options: BTreeMap::from_iter(vec![

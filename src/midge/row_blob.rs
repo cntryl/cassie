@@ -97,6 +97,32 @@ impl RowSchema {
         Ok(())
     }
 
+    pub(crate) fn rename_field(&mut self, current: &str, next: &str) -> Result<(), CassieError> {
+        if self
+            .fields
+            .iter()
+            .any(|entry| entry.name.eq_ignore_ascii_case(next) && !entry.retired)
+        {
+            return Err(CassieError::Unsupported(format!(
+                "field '{next}' already exists"
+            )));
+        }
+
+        let Some(field) = self
+            .fields
+            .iter_mut()
+            .find(|entry| entry.name.eq_ignore_ascii_case(current) && !entry.retired)
+        else {
+            return Err(CassieError::Unsupported(format!(
+                "field '{current}' not found"
+            )));
+        };
+
+        field.name = next.to_string();
+        self.schema_version += 1;
+        Ok(())
+    }
+
     pub(crate) fn retire_field(&mut self, name: &str) -> bool {
         let Some(field) = self
             .fields

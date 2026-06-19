@@ -1,13 +1,15 @@
 use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, IndexKind};
 use crate::sql::ast::{
-    AlterRoleStatement, AlterTableOperation, AlterTableStatement, BinaryOp, CallProcedureStatement,
-    CommonTableExpression, CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
-    CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, CreateViewStatement,
-    CteQuery, DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropRoleStatement,
-    DropTableStatement, DropViewStatement, Expr, FieldDefinition, FunctionArg, FunctionCall,
-    InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement,
-    SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement, ShowStatement,
-    SortDirection, TransactionAction, TransactionIsolation, TransactionStatement, Volatility,
+    AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation,
+    AlterTableStatement, BinaryOp, CallProcedureStatement, CommonTableExpression,
+    CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement, CreateRoleStatement,
+    CreateSchemaStatement, CreateTableStatement, CreateViewStatement, CteQuery,
+    DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropRoleStatement,
+    DropSchemaStatement, DropTableStatement, DropViewStatement, Expr, FieldDefinition, FunctionArg,
+    FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement, QuerySource,
+    QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement,
+    ShowStatement, SortDirection, TransactionAction, TransactionIsolation, TransactionStatement,
+    Volatility,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -74,8 +76,12 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         parse_create_table_statement(trimmed)
     } else if lower.starts_with("drop table ") || lower == "drop table" {
         parse_drop_table_statement(trimmed)
+    } else if lower.starts_with("drop schema ") || lower == "drop schema" {
+        parse_drop_schema_statement(trimmed)
     } else if lower.starts_with("alter table ") || lower == "alter table" {
         parse_alter_table_statement(trimmed)
+    } else if lower.starts_with("alter schema ") || lower == "alter schema" {
+        parse_alter_schema_statement(trimmed)
     } else if lower.starts_with("alter view ") || lower == "alter view" {
         Err(SqlError(
             "ALTER VIEW is not supported in this version".into(),
@@ -623,11 +629,17 @@ fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement, SqlError> 
     let remainder = remainder[on_pos + 2..].trim();
     let (table, remainder) = parse_index_target(remainder)?;
     let (kind, remainder) = parse_index_kind(remainder)?;
-    let (field, remainder) = parse_index_field(remainder)?;
+    let (fields, remainder) = parse_index_fields(remainder)?;
     let (options, remainder) = parse_index_options(remainder)?;
 
     if !remainder.is_empty() {
         return Err(SqlError("unsupported CREATE INDEX syntax".to_string()));
+    }
+
+    if !matches!(kind, IndexKind::Scalar) && fields.len() > 1 {
+        return Err(SqlError(
+            "composite indexes are only supported for scalar index methods".to_string(),
+        ));
     }
 
     Ok(ParsedStatement {
@@ -635,7 +647,7 @@ fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement, SqlError> 
         statement: QueryStatement::CreateIndex(CreateIndexStatement {
             name: name.to_string(),
             table: table.to_string(),
-            field: field.to_string(),
+            fields,
             if_not_exists,
             unique,
             kind,
@@ -694,6 +706,30 @@ fn parse_drop_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::DropTable(DropTableStatement {
             table: table.to_string(),
+            if_exists,
+        }),
+    })
+}
+
+fn parse_drop_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[11..].trim();
+
+    let (if_exists, rest) = parse_if_exists(rest)?;
+    let schema = rest.trim();
+    if schema.is_empty() {
+        return Err(SqlError("missing schema name in DROP SCHEMA".into()));
+    }
+    if schema.split_whitespace().count() != 1 {
+        return Err(SqlError(
+            "DROP SCHEMA supports only a single schema name".into(),
+        ));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::DropSchema(DropSchemaStatement {
+            schema: schema.to_string(),
             if_exists,
         }),
     })
@@ -760,6 +796,23 @@ fn parse_alter_table_operation(raw: &str) -> Result<AlterTableOperation, SqlErro
             field: field.to_string(),
         });
     }
+    if lower.starts_with("rename column") {
+        let rest = raw["rename column".len()..].trim();
+        let (from, to) =
+            split_keyword(rest, "to").ok_or_else(|| SqlError("RENAME COLUMN requires TO clause".into()))?;
+        if from.split_whitespace().count() != 1 {
+            return Err(SqlError(
+                "RENAME COLUMN supports only one source column".into(),
+            ));
+        }
+        if to.split_whitespace().count() != 1 {
+            return Err(SqlError("RENAME COLUMN supports only one target column".into()));
+        }
+        return Ok(AlterTableOperation::RenameColumn {
+            from: from.to_string(),
+            to: to.to_string(),
+        });
+    }
     if lower.starts_with("rename to") {
         let table = raw["rename to".len()..].trim();
         if table.is_empty() {
@@ -797,6 +850,43 @@ fn parse_create_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError>
         statement: QueryStatement::CreateSchema(CreateSchemaStatement {
             schema: schema.to_string(),
             if_not_exists,
+        }),
+    })
+}
+
+fn parse_alter_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[12..].trim();
+
+    let (schema, rest) =
+        split_first_token(rest).ok_or_else(|| SqlError("missing schema name in ALTER SCHEMA".into()))?;
+    if schema.trim().is_empty() {
+        return Err(SqlError("missing schema name in ALTER SCHEMA".into()));
+    }
+
+    let rest = rest.trim();
+    let lower = rest.to_lowercase();
+    if !lower.starts_with("rename to") {
+        return Err(SqlError("unsupported ALTER SCHEMA operation".into()));
+    }
+
+    let target = rest["rename to".len()..].trim();
+    if target.is_empty() {
+        return Err(SqlError("RENAME TO requires a schema name".into()));
+    }
+    if target.split_whitespace().count() != 1 {
+        return Err(SqlError(
+            "RENAME TO supports only one schema name".into(),
+        ));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::AlterSchema(AlterSchemaStatement {
+            schema: schema.to_string(),
+            operation: AlterSchemaOperation::RenameTo {
+                schema: target.to_string(),
+            },
         }),
     })
 }
@@ -1914,7 +2004,7 @@ fn parse_index_kind(raw: &str) -> Result<(IndexKind, &str), SqlError> {
     Err(SqlError("unsupported index method".to_string()))
 }
 
-fn parse_index_field(raw: &str) -> Result<(String, &str), SqlError> {
+fn parse_index_fields(raw: &str) -> Result<(Vec<String>, &str), SqlError> {
     let raw = raw.trim();
     if !raw.starts_with('(') {
         return Err(SqlError(
@@ -1925,28 +2015,30 @@ fn parse_index_field(raw: &str) -> Result<(String, &str), SqlError> {
     let close = raw
         .find(')')
         .ok_or_else(|| SqlError("CREATE INDEX field list missing closing ')'".to_string()))?;
-    if close == 1 {
-        return Err(SqlError("CREATE INDEX field cannot be empty".to_string()));
-    }
-
     let field_spec = &raw[1..close];
     if field_spec.trim().is_empty() {
         return Err(SqlError("CREATE INDEX field cannot be empty".to_string()));
     }
 
     let before = raw[close + 1..].trim();
-    if field_spec.contains(',') {
-        return Err(SqlError(
-            "CREATE INDEX does not support composite indexes".to_string(),
-        ));
-    }
-    if field_spec.contains(' ') {
-        return Err(SqlError(
-            "expression index definitions are not supported".to_string(),
-        ));
+    let mut fields = Vec::new();
+    for field in split_csv(field_spec) {
+        let field = field.trim();
+        if field.is_empty() {
+            return Err(SqlError("CREATE INDEX field cannot be empty".to_string()));
+        }
+        if field
+            .chars()
+            .any(|character| character.is_whitespace() || matches!(character, '(' | ')' | ';'))
+        {
+            return Err(SqlError(
+                "expression index definitions are not supported".to_string(),
+            ));
+        }
+        fields.push(field.to_string());
     }
 
-    Ok((field_spec.to_string(), before))
+    Ok((fields, before))
 }
 
 fn parse_index_options(

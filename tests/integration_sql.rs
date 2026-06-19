@@ -460,6 +460,98 @@ fn should_persist_namespace_on_create_schema() {
 }
 
 #[test]
+fn should_rename_schema_through_sql() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("rename_schema");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(&session, "CREATE SCHEMA reporting", vec![])
+            .await
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "ALTER SCHEMA reporting RENAME TO reporting_archive",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.command, "ALTER SCHEMA");
+        assert!(!cassie.catalog.namespace_exists("reporting").await);
+        assert!(cassie
+            .catalog
+            .namespace_exists("reporting_archive")
+            .await);
+        assert!(!cassie
+            .midge
+            .list_namespaces()
+            .await
+            .iter()
+            .any(|name| name == "reporting"));
+        assert!(cassie
+            .midge
+            .list_namespaces()
+            .await
+            .iter()
+            .any(|name| name == "reporting_archive"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_drop_schema_through_sql() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("drop_schema");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(&session, "CREATE SCHEMA reporting", vec![])
+            .await
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(&session, "DROP SCHEMA reporting", vec![])
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.command, "DROP SCHEMA");
+        assert!(!cassie.catalog.namespace_exists("reporting").await);
+        assert!(!cassie
+            .midge
+            .list_namespaces()
+            .await
+            .iter()
+            .any(|name| name == "reporting"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_enforce_constraints_during_ingest() {
     // Arrange
     with_fallback();
@@ -609,6 +701,73 @@ fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
         let namespaced = cassie.midge.list_namespaces().await;
         assert_eq!(namespaced.len(), initial.len());
         assert!(namespaced.iter().any(|name| name == "analytics"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_rename_column_through_sql() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("rename_column");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None).await;
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE rename_column_docs (id TEXT, title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                "rename_column_docs",
+                Some("d1".to_string()),
+                serde_json::json!({"id": "d1", "title": "alpha"}),
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE rename_column_docs RENAME COLUMN title TO headline",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, headline FROM rename_column_docs ORDER BY id",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.command, "ALTER TABLE");
+        assert_eq!(selected.rows.len(), 1);
+        assert_eq!(selected.rows[0][0], Value::String("d1".to_string()));
+        assert_eq!(selected.rows[0][1], Value::String("alpha".to_string()));
+        let schema = cassie
+            .catalog
+            .get_schema("rename_column_docs")
+            .await
+            .expect("schema should exist");
+        assert!(schema.fields.iter().any(|field| field.name == "headline"));
+        assert!(!schema.fields.iter().any(|field| field.name == "title"));
 
         let _ = std::fs::remove_dir_all(path);
     });

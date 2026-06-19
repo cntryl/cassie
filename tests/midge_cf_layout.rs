@@ -1093,3 +1093,80 @@ fn should_hydrate_namespace_catalog_from_schema_family() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_hydrate_renamed_namespace_catalog_from_schema_family() {
+    // Arrange
+    let path = data_dir("schema_namespace_rename_hydrate");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        cassie.midge.create_namespace("reporting").await.unwrap();
+        cassie
+            .midge
+            .rename_namespace("reporting", "reporting_archive")
+            .await
+            .unwrap();
+
+        drop(cassie);
+
+        // Act
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().await.unwrap();
+        let namespaces = restarted
+            .catalog
+            .list_namespaces()
+            .await
+            .into_iter()
+            .map(|namespace| namespace.name)
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(!namespaces.iter().any(|name| name == "reporting"));
+        assert!(namespaces.iter().any(|name| name == "reporting_archive"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_hydrate_dropped_namespace_catalog_from_schema_family() {
+    // Arrange
+    let path = data_dir("schema_namespace_drop_hydrate");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        cassie.midge.create_namespace("reporting").await.unwrap();
+        cassie.midge.drop_namespace("reporting").await.unwrap();
+
+        drop(cassie);
+
+        // Act
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().await.unwrap();
+        let namespaces = restarted
+            .catalog
+            .list_namespaces()
+            .await
+            .into_iter()
+            .map(|namespace| namespace.name)
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(!namespaces.iter().any(|name| name == "reporting"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

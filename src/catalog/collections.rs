@@ -1,5 +1,12 @@
 use serde::{Deserialize, Serialize};
 
+pub fn is_reserved_namespace(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "information_schema" | "pg_catalog" | "public"
+    )
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectionMeta {
     pub name: String,

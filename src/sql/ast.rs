@@ -111,6 +111,8 @@ pub enum QueryStatement {
     CreateProcedure(CreateProcedureStatement),
     DropProcedure(DropProcedureStatement),
     CallProcedure(CallProcedureStatement),
+    DropSchema(DropSchemaStatement),
+    AlterSchema(AlterSchemaStatement),
 }
 
 #[derive(Debug, Clone)]
@@ -173,7 +175,7 @@ pub struct CreateTableStatement {
 pub struct CreateIndexStatement {
     pub name: String,
     pub table: String,
-    pub field: String,
+    pub fields: Vec<String>,
     pub if_not_exists: bool,
     pub unique: bool,
     pub kind: IndexKind,
@@ -250,6 +252,7 @@ pub struct AlterTableStatement {
 pub enum AlterTableOperation {
     AddColumn { field: String, data_type: DataType },
     DropColumn { field: String },
+    RenameColumn { from: String, to: String },
     RenameTo { table: String },
 }
 
@@ -257,6 +260,23 @@ pub enum AlterTableOperation {
 pub struct CreateSchemaStatement {
     pub schema: String,
     pub if_not_exists: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct DropSchemaStatement {
+    pub schema: String,
+    pub if_exists: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct AlterSchemaStatement {
+    pub schema: String,
+    pub operation: AlterSchemaOperation,
+}
+
+#[derive(Debug, Clone)]
+pub enum AlterSchemaOperation {
+    RenameTo { schema: String },
 }
 
 #[derive(Debug, Clone)]

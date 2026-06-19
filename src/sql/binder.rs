@@ -4,15 +4,16 @@ use std::mem;
 use std::pin::Pin;
 
 use crate::app::CassieError;
-use crate::catalog::{virtual_views, Catalog};
+use crate::catalog::{is_reserved_namespace, virtual_views, Catalog};
 use crate::embeddings::DistanceMetric;
 use crate::search::bm25;
 use crate::sql::ast::{
-    AlterTableOperation, AlterTableStatement, CallProcedureStatement, CommonTableExpression,
-    CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement,
-    CreateViewStatement, CteQuery, DropFunctionStatement, DropIndexStatement,
-    DropProcedureStatement, DropViewStatement, Expr, FunctionCall, InsertSource, ParsedStatement,
-    QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement,
+    AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
+    CallProcedureStatement, CommonTableExpression, CreateFunctionStatement, CreateIndexStatement,
+    CreateProcedureStatement, CreateSchemaStatement, CreateViewStatement, CteQuery,
+    DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropSchemaStatement,
+    DropViewStatement, Expr, FunctionCall, InsertSource, ParsedStatement, QuerySource,
+    QueryStatement, SelectItem, SelectSet, SelectStatement,
 };
 use crate::types::{DataType, FieldSchema, Schema};
 
@@ -104,6 +105,11 @@ fn bind_statement<'a>(
                     return Err(CassieError::Planner("CREATE SCHEMA requires a name".into()));
                 }
 
+                if is_reserved_namespace(&schema) {
+                    return Err(CassieError::Unsupported(format!(
+                        "namespace '{schema}' is reserved"
+                    )));
+                }
                 if !statement.if_not_exists && catalog.namespace_exists(&schema).await {
                     return Err(CassieError::Planner(format!(
                         "namespace '{schema}' already exists"
@@ -116,6 +122,20 @@ fn bind_statement<'a>(
                         schema,
                         if_not_exists: statement.if_not_exists,
                     }),
+                })
+            }
+            QueryStatement::DropSchema(statement) => {
+                let statement = bind_drop_schema(statement, catalog).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::DropSchema(statement),
+                })
+            }
+            QueryStatement::AlterSchema(statement) => {
+                let statement = bind_alter_schema(statement, catalog).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::AlterSchema(statement),
                 })
             }
             QueryStatement::CreateView(statement) => {
@@ -570,10 +590,15 @@ async fn bind_create_index(
         ));
     }
 
-    let field = statement.field.trim().to_string();
-    if field.is_empty() {
+    let fields = statement
+        .fields
+        .iter()
+        .map(|field| field.trim().to_string())
+        .filter(|field| !field.is_empty())
+        .collect::<Vec<_>>();
+    if fields.is_empty() {
         return Err(CassieError::Planner(
-            "CREATE INDEX requires an index field".into(),
+            "CREATE INDEX requires at least one indexed field".into(),
         ));
     }
 
@@ -581,18 +606,35 @@ async fn bind_create_index(
         .get_schema(&table)
         .await
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
-    let field_entry = schema
-        .fields
-        .iter()
-        .find(|entry| entry.name == field)
-        .ok_or_else(|| {
-            CassieError::Planner(format!(
+
+    if !matches!(statement.kind, crate::catalog::IndexKind::Scalar) && fields.len() > 1 {
+        return Err(CassieError::Planner(
+            "composite indexes are only supported for scalar index methods".into(),
+        ));
+    }
+
+    for field in &fields {
+        let exists = schema.fields.iter().any(|entry| entry.name == *field);
+        if !exists {
+            return Err(CassieError::Planner(format!(
                 "index field '{field}' does not exist on collection '{table}'"
-            ))
-        })?;
+            )));
+        }
+    }
 
     if statement.kind == crate::catalog::IndexKind::Vector {
-        if let Some(existing_vector) = catalog.get_vector_index(&table, &field).await {
+        let field = &fields[0];
+        let field_entry = schema
+            .fields
+            .iter()
+            .find(|entry| entry.name == *field)
+            .ok_or_else(|| {
+                CassieError::Planner(format!(
+                    "index field '{field}' does not exist on collection '{table}'"
+                ))
+            })?;
+
+        if let Some(existing_vector) = catalog.get_vector_index(&table, field).await {
             let existing_index = catalog
                 .get_index(&table, &name)
                 .await
@@ -646,6 +688,17 @@ async fn bind_create_index(
     }
 
     if statement.kind == crate::catalog::IndexKind::FullText {
+        let field = &fields[0];
+        let field_entry = schema
+            .fields
+            .iter()
+            .find(|entry| entry.name == *field)
+            .ok_or_else(|| {
+                CassieError::Planner(format!(
+                    "index field '{field}' does not exist on collection '{table}'"
+                ))
+            })?;
+
         if !matches!(field_entry.data_type, DataType::Text) {
             return Err(CassieError::Planner(format!(
                 "fulltext index '{name}' requires text field '{field}'"
@@ -659,7 +712,7 @@ async fn bind_create_index(
                 .into_iter()
                 .find(|metadata| {
                     metadata.kind == crate::catalog::IndexKind::FullText
-                        && metadata.field.eq_ignore_ascii_case(&field)
+                        && metadata.field.eq_ignore_ascii_case(field)
                 });
         if let Some(existing_fulltext_index) = existing_fulltext_index {
             let existing_index = catalog
@@ -729,7 +782,7 @@ async fn bind_create_index(
 
     statement.table = table;
     statement.name = name;
-    statement.field = field;
+    statement.fields = fields;
     Ok(statement)
 }
 
@@ -818,6 +871,83 @@ async fn bind_drop_index(
 
     statement.table = table;
     statement.name = name;
+    Ok(statement)
+}
+
+async fn bind_drop_schema(
+    mut statement: DropSchemaStatement,
+    catalog: &Catalog,
+) -> Result<DropSchemaStatement, CassieError> {
+    let schema = statement.schema.trim().to_string();
+    if schema.is_empty() {
+        return Err(CassieError::Planner(
+            "DROP SCHEMA requires a schema name".into(),
+        ));
+    }
+    if is_reserved_namespace(&schema) {
+        return Err(CassieError::Unsupported(format!(
+            "namespace '{schema}' is reserved"
+        )));
+    }
+    if !statement.if_exists && !catalog.namespace_exists(&schema).await {
+        return Err(CassieError::NotFound(format!(
+            "namespace '{schema}' does not exist"
+        )));
+    }
+
+    statement.schema = schema;
+    Ok(statement)
+}
+
+async fn bind_alter_schema(
+    mut statement: AlterSchemaStatement,
+    catalog: &Catalog,
+) -> Result<AlterSchemaStatement, CassieError> {
+    let schema = statement.schema.trim().to_string();
+    if schema.is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER SCHEMA requires a schema name".into(),
+        ));
+    }
+    if is_reserved_namespace(&schema) {
+        return Err(CassieError::Unsupported(format!(
+            "namespace '{schema}' is reserved"
+        )));
+    }
+    if !catalog.namespace_exists(&schema).await {
+        return Err(CassieError::NotFound(format!(
+            "namespace '{schema}' does not exist"
+        )));
+    }
+
+    match &mut statement.operation {
+        AlterSchemaOperation::RenameTo { schema: target } => {
+            let next = target.trim().to_string();
+            if next.is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER SCHEMA RENAME TO requires a schema name".into(),
+                ));
+            }
+            if is_reserved_namespace(&next) {
+                return Err(CassieError::Unsupported(format!(
+                    "namespace '{next}' is reserved"
+                )));
+            }
+            if schema.eq_ignore_ascii_case(&next) {
+                return Err(CassieError::Planner(
+                    "ALTER SCHEMA cannot rename namespace to same name".into(),
+                ));
+            }
+            if catalog.namespace_exists(&next).await {
+                return Err(CassieError::Planner(format!(
+                    "namespace '{next}' already exists"
+                )));
+            }
+            *target = next;
+        }
+    }
+
+    statement.schema = schema;
     Ok(statement)
 }
 
@@ -914,6 +1044,35 @@ fn validate_alter_schema(
             if !existing_fields.contains(&name.to_ascii_lowercase()) {
                 return Err(CassieError::Planner(format!(
                     "ALTER TABLE '{table}' has no field '{name}'"
+                )));
+            }
+        }
+        AlterTableOperation::RenameColumn { from, to } => {
+            let from = from.trim();
+            if from.is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE RENAME COLUMN requires a source field".into(),
+                ));
+            }
+            let to = to.trim();
+            if to.is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE RENAME COLUMN requires a target field".into(),
+                ));
+            }
+            if from.eq_ignore_ascii_case(to) {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE cannot rename column to same name".into(),
+                ));
+            }
+            if !existing_fields.contains(&from.to_ascii_lowercase()) {
+                return Err(CassieError::Planner(format!(
+                    "ALTER TABLE '{table}' has no field '{from}'"
+                )));
+            }
+            if existing_fields.contains(&to.to_ascii_lowercase()) {
+                return Err(CassieError::Planner(format!(
+                    "cannot rename column to existing field '{to}' on collection '{table}'"
                 )));
             }
         }
@@ -1765,6 +1924,8 @@ fn parsed_statement_contains_parameters(statement: &ParsedStatement) -> bool {
         | QueryStatement::DropRole(_)
         | QueryStatement::CreateIndex(_)
         | QueryStatement::DropIndex(_)
+        | QueryStatement::DropSchema(_)
+        | QueryStatement::AlterSchema(_)
         | QueryStatement::CreateFunction(_)
         | QueryStatement::DropFunction(_)
         | QueryStatement::CreateProcedure(_)

@@ -411,6 +411,18 @@ async fn execute_command(
                         .await;
                     invalidate_plan_cache = true;
                 }
+                crate::sql::ast::AlterTableOperation::RenameColumn { from, to } => {
+                    cassie
+                        .midge
+                        .alter_collection_rename_column(&statement.table, from, to)
+                        .await
+                        .map_err(|error| QueryError::General(error.to_string()))?;
+                    cassie
+                        .catalog
+                        .rename_collection_field(&statement.table, from, to)
+                        .await;
+                    invalidate_plan_cache = true;
+                }
                 crate::sql::ast::AlterTableOperation::RenameTo { table } => {
                     if cassie.catalog.exists(table).await {
                         return Err(QueryError::General(format!(
@@ -461,6 +473,58 @@ async fn execute_command(
                 columns: Vec::new(),
                 rows: Vec::new(),
                 command: "CREATE SCHEMA".to_string(),
+            })
+        }
+        LogicalCommand::DropSchema(statement) => {
+            if statement.if_exists && !cassie.catalog.namespace_exists(&statement.schema).await {
+                return Ok(QueryResult {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    command: "DROP SCHEMA".to_string(),
+                });
+            }
+
+            cassie
+                .midge
+                .drop_namespace(&statement.schema)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.unregister_namespace(&statement.schema).await;
+            invalidate_plan_cache = true;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "DROP SCHEMA".to_string(),
+            })
+        }
+        LogicalCommand::AlterSchema(statement) => {
+            let next_schema = match &statement.operation {
+                crate::sql::ast::AlterSchemaOperation::RenameTo { schema } => schema.clone(),
+            };
+            let target_schema = statement.schema.clone();
+
+            if cassie.catalog.namespace_exists(&next_schema).await {
+                return Err(QueryError::General(format!(
+                    "namespace '{next_schema}' already exists"
+                )));
+            };
+
+            cassie
+                .midge
+                .rename_namespace(&target_schema, &next_schema)
+                .await
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie
+                .catalog
+                .rename_namespace(&target_schema, &next_schema)
+                .await;
+            invalidate_plan_cache = true;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "ALTER SCHEMA".to_string(),
             })
         }
         LogicalCommand::CreateRole(statement) => {
@@ -522,7 +586,12 @@ async fn execute_command(
             let metadata = catalog::IndexMeta {
                 collection: statement.table.clone(),
                 name: statement.name.clone(),
-                field: statement.field.clone(),
+                field: statement
+                    .fields
+                    .first()
+                    .cloned()
+                    .unwrap_or_default(),
+                fields: statement.fields.clone(),
                 kind: statement.kind.clone(),
                 unique: statement.unique,
                 options: statement.options.clone(),
@@ -1366,11 +1435,21 @@ async fn vector_index_metadata(
     let vector_field = schema
         .fields
         .iter()
-        .find(|field| field.name == statement.field)
+        .find(|field| {
+            statement
+                .fields
+                .first()
+                .is_some_and(|value| field.name == *value)
+        })
         .ok_or_else(|| {
+            let field = statement
+                .fields
+                .first()
+                .cloned()
+                .unwrap_or_default();
             QueryError::General(format!(
                 "index field '{}' does not exist in collection '{}'",
-                statement.field, statement.table
+                field, statement.table
             ))
         })?;
 
@@ -1423,7 +1502,7 @@ async fn vector_index_metadata(
 
     Ok(VectorIndexRecord {
         collection: statement.table.clone(),
-        field: statement.field.clone(),
+        field: statement.fields.first().cloned().unwrap_or_default(),
         source_field,
         metadata,
     })

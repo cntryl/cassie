@@ -1,13 +1,13 @@
 use crate::app::CassieError;
 use crate::sql::{
     ast::{
-        AlterRoleStatement, AlterTableOperation, AlterTableStatement, CommonTableExpression,
-        CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
-        CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, CreateViewStatement,
-        DeleteStatement, DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
-        DropRoleStatement, DropTableStatement, DropViewStatement, Expr, InsertStatement, OrderExpr,
-        QuerySource, QueryStatement, SelectItem, SelectStatement, SetStatement, ShowStatement,
-        UpdateStatement,
+        AlterRoleStatement, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
+        CommonTableExpression, CreateFunctionStatement, CreateIndexStatement,
+        CreateProcedureStatement, CreateRoleStatement, CreateSchemaStatement, CreateTableStatement,
+        CreateViewStatement, DeleteStatement, DropFunctionStatement, DropIndexStatement,
+        DropProcedureStatement, DropRoleStatement, DropSchemaStatement, DropTableStatement,
+        DropViewStatement, Expr, InsertStatement, OrderExpr, QuerySource, QueryStatement,
+        SelectItem, SelectStatement, SetStatement, ShowStatement, UpdateStatement,
     },
     binder::BoundStatement,
 };
@@ -42,6 +42,8 @@ pub enum LogicalCommand {
     CreateProcedure(CreateProcedureStatement),
     DropProcedure(DropProcedureStatement),
     CreateSchema(CreateSchemaStatement),
+    DropSchema(DropSchemaStatement),
+    AlterSchema(AlterSchemaStatement),
     CreateView(CreateViewStatement),
     DropView(DropViewStatement),
     CreateIndex(CreateIndexStatement),
@@ -256,6 +258,48 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
 
             Ok(LogicalPlan {
                 command: Some(LogicalCommand::CreateSchema(statement.clone())),
+                source: QuerySource::Collection(statement.schema.clone()),
+                collection: statement.schema.clone(),
+                ctes: Vec::new(),
+                distinct: false,
+                projection: Vec::new(),
+                filter: None,
+                group_by: Vec::new(),
+                having: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+                set: None,
+            })
+        }
+        QueryStatement::DropSchema(statement) => {
+            if statement.schema.trim().is_empty() {
+                return Err(CassieError::Planner("DROP SCHEMA requires a schema name".into()));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::DropSchema(statement.clone())),
+                source: QuerySource::Collection(statement.schema.clone()),
+                collection: statement.schema.clone(),
+                ctes: Vec::new(),
+                distinct: false,
+                projection: Vec::new(),
+                filter: None,
+                group_by: Vec::new(),
+                having: None,
+                order: Vec::new(),
+                limit: None,
+                offset: Some(0),
+                set: None,
+            })
+        }
+        QueryStatement::AlterSchema(statement) => {
+            if statement.schema.trim().is_empty() {
+                return Err(CassieError::Planner("ALTER SCHEMA requires a schema name".into()));
+            }
+
+            Ok(LogicalPlan {
+                command: Some(LogicalCommand::AlterSchema(statement.clone())),
                 source: QuerySource::Collection(statement.schema.clone()),
                 collection: statement.schema.clone(),
                 ctes: Vec::new(),
@@ -504,7 +548,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                     "CREATE INDEX requires an index name".into(),
                 ));
             }
-            if statement.field.trim().is_empty() {
+            if statement.fields.is_empty() || statement.fields.iter().any(|field| field.trim().is_empty()) {
                 return Err(CassieError::Planner(
                     "CREATE INDEX requires an indexed field".into(),
                 ));
@@ -592,6 +636,18 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
             if field.trim().eq_ignore_ascii_case("id") {
                 return Err(CassieError::Planner(
                     "ALTER TABLE cannot drop reserved field 'id'".into(),
+                ));
+            }
+        }
+        AlterTableOperation::RenameColumn { from, to } => {
+            if from.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE RENAME COLUMN requires a field".into(),
+                ));
+            }
+            if to.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE RENAME COLUMN requires a target field".into(),
                 ));
             }
         }

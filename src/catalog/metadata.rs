@@ -103,6 +103,21 @@ impl Catalog {
         self.bump_version();
     }
 
+    pub async fn unregister_namespace(&self, name: &str) {
+        self.namespaces.write().await.remove(name);
+        self.bump_version();
+    }
+
+    pub async fn rename_namespace(&self, current_name: &str, next_name: &str) {
+        let mut namespaces = self.namespaces.write().await;
+        let Some(namespace) = namespaces.remove(current_name) else {
+            return;
+        };
+        let description = namespace.description;
+        namespaces.insert(next_name.to_string(), NamespaceMeta::new(next_name, description));
+        self.bump_version();
+    }
+
     pub async fn list_namespaces(&self) -> Vec<NamespaceMeta> {
         let namespaces = self.namespaces.read().await;
         let mut out = namespaces.values().cloned().collect::<Vec<_>>();
@@ -466,6 +481,74 @@ impl Catalog {
                 vector_indexes.insert(next_key, metadata);
             }
         }
+        self.bump_version();
+    }
+
+    pub async fn rename_collection_field(
+        &self,
+        collection: &str,
+        current_name: &str,
+        next_name: &str,
+    ) {
+        let mut schemas = self.schemas.write().await;
+        let Some(schema) = schemas.get_mut(collection) else {
+            return;
+        };
+
+        let Some(field) = schema
+            .fields
+            .iter_mut()
+            .find(|entry| entry.name.eq_ignore_ascii_case(current_name))
+        else {
+            return;
+        };
+        field.name = next_name.to_string();
+
+        let mut constraints = self.constraints.write().await;
+        if let Some(entries) = constraints.get_mut(collection) {
+            for constraint in entries {
+                if constraint.field.eq_ignore_ascii_case(current_name) {
+                    constraint.field = next_name.to_string();
+                }
+                if let Some(check) = constraint.check.as_mut() {
+                    if check.field.eq_ignore_ascii_case(current_name) {
+                        check.field = next_name.to_string();
+                    }
+                }
+            }
+        }
+
+        let mut indexes = self.indexes.write().await;
+        for index in indexes.values_mut().filter(|index| index.collection == collection) {
+            let _ = index.rename_field(current_name, next_name);
+        }
+
+        let mut vector_indexes = self.vector_indexes.write().await;
+        let keys = vector_indexes
+            .iter()
+            .filter(|(_, record)| record.collection == collection)
+            .map(|(key, record)| (key.clone(), record.field.clone(), record.source_field.clone()))
+            .collect::<Vec<_>>();
+        for (key, field, source_field) in keys {
+            let Some(mut record) = vector_indexes.remove(&key) else {
+                continue;
+            };
+            let mut changed_key = false;
+            if field.eq_ignore_ascii_case(current_name) {
+                record.field = next_name.to_string();
+                changed_key = true;
+            }
+            if source_field.eq_ignore_ascii_case(current_name) {
+                record.source_field = next_name.to_string();
+            }
+            let next_key = if changed_key {
+                Self::vector_index_key(collection, &record.field)
+            } else {
+                key
+            };
+            vector_indexes.insert(next_key, record);
+        }
+
         self.bump_version();
     }
 

@@ -43,7 +43,7 @@ async fn ensure_collection(cassie: &Cassie, collection: &str, schema: Schema) {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -122,7 +122,7 @@ fn should_reject_ingest_when_query_provider_model_mismatch() {
                 1536,
                 DistanceMetric::Cosine,
             ))
-            .await
+            
             .unwrap();
         openai
             .register_vector_index(vector_index_record(
@@ -195,7 +195,7 @@ fn should_reject_ingest_when_dimensions_change() {
         cassie
             .midge
             .put_vector_index(index_record.clone())
-            .await
+            
             .unwrap();
         cassie.register_vector_index(index_record).await;
 
@@ -249,7 +249,7 @@ fn should_reject_query_when_metric_different() {
         cassie
             .midge
             .put_vector_index(index_record.clone())
-            .await
+            
             .unwrap();
         cassie.register_vector_index(index_record).await;
 

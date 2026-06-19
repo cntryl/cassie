@@ -254,7 +254,7 @@ async fn execute_command(
             cassie
                 .midge
                 .create_collection(&statement.table, schema.clone())
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
 
             let constraints = statement
@@ -266,7 +266,7 @@ async fn execute_command(
             cassie
                 .midge
                 .save_constraints(&statement.table, constraints.as_slice())
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
@@ -323,7 +323,7 @@ async fn execute_command(
             cassie
                 .midge
                 .put_view(metadata.clone())
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_view(metadata).await;
             invalidate_plan_cache = true;
@@ -354,7 +354,7 @@ async fn execute_command(
             cassie
                 .midge
                 .delete_view(&statement.name)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.unregister_view(&statement.name).await;
             invalidate_plan_cache = true;
@@ -377,7 +377,7 @@ async fn execute_command(
             cassie
                 .midge
                 .drop_collection(&statement.table)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.unregister_collection(&statement.table).await;
             invalidate_plan_cache = true;
@@ -399,7 +399,7 @@ async fn execute_command(
                     cassie
                         .midge
                         .alter_collection_add_column(&statement.table, field.clone())
-                        .await
+                        
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
@@ -411,7 +411,7 @@ async fn execute_command(
                     cassie
                         .midge
                         .alter_collection_drop_column(&statement.table, field)
-                        .await
+                        
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
@@ -423,7 +423,7 @@ async fn execute_command(
                     cassie
                         .midge
                         .alter_collection_rename_column(&statement.table, from, to)
-                        .await
+                        
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
@@ -441,7 +441,7 @@ async fn execute_command(
                     cassie
                         .midge
                         .rename_collection(&statement.table, table)
-                        .await
+                        
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
@@ -469,7 +469,7 @@ async fn execute_command(
             cassie
                 .midge
                 .create_namespace(&statement.schema)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
@@ -495,7 +495,7 @@ async fn execute_command(
             cassie
                 .midge
                 .drop_namespace(&statement.schema)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.unregister_namespace(&statement.schema).await;
             invalidate_plan_cache = true;
@@ -521,7 +521,7 @@ async fn execute_command(
             cassie
                 .midge
                 .rename_namespace(&target_schema, &next_schema)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
@@ -586,7 +586,7 @@ async fn execute_command(
                 cassie
                     .midge
                     .put_vector_index(vector_index.clone())
-                    .await
+                    
                     .map_err(|error| QueryError::General(error.to_string()))?;
                 cassie.catalog.register_vector_index(vector_index).await;
             }
@@ -604,7 +604,7 @@ async fn execute_command(
             cassie
                 .midge
                 .put_index(metadata.clone())
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_index(metadata).await;
             invalidate_plan_cache = true;
@@ -634,7 +634,7 @@ async fn execute_command(
                     cassie
                         .midge
                         .delete_vector_index(&statement.table, &index.field)
-                        .await
+                        
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
@@ -646,7 +646,7 @@ async fn execute_command(
             cassie
                 .midge
                 .delete_index(&statement.table, &statement.name)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
@@ -689,7 +689,7 @@ async fn execute_command(
             cassie
                 .midge
                 .put_function(metadata.clone())
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_function(metadata).await;
             invalidate_plan_cache = true;
@@ -712,7 +712,7 @@ async fn execute_command(
             cassie
                 .midge
                 .delete_function(&statement.name)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.unregister_function(&statement.name).await;
             invalidate_plan_cache = true;
@@ -754,7 +754,7 @@ async fn execute_command(
             cassie
                 .midge
                 .put_procedure(metadata.clone())
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_procedure(metadata).await;
             invalidate_plan_cache = true;
@@ -783,7 +783,7 @@ async fn execute_command(
             cassie
                 .midge
                 .delete_procedure(&statement.name)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.unregister_procedure(&statement.name).await;
             invalidate_plan_cache = true;
@@ -847,7 +847,9 @@ async fn execute_command(
     };
 
     if invalidate_plan_cache {
-        cassie.invalidate_plan_cache();
+        cassie
+            .bump_schema_epoch_and_invalidate_query_cache()
+            .map_err(|error| QueryError::General(error.to_string()))?;
     }
 
     result
@@ -1428,7 +1430,7 @@ async fn vector_index_metadata(
     let schema = cassie
         .midge
         .collection_schema(&statement.table)
-        .await
+        
         .ok_or_else(|| {
             QueryError::General(format!(
                 "collection '{}' not found while creating vector index",
@@ -1691,7 +1693,7 @@ async fn execute_vector_distance_top_k(
             &spec.collection,
             RowDecode::Projected(vec![spec.vector_field.clone()]),
         )
-        .await
+        
         .map_err(|error| QueryError::General(error.to_string()))?;
     let top_needed = spec.limit.saturating_add(spec.offset).max(1);
     let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
@@ -1949,7 +1951,7 @@ async fn execute_fulltext_top_k(
             &spec.collection,
             RowDecode::Projected(vec![spec.text_field.clone()]),
         )
-        .await
+        
         .map_err(|error| QueryError::General(error.to_string()))?;
     let search_documents = documents
         .into_iter()
@@ -2017,7 +2019,7 @@ async fn execute_hybrid_top_k(
             &spec.collection,
             RowDecode::Projected(vec![spec.text_field.clone(), spec.vector_field.clone()]),
         )
-        .await
+        
         .map_err(|error| QueryError::General(error.to_string()))?;
     let search_documents = documents
         .into_iter()
@@ -2653,7 +2655,7 @@ async fn execute_ordered_column_top_k(
             &spec.collection,
             RowDecode::Projected(spec.projected_scan_fields()),
         )
-        .await
+        
         .map_err(|error| QueryError::General(error.to_string()))?;
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
 
@@ -2894,9 +2896,9 @@ async fn execute_projected_filtered_read(
     let Some(spec) = projected_filtered_read_spec(plan) else {
         return Ok(None);
     };
-    if virtual_views::schema(&spec.collection).is_some()
-        || cassie.catalog.get_view(&spec.collection).await.is_some()
-    {
+        if virtual_views::schema(&spec.collection).is_some()
+            || cassie.catalog.get_view(&spec.collection).await.is_some()
+        {
         return Ok(None);
     }
 

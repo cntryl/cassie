@@ -36,6 +36,7 @@ use crate::embeddings::{
 };
 use crate::executor::{ColumnMeta, QueryError, QueryResult};
 use crate::midge::adapter::{DocumentRef, Midge, RowDecode};
+use crate::query_cache;
 use crate::runtime::{ExecutionMode, PlanCacheKey, QueryExecutionControls, RuntimeState};
 use crate::sql::ast::{
     QueryStatement, TransactionAction, TransactionIsolation, TransactionStatement,
@@ -329,23 +330,23 @@ impl Cassie {
         self.catalog.clear().await;
         self.invalidate_plan_cache();
 
-        let namespaces = self.midge.list_namespaces().await;
+        let namespaces = self.midge.list_namespaces();
         self.runtime.record_storage_access("schema", false, true);
         for namespace in namespaces {
             self.catalog.register_namespace(&namespace, None).await;
         }
 
-        let mut collections = self.midge.list_collections().await;
+        let mut collections = self.midge.list_collections();
         self.runtime.record_storage_access("schema", false, true);
         if collections.is_empty() {
-            collections = self.midge.list_collections_from_schema().await;
+            collections = self.midge.list_collections_from_schema();
             self.runtime.record_storage_access("schema", false, true);
         }
 
         for name in collections {
             self.runtime.record_storage_access("schema", false, true);
-            if let Some(schema) = self.midge.collection_schema(&name).await {
-                let constraints = self.midge.load_constraints(&name).await.map_err(|error| {
+            if let Some(schema) = self.midge.collection_schema(&name) {
+                let constraints = self.midge.load_constraints(&name).map_err(|error| {
                     self.runtime.record_storage_access("schema", false, false);
                     CassieError::Storage(format!(
                         "load constraints for collection '{name}': {error}"
@@ -366,7 +367,7 @@ impl Cassie {
             }
         }
 
-        let indexes = self.midge.list_vector_indexes().await.map_err(|error| {
+        let indexes = self.midge.list_vector_indexes().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list vector indexes: {error}"))
         })?;
@@ -375,7 +376,7 @@ impl Cassie {
             self.catalog.register_vector_index(index).await;
         }
 
-        let indexes = self.midge.list_indexes().await.map_err(|error| {
+        let indexes = self.midge.list_indexes().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list indexes: {error}"))
         })?;
@@ -384,7 +385,7 @@ impl Cassie {
             self.catalog.register_index(index).await;
         }
 
-        let functions = self.midge.list_functions().await.map_err(|error| {
+        let functions = self.midge.list_functions().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list functions: {error}"))
         })?;
@@ -393,7 +394,7 @@ impl Cassie {
             self.catalog.register_function(metadata).await;
         }
 
-        let procedures = self.midge.list_procedures().await.map_err(|error| {
+        let procedures = self.midge.list_procedures().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list procedures: {error}"))
         })?;
@@ -402,7 +403,7 @@ impl Cassie {
             self.catalog.register_procedure(metadata).await;
         }
 
-        let views = self.midge.list_views().await.map_err(|error| {
+        let views = self.midge.list_views().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list views: {error}"))
         })?;
@@ -425,10 +426,12 @@ impl Cassie {
             CassieError::StorageBootstrap(format!("bootstrap families: {error}"))
         })?;
 
-        let clear_temp = self.midge.clear_temp_family().await;
+        let schema_epoch = self.midge.schema_epoch();
         self.runtime
-            .record_storage_access("temp", true, clear_temp.is_ok());
-        clear_temp.map_err(|error| CassieError::Storage(format!("clear temp family: {error}")))?;
+            .record_storage_access("schema", false, schema_epoch.is_ok());
+        self.runtime.set_schema_epoch(
+            schema_epoch.map_err(|error| CassieError::Storage(format!("load schema epoch: {error}")))?,
+        );
 
         self.hydrate_catalog()
             .await
@@ -451,7 +454,7 @@ impl Cassie {
     }
 
     async fn hydrate_roles(&self) -> Result<(), CassieError> {
-        let mut roles = self.midge.list_roles().await.map_err(|error| {
+        let mut roles = self.midge.list_roles().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list roles: {error}"))
         })?;
@@ -465,7 +468,7 @@ impl Cassie {
                 Some(hash_password(&self.auth_password)?)
             };
             let role = RoleMeta::bootstrap_admin(&self.auth_user, password_hash);
-            self.midge.put_role(role.clone()).await.map_err(|error| {
+            self.midge.put_role(role.clone()).map_err(|error| {
                 self.runtime.record_storage_access("schema", false, false);
                 CassieError::Storage(format!("create bootstrap role: {error}"))
             })?;
@@ -477,6 +480,61 @@ impl Cassie {
             self.catalog.register_role(role).await;
         }
 
+        Ok(())
+    }
+
+    fn is_query_cacheable(statement: &QueryStatement) -> bool {
+        matches!(statement, QueryStatement::Select(_))
+    }
+
+    fn plan_cache_key(
+        &self,
+        parsed: &crate::sql::ast::ParsedStatement,
+        parameter_shape: Vec<String>,
+        mode: ExecutionMode,
+        database: Option<String>,
+    ) -> PlanCacheKey {
+        PlanCacheKey {
+            normalized_sql: crate::runtime::normalized_sql(parsed),
+            schema_epoch: self.runtime.schema_epoch(),
+            parameter_shape,
+            mode,
+            database,
+        }
+    }
+
+    async fn resolve_physical_plan(
+        &self,
+        parsed: crate::sql::ast::ParsedStatement,
+        key: PlanCacheKey,
+        controls: Option<&QueryExecutionControls>,
+    ) -> Result<(Arc<crate::planner::physical::PhysicalPlan>, bool), CassieError> {
+        if let Some(hit) = self.runtime.plan_cache_lookup(&key) {
+            return Ok((hit.plan, hit.durable));
+        }
+
+        if let Some(plan) = query_cache::lookup_plan(&self.midge, &self.runtime, &key)? {
+            self.runtime.plan_cache_store(key, plan.clone(), true);
+            return Ok((plan, true));
+        }
+
+        self.runtime.record_query_cache_compile_miss();
+        let plan = self.compile_physical_plan(parsed, controls).await?;
+        self.runtime.plan_cache_store(key, plan.clone(), false);
+        Ok((plan, false))
+    }
+
+    fn observe_query_plan_usage(
+        &self,
+        key: &PlanCacheKey,
+        plan: &Arc<crate::planner::physical::PhysicalPlan>,
+        durable_cached: bool,
+    ) -> Result<(), CassieError> {
+        let durable_cached =
+            query_cache::observe_plan_usage(&self.midge, &self.runtime, key, plan, durable_cached)?;
+        if durable_cached {
+            self.runtime.mark_plan_cache_entry_durable(key);
+        }
         Ok(())
     }
 
@@ -508,22 +566,13 @@ impl Cassie {
             return Err(CassieError::Execution("query timeout exceeded".to_string()));
         }
 
-        let key = PlanCacheKey {
-            normalized_sql: crate::runtime::normalized_sql(&parsed),
-            catalog_version: self.catalog_version(),
-            parameter_shape: Vec::new(),
-            mode: ExecutionMode::DescribeQuery,
-        };
-
-        let physical = if let Some(plan) = self.runtime.plan_cache_lookup(&key) {
-            plan
+        let cache_key = Self::is_query_cacheable(&parsed.statement).then(|| {
+            self.plan_cache_key(&parsed, Vec::new(), ExecutionMode::DescribeQuery, None)
+        });
+        let (physical, durable_cached) = if let Some(key) = cache_key.clone() {
+            self.resolve_physical_plan(parsed, key, Some(&controls)).await?
         } else {
-            let bound = binder::bind(parsed, &self.catalog).await?;
-            let logical = crate::planner::logical::plan(&bound)?;
-            let optimized = crate::planner::optimizer::optimize(logical);
-            let physical = Arc::new(crate::planner::physical::build(optimized));
-            self.runtime.plan_cache_store(key, physical.clone());
-            physical
+            (self.compile_physical_plan(parsed, Some(&controls)).await?, false)
         };
 
         let user_functions = if crate::executor::plan_needs_user_functions(&physical.logical) {
@@ -540,6 +589,10 @@ impl Cassie {
 
         if physical.logical.command.is_some() {
             return Ok(Vec::new());
+        }
+
+        if let Some(key) = cache_key.as_ref() {
+            self.observe_query_plan_usage(key, &physical, durable_cached)?;
         }
 
         Ok(crate::executor::columns_from_projection(
@@ -591,6 +644,21 @@ impl Cassie {
         Box::pin(self.execute_sql_core(session, sql, params, mode, controls))
     }
 
+    async fn compile_physical_plan(
+        &self,
+        parsed: crate::sql::ast::ParsedStatement,
+        controls: Option<&QueryExecutionControls>,
+    ) -> Result<Arc<crate::planner::physical::PhysicalPlan>, CassieError> {
+        let bound = binder::bind(parsed, &self.catalog).await?;
+        if controls.is_some_and(QueryExecutionControls::is_timed_out) {
+            return Err(CassieError::Execution("query timeout exceeded".to_string()));
+        }
+
+        let logical = crate::planner::logical::plan(&bound)?;
+        let optimized = crate::planner::optimizer::optimize(logical);
+        Ok(Arc::new(crate::planner::physical::build(optimized)))
+    }
+
     async fn execute_sql_core(
         &self,
         session: &CassieSession,
@@ -632,26 +700,18 @@ impl Cassie {
             return self.execute_transaction_statement(session, statement).await;
         }
 
-        let key = PlanCacheKey {
-            normalized_sql: crate::runtime::normalized_sql(&parsed),
-            catalog_version: self.catalog_version(),
-            parameter_shape: crate::runtime::parameter_shape(&params),
-            mode,
-        };
-
-        let physical = if let Some(plan) = self.runtime.plan_cache_lookup(&key) {
-            plan
+        let cache_key = Self::is_query_cacheable(&parsed.statement).then(|| {
+            self.plan_cache_key(
+                &parsed,
+                crate::runtime::parameter_shape(&params),
+                mode,
+                session.database.clone(),
+            )
+        });
+        let (physical, durable_cached) = if let Some(key) = cache_key.clone() {
+            self.resolve_physical_plan(parsed, key, Some(controls)).await?
         } else {
-            let bound = binder::bind(parsed, &self.catalog).await?;
-            if controls.is_timed_out() {
-                return Err(CassieError::Execution("query timeout exceeded".to_string()));
-            }
-
-            let logical = crate::planner::logical::plan(&bound)?;
-            let optimized = crate::planner::optimizer::optimize(logical);
-            let physical = Arc::new(crate::planner::physical::build(optimized));
-            self.runtime.plan_cache_store(key, physical.clone());
-            physical
+            (self.compile_physical_plan(parsed, Some(controls)).await?, false)
         };
 
         if controls.is_timed_out() {
@@ -661,7 +721,7 @@ impl Cassie {
         let result = crate::executor::run_with_session_controls(
             self,
             Some(session),
-            physical,
+            physical.clone(),
             params,
             controls,
         )
@@ -674,6 +734,10 @@ impl Cassie {
                 result.rows.len(),
                 controls.max_result_rows
             )));
+        }
+
+        if let Some(key) = cache_key.as_ref() {
+            self.observe_query_plan_usage(key, &physical, durable_cached)?;
         }
 
         Ok(result)
@@ -701,12 +765,12 @@ impl Cassie {
                             TransactionRowChange::Upsert(payload) => self
                                 .midge
                                 .put_document(&collection, Some(id), payload)
-                                .await
+                                
                                 .map(|_| ()),
                             TransactionRowChange::Delete => self
                                 .midge
                                 .delete_document(&collection, &id)
-                                .await
+                                
                                 .map(|_| ()),
                         };
                         if let Err(error) = result {
@@ -793,7 +857,7 @@ impl Cassie {
                 collection,
                 RowDecode::Projected(vec![vector_field.to_string()]),
             )
-            .await?;
+            ?;
 
         let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
         for candidate in candidates {
@@ -822,7 +886,7 @@ impl Cassie {
         let selected = ranked.into_iter().skip(offset).take(limit);
         let mut rows = Vec::new();
         for candidate in selected {
-            if let Some(document) = self.midge.get_document(collection, &candidate.id).await? {
+            if let Some(document) = self.midge.get_document(collection, &candidate.id)? {
                 rows.push(vector_search_row(&schema, document));
             }
         }
@@ -884,7 +948,7 @@ impl Cassie {
             }
         }
 
-        self.midge.put_document(collection, id, payload).await
+        self.midge.put_document(collection, id, payload)
     }
 
     pub(crate) async fn prepare_document_write_for_session(
@@ -936,7 +1000,7 @@ impl Cassie {
             }
         }
 
-        self.midge.put_document(collection, Some(id), payload).await
+        self.midge.put_document(collection, Some(id), payload)
     }
 
     pub(crate) async fn delete_document_for_session(
@@ -958,7 +1022,7 @@ impl Cassie {
             }
         }
 
-        self.midge.delete_document(collection, id).await
+        self.midge.delete_document(collection, id)
     }
 
     pub(crate) async fn get_document_for_session(
@@ -979,7 +1043,7 @@ impl Cassie {
             }
         }
 
-        self.midge.get_document(collection, id).await
+        self.midge.get_document(collection, id)
     }
 
     pub(crate) async fn scan_documents_batched_for_session(
@@ -991,7 +1055,7 @@ impl Cassie {
         let mut rows = self
             .midge
             .scan_documents(collection)
-            .await?
+            ?
             .into_iter()
             .map(|document| (document.id.clone(), document))
             .collect::<BTreeMap<_, _>>();
@@ -1036,7 +1100,7 @@ impl Cassie {
         let mut rows = self
             .midge
             .scan_rows_for_rebuild(collection, RowDecode::Projected(fields.to_vec()))
-            .await?
+            ?
             .into_iter()
             .map(|document| (document.id.clone(), document))
             .collect::<BTreeMap<_, _>>();
@@ -1675,7 +1739,7 @@ impl Cassie {
 
     pub async fn health(&self) -> serde_json::Value {
         let ready = self.is_started();
-        let collections = self.midge.list_collections().await;
+        let collections = self.midge.list_collections();
         serde_json::json!({
             "status": if ready { "ok" } else { "starting" },
             "ready": ready,
@@ -1684,7 +1748,7 @@ impl Cassie {
         })
     }
 
-    pub async fn create_session(&self, user: &str, database: Option<String>) -> CassieSession {
+    pub fn create_session(&self, user: &str, database: Option<String>) -> CassieSession {
         let database = database.or_else(|| Some(self.default_database.clone()));
         CassieSession::new(user.to_string(), database)
     }
@@ -1701,7 +1765,7 @@ impl Cassie {
 
         self.midge
             .get_role(&normalized)
-            .await
+            
             .map_err(|error| CassieError::Storage(format!("load role '{normalized}': {error}")))
     }
 
@@ -1777,9 +1841,10 @@ impl Cassie {
         let role = RoleMeta::new(normalized, login, false, password_hash);
         self.midge
             .put_role(role.clone())
-            .await
+            
             .map_err(|error| CassieError::Storage(format!("persist role '{name}': {error}")))?;
         self.catalog.register_role(role).await;
+        self.bump_schema_epoch_and_invalidate_query_cache()?;
         Ok(())
     }
 
@@ -1820,9 +1885,10 @@ impl Cassie {
 
         self.midge
             .put_role(role.clone())
-            .await
+            
             .map_err(|error| CassieError::Storage(format!("persist role '{name}': {error}")))?;
         self.catalog.register_role(role).await;
+        self.bump_schema_epoch_and_invalidate_query_cache()?;
         Ok(())
     }
 
@@ -1845,9 +1911,10 @@ impl Cassie {
 
         self.midge
             .delete_role(&normalized)
-            .await
+            
             .map_err(|error| CassieError::Storage(format!("delete role '{name}': {error}")))?;
         self.catalog.unregister_role(&normalized).await;
+        self.bump_schema_epoch_and_invalidate_query_cache()?;
         Ok(())
     }
 
@@ -1867,6 +1934,7 @@ impl Cassie {
             "hybrid": snapshot.hybrid,
             "storage": snapshot.storage,
             "plan_cache": snapshot.plan_cache,
+            "query_cache": snapshot.query_cache,
         })
     }
 
@@ -1874,8 +1942,15 @@ impl Cassie {
         self.runtime.invalidate_plan_cache();
     }
 
-    fn catalog_version(&self) -> u64 {
-        self.catalog.version()
+    pub(crate) fn bump_schema_epoch_and_invalidate_query_cache(&self) -> Result<(), CassieError> {
+        let schema_epoch = self
+            .midge
+            .bump_schema_epoch()
+            .map_err(|error| CassieError::Storage(format!("bump schema epoch: {error}")))?;
+        self.runtime.record_storage_access("schema", true, true);
+        self.runtime.set_schema_epoch(schema_epoch);
+        self.runtime.invalidate_plan_cache();
+        Ok(())
     }
 }
 

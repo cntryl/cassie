@@ -1,4 +1,5 @@
 use crate::app::CassieError;
+use serde::{Deserialize, Serialize};
 use crate::sql::{
     ast::{
         AlterRoleStatement, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
@@ -12,7 +13,7 @@ use crate::sql::{
     binder::BoundStatement,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogicalPlan {
     pub command: Option<LogicalCommand>,
     pub source: QuerySource,
@@ -29,7 +30,7 @@ pub struct LogicalPlan {
     pub set: Option<Box<crate::sql::ast::SelectSet>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LogicalCommand {
     CreateTable(CreateTableStatement),
     DropTable(DropTableStatement),

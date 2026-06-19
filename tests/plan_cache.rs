@@ -37,7 +37,7 @@ fn should_reuse_cached_plan_across_sessions_without_sharing_bind_values() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .catalog
@@ -57,7 +57,7 @@ fn should_reuse_cached_plan_across_sessions_without_sharing_bind_values() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -66,11 +66,11 @@ fn should_reuse_cached_plan_across_sessions_without_sharing_bind_values() {
                 Some("doc-2".to_string()),
                 serde_json::json!({"title": "beta"}),
             )
-            .await
+            
             .unwrap();
 
-        let session_one = cassie.create_session("alice", None).await;
-        let session_two = cassie.create_session("bob", None).await;
+        let session_one = cassie.create_session("alice", None);
+        let session_two = cassie.create_session("bob", None);
 
         // Act
         let first = cassie
@@ -79,8 +79,8 @@ fn should_reuse_cached_plan_across_sessions_without_sharing_bind_values() {
                 "SELECT title FROM plan_cache_docs WHERE title = $1",
                 vec![cassie::types::Value::String("alpha".to_string())],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         let second = cassie
             .execute_sql(
                 &session_two,
@@ -110,6 +110,106 @@ fn should_reuse_cached_plan_across_sessions_without_sharing_bind_values() {
 }
 
 #[test]
+fn should_reuse_cf2_cached_plan_after_restart_without_l1_state() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("reuse_after_restart");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().await.unwrap();
+
+            let collection = "plan_cache_restart_docs";
+            let schema = Schema {
+                fields: vec![FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            };
+
+            cassie
+                .midge
+                .create_collection(collection, schema.clone())
+                
+                .unwrap();
+            cassie
+                .catalog
+                .register_collection(
+                    collection,
+                    schema
+                        .fields
+                        .iter()
+                        .map(|field| (field.name.clone(), field.data_type.clone()))
+                        .collect(),
+                )
+                .await;
+            cassie
+                .midge
+                .put_document(
+                    collection,
+                    Some("doc-1".to_string()),
+                    serde_json::json!({"title": "alpha"}),
+                )
+                
+                .unwrap();
+
+            let session = cassie.create_session("alice", None);
+
+            // Act
+            let first = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT title FROM plan_cache_restart_docs WHERE title = 'alpha'",
+                    vec![],
+                )
+                
+                .await.unwrap();
+            let second = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT title FROM plan_cache_restart_docs WHERE title = 'alpha'",
+                    vec![],
+                )
+                .await
+                .unwrap();
+
+            // Assert
+            assert_eq!(first.rows.len(), 1);
+            assert_eq!(second.rows.len(), 1);
+            cassie.shutdown().await;
+        }
+
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().await.unwrap();
+        let session = restarted.create_session("alice", None);
+
+        // Act
+        let result = restarted
+            .execute_sql(
+                &session,
+                "SELECT title FROM plan_cache_restart_docs WHERE title = 'alpha'",
+                vec![],
+            )
+            
+            .await.unwrap();
+        let metrics = restarted.metrics().await;
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(1));
+        assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_invalidate_cached_plan_after_ddl_changes_catalog_state() {
     // Arrange
     with_fallback();
@@ -133,7 +233,7 @@ fn should_invalidate_cached_plan_after_ddl_changes_catalog_state() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .catalog
@@ -153,10 +253,10 @@ fn should_invalidate_cached_plan_after_ddl_changes_catalog_state() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            .await
+            
             .unwrap();
 
-        let session = cassie.create_session("alice", None).await;
+        let session = cassie.create_session("alice", None);
 
         // Act
         let first = cassie
@@ -165,8 +265,8 @@ fn should_invalidate_cached_plan_after_ddl_changes_catalog_state() {
                 "SELECT title FROM plan_cache_ddl_docs WHERE title = 'alpha'",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(&session, "CREATE TABLE plan_cache_guard (id INT)", vec![])
             .await
@@ -217,7 +317,7 @@ fn should_evict_oldest_plan_when_cache_capacity_is_one() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .catalog
@@ -237,7 +337,7 @@ fn should_evict_oldest_plan_when_cache_capacity_is_one() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -246,10 +346,10 @@ fn should_evict_oldest_plan_when_cache_capacity_is_one() {
                 Some("doc-2".to_string()),
                 serde_json::json!({"title": "beta"}),
             )
-            .await
+            
             .unwrap();
 
-        let session = cassie.create_session("alice", None).await;
+        let session = cassie.create_session("alice", None);
 
         // Act
         let first = cassie
@@ -258,8 +358,8 @@ fn should_evict_oldest_plan_when_cache_capacity_is_one() {
                 "SELECT title FROM plan_cache_eviction_docs WHERE title = 'alpha'",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         let second = cassie
             .execute_sql(
                 &session,
@@ -303,7 +403,7 @@ fn should_not_cache_transaction_control_statements() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("alice", None).await;
+        let session = cassie.create_session("alice", None);
         let before = cassie.metrics().await;
 
         // Act

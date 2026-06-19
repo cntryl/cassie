@@ -35,7 +35,7 @@ pub async fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Va
     let schema = cassie
         .midge
         .collection_schema(collection)
-        .await
+        
         .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
 
     let source_field = payload
@@ -147,7 +147,7 @@ pub async fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Va
         metadata,
     };
 
-    cassie.midge.put_vector_index(record.clone()).await?;
+    cassie.midge.put_vector_index(record.clone())?;
     cassie.register_vector_index(record.clone()).await;
 
     Ok(serde_json::json!({

@@ -48,7 +48,7 @@ fn should_startup_be_idempotent_without_state_corruption() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         let _ = cassie
             .midge
@@ -57,18 +57,18 @@ fn should_startup_be_idempotent_without_state_corruption() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha", "body": "first"}),
             )
-            .await
+            
             .unwrap();
 
         cassie.startup().await.unwrap();
         let baseline_collections = cassie.catalog.list_collections().await;
-        let baseline_docs = cassie.midge.scan_documents(collection).await.unwrap();
+        let baseline_docs = cassie.midge.scan_documents(collection).unwrap();
         let baseline_layout = cassie.midge.ensure_families_ready().unwrap().clone();
 
         // Act
         cassie.startup().await.unwrap();
         let after_collections = cassie.catalog.list_collections().await;
-        let after_docs = cassie.midge.scan_documents(collection).await.unwrap();
+        let after_docs = cassie.midge.scan_documents(collection).unwrap();
         let after_layout = cassie.midge.ensure_families_ready().unwrap().clone();
 
         // Assert
@@ -132,7 +132,7 @@ fn should_startup_not_create_side_effects_in_default_family() {
         cassie
             .midge
             .create_collection(collection, schema)
-            .await
+            
             .unwrap();
         let _ = cassie
             .midge
@@ -141,7 +141,7 @@ fn should_startup_not_create_side_effects_in_default_family() {
                 Some("doc-default-guard".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            .await
+            
             .unwrap();
         cassie.startup().await.unwrap();
 
@@ -149,7 +149,7 @@ fn should_startup_not_create_side_effects_in_default_family() {
         let default_entries = cassie
             .midge
             .raw_scan_prefix_named("default", b"")
-            .await
+            
             .unwrap();
 
         // Assert
@@ -283,7 +283,7 @@ fn should_create_session_without_mutating_runtime_state() {
         // Act
         let session = cassie
             .create_session("tester", Some("postgres".to_string()))
-            .await;
+            ;
         let after_health = cassie.health().await;
         let after_collections = cassie.catalog.list_collections().await.len();
 

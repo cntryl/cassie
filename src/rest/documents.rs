@@ -11,7 +11,7 @@ pub async fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Va
 }
 
 pub async fn get(cassie: &Cassie, collection: &str, id: &str) -> Result<Value, CassieError> {
-    let doc = cassie.midge.get_document(collection, id).await?;
+    let doc = cassie.midge.get_document(collection, id)?;
 
     Ok(match doc {
         Some(document) => document.payload,
@@ -22,7 +22,7 @@ pub async fn get(cassie: &Cassie, collection: &str, id: &str) -> Result<Value, C
 }
 
 pub async fn delete(cassie: &Cassie, collection: &str, id: &str) -> Result<Value, CassieError> {
-    let removed = cassie.midge.delete_document(collection, id).await?;
+    let removed = cassie.midge.delete_document(collection, id)?;
 
     Ok(serde_json::json!({"deleted": removed}))
 }

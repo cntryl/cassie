@@ -124,7 +124,7 @@ fn should_record_pgwire_connection_metrics() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .catalog
@@ -144,7 +144,7 @@ fn should_record_pgwire_connection_metrics() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            .await
+            
             .unwrap();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

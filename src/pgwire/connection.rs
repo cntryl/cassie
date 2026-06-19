@@ -165,7 +165,7 @@ pub async fn run_connection(
                         state.authenticated = true;
                         let session = cassie
                             .create_session(&startup_user, startup_database.clone())
-                            .await;
+                            ;
                         state.session = Some(session.clone());
                         state.ready = ReadyState::Idle;
                         runtime.record_pgwire_auth_ok();

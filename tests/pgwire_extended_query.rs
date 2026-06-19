@@ -467,7 +467,7 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie.register_collection(collection, schema).await;
         cassie
@@ -477,7 +477,7 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            .await
+            
             .unwrap();
 
         let mut config = CassieRuntimeConfig::from_env();
@@ -639,7 +639,7 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie.register_collection(collection, schema).await;
         cassie
@@ -649,7 +649,7 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            .await
+            
             .unwrap();
 
         let mut config = CassieRuntimeConfig::from_env();
@@ -868,7 +868,7 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie.register_collection(collection, schema).await;
         cassie
@@ -878,7 +878,7 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            .await
+            
             .unwrap();
 
         let mut config = CassieRuntimeConfig::from_env();
@@ -1036,7 +1036,7 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie.register_collection(collection, schema).await;
         cassie
@@ -1046,7 +1046,7 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"score": 1}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1055,7 +1055,7 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
                 Some("doc-2".to_string()),
                 serde_json::json!({"score": 2}),
             )
-            .await
+            
             .unwrap();
 
         let mut config = CassieRuntimeConfig::from_env();

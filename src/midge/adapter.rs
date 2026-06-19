@@ -37,6 +37,7 @@ const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
 const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
 const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
 const NAMESPACES_KEY: &str = "__cassie__/namespaces";
+const SCHEMA_EPOCH_KEY: &str = "__cassie__/schema-epoch";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StorageFamily {
@@ -365,6 +366,10 @@ impl Midge {
         NAMESPACES_KEY.as_bytes().to_vec()
     }
 
+    fn schema_epoch_key() -> Vec<u8> {
+        SCHEMA_EPOCH_KEY.as_bytes().to_vec()
+    }
+
     fn collections_key() -> Vec<u8> {
         b"__cassie__/collections".to_vec()
     }
@@ -401,7 +406,7 @@ impl Midge {
         self.data_tx(TransactionMode::ReadWrite)
     }
 
-    pub async fn raw_get(
+    pub fn raw_get(
         &self,
         family: StorageFamily,
         key: &[u8],
@@ -411,7 +416,7 @@ impl Midge {
         Ok(value.map(|value| value.to_vec()))
     }
 
-    pub async fn raw_scan_prefix(
+    pub fn raw_scan_prefix(
         &self,
         family: StorageFamily,
         prefix: &[u8],
@@ -428,7 +433,7 @@ impl Midge {
         Ok(values)
     }
 
-    pub async fn raw_scan_prefix_named(
+    pub fn raw_scan_prefix_named(
         &self,
         family: &str,
         prefix: &[u8],
@@ -445,7 +450,7 @@ impl Midge {
         Ok(values)
     }
 
-    pub async fn clear_temp_family(&self) -> Result<usize, CassieError> {
+    pub fn clear_temp_family(&self) -> Result<usize, CassieError> {
         let mut tx = self.temp_tx(TransactionMode::ReadWrite)?;
         let mut iterator = tx.scan(&Query::new()).map_err(CassieError::from)?;
         let mut keys = Vec::new();
@@ -466,7 +471,40 @@ impl Midge {
         Ok(deleted)
     }
 
-    async fn load_collections(
+    fn load_schema_epoch_from_tx(tx: &cntryl_midge::Transaction) -> Result<u64, CassieError> {
+        let Some(raw) = tx.get(&Self::schema_epoch_key()).map_err(CassieError::from)? else {
+            return Ok(0);
+        };
+
+        serde_json::from_slice(&raw)
+            .map_err(|error| CassieError::Parse(format!("invalid schema epoch: {error}")))
+    }
+
+    fn save_schema_epoch_to_tx(
+        tx: &mut cntryl_midge::Transaction,
+        schema_epoch: u64,
+    ) -> Result<(), CassieError> {
+        let value = serde_json::to_vec(&schema_epoch)
+            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(Self::schema_epoch_key(), value, None)
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub fn schema_epoch(&self) -> Result<u64, CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        Self::load_schema_epoch_from_tx(&tx)
+    }
+
+    pub fn bump_schema_epoch(&self) -> Result<u64, CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let next = Self::load_schema_epoch_from_tx(&tx)?.saturating_add(1);
+        Self::save_schema_epoch_to_tx(&mut tx, next)?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        Ok(next)
+    }
+
+    fn load_collections(
         &self,
         tx: &cntryl_midge::Transaction,
     ) -> Result<Vec<String>, CassieError> {
@@ -481,7 +519,7 @@ impl Midge {
         Ok(parsed)
     }
 
-    async fn load_namespaces(
+    fn load_namespaces(
         &self,
         tx: &cntryl_midge::Transaction,
     ) -> Result<Vec<String>, CassieError> {
@@ -494,7 +532,7 @@ impl Midge {
         Ok(parsed)
     }
 
-    async fn save_collections(
+    fn save_collections(
         &self,
         tx: &mut cntryl_midge::Transaction,
         collections: &[String],
@@ -506,7 +544,7 @@ impl Midge {
         Ok(())
     }
 
-    async fn save_namespaces(
+    fn save_namespaces(
         &self,
         tx: &mut cntryl_midge::Transaction,
         namespaces: &[String],
@@ -546,7 +584,7 @@ impl Midge {
         Ok(())
     }
 
-    async fn row_schema(&self, collection: &str) -> Result<RowSchema, CassieError> {
+    fn row_schema(&self, collection: &str) -> Result<RowSchema, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
         if let Some(row_schema) = Self::load_row_schema_from_tx(&tx, collection)? {
             return Ok(row_schema);
@@ -562,7 +600,7 @@ impl Midge {
         Ok(RowSchema::from_schema(&schema))
     }
 
-    pub async fn create_collection(&self, name: &str, schema: Schema) -> Result<(), CassieError> {
+    pub fn create_collection(&self, name: &str, schema: Schema) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
 
         let schema_key = Self::collection_schema_key(name);
@@ -580,18 +618,18 @@ impl Midge {
             Self::save_row_schema_to_tx(&mut tx, name, &RowSchema::from_schema(&schema))?;
         }
 
-        let mut collections = self.load_collections(&tx).await?;
+        let mut collections = self.load_collections(&tx)?;
         if !collections.iter().any(|entry| entry == name) {
             collections.push(name.to_string());
             collections.sort();
-            self.save_collections(&mut tx, &collections).await?;
+            self.save_collections(&mut tx, &collections)?;
         }
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
     }
 
-    pub async fn create_namespace(&self, namespace: &str) -> Result<(), CassieError> {
+    pub fn create_namespace(&self, namespace: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
 
         let namespace_key = Self::namespace_key(namespace);
@@ -603,24 +641,24 @@ impl Midge {
                 .map_err(CassieError::from)?;
         }
 
-        let mut namespaces = self.load_namespaces(&tx).await?;
+        let mut namespaces = self.load_namespaces(&tx)?;
         if !namespaces.iter().any(|entry| entry == namespace) {
             namespaces.push(namespace.to_string());
             namespaces.sort();
-            self.save_namespaces(&mut tx, &namespaces).await?;
+            self.save_namespaces(&mut tx, &namespaces)?;
         }
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
     }
 
-    pub async fn list_namespaces(&self) -> Vec<String> {
+    pub fn list_namespaces(&self) -> Vec<String> {
         let tx = match self.begin_schema_readonly_tx() {
             Ok(tx) => tx,
             Err(_) => return Vec::new(),
         };
 
-        if let Ok(namespaces) = self.load_namespaces(&tx).await {
+        if let Ok(namespaces) = self.load_namespaces(&tx) {
             if !namespaces.is_empty() {
                 let mut namespaces = namespaces;
                 namespaces.sort();
@@ -650,11 +688,11 @@ impl Midge {
         namespaces
     }
 
-    pub async fn drop_namespace(&self, namespace: &str) -> Result<(), CassieError> {
+    pub fn drop_namespace(&self, namespace: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let namespace_key = Self::namespace_key(namespace);
 
-        let mut namespaces = self.load_namespaces(&tx).await?;
+        let mut namespaces = self.load_namespaces(&tx)?;
         let namespace_exists = tx.get(&namespace_key).map_err(CassieError::from)?.is_some()
             || namespaces.iter().any(|entry| entry == namespace);
         if !namespace_exists {
@@ -665,13 +703,13 @@ impl Midge {
 
         tx.delete(namespace_key).map_err(CassieError::from)?;
         namespaces.retain(|entry| entry != namespace);
-        self.save_namespaces(&mut tx, &namespaces).await?;
+        self.save_namespaces(&mut tx, &namespaces)?;
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
     }
 
-    pub async fn rename_namespace(
+    pub fn rename_namespace(
         &self,
         current_name: &str,
         next_name: &str,
@@ -695,7 +733,7 @@ impl Midge {
 
         let metadata: NamespaceMeta = serde_json::from_slice(&current_raw)
             .map_err(|error| CassieError::Parse(format!("invalid namespace metadata: {error}")))?;
-        let mut namespaces = self.load_namespaces(&tx).await?;
+        let mut namespaces = self.load_namespaces(&tx)?;
         if namespaces.is_empty() {
             let mut scan = tx
                 .scan(&Query::new().prefix(Self::namespace_prefix().into()))
@@ -726,13 +764,13 @@ impl Midge {
             None,
         )
         .map_err(CassieError::from)?;
-        self.save_namespaces(&mut tx, &namespaces).await?;
+        self.save_namespaces(&mut tx, &namespaces)?;
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
     }
 
-    pub async fn drop_collection(&self, name: &str) -> Result<(), CassieError> {
+    pub fn drop_collection(&self, name: &str) -> Result<(), CassieError> {
         let mut schema_tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(name);
         if schema_tx
@@ -774,9 +812,9 @@ impl Midge {
             .delete(Self::row_schema_key(name))
             .map_err(CassieError::from)?;
 
-        let mut collections = self.load_collections(&schema_tx).await?;
+        let mut collections = self.load_collections(&schema_tx)?;
         collections.retain(|entry| entry != name);
-        self.save_collections(&mut schema_tx, &collections).await?;
+        self.save_collections(&mut schema_tx, &collections)?;
         schema_tx.delete(schema_key).map_err(CassieError::from)?;
         schema_tx
             .commit(WriteOptions::sync())
@@ -803,7 +841,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn alter_collection_add_column(
+    pub fn alter_collection_add_column(
         &self,
         collection: &str,
         field: FieldSchema,
@@ -841,7 +879,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn alter_collection_drop_column(
+    pub fn alter_collection_drop_column(
         &self,
         collection: &str,
         field: &str,
@@ -884,7 +922,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn alter_collection_rename_column(
+    pub fn alter_collection_rename_column(
         &self,
         collection: &str,
         current_name: &str,
@@ -1031,7 +1069,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn rename_collection(
+    pub fn rename_collection(
         &self,
         current_name: &str,
         next_name: &str,
@@ -1079,12 +1117,12 @@ impl Midge {
                 .map_err(CassieError::from)?;
         }
 
-        let mut collections = self.load_collections(&schema_tx).await?;
+        let mut collections = self.load_collections(&schema_tx)?;
         if let Some(position) = collections.iter().position(|entry| entry == current_name) {
             collections[position] = next_name.to_string();
             collections.sort();
             collections.dedup();
-            self.save_collections(&mut schema_tx, &collections).await?;
+            self.save_collections(&mut schema_tx, &collections)?;
         }
 
         let vector_prefix = Self::vector_index_collection_prefix(current_name);
@@ -1189,7 +1227,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn put_vector_index(
+    pub fn put_vector_index(
         &self,
         metadata: crate::embeddings::VectorIndexRecord,
     ) -> Result<(), CassieError> {
@@ -1204,7 +1242,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn get_vector_index(
+    pub fn get_vector_index(
         &self,
         collection: &str,
         field: &str,
@@ -1223,7 +1261,7 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid vector index metadata: {error}")))
     }
 
-    pub async fn put_index(&self, metadata: IndexMeta) -> Result<(), CassieError> {
+    pub fn put_index(&self, metadata: IndexMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::index_key(&metadata.collection, &metadata.name);
         let value =
@@ -1234,7 +1272,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn get_index(
+    pub fn get_index(
         &self,
         collection: &str,
         name: &str,
@@ -1252,10 +1290,10 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))
     }
 
-    pub async fn list_indexes(&self) -> Result<Vec<IndexMeta>, CassieError> {
+    pub fn list_indexes(&self) -> Result<Vec<IndexMeta>, CassieError> {
         let entries = self
             .raw_scan_prefix(StorageFamily::Schema, &Self::index_prefix())
-            .await?;
+            ?;
         let mut out = Vec::with_capacity(entries.len());
 
         for (_key, raw_value) in entries {
@@ -1268,7 +1306,7 @@ impl Midge {
         Ok(out)
     }
 
-    pub async fn delete_index(&self, collection: &str, name: &str) -> Result<(), CassieError> {
+    pub fn delete_index(&self, collection: &str, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::index_key(collection, name))
             .map_err(CassieError::from)?;
@@ -1277,7 +1315,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn delete_vector_index(
+    pub fn delete_vector_index(
         &self,
         collection: &str,
         field: &str,
@@ -1290,7 +1328,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn save_constraints(
+    pub fn save_constraints(
         &self,
         collection: &str,
         constraints: &[FieldConstraint],
@@ -1305,7 +1343,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn load_constraints(
+    pub fn load_constraints(
         &self,
         collection: &str,
     ) -> Result<Vec<FieldConstraint>, CassieError> {
@@ -1321,12 +1359,12 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid constraint metadata: {error}")))
     }
 
-    pub async fn list_vector_indexes(
+    pub fn list_vector_indexes(
         &self,
     ) -> Result<Vec<crate::embeddings::VectorIndexRecord>, CassieError> {
         let entries = self
             .raw_scan_prefix(StorageFamily::Schema, &Self::vector_index_prefix())
-            .await?;
+            ?;
         let mut out = Vec::with_capacity(entries.len());
 
         for (_key, raw_value) in entries {
@@ -1339,7 +1377,7 @@ impl Midge {
         Ok(out)
     }
 
-    pub async fn put_function(
+    pub fn put_function(
         &self,
         metadata: crate::catalog::FunctionMeta,
     ) -> Result<(), CassieError> {
@@ -1353,7 +1391,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn get_function(
+    pub fn get_function(
         &self,
         name: &str,
     ) -> Result<Option<crate::catalog::FunctionMeta>, CassieError> {
@@ -1370,10 +1408,10 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid function metadata: {error}")))
     }
 
-    pub async fn list_functions(&self) -> Result<Vec<crate::catalog::FunctionMeta>, CassieError> {
+    pub fn list_functions(&self) -> Result<Vec<crate::catalog::FunctionMeta>, CassieError> {
         let entries = self
             .raw_scan_prefix(StorageFamily::Schema, &Self::function_prefix())
-            .await?;
+            ?;
         let mut out: Vec<crate::catalog::FunctionMeta> = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -1385,7 +1423,7 @@ impl Midge {
         Ok(out)
     }
 
-    pub async fn delete_function(&self, name: &str) -> Result<(), CassieError> {
+    pub fn delete_function(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::function_key(name))
             .map_err(CassieError::from)?;
@@ -1394,7 +1432,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn put_procedure(
+    pub fn put_procedure(
         &self,
         metadata: crate::catalog::ProcedureMeta,
     ) -> Result<(), CassieError> {
@@ -1408,7 +1446,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn get_procedure(
+    pub fn get_procedure(
         &self,
         name: &str,
     ) -> Result<Option<crate::catalog::ProcedureMeta>, CassieError> {
@@ -1425,10 +1463,10 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid procedure metadata: {error}")))
     }
 
-    pub async fn list_procedures(&self) -> Result<Vec<crate::catalog::ProcedureMeta>, CassieError> {
+    pub fn list_procedures(&self) -> Result<Vec<crate::catalog::ProcedureMeta>, CassieError> {
         let entries = self
             .raw_scan_prefix(StorageFamily::Schema, &Self::procedure_prefix())
-            .await?;
+            ?;
         let mut out: Vec<crate::catalog::ProcedureMeta> = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -1440,7 +1478,7 @@ impl Midge {
         Ok(out)
     }
 
-    pub async fn delete_procedure(&self, name: &str) -> Result<(), CassieError> {
+    pub fn delete_procedure(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::procedure_key(name))
             .map_err(CassieError::from)?;
@@ -1449,7 +1487,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn put_view(&self, metadata: crate::catalog::ViewMeta) -> Result<(), CassieError> {
+    pub fn put_view(&self, metadata: crate::catalog::ViewMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::view_key(&metadata.name);
         let value =
@@ -1460,7 +1498,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn get_view(
+    pub fn get_view(
         &self,
         name: &str,
     ) -> Result<Option<crate::catalog::ViewMeta>, CassieError> {
@@ -1475,10 +1513,10 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid view metadata: {error}")))
     }
 
-    pub async fn list_views(&self) -> Result<Vec<crate::catalog::ViewMeta>, CassieError> {
+    pub fn list_views(&self) -> Result<Vec<crate::catalog::ViewMeta>, CassieError> {
         let entries = self
             .raw_scan_prefix(StorageFamily::Schema, &Self::view_prefix())
-            .await?;
+            ?;
         let mut out: Vec<crate::catalog::ViewMeta> = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -1490,7 +1528,7 @@ impl Midge {
         Ok(out)
     }
 
-    pub async fn delete_view(&self, name: &str) -> Result<(), CassieError> {
+    pub fn delete_view(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::view_key(name)).map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
@@ -1498,7 +1536,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn put_role(&self, metadata: RoleMeta) -> Result<(), CassieError> {
+    pub fn put_role(&self, metadata: RoleMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::role_key(&metadata.name);
         let value =
@@ -1509,7 +1547,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn get_role(&self, name: &str) -> Result<Option<RoleMeta>, CassieError> {
+    pub fn get_role(&self, name: &str) -> Result<Option<RoleMeta>, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
         let raw = tx.get(&Self::role_key(name)).map_err(CassieError::from)?;
         let Some(raw) = raw else {
@@ -1521,10 +1559,10 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid role metadata: {error}")))
     }
 
-    pub async fn list_roles(&self) -> Result<Vec<RoleMeta>, CassieError> {
+    pub fn list_roles(&self) -> Result<Vec<RoleMeta>, CassieError> {
         let entries = self
             .raw_scan_prefix(StorageFamily::Schema, &Self::role_prefix())
-            .await?;
+            ?;
         let mut out: Vec<RoleMeta> = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -1536,7 +1574,7 @@ impl Midge {
         Ok(out)
     }
 
-    pub async fn delete_role(&self, name: &str) -> Result<(), CassieError> {
+    pub fn delete_role(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::role_key(name)).map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
@@ -1544,7 +1582,7 @@ impl Midge {
         Ok(())
     }
 
-    pub async fn collection_schema(&self, name: &str) -> Option<Schema> {
+    pub fn collection_schema(&self, name: &str) -> Option<Schema> {
         let tx = self.begin_schema_readonly_tx().ok()?;
         if let Ok(Some(row_schema)) = Self::load_row_schema_from_tx(&tx, name) {
             return Some(row_schema.active_schema());
@@ -1553,14 +1591,14 @@ impl Midge {
         serde_json::from_slice(&raw).ok()
     }
 
-    pub async fn list_collections(&self) -> Vec<String> {
+    pub fn list_collections(&self) -> Vec<String> {
         let tx = match self.begin_schema_readonly_tx() {
             Ok(tx) => tx,
             Err(_) => return Vec::new(),
         };
 
         self.load_collections(&tx)
-            .await
+            
             .map(|mut values| {
                 values.sort();
                 values
@@ -1568,7 +1606,7 @@ impl Midge {
             .unwrap_or_else(|_| Vec::new())
     }
 
-    pub async fn list_collections_from_schema(&self) -> Vec<String> {
+    pub fn list_collections_from_schema(&self) -> Vec<String> {
         let tx = match self.begin_schema_readonly_tx() {
             Ok(tx) => tx,
             Err(_) => return Vec::new(),
@@ -1595,7 +1633,7 @@ impl Midge {
         collections
     }
 
-    pub async fn put_document(
+    pub fn put_document(
         &self,
         collection: &str,
         id: Option<String>,
@@ -1603,9 +1641,9 @@ impl Midge {
     ) -> Result<String, CassieError> {
         let schema = self
             .collection_schema(collection)
-            .await
+            
             .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
-        let row_schema = self.row_schema(collection).await?;
+        let row_schema = self.row_schema(collection)?;
 
         Self::validate_document(&schema, &payload)?;
         let row_blob = encode_row(&row_schema, &payload)?;
@@ -1622,12 +1660,12 @@ impl Midge {
         Ok(doc_id)
     }
 
-    pub async fn get_document(
+    pub fn get_document(
         &self,
         collection: &str,
         id: &str,
     ) -> Result<Option<DocumentRef>, CassieError> {
-        let row_schema = self.row_schema(collection).await?;
+        let row_schema = self.row_schema(collection)?;
 
         let tx = self.begin_data_readonly_tx()?;
         let payload = match tx
@@ -1651,8 +1689,8 @@ impl Midge {
         }))
     }
 
-    pub async fn delete_document(&self, collection: &str, id: &str) -> Result<bool, CassieError> {
-        let _row_schema = self.row_schema(collection).await?;
+    pub fn delete_document(&self, collection: &str, id: &str) -> Result<bool, CassieError> {
+        let _row_schema = self.row_schema(collection)?;
 
         let key = Self::row_key(collection, id);
         let legacy_key = Self::doc_key(collection, id);
@@ -1674,32 +1712,32 @@ impl Midge {
         Ok(false)
     }
 
-    pub async fn scan_documents_batched(
+    pub fn scan_documents_batched(
         &self,
         collection: &str,
         batch_size: usize,
     ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
         self.scan_rows_batched(collection, batch_size, RowDecode::Full)
-            .await
+            
     }
 
-    pub async fn scan_rows_for_rebuild(
+    pub fn scan_rows_for_rebuild(
         &self,
         collection: &str,
         decode: RowDecode,
     ) -> Result<Vec<DocumentRef>, CassieError> {
         self.scan_rows_batched(collection, 1024, decode)
-            .await
+            
             .map(|batches| batches.into_iter().flatten().collect())
     }
 
-    async fn scan_rows_batched(
+    fn scan_rows_batched(
         &self,
         collection: &str,
         batch_size: usize,
         decode: RowDecode,
     ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
-        let row_schema = self.row_schema(collection).await?;
+        let row_schema = self.row_schema(collection)?;
         let projection = match decode {
             RowDecode::Full => None,
             RowDecode::Projected(fields) => Some(
@@ -1760,18 +1798,18 @@ impl Midge {
         Ok(results)
     }
 
-    pub async fn scan_documents(&self, collection: &str) -> Result<Vec<DocumentRef>, CassieError> {
+    pub fn scan_documents(&self, collection: &str) -> Result<Vec<DocumentRef>, CassieError> {
         self.scan_documents_batched(collection, 1024)
-            .await
+            
             .map(|batches| batches.into_iter().flatten().collect())
     }
 
-    pub async fn all_fields_json(
+    pub fn all_fields_json(
         &self,
         collection: &str,
     ) -> Result<Vec<(String, serde_json::Value)>, CassieError> {
         self.scan_documents(collection)
-            .await
+            
             .map(|docs| docs.into_iter().map(|doc| (doc.id, doc.payload)).collect())
     }
 

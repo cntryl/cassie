@@ -1,15 +1,16 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::app::CassieError;
 use crate::config::CassieRuntimeLimits;
 use crate::planner::physical::PhysicalPlan;
 use crate::types::Value;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ExecutionMode {
     SimpleQuery,
     DescribeQuery,
@@ -48,12 +49,13 @@ impl QueryExecutionControls {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PlanCacheKey {
     pub normalized_sql: String,
-    pub catalog_version: u64,
+    pub schema_epoch: u64,
     pub parameter_shape: Vec<String>,
     pub mode: ExecutionMode,
+    pub database: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -120,6 +122,19 @@ pub struct PlanCacheSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct QueryCacheSnapshot {
+    pub l1_hits: u64,
+    pub l1_misses: u64,
+    pub l2_hits: u64,
+    pub l2_misses: u64,
+    pub candidate_promotions: u64,
+    pub schema_epoch_rejects: u64,
+    pub deserialize_rejects: u64,
+    pub fulltext_stats_hits: u64,
+    pub fulltext_stats_misses: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct StorageFamilySnapshot {
     pub reads: u64,
     pub writes: u64,
@@ -146,6 +161,7 @@ pub struct RuntimeMetricsSnapshot {
     pub hybrid: ExecutionSnapshot,
     pub storage: StorageSnapshot,
     pub plan_cache: PlanCacheSnapshot,
+    pub query_cache: QueryCacheSnapshot,
 }
 
 #[derive(Debug, Default)]
@@ -159,12 +175,25 @@ struct RuntimeMetricsState {
     hybrid: ExecutionSnapshot,
     storage: StorageSnapshot,
     plan_cache: PlanCacheSnapshot,
+    query_cache: QueryCacheSnapshot,
+}
+
+#[derive(Debug, Clone)]
+struct L1PlanEntry {
+    plan: Arc<PhysicalPlan>,
+    durable: bool,
 }
 
 #[derive(Debug, Default)]
 struct PlanCacheState {
-    entries: HashMap<PlanCacheKey, Arc<PhysicalPlan>>,
+    entries: HashMap<PlanCacheKey, L1PlanEntry>,
     order: VecDeque<PlanCacheKey>,
+}
+
+#[derive(Debug, Clone)]
+pub struct L1PlanHit {
+    pub plan: Arc<PhysicalPlan>,
+    pub durable: bool,
 }
 
 #[derive(Debug)]
@@ -173,6 +202,7 @@ pub struct RuntimeState {
     metrics: Mutex<RuntimeMetricsState>,
     plan_cache: Mutex<PlanCacheState>,
     started_at: Mutex<Option<Instant>>,
+    schema_epoch: AtomicU64,
 }
 
 pub struct RunningQueryGuard {
@@ -204,6 +234,7 @@ impl RuntimeState {
             metrics: Mutex::new(metrics),
             plan_cache: Mutex::new(PlanCacheState::default()),
             started_at: Mutex::new(None),
+            schema_epoch: AtomicU64::new(0),
         }
     }
 
@@ -411,6 +442,58 @@ impl RuntimeState {
         metrics.plan_cache.misses += 1;
     }
 
+    pub fn record_query_cache_l1_hit(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.query_cache.l1_hits += 1;
+        metrics.plan_cache.hits += 1;
+    }
+
+    pub fn record_query_cache_l1_miss(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.query_cache.l1_misses += 1;
+    }
+
+    pub fn record_query_cache_l2_hit(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.query_cache.l2_hits += 1;
+        metrics.plan_cache.hits += 1;
+    }
+
+    pub fn record_query_cache_l2_miss(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.query_cache.l2_misses += 1;
+    }
+
+    pub fn record_query_cache_compile_miss(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.plan_cache.misses += 1;
+    }
+
+    pub fn record_query_cache_promotion(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.query_cache.candidate_promotions += 1;
+    }
+
+    pub fn record_query_cache_schema_epoch_reject(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.query_cache.schema_epoch_rejects += 1;
+    }
+
+    pub fn record_query_cache_deserialize_reject(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.query_cache.deserialize_rejects += 1;
+    }
+
+    pub fn record_query_cache_fulltext_stats_hit(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.query_cache.fulltext_stats_hits += 1;
+    }
+
+    pub fn record_query_cache_fulltext_stats_miss(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.query_cache.fulltext_stats_misses += 1;
+    }
+
     pub fn record_plan_cache_invalidation(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.plan_cache.invalidations += 1;
@@ -425,27 +508,31 @@ impl RuntimeState {
         metrics.plan_cache.evictions += evictions;
     }
 
-    pub fn plan_cache_lookup(&self, key: &PlanCacheKey) -> Option<Arc<PhysicalPlan>> {
+    pub fn plan_cache_lookup(&self, key: &PlanCacheKey) -> Option<L1PlanHit> {
         let mut cache = self.plan_cache.lock().expect("plan cache");
         if let Some(plan) = cache.entries.get(key).cloned() {
             touch(&mut cache.order, key);
             drop(cache);
-            self.record_plan_cache_hit();
-            return Some(plan);
+            self.record_query_cache_l1_hit();
+            return Some(L1PlanHit {
+                plan: plan.plan,
+                durable: plan.durable,
+            });
         }
 
         drop(cache);
-        self.record_plan_cache_miss();
+        self.record_query_cache_l1_miss();
         None
     }
 
-    pub fn plan_cache_store(&self, key: PlanCacheKey, plan: Arc<PhysicalPlan>) {
+    pub fn plan_cache_store(&self, key: PlanCacheKey, plan: Arc<PhysicalPlan>, durable: bool) {
         let max_entries = self.limits.plan_cache_entries.max(1);
         let mut cache = self.plan_cache.lock().expect("plan cache");
         let mut evictions = 0;
+        let entry = L1PlanEntry { plan, durable };
 
         if cache.entries.contains_key(&key) {
-            cache.entries.insert(key.clone(), plan);
+            cache.entries.insert(key.clone(), entry);
             touch(&mut cache.order, &key);
         } else {
             if cache.entries.len() >= max_entries {
@@ -456,12 +543,19 @@ impl RuntimeState {
                 }
             }
 
-            cache.entries.insert(key.clone(), plan);
+            cache.entries.insert(key.clone(), entry);
             cache.order.push_back(key);
         }
 
         drop(cache);
         self.record_plan_cache_eviction(evictions);
+    }
+
+    pub fn mark_plan_cache_entry_durable(&self, key: &PlanCacheKey) {
+        let mut cache = self.plan_cache.lock().expect("plan cache");
+        if let Some(entry) = cache.entries.get_mut(key) {
+            entry.durable = true;
+        }
     }
 
     pub fn invalidate_plan_cache(&self) {
@@ -474,6 +568,14 @@ impl RuntimeState {
 
     pub fn plan_cache_entry_count(&self) -> usize {
         self.plan_cache.lock().expect("plan cache").entries.len()
+    }
+
+    pub fn schema_epoch(&self) -> u64 {
+        self.schema_epoch.load(Ordering::SeqCst)
+    }
+
+    pub fn set_schema_epoch(&self, schema_epoch: u64) {
+        self.schema_epoch.store(schema_epoch, Ordering::SeqCst);
     }
 
     pub fn query_controls(&self, started_at: Instant) -> QueryExecutionControls {
@@ -497,6 +599,7 @@ impl RuntimeState {
             hybrid: metrics.hybrid.clone(),
             storage: metrics.storage.clone(),
             plan_cache: metrics.plan_cache.clone(),
+            query_cache: metrics.query_cache.clone(),
         };
         snapshot.runtime.uptime_seconds = uptime_seconds;
         snapshot.runtime.running_queries = metrics.runtime.running_queries;
@@ -604,17 +707,18 @@ mod tests {
         let runtime = RuntimeState::new(crate::config::CassieRuntimeLimits::default());
         let key = PlanCacheKey {
             normalized_sql: "select".to_string(),
-            catalog_version: 1,
+            schema_epoch: 1,
             parameter_shape: vec!["int64".to_string()],
             mode: ExecutionMode::SimpleQuery,
+            database: Some("postgres".to_string()),
         };
-        runtime.plan_cache_store(key.clone(), Arc::new(sample_plan()));
+        runtime.plan_cache_store(key.clone(), Arc::new(sample_plan()), false);
 
         // Act
         let first = runtime.plan_cache_lookup(&key).expect("cached plan");
         let second = runtime.plan_cache_lookup(&key).expect("cached plan");
 
         // Assert
-        assert!(Arc::ptr_eq(&first, &second));
+        assert!(Arc::ptr_eq(&first.plan, &second.plan));
     }
 }

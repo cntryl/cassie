@@ -63,7 +63,7 @@ fn should_execute_simple_filtered_query() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -78,19 +78,19 @@ fn should_execute_simple_filtered_query() {
         cassie
             .midge
             .put_document(collection, None, serde_json::json!({"title": "alpha"}))
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM exec_smoke WHERE title = 'alpha'",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.columns[0].name, "title");
@@ -128,7 +128,7 @@ async fn execute_query_with_non_recursive_cte() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -148,7 +148,7 @@ async fn execute_query_with_non_recursive_cte() {
             Some("d1".to_string()),
             serde_json::json!({"title": "alpha", "body": "first"}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -157,18 +157,18 @@ async fn execute_query_with_non_recursive_cte() {
             Some("d2".to_string()),
             serde_json::json!({"title": "beta", "body": "second"}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
     let result = cassie
         .execute_sql(
             &session,
             "WITH docs_cte AS (SELECT title FROM exec_cte_simple) SELECT title FROM docs_cte ORDER BY title",
             vec![],
         )
-        .await
-        .unwrap();
+        
+        .await.unwrap();
 
     assert_eq!(result.columns[0].name, "title");
     assert_eq!(result.rows.len(), 2);
@@ -193,7 +193,7 @@ async fn execute_query_with_ordered_cte_dependencies() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -213,7 +213,7 @@ async fn execute_query_with_ordered_cte_dependencies() {
             Some("d1".to_string()),
             serde_json::json!({"title": "alpha"}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -222,18 +222,18 @@ async fn execute_query_with_ordered_cte_dependencies() {
             Some("d2".to_string()),
             serde_json::json!({"title": "beta"}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
     let result = cassie
         .execute_sql(
             &session,
             "WITH first AS (SELECT title FROM exec_cte_dependency), second AS (SELECT title FROM first WHERE title = 'beta') SELECT title FROM second",
             vec![],
         )
-        .await
-        .unwrap();
+        
+        .await.unwrap();
 
     assert_eq!(result.rows.len(), 1);
     assert_eq!(result.rows[0][0], Value::String("beta".to_string()));
@@ -256,7 +256,7 @@ async fn execute_query_passes_params_to_cte_and_main_query() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -276,7 +276,7 @@ async fn execute_query_passes_params_to_cte_and_main_query() {
             Some("d1".to_string()),
             serde_json::json!({"title": "alpha"}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -285,18 +285,18 @@ async fn execute_query_passes_params_to_cte_and_main_query() {
             Some("d2".to_string()),
             serde_json::json!({"title": "beta"}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
     let result = cassie
         .execute_sql(
             &session,
             "WITH filtered_docs AS (SELECT title FROM exec_cte_params WHERE title = $1) SELECT title FROM filtered_docs WHERE title = $1",
             vec![Value::String("alpha".to_string())],
         )
-        .await
-        .unwrap();
+        
+        .await.unwrap();
 
     assert_eq!(result.rows.len(), 1);
     assert_eq!(result.rows[0][0], Value::String("alpha".to_string()));
@@ -319,7 +319,7 @@ async fn execute_recursive_cte_until_stabilization() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -339,18 +339,18 @@ async fn execute_recursive_cte_until_stabilization() {
             Some("d1".to_string()),
             serde_json::json!({"n": 1}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
     let result = cassie
         .execute_sql(
             &session,
             "WITH RECURSIVE seq(n) AS (SELECT n FROM exec_cte_recursive WHERE n = 1 UNION ALL SELECT n FROM seq WHERE n = 1) SELECT n FROM seq ORDER BY n",
             vec![],
         )
-        .await
-        .unwrap();
+        
+        .await.unwrap();
 
     let values = result
         .rows
@@ -380,7 +380,7 @@ async fn execute_recursive_cte_enforces_depth_limit_when_no_stabilization() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -400,19 +400,19 @@ async fn execute_recursive_cte_enforces_depth_limit_when_no_stabilization() {
             Some("d1".to_string()),
             serde_json::json!({"n": 1}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
     let result = cassie
         .execute_sql(
             &session,
             "WITH RECURSIVE seq(n) AS (SELECT n FROM exec_cte_infinite WHERE n = 1 UNION ALL SELECT n + 1 AS n FROM seq) SELECT n FROM seq",
             vec![],
         )
-        .await;
+        ;
 
-    assert!(result.is_err());
+    assert!(result.await.is_err());
 }
 
 #[tokio::test]
@@ -420,7 +420,7 @@ async fn execute_query_with_alias_and_filters() {
     with_fallback();
     let mut path = std::env::temp_dir();
     path.push(format!("cassie-exec-{}", Uuid::new_v4()));
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let cassie = Cassie::new_with_data_dir(&path).await.unwrap();
     let collection = "exec_docs_alias";
 
     let schema = Schema {
@@ -446,7 +446,7 @@ async fn execute_query_with_alias_and_filters() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -470,7 +470,7 @@ async fn execute_query_with_alias_and_filters() {
                 "embedding": [1.0, 2.0],
             }),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -483,7 +483,7 @@ async fn execute_query_with_alias_and_filters() {
                 "embedding": [0.5, 1.5],
             }),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -496,18 +496,18 @@ async fn execute_query_with_alias_and_filters() {
                 "embedding": [2.0, 0.5],
             }),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
     let result = cassie
         .execute_sql(
             &session,
             "SELECT title AS title_out, search_score(body, 'world') AS score FROM exec_docs_alias WHERE body LIKE '%world%' OR title = 'gamma' ORDER BY score DESC, id ASC LIMIT 2",
             vec![],
         )
-        .await
-        .expect("query should execute");
+        
+        .await.expect("query should execute");
 
     assert_eq!(result.columns[0].name, "title_out");
     assert_eq!(result.columns[1].name, "score");
@@ -562,7 +562,7 @@ async fn should_fail_query_when_query_timeout_is_exceeded() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -581,19 +581,19 @@ async fn should_fail_query_when_query_timeout_is_exceeded() {
             Some("doc-1".to_string()),
             serde_json::json!({"title": "alpha"}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
 
     // Act
     let result = cassie
         .execute_sql(&session, "SELECT title FROM exec_timeout", vec![])
-        .await;
+        ;
 
     // Assert
     let message = result
-        .expect_err("query should fail when timeout is configured to 0")
+        .await.expect_err("query should fail when timeout is configured to 0")
         .to_string();
     assert!(
         message.contains("query timeout exceeded"),
@@ -624,7 +624,7 @@ async fn should_fail_query_when_result_limit_is_exceeded() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -643,7 +643,7 @@ async fn should_fail_query_when_result_limit_is_exceeded() {
             Some("doc-1".to_string()),
             serde_json::json!({"title": "alpha"}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -652,10 +652,10 @@ async fn should_fail_query_when_result_limit_is_exceeded() {
             Some("doc-2".to_string()),
             serde_json::json!({"title": "beta"}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
 
     // Act
     let result = cassie
@@ -664,11 +664,11 @@ async fn should_fail_query_when_result_limit_is_exceeded() {
             "SELECT title FROM exec_max_rows ORDER BY title",
             vec![],
         )
-        .await;
+        ;
 
     // Assert
     let message = result
-        .expect_err("query should fail when row limit is configured too low")
+        .await.expect_err("query should fail when row limit is configured too low")
         .to_string();
     assert!(
         message.contains("query result row limit exceeded"),
@@ -699,7 +699,7 @@ async fn should_fail_query_when_cte_recursion_depth_is_exceeded() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -718,10 +718,10 @@ async fn should_fail_query_when_cte_recursion_depth_is_exceeded() {
             Some("d1".to_string()),
             serde_json::json!({"n": 1}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
 
     // Act
     let result = cassie
@@ -730,11 +730,11 @@ async fn should_fail_query_when_cte_recursion_depth_is_exceeded() {
                 "WITH RECURSIVE seq(n) AS (SELECT n FROM exec_cte_depth WHERE n = 1 UNION ALL SELECT n FROM seq WHERE n = 1) SELECT n FROM seq",
                 vec![],
             )
-            .await;
+            ;
 
     // Assert
     let message = result
-        .expect_err("recursive cte should fail when depth is exhausted")
+        .await.expect_err("recursive cte should fail when depth is exhausted")
         .to_string();
     assert!(
         message.contains("did not stabilize within 0 iterations"),
@@ -765,7 +765,7 @@ async fn should_fail_query_when_temporary_spill_budget_is_exceeded() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -784,19 +784,19 @@ async fn should_fail_query_when_temporary_spill_budget_is_exceeded() {
             Some("doc-1".to_string()),
             serde_json::json!({"payload": "very long payload data for spill budget test"}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
 
     // Act
     let result = cassie
         .execute_sql(&session, "SELECT payload FROM exec_spill", vec![])
-        .await;
+        ;
 
     // Assert
     let message = result
-        .expect_err("query should fail when temp spill budget is exhausted")
+        .await.expect_err("query should fail when temp spill budget is exhausted")
         .to_string();
     assert!(
         message.contains("temporary storage budget exceeded"),
@@ -830,7 +830,7 @@ async fn execute_query_respects_boolean_precedence() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -850,7 +850,7 @@ async fn execute_query_respects_boolean_precedence() {
             Some("d1".to_string()),
             serde_json::json!({"title": "alpha", "body": "x"}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -859,7 +859,7 @@ async fn execute_query_respects_boolean_precedence() {
             Some("d2".to_string()),
             serde_json::json!({"title": "beta", "body": "x"}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -868,7 +868,7 @@ async fn execute_query_respects_boolean_precedence() {
             Some("d3".to_string()),
             serde_json::json!({"title": "beta", "body": "y"}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -877,18 +877,18 @@ async fn execute_query_respects_boolean_precedence() {
             Some("d4".to_string()),
             serde_json::json!({"title": "gamma", "body": "x"}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
     let result = cassie
         .execute_sql(
             &session,
             "SELECT id FROM exec_precedence WHERE title = 'alpha' OR title = 'beta' AND body = 'x' ORDER BY id",
             vec![],
         )
-        .await
-        .expect("query should execute");
+        
+        .await.expect("query should execute");
 
     assert_eq!(result.rows.len(), 2);
 
@@ -927,7 +927,7 @@ async fn execute_query_parentheses_override_precedence() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -947,7 +947,7 @@ async fn execute_query_parentheses_override_precedence() {
             Some("d1".to_string()),
             serde_json::json!({"title": "alpha", "body": "x"}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -956,7 +956,7 @@ async fn execute_query_parentheses_override_precedence() {
             Some("d2".to_string()),
             serde_json::json!({"title": "beta", "body": "x"}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -965,7 +965,7 @@ async fn execute_query_parentheses_override_precedence() {
             Some("d3".to_string()),
             serde_json::json!({"title": "beta", "body": "y"}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -974,18 +974,18 @@ async fn execute_query_parentheses_override_precedence() {
             Some("d4".to_string()),
             serde_json::json!({"title": "gamma", "body": "x"}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
     let result = cassie
         .execute_sql(
             &session,
             "SELECT id FROM exec_precedence_paren WHERE (title = 'alpha' OR title = 'beta') AND body = 'x' ORDER BY id",
             vec![],
         )
-        .await
-        .expect("query should execute");
+        
+        .await.expect("query should execute");
 
     assert_eq!(result.rows.len(), 2);
 
@@ -1017,7 +1017,7 @@ async fn execute_query_filters_by_vector_score_function() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -1037,7 +1037,7 @@ async fn execute_query_filters_by_vector_score_function() {
             Some("d1".to_string()),
             serde_json::json!({"embedding": [1.0, 0.0]}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -1046,18 +1046,18 @@ async fn execute_query_filters_by_vector_score_function() {
             Some("d2".to_string()),
             serde_json::json!({"embedding": [0.0, 1.0]}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
     let result = cassie
         .execute_sql(
             &session,
             "SELECT id, vector_score(embedding, '[1,0]') AS score FROM exec_vector_score_filter WHERE vector_score(embedding, '[1,0]') > 0.5",
             vec![],
         )
-        .await
-        .expect("query should execute");
+        
+        .await.expect("query should execute");
 
     assert_eq!(result.rows.len(), 1);
     assert_eq!(result.columns[0].name, "id");
@@ -1085,7 +1085,7 @@ async fn execute_query_orders_by_vector_distance_function_parameterized() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -1105,7 +1105,7 @@ async fn execute_query_orders_by_vector_distance_function_parameterized() {
             Some("d1".to_string()),
             serde_json::json!({"embedding": [1.0, 0.0]}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -1114,7 +1114,7 @@ async fn execute_query_orders_by_vector_distance_function_parameterized() {
             Some("d2".to_string()),
             serde_json::json!({"embedding": [0.2, 0.0]}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -1123,10 +1123,10 @@ async fn execute_query_orders_by_vector_distance_function_parameterized() {
             Some("d3".to_string()),
             serde_json::json!({"embedding": [10.0, 10.0]}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
     let params = vec![cassie::types::Value::String("[1,0]".to_string())];
     let result = cassie
         .execute_sql(
@@ -1134,8 +1134,8 @@ async fn execute_query_orders_by_vector_distance_function_parameterized() {
             "SELECT id FROM exec_vector_order_func ORDER BY vector_distance(embedding, $1) ASC",
             params,
         )
-        .await
-        .expect("query should execute");
+        
+        .await.expect("query should execute");
 
     let ids = result
         .rows
@@ -1175,7 +1175,7 @@ async fn execute_query_supports_projection_aliases_for_function_columns() {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        .await
+        
         .unwrap();
     cassie
         .register_collection(
@@ -1195,18 +1195,18 @@ async fn execute_query_supports_projection_aliases_for_function_columns() {
             Some("d1".to_string()),
             serde_json::json!({"title": "alpha", "body": "lorem world"}),
         )
-        .await
+        
         .unwrap();
 
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
     let result = cassie
         .execute_sql(
             &session,
             "SELECT search_score(body, 'world') AS score FROM exec_function_alias WHERE title = 'alpha'",
             vec![],
         )
-        .await
-        .expect("query should execute");
+        
+        .await.expect("query should execute");
 
     assert_eq!(result.columns.len(), 1);
     assert_eq!(result.columns[0].name, "score");
@@ -1249,7 +1249,7 @@ fn should_apply_fulltext_index_params_during_search_score() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1269,7 +1269,7 @@ fn should_apply_fulltext_index_params_during_search_score() {
                 Some("d1".to_string()),
                 serde_json::json!({"body": "alpha alpha alpha"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1278,18 +1278,18 @@ fn should_apply_fulltext_index_params_during_search_score() {
                 Some("d2".to_string()),
                 serde_json::json!({"body": "bravo"}),
             )
-            .await
+            
             .unwrap();
 
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE INDEX idx_exec_fulltext_k1_b ON exec_fulltext_k1_b USING fulltext (body) WITH (k1 = 0, b = 0)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Act
         let result = cassie
@@ -1345,7 +1345,7 @@ fn should_reject_non_finite_fulltext_index_options_during_search_score() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1365,7 +1365,7 @@ fn should_reject_non_finite_fulltext_index_options_during_search_score() {
                 Some("d1".to_string()),
                 serde_json::json!({"body": "alpha alpha alpha"}),
             )
-            .await
+            
             .unwrap();
 
         cassie
@@ -1383,23 +1383,23 @@ fn should_reject_non_finite_fulltext_index_options_during_search_score() {
                     ("b".to_string(), "0.75".to_string()),
                 ]),
             })
-            .await
+            
             .unwrap();
 
         cassie.hydrate_catalog().await.unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT search_score(body, 'alpha') AS score FROM exec_fulltext_non_finite WHERE id = 'd1'",
                 vec![],
             )
-            .await;
+            ;
 
         // Assert
-        assert!(result.is_err());
+        assert!(result.await.is_err());
     });
 }
 
@@ -1409,7 +1409,7 @@ fn should_reject_duplicate_fulltext_indexes_during_search_score() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .expect("runtime");
+        .await.expect("runtime");
 
     runtime.block_on(async {
         with_fallback();
@@ -1434,7 +1434,7 @@ fn should_reject_duplicate_fulltext_indexes_during_search_score() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1454,7 +1454,7 @@ fn should_reject_duplicate_fulltext_indexes_during_search_score() {
                 Some("d1".to_string()),
                 serde_json::json!({"body": "alpha alpha alpha"}),
             )
-            .await
+            
             .unwrap();
 
         cassie
@@ -1472,7 +1472,7 @@ fn should_reject_duplicate_fulltext_indexes_during_search_score() {
                     ("b".to_string(), "0.75".to_string()),
                 ]),
             })
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1489,23 +1489,23 @@ fn should_reject_duplicate_fulltext_indexes_during_search_score() {
                     ("b".to_string(), "0.4".to_string()),
                 ]),
             })
-            .await
+            
             .unwrap();
 
         cassie.hydrate_catalog().await.unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT search_score(body, 'alpha') AS score FROM exec_fulltext_duplicate WHERE id = 'd1'",
                 vec![],
             )
-            .await;
+            ;
 
         // Assert
-        assert!(result.is_err());
+        assert!(result.await.is_err());
     });
 }
 
@@ -1515,7 +1515,7 @@ fn should_allow_plain_select_with_non_finite_fulltext_metadata() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .expect("runtime");
+        .await.expect("runtime");
 
     runtime.block_on(async {
         with_fallback();
@@ -1540,7 +1540,7 @@ fn should_allow_plain_select_with_non_finite_fulltext_metadata() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1560,7 +1560,7 @@ fn should_allow_plain_select_with_non_finite_fulltext_metadata() {
                 Some("d1".to_string()),
                 serde_json::json!({"body": "alpha beta"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1577,21 +1577,21 @@ fn should_allow_plain_select_with_non_finite_fulltext_metadata() {
                     ("b".to_string(), "0.75".to_string()),
                 ]),
             })
-            .await
+            
             .unwrap();
 
         cassie.hydrate_catalog().await.unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id FROM exec_plain_select_bad_fulltext WHERE id = 'd1'",
                 vec![],
             )
-            .await
-            .expect("plain select should execute");
+            
+            .await.expect("plain select should execute");
 
         // Assert
         assert_eq!(result.columns.len(), 1);
@@ -1624,7 +1624,7 @@ fn should_skip_offset_then_take_limit() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1644,7 +1644,7 @@ fn should_skip_offset_then_take_limit() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "a"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1653,7 +1653,7 @@ fn should_skip_offset_then_take_limit() {
                 Some("d2".to_string()),
                 serde_json::json!({"title": "b"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1662,7 +1662,7 @@ fn should_skip_offset_then_take_limit() {
                 Some("d3".to_string()),
                 serde_json::json!({"title": "c"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1671,7 +1671,7 @@ fn should_skip_offset_then_take_limit() {
                 Some("d4".to_string()),
                 serde_json::json!({"title": "d"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1680,19 +1680,19 @@ fn should_skip_offset_then_take_limit() {
                 Some("d5".to_string()),
                 serde_json::json!({"title": "e"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id FROM exec_offset_limit ORDER BY title ASC LIMIT 2 OFFSET 2",
                 vec![],
             )
-            .await
-            .expect("query should execute");
+            
+            .await.expect("query should execute");
 
         // Assert
         assert_eq!(result.rows.len(), 2);
@@ -1732,7 +1732,7 @@ fn should_default_missing_offset_to_zero_in_execution() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1752,7 +1752,7 @@ fn should_default_missing_offset_to_zero_in_execution() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "c"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1761,7 +1761,7 @@ fn should_default_missing_offset_to_zero_in_execution() {
                 Some("d2".to_string()),
                 serde_json::json!({"title": "a"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1770,19 +1770,19 @@ fn should_default_missing_offset_to_zero_in_execution() {
                 Some("d3".to_string()),
                 serde_json::json!({"title": "b"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let default_offset_result = cassie
             .execute_sql(
                 &session,
                 "SELECT id FROM exec_default_offset ORDER BY title ASC LIMIT 1",
                 vec![],
             )
-            .await
-            .expect("query should execute");
+            
+            .await.expect("query should execute");
 
         let explicit_offset_result = cassie
             .execute_sql(
@@ -1824,7 +1824,7 @@ fn should_execute_query_across_multiple_batches_without_truncation() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1843,20 +1843,20 @@ fn should_execute_query_across_multiple_batches_without_truncation() {
             cassie
                 .midge
                 .put_document(collection, Some(id), serde_json::json!({ "title": title }))
-                .await
+                
                 .unwrap();
         }
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id FROM exec_multi_batch ORDER BY title ASC LIMIT 5 OFFSET 1095",
                 vec![],
             )
-            .await
-            .expect("query should execute");
+            
+            .await.expect("query should execute");
 
         // Assert
         assert_eq!(result.rows.len(), 5);
@@ -1912,7 +1912,7 @@ fn should_sort_with_stable_tiebreaker() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1932,7 +1932,7 @@ fn should_sort_with_stable_tiebreaker() {
                 Some("z".to_string()),
                 serde_json::json!({"title": "same", "body": "value"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1941,7 +1941,7 @@ fn should_sort_with_stable_tiebreaker() {
                 Some("a".to_string()),
                 serde_json::json!({"title": "same", "body": "value"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1950,19 +1950,19 @@ fn should_sort_with_stable_tiebreaker() {
                 Some("m".to_string()),
                 serde_json::json!({"title": "same", "body": "value"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id FROM exec_stable_tie ORDER BY 1 ASC",
                 vec![],
             )
-            .await
-            .expect("query should execute");
+            
+            .await.expect("query should execute");
 
         // Assert
         assert_eq!(result.rows.len(), 3);
@@ -2009,7 +2009,7 @@ fn should_project_function_columns() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -2029,7 +2029,7 @@ fn should_project_function_columns() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "alpha", "body": "hello world"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -2038,19 +2038,19 @@ fn should_project_function_columns() {
                 Some("d2".to_string()),
                 serde_json::json!({"title": "beta", "body": "other text"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT title, search_score(body, 'world') AS score FROM exec_projection_mix WHERE body LIKE '%world%' ORDER BY id ASC",
                 vec![],
             )
-            .await
-            .expect("query should execute");
+            
+            .await.expect("query should execute");
 
         // Assert
         assert_eq!(result.columns.len(), 2);
@@ -2097,7 +2097,7 @@ fn should_project_snippet_function_output_for_text_matches() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -2117,19 +2117,19 @@ fn should_project_snippet_function_output_for_text_matches() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "alpha", "body": "Rust enables fast query search"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT snippet(body, 'query') AS excerpt FROM exec_snippet_output WHERE title = 'alpha'",
                 vec![],
             )
-            .await
-            .expect("snippet query should execute");
+            
+            .await.expect("snippet query should execute");
 
         // Assert
         assert_eq!(result.columns[0].name, "excerpt");
@@ -2168,7 +2168,7 @@ fn should_order_by_pgvector_dot_operator() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -2188,7 +2188,7 @@ fn should_order_by_pgvector_dot_operator() {
                 Some("d1".to_string()),
                 serde_json::json!({"embedding": [1.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -2197,7 +2197,7 @@ fn should_order_by_pgvector_dot_operator() {
                 Some("d2".to_string()),
                 serde_json::json!({"embedding": [2.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -2206,19 +2206,19 @@ fn should_order_by_pgvector_dot_operator() {
                 Some("d3".to_string()),
                 serde_json::json!({"embedding": [0.0, 2.0]}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id FROM exec_vector_dot_order ORDER BY embedding <#> '[1,0]' ASC",
                 vec![],
             )
-            .await
-            .expect("query should execute");
+            
+            .await.expect("query should execute");
 
         // Assert
         assert_eq!(result.rows.len(), 3);
@@ -2261,7 +2261,7 @@ fn should_order_by_pgvector_l2_operator() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -2281,7 +2281,7 @@ fn should_order_by_pgvector_l2_operator() {
                 Some("d1".to_string()),
                 serde_json::json!({"embedding": [1.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -2290,7 +2290,7 @@ fn should_order_by_pgvector_l2_operator() {
                 Some("d2".to_string()),
                 serde_json::json!({"embedding": [2.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -2299,19 +2299,19 @@ fn should_order_by_pgvector_l2_operator() {
                 Some("d3".to_string()),
                 serde_json::json!({"embedding": [0.0, 2.0]}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id FROM exec_vector_l2_order ORDER BY embedding <-> '[1,0]' ASC",
                 vec![],
             )
-            .await
-            .expect("query should execute");
+            
+            .await.expect("query should execute");
 
         // Assert
         assert_eq!(result.rows.len(), 3);
@@ -2354,7 +2354,7 @@ fn should_fail_query_when_vector_function_dimensions_mismatch() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -2374,21 +2374,21 @@ fn should_fail_query_when_vector_function_dimensions_mismatch() {
                 Some("d1".to_string()),
                 serde_json::json!({"embedding": [1.0, 2.0]}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT vector_distance(embedding, '[1,0,0]') FROM exec_vector_mismatch",
                 vec![],
             )
-            .await;
+            ;
 
         // Assert
-        assert!(result.is_err());
+        assert!(result.await.is_err());
     });
 }
 
@@ -2398,7 +2398,7 @@ fn should_order_by_hybrid_score() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .expect("runtime");
+        .await.expect("runtime");
 
     runtime.block_on(async {
         with_fallback();
@@ -2428,7 +2428,7 @@ fn should_order_by_hybrid_score() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -2448,7 +2448,7 @@ fn should_order_by_hybrid_score() {
                 Some("zeta".to_string()),
                 serde_json::json!({"title": "doc1", "body": "red", "embedding": [10.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -2457,19 +2457,19 @@ fn should_order_by_hybrid_score() {
                 Some("alpha".to_string()),
                 serde_json::json!({"title": "doc2", "body": "red", "embedding": [1.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM exec_hybrid_order ORDER BY score DESC",
                 vec![],
             )
-            .await
-            .expect("query should execute");
+            
+            .await.expect("query should execute");
 
         // Assert
         assert_eq!(result.columns[0].name, "id");
@@ -2521,7 +2521,7 @@ fn should_sort_by_projection_alias_with_different_case() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -2541,7 +2541,7 @@ fn should_sort_by_projection_alias_with_different_case() {
                 Some("z".to_string()),
                 serde_json::json!({"body": "red", "embedding": [10.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -2550,7 +2550,7 @@ fn should_sort_by_projection_alias_with_different_case() {
                 Some("a".to_string()),
                 serde_json::json!({"body": "red", "embedding": [1.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -2559,19 +2559,19 @@ fn should_sort_by_projection_alias_with_different_case() {
                 Some("m".to_string()),
                 serde_json::json!({"body": "red", "embedding": [0.0, 1.0]}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS Score FROM exec_hybrid_alias_case ORDER BY SCORE DESC",
                 vec![],
             )
-            .await
-                .expect("query should execute");
+            
+                .await.expect("query should execute");
 
         // Assert
         assert_eq!(result.rows.len(), 3);
@@ -2623,7 +2623,7 @@ fn should_filter_by_hybrid_score_threshold() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -2643,7 +2643,7 @@ fn should_filter_by_hybrid_score_threshold() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "doc1", "body": "red apple", "embedding": [1.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -2652,19 +2652,19 @@ fn should_filter_by_hybrid_score_threshold() {
                 Some("d2".to_string()),
                 serde_json::json!({"title": "doc2", "body": "green apple", "embedding": [0.0, 2.0]}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id FROM exec_hybrid_filter WHERE hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) > 0.5",
                 vec![],
             )
-            .await
-            .expect("query should execute");
+            
+            .await.expect("query should execute");
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -2703,7 +2703,7 @@ fn should_project_missing_columns_as_null() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -2723,19 +2723,19 @@ fn should_project_missing_columns_as_null() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT title, body FROM exec_missing_projection_column",
                 vec![],
             )
-            .await
-            .expect("query should execute");
+            
+            .await.expect("query should execute");
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -2776,7 +2776,7 @@ fn should_sort_by_unprojected_column_before_projection() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -2796,7 +2796,7 @@ fn should_sort_by_unprojected_column_before_projection() {
                 Some("id1".to_string()),
                 serde_json::json!({"title": "title-a", "body": "zzz"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -2805,19 +2805,19 @@ fn should_sort_by_unprojected_column_before_projection() {
                 Some("id2".to_string()),
                 serde_json::json!({"title": "title-b", "body": "aaa"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM exec_order_by_unprojected_field ORDER BY body ASC",
                 vec![],
             )
-            .await
-            .expect("query should execute");
+            
+            .await.expect("query should execute");
 
         // Assert
         assert_eq!(result.rows.len(), 2);
@@ -2857,7 +2857,7 @@ fn should_be_deterministic_for_repeated_execution_metadata() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -2877,7 +2877,7 @@ fn should_be_deterministic_for_repeated_execution_metadata() {
                 Some("id1".to_string()),
                 serde_json::json!({"title": "alpha", "body": "first"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -2886,19 +2886,19 @@ fn should_be_deterministic_for_repeated_execution_metadata() {
                 Some("id2".to_string()),
                 serde_json::json!({"title": "beta", "body": "second"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let first = cassie
             .execute_sql(
                 &session,
                 "SELECT title, body FROM exec_repeated_metadata ORDER BY title ASC",
                 vec![],
             )
-            .await
-            .expect("query should execute");
+            
+            .await.expect("query should execute");
         let second = cassie
             .execute_sql(
                 &session,
@@ -2948,7 +2948,7 @@ fn should_fail_unknown_function_during_execution() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -2968,7 +2968,7 @@ fn should_fail_unknown_function_during_execution() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            .await
+            
             .unwrap();
 
         let logical = LogicalPlan {
@@ -3013,7 +3013,7 @@ async fn should_execute_create_alter_and_drop_table_commands() {
     with_fallback();
     let path = data_dir("ddl_command");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
     let table_name = "ddl_table";
 
     // Act
@@ -3023,8 +3023,8 @@ async fn should_execute_create_alter_and_drop_table_commands() {
             "CREATE TABLE ddl_table (id TEXT, title TEXT)",
             vec![],
         )
-        .await
-        .unwrap();
+        
+        .await.unwrap();
     assert_eq!(create.command, "CREATE TABLE");
     assert_eq!(create.columns.len(), 0);
     assert!(cassie.catalog.exists(table_name).await);
@@ -3036,7 +3036,7 @@ async fn should_execute_create_alter_and_drop_table_commands() {
             Some("d1".to_string()),
             serde_json::json!({"id": "d1", "title": "alpha"}),
         )
-        .await
+        
         .unwrap();
 
     let alter_add = cassie
@@ -3087,7 +3087,7 @@ async fn should_execute_alter_table_rename_column_command() {
     with_fallback();
     let path = data_dir("ddl_rename_column_command");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
 
     cassie
         .execute_sql(
@@ -3095,8 +3095,8 @@ async fn should_execute_alter_table_rename_column_command() {
             "CREATE TABLE rename_column_docs (id TEXT, title TEXT)",
             vec![],
         )
-        .await
-        .unwrap();
+        
+        .await.unwrap();
     cassie
         .midge
         .put_document(
@@ -3104,7 +3104,7 @@ async fn should_execute_alter_table_rename_column_command() {
             Some("d1".to_string()),
             serde_json::json!({"id": "d1", "title": "alpha"}),
         )
-        .await
+        
         .unwrap();
 
     // Act
@@ -3148,7 +3148,7 @@ async fn should_execute_create_and_drop_index_commands() {
     with_fallback();
     let path = data_dir("ddl_index_command");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
 
     // Act
     cassie
@@ -3157,8 +3157,8 @@ async fn should_execute_create_and_drop_index_commands() {
             "CREATE TABLE idx_commands (id TEXT, title TEXT)",
             vec![],
         )
-        .await
-        .unwrap();
+        
+        .await.unwrap();
 
     let create_index = cassie
         .execute_sql(
@@ -3177,7 +3177,7 @@ async fn should_execute_create_and_drop_index_commands() {
     let stored_index = cassie
         .midge
         .get_index("idx_commands", "idx_title")
-        .await
+        
         .unwrap()
         .expect("index should be persisted");
 
@@ -3212,7 +3212,7 @@ async fn should_execute_create_composite_index_command() {
     with_fallback();
     let path = data_dir("ddl_composite_index_command");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
 
     cassie
         .execute_sql(
@@ -3220,8 +3220,8 @@ async fn should_execute_create_composite_index_command() {
             "CREATE TABLE composite_index_docs (id TEXT, title TEXT, score INT)",
             vec![],
         )
-        .await
-        .unwrap();
+        
+        .await.unwrap();
 
     // Act
     let create_index = cassie
@@ -3241,7 +3241,7 @@ async fn should_execute_create_composite_index_command() {
     let stored_index = cassie
         .midge
         .get_index("composite_index_docs", "idx_title_score")
-        .await
+        
         .unwrap()
         .expect("index should be persisted");
 
@@ -3274,7 +3274,7 @@ fn should_execute_create_vector_index_command() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         cassie
@@ -3283,8 +3283,8 @@ fn should_execute_create_vector_index_command() {
                 "CREATE TABLE idx_vector_commands (id TEXT, content TEXT, embedding VECTOR(1536))",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         let create_index = cassie
             .execute_sql(
@@ -3303,7 +3303,7 @@ fn should_execute_create_vector_index_command() {
         let stored_vector = cassie
             .midge
             .get_vector_index("idx_vector_commands", "embedding")
-            .await
+            
             .unwrap()
             .expect("vector index should be persisted");
 
@@ -3346,7 +3346,7 @@ fn should_execute_drop_vector_index_command() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Arrange
         cassie
@@ -3355,8 +3355,8 @@ fn should_execute_drop_vector_index_command() {
                 "CREATE TABLE idx_vector_commands (id TEXT, content TEXT, embedding VECTOR(1536))",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         cassie
             .execute_sql(
@@ -3387,7 +3387,7 @@ fn should_execute_drop_vector_index_command() {
         assert!(cassie
             .midge
             .get_vector_index("idx_vector_commands", "embedding")
-            .await
+            
             .unwrap()
             .is_none());
     });
@@ -3401,14 +3401,14 @@ async fn should_execute_create_function_and_evaluate_user_body() {
     with_fallback();
     let path = data_dir("create_function_exec");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
 
     let collection = "udf_eval";
 
     cassie
         .execute_sql(&session, "CREATE TABLE udf_eval (id TEXT, x INT)", vec![])
-        .await
-        .unwrap();
+        
+        .await.unwrap();
     cassie
         .register_collection(
             collection,
@@ -3428,7 +3428,7 @@ async fn should_execute_create_function_and_evaluate_user_body() {
             Some("d1".to_string()),
             serde_json::json!({"id": "d1", "x": 3}),
         )
-        .await
+        
         .unwrap();
     cassie
         .midge
@@ -3437,7 +3437,7 @@ async fn should_execute_create_function_and_evaluate_user_body() {
             Some("d2".to_string()),
             serde_json::json!({"id": "d2", "x": 7}),
         )
-        .await
+        
         .unwrap();
 
     cassie
@@ -3484,14 +3484,14 @@ async fn should_execute_drop_function_and_reject_subsequent_use() {
     with_fallback();
     let path = data_dir("drop_function_exec");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let session = cassie.create_session("tester", None).await;
+    let session = cassie.create_session("tester", None);
 
     let collection = "udf_drop";
 
     cassie
         .execute_sql(&session, "CREATE TABLE udf_drop (id TEXT, x INT)", vec![])
-        .await
-        .unwrap();
+        
+        .await.unwrap();
     cassie
         .register_collection(
             collection,
@@ -3511,7 +3511,7 @@ async fn should_execute_drop_function_and_reject_subsequent_use() {
             Some("d1".to_string()),
             serde_json::json!({"id": "d1", "x": 3}),
         )
-        .await
+        
         .unwrap();
 
     cassie
@@ -3552,12 +3552,12 @@ fn should_execute_procedure_body_with_arguments_after_restart() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         cassie
             .execute_sql(&session, "CREATE TABLE procedure_exec (title TEXT)", vec![])
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -3571,13 +3571,13 @@ fn should_execute_procedure_body_with_arguments_after_restart() {
 
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
         restarted.startup().await.unwrap();
-        let session = restarted.create_session("tester", None).await;
+        let session = restarted.create_session("tester", None);
 
         // Act
         let call = restarted
             .execute_sql(&session, "CALL store_title('alpha')", vec![])
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         let rows = restarted
             .execute_sql(
                 &session,
@@ -3609,7 +3609,7 @@ fn should_reject_procedure_bodies_with_transaction_control() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let result = cassie
@@ -3618,10 +3618,10 @@ fn should_reject_procedure_bodies_with_transaction_control() {
                 r#"CREATE PROCEDURE stop_here() AS "BEGIN""#,
                 vec![],
             )
-            .await;
+            ;
 
         // Assert
-        let error = result.expect_err("procedure creation should fail");
+        let error = result.await.expect_err("procedure creation should fail");
         assert!(error
             .to_string()
             .contains("transaction control statements inside procedures"));
@@ -3643,7 +3643,7 @@ fn should_reject_recursive_procedure_calls() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         cassie
             .execute_sql(
@@ -3651,8 +3651,8 @@ fn should_reject_recursive_procedure_calls() {
                 r#"CREATE PROCEDURE loop_a() AS "CALL loop_b()""#,
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,

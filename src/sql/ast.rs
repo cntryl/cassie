@@ -1,35 +1,37 @@
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
+
 use crate::catalog::{FieldConstraint, IndexKind};
 use crate::types::DataType;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedStatement {
     pub raw_sql: String,
     pub statement: QueryStatement,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionArg {
     pub name: String,
     pub data_type: DataType,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Volatility {
     Immutable,
     Stable,
     Volatile,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommonTableExpression {
     pub name: String,
     pub aliases: Vec<String>,
     pub query: CteQuery,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CteQuery {
     Simple(Box<ParsedStatement>),
     Recursive {
@@ -38,7 +40,7 @@ pub enum CteQuery {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QuerySource {
     Collection(String),
     Cte(String),
@@ -68,25 +70,25 @@ impl PartialEq for QuerySource {
 
 impl Eq for QuerySource {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum JoinKind {
     Inner,
     Left,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SetOperator {
     Union,
     UnionAll,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SelectSet {
     pub operator: SetOperator,
     pub right: Box<SelectStatement>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QueryStatement {
     Select(SelectStatement),
     Show(ShowStatement),
@@ -115,33 +117,33 @@ pub enum QueryStatement {
     AlterSchema(AlterSchemaStatement),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionStatement {
     pub action: TransactionAction,
     pub isolation: Option<TransactionIsolation>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionAction {
     Begin,
     Commit,
     Rollback,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionIsolation {
     ReadCommitted,
     RepeatableRead,
     Serializable,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InsertSource {
     Values(Vec<Expr>),
     Select(Box<SelectStatement>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InsertStatement {
     pub table: String,
     pub columns: Vec<String>,
@@ -149,7 +151,7 @@ pub struct InsertStatement {
     pub returning: Vec<SelectItem>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateStatement {
     pub table: String,
     pub assignments: Vec<(String, Expr)>,
@@ -157,21 +159,21 @@ pub struct UpdateStatement {
     pub returning: Vec<SelectItem>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteStatement {
     pub table: String,
     pub filter: Option<Expr>,
     pub returning: Vec<SelectItem>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateTableStatement {
     pub table: String,
     pub fields: Vec<FieldDefinition>,
     pub if_not_exists: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateIndexStatement {
     pub name: String,
     pub table: String,
@@ -182,7 +184,7 @@ pub struct CreateIndexStatement {
     pub options: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFunctionStatement {
     pub name: String,
     pub if_not_exists: bool,
@@ -192,13 +194,13 @@ pub struct CreateFunctionStatement {
     pub body: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DropFunctionStatement {
     pub name: String,
     pub if_exists: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateProcedureStatement {
     pub name: String,
     pub if_not_exists: bool,
@@ -206,49 +208,49 @@ pub struct CreateProcedureStatement {
     pub body: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DropProcedureStatement {
     pub name: String,
     pub if_exists: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CallProcedureStatement {
     pub name: String,
     pub args: Vec<Expr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShowStatement {
     pub variable: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetStatement {
     pub variable: String,
     pub value: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DropIndexStatement {
     pub name: String,
     pub table: String,
     pub if_exists: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DropTableStatement {
     pub table: String,
     pub if_exists: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlterTableStatement {
     pub table: String,
     pub operation: AlterTableOperation,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AlterTableOperation {
     AddColumn { field: String, data_type: DataType },
     DropColumn { field: String },
@@ -256,43 +258,43 @@ pub enum AlterTableOperation {
     RenameTo { table: String },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSchemaStatement {
     pub schema: String,
     pub if_not_exists: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DropSchemaStatement {
     pub schema: String,
     pub if_exists: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlterSchemaStatement {
     pub schema: String,
     pub operation: AlterSchemaOperation,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AlterSchemaOperation {
     RenameTo { schema: String },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateViewStatement {
     pub name: String,
     pub if_not_exists: bool,
     pub query: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DropViewStatement {
     pub name: String,
     pub if_exists: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateRoleStatement {
     pub name: String,
     pub if_not_exists: bool,
@@ -300,27 +302,27 @@ pub struct CreateRoleStatement {
     pub password: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlterRoleStatement {
     pub name: String,
     pub login: Option<bool>,
     pub password: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DropRoleStatement {
     pub name: String,
     pub if_exists: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FieldDefinition {
     pub name: String,
     pub data_type: DataType,
     pub constraints: Vec<FieldConstraint>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SelectStatement {
     pub source: QuerySource,
     pub ctes: Vec<CommonTableExpression>,
@@ -336,7 +338,7 @@ pub struct SelectStatement {
     pub set: Option<Box<SelectSet>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SelectItem {
     Wildcard,
     Column {
@@ -349,32 +351,32 @@ pub enum SelectItem {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionCall {
     pub name: String,
     pub args: Vec<Expr>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderExpr {
     pub expr: Expr,
     pub direction: SortDirection,
     pub nulls: Option<NullsOrder>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SortDirection {
     Asc,
     Desc,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NullsOrder {
     First,
     Last,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Expr {
     Column(String),
     Param(usize),
@@ -410,7 +412,7 @@ pub enum Expr {
     Function(FunctionCall),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BinaryOp {
     Eq,
     NotEq,
@@ -430,7 +432,7 @@ pub enum BinaryOp {
     PgvectorDot,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Bm25Params {
     pub k1: f64,
     pub b: f64,

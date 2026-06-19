@@ -1,7 +1,8 @@
 use crate::planner::logical::LogicalPlan;
+use serde::{Deserialize, Serialize};
 use crate::sql::ast::{QuerySource, SelectItem};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Operator {
     Scan,
     Filter,
@@ -17,7 +18,7 @@ pub enum Operator {
     SetOperation,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhysicalPlan {
     pub collection: String,
     pub operators: Vec<Operator>,

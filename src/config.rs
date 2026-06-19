@@ -20,6 +20,9 @@ pub struct CassieRuntimeLimits {
     pub cte_recursion_depth: usize,
     pub temp_spill_budget_bytes: usize,
     pub plan_cache_entries: usize,
+    pub cf2_plan_ttl_seconds: u64,
+    pub cf2_plan_candidate_ttl_seconds: u64,
+    pub cf2_fulltext_stats_ttl_seconds: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -86,6 +89,9 @@ impl Default for CassieRuntimeLimits {
             cte_recursion_depth: 64,
             temp_spill_budget_bytes: 10 * 1024 * 1024,
             plan_cache_entries: 128,
+            cf2_plan_ttl_seconds: 900,
+            cf2_plan_candidate_ttl_seconds: 300,
+            cf2_fulltext_stats_ttl_seconds: 300,
         }
     }
 }
@@ -144,6 +150,18 @@ impl CassieRuntimeConfig {
             plan_cache_entries: parse_usize(
                 "CASSIE_PLAN_CACHE_ENTRIES",
                 config.limits.plan_cache_entries,
+            ),
+            cf2_plan_ttl_seconds: parse_u64(
+                "CASSIE_CF2_PLAN_TTL_SECONDS",
+                config.limits.cf2_plan_ttl_seconds,
+            ),
+            cf2_plan_candidate_ttl_seconds: parse_u64(
+                "CASSIE_CF2_PLAN_CANDIDATE_TTL_SECONDS",
+                config.limits.cf2_plan_candidate_ttl_seconds,
+            ),
+            cf2_fulltext_stats_ttl_seconds: parse_u64(
+                "CASSIE_CF2_FULLTEXT_STATS_TTL_SECONDS",
+                config.limits.cf2_fulltext_stats_ttl_seconds,
             ),
         };
 

@@ -118,7 +118,7 @@ fn should_report_runtime_metrics_snapshot() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie.register_collection(collection, schema.clone()).await;
         cassie
@@ -128,10 +128,10 @@ fn should_report_runtime_metrics_snapshot() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            .await
+            
             .unwrap();
 
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let result = cassie
@@ -140,8 +140,8 @@ fn should_report_runtime_metrics_snapshot() {
                 "SELECT title FROM metrics_runtime_docs WHERE title = 'alpha'",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         let metrics = cassie.metrics().await;
 
         // Assert
@@ -220,7 +220,7 @@ fn should_record_vector_counts_for_ordered_search_expression() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -242,7 +242,7 @@ fn should_record_vector_counts_for_ordered_search_expression() {
                     "embedding": [1.0, 0.0],
                 }),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -254,7 +254,7 @@ fn should_record_vector_counts_for_ordered_search_expression() {
                     "embedding": [0.0, 1.0],
                 }),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -266,14 +266,14 @@ fn should_record_vector_counts_for_ordered_search_expression() {
                     "embedding": [1.0, 1.0],
                 }),
             )
-            .await
+            
             .unwrap();
 
         let before = cassie.metrics().await;
         let before_candidates = before["vector"]["candidate_count_total"].as_u64().unwrap_or_default();
         let before_results = before["vector"]["result_count_total"].as_u64().unwrap_or_default();
 
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         // Act
         let result = cassie
             .execute_sql(
@@ -281,8 +281,8 @@ fn should_record_vector_counts_for_ordered_search_expression() {
                 "SELECT title FROM metrics_vector_candidates ORDER BY embedding <-> '[1,0]' LIMIT 1",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         let after = cassie.metrics().await;
 
@@ -335,7 +335,7 @@ fn should_count_failed_scan_as_storage_read_error() {
             .as_u64()
             .unwrap_or_default();
 
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         // Act
         let result = cassie
             .execute_sql(
@@ -343,9 +343,9 @@ fn should_count_failed_scan_as_storage_read_error() {
                 "SELECT title FROM missing_storage_collection WHERE title = 'alpha'",
                 vec![],
             )
-            .await;
+            ;
         assert!(
-            result.is_err(),
+            result.await.is_err(),
             "query should fail because collection schema is missing in storage"
         );
 

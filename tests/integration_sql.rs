@@ -58,7 +58,7 @@ fn should_execute_sql_query_after_catalog_hydration() {
         cassie
             .midge
             .create_collection(collection, schema)
-            .await
+            
             .unwrap();
         let _ = cassie
             .midge
@@ -67,22 +67,22 @@ fn should_execute_sql_query_after_catalog_hydration() {
                 None,
                 serde_json::json!({"title": "sql", "body": "hybrid path"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
         drop(cassie);
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
         restarted.startup().await.unwrap();
-        let session = restarted.create_session("tester", None).await;
+        let session = restarted.create_session("tester", None);
         let result = restarted
             .execute_sql(
                 &session,
                 "SELECT title FROM sql_hydration WHERE title = 'sql'",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -124,7 +124,7 @@ fn should_apply_limit_offset_after_ordering() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -134,8 +134,7 @@ fn should_apply_limit_offset_after_ordering() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
 
         cassie
             .midge
@@ -144,7 +143,7 @@ fn should_apply_limit_offset_after_ordering() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "pear", "body": "c"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -153,7 +152,7 @@ fn should_apply_limit_offset_after_ordering() {
                 Some("d2".to_string()),
                 serde_json::json!({"title": "apple", "body": "a"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -162,19 +161,19 @@ fn should_apply_limit_offset_after_ordering() {
                 Some("d3".to_string()),
                 serde_json::json!({"title": "banana", "body": "b"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id, title FROM sql_limit_offset_order ORDER BY title ASC LIMIT 2 OFFSET 1",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.columns.len(), 2);
@@ -237,7 +236,7 @@ fn should_order_column_top_k_with_deterministic_tie_break() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -247,8 +246,7 @@ fn should_order_column_top_k_with_deterministic_tie_break() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
 
         cassie
             .midge
@@ -257,7 +255,7 @@ fn should_order_column_top_k_with_deterministic_tie_break() {
                 Some("d2".to_string()),
                 serde_json::json!({"title": "second", "score": 10}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -266,7 +264,7 @@ fn should_order_column_top_k_with_deterministic_tie_break() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "first", "score": 10}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -275,19 +273,19 @@ fn should_order_column_top_k_with_deterministic_tie_break() {
                 Some("d3".to_string()),
                 serde_json::json!({"title": "third", "score": 1}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id FROM sql_column_top_k_tie ORDER BY score DESC LIMIT 2",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 2);
@@ -330,7 +328,7 @@ fn should_fall_back_for_filtered_ordered_column_query_without_changing_results()
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -340,8 +338,7 @@ fn should_fall_back_for_filtered_ordered_column_query_without_changing_results()
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
 
         cassie
             .midge
@@ -350,7 +347,7 @@ fn should_fall_back_for_filtered_ordered_column_query_without_changing_results()
                 Some("d1".to_string()),
                 serde_json::json!({"title": "skip", "score": 100}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -359,19 +356,19 @@ fn should_fall_back_for_filtered_ordered_column_query_without_changing_results()
                 Some("d2".to_string()),
                 serde_json::json!({"title": "keep", "score": 10}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id FROM sql_column_top_k_filter_fallback WHERE title = 'keep' ORDER BY score DESC LIMIT 1",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -412,7 +409,7 @@ fn should_filter_projected_scan_range_query_without_changing_results() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -422,8 +419,7 @@ fn should_filter_projected_scan_range_query_without_changing_results() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
 
         cassie
             .midge
@@ -432,7 +428,7 @@ fn should_filter_projected_scan_range_query_without_changing_results() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "low", "score": 1}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -441,7 +437,7 @@ fn should_filter_projected_scan_range_query_without_changing_results() {
                 Some("d2".to_string()),
                 serde_json::json!({"title": "mid", "score": 10}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -450,19 +446,19 @@ fn should_filter_projected_scan_range_query_without_changing_results() {
                 Some("d3".to_string()),
                 serde_json::json!({"title": "high", "score": 20}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id, title FROM sql_projected_scan_range WHERE score >= 10 LIMIT 2",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 2);
@@ -506,7 +502,7 @@ fn should_filter_projected_scan_simple_equality_query_without_changing_results()
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -516,8 +512,7 @@ fn should_filter_projected_scan_simple_equality_query_without_changing_results()
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
 
         cassie
             .midge
@@ -526,7 +521,7 @@ fn should_filter_projected_scan_simple_equality_query_without_changing_results()
                 Some("d1".to_string()),
                 serde_json::json!({"title": "alpha", "body": "first"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -535,19 +530,19 @@ fn should_filter_projected_scan_simple_equality_query_without_changing_results()
                 Some("d2".to_string()),
                 serde_json::json!({"title": "beta", "body": "second"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT id, title FROM sql_projected_scan_equality WHERE title = 'beta'",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -582,7 +577,7 @@ fn should_fall_back_for_function_projection_query_without_changing_results() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -592,8 +587,7 @@ fn should_fall_back_for_function_projection_query_without_changing_results() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
 
         cassie
             .midge
@@ -602,19 +596,19 @@ fn should_fall_back_for_function_projection_query_without_changing_results() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT upper(title) FROM sql_projected_scan_function_fallback WHERE title = 'alpha'",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -655,7 +649,7 @@ fn should_fall_back_for_wildcard_projection_query_without_changing_results() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -665,8 +659,7 @@ fn should_fall_back_for_wildcard_projection_query_without_changing_results() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
 
         cassie
             .midge
@@ -675,19 +668,19 @@ fn should_fall_back_for_wildcard_projection_query_without_changing_results() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "alpha", "score": 7}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "SELECT * FROM sql_projected_scan_wildcard_fallback WHERE score = 7",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -722,7 +715,7 @@ fn should_apply_vector_distance_offset_after_ordering() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -732,8 +725,7 @@ fn should_apply_vector_distance_offset_after_ordering() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -741,7 +733,7 @@ fn should_apply_vector_distance_offset_after_ordering() {
                 Some("d1".to_string()),
                 serde_json::json!({"embedding": [1.0, 0.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -750,7 +742,7 @@ fn should_apply_vector_distance_offset_after_ordering() {
                 Some("d2".to_string()),
                 serde_json::json!({"embedding": [3.0, 0.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -759,9 +751,9 @@ fn should_apply_vector_distance_offset_after_ordering() {
                 Some("d3".to_string()),
                 serde_json::json!({"embedding": [2.0, 0.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let result = cassie
@@ -770,8 +762,8 @@ fn should_apply_vector_distance_offset_after_ordering() {
                 "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM sql_vector_distance_offset_order ORDER BY distance ASC LIMIT 1 OFFSET 1",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -805,7 +797,7 @@ fn should_order_fulltext_top_k_by_score_with_limit() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -815,8 +807,7 @@ fn should_order_fulltext_top_k_by_score_with_limit() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -824,7 +815,7 @@ fn should_order_fulltext_top_k_by_score_with_limit() {
                 Some("d1".to_string()),
                 serde_json::json!({"body": "alpha beta"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -833,7 +824,7 @@ fn should_order_fulltext_top_k_by_score_with_limit() {
                 Some("d2".to_string()),
                 serde_json::json!({"body": "alpha alpha alpha beta"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -842,9 +833,9 @@ fn should_order_fulltext_top_k_by_score_with_limit() {
                 Some("d3".to_string()),
                 serde_json::json!({"body": "beta gamma"}),
             )
-            .await
+            
             .unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let result = cassie
@@ -853,8 +844,8 @@ fn should_order_fulltext_top_k_by_score_with_limit() {
                 "SELECT id, search_score(body, 'alpha') AS score FROM sql_fulltext_top_k_limit WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -888,7 +879,7 @@ fn should_apply_fulltext_offset_after_score_ordering() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -898,8 +889,7 @@ fn should_apply_fulltext_offset_after_score_ordering() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -907,7 +897,7 @@ fn should_apply_fulltext_offset_after_score_ordering() {
                 Some("d1".to_string()),
                 serde_json::json!({"body": "alpha"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -916,7 +906,7 @@ fn should_apply_fulltext_offset_after_score_ordering() {
                 Some("d2".to_string()),
                 serde_json::json!({"body": "alpha alpha alpha"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -925,9 +915,9 @@ fn should_apply_fulltext_offset_after_score_ordering() {
                 Some("d3".to_string()),
                 serde_json::json!({"body": "alpha alpha"}),
             )
-            .await
+            
             .unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let result = cassie
@@ -936,8 +926,8 @@ fn should_apply_fulltext_offset_after_score_ordering() {
                 "SELECT id, search_score(body, 'alpha') AS score FROM sql_fulltext_top_k_offset WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1 OFFSET 1",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -977,7 +967,7 @@ fn should_execute_unordered_fulltext_query_with_matching_search_predicate() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -987,8 +977,7 @@ fn should_execute_unordered_fulltext_query_with_matching_search_predicate() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -996,7 +985,7 @@ fn should_execute_unordered_fulltext_query_with_matching_search_predicate() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "first", "body": "alpha beta"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1005,7 +994,7 @@ fn should_execute_unordered_fulltext_query_with_matching_search_predicate() {
                 Some("d2".to_string()),
                 serde_json::json!({"title": "second", "body": "bravo"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1014,9 +1003,9 @@ fn should_execute_unordered_fulltext_query_with_matching_search_predicate() {
                 Some("d3".to_string()),
                 serde_json::json!({"title": "third", "body": "alpha alpha"}),
             )
-            .await
+            
             .unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let result = cassie
@@ -1025,8 +1014,8 @@ fn should_execute_unordered_fulltext_query_with_matching_search_predicate() {
                 "SELECT id, title, search_score(body, 'alpha') AS score FROM sql_fulltext_unordered_match WHERE search(body, 'alpha') LIMIT 1 OFFSET 1",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -1061,7 +1050,7 @@ fn should_fall_back_for_unordered_fulltext_mismatched_search_query_without_chang
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1071,8 +1060,7 @@ fn should_fall_back_for_unordered_fulltext_mismatched_search_query_without_chang
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -1080,7 +1068,7 @@ fn should_fall_back_for_unordered_fulltext_mismatched_search_query_without_chang
                 Some("d1".to_string()),
                 serde_json::json!({"body": "alpha"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1089,9 +1077,9 @@ fn should_fall_back_for_unordered_fulltext_mismatched_search_query_without_chang
                 Some("d2".to_string()),
                 serde_json::json!({"body": "bravo"}),
             )
-            .await
+            
             .unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let result = cassie
@@ -1100,8 +1088,8 @@ fn should_fall_back_for_unordered_fulltext_mismatched_search_query_without_chang
                 "SELECT id, search_score(body, 'alpha') AS score FROM sql_fulltext_unordered_mismatch WHERE search(body, 'bravo')",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -1142,7 +1130,7 @@ fn should_fall_back_for_unordered_fulltext_additional_filters_without_changing_r
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1152,8 +1140,7 @@ fn should_fall_back_for_unordered_fulltext_additional_filters_without_changing_r
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -1161,7 +1148,7 @@ fn should_fall_back_for_unordered_fulltext_additional_filters_without_changing_r
                 Some("d1".to_string()),
                 serde_json::json!({"body": "alpha alpha", "status": "pending"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1170,9 +1157,9 @@ fn should_fall_back_for_unordered_fulltext_additional_filters_without_changing_r
                 Some("d2".to_string()),
                 serde_json::json!({"body": "alpha", "status": "approved"}),
             )
-            .await
+            
             .unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let result = cassie
@@ -1181,8 +1168,8 @@ fn should_fall_back_for_unordered_fulltext_additional_filters_without_changing_r
                 "SELECT id, search_score(body, 'alpha') AS score FROM sql_fulltext_unordered_extra_filter WHERE search(body, 'alpha') AND status = 'approved'",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -1223,7 +1210,7 @@ fn should_order_hybrid_top_k_by_score_with_limit() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1233,8 +1220,7 @@ fn should_order_hybrid_top_k_by_score_with_limit() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -1242,7 +1228,7 @@ fn should_order_hybrid_top_k_by_score_with_limit() {
                 Some("d1".to_string()),
                 serde_json::json!({"body": "red", "embedding": [10.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1251,9 +1237,9 @@ fn should_order_hybrid_top_k_by_score_with_limit() {
                 Some("d2".to_string()),
                 serde_json::json!({"body": "red", "embedding": [1.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let result = cassie
@@ -1262,8 +1248,8 @@ fn should_order_hybrid_top_k_by_score_with_limit() {
                 "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_top_k_limit ORDER BY score DESC LIMIT 1",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -1304,7 +1290,7 @@ fn should_apply_hybrid_offset_after_score_ordering() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1314,8 +1300,7 @@ fn should_apply_hybrid_offset_after_score_ordering() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -1323,7 +1308,7 @@ fn should_apply_hybrid_offset_after_score_ordering() {
                 Some("d1".to_string()),
                 serde_json::json!({"body": "red", "embedding": [10.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1332,7 +1317,7 @@ fn should_apply_hybrid_offset_after_score_ordering() {
                 Some("d2".to_string()),
                 serde_json::json!({"body": "red", "embedding": [1.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1341,9 +1326,9 @@ fn should_apply_hybrid_offset_after_score_ordering() {
                 Some("d3".to_string()),
                 serde_json::json!({"body": "red red", "embedding": [2.0, 0.0]}),
             )
-            .await
+            
             .unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let result = cassie
@@ -1352,8 +1337,8 @@ fn should_apply_hybrid_offset_after_score_ordering() {
                 "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_top_k_offset ORDER BY score DESC LIMIT 1 OFFSET 1",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -1393,7 +1378,7 @@ fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1403,8 +1388,7 @@ fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -1412,7 +1396,7 @@ fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
                 Some("d1".to_string()),
                 serde_json::json!({"body": "alpha alpha alpha", "status": "pending"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1421,9 +1405,9 @@ fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
                 Some("d2".to_string()),
                 serde_json::json!({"body": "alpha", "status": "approved"}),
             )
-            .await
+            
             .unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let result = cassie
@@ -1432,8 +1416,8 @@ fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
                 "SELECT id, search_score(body, 'alpha') AS score FROM sql_fulltext_complex_fallback WHERE search(body, 'alpha') AND status = 'approved' ORDER BY score DESC LIMIT 1",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -1474,7 +1458,7 @@ fn should_describe_select_projection_with_column_metadata() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1484,8 +1468,7 @@ fn should_describe_select_projection_with_column_metadata() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
 
         // Act
         let columns = cassie
@@ -1538,7 +1521,7 @@ fn should_execute_sql_with_non_recursive_cte() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1548,8 +1531,7 @@ fn should_execute_sql_with_non_recursive_cte() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
 
         cassie
             .midge
@@ -1558,7 +1540,7 @@ fn should_execute_sql_with_non_recursive_cte() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "alpha", "body": "hello"}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -1567,19 +1549,19 @@ fn should_execute_sql_with_non_recursive_cte() {
                 Some("d2".to_string()),
                 serde_json::json!({"title": "beta", "body": "world"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "WITH docs_cte AS (SELECT title FROM integration_cte WHERE title = 'alpha') SELECT title FROM docs_cte",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -1614,7 +1596,7 @@ fn should_execute_sql_with_recursive_cte() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -1624,25 +1606,24 @@ fn should_execute_sql_with_recursive_cte() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
 
         cassie
             .midge
             .put_document(collection, Some("d1".to_string()), serde_json::json!({"n": 1}))
-            .await
+            
             .unwrap();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
                 "WITH RECURSIVE counter(n) AS (SELECT n FROM integration_recursive_cte WHERE n = 1 UNION ALL SELECT n FROM counter WHERE n = 1) SELECT n FROM counter ORDER BY n",
             vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         let rows = result
             .rows
@@ -1677,19 +1658,19 @@ fn should_persist_namespace_on_create_schema() {
             .expect("families ready");
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(&session, "CREATE SCHEMA analytics", vec![])
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.command, "CREATE SCHEMA");
-        assert!(cassie.catalog.namespace_exists("analytics").await);
+        assert!(cassie.catalog.namespace_exists("analytics"));
         assert!(cassie
             .midge
             .list_namespaces()
-            .await
+            
             .iter()
             .any(|name| name == "analytics"));
 
@@ -1710,11 +1691,11 @@ fn should_rename_schema_through_sql() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(&session, "CREATE SCHEMA reporting", vec![])
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Act
         let result = cassie
@@ -1733,13 +1714,13 @@ fn should_rename_schema_through_sql() {
         assert!(!cassie
             .midge
             .list_namespaces()
-            .await
+            
             .iter()
             .any(|name| name == "reporting"));
         assert!(cassie
             .midge
             .list_namespaces()
-            .await
+            
             .iter()
             .any(|name| name == "reporting_archive"));
 
@@ -1760,11 +1741,11 @@ fn should_drop_schema_through_sql() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(&session, "CREATE SCHEMA reporting", vec![])
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Act
         let result = cassie
@@ -1778,7 +1759,7 @@ fn should_drop_schema_through_sql() {
         assert!(!cassie
             .midge
             .list_namespaces()
-            .await
+            
             .iter()
             .any(|name| name == "reporting"));
 
@@ -1799,7 +1780,7 @@ fn should_enforce_constraints_during_ingest() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let create = cassie
@@ -1808,8 +1789,8 @@ fn should_enforce_constraints_during_ingest() {
                 "CREATE TABLE constraint_docs (id INT PRIMARY KEY, email TEXT NOT NULL UNIQUE, status TEXT DEFAULT 'pending', score INT CHECK (score >= 18))",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         let first = cassie
             .ingest_document(
@@ -1837,7 +1818,7 @@ fn should_enforce_constraints_during_ingest() {
         let inserted = cassie
             .midge
             .get_document("constraint_docs", &first)
-            .await
+            
             .unwrap()
             .expect("document inserted");
 
@@ -1880,7 +1861,7 @@ fn should_hydrate_collection_constraints_on_startup() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         cassie
@@ -1889,8 +1870,8 @@ fn should_hydrate_collection_constraints_on_startup() {
                 "CREATE TABLE hydrated_constraints (id INT, email TEXT NOT NULL UNIQUE, score INT CHECK (score >= 0))",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         drop(cassie);
 
@@ -1920,20 +1901,20 @@ fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.midge.create_namespace("analytics").await.unwrap();
+        cassie.midge.create_namespace("analytics").unwrap();
 
-        let initial = cassie.midge.list_namespaces().await;
+        let initial = cassie.midge.list_namespaces();
 
         // Act
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(&session, "CREATE SCHEMA IF NOT EXISTS analytics", vec![])
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(result.command, "CREATE SCHEMA");
-        let namespaced = cassie.midge.list_namespaces().await;
+        let namespaced = cassie.midge.list_namespaces();
         assert_eq!(namespaced.len(), initial.len());
         assert!(namespaced.iter().any(|name| name == "analytics"));
 
@@ -1954,15 +1935,15 @@ fn should_rename_column_through_sql() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE rename_column_docs (id TEXT, title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .midge
             .put_document(
@@ -1970,7 +1951,7 @@ fn should_rename_column_through_sql() {
                 Some("d1".to_string()),
                 serde_json::json!({"id": "d1", "title": "alpha"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
@@ -1980,8 +1961,8 @@ fn should_rename_column_through_sql() {
                 "ALTER TABLE rename_column_docs RENAME COLUMN title TO headline",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         let selected = cassie
             .execute_sql(
                 &session,
@@ -2021,15 +2002,15 @@ fn should_execute_insert_values_with_explicit_columns_returning_columns() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE insert_values_returning (title TEXT, body TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Act
         let result = cassie
@@ -2066,15 +2047,15 @@ fn should_insert_values_using_table_column_order() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE insert_values_table_order (title TEXT, score INT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Act
         cassie
@@ -2116,15 +2097,15 @@ fn should_return_generated_row_id_from_insert_values() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE insert_values_id (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Act
         let inserted = cassie
@@ -2158,15 +2139,15 @@ fn should_reject_insert_values_when_not_null_constraint_fails() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE insert_values_not_null (title TEXT NOT NULL)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Act
         let inserted = cassie
@@ -2198,15 +2179,15 @@ fn should_apply_default_values_for_insert_values() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE insert_values_defaults (id INT PRIMARY KEY, status TEXT DEFAULT 'pending')",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Act
         let inserted = cassie
@@ -2239,15 +2220,15 @@ fn should_reject_insert_values_when_vector_dimensions_mismatch() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE insert_values_vector_dimensions (embedding VECTOR(2))",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Act
         let inserted = cassie
@@ -2282,15 +2263,15 @@ fn should_store_insert_values_as_row_blobs() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE insert_values_row_blob (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Act
         cassie
@@ -2304,12 +2285,12 @@ fn should_store_insert_values_as_row_blobs() {
         let row_entries = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Data, b"r/insert_values_row_blob/")
-            .await
+            
             .unwrap();
         let legacy_entries = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Data, b"doc:insert_values_row_blob:")
-            .await
+            
             .unwrap();
 
         // Assert
@@ -2333,15 +2314,15 @@ fn should_execute_insert_select_with_returning_rows() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE insert_select_source (title TEXT, score INT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -2402,15 +2383,15 @@ fn should_reject_insert_select_shape_mismatch_before_writing() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE insert_select_shape_source (title TEXT, body TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -2470,15 +2451,15 @@ fn should_apply_default_values_for_insert_select() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE insert_select_default_source (source_id INT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -2527,15 +2508,15 @@ fn should_execute_update_where_returning_rows() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE update_where_returning (title TEXT, status TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -2597,15 +2578,15 @@ fn should_preserve_row_id_when_update_rewrites_row_blob() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE update_preserve_id (title TEXT, body TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         let inserted = cassie
             .execute_sql(
                 &session,
@@ -2649,15 +2630,15 @@ fn should_reject_update_validation_failure_without_mutating_row() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE update_validation_failure (title TEXT NOT NULL)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -2706,15 +2687,15 @@ fn should_execute_delete_where_returning_rows() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE delete_where_returning (title TEXT, status TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -2774,15 +2755,15 @@ fn should_report_zero_rows_for_delete_without_matches() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE delete_no_match (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -2828,15 +2809,15 @@ fn should_delete_legacy_fallback_key_for_sql_delete() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE delete_legacy_cleanup (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         let inserted = cassie
             .execute_sql(
                 &session,
@@ -2868,7 +2849,7 @@ fn should_delete_legacy_fallback_key_for_sql_delete() {
         let deleted = cassie
             .midge
             .get_document("delete_legacy_cleanup", &row_id)
-            .await
+            
             .unwrap();
 
         // Assert
@@ -2891,7 +2872,7 @@ fn should_transition_session_state_for_transaction_control() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let begin = cassie.execute_sql(&session, "BEGIN", vec![]).await.unwrap();
@@ -2925,7 +2906,7 @@ fn should_restore_idle_state_on_rollback() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie.execute_sql(&session, "BEGIN", vec![]).await.unwrap();
 
         // Act
@@ -2956,7 +2937,7 @@ fn should_keep_autocommit_writes_visible_after_success() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         cassie
@@ -2965,8 +2946,8 @@ fn should_keep_autocommit_writes_visible_after_success() {
                 "CREATE TABLE transaction_autocommit (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -3004,13 +2985,13 @@ fn should_reject_unsupported_transaction_control_sql() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
-        let savepoint = cassie.execute_sql(&session, "SAVEPOINT sp", vec![]).await;
+        let savepoint = cassie.execute_sql(&session, "SAVEPOINT sp", vec![]);
 
         // Assert
-        assert!(savepoint.is_err());
+        assert!(savepoint.await.is_err());
         assert!(savepoint.unwrap_err().to_string().contains("unsupported"));
 
         let _ = std::fs::remove_dir_all(path);
@@ -3025,20 +3006,20 @@ fn should_reject_advisory_lock_sql() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .expect("runtime");
+        .await.expect("runtime");
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE transaction_advisory_lock (id INT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Act
         let lock = cassie
@@ -3073,15 +3054,15 @@ fn should_discard_transaction_writes_after_rollback() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE transaction_rollback_writes (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).await.unwrap();
 
         // Act
@@ -3126,16 +3107,16 @@ fn should_hide_transaction_writes_from_other_sessions_before_commit() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let writer = cassie.create_session("writer", None).await;
-        let reader = cassie.create_session("reader", None).await;
+        let writer = cassie.create_session("writer", None);
+        let reader = cassie.create_session("reader", None);
         cassie
             .execute_sql(
                 &writer,
                 "CREATE TABLE transaction_uncommitted_visibility (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie.execute_sql(&writer, "BEGIN", vec![]).await.unwrap();
         cassie
             .execute_sql(
@@ -3176,15 +3157,15 @@ fn should_read_own_transaction_writes_before_commit() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE transaction_read_your_writes (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).await.unwrap();
         cassie
             .execute_sql(
@@ -3228,16 +3209,16 @@ fn should_persist_transaction_writes_after_commit() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let writer = cassie.create_session("writer", None).await;
-        let reader = cassie.create_session("reader", None).await;
+        let writer = cassie.create_session("writer", None);
+        let reader = cassie.create_session("reader", None);
         cassie
             .execute_sql(
                 &writer,
                 "CREATE TABLE transaction_commit_writes (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie.execute_sql(&writer, "BEGIN", vec![]).await.unwrap();
         cassie
             .execute_sql(
@@ -3282,15 +3263,15 @@ fn should_keep_transaction_insert_out_of_storage_until_commit() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE transaction_storage_routing (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).await.unwrap();
 
         // Act
@@ -3309,16 +3290,16 @@ fn should_keep_transaction_insert_out_of_storage_until_commit() {
         let before_commit = cassie
             .midge
             .get_document("transaction_storage_routing", &row_id)
-            .await
+            
             .unwrap();
         cassie
             .execute_sql(&session, "COMMIT", vec![])
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         let after_commit = cassie
             .midge
             .get_document("transaction_storage_routing", &row_id)
-            .await
+            
             .unwrap();
 
         // Assert
@@ -3345,15 +3326,15 @@ fn should_reject_work_after_transaction_error_until_rollback() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE transaction_failed_state (title TEXT NOT NULL)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).await.unwrap();
         let failed_insert = cassie
             .execute_sql(
@@ -3397,15 +3378,15 @@ fn should_allow_work_after_failed_transaction_rollback() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE transaction_failed_recovery (title TEXT NOT NULL)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).await.unwrap();
         let failed_insert = cassie
             .execute_sql(
@@ -3450,15 +3431,15 @@ fn should_discard_transaction_update_after_rollback() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE transaction_update_rollback (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -3514,15 +3495,15 @@ fn should_discard_transaction_delete_after_rollback() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE transaction_delete_rollback (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -3578,15 +3559,15 @@ fn should_read_own_transaction_update_before_commit() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE transaction_update_read_your_writes (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -3635,15 +3616,15 @@ fn should_read_own_transaction_delete_before_commit() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE transaction_delete_read_your_writes (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -3692,15 +3673,15 @@ fn should_filter_rows_with_is_null_predicate() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE predicate_is_null (title TEXT, archived_at TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -3751,15 +3732,15 @@ fn should_filter_rows_with_is_not_null_predicate() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE predicate_is_not_null (title TEXT, archived_at TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -3807,15 +3788,15 @@ fn should_filter_rows_with_in_list_predicate() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE predicate_in_list (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -3866,15 +3847,15 @@ fn should_filter_rows_with_not_in_list_predicate() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE predicate_not_in_list (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -3925,15 +3906,15 @@ fn should_filter_rows_with_between_predicate() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE predicate_between (title TEXT, score INT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -3981,15 +3962,15 @@ fn should_filter_rows_with_not_between_predicate() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE predicate_not_between (title TEXT, score INT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -4040,15 +4021,15 @@ fn should_filter_rows_with_cast_function_expression() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE predicate_cast_function (title TEXT, score INT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -4091,15 +4072,15 @@ fn should_filter_rows_with_postgres_style_cast_expression() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE predicate_pg_cast (title TEXT, score INT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -4142,15 +4123,15 @@ fn should_order_nulls_first_when_requested() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE order_nulls_first (title TEXT, archived_at TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -4204,15 +4185,15 @@ fn should_order_nulls_last_when_requested() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE order_nulls_last (title TEXT, archived_at TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -4266,11 +4247,11 @@ fn should_filter_rows_with_exists_predicate() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(&session, "CREATE TABLE predicate_exists_outer (title TEXT)", vec![])
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(&session, "CREATE TABLE predicate_exists_inner (title TEXT)", vec![])
             .await
@@ -4322,15 +4303,15 @@ fn should_filter_rows_with_empty_exists_predicate() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE predicate_empty_exists_outer (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -4378,15 +4359,15 @@ fn should_execute_inner_join_query() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE join_users (user_key INT, name TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -4445,15 +4426,15 @@ fn should_execute_left_join_query() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE left_users (user_key INT, name TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -4504,15 +4485,15 @@ fn should_execute_from_subquery_query() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE from_subquery_docs (title TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -4555,15 +4536,15 @@ fn should_execute_grouped_count_query() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE aggregate_count_docs (category TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -4625,15 +4606,15 @@ fn should_filter_grouped_rows_with_having() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE aggregate_having_sales (category TEXT, amount INT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         for sql in [
             "INSERT INTO aggregate_having_sales (category, amount) VALUES ('a', 7)",
             "INSERT INTO aggregate_having_sales (category, amount) VALUES ('a', 5)",
@@ -4675,15 +4656,15 @@ fn should_execute_distinct_query() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE distinct_docs (category TEXT)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         for sql in [
             "INSERT INTO distinct_docs (category) VALUES ('b')",
             "INSERT INTO distinct_docs (category) VALUES ('a')",
@@ -4728,11 +4709,11 @@ fn should_execute_union_all_query() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(&session, "CREATE TABLE union_all_left (title TEXT)", vec![])
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -4803,11 +4784,11 @@ fn should_execute_union_query_with_deduplication() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(&session, "CREATE TABLE union_left (title TEXT)", vec![])
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(&session, "CREATE TABLE union_right (title TEXT)", vec![])
             .await

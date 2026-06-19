@@ -81,15 +81,15 @@ fn should_roundtrip_supported_sql_values() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE type_round_trip (item_id TEXT, item_uuid UUID, created_on DATE, created_at TIME, created_at_ts TIMESTAMP, payload JSON, values INT[], embedding VECTOR(2), short SMALLINT, wide BIGINT, code CHAR(4), title VARCHAR(10), blob BYTEA)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -165,7 +165,7 @@ fn should_cast_string_to_uuid() {
     runtime.block_on(async {
         let cassie = Cassie::new().unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let casted_uuid = cassie
@@ -174,8 +174,8 @@ fn should_cast_string_to_uuid() {
                 "SELECT CAST('550e8400-e29b-41d4-a716-446655440000' AS UUID)",
                 vec![],
             )
-            .await
-            .unwrap();
+            
+            .await.unwrap();
         // Assert
         assert_eq!(
             casted_uuid.rows[0][0],
@@ -195,13 +195,13 @@ fn should_cast_null_to_text() {
     runtime.block_on(async {
         let cassie = Cassie::new().unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let casted_text = cassie
             .execute_sql(&session, "SELECT CAST(NULL AS TEXT)", vec![])
-            .await
-            .unwrap();
+            
+            .await.unwrap();
 
         // Assert
         assert_eq!(casted_text.rows[0][0], Value::Null);
@@ -219,7 +219,7 @@ fn should_fail_when_casting_scalar_to_unsupported_type_family() {
     runtime.block_on(async {
         let cassie = Cassie::new().unwrap();
         cassie.startup().await.unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
 
         // Act
         let vector_cast = cassie

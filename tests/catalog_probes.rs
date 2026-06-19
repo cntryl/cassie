@@ -27,7 +27,7 @@ fn should_return_version_function() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie
             .create_session("tester", Some("catalogdb".to_string()))
-            .await;
+            ;
 
         // Act
         let result = cassie
@@ -61,7 +61,7 @@ fn should_return_current_schema_function() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie
             .create_session("tester", Some("catalogdb".to_string()))
-            .await;
+            ;
 
         // Act
         let result = cassie
@@ -92,7 +92,7 @@ fn should_return_current_database_function() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie
             .create_session("tester", Some("catalogdb".to_string()))
-            .await;
+            ;
 
         // Act
         let result = cassie
@@ -123,7 +123,7 @@ fn should_return_search_path_from_show_statement() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie
             .create_session("tester", Some("catalogdb".to_string()))
-            .await;
+            ;
 
         // Act
         let result = cassie
@@ -164,7 +164,7 @@ fn should_treat_supported_set_statement_as_noop() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie
             .create_session("tester", Some("catalogdb".to_string()))
-            .await;
+            ;
 
         // Act
         let result = cassie
@@ -195,7 +195,7 @@ fn should_reject_unsupported_show_variable() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie
             .create_session("tester", Some("catalogdb".to_string()))
-            .await;
+            ;
 
         // Act
         let result = cassie
@@ -223,7 +223,7 @@ fn should_reject_unsupported_set_variable() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie
             .create_session("tester", Some("catalogdb".to_string()))
-            .await;
+            ;
 
         // Act
         let result = cassie

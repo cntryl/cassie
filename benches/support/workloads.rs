@@ -51,14 +51,14 @@ pub async fn context(label: &str, dataset_rows: usize) -> Result<BenchContext, C
 
     let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
     cassie.startup().await?;
-    let session = cassie.create_session("benchmark", None).await;
+    let session = cassie.create_session("benchmark", None);
     let ctx = BenchContext {
         cassie,
         session,
         collection: "bench_documents".to_string(),
         _embedding_server: None,
     };
-    prepare_collection(&ctx, dataset_rows).await?;
+    prepare_collection(&ctx, dataset_rows)?;
     Ok(ctx)
 }
 
@@ -69,7 +69,7 @@ pub async fn empty_context(label: &str) -> Result<BenchContext, CassieError> {
 
     let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
     cassie.startup().await?;
-    let session = cassie.create_session("benchmark", None).await;
+    let session = cassie.create_session("benchmark", None);
     Ok(BenchContext {
         cassie,
         session,
@@ -98,15 +98,15 @@ pub async fn context_with_mock_tei_embeddings(
     dir.push(format!("cassie-bench-{label}-{}", Uuid::new_v4()));
 
     let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir, config)?);
-    cassie.startup().await?;
-    let session = cassie.create_session("benchmark", None).await;
+    cassie.startup()?;
+    let session = cassie.create_session("benchmark", None);
     let ctx = BenchContext {
         cassie,
         session,
         collection: "bench_documents".to_string(),
         _embedding_server: Some(server),
     };
-    prepare_collection(&ctx, dataset_rows).await?;
+    prepare_collection(&ctx, dataset_rows)?;
     let statement = format!(
         "CREATE INDEX {}_embedding_idx ON {} USING vector (embedding) WITH (source_field = body, metric = cosine)",
         ctx.collection, ctx.collection
@@ -221,7 +221,7 @@ async fn prepare_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(
     ctx.cassie
         .midge
         .create_collection(&ctx.collection, schema.clone())
-        .await?;
+        ?;
     ctx.cassie
         .register_collection(
             &ctx.collection,
@@ -231,7 +231,7 @@ async fn prepare_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(
                 .map(|field| (field.name.clone(), field.data_type.clone()))
                 .collect(),
         )
-        .await;
+        ;
 
     let statements = [
         format!(
@@ -285,7 +285,7 @@ async fn prepare_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(
                     ],
                 }),
             )
-            .await?;
+            ?;
     }
 
     Ok(())
@@ -499,7 +499,7 @@ pub async fn sql_binding(ctx: &BenchContext) -> usize {
     let parsed =
         parse_statement("SELECT id, title FROM bench_documents WHERE score >= 10").expect("parse");
     let bound = binder::bind(parsed, &ctx.cassie.catalog)
-        .await
+        
         .expect("bind");
     std::hint::black_box(bound);
     1
@@ -592,14 +592,14 @@ pub async fn pgwire_large_result_query(ctx: &BenchContext) -> usize {
 }
 
 pub async fn pgwire_connection_churn(ctx: &BenchContext) -> usize {
-    let session = ctx.cassie.create_session("benchmark", None).await;
+    let session = ctx.cassie.create_session("benchmark", None);
     let messages = cassie::pgwire::handlers::query::run_simple_query(
         &ctx.cassie,
         &session,
         "SELECT id FROM bench_documents WHERE score = 1 LIMIT 20",
         vec![],
     )
-    .await;
+    ;
     std::hint::black_box(messages.len())
 }
 
@@ -616,13 +616,13 @@ pub async fn pgwire_concurrent_connections(ctx: &BenchContext, concurrency: usiz
     for index in 0..concurrency.max(1) {
         let cassie = ctx.cassie.clone();
         tasks.spawn(async move {
-            let session = cassie.create_session("benchmark", None).await;
+            let session = cassie.create_session("benchmark", None);
             let sql = format!(
                 "SELECT id FROM bench_documents WHERE score >= {} LIMIT 20",
                 index % 16
             );
             cassie::pgwire::handlers::query::run_simple_query(&cassie, &session, &sql, vec![])
-                .await
+                
                 .len()
         });
     }
@@ -790,7 +790,7 @@ pub async fn timed_http_document_create_get_batch(
         ctx.cassie
             .midge
             .delete_document(&ctx.collection, &id)
-            .await
+            
             .expect("cleanup document");
     }
     elapsed / batch_size as u32
@@ -807,7 +807,7 @@ pub async fn ingest_document(ctx: &BenchContext) -> usize {
     let id = ctx
         .cassie
         .ingest_document(&ctx.collection, payload)
-        .await
+        
         .expect("ingest document");
     std::hint::black_box(id);
     1
@@ -926,7 +926,7 @@ pub async fn timed_ingest_document_batch(ctx: &BenchContext, batch_size: usize) 
         ctx.cassie
             .midge
             .delete_document(&ctx.collection, &id)
-            .await
+            
             .expect("cleanup ingested document");
     }
     elapsed / batch_size as u32

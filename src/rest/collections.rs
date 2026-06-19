@@ -20,7 +20,7 @@ pub struct FieldSpec {
 }
 
 pub async fn list(cassie: &Cassie) -> Vec<String> {
-    cassie.midge.list_collections().await
+    cassie.midge.list_collections()
 }
 
 pub async fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> {
@@ -44,7 +44,7 @@ pub async fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> 
     cassie
         .midge
         .create_collection(&request.name, schema.clone())
-        .await?;
+        ?;
 
     cassie
         .catalog

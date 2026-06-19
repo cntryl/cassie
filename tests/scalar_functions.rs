@@ -121,7 +121,7 @@ fn should_execute_string_scalar_functions_in_query_path() {
         with_fallback();
         let path = data_dir("string_helpers");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let table = "scalar_string_helpers";
 
         let schema = Schema {
@@ -142,7 +142,7 @@ fn should_execute_string_scalar_functions_in_query_path() {
         cassie
             .midge
             .create_collection(table, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -152,8 +152,7 @@ fn should_execute_string_scalar_functions_in_query_path() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -161,7 +160,7 @@ fn should_execute_string_scalar_functions_in_query_path() {
                 Some("d1".to_string()),
                 serde_json::json!({"id": "d1", "title": "  Alpha  "}),
             )
-            .await
+            
             .unwrap();
 
         // Act
@@ -204,7 +203,7 @@ fn should_execute_null_numeric_scalar_functions() {
         with_fallback();
         let path = data_dir("coalesce_abs");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let table = "scalar_null_helpers";
 
         let schema = Schema {
@@ -230,7 +229,7 @@ fn should_execute_null_numeric_scalar_functions() {
         cassie
             .midge
             .create_collection(table, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -240,8 +239,7 @@ fn should_execute_null_numeric_scalar_functions() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -249,7 +247,7 @@ fn should_execute_null_numeric_scalar_functions() {
                 Some("d1".to_string()),
                 serde_json::json!({"id": "d1", "title": null, "score": -4}),
             )
-            .await
+            
             .unwrap();
         cassie
             .midge
@@ -258,7 +256,7 @@ fn should_execute_null_numeric_scalar_functions() {
                 Some("d2".to_string()),
                 serde_json::json!({"id": "d2", "title": "beta", "score": 9}),
             )
-            .await
+            
             .unwrap();
 
         // Act
@@ -306,7 +304,7 @@ fn should_short_circuit_coalesce_before_evaluating_later_arguments() {
         with_fallback();
         let path = data_dir("coalesce_short_circuit");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let table = "scalar_coalesce_short_circuit";
 
         let schema = Schema {
@@ -327,7 +325,7 @@ fn should_short_circuit_coalesce_before_evaluating_later_arguments() {
         cassie
             .midge
             .create_collection(table, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -337,8 +335,7 @@ fn should_short_circuit_coalesce_before_evaluating_later_arguments() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -346,7 +343,7 @@ fn should_short_circuit_coalesce_before_evaluating_later_arguments() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "alpha", "score": 7}),
             )
-            .await
+            
             .unwrap();
 
         // Act
@@ -378,7 +375,7 @@ fn should_reject_scalar_function_with_invalid_arity() {
         with_fallback();
         let path = data_dir("arity_error");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let table = "scalar_arity_error";
 
         let schema = Schema {
@@ -392,7 +389,7 @@ fn should_reject_scalar_function_with_invalid_arity() {
         cassie
             .midge
             .create_collection(table, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -402,8 +399,7 @@ fn should_reject_scalar_function_with_invalid_arity() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -411,7 +407,7 @@ fn should_reject_scalar_function_with_invalid_arity() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            .await
+            
             .unwrap();
 
         // Act
@@ -444,7 +440,7 @@ fn should_reject_scalar_function_with_unsupported_type() {
         with_fallback();
         let path = data_dir("type_error");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let table = "scalar_type_error";
 
         let schema = Schema {
@@ -458,7 +454,7 @@ fn should_reject_scalar_function_with_unsupported_type() {
         cassie
             .midge
             .create_collection(table, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -468,8 +464,7 @@ fn should_reject_scalar_function_with_unsupported_type() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -477,7 +472,7 @@ fn should_reject_scalar_function_with_unsupported_type() {
                 Some("d1".to_string()),
                 serde_json::json!({"score": 7}),
             )
-            .await
+            
             .unwrap();
 
         // Act
@@ -557,7 +552,7 @@ fn should_execute_user_defined_functions_after_builtin_expansion() {
         with_fallback();
         let path = data_dir("udf_regression");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie.create_session("tester", None).await;
+        let session = cassie.create_session("tester", None);
         let table = "scalar_udf_regression";
 
         let schema = Schema {
@@ -571,7 +566,7 @@ fn should_execute_user_defined_functions_after_builtin_expansion() {
         cassie
             .midge
             .create_collection(table, schema.clone())
-            .await
+            
             .unwrap();
         cassie
             .register_collection(
@@ -581,8 +576,7 @@ fn should_execute_user_defined_functions_after_builtin_expansion() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            ).await;
         cassie
             .midge
             .put_document(
@@ -590,7 +584,7 @@ fn should_execute_user_defined_functions_after_builtin_expansion() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "Alpha"}),
             )
-            .await
+            
             .unwrap();
 
         cassie

@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use serde::{Deserialize, Serialize};
+
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::{Batch, RowAccess};
@@ -18,7 +20,7 @@ pub(crate) enum ScalarValue {
     Str(String),
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub(crate) struct SearchContext {
     total_documents: usize,
     doc_frequency: HashMap<String, HashMap<String, usize>>,
@@ -28,7 +30,7 @@ pub(crate) struct SearchContext {
     field_b: HashMap<String, f64>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct SearchTermStats {
     has_text: bool,
     doc_length: usize,

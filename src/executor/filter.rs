@@ -28,6 +28,27 @@ pub(crate) struct SearchContext {
     field_b: HashMap<String, f64>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct SearchTermStats {
+    has_text: bool,
+    doc_length: usize,
+    term_counts: HashMap<String, usize>,
+}
+
+impl SearchTermStats {
+    pub(crate) fn from_text(source: Option<&str>) -> Self {
+        let Some(source) = source else {
+            return Self::default();
+        };
+        let tokens = crate::search::tokenizer::tokenize(source);
+        Self {
+            has_text: true,
+            doc_length: tokens.len(),
+            term_counts: token_counts(tokens.as_slice()),
+        }
+    }
+}
+
 impl SearchContext {
     pub(crate) fn from_rows<'a, I, R>(
         rows: I,
@@ -65,23 +86,20 @@ impl SearchContext {
                 let Value::String(text) = value else {
                     continue;
                 };
-                let tokens = crate::search::tokenizer::tokenize(text);
+                let term_stats = SearchTermStats::from_text(Some(text));
                 text_length
                     .entry(name.clone())
-                    .and_modify(|value| *value += tokens.len())
-                    .or_insert(tokens.len());
+                    .and_modify(|value| *value += term_stats.doc_length)
+                    .or_insert(term_stats.doc_length);
                 *term_occurrence.entry(name.clone()).or_insert(0) += 1;
-                let mut unique_terms = HashSet::new();
-                for term in tokens {
-                    if unique_terms.insert(term.clone()) {
-                        context
-                            .doc_frequency
-                            .entry(name.clone())
-                            .or_default()
-                            .entry(term)
-                            .and_modify(|count| *count += 1)
-                            .or_insert(1);
-                    }
+                for term in term_stats.term_counts.keys() {
+                    context
+                        .doc_frequency
+                        .entry(name.clone())
+                        .or_default()
+                        .entry(term.clone())
+                        .and_modify(|count| *count += 1)
+                        .or_insert(1);
                 }
             }
         }
@@ -100,6 +118,54 @@ impl SearchContext {
 
     pub(crate) fn total_documents(&self) -> usize {
         self.total_documents
+    }
+
+    pub(crate) fn from_term_stats<'a, I>(
+        field: &str,
+        documents: I,
+        field_boost: &HashMap<String, f64>,
+        field_k1: &HashMap<String, f64>,
+        field_b: &HashMap<String, f64>,
+    ) -> Self
+    where
+        I: IntoIterator<Item = &'a SearchTermStats>,
+    {
+        let field = field.to_lowercase();
+        let mut context = Self {
+            doc_boost: field_boost.clone(),
+            field_k1: field_k1.clone(),
+            field_b: field_b.clone(),
+            ..Default::default()
+        };
+        let mut docs_with_field = 0usize;
+        let mut length_sum = 0usize;
+
+        for stats in documents {
+            context.total_documents += 1;
+            if !stats.has_text {
+                continue;
+            }
+
+            docs_with_field += 1;
+            length_sum += stats.doc_length;
+            for term in stats.term_counts.keys() {
+                context
+                    .doc_frequency
+                    .entry(field.clone())
+                    .or_default()
+                    .entry(term.clone())
+                    .and_modify(|count| *count += 1)
+                    .or_insert(1);
+            }
+        }
+
+        if docs_with_field > 0 {
+            context
+                .avg_doc_length
+                .insert(field, length_sum as f64 / docs_with_field as f64);
+        }
+
+        context
     }
 
     fn average_doc_length(&self, field: &str) -> Option<f64> {
@@ -134,17 +200,21 @@ impl SearchContext {
     }
 
     pub(crate) fn score_text(&self, field: Option<&str>, source: &str, query: &str) -> f64 {
-        let query_tokens = crate::search::tokenizer::tokenize(query);
-        if query_tokens.is_empty() || source.trim().is_empty() {
-            return 0.0;
-        }
+        let query_terms = prepare_query_terms(query);
+        let source_stats = SearchTermStats::from_text(Some(source));
+        self.score_term_stats(field, &source_stats, &query_terms)
+    }
 
-        let source_tokens = crate::search::tokenizer::tokenize(source);
-        if source_tokens.is_empty() {
+    pub(crate) fn score_term_stats(
+        &self,
+        field: Option<&str>,
+        source_stats: &SearchTermStats,
+        query_terms: &[String],
+    ) -> f64 {
+        if query_terms.is_empty() || !source_stats.has_text || source_stats.doc_length == 0 {
             return 0.0;
         }
-        let source_term_counts = token_counts(source_tokens.as_slice());
-        let dl = source_tokens.len() as f64;
+        let dl = source_stats.doc_length as f64;
 
         let docs = self.total_documents.max(1) as f64;
         let field = field.map(|field| field.to_lowercase());
@@ -165,16 +235,15 @@ impl SearchContext {
             ));
 
         let mut score = 0.0;
-        let query_terms = query_tokens.into_iter().collect::<HashSet<_>>();
         for term in query_terms {
-            let tf = source_term_counts.get(&term).copied().unwrap_or(0) as f64;
+            let tf = source_stats.term_counts.get(term).copied().unwrap_or(0) as f64;
             if tf == 0.0 {
                 continue;
             }
 
             let df = field
                 .as_deref()
-                .and_then(|field| self.document_frequency(field, &term))
+                .and_then(|field| self.document_frequency(field, term))
                 .unwrap_or(0) as f64;
             score += crate::search::bm25_score(tf, df, docs, k1, b, dl, avg_dl);
         }
@@ -1208,6 +1277,17 @@ fn token_counts(tokens: &[String]) -> HashMap<String, usize> {
     out
 }
 
+pub(crate) fn prepare_query_terms(query: &str) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut terms = Vec::new();
+    for token in crate::search::tokenizer::tokenize(query) {
+        if seen.insert(token.clone()) {
+            terms.push(token);
+        }
+    }
+    terms
+}
+
 fn to_vector(value: &Value) -> Option<Vec<f32>> {
     match value {
         Value::Vector(vector) => Some(vector.values.clone()),
@@ -1278,4 +1358,77 @@ fn parse_vector_text(value: &str) -> Option<Vec<f32>> {
         out.push(part.trim().parse::<f32>().ok()?);
     }
     Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::executor::batch::BatchRow;
+
+    #[test]
+    fn should_score_term_stats_same_as_text_scoring() {
+        // Arrange
+        let row = BatchRow::new(vec![(
+            "body".to_string(),
+            Value::String("alpha beta alpha".to_string()),
+        )]);
+        let text_fields = vec!["body".to_string()];
+        let search_context = SearchContext::from_rows(
+            std::iter::once(&row),
+            &text_fields,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        );
+        let term_stats = SearchTermStats::from_text(Some("alpha beta alpha"));
+        let query_terms = prepare_query_terms("alpha beta");
+
+        // Act
+        let direct_score =
+            search_context.score_text(Some("body"), "alpha beta alpha", "alpha beta");
+        let stats_score = search_context.score_term_stats(Some("body"), &term_stats, &query_terms);
+
+        // Assert
+        assert!((direct_score - stats_score).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn should_build_search_context_from_term_stats_with_same_statistics_as_rows() {
+        // Arrange
+        let rows = [
+            BatchRow::new(vec![(
+                "body".to_string(),
+                Value::String("alpha beta".to_string()),
+            )]),
+            BatchRow::new(vec![("body".to_string(), Value::String(String::new()))]),
+            BatchRow::new(vec![("body".to_string(), Value::Null)]),
+        ];
+        let text_fields = vec!["body".to_string()];
+        let row_context = SearchContext::from_rows(
+            rows.iter(),
+            &text_fields,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        );
+        let term_stats = [
+            SearchTermStats::from_text(Some("alpha beta")),
+            SearchTermStats::from_text(Some("")),
+            SearchTermStats::from_text(None),
+        ];
+
+        // Act
+        let stats_context = SearchContext::from_term_stats(
+            "body",
+            term_stats.iter(),
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        );
+
+        // Assert
+        assert_eq!(row_context.total_documents, stats_context.total_documents);
+        assert_eq!(row_context.doc_frequency, stats_context.doc_frequency);
+        assert_eq!(row_context.avg_doc_length, stats_context.avg_doc_length);
+    }
 }

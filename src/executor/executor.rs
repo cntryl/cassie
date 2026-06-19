@@ -1904,6 +1904,17 @@ async fn execute_scored_search_top_k(
     Ok(None)
 }
 
+struct TokenizedFulltextDocument {
+    id: String,
+    text_stats: filter::SearchTermStats,
+}
+
+struct TokenizedHybridDocument {
+    id: String,
+    text_stats: filter::SearchTermStats,
+    vector: Option<Vec<f32>>,
+}
+
 async fn execute_fulltext_top_k(
     cassie: &Cassie,
     spec: FulltextTopKSpec,
@@ -1917,44 +1928,42 @@ async fn execute_fulltext_top_k(
         )
         .await
         .map_err(|error| QueryError::General(error.to_string()))?;
-    let rows = documents
-        .iter()
-        .map(|document| {
-            BatchRow::new(vec![
-                ("id".to_string(), Value::String(document.id.clone())),
-                (
-                    spec.text_field.clone(),
-                    json_text_value(document.payload.get(&spec.text_field)),
-                ),
-            ])
+    let search_documents = documents
+        .into_iter()
+        .map(|document| TokenizedFulltextDocument {
+            id: document.id,
+            text_stats: json_search_term_stats(document.payload.get(&spec.text_field)),
         })
         .collect::<Vec<_>>();
-    let search_context = search_context_for_fields(
+    let search_index_options = search_context_for_fields(
         cassie,
         &spec.collection,
         std::slice::from_ref(&spec.text_field),
     )
     .await?;
-    let search_context = filter::SearchContext::from_rows(
-        rows.iter(),
-        std::slice::from_ref(&spec.text_field),
-        &search_context.field_boost,
-        &search_context.field_k1,
-        &search_context.field_b,
+    let search_context = filter::SearchContext::from_term_stats(
+        &spec.text_field,
+        search_documents.iter().map(|document| &document.text_stats),
+        &search_index_options.field_boost,
+        &search_index_options.field_k1,
+        &search_index_options.field_b,
     );
+    let query_terms = filter::prepare_query_terms(&spec.query);
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
 
-    for row in &rows {
-        let id = row_text(row, "id");
-        let source = row_text(row, &spec.text_field);
-        let score = search_context.score_text(Some(&spec.text_field), &source, &spec.query);
+    for document in &search_documents {
+        let score = search_context.score_term_stats(
+            Some(&spec.text_field),
+            &document.text_stats,
+            &query_terms,
+        );
         if spec.require_match && score == 0.0 {
             continue;
         }
         let candidate = ScoredSearchCandidate {
             sort_value: -score,
             score,
-            id,
+            id: document.id.clone(),
         };
         push_top_k(&mut top, spec.top_needed(), candidate);
     }
@@ -1966,9 +1975,11 @@ async fn execute_fulltext_top_k(
         &spec.id_column,
         &spec.score_column,
     );
-    cassie
-        .runtime
-        .record_search_execution(started_at.elapsed(), documents.len(), rows.len());
+    cassie.runtime.record_search_execution(
+        started_at.elapsed(),
+        search_documents.len(),
+        rows.len(),
+    );
     Ok(rows)
 }
 
@@ -1985,47 +1996,42 @@ async fn execute_hybrid_top_k(
         )
         .await
         .map_err(|error| QueryError::General(error.to_string()))?;
-    let rows = documents
-        .iter()
-        .map(|document| {
-            BatchRow::new(vec![
-                ("id".to_string(), Value::String(document.id.clone())),
-                (
-                    spec.text_field.clone(),
-                    json_text_value(document.payload.get(&spec.text_field)),
-                ),
-                (
-                    spec.vector_field.clone(),
-                    json_vector_value(document.payload.get(&spec.vector_field)),
-                ),
-            ])
+    let search_documents = documents
+        .into_iter()
+        .map(|document| TokenizedHybridDocument {
+            id: document.id,
+            text_stats: json_search_term_stats(document.payload.get(&spec.text_field)),
+            vector: document
+                .payload
+                .get(&spec.vector_field)
+                .and_then(vector_from_json),
         })
         .collect::<Vec<_>>();
-    let search_context = search_context_for_fields(
+    let search_index_options = search_context_for_fields(
         cassie,
         &spec.collection,
         std::slice::from_ref(&spec.text_field),
     )
     .await?;
-    let search_context = filter::SearchContext::from_rows(
-        rows.iter(),
-        std::slice::from_ref(&spec.text_field),
-        &search_context.field_boost,
-        &search_context.field_k1,
-        &search_context.field_b,
+    let search_context = filter::SearchContext::from_term_stats(
+        &spec.text_field,
+        search_documents.iter().map(|document| &document.text_stats),
+        &search_index_options.field_boost,
+        &search_index_options.field_k1,
+        &search_index_options.field_b,
     );
+    let query_terms = filter::prepare_query_terms(&spec.query);
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
 
-    for row in &rows {
-        let id = row_text(row, "id");
-        let source = row_text(row, &spec.text_field);
-        let search_score = search_context.score_text(Some(&spec.text_field), &source, &spec.query);
-        let vector = row
-            .get(&spec.vector_field)
-            .and_then(value_to_vector)
-            .ok_or_else(|| {
-                QueryError::General("vector_score expects vector in first argument".to_string())
-            })?;
+    for document in &search_documents {
+        let search_score = search_context.score_term_stats(
+            Some(&spec.text_field),
+            &document.text_stats,
+            &query_terms,
+        );
+        let vector = document.vector.as_ref().ok_or_else(|| {
+            QueryError::General("vector_score expects vector in first argument".to_string())
+        })?;
         if vector.len() != spec.vector_query.len() {
             return Err(QueryError::General(format!(
                 "vector_score vector length mismatch: {} != {}",
@@ -2033,12 +2039,12 @@ async fn execute_hybrid_top_k(
                 spec.vector_query.len()
             )));
         }
-        let vector_score = 1.0 / (1.0 + crate::vector::l2_distance(&vector, &spec.vector_query));
+        let vector_score = 1.0 / (1.0 + crate::vector::l2_distance(vector, &spec.vector_query));
         let score = crate::hybrid::hybrid_score(search_score, vector_score, None);
         let candidate = ScoredSearchCandidate {
             sort_value: -score,
             score,
-            id,
+            id: document.id.clone(),
         };
         push_top_k(&mut top, spec.top_needed(), candidate);
     }
@@ -2050,15 +2056,21 @@ async fn execute_hybrid_top_k(
         &spec.id_column,
         &spec.score_column,
     );
-    cassie
-        .runtime
-        .record_search_execution(started_at.elapsed(), documents.len(), rows.len());
-    cassie
-        .runtime
-        .record_vector_execution(started_at.elapsed(), documents.len(), rows.len());
-    cassie
-        .runtime
-        .record_hybrid_execution(started_at.elapsed(), documents.len(), rows.len());
+    cassie.runtime.record_search_execution(
+        started_at.elapsed(),
+        search_documents.len(),
+        rows.len(),
+    );
+    cassie.runtime.record_vector_execution(
+        started_at.elapsed(),
+        search_documents.len(),
+        rows.len(),
+    );
+    cassie.runtime.record_hybrid_execution(
+        started_at.elapsed(),
+        search_documents.len(),
+        rows.len(),
+    );
     Ok(rows)
 }
 
@@ -2317,34 +2329,8 @@ fn function_call_key(function: &FunctionCall) -> String {
     format!("{}({})", function.name.to_ascii_lowercase(), args)
 }
 
-fn json_text_value(value: Option<&serde_json::Value>) -> Value {
-    value
-        .and_then(serde_json::Value::as_str)
-        .map(|value| Value::String(value.to_string()))
-        .unwrap_or(Value::Null)
-}
-
-fn json_vector_value(value: Option<&serde_json::Value>) -> Value {
-    value
-        .and_then(vector_from_json)
-        .map(|values| Value::Vector(crate::types::Vector::new(values)))
-        .unwrap_or(Value::Null)
-}
-
-fn row_text(row: &BatchRow, field: &str) -> String {
-    row.get(field)
-        .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_default()
-}
-
-fn value_to_vector(value: &Value) -> Option<Vec<f32>> {
-    match value {
-        Value::Vector(vector) => Some(vector.values.clone()),
-        Value::String(value) => parse_vector_literal(value),
-        Value::Json(value) => vector_from_json(value),
-        _ => None,
-    }
+fn json_search_term_stats(value: Option<&serde_json::Value>) -> filter::SearchTermStats {
+    filter::SearchTermStats::from_text(value.and_then(serde_json::Value::as_str))
 }
 
 #[derive(Debug, Clone, PartialEq)]

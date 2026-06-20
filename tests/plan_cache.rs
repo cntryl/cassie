@@ -254,6 +254,70 @@ fn should_reuse_cached_plan_for_equivalent_sql_with_different_whitespace() {
 }
 
 #[test]
+fn should_isolate_cached_plans_by_database() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("database_isolation");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "plan_cache_database_docs";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .catalog
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .unwrap();
+
+        let primary = cassie.create_session("alice", Some("primary_db".to_string()));
+        let analytics = cassie.create_session("alice", Some("analytics_db".to_string()));
+        let sql = "SELECT title FROM plan_cache_database_docs WHERE title = 'alpha'";
+
+        // Act
+        let first = cassie.execute_sql(&primary, sql, vec![]).await.unwrap();
+        let second = cassie.execute_sql(&analytics, sql, vec![]).await.unwrap();
+        let metrics = cassie.metrics().await;
+
+        // Assert
+        assert_eq!(first.rows.len(), 1);
+        assert_eq!(second.rows.len(), 1);
+        assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(2));
+        assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_keep_first_non_durable_plan_miss_out_of_cf2() {
     // Arrange
     with_fallback();

@@ -92,6 +92,42 @@ fn should_reject_invalid_vector_dimensions_through_rest() {
 }
 
 #[test]
+fn should_reject_missing_document_lookup_through_rest() {
+    // Arrange
+    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    let cassie = Cassie::new().unwrap();
+    let collection = "rest_missing_doc";
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let _ = collections::create(
+            &cassie,
+            serde_json::json!({
+                "name": collection,
+                "fields": [{"name": "title", "type": "text"}],
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .await;
+
+        // Act
+        let missing = documents::get(&cassie, collection, "missing-id").await;
+
+        // Assert
+        assert!(missing.is_err(), "missing document should fail");
+        let error = format!("{:?}", missing.unwrap_err());
+        assert!(
+            error.contains("document not found"),
+            "unexpected error: {error}"
+        );
+    });
+}
+
+#[test]
 fn should_apply_default_values_for_rest_ingest() {
     // Arrange
     let path = format!("/tmp/cassie-rest-default-{}", Uuid::new_v4());

@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 059: HTTP API](issue-059.md) - V1 - Projection Query Engine / Protocols
 - [Issue 060: EXPLAIN](issue-060.md) - V1 - Projection Query Engine / Observability
 - [Issue 061: Query Statistics](issue-061.md) - V1 - Projection Query Engine / Observability
 - [Issue 062: Operator Statistics](issue-062.md) - V1 - Projection Query Engine / Observability

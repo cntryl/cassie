@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 008: WHERE](issue-008.md) - V1 - Projection Query Engine / SQL
 - [Issue 009: ORDER BY](issue-009.md) - V1 - Projection Query Engine / SQL
 - [Issue 010: LIMIT](issue-010.md) - V1 - Projection Query Engine / SQL
 - [Issue 011: OFFSET](issue-011.md) - V1 - Projection Query Engine / SQL

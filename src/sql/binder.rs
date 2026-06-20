@@ -4,7 +4,7 @@ use std::mem;
 use std::pin::Pin;
 
 use crate::app::CassieError;
-use crate::catalog::{is_reserved_namespace, virtual_views, Catalog, CollectionSchema};
+use crate::catalog::{is_reserved_namespace, virtual_views, Catalog, CollectionSchema, IndexMeta};
 use crate::embeddings::DistanceMetric;
 use crate::search::bm25;
 use crate::sql::ast::{
@@ -22,6 +22,7 @@ type CteScope = HashMap<String, Vec<String>>;
 #[derive(Debug, Clone)]
 pub struct BoundStatement {
     pub statement: ParsedStatement,
+    pub indexes: Vec<IndexMeta>,
 }
 
 pub async fn bind(
@@ -29,7 +30,32 @@ pub async fn bind(
     catalog: &Catalog,
 ) -> Result<BoundStatement, CassieError> {
     let statement = bind_statement(statement, catalog, &HashMap::new()).await?;
-    Ok(BoundStatement { statement })
+    let indexes = bound_indexes(&statement, catalog).await;
+    Ok(BoundStatement { statement, indexes })
+}
+
+async fn bound_indexes(statement: &ParsedStatement, catalog: &Catalog) -> Vec<IndexMeta> {
+    let Some(collection) = bound_statement_collection(statement) else {
+        return Vec::new();
+    };
+    catalog.list_indexes(&collection).await
+}
+
+fn bound_statement_collection(statement: &ParsedStatement) -> Option<String> {
+    match &statement.statement {
+        QueryStatement::Select(select) => source_collection(&select.source),
+        QueryStatement::Explain(statement) => bound_statement_collection(&statement.statement),
+        _ => None,
+    }
+}
+
+fn source_collection(source: &QuerySource) -> Option<String> {
+    match source {
+        QuerySource::Collection(collection) => Some(collection.clone()),
+        QuerySource::Subquery { select, .. } => source_collection(&select.source),
+        QuerySource::Join { left, .. } => source_collection(left),
+        QuerySource::Cte(_) | QuerySource::SingleRow => None,
+    }
 }
 
 fn bind_statement<'a>(

@@ -861,7 +861,10 @@ impl Cassie {
 
         let logical = crate::planner::logical::plan(&bound)?;
         let optimized = crate::planner::optimizer::optimize(logical);
-        Ok(Arc::new(crate::planner::physical::build(optimized)))
+        Ok(Arc::new(crate::planner::physical::build_with_indexes(
+            optimized,
+            bound.indexes,
+        )))
     }
 
     async fn execute_sql_core(
@@ -1097,8 +1100,10 @@ impl Cassie {
             .scan_limit
             .map(|limit| limit.to_string())
             .unwrap_or_else(|| "none".to_string());
+        let index_aware = physical.selected_index.is_some();
+        let index = physical.selected_index.as_deref().unwrap_or("none");
         let plan = format!(
-            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={}",
+            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
@@ -1109,7 +1114,9 @@ impl Cassie {
             projection_pruning,
             scan_fields,
             limit_pushdown,
-            scan_limit
+            scan_limit,
+            index_aware,
+            index
         );
 
         Ok(QueryResult {

@@ -3053,6 +3053,7 @@ fn should_fail_unknown_function_during_execution() {
             predicate_pushdown: false,
             projected_scan_fields: Vec::new(),
             scan_limit: None,
+            selected_index: None,
             logical,
         };
 

@@ -3636,6 +3636,7 @@ fn build_logical_plan(
 ) -> Result<LogicalPlan, QueryError> {
     let plan = crate::planner::logical::plan(&crate::sql::binder::BoundStatement {
         statement: statement.clone(),
+        indexes: Vec::new(),
     })
     .map_err(|error| QueryError::General(error.to_string()))?;
 

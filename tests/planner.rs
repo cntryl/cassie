@@ -248,6 +248,46 @@ fn should_mark_scan_limit_for_limit_pushdown() {
 }
 
 #[test]
+fn should_select_scalar_index_for_equality_filter() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_index_aware");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        catalog
+            .register_index(cassie::catalog::IndexMeta {
+                collection: "planner_index_aware".to_string(),
+                name: "planner_index_aware_title_idx".to_string(),
+                field: "title".to_string(),
+                fields: vec!["title".to_string()],
+                kind: cassie::catalog::IndexKind::Scalar,
+                unique: false,
+                options: Default::default(),
+            })
+            .await;
+        let parsed =
+            parser::parse_statement("SELECT body FROM planner_index_aware WHERE title = 'alpha'")
+                .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let logical = logical::plan(&bound).unwrap();
+        let logical = optimizer::optimize(logical);
+
+        // Act
+        let physical_plan = physical::build_with_indexes(logical, bound.indexes);
+
+        // Assert
+        assert_eq!(
+            physical_plan.selected_index.as_deref(),
+            Some("planner_index_aware_title_idx")
+        );
+    });
+}
+
+#[test]
 fn should_plan_join_source_with_physical_join_operator() {
     // Arrange
     let catalog = Catalog::new();
@@ -525,6 +565,7 @@ fn should_reject_invalid_logical_plan_shape_missing_collection() {
                 set: None,
             }),
         },
+        indexes: Vec::new(),
     };
 
     // Act
@@ -560,6 +601,7 @@ fn should_reject_invalid_logical_plan_shape_empty_projection() {
                 set: None,
             }),
         },
+        indexes: Vec::new(),
     };
 
     // Act
@@ -598,6 +640,7 @@ fn should_reject_invalid_logical_plan_shape_negative_offset() {
                 set: None,
             }),
         },
+        indexes: Vec::new(),
     };
 
     // Act
@@ -636,6 +679,7 @@ fn should_reject_invalid_logical_plan_shape_negative_limit() {
                 set: None,
             }),
         },
+        indexes: Vec::new(),
     };
 
     // Act

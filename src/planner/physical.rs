@@ -1,6 +1,8 @@
+use crate::catalog::{IndexKind, IndexMeta};
 use crate::planner::logical::LogicalPlan;
 use crate::sql::ast::{BinaryOp, Expr, FunctionCall, QuerySource, SelectItem, WindowFunctionCall};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Operator {
@@ -26,9 +28,14 @@ pub struct PhysicalPlan {
     pub predicate_pushdown: bool,
     pub projected_scan_fields: Vec<String>,
     pub scan_limit: Option<usize>,
+    pub selected_index: Option<String>,
 }
 
 pub fn build(plan: LogicalPlan) -> PhysicalPlan {
+    build_with_indexes(plan, Vec::new())
+}
+
+pub fn build_with_indexes(plan: LogicalPlan, indexes: Vec<IndexMeta>) -> PhysicalPlan {
     if plan.command.is_some() {
         return PhysicalPlan {
             collection: plan.collection.clone(),
@@ -37,12 +44,14 @@ pub fn build(plan: LogicalPlan) -> PhysicalPlan {
             predicate_pushdown: false,
             projected_scan_fields: Vec::new(),
             scan_limit: None,
+            selected_index: None,
         };
     }
 
     let predicate_pushdown = plan_supports_predicate_pushdown(&plan);
     let projected_scan_fields = projected_scan_fields(&plan).unwrap_or_default();
     let scan_limit = scan_limit(&plan, &projected_scan_fields);
+    let selected_index = selected_index(&plan, indexes.as_slice());
     let mut operators = vec![Operator::Scan];
     if source_contains_join(&plan.source) {
         operators.push(Operator::Join);
@@ -84,6 +93,58 @@ pub fn build(plan: LogicalPlan) -> PhysicalPlan {
         predicate_pushdown,
         projected_scan_fields,
         scan_limit,
+        selected_index,
+    }
+}
+
+fn selected_index(plan: &LogicalPlan, indexes: &[IndexMeta]) -> Option<String> {
+    let QuerySource::Collection(collection) = &plan.source else {
+        return None;
+    };
+    let filter = plan.filter.as_ref()?;
+    let equality_fields = equality_filter_fields(filter);
+    indexes
+        .iter()
+        .filter(|index| index.collection == *collection && index.kind == IndexKind::Scalar)
+        .filter(|index| {
+            index
+                .normalized_fields()
+                .iter()
+                .all(|field| equality_fields.contains(&field.to_ascii_lowercase()))
+        })
+        .max_by_key(|index| index.normalized_fields().len())
+        .map(|index| index.name.clone())
+}
+
+fn equality_filter_fields(expr: &Expr) -> BTreeSet<String> {
+    let mut fields = BTreeSet::new();
+    collect_equality_filter_fields(expr, &mut fields);
+    fields
+}
+
+fn collect_equality_filter_fields(expr: &Expr, fields: &mut BTreeSet<String>) {
+    match expr {
+        Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } => {
+            collect_equality_filter_fields(left, fields);
+            collect_equality_filter_fields(right, fields);
+        }
+        Expr::Binary {
+            left,
+            op: BinaryOp::Eq,
+            right,
+        } => match (left.as_ref(), right.as_ref()) {
+            (Expr::Column(field), value) | (value, Expr::Column(field))
+                if !matches!(value, Expr::Column(_)) =>
+            {
+                fields.insert(field.to_ascii_lowercase());
+            }
+            _ => {}
+        },
+        _ => {}
     }
 }
 

@@ -8,7 +8,7 @@ use cntryl_midge::{ColumnFamilyHandle, Engine, Query, TransactionMode, WriteOpti
 use uuid::Uuid;
 
 use crate::app::CassieError;
-use crate::catalog::{FieldConstraint, IndexMeta, NamespaceMeta, RoleMeta};
+use crate::catalog::{FieldConstraint, IndexMeta, NamespaceMeta, ProjectionMeta, RoleMeta};
 use crate::midge::row_blob::{
     decode_projected_row, decode_projected_row_matching, decode_row, encode_row, RowSchema,
 };
@@ -38,6 +38,7 @@ const VIEW_PREFIX: &str = "__cassie__/view/";
 const ROLE_PREFIX: &str = "__cassie__/role/";
 const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
 const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
+const PROJECTION_KEY_PREFIX: &str = "__cassie__/projection/";
 const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
 const NAMESPACES_KEY: &str = "__cassie__/namespaces";
 const SCHEMA_EPOCH_KEY: &str = "__cassie__/schema-epoch";
@@ -305,6 +306,10 @@ impl Midge {
 
     fn row_schema_key(collection: &str) -> Vec<u8> {
         format!("{ROW_SCHEMA_KEY_PREFIX}{collection}").into_bytes()
+    }
+
+    fn projection_key(collection: &str) -> Vec<u8> {
+        format!("{PROJECTION_KEY_PREFIX}{collection}").into_bytes()
     }
 
     fn schema_collection_prefix() -> Vec<u8> {
@@ -604,6 +609,45 @@ impl Midge {
         Ok(())
     }
 
+    fn load_projection_metadata_from_tx(
+        tx: &cntryl_midge::Transaction,
+        collection: &str,
+    ) -> Result<Option<ProjectionMeta>, CassieError> {
+        let Some(raw) = tx
+            .get(&Self::projection_key(collection))
+            .map_err(CassieError::from)?
+        else {
+            return Ok(None);
+        };
+        serde_json::from_slice(&raw).map(Some).map_err(|error| {
+            CassieError::Parse(format!(
+                "invalid projection metadata for '{collection}': {error}"
+            ))
+        })
+    }
+
+    fn save_projection_metadata_to_tx(
+        tx: &mut cntryl_midge::Transaction,
+        metadata: &ProjectionMeta,
+    ) -> Result<(), CassieError> {
+        let value =
+            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(Self::projection_key(&metadata.collection), value, None)
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    fn update_projection_schema_version_to_tx(
+        tx: &mut cntryl_midge::Transaction,
+        collection: &str,
+        schema_version: u32,
+    ) -> Result<(), CassieError> {
+        let mut metadata = Self::load_projection_metadata_from_tx(tx, collection)?
+            .unwrap_or_else(|| ProjectionMeta::new(collection, schema_version));
+        metadata.schema_version = schema_version;
+        Self::save_projection_metadata_to_tx(tx, &metadata)
+    }
+
     fn row_schema(&self, collection: &str) -> Result<RowSchema, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
         if let Some(row_schema) = Self::load_row_schema_from_tx(&tx, collection)? {
@@ -630,12 +674,23 @@ impl Midge {
             tx.put(schema_key, schema_bytes, None)
                 .map_err(CassieError::from)?;
         }
+        let row_schema = RowSchema::from_schema(&schema);
         if tx
             .get(&Self::row_schema_key(name))
             .map_err(CassieError::from)?
             .is_none()
         {
-            Self::save_row_schema_to_tx(&mut tx, name, &RowSchema::from_schema(&schema))?;
+            Self::save_row_schema_to_tx(&mut tx, name, &row_schema)?;
+        }
+        if tx
+            .get(&Self::projection_key(name))
+            .map_err(CassieError::from)?
+            .is_none()
+        {
+            Self::save_projection_metadata_to_tx(
+                &mut tx,
+                &ProjectionMeta::new(name, row_schema.schema_version),
+            )?;
         }
 
         let mut collections = self.load_collections(&tx)?;
@@ -827,6 +882,9 @@ impl Midge {
         schema_tx
             .delete(Self::row_schema_key(name))
             .map_err(CassieError::from)?;
+        schema_tx
+            .delete(Self::projection_key(name))
+            .map_err(CassieError::from)?;
 
         let mut collections = self.load_collections(&schema_tx)?;
         collections.retain(|entry| entry != name);
@@ -884,6 +942,11 @@ impl Midge {
             .unwrap_or_else(|| RowSchema::from_schema(&schema));
         row_schema.add_field(field.clone())?;
         Self::save_row_schema_to_tx(&mut tx, collection, &row_schema)?;
+        Self::update_projection_schema_version_to_tx(
+            &mut tx,
+            collection,
+            row_schema.schema_version,
+        )?;
 
         schema.fields.push(field);
         let schema_bytes =
@@ -928,6 +991,11 @@ impl Midge {
             )));
         }
         Self::save_row_schema_to_tx(&mut tx, collection, &row_schema)?;
+        Self::update_projection_schema_version_to_tx(
+            &mut tx,
+            collection,
+            row_schema.schema_version,
+        )?;
 
         let schema_bytes =
             serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
@@ -981,6 +1049,11 @@ impl Midge {
             .unwrap_or_else(|| RowSchema::from_schema(&original_schema));
         row_schema.rename_field(current_name, next_name)?;
         Self::save_row_schema_to_tx(&mut tx, collection, &row_schema)?;
+        Self::update_projection_schema_version_to_tx(
+            &mut tx,
+            collection,
+            row_schema.schema_version,
+        )?;
 
         let schema_bytes =
             serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
@@ -1131,6 +1204,24 @@ impl Midge {
                     None,
                 )
                 .map_err(CassieError::from)?;
+        }
+
+        let current_projection_key = Self::projection_key(current_name);
+        if let Some(projection_bytes) = schema_tx
+            .get(&current_projection_key)
+            .map_err(CassieError::from)?
+        {
+            let mut metadata: ProjectionMeta =
+                serde_json::from_slice(&projection_bytes).map_err(|error| {
+                    CassieError::Parse(format!(
+                        "invalid projection metadata for '{current_name}': {error}"
+                    ))
+                })?;
+            metadata.collection = next_name.to_string();
+            schema_tx
+                .delete(current_projection_key)
+                .map_err(CassieError::from)?;
+            Self::save_projection_metadata_to_tx(&mut schema_tx, &metadata)?;
         }
 
         let mut collections = self.load_collections(&schema_tx)?;
@@ -1580,6 +1671,14 @@ impl Midge {
         }
         let raw = tx.get(&Self::collection_schema_key(name)).ok()??;
         serde_json::from_slice(&raw).ok()
+    }
+
+    pub fn projection_metadata(
+        &self,
+        collection: &str,
+    ) -> Result<Option<ProjectionMeta>, CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        Self::load_projection_metadata_from_tx(&tx, collection)
     }
 
     pub fn list_collections(&self) -> Vec<String> {

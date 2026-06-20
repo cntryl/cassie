@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 
 use crate::catalog::{
     normalize_role_name, CollectionMeta, CollectionSchema, FieldConstraint, FieldMeta,
-    FunctionMeta, IndexMeta, NamespaceMeta, ProcedureMeta, RoleMeta, ViewMeta,
+    FunctionMeta, IndexMeta, NamespaceMeta, ProcedureMeta, ProjectionMeta, RoleMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
@@ -16,6 +16,7 @@ pub struct Catalog {
     pub collections: Arc<RwLock<HashMap<String, CollectionMeta>>>,
     pub namespaces: Arc<RwLock<HashMap<String, NamespaceMeta>>>,
     pub schemas: Arc<RwLock<HashMap<String, CollectionSchema>>>,
+    pub projections: Arc<RwLock<HashMap<String, ProjectionMeta>>>,
     pub constraints: Arc<RwLock<HashMap<String, Vec<FieldConstraint>>>>,
     pub indexes: Arc<RwLock<HashMap<String, IndexMeta>>>,
     pub functions: Arc<RwLock<HashMap<String, FunctionMeta>>>,
@@ -32,6 +33,7 @@ impl Catalog {
             collections: Arc::new(RwLock::new(HashMap::new())),
             namespaces: Arc::new(RwLock::new(HashMap::new())),
             schemas: Arc::new(RwLock::new(HashMap::new())),
+            projections: Arc::new(RwLock::new(HashMap::new())),
             constraints: Arc::new(RwLock::new(HashMap::new())),
             indexes: Arc::new(RwLock::new(HashMap::new())),
             functions: Arc::new(RwLock::new(HashMap::new())),
@@ -87,6 +89,8 @@ impl Catalog {
             .write()
             .await
             .insert(name.to_string(), normalized);
+        self.register_projection_metadata(ProjectionMeta::new(name, 1))
+            .await;
         self.bump_version();
     }
 
@@ -95,6 +99,18 @@ impl Catalog {
         let mut out = collections.values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|entry| entry.name.to_ascii_lowercase());
         out
+    }
+
+    pub async fn register_projection_metadata(&self, metadata: ProjectionMeta) {
+        self.projections
+            .write()
+            .await
+            .insert(metadata.collection.clone(), metadata);
+        self.bump_version();
+    }
+
+    pub async fn get_projection_metadata(&self, collection: &str) -> Option<ProjectionMeta> {
+        self.projections.read().await.get(collection).cloned()
     }
 
     pub async fn register_namespace(&self, name: &str, description: Option<String>) {
@@ -262,6 +278,7 @@ impl Catalog {
         self.collections.write().await.clear();
         self.namespaces.write().await.clear();
         self.schemas.write().await.clear();
+        self.projections.write().await.clear();
         self.constraints.write().await.clear();
         self.functions.write().await.clear();
         self.procedures.write().await.clear();
@@ -275,6 +292,7 @@ impl Catalog {
     pub async fn unregister_collection(&self, collection: &str) {
         self.collections.write().await.remove(collection);
         self.schemas.write().await.remove(collection);
+        self.projections.write().await.remove(collection);
         self.constraints.write().await.remove(collection);
         self.indexes
             .write()
@@ -444,6 +462,11 @@ impl Catalog {
                     fields: schema.fields,
                 },
             );
+        }
+        let mut projections = self.projections.write().await;
+        if let Some(mut projection) = projections.remove(current_name) {
+            projection.collection = next_name.to_string();
+            projections.insert(next_name.to_string(), projection);
         }
 
         let normalized_constraints = {

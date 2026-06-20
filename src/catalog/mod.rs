@@ -7,7 +7,9 @@ pub mod roles;
 pub mod schemas;
 pub mod virtual_views;
 
-pub use collections::{is_reserved_namespace, CollectionMeta, NamespaceMeta};
+pub use collections::{
+    is_reserved_namespace, CollectionMeta, NamespaceMeta, ProjectionMeta, ProjectionRebuildState,
+};
 pub use constraints::{ConstraintCheck, ConstraintOperator, FieldConstraint};
 pub use indexes::{IndexKind, IndexMeta};
 pub use metadata::Catalog;

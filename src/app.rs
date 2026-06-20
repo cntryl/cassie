@@ -459,6 +459,13 @@ impl Cassie {
                         constraints,
                     )
                     .await;
+                let projection_metadata = self
+                    .midge
+                    .projection_metadata(&name)?
+                    .unwrap_or_else(|| crate::catalog::ProjectionMeta::new(&name, 1));
+                self.catalog
+                    .register_projection_metadata(projection_metadata)
+                    .await;
             }
         }
 

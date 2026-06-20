@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use cassie::catalog::ProjectionRebuildState;
 use cassie::midge::adapter::{RowDecode, StorageFamily, StorageLayout};
 use cassie::types::{DataType, FieldSchema, Schema};
 use cntryl_midge::TransactionMode;
@@ -319,6 +320,104 @@ fn should_preserve_retired_field_ids_in_row_schema_metadata() {
         assert_eq!(body["retired"], false);
         assert_eq!(status["field_id"], 3);
         assert_eq!(status["retired"], false);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_persist_projection_metadata_in_schema_family() {
+    // Arrange
+    let path = data_dir("projection_metadata");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.midge.ensure_families_ready().unwrap();
+
+        let collection = "cf_layout_projection_metadata";
+
+        // Act
+        cassie
+            .midge
+            .create_collection(
+                collection,
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "title".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .unwrap();
+        let metadata = cassie
+            .midge
+            .projection_metadata(collection)
+            .unwrap()
+            .expect("projection metadata should exist");
+        let raw_entries = cassie
+            .midge
+            .raw_scan_prefix(
+                StorageFamily::Schema,
+                format!("__cassie__/projection/{collection}").as_bytes(),
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(metadata.collection, collection);
+        assert_eq!(metadata.schema_version, 1);
+        assert_eq!(metadata.offset, 0);
+        assert_eq!(metadata.lag, 0);
+        assert_eq!(metadata.rebuild_state, ProjectionRebuildState::Idle);
+        assert_eq!(raw_entries.len(), 1);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_hydrate_projection_metadata_during_startup() {
+    // Arrange
+    let path = data_dir("projection_metadata_hydrate");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        cassie
+            .midge
+            .create_collection(
+                "hydrated_projection_metadata",
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "title".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .unwrap();
+
+        // Act
+        cassie.startup().await.unwrap();
+        let metadata = cassie
+            .catalog
+            .get_projection_metadata("hydrated_projection_metadata")
+            .await
+            .expect("projection metadata should hydrate");
+
+        // Assert
+        assert_eq!(metadata.collection, "hydrated_projection_metadata");
+        assert_eq!(metadata.schema_version, 1);
+        assert_eq!(metadata.rebuild_state, ProjectionRebuildState::Idle);
 
         let _ = std::fs::remove_dir_all(path);
     });

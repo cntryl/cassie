@@ -298,6 +298,47 @@ fn should_build_physical_operators_for_aggregate_distinct_set() {
 }
 
 #[test]
+fn should_build_physical_operators_for_hybrid_search() {
+    // Arrange
+    let catalog = Catalog::new();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        catalog
+            .register_collection(
+                "planner_hybrid_physical",
+                vec![
+                    ("body".to_string(), DataType::Text),
+                    ("embedding".to_string(), DataType::Vector(2)),
+                ],
+            )
+            .await;
+        let parsed = parser::parse_statement(
+            "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM planner_hybrid_physical ORDER BY score DESC LIMIT 1",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert!(physical_plan
+            .operators
+            .iter()
+            .any(|operator| matches!(operator, Operator::FullTextSearch)));
+        assert!(physical_plan
+            .operators
+            .iter()
+            .any(|operator| matches!(operator, Operator::VectorSearch)));
+    });
+}
+
+#[test]
 fn should_emit_offset_node_even_with_default_zero() {
     // Arrange
     let catalog = Catalog::new();

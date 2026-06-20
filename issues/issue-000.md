@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 036: Composite Indexes](issue-036.md) - V1 - Projection Query Engine / Indexes
 - [Issue 037: Unique Indexes](issue-037.md) - V1 - Projection Query Engine / Indexes
 - [Issue 038: Inverted Index](issue-038.md) - V1 - Projection Query Engine / Search
 - [Issue 039: BM25 Scoring](issue-039.md) - V1 - Projection Query Engine / Search

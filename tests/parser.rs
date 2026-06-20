@@ -656,8 +656,9 @@ fn should_parse_insert_with_explicit_columns() {
     assert_eq!(statement.table, "docs");
     assert_eq!(statement.columns, vec!["title".to_string()]);
     let value = match &statement.source {
-        InsertSource::Values(values) => {
-            let value = values.first().expect("missing insert value");
+        InsertSource::Values(rows) => {
+            let row = rows.first().expect("missing insert row");
+            let value = row.first().expect("missing insert value");
             if let Expr::StringLiteral(value) = value {
                 value
             } else {

@@ -1075,29 +1075,18 @@ fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
             return Err(SqlError("INSERT VALUES requires parenthesized list".into()));
         }
 
-        let close = find_matching_paren(values_part, 0)
-            .ok_or_else(|| SqlError("INSERT VALUES requires closing ')'".into()))?;
-        let values_raw = &values_part[1..close];
-        if values_raw.trim().is_empty() {
-            return Err(SqlError("INSERT VALUES cannot be empty".into()));
-        }
+        let values = parse_insert_values_rows(values_part)?;
 
-        let values = split_csv(values_raw)
-            .into_iter()
-            .map(parse_expr_token)
-            .collect::<Result<Vec<_>, _>>()?;
-
-        if !columns.is_empty() && columns.len() != values.len() {
-            return Err(SqlError(format!(
-                "INSERT column/value counts mismatch: {} columns, {} values",
-                columns.len(),
-                values.len()
-            )));
-        }
-
-        let trailing = values_part[close + 1..].trim();
-        if !trailing.is_empty() {
-            return Err(SqlError("unexpected tokens after INSERT source".into()));
+        if !columns.is_empty() {
+            for row in &values {
+                if columns.len() != row.len() {
+                    return Err(SqlError(format!(
+                        "INSERT column/value counts mismatch: {} columns, {} values",
+                        columns.len(),
+                        row.len()
+                    )));
+                }
+            }
         }
 
         return Ok(ParsedStatement {
@@ -1155,6 +1144,52 @@ fn split_statement_and_returning(raw: &str) -> Result<(&str, Vec<SelectItem>), S
     } else {
         Ok((raw, Vec::new()))
     }
+}
+
+fn parse_insert_values_rows(values_part: &str) -> Result<Vec<Vec<Expr>>, SqlError> {
+    let mut rows = Vec::new();
+    let mut rest = values_part.trim();
+
+    loop {
+        if rest.is_empty() {
+            break;
+        }
+        if !rest.starts_with('(') {
+            return Err(SqlError("INSERT VALUES requires parenthesized list".into()));
+        }
+
+        let close = find_matching_paren(rest, 0)
+            .ok_or_else(|| SqlError("INSERT VALUES requires closing ')'".into()))?;
+        let values_raw = &rest[1..close];
+        if values_raw.trim().is_empty() {
+            return Err(SqlError("INSERT VALUES cannot be empty".into()));
+        }
+
+        rows.push(
+            split_csv(values_raw)
+                .into_iter()
+                .map(parse_expr_token)
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+
+        rest = rest[close + 1..].trim_start();
+        if rest.is_empty() {
+            break;
+        }
+        if !rest.starts_with(',') {
+            return Err(SqlError("unexpected tokens after INSERT source".into()));
+        }
+        rest = rest[1..].trim_start();
+        if rest.is_empty() {
+            return Err(SqlError("INSERT VALUES requires parenthesized list".into()));
+        }
+    }
+
+    if rows.is_empty() {
+        return Err(SqlError("INSERT requires VALUES list".into()));
+    }
+
+    Ok(rows)
 }
 
 fn parse_insert_target(raw: &str) -> Result<(String, Vec<String>, &str), SqlError> {

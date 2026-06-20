@@ -149,7 +149,7 @@ pub enum TransactionIsolation {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InsertSource {
-    Values(Vec<Expr>),
+    Values(Vec<Vec<Expr>>),
     Select(Box<SelectStatement>),
 }
 

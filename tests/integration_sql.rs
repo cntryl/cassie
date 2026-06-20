@@ -2220,6 +2220,53 @@ fn should_insert_values_using_table_column_order() {
 }
 
 #[test]
+fn should_insert_multiple_values_rows() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("insert_multiple_values");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE insert_multiple_values (title TEXT, score INT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO insert_multiple_values (title, score) VALUES ('alpha', 1), ('beta', 2) RETURNING title, score",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(inserted.command, "INSERT 0 2");
+        assert_eq!(
+            inserted.rows,
+            vec![
+                vec![Value::String("alpha".to_string()), Value::Int64(1)],
+                vec![Value::String("beta".to_string()), Value::Int64(2)]
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_return_generated_row_id_from_insert_values() {
     // Arrange
     with_fallback();
@@ -2467,6 +2514,86 @@ fn should_reject_insert_values_when_vector_dimensions_mismatch() {
             .unwrap_err()
             .to_string()
             .contains("expects vector(2)"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_insert_values_with_duplicate_target_column() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("insert_duplicate_column");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE insert_duplicate_column (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO insert_duplicate_column (title, title) VALUES ('alpha', 'beta')",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(inserted.is_err());
+        assert!(inserted.unwrap_err().to_string().contains("duplicated"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_insert_values_with_unknown_target_column() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("insert_unknown_column");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE insert_unknown_column (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO insert_unknown_column (missing) VALUES ('alpha')",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(inserted.is_err());
+        assert!(inserted.unwrap_err().to_string().contains("does not exist"));
 
         let _ = std::fs::remove_dir_all(path);
     });

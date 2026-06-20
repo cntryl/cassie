@@ -1074,15 +1074,18 @@ async fn insert_source_rows(
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Vec<Value>>, QueryError> {
     match &statement.source {
-        InsertSource::Values(values) => values
+        InsertSource::Values(rows) => rows
             .iter()
-            .map(|expr| {
-                insert_expr_to_json(expr, params)
-                    .map_err(QueryError::General)
-                    .map(|value| json_to_value(&value))
+            .map(|row| {
+                row.iter()
+                    .map(|expr| {
+                        insert_expr_to_json(expr, params)
+                            .map_err(QueryError::General)
+                            .map(|value| json_to_value(&value))
+                    })
+                    .collect::<Result<Vec<_>, _>>()
             })
-            .collect::<Result<Vec<_>, _>>()
-            .map(|row| vec![row]),
+            .collect::<Result<Vec<_>, _>>(),
         InsertSource::Select(select) => {
             let logical = LogicalPlan {
                 command: None,
@@ -1134,7 +1137,7 @@ fn insert_source_width(
     schema: &CollectionSchema,
 ) -> usize {
     match &statement.source {
-        InsertSource::Values(values) => values.len(),
+        InsertSource::Values(rows) => rows.first().map_or(0, Vec::len),
         InsertSource::Select(select) => {
             if matches!(
                 select.projection.as_slice(),

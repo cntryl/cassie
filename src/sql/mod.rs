@@ -141,9 +141,11 @@ fn parameter_count_select_item(item: &ast::SelectItem) -> usize {
 
 fn parameter_count_insert(statement: &ast::InsertStatement) -> usize {
     let mut count = 0;
-    if let ast::InsertSource::Values(values) = &statement.source {
-        for value in values {
-            count = count.max(parameter_count_expr(value));
+    if let ast::InsertSource::Values(rows) = &statement.source {
+        for row in rows {
+            for value in row {
+                count = count.max(parameter_count_expr(value));
+            }
         }
     }
     if let ast::InsertSource::Select(select) = &statement.source {

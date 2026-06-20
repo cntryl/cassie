@@ -45,16 +45,14 @@ pub fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> {
         .midge
         .create_collection(&request.name, schema.clone())?;
 
-    cassie
-        .catalog
-        .register_collection(
-            &request.name,
-            schema
-                .fields
-                .iter()
-                .map(|f| (f.name.clone(), f.data_type.clone()))
-                .collect(),
-        );
+    cassie.catalog.register_collection(
+        &request.name,
+        schema
+            .fields
+            .iter()
+            .map(|f| (f.name.clone(), f.data_type.clone()))
+            .collect(),
+    );
 
     Ok(serde_json::json!({
         "collection": request.name,

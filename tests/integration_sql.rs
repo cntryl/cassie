@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use cassie::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
 use cassie::midge::adapter::StorageFamily;
 use cassie::types::{DataType, FieldSchema, Schema, Value, Vector};
 use cntryl_midge::{TransactionMode, WriteOptions};
@@ -22,6 +23,19 @@ fn put_legacy_document(cassie: &Cassie, collection: &str, id: &str, payload: ser
         None,
     )
     .unwrap();
+    tx.commit(WriteOptions::sync()).unwrap();
+}
+
+fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str) {
+    let prefix = format!("__cassie__/normalized-vector/{collection}/{field}/");
+    let entries = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, prefix.as_bytes())
+        .unwrap();
+    let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
+    for (key, _value) in entries {
+        tx.delete(key).unwrap();
+    }
     tx.commit(WriteOptions::sync()).unwrap();
 }
 
@@ -75,7 +89,7 @@ fn should_execute_sql_query_after_catalog_hydration() {
                 &session,
                 "SELECT title FROM sql_hydration WHERE title = 'sql'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -119,15 +133,14 @@ fn should_apply_limit_offset_after_ordering() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -161,7 +174,7 @@ fn should_apply_limit_offset_after_ordering() {
                 &session,
                 "SELECT id, title FROM sql_limit_offset_order ORDER BY title ASC LIMIT 2 OFFSET 1",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -226,15 +239,14 @@ fn should_order_column_top_k_with_deterministic_tie_break() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -268,7 +280,7 @@ fn should_order_column_top_k_with_deterministic_tie_break() {
                 &session,
                 "SELECT id FROM sql_column_top_k_tie ORDER BY score DESC LIMIT 2",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -393,15 +405,14 @@ fn should_filter_projected_scan_range_query_without_changing_results() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -435,7 +446,7 @@ fn should_filter_projected_scan_range_query_without_changing_results() {
                 &session,
                 "SELECT id, title FROM sql_projected_scan_range WHERE score >= 10 LIMIT 2",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -481,15 +492,14 @@ fn should_filter_projected_scan_simple_equality_query_without_changing_results()
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -515,7 +525,7 @@ fn should_filter_projected_scan_simple_equality_query_without_changing_results()
                 &session,
                 "SELECT id, title FROM sql_projected_scan_equality WHERE title = 'beta'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -610,14 +620,14 @@ fn should_execute_text_scalar_functions_query() {
                 &session,
                 "CREATE TABLE scalar_text_functions (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO scalar_text_functions (title) VALUES ('  Alpha  ')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -626,7 +636,7 @@ fn should_execute_text_scalar_functions_query() {
                 &session,
                 "SELECT lower(title) AS lowered, upper(title) AS raised, length(title) AS chars, substring(title, 3, 5) AS slice, trim(title) AS trimmed, concat(trim(title), '-done') AS combined FROM scalar_text_functions",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -665,14 +675,14 @@ fn should_execute_coalesce_scalar_function_query() {
                 &session,
                 "CREATE TABLE scalar_coalesce_function (title TEXT, fallback TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO scalar_coalesce_function (title, fallback) VALUES (NULL, 'backup')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -681,7 +691,7 @@ fn should_execute_coalesce_scalar_function_query() {
                 &session,
                 "SELECT coalesce(title, fallback, 'missing') AS value FROM scalar_coalesce_function",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -713,14 +723,14 @@ fn should_execute_numeric_scalar_function_query() {
                 &session,
                 "CREATE TABLE scalar_numeric_function (delta INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO scalar_numeric_function (delta) VALUES (-42)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -729,7 +739,7 @@ fn should_execute_numeric_scalar_function_query() {
                 &session,
                 "SELECT abs(delta) AS magnitude FROM scalar_numeric_function",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -771,15 +781,14 @@ fn should_fall_back_for_wildcard_projection_query_without_changing_results() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -797,7 +806,7 @@ fn should_fall_back_for_wildcard_projection_query_without_changing_results() {
                 &session,
                 "SELECT * FROM sql_projected_scan_wildcard_fallback WHERE score = 7",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -948,7 +957,7 @@ fn should_project_cosine_distance_for_vector_fields() {
                 &session,
                 "SELECT id, cosine_distance(embedding, '[1,0]') AS distance FROM sql_cosine_distance_projection ORDER BY id",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -986,15 +995,14 @@ fn should_project_dot_product_for_vector_fields() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
         cassie
             .midge
             .put_document(
@@ -1011,7 +1019,7 @@ fn should_project_dot_product_for_vector_fields() {
                 &session,
                 "SELECT dot_product(embedding, '[3,4]') AS score FROM sql_dot_product_projection",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -1070,7 +1078,7 @@ fn should_project_l2_distance_for_vector_fields() {
                 &session,
                 "SELECT vector_distance(embedding, '[1,2]') AS distance FROM sql_l2_distance_projection",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -1129,7 +1137,7 @@ fn should_project_pgvector_operator_distances() {
                 &session,
                 "SELECT embedding <-> '[1,0]' AS l2, embedding <=> '[1,0]' AS cosine, embedding <#> '[1,0]' AS dot FROM sql_pgvector_operator_projection",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -1445,7 +1453,7 @@ fn should_project_search_function_as_boolean_match() {
                 &session,
                 "SELECT search(body, 'alpha') AS matches_alpha, search(body, 'gamma') AS matches_gamma FROM sql_search_boolean_projection",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -1515,7 +1523,7 @@ fn should_project_search_score_as_numeric_relevance() {
                 &session,
                 "SELECT id, search_score(body, 'alpha') AS score FROM sql_search_score_projection ORDER BY id",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -1914,7 +1922,7 @@ fn should_generate_hybrid_candidates_from_text_matches() {
                 &session,
                 "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_text_candidates ORDER BY score DESC LIMIT 1",
                 vec![],
-            );
+            )
             .unwrap();
         let after = cassie.metrics();
 
@@ -2109,15 +2117,14 @@ fn should_project_snippet_without_highlighting_generated_markup() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
         cassie
             .midge
             .put_document(
@@ -2134,7 +2141,7 @@ fn should_project_snippet_without_highlighting_generated_markup() {
                 &session,
                 "SELECT snippet(body, 'alpha mark') AS excerpt FROM sql_snippet_generated_markup",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -2179,19 +2186,18 @@ fn should_describe_select_projection_with_column_metadata() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         // Act
         let columns = cassie
-            .describe_sql("SELECT id, title, score FROM sql_describe_metadata");
+            .describe_sql("SELECT id, title, score FROM sql_describe_metadata")
             .unwrap();
 
         // Assert
@@ -2248,7 +2254,7 @@ fn should_explain_select_query_plan() {
                 &session,
                 "EXPLAIN SELECT title FROM sql_explain_select_plan WHERE title = 'alpha' ORDER BY title LIMIT 1",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -2296,15 +2302,14 @@ fn should_explain_predicate_pushdown_for_literal_equality_filter() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
         let session = cassie.create_session("tester", None);
 
         // Act
@@ -2313,7 +2318,7 @@ fn should_explain_predicate_pushdown_for_literal_equality_filter() {
                 &session,
                 "EXPLAIN SELECT title FROM sql_explain_predicate_pushdown WHERE title = 'alpha'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -2362,15 +2367,14 @@ fn should_explain_projection_pruning_fields() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
         let session = cassie.create_session("tester", None);
 
         // Act
@@ -2379,7 +2383,7 @@ fn should_explain_projection_pruning_fields() {
                 &session,
                 "EXPLAIN SELECT title FROM sql_explain_projection_pruning WHERE body = 'alpha'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -2417,15 +2421,14 @@ fn should_explain_limit_pushdown_scan_limit() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
         let session = cassie.create_session("tester", None);
 
         // Act
@@ -2434,7 +2437,7 @@ fn should_explain_limit_pushdown_scan_limit() {
                 &session,
                 "EXPLAIN SELECT title FROM sql_explain_limit_pushdown LIMIT 20 OFFSET 5",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -2467,14 +2470,14 @@ fn should_explain_index_aware_plan_for_scalar_equality_filter() {
                 &session,
                 "CREATE TABLE sql_explain_index_aware (email TEXT, title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE INDEX sql_explain_index_aware_email_idx ON sql_explain_index_aware USING btree (email)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -2483,7 +2486,7 @@ fn should_explain_index_aware_plan_for_scalar_equality_filter() {
                 &session,
                 "EXPLAIN SELECT title FROM sql_explain_index_aware WHERE email = 'a@example.com'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -2492,6 +2495,203 @@ fn should_explain_index_aware_plan_for_scalar_equality_filter() {
         };
         assert!(plan.contains("index_aware=true"));
         assert!(plan.contains("index=sql_explain_index_aware_email_idx"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_explain_vector_prefilter_for_indexed_equality_filter() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("explain_vector_prefilter_indexed");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_explain_vector_prefilter_indexed (status TEXT, embedding VECTOR(2), title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX sql_explain_vector_prefilter_status_idx ON sql_explain_vector_prefilter_indexed USING btree (status)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                "sql_explain_vector_prefilter_indexed",
+                Some("d1".to_string()),
+                serde_json::json!({"status": "approved", "embedding": [1.0, 0.0], "title": "alpha"}),
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT id, vector_distance(embedding, '[1,0]') AS distance FROM sql_explain_vector_prefilter_indexed WHERE status = 'approved' ORDER BY distance ASC LIMIT 1",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        let Value::String(plan) = &result.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("prefilter=index=sql_explain_vector_prefilter_status_idx"));
+        assert!(plan.contains("index_aware=true"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_apply_vector_metadata_prefilter_for_supported_predicates() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("vector_prefilter_supported_predicates");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_vector_prefilter_supported_predicates (status TEXT, rating INT, category TEXT, archived_at TEXT, embedding VECTOR(2))",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                "sql_vector_prefilter_supported_predicates",
+                Some("d1".to_string()),
+                serde_json::json!({"status": "approved", "rating": 5, "category": "alpha", "embedding": [1.0, 0.0]}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                "sql_vector_prefilter_supported_predicates",
+                Some("d2".to_string()),
+                serde_json::json!({"status": "approved", "rating": 5, "category": "alpha", "archived_at": null, "embedding": [1.0, 0.0]}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                "sql_vector_prefilter_supported_predicates",
+                Some("d3".to_string()),
+                serde_json::json!({"status": "approved", "rating": 3, "category": "alpha", "archived_at": null, "embedding": [2.0, 0.0]}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                "sql_vector_prefilter_supported_predicates",
+                Some("d4".to_string()),
+                serde_json::json!({"status": "pending", "rating": 5, "category": "alpha", "archived_at": null, "embedding": [1.0, 0.0]}),
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, vector_distance(embedding, '[1,0]') AS distance FROM sql_vector_prefilter_supported_predicates WHERE (status = 'approved') AND (rating BETWEEN 4 AND 6) AND (category IN ('alpha', 'beta')) AND archived_at IS NULL ORDER BY distance ASC LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0][0], Value::String("d1".to_string()));
+        assert_eq!(result.rows[1][0], Value::String("d2".to_string()));
+        assert!(matches!(result.rows[0][1], Value::Float64(value) if value == 0.0));
+        assert!(matches!(result.rows[1][1], Value::Float64(value) if value == 0.0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_fall_back_for_unsupported_vector_metadata_predicate_without_changing_results() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("vector_prefilter_unsupported_predicate");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_vector_prefilter_unsupported_predicate (status TEXT, embedding VECTOR(2))",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                "sql_vector_prefilter_unsupported_predicate",
+                Some("d1".to_string()),
+                serde_json::json!({"status": "approved", "embedding": [1.0, 0.0]}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                "sql_vector_prefilter_unsupported_predicate",
+                Some("d2".to_string()),
+                serde_json::json!({"status": "pending", "embedding": [0.0, 1.0]}),
+            )
+            .unwrap();
+
+        // Act
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT id, vector_distance(embedding, '[1,0]') AS distance FROM sql_vector_prefilter_unsupported_predicate WHERE lower(status) = 'approved' ORDER BY distance ASC LIMIT 1",
+                vec![],
+            )
+            .unwrap();
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, vector_distance(embedding, '[1,0]') AS distance FROM sql_vector_prefilter_unsupported_predicate WHERE lower(status) = 'approved' ORDER BY distance ASC LIMIT 1",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        let Value::String(plan) = &explain.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("prefilter=fallback=unsupported metadata predicate"));
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d1".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -2516,7 +2716,7 @@ fn should_explain_top_k_plan_for_order_limit_query() {
                 &session,
                 "CREATE TABLE sql_explain_top_k (title TEXT, score INT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -2525,7 +2725,7 @@ fn should_explain_top_k_plan_for_order_limit_query() {
                 &session,
                 "EXPLAIN SELECT title FROM sql_explain_top_k ORDER BY score DESC LIMIT 5",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -2534,6 +2734,63 @@ fn should_explain_top_k_plan_for_order_limit_query() {
         };
         assert!(plan.contains("top_k=true"));
         assert!(plan.contains("top_k_limit=5"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_explain_hybrid_prefilter_for_indexed_equality_filter() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("explain_hybrid_prefilter_indexed");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_explain_hybrid_prefilter_indexed (status TEXT, body TEXT, embedding VECTOR(2))",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX sql_explain_hybrid_prefilter_status_idx ON sql_explain_hybrid_prefilter_indexed USING btree (status)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                "sql_explain_hybrid_prefilter_indexed",
+                Some("d1".to_string()),
+                serde_json::json!({"status": "approved", "body": "red", "embedding": [1.0, 0.0]}),
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_explain_hybrid_prefilter_indexed WHERE status = 'approved' ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        let Value::String(plan) = &result.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("prefilter=index=sql_explain_hybrid_prefilter_status_idx"));
+        assert!(plan.contains("index_aware=true"));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -2558,14 +2815,14 @@ fn should_explain_hash_join_strategy_for_inner_equi_join() {
                 &session,
                 "CREATE TABLE sql_hash_join_users (user_key TEXT, name TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE sql_hash_join_orders (order_user_key TEXT, total INT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -2574,7 +2831,7 @@ fn should_explain_hash_join_strategy_for_inner_equi_join() {
                 &session,
                 "EXPLAIN SELECT sql_hash_join_users.name, sql_hash_join_orders.total FROM sql_hash_join_users JOIN sql_hash_join_orders ON sql_hash_join_users.user_key = sql_hash_join_orders.order_user_key",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -2606,14 +2863,14 @@ fn should_explain_semi_join_strategy_for_exists_predicate() {
                 &session,
                 "CREATE TABLE sql_semi_join_outer (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE sql_semi_join_inner (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -2622,7 +2879,7 @@ fn should_explain_semi_join_strategy_for_exists_predicate() {
                 &session,
                 "EXPLAIN SELECT title FROM sql_semi_join_outer WHERE EXISTS (SELECT title FROM sql_semi_join_inner)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -2654,14 +2911,14 @@ fn should_explain_analyze_select_query_plan() {
                 &session,
                 "CREATE TABLE sql_explain_analyze_docs (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO sql_explain_analyze_docs (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -2670,7 +2927,7 @@ fn should_explain_analyze_select_query_plan() {
                 &session,
                 "EXPLAIN ANALYZE SELECT title FROM sql_explain_analyze_docs WHERE title = 'alpha'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -2705,14 +2962,14 @@ fn should_explain_anti_join_strategy_for_not_exists_predicate() {
                 &session,
                 "CREATE TABLE sql_anti_join_outer (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE sql_anti_join_inner (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -2721,7 +2978,7 @@ fn should_explain_anti_join_strategy_for_not_exists_predicate() {
                 &session,
                 "EXPLAIN SELECT title FROM sql_anti_join_outer WHERE NOT EXISTS (SELECT title FROM sql_anti_join_inner)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -2903,7 +3160,7 @@ fn should_persist_namespace_on_create_schema() {
         // Act
         let session = cassie.create_session("tester", None);
         let result = cassie
-            .execute_sql(&session, "CREATE SCHEMA analytics", vec![]);
+            .execute_sql(&session, "CREATE SCHEMA analytics", vec![])
             .unwrap();
 
         // Assert
@@ -2934,7 +3191,7 @@ fn should_rename_schema_through_sql() {
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
-            .execute_sql(&session, "CREATE SCHEMA reporting", vec![]);
+            .execute_sql(&session, "CREATE SCHEMA reporting", vec![])
             .unwrap();
 
         // Act
@@ -2943,7 +3200,7 @@ fn should_rename_schema_through_sql() {
                 &session,
                 "ALTER SCHEMA reporting RENAME TO reporting_archive",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -2980,12 +3237,12 @@ fn should_drop_schema_through_sql() {
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
-            .execute_sql(&session, "CREATE SCHEMA reporting", vec![]);
+            .execute_sql(&session, "CREATE SCHEMA reporting", vec![])
             .unwrap();
 
         // Act
         let result = cassie
-            .execute_sql(&session, "DROP SCHEMA reporting", vec![]);
+            .execute_sql(&session, "DROP SCHEMA reporting", vec![])
             .unwrap();
 
         // Assert
@@ -3030,7 +3287,7 @@ fn should_enforce_constraints_during_ingest() {
             .ingest_document(
                 "constraint_docs",
                 serde_json::json!({"id": 1, "email": "a@example.com", "score": 25}),
-            );
+            )
             .unwrap();
         let missing_not_null = cassie
             .ingest_document("constraint_docs", serde_json::json!({"id": 2, "score": 20}));
@@ -3138,23 +3395,22 @@ fn should_reject_insert_when_primary_key_is_duplicate() {
                 &session,
                 "CREATE TABLE primary_key_duplicate (id INT PRIMARY KEY, title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO primary_key_duplicate (id, title) VALUES (1, 'alpha')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let inserted = cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO primary_key_duplicate (id, title) VALUES (1, 'beta')",
-                vec![],
-            );
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO primary_key_duplicate (id, title) VALUES (1, 'beta')",
+            vec![],
+        );
 
         // Assert
         assert!(inserted.is_err());
@@ -3186,16 +3442,15 @@ fn should_reject_insert_when_primary_key_is_null() {
                 &session,
                 "CREATE TABLE primary_key_null (id INT PRIMARY KEY, title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let inserted = cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO primary_key_null (id, title) VALUES (NULL, 'alpha')",
-                vec![],
-            );
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO primary_key_null (id, title) VALUES (NULL, 'alpha')",
+            vec![],
+        );
 
         // Assert
         assert!(inserted.is_err());
@@ -3224,23 +3479,22 @@ fn should_reject_insert_when_unique_value_is_duplicate() {
                 &session,
                 "CREATE TABLE unique_insert_duplicate (email TEXT UNIQUE)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO unique_insert_duplicate (email) VALUES ('a@example.com')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let inserted = cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO unique_insert_duplicate (email) VALUES ('a@example.com')",
-                vec![],
-            );
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_insert_duplicate (email) VALUES ('a@example.com')",
+            vec![],
+        );
 
         // Assert
         assert!(inserted.is_err());
@@ -3272,21 +3526,21 @@ fn should_reject_update_when_unique_value_conflicts() {
                 &session,
                 "CREATE TABLE unique_update_conflict (email TEXT UNIQUE)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO unique_update_conflict (email) VALUES ('a@example.com')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO unique_update_conflict (email) VALUES ('b@example.com')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -3327,21 +3581,21 @@ fn should_reject_insert_when_unique_index_value_is_duplicate() {
                 &session,
                 "CREATE TABLE unique_index_insert_duplicate (email TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE UNIQUE INDEX unique_index_email_idx ON unique_index_insert_duplicate USING btree (email)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO unique_index_insert_duplicate (email) VALUES ('a@example.com')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -3382,28 +3636,28 @@ fn should_reject_update_when_unique_index_value_conflicts() {
                 &session,
                 "CREATE TABLE unique_index_update_conflict (email TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE UNIQUE INDEX unique_index_update_email_idx ON unique_index_update_conflict USING btree (email)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO unique_index_update_conflict (email) VALUES ('a@example.com')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO unique_index_update_conflict (email) VALUES ('b@example.com')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -3444,16 +3698,15 @@ fn should_reject_insert_when_check_constraint_fails() {
                 &session,
                 "CREATE TABLE check_insert_failure (score INT CHECK (score >= 18))",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let inserted = cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO check_insert_failure (score) VALUES (17)",
-                vec![],
-            );
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO check_insert_failure (score) VALUES (17)",
+            vec![],
+        );
 
         // Assert
         assert!(inserted.is_err());
@@ -3485,23 +3738,22 @@ fn should_reject_update_when_check_constraint_fails() {
                 &session,
                 "CREATE TABLE check_update_failure (score INT CHECK (score >= 18))",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO check_update_failure (score) VALUES (20)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let updated = cassie
-            .execute_sql(
-                &session,
-                "UPDATE check_update_failure SET score = 17",
-                vec![],
-            );
+        let updated = cassie.execute_sql(
+            &session,
+            "UPDATE check_update_failure SET score = 17",
+            vec![],
+        );
 
         // Assert
         assert!(updated.is_err());
@@ -3534,7 +3786,7 @@ fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
         // Act
         let session = cassie.create_session("tester", None);
         let result = cassie
-            .execute_sql(&session, "CREATE SCHEMA IF NOT EXISTS analytics", vec![]);
+            .execute_sql(&session, "CREATE SCHEMA IF NOT EXISTS analytics", vec![])
             .unwrap();
 
         // Assert
@@ -3566,7 +3818,7 @@ fn should_rename_column_through_sql() {
                 &session,
                 "CREATE TABLE rename_column_docs (id TEXT, title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .midge
@@ -3583,14 +3835,14 @@ fn should_rename_column_through_sql() {
                 &session,
                 "ALTER TABLE rename_column_docs RENAME COLUMN title TO headline",
                 vec![],
-            );
+            )
             .unwrap();
         let selected = cassie
             .execute_sql(
                 &session,
                 "SELECT id, headline FROM rename_column_docs ORDER BY id",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -3600,7 +3852,7 @@ fn should_rename_column_through_sql() {
         assert_eq!(selected.rows[0][1], Value::String("alpha".to_string()));
         let schema = cassie
             .catalog
-            .get_schema("rename_column_docs");
+            .get_schema("rename_column_docs")
             .expect("schema should exist");
         assert!(schema.fields.iter().any(|field| field.name == "headline"));
         assert!(!schema.fields.iter().any(|field| field.name == "title"));
@@ -3638,7 +3890,7 @@ fn should_execute_insert_values_with_explicit_columns_returning_columns() {
                 &session,
                 "INSERT INTO insert_values_returning (title, body) VALUES ('alpha', 'first') RETURNING title, body",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -3672,7 +3924,7 @@ fn should_insert_values_using_table_column_order() {
                 &session,
                 "CREATE TABLE insert_values_table_order (title TEXT, score INT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -3681,14 +3933,14 @@ fn should_insert_values_using_table_column_order() {
                 &session,
                 "INSERT INTO insert_values_table_order VALUES ('alpha', 7)",
                 vec![],
-            );
+            )
             .unwrap();
         let selected = cassie
             .execute_sql(
                 &session,
                 "SELECT title, score FROM insert_values_table_order",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -3719,7 +3971,7 @@ fn should_insert_multiple_values_rows() {
                 &session,
                 "CREATE TABLE insert_multiple_values (title TEXT, score INT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -3728,7 +3980,7 @@ fn should_insert_multiple_values_rows() {
                 &session,
                 "INSERT INTO insert_multiple_values (title, score) VALUES ('alpha', 1), ('beta', 2) RETURNING title, score",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -3764,7 +4016,7 @@ fn should_return_generated_row_id_from_insert_values() {
                 &session,
                 "CREATE TABLE insert_values_id (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -3773,7 +4025,7 @@ fn should_return_generated_row_id_from_insert_values() {
                 &session,
                 "INSERT INTO insert_values_id (title) VALUES ('alpha') RETURNING _id",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -3804,7 +4056,7 @@ fn should_execute_insert_returning_wildcard() {
                 &session,
                 "CREATE TABLE insert_returning_wildcard (title TEXT, body TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -3813,7 +4065,7 @@ fn should_execute_insert_returning_wildcard() {
                 &session,
                 "INSERT INTO insert_returning_wildcard (title, body) VALUES ('alpha', 'first') RETURNING *",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -3847,7 +4099,7 @@ fn should_execute_insert_returning_scalar_function() {
                 &session,
                 "CREATE TABLE insert_returning_function (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -3856,7 +4108,7 @@ fn should_execute_insert_returning_scalar_function() {
                 &session,
                 "INSERT INTO insert_returning_function (title) VALUES ('ALPHA') RETURNING lower(title) AS normalized",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -3889,7 +4141,7 @@ fn should_reject_insert_returning_unknown_function() {
                 &session,
                 "CREATE TABLE insert_returning_unknown_function (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -3930,16 +4182,15 @@ fn should_reject_insert_values_when_not_null_constraint_fails() {
                 &session,
                 "CREATE TABLE insert_values_not_null (title TEXT NOT NULL)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let inserted = cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO insert_values_not_null (title) VALUES (NULL)",
-                vec![],
-            );
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO insert_values_not_null (title) VALUES (NULL)",
+            vec![],
+        );
 
         // Assert
         assert!(inserted.is_err());
@@ -3968,16 +4219,15 @@ fn should_reject_insert_values_when_not_null_column_is_missing() {
                 &session,
                 "CREATE TABLE insert_values_missing_not_null (title TEXT NOT NULL, body TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let inserted = cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO insert_values_missing_not_null (body) VALUES ('first')",
-                vec![],
-            );
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO insert_values_missing_not_null (body) VALUES ('first')",
+            vec![],
+        );
 
         // Assert
         assert!(inserted.is_err());
@@ -4016,7 +4266,7 @@ fn should_apply_default_values_for_insert_values() {
                 &session,
                 "INSERT INTO insert_values_defaults (id) VALUES (1) RETURNING status",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4046,7 +4296,7 @@ fn should_preserve_explicit_insert_value_when_default_exists() {
                 &session,
                 "CREATE TABLE insert_values_explicit_default (id INT PRIMARY KEY, status TEXT DEFAULT 'pending')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -4055,7 +4305,7 @@ fn should_preserve_explicit_insert_value_when_default_exists() {
                 &session,
                 "INSERT INTO insert_values_explicit_default (id, status) VALUES (1, 'done') RETURNING status",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4085,28 +4335,28 @@ fn should_query_rows_after_creating_secondary_index() {
                 &session,
                 "CREATE TABLE secondary_index_query (email TEXT, title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE INDEX secondary_email_idx ON secondary_index_query USING btree (email)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO secondary_index_query (email, title) VALUES ('a@example.com', 'alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO secondary_index_query (email, title) VALUES ('b@example.com', 'beta')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -4115,7 +4365,7 @@ fn should_query_rows_after_creating_secondary_index() {
                 &session,
                 "SELECT title FROM secondary_index_query WHERE email = 'b@example.com'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4147,35 +4397,35 @@ fn should_query_rows_after_creating_composite_index() {
                 &session,
                 "CREATE TABLE composite_index_query (tenant_id TEXT, status TEXT, title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE INDEX composite_tenant_status_idx ON composite_index_query USING btree (tenant_id, status)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO composite_index_query (tenant_id, status, title) VALUES ('tenant-a', 'open', 'alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO composite_index_query (tenant_id, status, title) VALUES ('tenant-a', 'closed', 'beta')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO composite_index_query (tenant_id, status, title) VALUES ('tenant-b', 'closed', 'gamma')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -4184,7 +4434,7 @@ fn should_query_rows_after_creating_composite_index() {
                 &session,
                 "SELECT title FROM composite_index_query WHERE tenant_id = 'tenant-a' AND status = 'closed'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4216,7 +4466,7 @@ fn should_round_trip_insert_values_vector_field() {
                 &session,
                 "CREATE TABLE insert_values_vector_round_trip (doc_id TEXT, embedding VECTOR(3))",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -4225,14 +4475,14 @@ fn should_round_trip_insert_values_vector_field() {
                 &session,
                 "INSERT INTO insert_values_vector_round_trip (doc_id, embedding) VALUES ('row-1', $1)",
                 vec![Value::Vector(Vector::new(vec![1.0, 2.0, 3.0]))],
-            );
+            )
             .unwrap();
         let selected = cassie
             .execute_sql(
                 &session,
                 "SELECT embedding FROM insert_values_vector_round_trip WHERE doc_id = 'row-1'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4264,7 +4514,7 @@ fn should_reject_vector_index_when_embedding_dimensions_mismatch() {
                 &session,
                 "CREATE TABLE vector_index_embedding_dimension_mismatch (content TEXT, embedding VECTOR(3))",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -4305,16 +4555,15 @@ fn should_reject_insert_values_when_vector_dimensions_mismatch() {
                 &session,
                 "CREATE TABLE insert_values_vector_dimensions (embedding VECTOR(2))",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let inserted = cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO insert_values_vector_dimensions (embedding) VALUES ($1)",
-                vec![Value::Vector(Vector::new(vec![1.0]))],
-            );
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO insert_values_vector_dimensions (embedding) VALUES ($1)",
+            vec![Value::Vector(Vector::new(vec![1.0]))],
+        );
 
         // Assert
         assert!(inserted.is_err());
@@ -4322,6 +4571,104 @@ fn should_reject_insert_values_when_vector_dimensions_mismatch() {
             .unwrap_err()
             .to_string()
             .contains("expects vector(2)"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_rebuild_normalized_vector_sidecars_after_sql_writes() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("normalized_sidecar_sql_rebuild");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE normalized_sidecar_sql_rebuild (title TEXT, embedding VECTOR(3))",
+                vec![],
+            )
+            .unwrap();
+
+        let row_id = match &cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO normalized_sidecar_sql_rebuild (title, embedding) VALUES ('alpha', $1) RETURNING _id",
+                vec![Value::Vector(Vector::new(vec![3.0, 4.0, 0.0]))],
+            )
+            .unwrap()
+            .rows[0][0]
+        {
+            Value::String(id) => id.clone(),
+            other => panic!("expected string row id, got {other:?}"),
+        };
+        cassie
+            .execute_sql(
+                &session,
+                "UPDATE normalized_sidecar_sql_rebuild SET embedding = $1 WHERE title = 'alpha'",
+                vec![Value::Vector(Vector::new(vec![0.0, 0.0, 5.0]))],
+            )
+            .unwrap();
+
+        let vector_index = VectorIndexRecord {
+            collection: "normalized_sidecar_sql_rebuild".to_string(),
+            field: "embedding".to_string(),
+            source_field: "title".to_string(),
+            metadata: VectorIndexMetadata {
+                provider: "manual".to_string(),
+                model: "manual".to_string(),
+                dimensions: 3,
+                metric: DistanceMetric::Cosine,
+            },
+        };
+
+        // Act
+        cassie.midge.put_vector_index(vector_index.clone()).unwrap();
+        let stored = cassie
+            .midge
+            .get_normalized_vector("normalized_sidecar_sql_rebuild", "embedding", &row_id)
+            .unwrap()
+            .unwrap();
+
+        clear_normalized_sidecars(&cassie, "normalized_sidecar_sql_rebuild", "embedding");
+        assert!(
+            cassie
+                .midge
+                .get_normalized_vector("normalized_sidecar_sql_rebuild", "embedding", &row_id)
+                .unwrap()
+                .is_none()
+        );
+
+        cassie
+            .midge
+            .rebuild_normalized_vectors_for_index(&vector_index)
+            .unwrap();
+        let rebuilt = cassie
+            .midge
+            .get_normalized_vector("normalized_sidecar_sql_rebuild", "embedding", &row_id)
+            .unwrap()
+            .unwrap();
+
+        // Assert
+        assert_eq!(stored.collection, "normalized_sidecar_sql_rebuild");
+        assert_eq!(stored.field, "embedding");
+        assert_eq!(stored.id, row_id);
+        assert_eq!(stored.dimensions, 3);
+        assert_eq!(stored.metric, DistanceMetric::Cosine);
+        assert!(stored.payload_available);
+        assert_eq!(stored.normalization_version, 1);
+        assert_eq!(stored.values, vec![0.0, 0.0, 1.0]);
+        assert_eq!(stored.magnitude, 5.0);
+        assert_eq!(rebuilt.values, stored.values);
+        assert_eq!(rebuilt.magnitude, stored.magnitude);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -4346,16 +4693,15 @@ fn should_reject_insert_values_with_duplicate_target_column() {
                 &session,
                 "CREATE TABLE insert_duplicate_column (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let inserted = cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO insert_duplicate_column (title, title) VALUES ('alpha', 'beta')",
-                vec![],
-            );
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO insert_duplicate_column (title, title) VALUES ('alpha', 'beta')",
+            vec![],
+        );
 
         // Assert
         assert!(inserted.is_err());
@@ -4384,16 +4730,15 @@ fn should_reject_insert_values_with_unknown_target_column() {
                 &session,
                 "CREATE TABLE insert_unknown_column (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let inserted = cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO insert_unknown_column (missing) VALUES ('alpha')",
-                vec![],
-            );
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO insert_unknown_column (missing) VALUES ('alpha')",
+            vec![],
+        );
 
         // Assert
         assert!(inserted.is_err());
@@ -4422,7 +4767,7 @@ fn should_store_insert_values_as_row_blobs() {
                 &session,
                 "CREATE TABLE insert_values_row_blob (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -4431,7 +4776,7 @@ fn should_store_insert_values_as_row_blobs() {
                 &session,
                 "INSERT INTO insert_values_row_blob (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         let row_entries = cassie
             .midge
@@ -4469,14 +4814,14 @@ fn should_project_missing_sparse_row_fields_as_null() {
                 &session,
                 "CREATE TABLE sparse_row_projection (title TEXT, body TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO sparse_row_projection (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -4485,7 +4830,7 @@ fn should_project_missing_sparse_row_fields_as_null() {
                 &session,
                 "SELECT title, body FROM sparse_row_projection",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4524,21 +4869,21 @@ fn should_execute_insert_select_with_returning_rows() {
                 &session,
                 "CREATE TABLE insert_select_target (name TEXT, score INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO insert_select_source (title, score) VALUES ('banana', 2)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO insert_select_source (title, score) VALUES ('apple', 1)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -4547,7 +4892,7 @@ fn should_execute_insert_select_with_returning_rows() {
                 &session,
                 "INSERT INTO insert_select_target (name, score) SELECT title, score FROM insert_select_source ORDER BY title ASC RETURNING name, score",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4589,14 +4934,14 @@ fn should_reject_insert_select_shape_mismatch_before_writing() {
                 &session,
                 "CREATE TABLE insert_select_shape_target (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO insert_select_shape_source (title, body) VALUES ('alpha', 'first')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -4611,7 +4956,7 @@ fn should_reject_insert_select_shape_mismatch_before_writing() {
                 &session,
                 "SELECT title FROM insert_select_shape_target",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4653,14 +4998,14 @@ fn should_apply_default_values_for_insert_select() {
                 &session,
                 "CREATE TABLE insert_select_default_target (id INT PRIMARY KEY, status TEXT DEFAULT 'pending')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO insert_select_default_source (source_id) VALUES (1)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -4669,7 +5014,7 @@ fn should_apply_default_values_for_insert_select() {
                 &session,
                 "INSERT INTO insert_select_default_target (id) SELECT source_id FROM insert_select_default_source RETURNING status",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4707,14 +5052,14 @@ fn should_execute_update_where_returning_rows() {
                 &session,
                 "INSERT INTO update_where_returning (title, status) VALUES ('alpha', 'old')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO update_where_returning (title, status) VALUES ('beta', 'old')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -4723,14 +5068,14 @@ fn should_execute_update_where_returning_rows() {
                 &session,
                 "UPDATE update_where_returning SET status = 'done' WHERE title = 'alpha' RETURNING _id, title, status",
                 vec![],
-            );
+            )
             .unwrap();
         let selected = cassie
             .execute_sql(
                 &session,
                 "SELECT title, status FROM update_where_returning ORDER BY title ASC",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4765,14 +5110,14 @@ fn should_execute_update_returning_scalar_function() {
                 &session,
                 "CREATE TABLE update_returning_function (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO update_returning_function (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -4781,7 +5126,7 @@ fn should_execute_update_returning_scalar_function() {
                 &session,
                 "UPDATE update_returning_function SET title = 'BETA' RETURNING lower(title) AS normalized",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4819,7 +5164,7 @@ fn should_preserve_row_id_when_update_rewrites_row_blob() {
                 &session,
                 "INSERT INTO update_preserve_id (title, body) VALUES ('alpha', 'old') RETURNING _id",
                 vec![],
-            );
+            )
             .unwrap();
         let original_id = match &inserted.rows[0][0] {
             Value::String(value) => value.clone(),
@@ -4832,7 +5177,7 @@ fn should_preserve_row_id_when_update_rewrites_row_blob() {
                 &session,
                 "UPDATE update_preserve_id SET body = 'new' WHERE title = 'alpha' RETURNING _id",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4861,29 +5206,28 @@ fn should_reject_update_validation_failure_without_mutating_row() {
                 &session,
                 "CREATE TABLE update_validation_failure (title TEXT NOT NULL)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO update_validation_failure (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let updated = cassie
-            .execute_sql(
-                &session,
-                "UPDATE update_validation_failure SET title = NULL RETURNING title",
-                vec![],
-            );
+        let updated = cassie.execute_sql(
+            &session,
+            "UPDATE update_validation_failure SET title = NULL RETURNING title",
+            vec![],
+        );
         let selected = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM update_validation_failure",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4914,14 +5258,14 @@ fn should_report_zero_rows_for_update_without_matches() {
                 &session,
                 "CREATE TABLE update_no_match (title TEXT, status TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO update_no_match (title, status) VALUES ('alpha', 'old')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -4930,7 +5274,7 @@ fn should_report_zero_rows_for_update_without_matches() {
                 &session,
                 "UPDATE update_no_match SET status = 'done' WHERE title = 'missing' RETURNING title",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -4960,16 +5304,15 @@ fn should_reject_update_with_duplicate_assignment_target() {
                 &session,
                 "CREATE TABLE update_duplicate_assignment (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let updated = cassie
-            .execute_sql(
-                &session,
-                "UPDATE update_duplicate_assignment SET title = 'alpha', title = 'beta'",
-                vec![],
-            );
+        let updated = cassie.execute_sql(
+            &session,
+            "UPDATE update_duplicate_assignment SET title = 'alpha', title = 'beta'",
+            vec![],
+        );
 
         // Assert
         assert!(updated.is_err());
@@ -4998,16 +5341,15 @@ fn should_reject_update_with_unknown_assignment_target() {
                 &session,
                 "CREATE TABLE update_unknown_assignment (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let updated = cassie
-            .execute_sql(
-                &session,
-                "UPDATE update_unknown_assignment SET missing = 'alpha'",
-                vec![],
-            );
+        let updated = cassie.execute_sql(
+            &session,
+            "UPDATE update_unknown_assignment SET missing = 'alpha'",
+            vec![],
+        );
 
         // Assert
         assert!(updated.is_err());
@@ -5036,21 +5378,21 @@ fn should_execute_delete_where_returning_rows() {
                 &session,
                 "CREATE TABLE delete_where_returning (title TEXT, status TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO delete_where_returning (title, status) VALUES ('alpha', 'old')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO delete_where_returning (title, status) VALUES ('beta', 'old')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -5059,14 +5401,14 @@ fn should_execute_delete_where_returning_rows() {
                 &session,
                 "DELETE FROM delete_where_returning WHERE title = 'alpha' RETURNING _id, title",
                 vec![],
-            );
+            )
             .unwrap();
         let selected = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM delete_where_returning ORDER BY title ASC",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -5099,14 +5441,14 @@ fn should_execute_delete_returning_scalar_function() {
                 &session,
                 "CREATE TABLE delete_returning_function (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO delete_returning_function (title) VALUES ('ALPHA')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -5115,7 +5457,7 @@ fn should_execute_delete_returning_scalar_function() {
                 &session,
                 "DELETE FROM delete_returning_function RETURNING lower(title) AS normalized",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -5145,14 +5487,14 @@ fn should_report_zero_rows_for_delete_without_matches() {
                 &session,
                 "CREATE TABLE delete_no_match (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO delete_no_match (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -5161,10 +5503,10 @@ fn should_report_zero_rows_for_delete_without_matches() {
                 &session,
                 "DELETE FROM delete_no_match WHERE title = 'missing' RETURNING title",
                 vec![],
-            );
+            )
             .unwrap();
         let selected = cassie
-            .execute_sql(&session, "SELECT title FROM delete_no_match", vec![]);
+            .execute_sql(&session, "SELECT title FROM delete_no_match", vec![])
             .unwrap();
 
         // Assert
@@ -5195,14 +5537,14 @@ fn should_delete_legacy_fallback_key_for_sql_delete() {
                 &session,
                 "CREATE TABLE delete_legacy_cleanup (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         let inserted = cassie
             .execute_sql(
                 &session,
                 "INSERT INTO delete_legacy_cleanup (title) VALUES ('alpha') RETURNING _id",
                 vec![],
-            );
+            )
             .unwrap();
         let row_id = match &inserted.rows[0][0] {
             Value::String(value) => value.clone(),
@@ -5221,7 +5563,7 @@ fn should_delete_legacy_fallback_key_for_sql_delete() {
                 &session,
                 "DELETE FROM delete_legacy_cleanup WHERE title = 'alpha'",
                 vec![],
-            );
+            )
             .unwrap();
         let deleted = cassie
             .midge
@@ -5253,9 +5595,7 @@ fn should_transition_session_state_for_transaction_control() {
         // Act
         let begin = cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
         let during = session.transaction_status();
-        let commit = cassie
-            .execute_sql(&session, "COMMIT", vec![]);
-            .unwrap();
+        let commit = cassie.execute_sql(&session, "COMMIT", vec![]).unwrap();
         let after = session.transaction_status();
 
         // Assert
@@ -5285,9 +5625,7 @@ fn should_restore_idle_state_on_rollback() {
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
 
         // Act
-        let rollback = cassie
-            .execute_sql(&session, "ROLLBACK", vec![]);
-            .unwrap();
+        let rollback = cassie.execute_sql(&session, "ROLLBACK", vec![]).unwrap();
         let after = session.transaction_status();
 
         // Assert
@@ -5319,17 +5657,17 @@ fn should_keep_autocommit_writes_visible_after_success() {
                 &session,
                 "CREATE TABLE transaction_autocommit (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO transaction_autocommit (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         let selected = cassie
-            .execute_sql(&session, "SELECT title FROM transaction_autocommit", vec![]);
+            .execute_sql(&session, "SELECT title FROM transaction_autocommit", vec![])
             .unwrap();
 
         // Assert
@@ -5359,12 +5697,11 @@ fn should_reject_unsupported_transaction_control_sql() {
         let session = cassie.create_session("tester", None);
 
         // Act
-        let statement = cassie
-            .execute_sql(
-                &session,
-                "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE",
-                vec![],
-            );
+        let statement = cassie.execute_sql(
+            &session,
+            "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE",
+            vec![],
+        );
 
         // Assert
         assert!(statement.is_err());
@@ -5393,7 +5730,7 @@ fn should_rollback_to_savepoint_discard_later_writes() {
                 &session,
                 "CREATE TABLE transaction_savepoint_rollback (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
         cassie
@@ -5401,29 +5738,29 @@ fn should_rollback_to_savepoint_discard_later_writes() {
                 &session,
                 "INSERT INTO transaction_savepoint_rollback (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
-            .execute_sql(&session, "SAVEPOINT sp", vec![]);
+            .execute_sql(&session, "SAVEPOINT sp", vec![])
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO transaction_savepoint_rollback (title) VALUES ('beta')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
         cassie
-            .execute_sql(&session, "ROLLBACK TO SAVEPOINT sp", vec![]);
+            .execute_sql(&session, "ROLLBACK TO SAVEPOINT sp", vec![])
             .unwrap();
         let selected = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM transaction_savepoint_rollback ORDER BY title",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -5452,15 +5789,14 @@ fn should_release_savepoint_prevent_later_rollback_to_it() {
         let session = cassie.create_session("tester", None);
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
         cassie
-            .execute_sql(&session, "SAVEPOINT sp", vec![]);
+            .execute_sql(&session, "SAVEPOINT sp", vec![])
             .unwrap();
 
         // Act
         cassie
-            .execute_sql(&session, "RELEASE SAVEPOINT sp", vec![]);
+            .execute_sql(&session, "RELEASE SAVEPOINT sp", vec![])
             .unwrap();
-        let rollback = cassie
-            .execute_sql(&session, "ROLLBACK TO SAVEPOINT sp", vec![]);
+        let rollback = cassie.execute_sql(&session, "ROLLBACK TO SAVEPOINT sp", vec![]);
 
         // Assert
         assert!(rollback.is_err());
@@ -5518,23 +5854,22 @@ fn should_rollback_to_savepoint_recover_failed_transaction() {
                 &session,
                 "CREATE TABLE transaction_savepoint_failed_recovery (title TEXT NOT NULL)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
         cassie
-            .execute_sql(&session, "SAVEPOINT sp", vec![]);
+            .execute_sql(&session, "SAVEPOINT sp", vec![])
             .unwrap();
-        let failed_insert = cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO transaction_savepoint_failed_recovery (title) VALUES (NULL)",
-                vec![],
-            );
+        let failed_insert = cassie.execute_sql(
+            &session,
+            "INSERT INTO transaction_savepoint_failed_recovery (title) VALUES (NULL)",
+            vec![],
+        );
         assert!(failed_insert.is_err());
 
         // Act
         cassie
-            .execute_sql(&session, "ROLLBACK TO SAVEPOINT sp", vec![]);
+            .execute_sql(&session, "ROLLBACK TO SAVEPOINT sp", vec![])
             .unwrap();
         let status = session.transaction_status();
         cassie
@@ -5542,17 +5877,15 @@ fn should_rollback_to_savepoint_recover_failed_transaction() {
                 &session,
                 "INSERT INTO transaction_savepoint_failed_recovery (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
-        cassie
-            .execute_sql(&session, "COMMIT", vec![]);
-            .unwrap();
+        cassie.execute_sql(&session, "COMMIT", vec![]).unwrap();
         let selected = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM transaction_savepoint_failed_recovery",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -5585,16 +5918,15 @@ fn should_reject_advisory_lock_sql() {
                 &session,
                 "CREATE TABLE transaction_advisory_lock (id INT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let lock = cassie
-            .execute_sql(
-                &session,
-                "SELECT pg_advisory_lock(1) FROM transaction_advisory_lock",
-                vec![],
-            );
+        let lock = cassie.execute_sql(
+            &session,
+            "SELECT pg_advisory_lock(1) FROM transaction_advisory_lock",
+            vec![],
+        );
 
         // Assert
         assert!(lock.is_err());
@@ -5626,7 +5958,7 @@ fn should_discard_transaction_writes_after_rollback() {
                 &session,
                 "CREATE TABLE transaction_rollback_writes (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
 
@@ -5636,17 +5968,15 @@ fn should_discard_transaction_writes_after_rollback() {
                 &session,
                 "INSERT INTO transaction_rollback_writes (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
-        cassie
-            .execute_sql(&session, "ROLLBACK", vec![]);
-            .unwrap();
+        cassie.execute_sql(&session, "ROLLBACK", vec![]).unwrap();
         let selected = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM transaction_rollback_writes",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -5676,7 +6006,7 @@ fn should_hide_transaction_writes_from_other_sessions_before_commit() {
                 &writer,
                 "CREATE TABLE transaction_uncommitted_visibility (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie.execute_sql(&writer, "BEGIN", vec![]).unwrap();
         cassie
@@ -5684,7 +6014,7 @@ fn should_hide_transaction_writes_from_other_sessions_before_commit() {
                 &writer,
                 "INSERT INTO transaction_uncommitted_visibility (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -5693,7 +6023,7 @@ fn should_hide_transaction_writes_from_other_sessions_before_commit() {
                 &reader,
                 "SELECT title FROM transaction_uncommitted_visibility",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -5722,7 +6052,7 @@ fn should_read_own_transaction_writes_before_commit() {
                 &session,
                 "CREATE TABLE transaction_read_your_writes (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
         cassie
@@ -5730,7 +6060,7 @@ fn should_read_own_transaction_writes_before_commit() {
                 &session,
                 "INSERT INTO transaction_read_your_writes (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -5739,7 +6069,7 @@ fn should_read_own_transaction_writes_before_commit() {
                 &session,
                 "SELECT title FROM transaction_read_your_writes",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -5772,7 +6102,7 @@ fn should_persist_transaction_writes_after_commit() {
                 &writer,
                 "CREATE TABLE transaction_commit_writes (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie.execute_sql(&writer, "BEGIN", vec![]).unwrap();
         cassie
@@ -5780,7 +6110,7 @@ fn should_persist_transaction_writes_after_commit() {
                 &writer,
                 "INSERT INTO transaction_commit_writes (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -5790,7 +6120,7 @@ fn should_persist_transaction_writes_after_commit() {
                 &reader,
                 "SELECT title FROM transaction_commit_writes",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -5822,7 +6152,7 @@ fn should_keep_transaction_insert_out_of_storage_until_commit() {
                 &session,
                 "CREATE TABLE transaction_storage_routing (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
 
@@ -5832,7 +6162,7 @@ fn should_keep_transaction_insert_out_of_storage_until_commit() {
                 &session,
                 "INSERT INTO transaction_storage_routing (title) VALUES ('alpha') RETURNING _id",
                 vec![],
-            );
+            )
             .unwrap();
         let row_id = match &inserted.rows[0][0] {
             Value::String(value) => value.clone(),
@@ -5842,9 +6172,7 @@ fn should_keep_transaction_insert_out_of_storage_until_commit() {
             .midge
             .get_document("transaction_storage_routing", &row_id)
             .unwrap();
-        cassie
-            .execute_sql(&session, "COMMIT", vec![]);
-            .unwrap();
+        cassie.execute_sql(&session, "COMMIT", vec![]).unwrap();
         let after_commit = cassie
             .midge
             .get_document("transaction_storage_routing", &row_id)
@@ -5880,24 +6208,22 @@ fn should_reject_work_after_transaction_error_until_rollback() {
                 &session,
                 "CREATE TABLE transaction_failed_state (title TEXT NOT NULL)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
-        let failed_insert = cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO transaction_failed_state (title) VALUES (NULL)",
-                vec![],
-            );
+        let failed_insert = cassie.execute_sql(
+            &session,
+            "INSERT INTO transaction_failed_state (title) VALUES (NULL)",
+            vec![],
+        );
         assert!(failed_insert.is_err());
 
         // Act
-        let selected = cassie
-            .execute_sql(
-                &session,
-                "SELECT title FROM transaction_failed_state",
-                vec![],
-            );
+        let selected = cassie.execute_sql(
+            &session,
+            "SELECT title FROM transaction_failed_state",
+            vec![],
+        );
 
         // Assert
         assert!(selected.is_err());
@@ -5929,19 +6255,16 @@ fn should_allow_work_after_failed_transaction_rollback() {
                 &session,
                 "CREATE TABLE transaction_failed_recovery (title TEXT NOT NULL)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
-        let failed_insert = cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO transaction_failed_recovery (title) VALUES (NULL)",
-                vec![],
-            );
+        let failed_insert = cassie.execute_sql(
+            &session,
+            "INSERT INTO transaction_failed_recovery (title) VALUES (NULL)",
+            vec![],
+        );
         assert!(failed_insert.is_err());
-        cassie
-            .execute_sql(&session, "ROLLBACK", vec![]);
-            .unwrap();
+        cassie.execute_sql(&session, "ROLLBACK", vec![]).unwrap();
 
         // Act
         let selected = cassie
@@ -5949,7 +6272,7 @@ fn should_allow_work_after_failed_transaction_rollback() {
                 &session,
                 "SELECT title FROM transaction_failed_recovery",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -5978,14 +6301,14 @@ fn should_discard_transaction_update_after_rollback() {
                 &session,
                 "CREATE TABLE transaction_update_rollback (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO transaction_update_rollback (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
 
@@ -5995,17 +6318,15 @@ fn should_discard_transaction_update_after_rollback() {
                 &session,
                 "UPDATE transaction_update_rollback SET title = 'beta'",
                 vec![],
-            );
+            )
             .unwrap();
-        cassie
-            .execute_sql(&session, "ROLLBACK", vec![]);
-            .unwrap();
+        cassie.execute_sql(&session, "ROLLBACK", vec![]).unwrap();
         let selected = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM transaction_update_rollback",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6037,14 +6358,14 @@ fn should_discard_transaction_delete_after_rollback() {
                 &session,
                 "CREATE TABLE transaction_delete_rollback (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO transaction_delete_rollback (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
 
@@ -6054,17 +6375,15 @@ fn should_discard_transaction_delete_after_rollback() {
                 &session,
                 "DELETE FROM transaction_delete_rollback WHERE title = 'alpha'",
                 vec![],
-            );
+            )
             .unwrap();
-        cassie
-            .execute_sql(&session, "ROLLBACK", vec![]);
-            .unwrap();
+        cassie.execute_sql(&session, "ROLLBACK", vec![]).unwrap();
         let selected = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM transaction_delete_rollback",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6096,14 +6415,14 @@ fn should_read_own_transaction_update_before_commit() {
                 &session,
                 "CREATE TABLE transaction_update_read_your_writes (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO transaction_update_read_your_writes (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
         cassie
@@ -6111,7 +6430,7 @@ fn should_read_own_transaction_update_before_commit() {
                 &session,
                 "UPDATE transaction_update_read_your_writes SET title = 'beta'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6120,7 +6439,7 @@ fn should_read_own_transaction_update_before_commit() {
                 &session,
                 "SELECT title FROM transaction_update_read_your_writes",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6149,14 +6468,14 @@ fn should_read_own_transaction_delete_before_commit() {
                 &session,
                 "CREATE TABLE transaction_delete_read_your_writes (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO transaction_delete_read_your_writes (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
         cassie
@@ -6164,7 +6483,7 @@ fn should_read_own_transaction_delete_before_commit() {
                 &session,
                 "DELETE FROM transaction_delete_read_your_writes WHERE title = 'alpha'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6173,7 +6492,7 @@ fn should_read_own_transaction_delete_before_commit() {
                 &session,
                 "SELECT title FROM transaction_delete_read_your_writes",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6202,21 +6521,21 @@ fn should_filter_rows_with_is_null_predicate() {
                 &session,
                 "CREATE TABLE predicate_is_null (title TEXT, archived_at TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_is_null (title, archived_at) VALUES ('alpha', NULL)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_is_null (title, archived_at) VALUES ('beta', 'today')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6225,7 +6544,7 @@ fn should_filter_rows_with_is_null_predicate() {
                 &session,
                 "SELECT title FROM predicate_is_null WHERE archived_at IS NULL",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6257,21 +6576,21 @@ fn should_filter_rows_with_is_not_null_predicate() {
                 &session,
                 "CREATE TABLE predicate_is_not_null (title TEXT, archived_at TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_is_not_null (title, archived_at) VALUES ('alpha', NULL)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_is_not_null (title, archived_at) VALUES ('beta', 'today')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6280,7 +6599,7 @@ fn should_filter_rows_with_is_not_null_predicate() {
                 &session,
                 "SELECT title FROM predicate_is_not_null WHERE archived_at IS NOT NULL",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6309,21 +6628,21 @@ fn should_filter_rows_with_in_list_predicate() {
                 &session,
                 "CREATE TABLE predicate_in_list (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_in_list (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_in_list (title) VALUES ('gamma')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6332,7 +6651,7 @@ fn should_filter_rows_with_in_list_predicate() {
                 &session,
                 "SELECT title FROM predicate_in_list WHERE title IN ('alpha', 'beta')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6364,21 +6683,21 @@ fn should_filter_rows_with_not_in_list_predicate() {
                 &session,
                 "CREATE TABLE predicate_not_in_list (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_not_in_list (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_not_in_list (title) VALUES ('gamma')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6387,7 +6706,7 @@ fn should_filter_rows_with_not_in_list_predicate() {
                 &session,
                 "SELECT title FROM predicate_not_in_list WHERE title NOT IN ('alpha', 'beta')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6419,21 +6738,21 @@ fn should_filter_rows_with_between_predicate() {
                 &session,
                 "CREATE TABLE predicate_between (title TEXT, score INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_between (title, score) VALUES ('alpha', 5)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_between (title, score) VALUES ('beta', 15)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6442,7 +6761,7 @@ fn should_filter_rows_with_between_predicate() {
                 &session,
                 "SELECT title FROM predicate_between WHERE score BETWEEN 10 AND 20",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6471,21 +6790,21 @@ fn should_filter_rows_with_not_between_predicate() {
                 &session,
                 "CREATE TABLE predicate_not_between (title TEXT, score INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_not_between (title, score) VALUES ('alpha', 5)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_not_between (title, score) VALUES ('beta', 15)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6494,7 +6813,7 @@ fn should_filter_rows_with_not_between_predicate() {
                 &session,
                 "SELECT title FROM predicate_not_between WHERE score NOT BETWEEN 10 AND 20",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6526,14 +6845,14 @@ fn should_filter_rows_with_cast_function_expression() {
                 &session,
                 "CREATE TABLE predicate_cast_function (title TEXT, score INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_cast_function (title, score) VALUES ('alpha', 10)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6542,7 +6861,7 @@ fn should_filter_rows_with_cast_function_expression() {
                 &session,
                 "SELECT title FROM predicate_cast_function WHERE CAST(score AS TEXT) = '10'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6574,14 +6893,14 @@ fn should_filter_rows_with_postgres_style_cast_expression() {
                 &session,
                 "CREATE TABLE predicate_pg_cast (title TEXT, score INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_pg_cast (title, score) VALUES ('alpha', 10)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6590,7 +6909,7 @@ fn should_filter_rows_with_postgres_style_cast_expression() {
                 &session,
                 "SELECT title FROM predicate_pg_cast WHERE score::TEXT = '10'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6622,14 +6941,14 @@ fn should_project_rows_with_cast_expressions() {
                 &session,
                 "CREATE TABLE projection_cast_expressions (score INT, active BOOLEAN, flag TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO projection_cast_expressions (score, active, flag) VALUES (10, true, 't')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6638,7 +6957,7 @@ fn should_project_rows_with_cast_expressions() {
                 &session,
                 "SELECT CAST(score AS TEXT) AS score_text, score::FLOAT AS score_float, CAST(active AS INT) AS active_int, CAST(flag AS BOOLEAN) AS flag_bool FROM projection_cast_expressions",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6675,23 +6994,22 @@ fn should_reject_invalid_cast_expression() {
                 &session,
                 "CREATE TABLE invalid_cast_expression (label TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO invalid_cast_expression (label) VALUES ('not-a-number')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let selected = cassie
-            .execute_sql(
-                &session,
-                "SELECT CAST(label AS INT) FROM invalid_cast_expression",
-                vec![],
-            );
+        let selected = cassie.execute_sql(
+            &session,
+            "SELECT CAST(label AS INT) FROM invalid_cast_expression",
+            vec![],
+        );
 
         // Assert
         assert!(selected.is_err());
@@ -6723,21 +7041,21 @@ fn should_order_nulls_first_when_requested() {
                 &session,
                 "CREATE TABLE order_nulls_first (title TEXT, archived_at TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO order_nulls_first (title, archived_at) VALUES ('alpha', 'today')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO order_nulls_first (title, archived_at) VALUES ('beta', NULL)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6746,7 +7064,7 @@ fn should_order_nulls_first_when_requested() {
                 &session,
                 "SELECT title FROM order_nulls_first ORDER BY archived_at NULLS FIRST",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6781,21 +7099,21 @@ fn should_order_nulls_last_when_requested() {
                 &session,
                 "CREATE TABLE order_nulls_last (title TEXT, archived_at TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO order_nulls_last (title, archived_at) VALUES ('alpha', 'today')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO order_nulls_last (title, archived_at) VALUES ('beta', NULL)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6804,7 +7122,7 @@ fn should_order_nulls_last_when_requested() {
                 &session,
                 "SELECT title FROM order_nulls_last ORDER BY archived_at NULLS LAST",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6839,21 +7157,21 @@ fn should_filter_rows_with_exists_predicate() {
 
 .unwrap();
         cassie
-            .execute_sql(&session, "CREATE TABLE predicate_exists_inner (title TEXT)", vec![]);
+            .execute_sql(&session, "CREATE TABLE predicate_exists_inner (title TEXT)", vec![])
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_exists_outer (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_exists_inner (title) VALUES ('present')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6862,7 +7180,7 @@ fn should_filter_rows_with_exists_predicate() {
                 &session,
                 "SELECT title FROM predicate_exists_outer WHERE EXISTS (SELECT title FROM predicate_exists_inner)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6899,14 +7217,14 @@ fn should_filter_rows_with_empty_exists_predicate() {
                 &session,
                 "CREATE TABLE predicate_empty_exists_inner (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_empty_exists_outer (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6915,7 +7233,7 @@ fn should_filter_rows_with_empty_exists_predicate() {
                 &session,
                 "SELECT title FROM predicate_empty_exists_outer WHERE EXISTS (SELECT title FROM predicate_empty_exists_inner)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6944,21 +7262,21 @@ fn should_filter_rows_with_not_predicate() {
                 &session,
                 "CREATE TABLE predicate_not_docs (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_not_docs (title) VALUES ('keep')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_not_docs (title) VALUES ('skip')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -6967,7 +7285,7 @@ fn should_filter_rows_with_not_predicate() {
                 &session,
                 "SELECT title FROM predicate_not_docs WHERE NOT title = 'skip'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -6996,21 +7314,21 @@ fn should_filter_rows_with_not_exists_predicate() {
                 &session,
                 "CREATE TABLE predicate_not_exists_outer (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE predicate_not_exists_inner (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO predicate_not_exists_outer (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -7019,7 +7337,7 @@ fn should_filter_rows_with_not_exists_predicate() {
                 &session,
                 "SELECT title FROM predicate_not_exists_outer WHERE NOT EXISTS (SELECT title FROM predicate_not_exists_inner)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7059,21 +7377,21 @@ fn should_execute_inner_join_query() {
                 &session,
                 "CREATE TABLE join_orders (order_user_key INT, total INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO join_users (user_key, name) VALUES (1, 'ada')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO join_orders (order_user_key, total) VALUES (1, 42)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -7082,7 +7400,7 @@ fn should_execute_inner_join_query() {
                 &session,
                 "SELECT join_users.name, join_orders.total FROM join_users JOIN join_orders ON join_users.user_key = join_orders.order_user_key",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7122,14 +7440,14 @@ fn should_execute_left_join_query() {
                 &session,
                 "CREATE TABLE left_orders (order_user_key INT, total INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO left_users (user_key, name) VALUES (1, 'ada')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -7138,7 +7456,7 @@ fn should_execute_left_join_query() {
                 &session,
                 "SELECT left_users.name, left_orders.total FROM left_users LEFT JOIN left_orders ON left_users.user_key = left_orders.order_user_key",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7170,21 +7488,21 @@ fn should_execute_right_join_query() {
                 &session,
                 "CREATE TABLE right_users (user_key INT, name TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE right_orders (order_user_key INT, total INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO right_orders (order_user_key, total) VALUES (1, 42)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -7193,7 +7511,7 @@ fn should_execute_right_join_query() {
                 &session,
                 "SELECT right_users.name, right_orders.total FROM right_users RIGHT JOIN right_orders ON right_users.user_key = right_orders.order_user_key",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7222,28 +7540,28 @@ fn should_execute_full_outer_join_query() {
                 &session,
                 "CREATE TABLE full_users (user_key INT, name TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE full_orders (order_user_key INT, total INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO full_users (user_key, name) VALUES (1, 'ada')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO full_orders (order_user_key, total) VALUES (2, 42)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -7252,7 +7570,7 @@ fn should_execute_full_outer_join_query() {
                 &session,
                 "SELECT full_users.name, full_orders.total FROM full_users FULL OUTER JOIN full_orders ON full_users.user_key = full_orders.order_user_key ORDER BY full_users.name NULLS LAST",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7287,35 +7605,35 @@ fn should_execute_cross_join_query() {
                 &session,
                 "CREATE TABLE cross_users (user_key INT, name TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE cross_orders (order_key INT, total INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO cross_users (user_key, name) VALUES (1, 'ada')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO cross_users (user_key, name) VALUES (2, 'grace')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO cross_orders (order_key, total) VALUES (10, 42)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -7324,7 +7642,7 @@ fn should_execute_cross_join_query() {
                 &session,
                 "SELECT cross_users.name, cross_orders.total FROM cross_users CROSS JOIN cross_orders ORDER BY cross_users.name",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7359,49 +7677,49 @@ fn should_execute_lateral_join_query() {
                 &session,
                 "CREATE TABLE lateral_users (user_key INT, name TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE lateral_orders (order_user_key INT, total INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO lateral_users (user_key, name) VALUES (1, 'ada')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO lateral_users (user_key, name) VALUES (2, 'grace')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO lateral_orders (order_user_key, total) VALUES (1, 42)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO lateral_orders (order_user_key, total) VALUES (1, 99)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO lateral_orders (order_user_key, total) VALUES (2, 7)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -7410,7 +7728,7 @@ fn should_execute_lateral_join_query() {
                 &session,
                 "SELECT lateral_users.name, recent.total FROM lateral_users JOIN LATERAL (SELECT total FROM lateral_orders WHERE order_user_key = lateral_users.user_key ORDER BY total DESC LIMIT 1) AS recent ON true ORDER BY lateral_users.name",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7445,28 +7763,28 @@ fn should_execute_cross_apply_query() {
                 &session,
                 "CREATE TABLE apply_users (user_key INT, name TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE apply_orders (order_key INT, total INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO apply_users (user_key, name) VALUES (1, 'ada')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO apply_orders (order_key, total) VALUES (10, 42)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -7475,7 +7793,7 @@ fn should_execute_cross_apply_query() {
                 &session,
                 "SELECT apply_users.name, recent.total FROM apply_users CROSS APPLY (SELECT total FROM apply_orders) AS recent ORDER BY apply_users.name",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7510,21 +7828,21 @@ fn should_execute_outer_apply_query() {
                 &session,
                 "CREATE TABLE outer_apply_users (user_key INT, name TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE apply_missing_orders (order_key INT, total INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO outer_apply_users (user_key, name) VALUES (1, 'ada')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -7533,7 +7851,7 @@ fn should_execute_outer_apply_query() {
                 &session,
                 "SELECT outer_apply_users.name, recent.total FROM outer_apply_users OUTER APPLY (SELECT total FROM apply_missing_orders) AS recent ORDER BY outer_apply_users.name",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7565,14 +7883,14 @@ fn should_execute_from_subquery_query() {
                 &session,
                 "CREATE TABLE from_subquery_docs (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO from_subquery_docs (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -7581,7 +7899,7 @@ fn should_execute_from_subquery_query() {
                 &session,
                 "SELECT recent.title FROM (SELECT title FROM from_subquery_docs) AS recent",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7621,21 +7939,21 @@ fn should_execute_grouped_count_query() {
                 &session,
                 "INSERT INTO aggregate_count_docs (category) VALUES ('b')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO aggregate_count_docs (category) VALUES ('a')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO aggregate_count_docs (category) VALUES ('a')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -7644,7 +7962,7 @@ fn should_execute_grouped_count_query() {
                 &session,
                 "SELECT category, COUNT(*) AS total FROM aggregate_count_docs GROUP BY category ORDER BY category",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7679,7 +7997,7 @@ fn should_execute_basic_numeric_aggregates_query() {
                 &session,
                 "CREATE TABLE aggregate_numeric_sales (amount INT)",
                 vec![],
-            );
+            )
             .unwrap();
         for sql in [
             "INSERT INTO aggregate_numeric_sales (amount) VALUES (7)",
@@ -7695,7 +8013,7 @@ fn should_execute_basic_numeric_aggregates_query() {
                 &session,
                 "SELECT SUM(amount) AS total, AVG(amount) AS average, MIN(amount) AS smallest, MAX(amount) AS largest FROM aggregate_numeric_sales",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7732,7 +8050,7 @@ fn should_ignore_null_values_for_basic_aggregates_query() {
                 &session,
                 "CREATE TABLE aggregate_null_sales (amount INT)",
                 vec![],
-            );
+            )
             .unwrap();
         for sql in [
             "INSERT INTO aggregate_null_sales (amount) VALUES (7)",
@@ -7748,7 +8066,7 @@ fn should_ignore_null_values_for_basic_aggregates_query() {
                 &session,
                 "SELECT COUNT(amount) AS present, SUM(amount) AS total, AVG(amount) AS average, MIN(amount) AS smallest, MAX(amount) AS largest FROM aggregate_null_sales",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7786,28 +8104,28 @@ fn should_execute_row_number_window_function_query() {
                 &session,
                 "CREATE TABLE window_scores (category TEXT, title TEXT, score INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO window_scores (category, title, score) VALUES ('a', 'first', 10)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO window_scores (category, title, score) VALUES ('a', 'second', 20)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO window_scores (category, title, score) VALUES ('b', 'third', 30)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -7816,7 +8134,7 @@ fn should_execute_row_number_window_function_query() {
                 &session,
                 "SELECT category, title, row_number() OVER (PARTITION BY category ORDER BY score DESC) AS rank FROM window_scores ORDER BY category ASC, rank ASC",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7864,28 +8182,28 @@ fn should_execute_basic_value_window_functions_query() {
                 &session,
                 "CREATE TABLE window_values (category TEXT, title TEXT, score INT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO window_values (category, title, score) VALUES ('a', 'alpha', 30)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO window_values (category, title, score) VALUES ('a', 'beta', 20)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO window_values (category, title, score) VALUES ('a', 'gamma', 20)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -7894,7 +8212,7 @@ fn should_execute_basic_value_window_functions_query() {
                 &session,
                 "SELECT title, rank() OVER (PARTITION BY category ORDER BY score DESC, title ASC) AS rnk, dense_rank() OVER (PARTITION BY category ORDER BY score DESC, title ASC) AS dense, lag(title) OVER (PARTITION BY category ORDER BY score DESC, title ASC) AS prev, lead(title) OVER (PARTITION BY category ORDER BY score DESC, title ASC) AS next, first_value(title) OVER (PARTITION BY category ORDER BY score DESC, title ASC) AS first, last_value(title) OVER (PARTITION BY category ORDER BY score DESC, title ASC) AS last FROM window_values ORDER BY rnk ASC, title ASC",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -7971,7 +8289,7 @@ fn should_filter_grouped_rows_with_having() {
                 &session,
                 "SELECT category, SUM(amount) AS total FROM aggregate_having_sales GROUP BY category HAVING SUM(amount) > 10",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -8003,7 +8321,7 @@ fn should_execute_distinct_query() {
                 &session,
                 "CREATE TABLE distinct_docs (category TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         for sql in [
             "INSERT INTO distinct_docs (category) VALUES ('b')",
@@ -8019,7 +8337,7 @@ fn should_execute_distinct_query() {
                 &session,
                 "SELECT DISTINCT category FROM distinct_docs ORDER BY category",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -8050,35 +8368,35 @@ fn should_execute_union_all_query() {
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
-            .execute_sql(&session, "CREATE TABLE union_all_left (title TEXT)", vec![]);
+            .execute_sql(&session, "CREATE TABLE union_all_left (title TEXT)", vec![])
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE union_all_right (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO union_all_left (title) VALUES ('beta')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO union_all_right (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO union_all_right (title) VALUES ('beta')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -8087,7 +8405,7 @@ fn should_execute_union_all_query() {
                 &session,
                 "SELECT title FROM union_all_left UNION ALL SELECT title FROM union_all_right",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -8119,31 +8437,31 @@ fn should_execute_union_query_with_deduplication() {
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
-            .execute_sql(&session, "CREATE TABLE union_left (title TEXT)", vec![]);
+            .execute_sql(&session, "CREATE TABLE union_left (title TEXT)", vec![])
             .unwrap();
         cassie
-            .execute_sql(&session, "CREATE TABLE union_right (title TEXT)", vec![]);
+            .execute_sql(&session, "CREATE TABLE union_right (title TEXT)", vec![])
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO union_left (title) VALUES ('beta')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO union_right (title) VALUES ('alpha')",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO union_right (title) VALUES ('beta')",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -8152,7 +8470,7 @@ fn should_execute_union_query_with_deduplication() {
                 &session,
                 "SELECT title FROM union_left UNION SELECT title FROM union_right",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -8183,14 +8501,14 @@ fn should_execute_intersect_query() {
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
-            .execute_sql(&session, "CREATE TABLE intersect_left (title TEXT)", vec![]);
+            .execute_sql(&session, "CREATE TABLE intersect_left (title TEXT)", vec![])
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE intersect_right (title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
         for sql in [
             "INSERT INTO intersect_left (title) VALUES ('alpha')",
@@ -8207,7 +8525,7 @@ fn should_execute_intersect_query() {
                 &session,
                 "SELECT title FROM intersect_left INTERSECT SELECT title FROM intersect_right",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -8232,10 +8550,10 @@ fn should_execute_except_query() {
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
-            .execute_sql(&session, "CREATE TABLE except_left (title TEXT)", vec![]);
+            .execute_sql(&session, "CREATE TABLE except_left (title TEXT)", vec![])
             .unwrap();
         cassie
-            .execute_sql(&session, "CREATE TABLE except_right (title TEXT)", vec![]);
+            .execute_sql(&session, "CREATE TABLE except_right (title TEXT)", vec![])
             .unwrap();
         for sql in [
             "INSERT INTO except_left (title) VALUES ('alpha')",
@@ -8252,7 +8570,7 @@ fn should_execute_except_query() {
                 &session,
                 "SELECT title FROM except_left EXCEPT SELECT title FROM except_right",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -8284,7 +8602,7 @@ fn should_execute_distinct_on_query_with_ordering() {
                 &session,
                 "CREATE TABLE distinct_on_docs (tenant_id TEXT, title TEXT, score INT)",
                 vec![],
-            );
+            )
             .unwrap();
         for sql in [
             "INSERT INTO distinct_on_docs (tenant_id, title, score) VALUES ('a', 'low', 1)",
@@ -8300,7 +8618,7 @@ fn should_execute_distinct_on_query_with_ordering() {
                 &session,
                 "SELECT DISTINCT ON (tenant_id) tenant_id, title FROM distinct_on_docs ORDER BY tenant_id ASC, score DESC",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -8337,10 +8655,10 @@ fn should_apply_order_limit_offset_after_union_all() {
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
-            .execute_sql(&session, "CREATE TABLE union_order_left (title TEXT)", vec![]);
+            .execute_sql(&session, "CREATE TABLE union_order_left (title TEXT)", vec![])
             .unwrap();
         cassie
-            .execute_sql(&session, "CREATE TABLE union_order_right (title TEXT)", vec![]);
+            .execute_sql(&session, "CREATE TABLE union_order_right (title TEXT)", vec![])
             .unwrap();
         for sql in [
             "INSERT INTO union_order_left (title) VALUES ('beta')",
@@ -8356,7 +8674,7 @@ fn should_apply_order_limit_offset_after_union_all() {
                 &session,
                 "SELECT title FROM union_order_left UNION ALL SELECT title FROM union_order_right ORDER BY title LIMIT 1 OFFSET 1",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -8385,7 +8703,7 @@ fn should_execute_chained_union_all_query() {
         let session = cassie.create_session("tester", None);
         for table in ["union_chain_a", "union_chain_b", "union_chain_c"] {
             cassie
-                .execute_sql(&session, &format!("CREATE TABLE {table} (title TEXT)"), vec![]);
+                .execute_sql(&session, &format!("CREATE TABLE {table} (title TEXT)"), vec![])
                 .unwrap();
         }
         for sql in [
@@ -8402,7 +8720,7 @@ fn should_execute_chained_union_all_query() {
                 &session,
                 "SELECT title FROM union_chain_a UNION ALL SELECT title FROM union_chain_b UNION ALL SELECT title FROM union_chain_c ORDER BY title DESC",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert

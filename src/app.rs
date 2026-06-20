@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use serde::Serialize;
 use parking_lot::Mutex;
+use serde::Serialize;
 use uuid::Uuid;
 
 use argon2::{
@@ -30,9 +30,13 @@ use crate::embeddings::{
     openai::{OpenAiProvider, OpenAiProviderConfig},
     tei::{TeiProvider, TeiProviderConfig},
     voyage::VoyageProvider,
-    DistanceMetric, Embedding, EmbeddingError, EmbeddingProvider, VectorIndexRecord,
+    DistanceMetric, Embedding, EmbeddingError, EmbeddingProvider, NormalizedVectorRecord,
+    VectorIndexRecord,
 };
-use crate::executor::{ColumnMeta, QueryError, QueryResult};
+use crate::executor::{
+    vector_prefilter_fallback_reason, vector_prefilter_supported, ColumnMeta, QueryError,
+    QueryResult,
+};
 use crate::midge::adapter::{DocumentRef, Midge, MidgeScanTimings, RowDecode, RowFilter};
 use crate::query_cache;
 use crate::runtime::{ExecutionMode, PlanCacheKey, QueryExecutionControls, RuntimeState};
@@ -41,6 +45,10 @@ use crate::sql::ast::{
 };
 use crate::sql::{binder, parser};
 use crate::types::{Value, Vector};
+use crate::vector::{
+    cosine_distance_from_normalized_query, dot_distance_from_normalized_target,
+    normalize as normalize_vector,
+};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CassieSession {
@@ -444,24 +452,21 @@ impl Cassie {
                     ))
                 })?;
                 self.runtime.record_storage_access("schema", false, true);
-                self.catalog
-                    .register_collection_with_constraints(
-                        &name,
-                        schema
-                            .fields
-                            .into_iter()
-                            .map(|field| (field.name, field.data_type))
-                            .collect(),
-                        constraints,
-                    )
-                    ;
+                self.catalog.register_collection_with_constraints(
+                    &name,
+                    schema
+                        .fields
+                        .into_iter()
+                        .map(|field| (field.name, field.data_type))
+                        .collect(),
+                    constraints,
+                );
                 let projection_metadata = self
                     .midge
                     .projection_metadata(&name)?
                     .unwrap_or_else(|| crate::catalog::ProjectionMeta::new(&name, 1));
                 self.catalog
-                    .register_projection_metadata(projection_metadata)
-                    ;
+                    .register_projection_metadata(projection_metadata);
             }
         }
 
@@ -471,7 +476,8 @@ impl Cassie {
         })?;
         self.runtime.record_storage_access("schema", false, true);
         for index in indexes {
-            self.catalog.register_vector_index(index);
+            self.catalog.register_vector_index(index.clone());
+            self.midge.rebuild_normalized_vectors_for_index(&index)?;
         }
 
         let indexes = self.midge.list_indexes().map_err(|error| {
@@ -724,10 +730,7 @@ impl Cassie {
         self.execute_sql_with_mode(session, sql, params, ExecutionMode::SimpleQuery)
     }
 
-    pub fn describe_sql(
-        &self,
-        sql: &str,
-    ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
+    pub fn describe_sql(&self, sql: &str) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
         if let Some(error) = unsupported_sql_error(sql) {
             return Err(error);
         }
@@ -764,8 +767,7 @@ impl Cassie {
             )
         });
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
-            self.resolve_physical_plan(parsed, key, Some(&controls))
-                ?
+            self.resolve_physical_plan(parsed, key, Some(&controls))?
         } else {
             (
                 self.compile_physical_plan(parsed, Some(&controls))?,
@@ -809,9 +811,7 @@ impl Cassie {
         let query_started = Instant::now();
         let running_guard = self.runtime.begin_running_query();
         let controls = self.runtime.query_controls(query_started);
-        let result = self
-            .execute_sql_core(session, sql, params, mode, &controls)
-            ;
+        let result = self.execute_sql_core(session, sql, params, mode, &controls);
         let elapsed = query_started.elapsed();
 
         match &result {
@@ -896,16 +896,14 @@ impl Cassie {
         let query_started = Instant::now();
         let running_guard = self.runtime.begin_running_query();
         let controls = self.runtime.query_controls(query_started);
-        let result = self
-            .execute_parsed_statement_core(
-                session,
-                parsed,
-                sql_fingerprint,
-                params,
-                mode,
-                &controls,
-            )
-            ;
+        let result = self.execute_parsed_statement_core(
+            session,
+            parsed,
+            sql_fingerprint,
+            params,
+            mode,
+            &controls,
+        );
         let elapsed = query_started.elapsed();
 
         match &result {
@@ -950,15 +948,13 @@ impl Cassie {
             ));
         }
         if let QueryStatement::Explain(statement) = &parsed.statement {
-            return self
-                .explain_statement(
-                    session,
-                    statement.statement.as_ref().clone(),
-                    params,
-                    statement.analyze,
-                    controls,
-                )
-                ;
+            return self.explain_statement(
+                session,
+                statement.statement.as_ref().clone(),
+                params,
+                statement.analyze,
+                controls,
+            );
         }
         if let QueryStatement::Transaction(statement) = &parsed.statement {
             return self.execute_transaction_statement(session, statement);
@@ -974,8 +970,7 @@ impl Cassie {
             )
         });
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
-            self.resolve_physical_plan(parsed, key, Some(controls))
-                ?
+            self.resolve_physical_plan(parsed, key, Some(controls))?
         } else {
             (
                 self.compile_physical_plan(parsed, Some(controls))?,
@@ -1125,9 +1120,7 @@ impl Cassie {
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
         let before = analyze.then(|| self.runtime.snapshot());
-        let physical = self
-            .compile_physical_plan(statement, Some(controls))
-            ?;
+        let physical = self.compile_physical_plan(statement, Some(controls))?;
         let operators = physical
             .operators
             .iter()
@@ -1147,13 +1140,32 @@ impl Cassie {
             .unwrap_or_else(|| "none".to_string());
         let index_aware = physical.selected_index.is_some();
         let index = physical.selected_index.as_deref().unwrap_or("none");
+        let prefilter = match physical.logical.filter.as_ref() {
+            None => "none".to_string(),
+            Some(filter) => {
+                if let Some(index) = physical.selected_index.as_deref() {
+                    format!("index={index}")
+                } else if let Some(schema) = self.catalog.get_schema(&physical.collection) {
+                    if vector_prefilter_supported(filter, &schema) {
+                        "row-scan".to_string()
+                    } else {
+                        format!(
+                            "fallback={}",
+                            vector_prefilter_fallback_reason(filter, &schema)
+                        )
+                    }
+                } else {
+                    "fallback=missing-schema".to_string()
+                }
+            }
+        };
         let top_k_limit = physical
             .top_k_limit
             .map(|limit| limit.to_string())
             .unwrap_or_else(|| "none".to_string());
         let join_strategy = physical.join_strategy.as_deref().unwrap_or("none");
         let mut plan = format!(
-            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} top_k={} top_k_limit={} join_strategy={}",
+            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} prefilter={} top_k={} top_k_limit={} join_strategy={}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
@@ -1167,6 +1179,7 @@ impl Cassie {
             scan_limit,
             index_aware,
             index,
+            prefilter,
             physical.top_k,
             top_k_limit,
             join_strategy
@@ -1174,15 +1187,15 @@ impl Cassie {
 
         if analyze {
             let started_at = Instant::now();
-        let result = crate::executor::run_with_session_controls(
-            self,
-            Some(session),
-            physical.clone(),
-            params,
-            controls,
-        )
-        .map_err(CassieError::from)?;
-        let elapsed_ms = started_at.elapsed().as_millis();
+            let result = crate::executor::run_with_session_controls(
+                self,
+                Some(session),
+                physical.clone(),
+                params,
+                controls,
+            )
+            .map_err(CassieError::from)?;
+            let elapsed_ms = started_at.elapsed().as_millis();
             let after = self.runtime.snapshot();
             let before = before.expect("analyze snapshot");
             let plan_cache_hits_delta =
@@ -1243,8 +1256,7 @@ impl Cassie {
                 ))
             })?;
 
-        self.validate_embedding_compatibility(&index, metric.as_ref())
-            ?;
+        self.validate_embedding_compatibility(&index, metric.as_ref())?;
 
         let embedding = self
             .embedding_provider
@@ -1282,15 +1294,84 @@ impl Cassie {
             collection,
             RowDecode::Projected(vec![vector_field.to_string()]),
         )?;
+        let normalized_vectors = if matches!(&metric, DistanceMetric::Cosine | DistanceMetric::Dot)
+        {
+            Some(
+                self.midge
+                    .list_normalized_vectors(collection, vector_field)?
+                    .into_iter()
+                    .map(|record| (record.id.clone(), record))
+                    .collect::<BTreeMap<_, _>>(),
+            )
+        } else {
+            None
+        };
+        let normalized_query = if matches!(&metric, DistanceMetric::Cosine) {
+            normalize_vector(query)
+        } else {
+            None
+        };
 
         let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
+        let mut normalized_candidate_count = 0usize;
+        let mut fallback_candidate_count = 0usize;
         for candidate in candidates {
             let vector = candidate
                 .payload
                 .get(vector_field)
                 .and_then(vector_from_json)
                 .unwrap_or_default();
-            let distance = vector_distance_for_metric(&metric, query, &vector);
+            let normalized_record = normalized_vectors
+                .as_ref()
+                .and_then(|records| records.get(candidate.id.as_str()));
+            let can_use_normalized = normalized_record.is_some_and(|record| {
+                record.payload_available
+                    && record.normalization_version
+                        == NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION
+                    && record.metric == metric
+                    && record.dimensions == query.len()
+                    && record.values.len() == query.len()
+            });
+            let (distance, used_normalized) = if can_use_normalized {
+                match &metric {
+                    DistanceMetric::Cosine => normalized_query
+                        .as_ref()
+                        .map(|normalized_query| {
+                            let record = normalized_record.expect("normalized record");
+                            (
+                                cosine_distance_from_normalized_query(
+                                    normalized_query.values.as_slice(),
+                                    record.values.as_slice(),
+                                ),
+                                true,
+                            )
+                        })
+                        .unwrap_or_else(|| {
+                            (vector_distance_for_metric(&metric, query, &vector), false)
+                        }),
+                    DistanceMetric::Dot => {
+                        let record = normalized_record.expect("normalized record");
+                        (
+                            dot_distance_from_normalized_target(
+                                query,
+                                record.values.as_slice(),
+                                record.magnitude,
+                            ),
+                            true,
+                        )
+                    }
+                    DistanceMetric::L2 => {
+                        (vector_distance_for_metric(&metric, query, &vector), false)
+                    }
+                }
+            } else {
+                (vector_distance_for_metric(&metric, query, &vector), false)
+            };
+            if used_normalized {
+                normalized_candidate_count += 1;
+            } else {
+                fallback_candidate_count += 1;
+            }
             let scored = ScoredVectorCandidate {
                 distance,
                 id: candidate.id,
@@ -1314,6 +1395,11 @@ impl Cassie {
                 rows.push(vector_search_row(&schema, document));
             }
         }
+
+        self.runtime.record_vector_normalization_usage(
+            normalized_candidate_count,
+            fallback_candidate_count,
+        );
 
         Ok(QueryResult {
             columns: vector_search_columns(&schema),
@@ -1350,22 +1436,18 @@ impl Cassie {
         apply_defaults: bool,
         exclude_id: Option<&str>,
     ) -> Result<String, CassieError> {
-        let payload = self
-            .prepare_document_write_for_session(
-                session,
-                collection,
-                payload,
-                apply_defaults,
-                exclude_id,
-            )
-            ?;
+        let payload = self.prepare_document_write_for_session(
+            session,
+            collection,
+            payload,
+            apply_defaults,
+            exclude_id,
+        )?;
 
         if let Some(session) = session {
             if session.is_transaction_active() {
                 let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
-                session
-                    .stage_document_write(collection, id.clone(), payload)
-                    ;
+                session.stage_document_write(collection, id.clone(), payload);
                 return Ok(id);
             }
         }
@@ -1390,8 +1472,7 @@ impl Cassie {
 
         let indexes = self.catalog.list_vector_indexes(collection);
         if !indexes.is_empty() {
-            self.apply_vector_indexes(collection, &mut payload, indexes.as_slice())
-                ?;
+            self.apply_vector_indexes(collection, &mut payload, indexes.as_slice())?;
         }
 
         self.validate_constraints_for_session(
@@ -1400,10 +1481,8 @@ impl Cassie {
             &payload,
             &constraints,
             exclude_id,
-        )
-        ?;
-        self.validate_unique_indexes_for_session(session, collection, &payload, exclude_id)
-            ?;
+        )?;
+        self.validate_unique_indexes_for_session(session, collection, &payload, exclude_id)?;
 
         Ok(payload)
     }
@@ -1417,9 +1496,7 @@ impl Cassie {
     ) -> Result<String, CassieError> {
         if let Some(session) = session {
             if session.is_transaction_active() {
-                session
-                    .stage_document_write(collection, id.clone(), payload)
-                    ;
+                session.stage_document_write(collection, id.clone(), payload);
                 return Ok(id);
             }
         }
@@ -1436,12 +1513,9 @@ impl Cassie {
         if let Some(session) = session {
             if session.is_transaction_active() {
                 let existed = self
-                    .get_document_for_session(Some(session), collection, id)
-                    ?
+                    .get_document_for_session(Some(session), collection, id)?
                     .is_some();
-                session
-                    .stage_document_delete(collection, id.to_string())
-                    ;
+                session.stage_document_delete(collection, id.to_string());
                 return Ok(existed);
             }
         }
@@ -2043,16 +2117,13 @@ impl Cassie {
                 continue;
             }
 
-            if self
-                .value_exists_for_collection_field(
-                    session,
-                    collection,
-                    &constraint.field,
-                    value,
-                    exclude_id,
-                )
-                ?
-            {
+            if self.value_exists_for_collection_field(
+                session,
+                collection,
+                &constraint.field,
+                value,
+                exclude_id,
+            )? {
                 return Err(CassieError::InvalidVector(format!(
                     "unique constraint failed for '{}'",
                     constraint.field
@@ -2097,10 +2168,7 @@ impl Cassie {
                 continue;
             }
 
-            if self
-                .values_exist_for_collection_fields(session, collection, &values, exclude_id)
-                ?
-            {
+            if self.values_exist_for_collection_fields(session, collection, &values, exclude_id)? {
                 return Err(CassieError::InvalidVector(format!(
                     "unique index '{}' failed",
                     index.name
@@ -2120,8 +2188,7 @@ impl Cassie {
         exclude_id: Option<&str>,
     ) -> Result<bool, CassieError> {
         for document in self
-            .scan_documents_batched_for_session(session, collection, 1024)
-            ?
+            .scan_documents_batched_for_session(session, collection, 1024)?
             .into_iter()
             .flatten()
         {
@@ -2145,8 +2212,7 @@ impl Cassie {
         exclude_id: Option<&str>,
     ) -> Result<bool, CassieError> {
         for document in self
-            .scan_documents_batched_for_session(session, collection, 1024)
-            ?
+            .scan_documents_batched_for_session(session, collection, 1024)?
             .into_iter()
             .flatten()
         {
@@ -2272,16 +2338,14 @@ impl Cassie {
 
     pub fn register_collection(&self, name: impl Into<String>, schema: crate::types::Schema) {
         let name = name.into();
-        self.catalog
-            .register_collection(
-                &name,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            )
-            ;
+        self.catalog.register_collection(
+            &name,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
         self.invalidate_plan_cache();
     }
 

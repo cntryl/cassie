@@ -49,7 +49,7 @@ fn should_list_user_tables_through_information_schema() {
                 &session,
                 "SELECT table_name FROM information_schema.tables WHERE table_name = 'catalog_tables_docs'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -153,7 +153,7 @@ fn should_list_indexes_through_pg_catalog() {
                 &session,
                 "CREATE UNIQUE INDEX catalog_email_idx ON catalog_index_docs USING btree (email)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -162,7 +162,7 @@ fn should_list_indexes_through_pg_catalog() {
                 &session,
                 "SELECT indexname FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_index_docs'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -194,7 +194,7 @@ fn should_list_primary_key_index_through_pg_catalog() {
                 &session,
                 "CREATE TABLE catalog_primary_key_docs (id INT PRIMARY KEY, title TEXT)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -203,7 +203,7 @@ fn should_list_primary_key_index_through_pg_catalog() {
                 &session,
                 "SELECT indexname, indexdef FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_primary_key_docs'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -251,7 +251,7 @@ fn should_list_composite_indexes_through_pg_catalog() {
                 &session,
                 "CREATE INDEX catalog_title_score_idx ON catalog_composite_index_docs USING btree (title, score)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -260,7 +260,7 @@ fn should_list_composite_indexes_through_pg_catalog() {
                 &session,
                 "SELECT indexname, indexdef FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_composite_index_docs'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -294,7 +294,7 @@ fn should_list_namespaces_through_pg_catalog() {
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
-            .execute_sql(&session, "CREATE SCHEMA analytics", vec![]);
+            .execute_sql(&session, "CREATE SCHEMA analytics", vec![])
             .unwrap();
 
         // Act
@@ -303,7 +303,7 @@ fn should_list_namespaces_through_pg_catalog() {
                 &session,
                 "SELECT nspname FROM pg_catalog.pg_namespace ORDER BY nspname",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -350,7 +350,7 @@ fn should_list_constraints_through_information_schema() {
                 &session,
                 "SELECT constraint_type FROM information_schema.table_constraints WHERE table_name = 'catalog_constraint_docs' ORDER BY constraint_type",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -383,7 +383,7 @@ fn should_return_admin_role_for_pg_roles_catalog_view() {
 
         // Act
         let selected = cassie
-            .execute_sql(&session, "SELECT rolname FROM pg_catalog.pg_roles", vec![]);
+            .execute_sql(&session, "SELECT rolname FROM pg_catalog.pg_roles", vec![])
             .unwrap();
 
         // Assert
@@ -519,7 +519,7 @@ fn should_list_user_defined_views_through_catalog_views() {
                 &session,
                 "CREATE VIEW catalog_views_ready AS SELECT title, score FROM catalog_views_docs",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -528,21 +528,21 @@ fn should_list_user_defined_views_through_catalog_views() {
                 &session,
                 "SELECT table_type FROM information_schema.tables WHERE table_name = 'catalog_views_ready'",
                 vec![],
-            );
+            )
             .unwrap();
         let views = cassie
             .execute_sql(
                 &session,
                 "SELECT table_name FROM information_schema.views WHERE table_name = 'catalog_views_ready'",
                 vec![],
-            );
+            )
             .unwrap();
         let classes = cassie
             .execute_sql(
                 &session,
                 "SELECT relkind FROM pg_catalog.pg_class WHERE relname = 'catalog_views_ready'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert

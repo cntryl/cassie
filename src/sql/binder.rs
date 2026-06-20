@@ -23,10 +23,7 @@ pub struct BoundStatement {
     pub indexes: Vec<IndexMeta>,
 }
 
-pub fn bind(
-    statement: ParsedStatement,
-    catalog: &Catalog,
-) -> Result<BoundStatement, CassieError> {
+pub fn bind(statement: ParsedStatement, catalog: &Catalog) -> Result<BoundStatement, CassieError> {
     let statement = bind_statement(statement, catalog, &HashMap::new())?;
     let indexes = bound_indexes(&statement, catalog);
     Ok(BoundStatement { statement, indexes })
@@ -713,14 +710,10 @@ fn bind_create_index(
             )));
         }
 
-        let existing_fulltext_index =
-            catalog
-                .list_indexes(&table)
-                .into_iter()
-                .find(|metadata| {
-                    metadata.kind == crate::catalog::IndexKind::FullText
-                        && metadata.field.eq_ignore_ascii_case(field)
-                });
+        let existing_fulltext_index = catalog.list_indexes(&table).into_iter().find(|metadata| {
+            metadata.kind == crate::catalog::IndexKind::FullText
+                && metadata.field.eq_ignore_ascii_case(field)
+        });
         if let Some(existing_fulltext_index) = existing_fulltext_index {
             let existing_index = catalog
                 .get_index(&table, &name)
@@ -1529,9 +1522,7 @@ fn bind_query_source_with_lateral_fields(
             let source_name_lc = name.to_ascii_lowercase();
             if scope.contains_key(&source_name_lc) {
                 Ok(QuerySource::Cte(name))
-            } else if catalog.relation_exists(&name)
-                || virtual_views::schema(&name).is_some()
-            {
+            } else if catalog.relation_exists(&name) || virtual_views::schema(&name).is_some() {
                 Ok(QuerySource::Collection(name))
             } else {
                 Err(CassieError::CollectionNotFound(name))
@@ -1546,12 +1537,8 @@ fn bind_query_source_with_lateral_fields(
         } => {
             let empty = HashSet::new();
             let visible_lateral_fields = if lateral { lateral_fields } else { &empty };
-            let select = bind_select_with_lateral_fields(
-                *select,
-                catalog,
-                scope,
-                visible_lateral_fields,
-            )?;
+            let select =
+                bind_select_with_lateral_fields(*select, catalog, scope, visible_lateral_fields)?;
             Ok(QuerySource::Subquery {
                 alias,
                 select: Box::new(select),
@@ -1657,8 +1644,7 @@ fn infer_select_schema_with_scope(
 
     let source_schema =
         infer_source_schema(&select.source, catalog, &cte_schemas, user_functions, false)?;
-    let mut fields =
-        infer_projection_schema(&select.projection, &source_schema, user_functions);
+    let mut fields = infer_projection_schema(&select.projection, &source_schema, user_functions);
 
     if let Some(set) = &select.set {
         let right_schema =
@@ -1702,8 +1688,7 @@ fn infer_cte_schema(
         ));
     };
 
-    let mut schema =
-        infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions)?;
+    let mut schema = infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions)?;
 
     if !cte.aliases.is_empty() {
         if schema.fields.len() != cte.aliases.len() {
@@ -1741,10 +1726,8 @@ fn infer_source_schema(
             qualify_schema(&inner, alias)
         }
         QuerySource::Join { left, right, .. } => {
-            let left =
-                infer_source_schema(left, catalog, cte_schemas, user_functions, true)?;
-            let right =
-                infer_source_schema(right, catalog, cte_schemas, user_functions, true)?;
+            let left = infer_source_schema(left, catalog, cte_schemas, user_functions, true)?;
+            let right = infer_source_schema(right, catalog, cte_schemas, user_functions, true)?;
             let mut fields = left.fields;
             fields.extend(right.fields);
             Schema { fields }
@@ -1753,12 +1736,10 @@ fn infer_source_schema(
 
     if qualify {
         Ok(match source {
-            QuerySource::Collection(name) | QuerySource::Cte(name) => {
-                qualify_schema(&schema, name)
+            QuerySource::Collection(name) | QuerySource::Cte(name) => qualify_schema(&schema, name),
+            QuerySource::SingleRow | QuerySource::Subquery { .. } | QuerySource::Join { .. } => {
+                schema
             }
-            QuerySource::SingleRow
-            | QuerySource::Subquery { .. }
-            | QuerySource::Join { .. } => schema,
         })
     } else {
         Ok(schema)
@@ -2083,10 +2064,7 @@ fn collect_projection_aliases(select: &SelectStatement) -> HashSet<String> {
     aliases
 }
 
-fn validate_functions(
-    statement: &SelectStatement,
-    catalog: &Catalog,
-) -> Result<(), CassieError> {
+fn validate_functions(statement: &SelectStatement, catalog: &Catalog) -> Result<(), CassieError> {
     let mut seen = Vec::new();
     collect_functions(statement, &mut seen);
     validate_function_calls(seen, catalog)

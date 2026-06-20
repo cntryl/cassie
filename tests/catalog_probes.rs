@@ -29,7 +29,7 @@ fn should_return_version_function() {
 
         // Act
         let result = cassie
-            .execute_sql(&session, "SELECT version()", vec![]);
+            .execute_sql(&session, "SELECT version()", vec![])
             .unwrap();
 
         // Assert
@@ -60,7 +60,7 @@ fn should_return_current_schema_function() {
 
         // Act
         let result = cassie
-            .execute_sql(&session, "SELECT current_schema()", vec![]);
+            .execute_sql(&session, "SELECT current_schema()", vec![])
             .unwrap();
 
         // Assert
@@ -88,7 +88,7 @@ fn should_return_current_database_function() {
 
         // Act
         let result = cassie
-            .execute_sql(&session, "SELECT current_database()", vec![]);
+            .execute_sql(&session, "SELECT current_database()", vec![])
             .unwrap();
 
         // Assert
@@ -115,8 +115,7 @@ fn should_return_search_path_from_show_statement() {
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
-        let result = cassie
-            .execute_sql(&session, "SHOW search_path", vec![]);
+        let result = cassie.execute_sql(&session, "SHOW search_path", vec![]);
 
         // Assert
         let result = result.unwrap();
@@ -153,8 +152,7 @@ fn should_treat_supported_set_statement_as_noop() {
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
-        let result = cassie
-            .execute_sql(&session, "SET search_path = public", vec![]);
+        let result = cassie.execute_sql(&session, "SET search_path = public", vec![]);
 
         // Assert
         let result = result.unwrap();
@@ -181,8 +179,7 @@ fn should_reject_unsupported_show_variable() {
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
-        let result = cassie
-            .execute_sql(&session, "SHOW unsupported_metadata", vec![]);
+        let result = cassie.execute_sql(&session, "SHOW unsupported_metadata", vec![]);
 
         // Assert
         assert!(result.is_err());
@@ -206,8 +203,7 @@ fn should_reject_unsupported_set_variable() {
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
-        let result = cassie
-            .execute_sql(&session, "SET unsupported_variable = foo", vec![]);
+        let result = cassie.execute_sql(&session, "SET unsupported_variable = foo", vec![]);
 
         // Assert
         assert!(result.is_err());

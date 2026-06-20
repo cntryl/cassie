@@ -16,11 +16,7 @@ pub struct SearchRequest {
     pub offset: Option<usize>,
 }
 
-pub fn vector_search(
-    cassie: &Cassie,
-    collection: &str,
-    body: &[u8],
-) -> Result<Value, CassieError> {
+pub fn vector_search(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Value, CassieError> {
     let request: SearchRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
 
@@ -42,15 +38,14 @@ pub fn vector_search(
     let limit = request.limit.unwrap_or(10);
     let offset = request.offset.unwrap_or(0);
 
-    let result = cassie
-        .execute_vector_search(
-            collection,
-            &request.field,
-            &request.query,
-            metric,
-            limit,
-            offset,
-        )?;
+    let result = cassie.execute_vector_search(
+        collection,
+        &request.field,
+        &request.query,
+        metric,
+        limit,
+        offset,
+    )?;
 
     Ok(serde_json::to_value(result)
         .unwrap_or_else(|_| serde_json::json!({"error":"invalid result"})))

@@ -89,10 +89,7 @@ pub fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Value, C
         )));
     }
 
-    if let Some(existing) = cassie
-        .catalog
-        .get_vector_index(collection, &payload.field)
-    {
+    if let Some(existing) = cassie.catalog.get_vector_index(collection, &payload.field) {
         if existing.source_field != source_field
             || existing.metadata.provider != metadata.provider
             || existing.metadata.model != metadata.model

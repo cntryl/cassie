@@ -33,15 +33,14 @@ async fn seed_view_docs(cassie: &Cassie, collection: &str) {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
     cassie
         .midge
         .put_document(
@@ -68,7 +67,7 @@ fn should_create_select_drop_user_defined_view() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "view_docs";
-        seed_view_docs(&cassie, collection);
+        seed_view_docs(&cassie, collection).await;
         let session = cassie.create_session("tester", None);
 
         // Act
@@ -77,20 +76,19 @@ fn should_create_select_drop_user_defined_view() {
                 &session,
                 "CREATE VIEW view_docs_ready AS SELECT title, score FROM view_docs",
                 vec![],
-            );
+            )
             .unwrap();
         let selected = cassie
             .execute_sql(
                 &session,
                 "SELECT title, score FROM view_docs_ready WHERE score = 7",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
-            .execute_sql(&session, "DROP VIEW view_docs_ready", vec![]);
+            .execute_sql(&session, "DROP VIEW view_docs_ready", vec![])
             .unwrap();
-        let dropped = cassie
-            .execute_sql(&session, "SELECT title FROM view_docs_ready", vec![]);
+        let dropped = cassie.execute_sql(&session, "SELECT title FROM view_docs_ready", vec![]);
 
         // Assert
         assert_eq!(
@@ -116,21 +114,22 @@ fn should_select_from_nested_user_defined_views() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "view_nested_docs";
-        seed_view_docs(&cassie, collection);        let session = cassie.create_session("tester", None);
+        seed_view_docs(&cassie, collection).await;
+        let session = cassie.create_session("tester", None);
 
         cassie
             .execute_sql(
                 &session,
                 "CREATE VIEW view_nested_inner AS SELECT title FROM view_nested_docs",
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE VIEW view_nested_outer AS SELECT title FROM view_nested_inner",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -139,7 +138,7 @@ fn should_select_from_nested_user_defined_views() {
                 &session,
                 "SELECT title FROM view_nested_outer WHERE title = 'alpha'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -165,14 +164,15 @@ fn should_hydrate_user_defined_views_after_restart() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "view_restart_docs";
-        seed_view_docs(&cassie, collection);        let session = cassie.create_session("tester", None);
+        seed_view_docs(&cassie, collection).await;
+        let session = cassie.create_session("tester", None);
 
         cassie
             .execute_sql(
                 &session,
                 "CREATE VIEW view_restart_ready AS SELECT title, score FROM view_restart_docs",
                 vec![],
-            );
+            )
             .unwrap();
         drop(cassie);
 
@@ -186,7 +186,7 @@ fn should_hydrate_user_defined_views_after_restart() {
                 &session,
                 "SELECT title, score FROM view_restart_ready WHERE score = 7",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -212,27 +212,25 @@ fn should_reject_dml_against_user_defined_view() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "view_read_only_docs";
-        seed_view_docs(&cassie, collection);        let session = cassie.create_session("tester", None);
+        seed_view_docs(&cassie, collection).await;
+        let session = cassie.create_session("tester", None);
 
         cassie
             .execute_sql(
                 &session,
                 "CREATE VIEW view_read_only AS SELECT title, score FROM view_read_only_docs",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
-        let insert = cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO view_read_only (title, score) VALUES ('beta', 9)",
-                vec![],
-            );
-        let update = cassie
-            .execute_sql(&session, "UPDATE view_read_only SET score = 9", vec![]);
-        let delete = cassie
-            .execute_sql(&session, "DELETE FROM view_read_only", vec![]);
+        let insert = cassie.execute_sql(
+            &session,
+            "INSERT INTO view_read_only (title, score) VALUES ('beta', 9)",
+            vec![],
+        );
+        let update = cassie.execute_sql(&session, "UPDATE view_read_only SET score = 9", vec![]);
+        let delete = cassie.execute_sql(&session, "DELETE FROM view_read_only", vec![]);
 
         // Assert
         assert!(matches!(insert, Err(error) if error.to_string().contains("read-only")));

@@ -13,3 +13,4 @@ pub use execution::{
     run, run_with_controls, run_with_execution_breakdown, ColumnMeta, ExecutionBreakdownMicros,
     ExecutionBreakdownOutput, QueryError, QueryResult,
 };
+pub(crate) use execution::{vector_prefilter_fallback_reason, vector_prefilter_supported};

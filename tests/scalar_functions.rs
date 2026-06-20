@@ -168,7 +168,7 @@ fn should_execute_string_scalar_functions_in_query_path() {
                 &session,
                 "SELECT lower(title) AS lowered, upper(title) AS uppered, trim(title) AS trimmed, substring(trim(title), 2, 3) AS sliced, concat(lower(trim(title)), '-', 'suffix') AS combined, length(trim(title)) AS length_value, len(trim(title)) AS len_value FROM scalar_string_helpers WHERE lower(trim(title)) = 'alpha' ORDER BY len(trim(title)) DESC",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -262,7 +262,7 @@ fn should_execute_null_numeric_scalar_functions() {
                 &session,
                 "SELECT id, coalesce(title, 'fallback') AS resolved, abs(score) AS absolute_score FROM scalar_null_helpers ORDER BY abs(score) DESC",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -322,15 +322,14 @@ fn should_short_circuit_coalesce_before_evaluating_later_arguments() {
             .midge
             .create_collection(table, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                table,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            table,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
         cassie
             .midge
             .put_document(
@@ -346,7 +345,7 @@ fn should_short_circuit_coalesce_before_evaluating_later_arguments() {
                 &session,
                 "SELECT coalesce(title, lower(score)) FROM scalar_coalesce_short_circuit",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -383,15 +382,14 @@ fn should_reject_scalar_function_with_invalid_arity() {
             .midge
             .create_collection(table, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                table,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            table,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
         cassie
             .midge
             .put_document(
@@ -402,12 +400,11 @@ fn should_reject_scalar_function_with_invalid_arity() {
             .unwrap();
 
         // Act
-        let result = cassie
-            .execute_sql(
-                &session,
-                "SELECT lower(title, title) FROM scalar_arity_error",
-                vec![],
-            );
+        let result = cassie.execute_sql(
+            &session,
+            "SELECT lower(title, title) FROM scalar_arity_error",
+            vec![],
+        );
 
         // Assert
         let error = result.expect_err("query should fail");
@@ -445,15 +442,14 @@ fn should_reject_scalar_function_with_unsupported_type() {
             .midge
             .create_collection(table, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                table,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            table,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
         cassie
             .midge
             .put_document(
@@ -464,12 +460,11 @@ fn should_reject_scalar_function_with_unsupported_type() {
             .unwrap();
 
         // Act
-        let result = cassie
-            .execute_sql(
-                &session,
-                "SELECT lower(score) FROM scalar_type_error",
-                vec![],
-            );
+        let result = cassie.execute_sql(
+            &session,
+            "SELECT lower(score) FROM scalar_type_error",
+            vec![],
+        );
 
         // Assert
         let error = result.expect_err("query should fail");
@@ -554,15 +549,14 @@ fn should_execute_user_defined_functions_after_builtin_expansion() {
             .midge
             .create_collection(table, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                table,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            table,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
         cassie
             .midge
             .put_document(
@@ -577,7 +571,7 @@ fn should_execute_user_defined_functions_after_builtin_expansion() {
                 &session,
                 r#"CREATE FUNCTION echo_text(x TEXT) RETURNS TEXT AS "x""#,
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -586,7 +580,7 @@ fn should_execute_user_defined_functions_after_builtin_expansion() {
                 &session,
                 "SELECT echo_text(lower(title)) FROM scalar_udf_regression",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert

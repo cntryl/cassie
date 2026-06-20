@@ -182,7 +182,6 @@ fn run_with_execution_breakdown_controls(
             cassie
                 .catalog
                 .list_functions()
-                
                 .into_iter()
                 .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
                 .collect::<HashMap<String, FunctionMeta>>()
@@ -192,8 +191,7 @@ fn run_with_execution_breakdown_controls(
 
     if let Some(command) = plan.logical.command.as_ref() {
         let started = Instant::now();
-        let result =
-            execute_command(cassie, None, command, &params, &user_functions, controls)?;
+        let result = execute_command(cassie, None, command, &params, &user_functions, controls)?;
         let breakdown = ExecutionBreakdownDurations {
             result_build: started.elapsed(),
             ..Default::default()
@@ -213,8 +211,7 @@ fn run_with_execution_breakdown_controls(
         &user_functions,
         &params,
         controls,
-    )
-    ?;
+    )?;
 
     let result_started = Instant::now();
     let collection_schema = cassie.catalog.get_schema(&plan.logical.collection);
@@ -256,7 +253,6 @@ pub(crate) fn run_with_session_controls(
             cassie
                 .catalog
                 .list_functions()
-                
                 .into_iter()
                 .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
                 .collect::<HashMap<String, FunctionMeta>>()
@@ -277,8 +273,7 @@ pub(crate) fn run_with_session_controls(
         &user_functions,
         &params,
         controls,
-    )
-    ?;
+    )?;
 
     let collection_schema = cassie.catalog.get_schema(&plan.logical.collection);
     let columns = aggregate::columns_from_projection(
@@ -420,18 +415,15 @@ fn execute_command(
                     .put_index(index.clone())
                     .map_err(|error| QueryError::General(error.to_string()))?;
             }
-            cassie
-                .catalog
-                .register_collection_with_constraints(
-                    &statement.table,
-                    schema
-                        .fields
-                        .into_iter()
-                        .map(|field| (field.name, field.data_type))
-                        .collect(),
-                    constraints,
-                )
-                ;
+            cassie.catalog.register_collection_with_constraints(
+                &statement.table,
+                schema
+                    .fields
+                    .into_iter()
+                    .map(|field| (field.name, field.data_type))
+                    .collect(),
+                constraints,
+            );
             for index in primary_key_indexes {
                 cassie.catalog.register_index(index);
             }
@@ -458,7 +450,6 @@ fn execute_command(
             let parsed = crate::sql::parser::parse_statement(&statement.query)
                 .map_err(|error| QueryError::General(error.0))?;
             let bound = crate::sql::binder::bind(parsed, &cassie.catalog)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             let QueryStatement::Select(select) = &bound.statement.statement else {
                 return Err(QueryError::General(
@@ -467,7 +458,6 @@ fn execute_command(
             };
 
             let schema = crate::sql::binder::infer_select_schema(select, &cassie.catalog)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             let metadata = crate::catalog::ViewMeta::new(
                 statement.name.clone(),
@@ -552,10 +542,11 @@ fn execute_command(
                         .midge
                         .alter_collection_add_column(&statement.table, field.clone())
                         .map_err(|error| QueryError::General(error.to_string()))?;
-                    cassie
-                        .catalog
-                        .add_collection_field(&statement.table, field.name, field.data_type.clone())
-                        ;
+                    cassie.catalog.add_collection_field(
+                        &statement.table,
+                        field.name,
+                        field.data_type.clone(),
+                    );
                     invalidate_plan_cache = true;
                 }
                 crate::sql::ast::AlterTableOperation::DropColumn { field } => {
@@ -565,8 +556,7 @@ fn execute_command(
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
-                        .remove_collection_field(&statement.table, field)
-                        ;
+                        .remove_collection_field(&statement.table, field);
                     invalidate_plan_cache = true;
                 }
                 crate::sql::ast::AlterTableOperation::RenameColumn { from, to } => {
@@ -576,8 +566,7 @@ fn execute_command(
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
-                        .rename_collection_field(&statement.table, from, to)
-                        ;
+                        .rename_collection_field(&statement.table, from, to);
                     invalidate_plan_cache = true;
                 }
                 crate::sql::ast::AlterTableOperation::RenameTo { table } => {
@@ -591,10 +580,7 @@ fn execute_command(
                         .midge
                         .rename_collection(&statement.table, table)
                         .map_err(|error| QueryError::General(error.to_string()))?;
-                    cassie
-                        .catalog
-                        .rename_collection(&statement.table, table)
-                        ;
+                    cassie.catalog.rename_collection(&statement.table, table);
                     invalidate_plan_cache = true;
                 }
             }
@@ -618,10 +604,7 @@ fn execute_command(
                 .midge
                 .create_namespace(&statement.schema)
                 .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie
-                .catalog
-                .register_namespace(&statement.schema, None)
-                ;
+            cassie.catalog.register_namespace(&statement.schema, None);
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -670,8 +653,7 @@ fn execute_command(
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
-                .rename_namespace(&target_schema, &next_schema)
-                ;
+                .rename_namespace(&target_schema, &next_schema);
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -688,7 +670,6 @@ fn execute_command(
                     statement.password.clone(),
                     statement.if_not_exists,
                 )
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             invalidate_plan_cache = true;
 
@@ -701,7 +682,6 @@ fn execute_command(
         LogicalCommand::AlterRole(statement) => {
             cassie
                 .alter_role(&statement.name, statement.login, statement.password.clone())
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             invalidate_plan_cache = true;
 
@@ -714,7 +694,6 @@ fn execute_command(
         LogicalCommand::DropRole(statement) => {
             cassie
                 .drop_role(&statement.name, statement.if_exists)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             invalidate_plan_cache = true;
 
@@ -759,10 +738,7 @@ fn execute_command(
             })
         }
         LogicalCommand::DropIndex(statement) => {
-            let index = cassie
-                .catalog
-                .get_index(&statement.table, &statement.name)
-                ;
+            let index = cassie.catalog.get_index(&statement.table, &statement.name);
 
             if statement.if_exists && index.is_none() {
                 return Ok(QueryResult {
@@ -780,8 +756,7 @@ fn execute_command(
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
-                        .unregister_vector_index(&statement.table, &index.field)
-                        ;
+                        .unregister_vector_index(&statement.table, &index.field);
                 }
             }
 
@@ -791,8 +766,7 @@ fn execute_command(
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
-                .unregister_index(&statement.table, &statement.name)
-                ;
+                .unregister_index(&statement.table, &statement.name);
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -802,9 +776,7 @@ fn execute_command(
             })
         }
         LogicalCommand::CreateFunction(statement) => {
-            if statement.if_not_exists
-                && cassie.catalog.get_function(&statement.name).is_some()
-            {
+            if statement.if_not_exists && cassie.catalog.get_function(&statement.name).is_some() {
                 return Ok(QueryResult {
                     columns: Vec::new(),
                     rows: Vec::new(),
@@ -863,13 +835,7 @@ fn execute_command(
             })
         }
         LogicalCommand::CreateProcedure(statement) => {
-            if statement.if_not_exists
-                && cassie
-                    .catalog
-                    .get_procedure(&statement.name)
-                    
-                    .is_some()
-            {
+            if statement.if_not_exists && cassie.catalog.get_procedure(&statement.name).is_some() {
                 return Ok(QueryResult {
                     columns: Vec::new(),
                     rows: Vec::new(),
@@ -904,13 +870,7 @@ fn execute_command(
             })
         }
         LogicalCommand::DropProcedure(statement) => {
-            if statement.if_exists
-                && cassie
-                    .catalog
-                    .get_procedure(&statement.name)
-                    
-                    .is_none()
-            {
+            if statement.if_exists && cassie.catalog.get_procedure(&statement.name).is_none() {
                 return Ok(QueryResult {
                     columns: Vec::new(),
                     rows: Vec::new(),
@@ -961,17 +921,14 @@ fn execute_command(
 
             call_session
                 .enter_procedure_call(&statement.name)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
-            let body_result = cassie
-                .execute_sql_with_controls(
-                    &call_session,
-                    &metadata.body,
-                    evaluated_args,
-                    crate::runtime::ExecutionMode::SimpleQuery,
-                    controls,
-                )
-                ;
+            let body_result = cassie.execute_sql_with_controls(
+                &call_session,
+                &metadata.body,
+                evaluated_args,
+                crate::runtime::ExecutionMode::SimpleQuery,
+                controls,
+            );
             call_session.leave_procedure_call();
             body_result.map_err(|error| QueryError::General(error.to_string()))?;
 
@@ -1000,13 +957,9 @@ fn execute_insert(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    let schema = cassie
-        .catalog
-        .get_schema(&statement.table)
-        
-        .ok_or_else(|| {
-            QueryError::General(format!("collection '{}' not found", statement.table))
-        })?;
+    let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
+        QueryError::General(format!("collection '{}' not found", statement.table))
+    })?;
 
     let source_rows =
         insert_source_rows(cassie, session, statement, params, user_functions, controls)?;
@@ -1038,13 +991,11 @@ fn execute_insert(
                 true,
                 None,
             )
-            
             .map_err(|error| QueryError::General(error.to_string()))?;
 
         if !statement.returning.is_empty() {
             let document = cassie
                 .get_document_for_session(session, &statement.table, &row_id)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?
                 .ok_or_else(|| {
                     QueryError::General(format!(
@@ -1141,8 +1092,7 @@ fn insert_source_rows(
                 user_functions,
                 params,
                 controls,
-            )
-            ?;
+            )?;
             Ok(rows
                 .into_iter()
                 .map(|row| {
@@ -1301,6 +1251,24 @@ fn update_assignment_to_json(
         .iter()
         .find(|candidate| candidate.name.eq_ignore_ascii_case(field))
     {
+        if let DataType::Vector(dimensions) = &field_meta.data_type {
+            if let Some(text) = value.as_str() {
+                if let Some(vector) = parse_vector_literal(text) {
+                    if vector.len() == *dimensions {
+                        return serde_json::Value::Array(
+                            vector
+                                .into_iter()
+                                .map(|component| {
+                                    serde_json::Number::from_f64(component as f64)
+                                        .map(serde_json::Value::Number)
+                                })
+                                .collect::<Option<Vec<_>>>()
+                                .unwrap_or_default(),
+                        );
+                    }
+                }
+            }
+        }
         if matches!(
             field_meta.data_type,
             DataType::SmallInt | DataType::Int | DataType::BigInt
@@ -1390,13 +1358,9 @@ fn execute_update(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
-    let schema = cassie
-        .catalog
-        .get_schema(&statement.table)
-        
-        .ok_or_else(|| {
-            QueryError::General(format!("collection '{}' not found", statement.table))
-        })?;
+    let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
+        QueryError::General(format!("collection '{}' not found", statement.table))
+    })?;
 
     let batches = scan::scan(cassie, session, &statement.table)?;
     ensure_temp_budget(controls, &batches)?;
@@ -1412,7 +1376,6 @@ fn execute_update(
         let row_id = row_id_from_batch_row(row)?;
         let current = cassie
             .get_document_for_session(session, &statement.table, &row_id)
-            
             .map_err(|error| QueryError::General(error.to_string()))?
             .ok_or_else(|| {
                 QueryError::General(format!(
@@ -1449,7 +1412,6 @@ fn execute_update(
                 true,
                 Some(&row_id),
             )
-            
             .map_err(|error| QueryError::General(error.to_string()))?;
         prepared_rows.push((row_id, payload));
     }
@@ -1458,13 +1420,11 @@ fn execute_update(
     for (row_id, payload) in prepared_rows {
         cassie
             .put_prepared_document_for_session(session, &statement.table, row_id.clone(), payload)
-            
             .map_err(|error| QueryError::General(error.to_string()))?;
 
         if !statement.returning.is_empty() {
             let document = cassie
                 .get_document_for_session(session, &statement.table, &row_id)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?
                 .ok_or_else(|| {
                     QueryError::General(format!(
@@ -1531,13 +1491,9 @@ fn execute_delete(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
-    let schema = cassie
-        .catalog
-        .get_schema(&statement.table)
-        
-        .ok_or_else(|| {
-            QueryError::General(format!("collection '{}' not found", statement.table))
-        })?;
+    let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
+        QueryError::General(format!("collection '{}' not found", statement.table))
+    })?;
 
     let batches = scan::scan(cassie, session, &statement.table)?;
     ensure_temp_budget(controls, &batches)?;
@@ -1555,7 +1511,6 @@ fn execute_delete(
         if !statement.returning.is_empty() {
             let current = cassie
                 .get_document_for_session(session, &statement.table, &row_id)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?
                 .ok_or_else(|| {
                     QueryError::General(format!(
@@ -1575,7 +1530,6 @@ fn execute_delete(
     for row_id in &delete_ids {
         cassie
             .delete_document_for_session(session, &statement.table, row_id)
-            
             .map_err(|error| QueryError::General(error.to_string()))?;
     }
 
@@ -1723,7 +1677,6 @@ fn execute_plan(
         controls,
         None,
     )
-    
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1753,17 +1706,20 @@ fn execute_plan_with_outer_row(
             user_functions,
             params,
             controls,
-        )
-        ?;
+        )?;
         cte_context.insert(cte.name.to_ascii_lowercase(), rows);
     }
 
     if outer_row.is_none() {
-        if let Some(rows) = execute_vector_distance_top_k(cassie, plan)? {
+        if let Some(rows) =
+            execute_vector_distance_top_k(cassie, session, user_functions, params, plan)?
+        {
             return Ok(rows);
         }
 
-        if let Some(rows) = execute_scored_search_top_k(cassie, session, plan)? {
+        if let Some(rows) =
+            execute_scored_search_top_k(cassie, session, user_functions, params, plan)?
+        {
             return Ok(rows);
         }
 
@@ -1771,10 +1727,14 @@ fn execute_plan_with_outer_row(
             return Ok(rows);
         }
 
-        if let Some(rows) =
-            execute_projected_filtered_read(cassie, session, plan, user_functions, params, controls)
-                ?
-        {
+        if let Some(rows) = execute_projected_filtered_read(
+            cassie,
+            session,
+            plan,
+            user_functions,
+            params,
+            controls,
+        )? {
             return Ok(rows);
         }
     }
@@ -1789,7 +1749,6 @@ fn execute_plan_with_outer_row(
         controls,
         outer_row,
     )
-    
 }
 
 fn execute_plan_with_execution_breakdown(
@@ -1808,9 +1767,7 @@ fn execute_plan_with_execution_breakdown(
         user_functions,
         params,
         controls,
-    )
-    ?
-    {
+    )? {
         return Ok(output);
     }
 
@@ -1823,8 +1780,7 @@ fn execute_plan_with_execution_breakdown(
         user_functions,
         params,
         controls,
-    )
-    ?;
+    )?;
     let breakdown = ExecutionBreakdownDurations {
         scan: started.elapsed(),
         ..ExecutionBreakdownDurations::default()
@@ -1841,126 +1797,140 @@ fn execute_cte<'a>(
     params: &'a [Value],
     controls: &'a QueryExecutionControls,
 ) -> CteExecution<'a> {
-        check_timeout(controls)?;
-        let cte_name = cte.name.to_ascii_lowercase();
-        let previous = cte_context.remove(&cte_name);
+    check_timeout(controls)?;
+    let cte_name = cte.name.to_ascii_lowercase();
+    let previous = cte_context.remove(&cte_name);
 
-        let output = match &cte.query {
-            CteQuery::Simple(statement) => {
-                let logical = build_logical_plan(statement.as_ref())?;
-                execute_plan(
+    let output = match &cte.query {
+        CteQuery::Simple(statement) => {
+            let logical = build_logical_plan(statement.as_ref())?;
+            execute_plan(
+                cassie,
+                session,
+                &logical,
+                cte_context,
+                user_functions,
+                params,
+                controls,
+            )?
+            .into_iter()
+            .map(BatchRow::into_entries)
+            .collect()
+        }
+        CteQuery::Recursive { base, recursive } => {
+            let base_plan = build_logical_plan(base.as_ref())?;
+            let mut rows = execute_plan(
+                cassie,
+                session,
+                &base_plan,
+                cte_context,
+                user_functions,
+                params,
+                controls,
+            )?
+            .into_iter()
+            .map(BatchRow::into_entries)
+            .collect::<Vec<_>>();
+
+            cte_context.insert(cte_name.clone(), rows.clone());
+
+            let mut seen: HashSet<String> = rows.iter().map(row_signature).collect();
+            let mut stabilized = false;
+
+            for _ in 0..controls.cte_recursion_depth {
+                check_timeout(controls)?;
+                let recursive_plan = build_logical_plan(recursive.as_ref())?;
+                let recursive_rows = execute_plan(
                     cassie,
                     session,
-                    &logical,
+                    &recursive_plan,
                     cte_context,
                     user_functions,
                     params,
                     controls,
-                )
-                ?
-                .into_iter()
-                .map(BatchRow::into_entries)
-                .collect()
-            }
-            CteQuery::Recursive { base, recursive } => {
-                let base_plan = build_logical_plan(base.as_ref())?;
-                let mut rows = execute_plan(
-                    cassie,
-                    session,
-                    &base_plan,
-                    cte_context,
-                    user_functions,
-                    params,
-                    controls,
-                )
-                ?
+                )?
                 .into_iter()
                 .map(BatchRow::into_entries)
                 .collect::<Vec<_>>();
 
+                let mut new_rows = Vec::new();
+                for row in recursive_rows {
+                    let signature = row_signature(&row);
+                    if seen.insert(signature) {
+                        rows.push(row.clone());
+                        new_rows.push(row);
+                    }
+                }
+
+                if new_rows.is_empty() {
+                    stabilized = true;
+                    break;
+                }
+
+                ensure_temp_budget_for_rows(controls, &rows)?;
                 cte_context.insert(cte_name.clone(), rows.clone());
-
-                let mut seen: HashSet<String> = rows.iter().map(row_signature).collect();
-                let mut stabilized = false;
-
-                for _ in 0..controls.cte_recursion_depth {
-                    check_timeout(controls)?;
-                    let recursive_plan = build_logical_plan(recursive.as_ref())?;
-                    let recursive_rows = execute_plan(
-                        cassie,
-                        session,
-                        &recursive_plan,
-                        cte_context,
-                        user_functions,
-                        params,
-                        controls,
-                    )
-                    ?
-                    .into_iter()
-                    .map(BatchRow::into_entries)
-                    .collect::<Vec<_>>();
-
-                    let mut new_rows = Vec::new();
-                    for row in recursive_rows {
-                        let signature = row_signature(&row);
-                        if seen.insert(signature) {
-                            rows.push(row.clone());
-                            new_rows.push(row);
-                        }
-                    }
-
-                    if new_rows.is_empty() {
-                        stabilized = true;
-                        break;
-                    }
-
-                    ensure_temp_budget_for_rows(controls, &rows)?;
-                    cte_context.insert(cte_name.clone(), rows.clone());
-                }
-
-                if !stabilized {
-                    return Err(QueryError::General(format!(
-                        "recursive CTE '{}' did not stabilize within {} iterations",
-                        cte.name, controls.cte_recursion_depth
-                    )));
-                }
-
-                rows
             }
-        };
 
-        if let Some(previous_rows) = previous {
-            cte_context.insert(cte_name, previous_rows);
-        } else {
-            cte_context.remove(&cte_name);
+            if !stabilized {
+                return Err(QueryError::General(format!(
+                    "recursive CTE '{}' did not stabilize within {} iterations",
+                    cte.name, controls.cte_recursion_depth
+                )));
+            }
+
+            rows
         }
+    };
 
-        Ok(output)
+    if let Some(previous_rows) = previous {
+        cte_context.insert(cte_name, previous_rows);
+    } else {
+        cte_context.remove(&cte_name);
+    }
+
+    Ok(output)
 }
 
 fn execute_vector_distance_top_k(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
     plan: &LogicalPlan,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let Some(spec) = vector_distance_top_k_spec(plan) else {
         return Ok(None);
     };
 
-    let candidates = cassie
-        .midge
-        .scan_rows_for_rebuild(
-            &spec.collection,
-            RowDecode::Projected(vec![spec.vector_field.clone()]),
-        )
-        .map_err(|error| QueryError::General(error.to_string()))?;
+    let schema = cassie.catalog.get_schema(&spec.collection).ok_or_else(|| {
+        QueryError::General(format!("collection '{}' not found", spec.collection))
+    })?;
+    let mut candidates = batch::flatten_batches(scan::scan(cassie, session, &spec.collection)?);
+    if let Some(filter_expr) = &plan.filter {
+        if vector_prefilter_supported(filter_expr, &schema) {
+            let before = candidates.len();
+            candidates = filter::filter_rows(
+                candidates,
+                filter_expr,
+                params,
+                None,
+                user_functions,
+                session,
+            )?;
+            cassie
+                .runtime
+                .record_vector_prefilter_usage(before, candidates.len(), None);
+        } else {
+            return Ok(None);
+        }
+    }
     let top_needed = spec.limit.saturating_add(spec.offset).max(1);
     let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
 
-    for document in candidates {
-        let vector = document
-            .payload
+    for candidate in candidates {
+        let vector = candidate
             .get(&spec.vector_field)
-            .and_then(vector_from_json)
+            .and_then(value_to_vector)
             .unwrap_or_default();
         let score = if vector.len() == spec.query.len() && !vector.is_empty() {
             crate::vector::l2_distance(&vector, &spec.query)
@@ -1973,7 +1943,11 @@ fn execute_vector_distance_top_k(
                 SortDirection::Desc => -score,
             },
             score,
-            id: document.id,
+            id: candidate
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
         };
         if top.len() < top_needed {
             top.push(candidate);
@@ -2017,7 +1991,6 @@ fn vector_distance_top_k_spec(plan: &LogicalPlan) -> Option<VectorDistanceTopKSp
         || !plan.ctes.is_empty()
         || plan.distinct
         || !plan.distinct_on.is_empty()
-        || plan.filter.is_some()
         || !plan.group_by.is_empty()
         || plan.having.is_some()
         || plan.set.is_some()
@@ -2161,13 +2134,15 @@ fn compare_sql_vector_candidates(
 fn execute_scored_search_top_k(
     cassie: &Cassie,
     session: Option<&CassieSession>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
     plan: &LogicalPlan,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     if let Some(spec) = fulltext_top_k_spec(plan) {
         return execute_fulltext_top_k(cassie, spec).map(Some);
     }
     if let Some(spec) = hybrid_top_k_spec(plan) {
-        return execute_hybrid_top_k(cassie, spec).map(Some);
+        return execute_hybrid_top_k(cassie, session, user_functions, params, spec);
     }
     if let Some(spec) = fulltext_filtered_read_spec(plan) {
         if virtual_views::schema(&spec.collection).is_some()
@@ -2175,9 +2150,7 @@ fn execute_scored_search_top_k(
         {
             return Ok(None);
         }
-        return execute_fulltext_filtered_read(cassie, session, spec)
-            
-            .map(Some);
+        return execute_fulltext_filtered_read(cassie, session, spec).map(Some);
     }
     Ok(None)
 }
@@ -2332,8 +2305,7 @@ fn execute_fulltext_top_k(
         cassie,
         &spec.collection,
         std::slice::from_ref(&spec.text_field),
-    )
-    ?;
+    )?;
     let search_context = cached_search_context(
         cassie,
         &spec.collection,
@@ -2342,8 +2314,7 @@ fn execute_fulltext_top_k(
         &search_index_options.field_boost,
         &search_index_options.field_k1,
         &search_index_options.field_b,
-    )
-    ?;
+    )?;
     let query_terms = filter::prepare_query_terms(&spec.query);
     let candidate_ids = if spec.require_match {
         Some(posting_list_candidate_ids(&search_documents, &query_terms))
@@ -2392,33 +2363,44 @@ fn execute_fulltext_top_k(
 
 fn execute_hybrid_top_k(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
     spec: HybridTopKSpec,
-) -> Result<Vec<BatchRow>, QueryError> {
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let started_at = Instant::now();
-    let documents = cassie
-        .midge
-        .scan_rows_for_rebuild(
-            &spec.collection,
-            RowDecode::Projected(vec![spec.text_field.clone(), spec.vector_field.clone()]),
-        )
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    let search_documents = documents
+    let schema = cassie.catalog.get_schema(&spec.collection).ok_or_else(|| {
+        QueryError::General(format!("collection '{}' not found", spec.collection))
+    })?;
+    let mut rows = batch::flatten_batches(scan::scan(cassie, session, &spec.collection)?);
+    if let Some(filter_expr) = &spec.filter {
+        if vector_prefilter_supported(filter_expr, &schema) {
+            let before = rows.len();
+            rows = filter::filter_rows(rows, filter_expr, params, None, user_functions, session)?;
+            cassie
+                .runtime
+                .record_hybrid_prefilter_usage(before, rows.len(), None);
+        } else {
+            return Ok(None);
+        }
+    }
+    let search_documents = rows
         .into_iter()
-        .map(|document| TokenizedHybridDocument {
-            id: document.id,
-            text_stats: json_search_term_stats(document.payload.get(&spec.text_field)),
-            vector: document
-                .payload
-                .get(&spec.vector_field)
-                .and_then(vector_from_json),
+        .map(|row| TokenizedHybridDocument {
+            id: row
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            text_stats: json_search_term_stats_value(row.get(&spec.text_field)),
+            vector: row.get(&spec.vector_field).and_then(value_to_vector),
         })
         .collect::<Vec<_>>();
     let search_index_options = search_context_for_fields(
         cassie,
         &spec.collection,
         std::slice::from_ref(&spec.text_field),
-    )
-    ?;
+    )?;
     let search_context = cached_search_context(
         cassie,
         &spec.collection,
@@ -2427,8 +2409,7 @@ fn execute_hybrid_top_k(
         &search_index_options.field_boost,
         &search_index_options.field_k1,
         &search_index_options.field_b,
-    )
-    ?;
+    )?;
     let query_terms = filter::prepare_query_terms(&spec.query);
     let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
@@ -2484,7 +2465,7 @@ fn execute_hybrid_top_k(
     cassie
         .runtime
         .record_hybrid_execution(started_at.elapsed(), text_candidate_count, rows.len());
-    Ok(rows)
+    Ok(Some(rows))
 }
 
 fn execute_fulltext_filtered_read(
@@ -2502,7 +2483,6 @@ fn execute_fulltext_filtered_read(
             &scan_fields,
             None,
         )
-        
         .map_err(|error| QueryError::General(error.to_string()))?;
     let search_documents = document_batches
         .into_iter()
@@ -2520,8 +2500,7 @@ fn execute_fulltext_filtered_read(
         cassie,
         &spec.collection,
         std::slice::from_ref(&spec.text_field),
-    )
-    ?;
+    )?;
     let search_context = cached_search_context(
         cassie,
         &spec.collection,
@@ -2530,8 +2509,7 @@ fn execute_fulltext_filtered_read(
         &search_index_options.field_boost,
         &search_index_options.field_k1,
         &search_index_options.field_b,
-    )
-    ?;
+    )?;
     let query_terms = filter::prepare_query_terms(&spec.query);
     let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
 
@@ -2631,6 +2609,7 @@ struct HybridTopKSpec {
     query: String,
     vector_field: String,
     vector_query: Vec<f32>,
+    filter: Option<Expr>,
     id_column: String,
     score_column: String,
     limit: usize,
@@ -2784,7 +2763,7 @@ fn fulltext_filtered_scan_fields(spec: &FulltextFilteredReadSpec) -> Vec<String>
 }
 
 fn hybrid_top_k_spec(plan: &LogicalPlan) -> Option<HybridTopKSpec> {
-    if !simple_scored_top_k_plan(plan) || plan.filter.is_some() {
+    if !simple_scored_top_k_plan(plan) {
         return None;
     }
     let QuerySource::Collection(collection) = &plan.source else {
@@ -2808,6 +2787,7 @@ fn hybrid_top_k_spec(plan: &LogicalPlan) -> Option<HybridTopKSpec> {
         query,
         vector_field,
         vector_query,
+        filter: plan.filter.clone(),
         id_column,
         score_column,
         limit,
@@ -2940,6 +2920,114 @@ fn function_call_key(function: &FunctionCall) -> String {
 
 fn json_search_term_stats(value: Option<&serde_json::Value>) -> filter::SearchTermStats {
     filter::SearchTermStats::from_text(value.and_then(serde_json::Value::as_str))
+}
+
+fn json_search_term_stats_value(value: Option<&Value>) -> filter::SearchTermStats {
+    filter::SearchTermStats::from_text(value.and_then(Value::as_str))
+}
+
+fn value_to_vector(value: &Value) -> Option<Vec<f32>> {
+    match value {
+        Value::Vector(vector) => Some(vector.values.clone()),
+        Value::Json(json) => vector_from_json(json),
+        _ => None,
+    }
+}
+
+pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema) -> bool {
+    match expr {
+        Expr::Column(name) => schema
+            .fields
+            .iter()
+            .find(|field| field.name.eq_ignore_ascii_case(name))
+            .map(|field| !matches!(field.data_type, DataType::Vector(_)))
+            .unwrap_or(true),
+        Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null
+        | Expr::Param(_) => true,
+        Expr::Binary { left, op, right } => {
+            matches!(
+                op,
+                BinaryOp::Eq
+                    | BinaryOp::NotEq
+                    | BinaryOp::Lt
+                    | BinaryOp::Lte
+                    | BinaryOp::Gt
+                    | BinaryOp::Gte
+                    | BinaryOp::And
+                    | BinaryOp::Or
+                    | BinaryOp::Like
+            ) && vector_prefilter_supported(left, schema)
+                && vector_prefilter_supported(right, schema)
+        }
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            vector_prefilter_supported(expr, schema)
+        }
+        Expr::InList { expr, values, .. } => {
+            vector_prefilter_supported(expr, schema)
+                && values
+                    .iter()
+                    .all(|value| vector_prefilter_supported(value, schema))
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            vector_prefilter_supported(expr, schema)
+                && vector_prefilter_supported(low, schema)
+                && vector_prefilter_supported(high, schema)
+        }
+        Expr::Function(_) | Expr::Exists(_) => false,
+    }
+}
+
+pub(crate) fn vector_prefilter_fallback_reason(
+    expr: &Expr,
+    schema: &CollectionSchema,
+) -> &'static str {
+    if contains_vector_field(expr, schema) {
+        "vector field in metadata predicate"
+    } else {
+        "unsupported metadata predicate"
+    }
+}
+
+fn contains_vector_field(expr: &Expr, schema: &CollectionSchema) -> bool {
+    match expr {
+        Expr::Column(name) => schema.fields.iter().any(|field| {
+            field.name.eq_ignore_ascii_case(name) && matches!(field.data_type, DataType::Vector(_))
+        }),
+        Expr::Binary { left, right, .. } => {
+            contains_vector_field(left, schema) || contains_vector_field(right, schema)
+        }
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            contains_vector_field(expr, schema)
+        }
+        Expr::InList { expr, values, .. } => {
+            contains_vector_field(expr, schema)
+                || values
+                    .iter()
+                    .any(|value| contains_vector_field(value, schema))
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            contains_vector_field(expr, schema)
+                || contains_vector_field(low, schema)
+                || contains_vector_field(high, schema)
+        }
+        Expr::Function(function) => function
+            .args
+            .iter()
+            .any(|arg| contains_vector_field(arg, schema)),
+        Expr::Exists(_) => true,
+        Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null
+        | Expr::Param(_) => false,
+    }
 }
 
 fn json_projected_value<'a>(
@@ -3298,8 +3386,7 @@ fn execute_projected_filtered_read(
         &spec.scan_fields,
         spec.scan_limit,
         pushdown_filter.as_ref(),
-    )
-    ?;
+    )?;
     ensure_temp_budget(controls, &batches)?;
 
     if pushdown_filter.is_none() {
@@ -3369,8 +3456,7 @@ fn execute_projected_filtered_read_with_breakdown(
         &spec.scan_fields,
         spec.scan_limit,
         pushdown_filter.as_ref(),
-    )
-    ?;
+    )?;
     breakdown.row_decode += scan_timings.row_decode;
     let measured_scan = scan_timings.scan.saturating_add(scan_timings.row_decode);
     breakdown.scan += scan_timings
@@ -3596,181 +3682,152 @@ fn resolve_exists_expr<'a>(
     params: &'a [Value],
     controls: &'a QueryExecutionControls,
 ) -> ExprResolution<'a> {
-        match expr {
-            Expr::Binary { left, op, right } => Ok(Expr::Binary {
-                left: Box::new(
-                    resolve_exists_expr(
-                        cassie,
-                        session,
-                        left,
-                        cte_context,
-                        user_functions,
-                        params,
-                        controls,
-                    )
-                    ?,
-                ),
-                op: op.clone(),
-                right: Box::new(
-                    resolve_exists_expr(
-                        cassie,
-                        session,
-                        right,
-                        cte_context,
-                        user_functions,
-                        params,
-                        controls,
-                    )
-                    ?,
-                ),
-            }),
-            Expr::IsNull { expr, negated } => Ok(Expr::IsNull {
-                expr: Box::new(
-                    resolve_exists_expr(
-                        cassie,
-                        session,
-                        expr,
-                        cte_context,
-                        user_functions,
-                        params,
-                        controls,
-                    )
-                    ?,
-                ),
-                negated: *negated,
-            }),
-            Expr::InList {
+    match expr {
+        Expr::Binary { left, op, right } => Ok(Expr::Binary {
+            left: Box::new(resolve_exists_expr(
+                cassie,
+                session,
+                left,
+                cte_context,
+                user_functions,
+                params,
+                controls,
+            )?),
+            op: op.clone(),
+            right: Box::new(resolve_exists_expr(
+                cassie,
+                session,
+                right,
+                cte_context,
+                user_functions,
+                params,
+                controls,
+            )?),
+        }),
+        Expr::IsNull { expr, negated } => Ok(Expr::IsNull {
+            expr: Box::new(resolve_exists_expr(
+                cassie,
+                session,
                 expr,
-                values,
-                negated,
-            } => {
-                let expr = resolve_exists_expr(
+                cte_context,
+                user_functions,
+                params,
+                controls,
+            )?),
+            negated: *negated,
+        }),
+        Expr::InList {
+            expr,
+            values,
+            negated,
+        } => {
+            let expr = resolve_exists_expr(
+                cassie,
+                session,
+                expr,
+                cte_context,
+                user_functions,
+                params,
+                controls,
+            )?;
+            let mut resolved_values = Vec::with_capacity(values.len());
+            for value in values {
+                resolved_values.push(resolve_exists_expr(
                     cassie,
                     session,
-                    expr,
+                    value,
                     cte_context,
                     user_functions,
                     params,
                     controls,
-                )
-                ?;
-                let mut resolved_values = Vec::with_capacity(values.len());
-                for value in values {
-                    resolved_values.push(
-                        resolve_exists_expr(
-                            cassie,
-                            session,
-                            value,
-                            cte_context,
-                            user_functions,
-                            params,
-                            controls,
-                        )
-                        ?,
-                    );
-                }
-                Ok(Expr::InList {
-                    expr: Box::new(expr),
-                    values: resolved_values,
-                    negated: *negated,
-                })
+                )?);
             }
-            Expr::Between {
-                expr,
-                low,
-                high,
-                negated,
-            } => Ok(Expr::Between {
-                expr: Box::new(
-                    resolve_exists_expr(
-                        cassie,
-                        session,
-                        expr,
-                        cte_context,
-                        user_functions,
-                        params,
-                        controls,
-                    )
-                    ?,
-                ),
-                low: Box::new(
-                    resolve_exists_expr(
-                        cassie,
-                        session,
-                        low,
-                        cte_context,
-                        user_functions,
-                        params,
-                        controls,
-                    )
-                    ?,
-                ),
-                high: Box::new(
-                    resolve_exists_expr(
-                        cassie,
-                        session,
-                        high,
-                        cte_context,
-                        user_functions,
-                        params,
-                        controls,
-                    )
-                    ?,
-                ),
+            Ok(Expr::InList {
+                expr: Box::new(expr),
+                values: resolved_values,
                 negated: *negated,
-            }),
-            Expr::Not { expr } => Ok(Expr::Not {
-                expr: Box::new(
-                    resolve_exists_expr(
-                        cassie,
-                        session,
-                        expr,
-                        cte_context,
-                        user_functions,
-                        params,
-                        controls,
-                    )
-                    ?,
-                ),
-            }),
-            Expr::Cast { expr, data_type } => Ok(Expr::Cast {
-                expr: Box::new(
-                    resolve_exists_expr(
-                        cassie,
-                        session,
-                        expr,
-                        cte_context,
-                        user_functions,
-                        params,
-                        controls,
-                    )
-                    ?,
-                ),
-                data_type: data_type.clone(),
-            }),
-            Expr::Exists(statement) => {
-                let logical = build_logical_plan(statement.as_ref())?;
-                let mut subquery_context = cte_context.clone();
-                let rows = execute_plan(
-                    cassie,
-                    session,
-                    &logical,
-                    &mut subquery_context,
-                    user_functions,
-                    params,
-                    controls,
-                )
-                ?;
-                Ok(Expr::BoolLiteral(!rows.is_empty()))
-            }
-            Expr::Column(_)
-            | Expr::Param(_)
-            | Expr::StringLiteral(_)
-            | Expr::NumberLiteral(_)
-            | Expr::BoolLiteral(_)
-            | Expr::Null
-            | Expr::Function(_) => Ok(expr.clone()),
+            })
         }
+        Expr::Between {
+            expr,
+            low,
+            high,
+            negated,
+        } => Ok(Expr::Between {
+            expr: Box::new(resolve_exists_expr(
+                cassie,
+                session,
+                expr,
+                cte_context,
+                user_functions,
+                params,
+                controls,
+            )?),
+            low: Box::new(resolve_exists_expr(
+                cassie,
+                session,
+                low,
+                cte_context,
+                user_functions,
+                params,
+                controls,
+            )?),
+            high: Box::new(resolve_exists_expr(
+                cassie,
+                session,
+                high,
+                cte_context,
+                user_functions,
+                params,
+                controls,
+            )?),
+            negated: *negated,
+        }),
+        Expr::Not { expr } => Ok(Expr::Not {
+            expr: Box::new(resolve_exists_expr(
+                cassie,
+                session,
+                expr,
+                cte_context,
+                user_functions,
+                params,
+                controls,
+            )?),
+        }),
+        Expr::Cast { expr, data_type } => Ok(Expr::Cast {
+            expr: Box::new(resolve_exists_expr(
+                cassie,
+                session,
+                expr,
+                cte_context,
+                user_functions,
+                params,
+                controls,
+            )?),
+            data_type: data_type.clone(),
+        }),
+        Expr::Exists(statement) => {
+            let logical = build_logical_plan(statement.as_ref())?;
+            let mut subquery_context = cte_context.clone();
+            let rows = execute_plan(
+                cassie,
+                session,
+                &logical,
+                &mut subquery_context,
+                user_functions,
+                params,
+                controls,
+            )?;
+            Ok(Expr::BoolLiteral(!rows.is_empty()))
+        }
+        Expr::Column(_)
+        | Expr::Param(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null
+        | Expr::Function(_) => Ok(expr.clone()),
+    }
 }
 
 fn build_logical_plan(
@@ -3798,187 +3855,139 @@ fn execute_query_source<'a>(
     qualify: bool,
     outer_row: Option<&'a BatchRow>,
 ) -> SourceExecution<'a> {
-        match source {
-            QuerySource::Collection(name) => {
-                if let Some(rows) = virtual_views::rows(&env.cassie.catalog, name) {
-                    let mut batches = materialize_virtual_rows(rows);
-                    if qualify {
-                        batches = qualify_batches(batches, name);
-                    }
-                    ensure_temp_budget(env.controls, &batches)?;
-                    return Ok((batches, Vec::new()));
-                }
-
-                if let Some(view) = env.cassie.catalog.get_view(name) {
-                    let parsed = crate::sql::parser::parse_statement(&view.query)
-                        .map_err(|error| QueryError::General(error.0))?;
-                    let logical = build_logical_plan(&parsed)?;
-                    let mut view_cte_context = CteContext::new();
-                    let rows = execute_plan(
-                        env.cassie,
-                        env.session,
-                        &logical,
-                        &mut view_cte_context,
-                        env.user_functions,
-                        env.params,
-                        env.controls,
-                    )
-                    ?;
-                    let rows = project_rows_to_schema(rows, &view.schema, name)?;
-                    let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
-                    if qualify {
-                        batches = qualify_batches(batches, name);
-                    }
-                    ensure_temp_budget(env.controls, &batches)?;
-                    let text_fields = view
-                        .schema
-                        .fields
-                        .iter()
-                        .filter(|field| field.data_type == DataType::Text)
-                        .map(|field| field.name.clone())
-                        .collect::<Vec<_>>();
-                    return Ok((batches, text_fields));
-                }
-
-                let mut batches = scan::scan(env.cassie, env.session, name)?;
+    match source {
+        QuerySource::Collection(name) => {
+            if let Some(rows) = virtual_views::rows(&env.cassie.catalog, name) {
+                let mut batches = materialize_virtual_rows(rows);
                 if qualify {
                     batches = qualify_batches(batches, name);
                 }
                 ensure_temp_budget(env.controls, &batches)?;
-                Ok((batches, env.cassie.catalog.text_fields(name)))
+                return Ok((batches, Vec::new()));
             }
-            QuerySource::SingleRow => {
-                let batches =
-                    batch::chunk_rows(vec![BatchRow::new(Vec::new())], batch::DEFAULT_BATCH_SIZE);
-                ensure_temp_budget(env.controls, &batches)?;
-                Ok((batches, Vec::new()))
-            }
-            QuerySource::Cte(name) => {
-                let key = name.to_ascii_lowercase();
-                let rows = cte_context.get(&key).cloned().ok_or_else(|| {
-                    QueryError::General(format!("relation '{name}' does not exist"))
-                })?;
-                let text_fields = deduce_text_fields(&rows);
-                let mut batches = batch::chunk_rows(
-                    rows.into_iter().map(BatchRow::new).collect::<Vec<_>>(),
-                    batch::DEFAULT_BATCH_SIZE,
-                );
-                if qualify {
-                    batches = qualify_batches(batches, name);
-                }
-                ensure_temp_budget(env.controls, &batches)?;
-                Ok((batches, text_fields))
-            }
-            QuerySource::Subquery {
-                alias,
-                select,
-                lateral,
-            } => {
-                let logical = LogicalPlan {
-                    command: None,
-                    source: select.source.clone(),
-                    collection: alias.clone(),
-                    ctes: select.ctes.clone(),
-                    distinct: select.distinct,
-                    distinct_on: select.distinct_on.clone(),
-                    projection: select.projection.clone(),
-                    filter: select.filter.clone(),
-                    group_by: select.group_by.clone(),
-                    having: select.having.clone(),
-                    order: select.order.clone(),
-                    limit: select.limit,
-                    offset: select.offset,
-                    set: select.set.clone(),
-                };
-                let mut subquery_context = cte_context.clone();
-                let rows = execute_plan_with_outer_row(
+
+            if let Some(view) = env.cassie.catalog.get_view(name) {
+                let parsed = crate::sql::parser::parse_statement(&view.query)
+                    .map_err(|error| QueryError::General(error.0))?;
+                let logical = build_logical_plan(&parsed)?;
+                let mut view_cte_context = CteContext::new();
+                let rows = execute_plan(
                     env.cassie,
                     env.session,
                     &logical,
-                    &mut subquery_context,
+                    &mut view_cte_context,
                     env.user_functions,
                     env.params,
                     env.controls,
-                    if *lateral { outer_row } else { None },
-                )
-                ?;
-                let text_fields = deduce_text_fields(
-                    &rows
-                        .iter()
-                        .map(|row| row.entries().to_vec())
-                        .collect::<Vec<_>>(),
-                );
-                let batches =
-                    qualify_batches(batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE), alias);
-                ensure_temp_budget(env.controls, &batches)?;
-                Ok((batches, text_fields))
-            }
-            QuerySource::Join {
-                left,
-                right,
-                kind,
-                on,
-            } => {
-                let (left_batches, _left_text) =
-                    execute_query_source(env, left, cte_context, true, outer_row)?;
-                if source_contains_lateral(right) {
-                    let left_rows = batch::flatten_batches(left_batches);
-                    let mut joined = Vec::new();
-
-                    for left_row in &left_rows {
-                        let (right_batches, _right_text) =
-                            execute_query_source(env, right, cte_context, true, Some(left_row))
-                                ?;
-                        let right_rows = batch::flatten_batches(right_batches);
-                        let right_columns = row_columns(&right_rows);
-                        let mut matched = false;
-                        for right_row in &right_rows {
-                            let combined = combine_rows(left_row, right_row);
-                            let passes = matches!(kind, JoinKind::Cross)
-                                || filter::eval_scalar(
-                                    &combined,
-                                    on,
-                                    env.params,
-                                    None,
-                                    env.user_functions,
-                                    None,
-                                    env.session,
-                                )?
-                                .as_bool();
-                            if passes {
-                                matched = true;
-                                joined.push(combined);
-                            }
-                        }
-
-                        if !matched && matches!(kind, JoinKind::Left | JoinKind::Full) {
-                            joined.push(combine_row_with_nulls(left_row, &right_columns));
-                        }
-                    }
-
-                    let text_fields = deduce_text_fields(
-                        &joined
-                            .iter()
-                            .map(|row| row.entries().to_vec())
-                            .collect::<Vec<_>>(),
-                    );
-                    let batches = batch::chunk_rows(joined, batch::DEFAULT_BATCH_SIZE);
-                    ensure_temp_budget(env.controls, &batches)?;
-                    return Ok((batches, text_fields));
+                )?;
+                let rows = project_rows_to_schema(rows, &view.schema, name)?;
+                let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
+                if qualify {
+                    batches = qualify_batches(batches, name);
                 }
+                ensure_temp_budget(env.controls, &batches)?;
+                let text_fields = view
+                    .schema
+                    .fields
+                    .iter()
+                    .filter(|field| field.data_type == DataType::Text)
+                    .map(|field| field.name.clone())
+                    .collect::<Vec<_>>();
+                return Ok((batches, text_fields));
+            }
 
-                let (right_batches, _right_text) =
-                    execute_query_source(env, right, cte_context, true, outer_row)?;
+            let mut batches = scan::scan(env.cassie, env.session, name)?;
+            if qualify {
+                batches = qualify_batches(batches, name);
+            }
+            ensure_temp_budget(env.controls, &batches)?;
+            Ok((batches, env.cassie.catalog.text_fields(name)))
+        }
+        QuerySource::SingleRow => {
+            let batches =
+                batch::chunk_rows(vec![BatchRow::new(Vec::new())], batch::DEFAULT_BATCH_SIZE);
+            ensure_temp_budget(env.controls, &batches)?;
+            Ok((batches, Vec::new()))
+        }
+        QuerySource::Cte(name) => {
+            let key = name.to_ascii_lowercase();
+            let rows = cte_context
+                .get(&key)
+                .cloned()
+                .ok_or_else(|| QueryError::General(format!("relation '{name}' does not exist")))?;
+            let text_fields = deduce_text_fields(&rows);
+            let mut batches = batch::chunk_rows(
+                rows.into_iter().map(BatchRow::new).collect::<Vec<_>>(),
+                batch::DEFAULT_BATCH_SIZE,
+            );
+            if qualify {
+                batches = qualify_batches(batches, name);
+            }
+            ensure_temp_budget(env.controls, &batches)?;
+            Ok((batches, text_fields))
+        }
+        QuerySource::Subquery {
+            alias,
+            select,
+            lateral,
+        } => {
+            let logical = LogicalPlan {
+                command: None,
+                source: select.source.clone(),
+                collection: alias.clone(),
+                ctes: select.ctes.clone(),
+                distinct: select.distinct,
+                distinct_on: select.distinct_on.clone(),
+                projection: select.projection.clone(),
+                filter: select.filter.clone(),
+                group_by: select.group_by.clone(),
+                having: select.having.clone(),
+                order: select.order.clone(),
+                limit: select.limit,
+                offset: select.offset,
+                set: select.set.clone(),
+            };
+            let mut subquery_context = cte_context.clone();
+            let rows = execute_plan_with_outer_row(
+                env.cassie,
+                env.session,
+                &logical,
+                &mut subquery_context,
+                env.user_functions,
+                env.params,
+                env.controls,
+                if *lateral { outer_row } else { None },
+            )?;
+            let text_fields = deduce_text_fields(
+                &rows
+                    .iter()
+                    .map(|row| row.entries().to_vec())
+                    .collect::<Vec<_>>(),
+            );
+            let batches =
+                qualify_batches(batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE), alias);
+            ensure_temp_budget(env.controls, &batches)?;
+            Ok((batches, text_fields))
+        }
+        QuerySource::Join {
+            left,
+            right,
+            kind,
+            on,
+        } => {
+            let (left_batches, _left_text) =
+                execute_query_source(env, left, cte_context, true, outer_row)?;
+            if source_contains_lateral(right) {
                 let left_rows = batch::flatten_batches(left_batches);
-                let right_rows = batch::flatten_batches(right_batches);
-                let left_columns = row_columns(&left_rows);
-                let right_columns = row_columns(&right_rows);
                 let mut joined = Vec::new();
-                let mut right_matched = vec![false; right_rows.len()];
 
                 for left_row in &left_rows {
+                    let (right_batches, _right_text) =
+                        execute_query_source(env, right, cte_context, true, Some(left_row))?;
+                    let right_rows = batch::flatten_batches(right_batches);
+                    let right_columns = row_columns(&right_rows);
                     let mut matched = false;
-                    for (right_index, right_row) in right_rows.iter().enumerate() {
+                    for right_row in &right_rows {
                         let combined = combine_rows(left_row, right_row);
                         let passes = matches!(kind, JoinKind::Cross)
                             || filter::eval_scalar(
@@ -3993,21 +4002,12 @@ fn execute_query_source<'a>(
                             .as_bool();
                         if passes {
                             matched = true;
-                            right_matched[right_index] = true;
                             joined.push(combined);
                         }
                     }
 
                     if !matched && matches!(kind, JoinKind::Left | JoinKind::Full) {
                         joined.push(combine_row_with_nulls(left_row, &right_columns));
-                    }
-                }
-
-                if matches!(kind, JoinKind::Right | JoinKind::Full) {
-                    for (right_index, right_row) in right_rows.iter().enumerate() {
-                        if !right_matched[right_index] {
-                            joined.push(combine_nulls_with_row(&left_columns, right_row));
-                        }
                     }
                 }
 
@@ -4019,9 +4019,64 @@ fn execute_query_source<'a>(
                 );
                 let batches = batch::chunk_rows(joined, batch::DEFAULT_BATCH_SIZE);
                 ensure_temp_budget(env.controls, &batches)?;
-                Ok((batches, text_fields))
+                return Ok((batches, text_fields));
             }
+
+            let (right_batches, _right_text) =
+                execute_query_source(env, right, cte_context, true, outer_row)?;
+            let left_rows = batch::flatten_batches(left_batches);
+            let right_rows = batch::flatten_batches(right_batches);
+            let left_columns = row_columns(&left_rows);
+            let right_columns = row_columns(&right_rows);
+            let mut joined = Vec::new();
+            let mut right_matched = vec![false; right_rows.len()];
+
+            for left_row in &left_rows {
+                let mut matched = false;
+                for (right_index, right_row) in right_rows.iter().enumerate() {
+                    let combined = combine_rows(left_row, right_row);
+                    let passes = matches!(kind, JoinKind::Cross)
+                        || filter::eval_scalar(
+                            &combined,
+                            on,
+                            env.params,
+                            None,
+                            env.user_functions,
+                            None,
+                            env.session,
+                        )?
+                        .as_bool();
+                    if passes {
+                        matched = true;
+                        right_matched[right_index] = true;
+                        joined.push(combined);
+                    }
+                }
+
+                if !matched && matches!(kind, JoinKind::Left | JoinKind::Full) {
+                    joined.push(combine_row_with_nulls(left_row, &right_columns));
+                }
+            }
+
+            if matches!(kind, JoinKind::Right | JoinKind::Full) {
+                for (right_index, right_row) in right_rows.iter().enumerate() {
+                    if !right_matched[right_index] {
+                        joined.push(combine_nulls_with_row(&left_columns, right_row));
+                    }
+                }
+            }
+
+            let text_fields = deduce_text_fields(
+                &joined
+                    .iter()
+                    .map(|row| row.entries().to_vec())
+                    .collect::<Vec<_>>(),
+            );
+            let batches = batch::chunk_rows(joined, batch::DEFAULT_BATCH_SIZE);
+            ensure_temp_budget(env.controls, &batches)?;
+            Ok((batches, text_fields))
         }
+    }
 }
 
 fn qualify_batches(batches: Vec<Batch>, qualifier: &str) -> Vec<Batch> {
@@ -5113,18 +5168,15 @@ fn execute_source_query_with_outer_row(
     };
 
     let resolved_filter = if let Some(filter_expr) = &plan.filter {
-        Some(
-            resolve_exists_expr(
-                cassie,
-                session,
-                filter_expr,
-                cte_context,
-                user_functions,
-                params,
-                controls,
-            )
-            ?,
-        )
+        Some(resolve_exists_expr(
+            cassie,
+            session,
+            filter_expr,
+            cte_context,
+            user_functions,
+            params,
+            controls,
+        )?)
     } else {
         None
     };
@@ -6137,9 +6189,8 @@ mod tests {
         let physical = crate::planner::physical::build(logical);
 
         // Act
-        let output = run_with_execution_breakdown(&cassie, physical, vec![])
-            
-            .expect("execution breakdown");
+        let output =
+            run_with_execution_breakdown(&cassie, physical, vec![]).expect("execution breakdown");
 
         // Assert
         assert_eq!(output.result.rows.len(), 1);

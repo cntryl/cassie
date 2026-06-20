@@ -9,7 +9,9 @@ use cassie::config::{
 };
 use cassie::embeddings::openai::OpenAiConfig;
 use cassie::embeddings::DEFAULT_EMBEDDING_MODEL;
+use cassie::midge::adapter::StorageFamily;
 use cassie::rest;
+use cntryl_midge::{TransactionMode, WriteOptions};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -147,7 +149,20 @@ fn ollama_response_body(vectors: &[Vec<f32>]) -> String {
     .to_string()
 }
 
-async fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Vec<String> {
+fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str) {
+    let prefix = format!("__cassie__/normalized-vector/{collection}/{field}/");
+    let entries = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, prefix.as_bytes())
+        .unwrap();
+    let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
+    for (key, _value) in entries {
+        tx.delete(key).unwrap();
+    }
+    tx.commit(WriteOptions::sync()).unwrap();
+}
+
+fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Vec<String> {
     rest::collections::create(
         cassie,
         serde_json::json!({
@@ -160,7 +175,7 @@ async fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Ve
         })
         .to_string()
         .as_bytes(),
-    );
+    )
     .unwrap();
 
     rest::indexes::create(
@@ -176,7 +191,7 @@ async fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Ve
         })
         .to_string()
         .as_bytes(),
-    );
+    )
     .unwrap();
 
     let doc_one = rest::documents::create(
@@ -188,7 +203,7 @@ async fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Ve
         })
         .to_string()
         .as_bytes(),
-    );
+    )
     .unwrap();
     let doc_two = rest::documents::create(
         cassie,
@@ -199,7 +214,7 @@ async fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Ve
         })
         .to_string()
         .as_bytes(),
-    );
+    )
     .unwrap();
 
     let first_id = doc_one["id"].as_str().expect("doc one id").to_string();
@@ -216,7 +231,7 @@ async fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Ve
         })
         .to_string()
         .as_bytes(),
-    );
+    )
     .unwrap();
 
     let rows = search["rows"].as_array().expect("rows array");
@@ -240,11 +255,6 @@ fn should_search_vector_docs_after_ingest() {
     with_fallback();
     let path = data_dir("search_flow");
     let path_for_cleanup = path.clone();
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(2)
-        .build()
-        .unwrap();
 
     let openai_server = MockOpenAiServer::spawn(vec![
         MockResponse {
@@ -274,96 +284,94 @@ fn should_search_vector_docs_after_ingest() {
         Cassie::new_with_data_dir_and_config(&path, openai_runtime_with_server(server_base_url))
             .unwrap();
 
-    runtime.block_on(async {
-        // Arrange
-        cassie.startup().unwrap();
+    // Arrange
+    cassie.startup().unwrap();
 
-        rest::collections::create(
-            &cassie,
-            serde_json::json!({
-                "name": "search_collection",
-                "fields": [
-                    {"name": "content", "type": "text"},
-                    {"name": "label", "type": "text"},
-                    {"name": "embedding", "type": "vector(1536)"},
-                ],
-            })
-            .to_string()
-            .as_bytes(),
-        );
-        .unwrap();
+    rest::collections::create(
+        &cassie,
+        serde_json::json!({
+            "name": "search_collection",
+            "fields": [
+                {"name": "content", "type": "text"},
+                {"name": "label", "type": "text"},
+                {"name": "embedding", "type": "vector(1536)"},
+            ],
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
 
-        rest::indexes::create(
-            &cassie,
-            "search_collection",
-            serde_json::json!({
-                "kind": "vector",
-                "field": "embedding",
-                "options": {
-                    "source_field": "content",
-                    "metric": "l2",
-                }
-            })
-            .to_string()
-            .as_bytes(),
-        );
-        .unwrap();
-
-        let doc_one = rest::documents::create(
-            &cassie,
-            "search_collection",
-            serde_json::json!({
-                "content": "alpha",
-                "label": "first",
-            })
-            .to_string()
-            .as_bytes(),
-        );
-        .unwrap();
-        let doc_two = rest::documents::create(
-            &cassie,
-            "search_collection",
-            serde_json::json!({
-                "content": "beta",
-                "label": "second",
-            })
-            .to_string()
-            .as_bytes(),
-        );
-        .unwrap();
-
-        let first_id = doc_one["id"].as_str().expect("doc one id");
-        let second_id = doc_two["id"].as_str().expect("doc two id");
-
-        // Act
-        let search = rest::search::vector_search(
-            &cassie,
-            "search_collection",
-            serde_json::json!({
-                "field": "embedding",
-                "query": "query text",
+    rest::indexes::create(
+        &cassie,
+        "search_collection",
+        serde_json::json!({
+            "kind": "vector",
+            "field": "embedding",
+            "options": {
+                "source_field": "content",
                 "metric": "l2",
-                "limit": 2,
-            })
-            .to_string()
-            .as_bytes(),
-        );
-        .unwrap();
+            }
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
 
-        // Assert
-        let rows = search["rows"].as_array().expect("rows array");
-        assert_eq!(rows.len(), 2);
-        let returned_first_id = rows[0][0]
-            .get("String")
-            .and_then(serde_json::Value::as_str)
-            .expect("first result id");
-        let returned_second_id = rows[1][0]
-            .get("String")
-            .and_then(serde_json::Value::as_str)
-            .expect("second result id");
-        assert_eq!(returned_first_id, first_id);
-        assert_eq!(returned_second_id, second_id);
-    });
+    let doc_one = rest::documents::create(
+        &cassie,
+        "search_collection",
+        serde_json::json!({
+            "content": "alpha",
+            "label": "first",
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+    let doc_two = rest::documents::create(
+        &cassie,
+        "search_collection",
+        serde_json::json!({
+            "content": "beta",
+            "label": "second",
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+
+    let first_id = doc_one["id"].as_str().expect("doc one id");
+    let second_id = doc_two["id"].as_str().expect("doc two id");
+
+    // Act
+    let search = rest::search::vector_search(
+        &cassie,
+        "search_collection",
+        serde_json::json!({
+            "field": "embedding",
+            "query": "query text",
+            "metric": "l2",
+            "limit": 2,
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+
+    // Assert
+    let rows = search["rows"].as_array().expect("rows array");
+    assert_eq!(rows.len(), 2);
+    let returned_first_id = rows[0][0]
+        .get("String")
+        .and_then(serde_json::Value::as_str)
+        .expect("first result id");
+    let returned_second_id = rows[1][0]
+        .get("String")
+        .and_then(serde_json::Value::as_str)
+        .expect("second result id");
+    assert_eq!(returned_first_id, first_id);
+    assert_eq!(returned_second_id, second_id);
 
     let _ = std::fs::remove_dir_all(path_for_cleanup);
 }
@@ -374,11 +382,6 @@ fn should_search_vector_docs_with_tei_provider() {
     with_fallback();
     let path = data_dir("tei_search_flow");
     let path_for_cleanup = path.clone();
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(2)
-        .build()
-        .unwrap();
 
     let embedding_server = MockOpenAiServer::spawn(vec![
         MockResponse {
@@ -401,14 +404,12 @@ fn should_search_vector_docs_with_tei_provider() {
     )
     .unwrap();
 
-    runtime.block_on(async {
-        cassie.startup().unwrap();
+    cassie.startup().unwrap();
 
-        // Act
-        let rows = search_self_hosted_vector_docs(&cassie, "tei_search_collection").await;
-        // Assert
-        assert_eq!(rows.len(), 2);
-    });
+    // Act
+    let rows = search_self_hosted_vector_docs(&cassie, "tei_search_collection");
+    // Assert
+    assert_eq!(rows.len(), 2);
 
     let _ = std::fs::remove_dir_all(path_for_cleanup);
 }
@@ -419,11 +420,6 @@ fn should_apply_vector_search_offset_after_distance_ordering() {
     with_fallback();
     let path = data_dir("vector_search_offset");
     let path_for_cleanup = path.clone();
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(2)
-        .build()
-        .unwrap();
 
     let embedding_server = MockOpenAiServer::spawn(vec![
         MockResponse {
@@ -450,91 +446,265 @@ fn should_apply_vector_search_offset_after_distance_ordering() {
     )
     .unwrap();
 
-    runtime.block_on(async {
-        cassie.startup().unwrap();
-        rest::collections::create(
-            &cassie,
-            serde_json::json!({
-                "name": "vector_offset_collection",
-                "fields": [
-                    {"name": "content", "type": "text"},
-                    {"name": "label", "type": "text"},
-                    {"name": "embedding", "type": "vector(3)"},
-                ],
-            })
-            .to_string()
-            .as_bytes(),
-        );
-        .unwrap();
-        rest::indexes::create(
-            &cassie,
-            "vector_offset_collection",
-            serde_json::json!({
-                "kind": "vector",
-                "field": "embedding",
-                "options": {
-                    "source_field": "content",
-                    "metric": "l2",
-                }
-            })
-            .to_string()
-            .as_bytes(),
-        );
-        .unwrap();
-
-        rest::documents::create(
-            &cassie,
-            "vector_offset_collection",
-            serde_json::json!({"content": "far", "label": "third"})
-                .to_string()
-                .as_bytes(),
-        );
-        .unwrap();
-        let nearest = rest::documents::create(
-            &cassie,
-            "vector_offset_collection",
-            serde_json::json!({"content": "near", "label": "first"})
-                .to_string()
-                .as_bytes(),
-        );
-        .unwrap();
-        let middle = rest::documents::create(
-            &cassie,
-            "vector_offset_collection",
-            serde_json::json!({"content": "middle", "label": "second"})
-                .to_string()
-                .as_bytes(),
-        );
-        .unwrap();
-        let nearest_id = nearest["id"].as_str().expect("nearest id");
-        let middle_id = middle["id"].as_str().expect("middle id");
-
-        // Act
-        let search = rest::search::vector_search(
-            &cassie,
-            "vector_offset_collection",
-            serde_json::json!({
-                "field": "embedding",
-                "query": "query text",
+    cassie.startup().unwrap();
+    rest::collections::create(
+        &cassie,
+        serde_json::json!({
+            "name": "vector_offset_collection",
+            "fields": [
+                {"name": "content", "type": "text"},
+                {"name": "label", "type": "text"},
+                {"name": "embedding", "type": "vector(3)"},
+            ],
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+    rest::indexes::create(
+        &cassie,
+        "vector_offset_collection",
+        serde_json::json!({
+            "kind": "vector",
+            "field": "embedding",
+            "options": {
+                "source_field": "content",
                 "metric": "l2",
-                "limit": 1,
-                "offset": 1,
-            })
+            }
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+
+    rest::documents::create(
+        &cassie,
+        "vector_offset_collection",
+        serde_json::json!({"content": "far", "label": "third"})
             .to_string()
             .as_bytes(),
-        );
-        .unwrap();
+    )
+    .unwrap();
+    let nearest = rest::documents::create(
+        &cassie,
+        "vector_offset_collection",
+        serde_json::json!({"content": "near", "label": "first"})
+            .to_string()
+            .as_bytes(),
+    )
+    .unwrap();
+    let middle = rest::documents::create(
+        &cassie,
+        "vector_offset_collection",
+        serde_json::json!({"content": "middle", "label": "second"})
+            .to_string()
+            .as_bytes(),
+    )
+    .unwrap();
+    let nearest_id = nearest["id"].as_str().expect("nearest id");
+    let middle_id = middle["id"].as_str().expect("middle id");
 
-        // Assert
-        let rows = search["rows"].as_array().expect("rows array");
-        assert_eq!(rows.len(), 1);
-        let returned_id = rows[0][0]
-            .get("String")
-            .and_then(serde_json::Value::as_str)
-            .expect("result id");
-        assert_ne!(returned_id, nearest_id);
-        assert_eq!(returned_id, middle_id);
-    });
+    // Act
+    let search = rest::search::vector_search(
+        &cassie,
+        "vector_offset_collection",
+        serde_json::json!({
+            "field": "embedding",
+            "query": "query text",
+            "metric": "l2",
+            "limit": 1,
+            "offset": 1,
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+
+    // Assert
+    let rows = search["rows"].as_array().expect("rows array");
+    assert_eq!(rows.len(), 1);
+    let returned_id = rows[0][0]
+        .get("String")
+        .and_then(serde_json::Value::as_str)
+        .expect("result id");
+    assert_ne!(returned_id, nearest_id);
+    assert_eq!(returned_id, middle_id);
+
+    let _ = std::fs::remove_dir_all(path_for_cleanup);
+}
+
+#[test]
+fn should_fall_back_to_raw_vector_search_when_normalized_sidecars_are_missing() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("vector_search_normalized_fallback");
+    let path_for_cleanup = path.clone();
+
+    let embedding_server = MockOpenAiServer::spawn(vec![
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![3.0, 4.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![0.0, 5.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![3.0, 4.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![3.0, 4.0, 0.0]]),
+        },
+    ]);
+
+    let cassie = Cassie::new_with_data_dir_and_config(
+        &path,
+        tei_runtime_with_server(embedding_server.base_url()),
+    )
+    .unwrap();
+
+    cassie.startup().unwrap();
+
+    rest::collections::create(
+        &cassie,
+        serde_json::json!({
+            "name": "vector_search_normalized_fallback",
+            "fields": [
+                {"name": "content", "type": "text"},
+                {"name": "label", "type": "text"},
+                {"name": "embedding", "type": "vector(3)"},
+            ],
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+    rest::indexes::create(
+        &cassie,
+        "vector_search_normalized_fallback",
+        serde_json::json!({
+            "kind": "vector",
+            "field": "embedding",
+            "options": {
+                "source_field": "content",
+                "metric": "cosine",
+            }
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+
+    let first = rest::documents::create(
+        &cassie,
+        "vector_search_normalized_fallback",
+        serde_json::json!({"content": "alpha", "label": "first"})
+            .to_string()
+            .as_bytes(),
+    )
+    .unwrap();
+    let second = rest::documents::create(
+        &cassie,
+        "vector_search_normalized_fallback",
+        serde_json::json!({"content": "beta", "label": "second"})
+            .to_string()
+            .as_bytes(),
+    )
+    .unwrap();
+    let first_id = first["id"].as_str().expect("first id").to_string();
+    let second_id = second["id"].as_str().expect("second id").to_string();
+
+    let before = cassie.metrics();
+    let before_normalized = before["vector"]["normalized_candidate_count_total"]
+        .as_u64()
+        .unwrap_or_default();
+    let before_fallback = before["vector"]["normalized_fallback_count_total"]
+        .as_u64()
+        .unwrap_or_default();
+
+    // Act
+    let normalized_search = rest::search::vector_search(
+        &cassie,
+        "vector_search_normalized_fallback",
+        serde_json::json!({
+            "field": "embedding",
+            "query": "query text",
+            "metric": "cosine",
+            "limit": 2,
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+    let after_normalized = cassie.metrics();
+
+    clear_normalized_sidecars(&cassie, "vector_search_normalized_fallback", "embedding");
+
+    let fallback_search = rest::search::vector_search(
+        &cassie,
+        "vector_search_normalized_fallback",
+        serde_json::json!({
+            "field": "embedding",
+            "query": "query text",
+            "metric": "cosine",
+            "limit": 2,
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+    let after_fallback = cassie.metrics();
+
+    // Assert
+    assert_eq!(normalized_search, fallback_search);
+    let rows = normalized_search["rows"].as_array().expect("rows array");
+    assert_eq!(rows.len(), 2);
+    let returned_ids = rows
+        .iter()
+        .map(|row| {
+            row[0]
+                .get("String")
+                .and_then(serde_json::Value::as_str)
+                .expect("row id")
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(returned_ids, vec![first_id, second_id]);
+
+    assert_eq!(
+        after_normalized["vector"]["normalized_candidate_count_total"]
+            .as_u64()
+            .unwrap_or_default()
+            - before_normalized,
+        2
+    );
+    assert_eq!(
+        after_normalized["vector"]["normalized_fallback_count_total"]
+            .as_u64()
+            .unwrap_or_default()
+            - before_fallback,
+        0
+    );
+    assert_eq!(
+        after_fallback["vector"]["normalized_candidate_count_total"]
+            .as_u64()
+            .unwrap_or_default()
+            - after_normalized["vector"]["normalized_candidate_count_total"]
+                .as_u64()
+                .unwrap_or_default(),
+        0
+    );
+    assert_eq!(
+        after_fallback["vector"]["normalized_fallback_count_total"]
+            .as_u64()
+            .unwrap_or_default()
+            - after_normalized["vector"]["normalized_fallback_count_total"]
+                .as_u64()
+                .unwrap_or_default(),
+        2
+    );
 
     let _ = std::fs::remove_dir_all(path_for_cleanup);
 }
@@ -545,11 +715,6 @@ fn should_search_vector_docs_with_ollama_provider() {
     with_fallback();
     let path = data_dir("ollama_search_flow");
     let path_for_cleanup = path.clone();
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(2)
-        .build()
-        .unwrap();
 
     let embedding_server = MockOpenAiServer::spawn(vec![
         MockResponse {
@@ -572,14 +737,12 @@ fn should_search_vector_docs_with_ollama_provider() {
     )
     .unwrap();
 
-    runtime.block_on(async {
-        cassie.startup().unwrap();
+    cassie.startup().unwrap();
 
-        // Act
-        let rows = search_self_hosted_vector_docs(&cassie, "ollama_search_collection").await;
-        // Assert
-        assert_eq!(rows.len(), 2);
-    });
+    // Act
+    let rows = search_self_hosted_vector_docs(&cassie, "ollama_search_collection");
+    // Assert
+    assert_eq!(rows.len(), 2);
 
     let _ = std::fs::remove_dir_all(path_for_cleanup);
 }
@@ -590,11 +753,6 @@ fn should_fail_vector_search_when_metric_incompatible_with_index() {
     with_fallback();
     let path = data_dir("search_incompatible_metric");
     let path_for_cleanup = path.clone();
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(2)
-        .build()
-        .unwrap();
 
     let openai_server = MockOpenAiServer::spawn(vec![]);
     let cassie = Cassie::new_with_data_dir_and_config(
@@ -603,55 +761,53 @@ fn should_fail_vector_search_when_metric_incompatible_with_index() {
     )
     .unwrap();
 
-    runtime.block_on(async {
-        cassie.startup().unwrap();
+    cassie.startup().unwrap();
 
-        rest::collections::create(
-            &cassie,
-            serde_json::json!({
-                "name": "search_incompatible_collection",
-                "fields": [
-                    {"name": "content", "type": "text"},
-                    {"name": "embedding", "type": "vector(1536)"},
-                ],
-            })
-            .to_string()
-            .as_bytes(),
-        );
-        .unwrap();
+    rest::collections::create(
+        &cassie,
+        serde_json::json!({
+            "name": "search_incompatible_collection",
+            "fields": [
+                {"name": "content", "type": "text"},
+                {"name": "embedding", "type": "vector(1536)"},
+            ],
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
 
-        rest::indexes::create(
-            &cassie,
-            "search_incompatible_collection",
-            serde_json::json!({
-                "kind": "vector",
-                "field": "embedding",
-                "options": {
-                    "source_field": "content",
-                    "metric": "cosine",
-                }
-            })
-            .to_string()
-            .as_bytes(),
-        );
-        .unwrap();
+    rest::indexes::create(
+        &cassie,
+        "search_incompatible_collection",
+        serde_json::json!({
+            "kind": "vector",
+            "field": "embedding",
+            "options": {
+                "source_field": "content",
+                "metric": "cosine",
+            }
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
 
-        // Act
-        let result = rest::search::vector_search(
-            &cassie,
-            "search_incompatible_collection",
-            serde_json::json!({
-                "field": "embedding",
-                "query": "query text",
-                "metric": "l2",
-            })
-            .to_string()
-            .as_bytes(),
-        );
+    // Act
+    let result = rest::search::vector_search(
+        &cassie,
+        "search_incompatible_collection",
+        serde_json::json!({
+            "field": "embedding",
+            "query": "query text",
+            "metric": "l2",
+        })
+        .to_string()
+        .as_bytes(),
+    );
 
-        // Assert
-        assert!(result.is_err());
-    });
+    // Assert
+    assert!(result.is_err());
 
     let _ = std::fs::remove_dir_all(path_for_cleanup);
 }

@@ -158,17 +158,16 @@ fn should_reject_unknown_function_during_binding() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie
-            .register_collection(
-                "binder_docs".to_string(),
-                Schema {
-                    fields: vec![FieldSchema {
-                        name: "id".to_string(),
-                        data_type: DataType::Text,
-                        nullable: true,
-                    }],
-                },
-            );
+        cassie.register_collection(
+            "binder_docs".to_string(),
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "id".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            },
+        );
 
         // Act
         let parsed = parse_statement("SELECT unknown_fn(id) FROM binder_docs").unwrap();
@@ -190,17 +189,16 @@ fn should_reject_bad_function_arity_during_binding() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie
-            .register_collection(
-                "binder_docs_arity".to_string(),
-                Schema {
-                    fields: vec![FieldSchema {
-                        name: "id".to_string(),
-                        data_type: DataType::Text,
-                        nullable: true,
-                    }],
-                },
-            );
+        cassie.register_collection(
+            "binder_docs_arity".to_string(),
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "id".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            },
+        );
 
         // Act
         let parsed = parse_statement("SELECT search(id) FROM binder_docs_arity").unwrap();
@@ -539,17 +537,16 @@ fn should_accept_case_insensitive_function_names_during_binding() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie
-            .register_collection(
-                "binder_docs_case".to_string(),
-                Schema {
-                    fields: vec![FieldSchema {
-                        name: "body".to_string(),
-                        data_type: DataType::Text,
-                        nullable: true,
-                    }],
-                },
-            );
+        cassie.register_collection(
+            "binder_docs_case".to_string(),
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            },
+        );
 
         // Act
         let parsed =
@@ -572,17 +569,16 @@ fn should_allow_snippet_function_binding() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie
-            .register_collection(
-                "binder_docs_snippet".to_string(),
-                Schema {
-                    fields: vec![FieldSchema {
-                        name: "body".to_string(),
-                        data_type: DataType::Text,
-                        nullable: true,
-                    }],
-                },
-            );
+        cassie.register_collection(
+            "binder_docs_snippet".to_string(),
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            },
+        );
 
         // Act
         let parsed = parse_statement("SELECT snippet(body, 'q') FROM binder_docs_snippet").unwrap();
@@ -1559,17 +1555,16 @@ fn should_reject_unknown_projection_column_during_binding() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie
-            .register_collection(
-                "binder_docs_projection_col".to_string(),
-                Schema {
-                    fields: vec![FieldSchema {
-                        name: "body".to_string(),
-                        data_type: DataType::Text,
-                        nullable: true,
-                    }],
-                },
-            );
+        cassie.register_collection(
+            "binder_docs_projection_col".to_string(),
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            },
+        );
 
         // Act
         let parsed = parse_statement("SELECT unknown FROM binder_docs_projection_col").unwrap();
@@ -2119,14 +2114,14 @@ fn should_parse_fulltext_create_index_statement_with_options() {
                     ],
                 },
             )
-            .await;
+            ;
 
         // Act
         let parsed = parse_statement(
             "CREATE INDEX idx_ft_docs_body ON ft_docs_options USING fulltext (body) WITH (boost = 2.5, k1 = 0.8, b = 0.1)",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog)
             .expect("bind should succeed");
 
         // Assert
@@ -2154,33 +2149,31 @@ fn should_apply_fulltext_create_index_defaults() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie
-            .register_collection(
-                "ft_docs_defaults".to_string(),
-                Schema {
-                    fields: vec![
-                        FieldSchema {
-                            name: "id".to_string(),
-                            data_type: DataType::Text,
-                            nullable: true,
-                        },
-                        FieldSchema {
-                            name: "body".to_string(),
-                            data_type: DataType::Text,
-                            nullable: true,
-                        },
-                    ],
-                },
-            )
-            .await;
+        cassie.register_collection(
+            "ft_docs_defaults".to_string(),
+            Schema {
+                fields: vec![
+                    FieldSchema {
+                        name: "id".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    },
+                    FieldSchema {
+                        name: "body".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    },
+                ],
+            },
+        );
 
         // Act
         let parsed = parse_statement(
             "CREATE INDEX idx_ft_docs_defaults ON ft_docs_defaults USING fulltext (body)",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
-            .expect("bind should succeed");
+        let bound =
+            cassie::sql::binder::bind(parsed, &cassie.catalog).expect("bind should succeed");
 
         // Assert
         let QueryStatement::CreateIndex(statement) = bound.statement.statement else {
@@ -2224,7 +2217,7 @@ fn should_reject_fulltext_create_index_with_non_finite_boost() {
                     ],
                 },
             )
-            .await;
+            ;
 
         // Act
         let parsed = parse_statement(
@@ -2270,7 +2263,7 @@ fn should_reject_duplicate_fulltext_index_on_same_field() {
                     ],
                 },
             )
-            .await;
+            ;
 
         cassie
             .catalog
@@ -2314,17 +2307,16 @@ fn should_reject_fulltext_index_on_non_text_field() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie
-            .register_collection(
-                "ft_docs_bad_field".to_string(),
-                Schema {
-                    fields: vec![FieldSchema {
-                        name: "score".to_string(),
-                        data_type: DataType::Int,
-                        nullable: true,
-                    }],
-                },
-            );
+        cassie.register_collection(
+            "ft_docs_bad_field".to_string(),
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "score".to_string(),
+                    data_type: DataType::Int,
+                    nullable: true,
+                }],
+            },
+        );
 
         // Act
         let parsed = parse_statement(
@@ -2370,7 +2362,7 @@ fn should_reject_fulltext_create_index_with_unsupported_option() {
                     ],
                 },
             )
-            .await;
+            ;
 
         // Act
         let parsed = parse_statement(
@@ -2416,7 +2408,7 @@ fn should_reject_fulltext_create_index_with_invalid_fulltext_k1() {
                     ],
                 },
             )
-            .await;
+            ;
 
         // Act
         let parsed = parse_statement(
@@ -2444,30 +2436,28 @@ fn should_reject_vector_create_index_without_source_field() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie
-            .register_collection(
-                "vec_docs_no_source".to_string(),
-                Schema {
-                    fields: vec![
-                        FieldSchema {
-                            name: "id".to_string(),
-                            data_type: DataType::Text,
-                            nullable: true,
-                        },
-                        FieldSchema {
-                            name: "content".to_string(),
-                            data_type: DataType::Text,
-                            nullable: true,
-                        },
-                        FieldSchema {
-                            name: "embedding".to_string(),
-                            data_type: DataType::Vector(3),
-                            nullable: true,
-                        },
-                    ],
-                },
-            )
-            .await;
+        cassie.register_collection(
+            "vec_docs_no_source".to_string(),
+            Schema {
+                fields: vec![
+                    FieldSchema {
+                        name: "id".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    },
+                    FieldSchema {
+                        name: "content".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    },
+                    FieldSchema {
+                        name: "embedding".to_string(),
+                        data_type: DataType::Vector(3),
+                        nullable: true,
+                    },
+                ],
+            },
+        );
 
         // Act
         let parsed = parse_statement(
@@ -2513,7 +2503,7 @@ fn should_reject_vector_create_index_with_invalid_metric() {
                     ],
                 },
             )
-            .await;
+            ;
 
         // Act
         let parsed = parse_statement(
@@ -2599,14 +2589,14 @@ fn should_default_vector_metric_to_cosine() {
                     ],
                 },
             )
-            .await;
+            ;
 
         // Act
         let parsed = parse_statement(
             "CREATE INDEX idx_docs_embedding ON vec_docs_default_metric USING vector (embedding) WITH (source_field = content)",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog)
             .expect("bind should succeed");
 
         // Assert
@@ -2646,17 +2636,16 @@ fn should_reject_create_table_when_collection_exists_without_if_not_exists() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie
-            .register_collection(
-                "existing_table".to_string(),
-                Schema {
-                    fields: vec![FieldSchema {
-                        name: "id".to_string(),
-                        data_type: DataType::Text,
-                        nullable: true,
-                    }],
-                },
-            );
+        cassie.register_collection(
+            "existing_table".to_string(),
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "id".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            },
+        );
 
         // Act
         let parsed = parse_statement("CREATE TABLE existing_table (title TEXT)")

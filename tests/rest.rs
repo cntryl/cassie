@@ -24,21 +24,20 @@ fn should_crud_collection_documents_through_rest() {
         });
 
         // Act
-        let create = collections::create(&cassie, body.to_string().as_bytes());
-            .expect("create collection");
-        let list = collections::list(&cassie);        let doc = documents::create(
+        let create =
+            collections::create(&cassie, body.to_string().as_bytes()).expect("create collection");
+        let list = collections::list(&cassie);
+        let doc = documents::create(
             &cassie,
             collection,
             serde_json::json!({"title": "hello", "payload": {"k": 1}, "embedding": [1.0, 2.0]})
                 .to_string()
                 .as_bytes(),
-        );
+        )
         .expect("create document");
         let doc_id = doc["id"].as_str().expect("id present");
-        let got = documents::get(&cassie, collection, doc_id);
-            .expect("get document");
-        let removed = documents::delete(&cassie, collection, doc_id);
-            .expect("delete document");
+        let got = documents::get(&cassie, collection, doc_id).expect("get document");
+        let removed = documents::delete(&cassie, collection, doc_id).expect("delete document");
 
         // Assert
         assert_eq!(create["collection"], collection);
@@ -145,7 +144,7 @@ fn should_apply_default_values_for_rest_ingest() {
             &cassie,
             collection,
             serde_json::json!({"id": 1}).to_string().as_bytes(),
-        );
+        )
         .expect("create rest document");
         let id = doc["id"].as_str().expect("id present");
         let stored = cassie
@@ -180,7 +179,7 @@ fn should_reject_rest_ingest_when_not_null_constraint_is_violated() {
                 &session,
                 "CREATE TABLE rest_constraint_not_null (id INT PRIMARY KEY, email TEXT NOT NULL)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -233,7 +232,7 @@ fn should_reject_rest_ingest_when_unique_constraint_is_violated() {
             serde_json::json!({"id": 1, "email": "a@example.com"})
                 .to_string()
                 .as_bytes(),
-        );
+        )
         .expect("first insert");
 
         // Act

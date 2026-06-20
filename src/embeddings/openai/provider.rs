@@ -3,7 +3,6 @@ use std::time::{Duration, Instant};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 
-
 use crate::embeddings::{Embedding, EmbeddingError, EmbeddingProvider};
 
 pub const DEFAULT_OPENAI_TIMEOUT_SECONDS: u64 = 30;

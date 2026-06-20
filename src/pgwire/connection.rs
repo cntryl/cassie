@@ -211,9 +211,7 @@ pub async fn run_connection(
                 match read_password_message(&mut reader).await {
                     Ok(password) => {
                         runtime.record_pgwire_message("password");
-                        match cassie
-                            .authenticate_role(&user, Some(&password), database.clone())
-                        {
+                        match cassie.authenticate_role(&user, Some(&password), database.clone()) {
                             Ok(session) => {
                                 state.authenticated = true;
                                 state.session = Some(session.clone());
@@ -656,12 +654,10 @@ pub async fn run_connection(
                                 },
                             };
 
-                            match cassie
-                                .describe_parsed_statement(
-                                    prepared.parsed.clone(),
-                                    prepared.sql_fingerprint,
-                                )
-                            {
+                            match cassie.describe_parsed_statement(
+                                prepared.parsed.clone(),
+                                prepared.sql_fingerprint,
+                            ) {
                                 Ok(columns) => {
                                     if write_parameter_description(
                                         &mut write_half,
@@ -742,14 +738,13 @@ pub async fn run_connection(
                                 continue;
                             };
 
-                            let query_result = cassie
-                                .execute_preparsed_statement_with_mode(
-                                    &session,
-                                    prepared.parsed.clone(),
-                                    prepared.sql_fingerprint,
-                                    portal.params.clone(),
-                                    ExecutionMode::ExtendedQuery,
-                                );
+                            let query_result = cassie.execute_preparsed_statement_with_mode(
+                                &session,
+                                prepared.parsed.clone(),
+                                prepared.sql_fingerprint,
+                                portal.params.clone(),
+                                ExecutionMode::ExtendedQuery,
+                            );
                             match query_result {
                                 Ok(mut result) => {
                                     if let Some(limit) = limit {

@@ -215,14 +215,10 @@ fn should_embed_documents_inside_current_thread_runtime() {
         max_retries: 1,
     })
     .expect("provider should configure");
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("runtime");
     let inputs = vec!["alpha".to_string()];
 
     // Act
-    let embeddings = runtime.block_on(async { provider.embed_documents(&inputs) });
+    let embeddings = provider.embed_documents(&inputs);
 
     // Assert
     assert_eq!(

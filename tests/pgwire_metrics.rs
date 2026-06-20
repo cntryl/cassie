@@ -125,16 +125,14 @@ fn should_record_pgwire_connection_metrics() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .catalog
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.catalog.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
         cassie
             .midge
             .put_document(

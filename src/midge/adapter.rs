@@ -9,10 +9,12 @@ use uuid::Uuid;
 
 use crate::app::CassieError;
 use crate::catalog::{FieldConstraint, IndexMeta, NamespaceMeta, ProjectionMeta, RoleMeta};
+use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord};
 use crate::midge::row_blob::{
     decode_projected_row, decode_projected_row_matching, decode_row, encode_row, RowSchema,
 };
 use crate::types::{DataType, FieldSchema, Schema, Value, Vector};
+use crate::vector::normalize as normalize_vector;
 
 fn allow_memory_fallback() -> bool {
     env::var("CASSIE_MIDGE_ALLOW_FALLBACK")
@@ -39,6 +41,7 @@ const ROLE_PREFIX: &str = "__cassie__/role/";
 const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
 const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
 const PROJECTION_KEY_PREFIX: &str = "__cassie__/projection/";
+const NORMALIZED_VECTOR_PREFIX: &str = "__cassie__/normalized-vector/";
 const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
 const NAMESPACES_KEY: &str = "__cassie__/namespaces";
 const SCHEMA_EPOCH_KEY: &str = "__cassie__/schema-epoch";
@@ -326,6 +329,18 @@ impl Midge {
 
     fn vector_index_collection_prefix(collection: &str) -> Vec<u8> {
         format!("{VECTOR_INDEX_PREFIX}{collection}/").into_bytes()
+    }
+
+    fn normalized_vector_key(collection: &str, field: &str, id: &str) -> Vec<u8> {
+        format!("{NORMALIZED_VECTOR_PREFIX}{collection}/{field}/{id}").into_bytes()
+    }
+
+    fn normalized_vector_prefix(collection: &str, field: &str) -> Vec<u8> {
+        format!("{NORMALIZED_VECTOR_PREFIX}{collection}/{field}/").into_bytes()
+    }
+
+    fn normalized_vector_collection_prefix(collection: &str) -> Vec<u8> {
+        format!("{NORMALIZED_VECTOR_PREFIX}{collection}/").into_bytes()
     }
 
     fn index_key(collection: &str, name: &str) -> Vec<u8> {
@@ -701,6 +716,7 @@ impl Midge {
         }
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+
         Ok(())
     }
 
@@ -896,7 +912,11 @@ impl Midge {
 
         let mut data_tx = self.begin_data_rw_tx()?;
         let mut document_keys = Vec::new();
-        for data_prefix in [Self::row_prefix(name), Self::doc_prefix(name)] {
+        for data_prefix in [
+            Self::row_prefix(name),
+            Self::doc_prefix(name),
+            Self::normalized_vector_collection_prefix(name),
+        ] {
             let mut documents = data_tx
                 .scan(&Query::new().prefix(data_prefix.into()))
                 .map_err(CassieError::from)?;
@@ -948,6 +968,7 @@ impl Midge {
             row_schema.schema_version,
         )?;
 
+        let field_name = field.name.clone();
         schema.fields.push(field);
         let schema_bytes =
             serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
@@ -955,6 +976,15 @@ impl Midge {
             .map_err(CassieError::from)?;
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+
+        let mut data_tx = self.begin_data_rw_tx()?;
+        Self::delete_normalized_vector_keys_with_prefix(
+            &mut data_tx,
+            Self::normalized_vector_prefix(collection, &field_name),
+        )?;
+        data_tx
+            .commit(WriteOptions::sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -1003,6 +1033,15 @@ impl Midge {
             .map_err(CassieError::from)?;
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+
+        let mut data_tx = self.begin_data_rw_tx()?;
+        Self::delete_normalized_vector_keys_with_prefix(
+            &mut data_tx,
+            Self::normalized_vector_prefix(collection, field),
+        )?;
+        data_tx
+            .commit(WriteOptions::sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -1155,6 +1194,40 @@ impl Midge {
         }
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+
+        let mut data_tx = self.begin_data_rw_tx()?;
+        let mut scan = data_tx
+            .scan(
+                &Query::new()
+                    .prefix(Self::normalized_vector_prefix(collection, current_name).into()),
+            )
+            .map_err(CassieError::from)?;
+        let mut entries = Vec::new();
+        while let Some((key, value)) = scan.next() {
+            entries.push((key, value));
+        }
+        for (key, value) in entries {
+            let mut record: NormalizedVectorRecord =
+                serde_json::from_slice(&value).map_err(|error| {
+                    CassieError::Parse(format!(
+                    "invalid normalized vector metadata for '{collection}.{current_name}': {error}"
+                ))
+                })?;
+            record.field = next_name.to_string();
+            let next_key = Self::normalized_vector_key(collection, next_name, &record.id);
+            data_tx.delete(key).map_err(CassieError::from)?;
+            data_tx
+                .put(
+                    next_key,
+                    serde_json::to_vec(&record)
+                        .map_err(|error| CassieError::Parse(error.to_string()))?,
+                    None,
+                )
+                .map_err(CassieError::from)?;
+        }
+        data_tx
+            .commit(WriteOptions::sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -1308,6 +1381,10 @@ impl Midge {
         for (current_prefix, next_prefix) in [
             (Self::row_prefix(current_name), Self::row_prefix(next_name)),
             (Self::doc_prefix(current_name), Self::doc_prefix(next_name)),
+            (
+                Self::normalized_vector_collection_prefix(current_name),
+                Self::normalized_vector_collection_prefix(next_name),
+            ),
         ] {
             let mut documents = data_tx
                 .scan(&Query::new().prefix(current_prefix.clone().into()))
@@ -1319,11 +1396,35 @@ impl Midge {
 
             for (key, value) in entries {
                 if let Some(id) = key.strip_prefix(current_prefix.as_slice()) {
-                    let next_key = [next_prefix.as_slice(), id].concat();
-                    data_tx.delete(key).map_err(CassieError::from)?;
-                    data_tx
-                        .put(next_key, value, None)
-                        .map_err(CassieError::from)?;
+                    data_tx.delete(key.clone()).map_err(CassieError::from)?;
+
+                    if current_prefix.starts_with(NORMALIZED_VECTOR_PREFIX.as_bytes()) {
+                        let mut record: NormalizedVectorRecord =
+                            serde_json::from_slice(&value).map_err(|error| {
+                                CassieError::Parse(format!(
+                                    "invalid normalized vector metadata for '{current_name}': {error}"
+                                ))
+                            })?;
+                        record.collection = next_name.to_string();
+                        let next_key = Self::normalized_vector_key(
+                            &record.collection,
+                            &record.field,
+                            &record.id,
+                        );
+                        data_tx
+                            .put(
+                                next_key,
+                                serde_json::to_vec(&record)
+                                    .map_err(|error| CassieError::Parse(error.to_string()))?,
+                                None,
+                            )
+                            .map_err(CassieError::from)?;
+                    } else {
+                        let next_key = [next_prefix.as_slice(), id].concat();
+                        data_tx
+                            .put(next_key, value, None)
+                            .map_err(CassieError::from)?;
+                    }
                 }
             }
         }
@@ -1346,6 +1447,7 @@ impl Midge {
         tx.put(key, value, None).map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
+        self.rebuild_normalized_vectors_for_index(&metadata)?;
         Ok(())
     }
 
@@ -1426,6 +1528,15 @@ impl Midge {
             .map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
+
+        let mut data_tx = self.begin_data_rw_tx()?;
+        Self::delete_normalized_vector_keys_with_prefix(
+            &mut data_tx,
+            Self::normalized_vector_prefix(collection, field),
+        )?;
+        data_tx
+            .commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -1471,6 +1582,211 @@ impl Midge {
         }
 
         Ok(out)
+    }
+
+    fn normalized_vector_record_from_value(
+        collection: &str,
+        field: &str,
+        id: &str,
+        dimensions: usize,
+        metric: &crate::embeddings::DistanceMetric,
+        value: Option<&serde_json::Value>,
+    ) -> Result<Option<NormalizedVectorRecord>, CassieError> {
+        let Some(value) = value else {
+            return Ok(None);
+        };
+        if value.is_null() {
+            return Ok(None);
+        }
+
+        let values = value.as_array().ok_or_else(|| {
+            CassieError::InvalidVector(format!(
+                "vector field '{field}' on collection '{collection}' expects array values"
+            ))
+        })?;
+        if values.len() != dimensions {
+            return Err(CassieError::InvalidVector(format!(
+                "vector field '{field}' on collection '{collection}' expects {dimensions} dimensions"
+            )));
+        }
+
+        let mut vector = Vec::with_capacity(dimensions);
+        for value in values {
+            let Some(number) = value.as_f64() else {
+                return Err(CassieError::InvalidVector(format!(
+                    "vector field '{field}' on collection '{collection}' expects numeric values"
+                )));
+            };
+            if !number.is_finite() {
+                return Err(CassieError::InvalidVector(format!(
+                    "vector field '{field}' on collection '{collection}' expects finite numeric values"
+                )));
+            }
+            vector.push(number as f32);
+        }
+
+        let Some(normalized) = normalize_vector(&vector) else {
+            return Err(CassieError::InvalidVector(format!(
+                "vector field '{field}' on collection '{collection}' could not be normalized"
+            )));
+        };
+
+        Ok(Some(NormalizedVectorRecord {
+            collection: collection.to_string(),
+            field: field.to_string(),
+            id: id.to_string(),
+            dimensions,
+            metric: metric.clone(),
+            normalization_version: NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION,
+            payload_available: true,
+            magnitude: normalized.magnitude,
+            values: normalized.values,
+        }))
+    }
+
+    fn write_normalized_vector_records(
+        tx: &mut cntryl_midge::Transaction,
+        records: &[NormalizedVectorRecord],
+    ) -> Result<(), CassieError> {
+        for record in records {
+            tx.put(
+                Self::normalized_vector_key(&record.collection, &record.field, &record.id),
+                serde_json::to_vec(record)
+                    .map_err(|error| CassieError::Parse(error.to_string()))?,
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
+
+        Ok(())
+    }
+
+    fn delete_normalized_vector_keys_with_prefix(
+        tx: &mut cntryl_midge::Transaction,
+        prefix: Vec<u8>,
+    ) -> Result<(), CassieError> {
+        let mut scan = tx
+            .scan(&Query::new().prefix(prefix.into()))
+            .map_err(CassieError::from)?;
+        let mut keys = Vec::new();
+        while let Some((key, _)) = scan.next() {
+            keys.push(key);
+        }
+
+        for key in keys {
+            tx.delete(key).map_err(CassieError::from)?;
+        }
+
+        Ok(())
+    }
+
+    fn delete_normalized_vector_keys_for_document(
+        tx: &mut cntryl_midge::Transaction,
+        collection: &str,
+        id: &str,
+    ) -> Result<bool, CassieError> {
+        let prefix = Self::normalized_vector_collection_prefix(collection);
+        let prefix_text =
+            std::str::from_utf8(&prefix).map_err(|error| CassieError::Parse(error.to_string()))?;
+        let mut scan = tx
+            .scan(&Query::new().prefix(prefix.clone().into()))
+            .map_err(CassieError::from)?;
+        let mut keys = Vec::new();
+
+        while let Some((raw_key, _)) = scan.next() {
+            let key = String::from_utf8(raw_key).map_err(|error| {
+                CassieError::Parse(format!("invalid normalized vector key in storage: {error}"))
+            })?;
+            let Some(remainder) = key.strip_prefix(prefix_text) else {
+                continue;
+            };
+            let matches_document = remainder
+                .rsplit_once('/')
+                .is_some_and(|(_field, key_id)| key_id == id);
+            if matches_document {
+                keys.push(key.into_bytes());
+            }
+        }
+
+        let had_keys = !keys.is_empty();
+        for key in keys {
+            tx.delete(key).map_err(CassieError::from)?;
+        }
+
+        Ok(had_keys)
+    }
+
+    pub fn rebuild_normalized_vectors_for_index(
+        &self,
+        index: &VectorIndexRecord,
+    ) -> Result<usize, CassieError> {
+        let documents = self.scan_documents(&index.collection)?;
+        let mut records = Vec::new();
+
+        for document in documents {
+            let Some(record) = Self::normalized_vector_record_from_value(
+                &index.collection,
+                &index.field,
+                &document.id,
+                index.metadata.dimensions,
+                &index.metadata.metric,
+                document.payload.get(&index.field),
+            )?
+            else {
+                continue;
+            };
+            records.push(record);
+        }
+
+        let mut tx = self.begin_data_rw_tx()?;
+        Self::delete_normalized_vector_keys_with_prefix(
+            &mut tx,
+            Self::normalized_vector_prefix(&index.collection, &index.field),
+        )?;
+        Self::write_normalized_vector_records(&mut tx, &records)?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        Ok(records.len())
+    }
+
+    pub fn list_normalized_vectors(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Vec<NormalizedVectorRecord>, CassieError> {
+        let entries = self.raw_scan_prefix(
+            StorageFamily::Data,
+            &Self::normalized_vector_prefix(collection, field),
+        )?;
+        let mut out: Vec<NormalizedVectorRecord> = Vec::with_capacity(entries.len());
+
+        for (_key, raw_value) in entries {
+            let Ok(record) = serde_json::from_slice(&raw_value) else {
+                continue;
+            };
+            out.push(record);
+        }
+
+        out.sort_by(|left, right| left.id.cmp(&right.id));
+        Ok(out)
+    }
+
+    pub fn get_normalized_vector(
+        &self,
+        collection: &str,
+        field: &str,
+        id: &str,
+    ) -> Result<Option<NormalizedVectorRecord>, CassieError> {
+        let tx = self.begin_data_readonly_tx()?;
+        let raw = tx
+            .get(&Self::normalized_vector_key(collection, field, id))
+            .map_err(CassieError::from)?;
+        let Some(raw) = raw else {
+            return Ok(None);
+        };
+
+        serde_json::from_slice(&raw).map(Some).map_err(|error| {
+            CassieError::Parse(format!("invalid normalized vector metadata: {error}"))
+        })
     }
 
     pub fn put_function(&self, metadata: crate::catalog::FunctionMeta) -> Result<(), CassieError> {
@@ -1737,13 +2053,36 @@ impl Midge {
         let row_blob = encode_row(&row_schema, &payload)?;
 
         let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+        let vector_indexes = self
+            .list_vector_indexes()?
+            .into_iter()
+            .filter(|index| index.collection == collection)
+            .collect::<Vec<_>>();
+        let normalized_records = vector_indexes
+            .iter()
+            .map(|index| {
+                Self::normalized_vector_record_from_value(
+                    collection,
+                    &index.field,
+                    &doc_id,
+                    index.metadata.dimensions,
+                    &index.metadata.metric,
+                    payload.get(&index.field),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
         let mut tx = self.begin_data_rw_tx()?;
+        Self::delete_normalized_vector_keys_for_document(&mut tx, collection, &doc_id)?;
         tx.put(Self::row_key(collection, &doc_id), row_blob, None)
             .map_err(CassieError::from)?;
         let legacy_key = Self::doc_key(collection, &doc_id);
         if tx.get(&legacy_key).map_err(CassieError::from)?.is_some() {
             tx.delete(legacy_key).map_err(CassieError::from)?;
         }
+        Self::write_normalized_vector_records(&mut tx, &normalized_records)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(doc_id)
     }
@@ -1791,7 +2130,9 @@ impl Midge {
         if legacy_exists {
             tx.delete(legacy_key).map_err(CassieError::from)?;
         }
-        if row_exists || legacy_exists {
+        let normalized_exists =
+            Self::delete_normalized_vector_keys_for_document(&mut tx, collection, id)?;
+        if row_exists || legacy_exists || normalized_exists {
             tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
             return Ok(true);
         }

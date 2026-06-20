@@ -50,8 +50,7 @@ impl Catalog {
     }
 
     pub fn register_collection(&self, name: &str, schema: Vec<(String, DataType)>) {
-        self.register_collection_with_constraints(name, schema, Vec::new())
-            ;
+        self.register_collection_with_constraints(name, schema, Vec::new());
     }
 
     pub fn register_collection_with_constraints(
@@ -87,10 +86,8 @@ impl Catalog {
             .collect::<Vec<_>>();
         self.constraints
             .write()
-            
             .insert(name.to_string(), normalized);
-        self.register_projection_metadata(ProjectionMeta::new(name, 1))
-            ;
+        self.register_projection_metadata(ProjectionMeta::new(name, 1));
         self.bump_version();
     }
 
@@ -104,7 +101,6 @@ impl Catalog {
     pub fn register_projection_metadata(&self, metadata: ProjectionMeta) {
         self.projections
             .write()
-            
             .insert(metadata.collection.clone(), metadata);
         self.bump_version();
     }
@@ -151,29 +147,19 @@ impl Catalog {
     }
 
     pub fn unregister_function(&self, name: &str) {
-        self.functions
-            .write()
-            
-            .remove(&name.to_ascii_lowercase());
+        self.functions.write().remove(&name.to_ascii_lowercase());
         self.bump_version();
     }
 
     pub fn get_function(&self, name: &str) -> Option<FunctionMeta> {
         self.functions
             .read()
-            
             .get(&name.to_ascii_lowercase())
             .cloned()
     }
 
     pub fn list_functions(&self) -> Vec<FunctionMeta> {
-        let mut out = self
-            .functions
-            .read()
-            
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut out = self.functions.read().values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|function| function.name.to_ascii_lowercase());
         out
     }
@@ -194,13 +180,7 @@ impl Catalog {
     }
 
     pub fn list_views(&self) -> Vec<ViewMeta> {
-        let mut out = self
-            .views
-            .read()
-            
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut out = self.views.read().values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|view| view.name.to_ascii_lowercase());
         out
     }
@@ -212,29 +192,19 @@ impl Catalog {
     }
 
     pub fn unregister_procedure(&self, name: &str) {
-        self.procedures
-            .write()
-            
-            .remove(&name.to_ascii_lowercase());
+        self.procedures.write().remove(&name.to_ascii_lowercase());
         self.bump_version();
     }
 
     pub fn get_procedure(&self, name: &str) -> Option<ProcedureMeta> {
         self.procedures
             .read()
-            
             .get(&name.to_ascii_lowercase())
             .cloned()
     }
 
     pub fn list_procedures(&self) -> Vec<ProcedureMeta> {
-        let mut out = self
-            .procedures
-            .read()
-            
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut out = self.procedures.read().values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|procedure| procedure.name.to_ascii_lowercase());
         out
     }
@@ -251,21 +221,11 @@ impl Catalog {
     }
 
     pub fn get_role(&self, name: &str) -> Option<RoleMeta> {
-        self.roles
-            .read()
-            
-            .get(&normalize_role_name(name))
-            .cloned()
+        self.roles.read().get(&normalize_role_name(name)).cloned()
     }
 
     pub fn list_roles(&self) -> Vec<RoleMeta> {
-        let mut out = self
-            .roles
-            .read()
-            
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut out = self.roles.read().values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|role| role.name.to_ascii_lowercase());
         out
     }
@@ -296,11 +256,9 @@ impl Catalog {
         self.constraints.write().remove(collection);
         self.indexes
             .write()
-            
             .retain(|_, index| index.collection != collection);
         self.vector_indexes
             .write()
-            
             .retain(|_, record| record.collection != collection);
         self.bump_version();
     }
@@ -308,7 +266,6 @@ impl Catalog {
     pub fn get_constraints(&self, collection: &str) -> Vec<FieldConstraint> {
         self.constraints
             .read()
-            
             .get(collection)
             .cloned()
             .unwrap_or_default()
@@ -317,7 +274,6 @@ impl Catalog {
     pub fn get_constraint(&self, collection: &str, field: &str) -> Option<FieldConstraint> {
         self.constraints
             .read()
-            
             .get(collection)
             .and_then(|constraints| {
                 constraints
@@ -334,7 +290,6 @@ impl Catalog {
             .collect::<Vec<_>>();
         self.constraints
             .write()
-            
             .insert(collection.to_string(), normalized);
         self.bump_version();
     }
@@ -384,7 +339,6 @@ impl Catalog {
     pub fn unregister_index(&self, collection: &str, name: &str) {
         self.indexes
             .write()
-            
             .remove(&Self::index_key(collection, name));
         self.bump_version();
     }
@@ -414,7 +368,6 @@ impl Catalog {
 
         self.views
             .read()
-            
             .get(collection)
             .map(|view| view_schema_to_collection_schema(&view.name, &view.schema))
     }
@@ -476,7 +429,6 @@ impl Catalog {
         if !normalized_constraints.is_empty() {
             self.constraints
                 .write()
-                
                 .insert(next_name.to_string(), normalized_constraints);
         }
 
@@ -510,12 +462,7 @@ impl Catalog {
         self.bump_version();
     }
 
-    pub fn rename_collection_field(
-        &self,
-        collection: &str,
-        current_name: &str,
-        next_name: &str,
-    ) {
+    pub fn rename_collection_field(&self, collection: &str, current_name: &str, next_name: &str) {
         let mut schemas = self.schemas.write();
         let Some(schema) = schemas.get_mut(collection) else {
             return;
@@ -647,7 +594,6 @@ impl Catalog {
     pub fn unregister_vector_index(&self, collection: &str, field: &str) {
         self.vector_indexes
             .write()
-            
             .remove(&Self::vector_index_key(collection, field));
         self.bump_version();
     }

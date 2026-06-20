@@ -44,15 +44,14 @@ async fn ensure_collection(cassie: &Cassie, collection: &str, schema: Schema) {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
 }
 
 fn vector_index_record(
@@ -109,7 +108,7 @@ fn should_reject_ingest_when_query_provider_model_mismatch() {
             ],
         };
 
-        openai.startup().await.unwrap();
+        openai.startup().unwrap();
         ensure_collection(&openai, collection, schema.clone()).await;
 
         openai
@@ -121,14 +120,12 @@ fn should_reject_ingest_when_query_provider_model_mismatch() {
                 DistanceMetric::Cosine,
             ))
             .unwrap();
-        openai
-            .register_vector_index(vector_index_record(
-                collection,
-                "openai",
-                1536,
-                DistanceMetric::Cosine,
-            ))
-            .await;
+        openai.register_vector_index(vector_index_record(
+            collection,
+            "openai",
+            1536,
+            DistanceMetric::Cosine,
+        ));
     });
 
     drop(openai);
@@ -136,13 +133,11 @@ fn should_reject_ingest_when_query_provider_model_mismatch() {
     let voyage = Cassie::new_with_data_dir_and_config(&path, voyage_runtime()).unwrap();
     runtime.block_on(async {
         // Act
-        voyage.startup().await.unwrap();
-        let result = voyage
-            .ingest_document(
-                "provider_mismatch_docs",
-                serde_json::json!({"content": "sample text"}),
-            )
-            .await;
+        voyage.startup().unwrap();
+        let result = voyage.ingest_document(
+            "provider_mismatch_docs",
+            serde_json::json!({"content": "sample text"}),
+        );
 
         // Assert
         assert!(matches!(result, Err(CassieError::InvalidEmbedding(_))));
@@ -186,14 +181,14 @@ fn should_reject_ingest_when_dimensions_change() {
         };
 
         cassie.startup().unwrap();
-        ensure_collection(&cassie, collection, schema.clone());
+        ensure_collection(&cassie, collection, schema.clone()).await;
         let index_record = vector_index_record(collection, "openai", 2, DistanceMetric::Cosine);
         cassie.midge.put_vector_index(index_record.clone()).unwrap();
         cassie.register_vector_index(index_record);
 
         // Assert
-        let result = cassie
-            .ingest_document(collection, serde_json::json!({"content": "sample text"}));
+        let result =
+            cassie.ingest_document(collection, serde_json::json!({"content": "sample text"}));
         assert!(matches!(result, Err(CassieError::InvalidEmbedding(_))));
     });
 
@@ -235,20 +230,20 @@ fn should_reject_query_when_metric_different() {
         };
 
         cassie.startup().unwrap();
-        ensure_collection(&cassie, collection, schema);        let index_record = vector_index_record(collection, "openai", 1536, DistanceMetric::Cosine);
+        ensure_collection(&cassie, collection, schema).await;
+        let index_record = vector_index_record(collection, "openai", 1536, DistanceMetric::Cosine);
         cassie.midge.put_vector_index(index_record.clone()).unwrap();
         cassie.register_vector_index(index_record);
 
         // Assert
-        let result = cassie
-            .execute_vector_search(
-                collection,
-                "embedding",
-                "query",
-                Some(DistanceMetric::Dot),
-                10,
-                0,
-            );
+        let result = cassie.execute_vector_search(
+            collection,
+            "embedding",
+            "query",
+            Some(DistanceMetric::Dot),
+            10,
+            0,
+        );
         assert!(matches!(result, Err(CassieError::InvalidEmbedding(_))));
     });
 

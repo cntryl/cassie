@@ -64,15 +64,14 @@ fn should_execute_simple_filtered_query() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
         cassie
             .midge
             .put_document(collection, None, serde_json::json!({"title": "alpha"}))
@@ -85,7 +84,7 @@ fn should_execute_simple_filtered_query() {
                 &session,
                 "SELECT title FROM exec_smoke WHERE title = 'alpha'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -125,15 +124,14 @@ async fn execute_query_with_non_recursive_cte() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
 
     cassie
         .midge
@@ -186,15 +184,14 @@ async fn execute_query_with_ordered_cte_dependencies() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
 
     cassie
         .midge
@@ -245,15 +242,14 @@ async fn execute_query_passes_params_to_cte_and_main_query() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
 
     cassie
         .midge
@@ -304,15 +300,14 @@ async fn execute_recursive_cte_until_stabilization() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
 
     cassie
         .midge
@@ -362,15 +357,14 @@ async fn execute_recursive_cte_enforces_depth_limit_when_no_stabilization() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
 
     cassie
         .midge
@@ -390,7 +384,7 @@ async fn execute_recursive_cte_enforces_depth_limit_when_no_stabilization() {
         )
         ;
 
-    assert!(result.await.is_err());
+    assert!(result.is_err());
 }
 
 #[tokio::test]
@@ -425,15 +419,14 @@ async fn execute_query_with_alias_and_filters() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
 
     cassie
         .midge
@@ -502,7 +495,7 @@ async fn execute_query_with_alias_and_filters() {
             &session,
             "SELECT title FROM exec_docs_alias WHERE title = $1",
             params,
-        );
+        )
         .expect("parameterized query should run");
 
     assert_eq!(param_result.rows.len(), 1);
@@ -535,15 +528,14 @@ async fn should_fail_query_when_query_timeout_is_exceeded() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
     cassie
         .midge
         .put_document(
@@ -592,15 +584,14 @@ async fn should_fail_query_when_result_limit_is_exceeded() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
     cassie
         .midge
         .put_document(
@@ -661,15 +652,14 @@ async fn should_fail_query_when_cte_recursion_depth_is_exceeded() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
     cassie
         .midge
         .put_document(
@@ -724,15 +714,14 @@ async fn should_fail_query_when_temporary_spill_budget_is_exceeded() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
     cassie
         .midge
         .put_document(
@@ -784,15 +773,14 @@ async fn execute_query_respects_boolean_precedence() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
 
     cassie
         .midge
@@ -875,15 +863,14 @@ async fn execute_query_parentheses_override_precedence() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
 
     cassie
         .midge
@@ -959,15 +946,14 @@ async fn execute_query_filters_by_vector_score_function() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
 
     cassie
         .midge
@@ -1023,15 +1009,14 @@ async fn execute_query_orders_by_vector_distance_function_parameterized() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
 
     cassie
         .midge
@@ -1065,7 +1050,7 @@ async fn execute_query_orders_by_vector_distance_function_parameterized() {
             &session,
             "SELECT id FROM exec_vector_order_func ORDER BY vector_distance(embedding, $1) ASC",
             params,
-        );
+        )
         .expect("query should execute");
 
     let ids = result
@@ -1107,15 +1092,14 @@ async fn execute_query_supports_projection_aliases_for_function_columns() {
         .midge
         .create_collection(collection, schema.clone())
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
 
     cassie
         .midge
@@ -1224,7 +1208,7 @@ fn should_apply_fulltext_index_params_during_search_score() {
                 &session,
                 "SELECT search_score(body, 'alpha') AS score FROM exec_fulltext_k1_b WHERE id = 'd1'",
                 vec![],
-            );
+            )
             .expect("query should execute");
 
         // Assert
@@ -1324,7 +1308,7 @@ fn should_reject_non_finite_fulltext_index_options_during_search_score() {
             ;
 
         // Assert
-        assert!(result.await.is_err());
+        assert!(result.is_err());
     });
 }
 
@@ -1429,7 +1413,7 @@ fn should_reject_duplicate_fulltext_indexes_during_search_score() {
             ;
 
         // Assert
-        assert!(result.await.is_err());
+        assert!(result.is_err());
     });
 }
 
@@ -1465,15 +1449,14 @@ fn should_allow_plain_select_with_non_finite_fulltext_metadata() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -1509,7 +1492,7 @@ fn should_allow_plain_select_with_non_finite_fulltext_metadata() {
                 &session,
                 "SELECT id FROM exec_plain_select_bad_fulltext WHERE id = 'd1'",
                 vec![],
-            );
+            )
             .expect("plain select should execute");
 
         // Assert
@@ -1544,15 +1527,14 @@ fn should_skip_offset_then_take_limit() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -1602,7 +1584,7 @@ fn should_skip_offset_then_take_limit() {
                 &session,
                 "SELECT id FROM exec_offset_limit ORDER BY title ASC LIMIT 2 OFFSET 2",
                 vec![],
-            );
+            )
             .expect("query should execute");
 
         // Assert
@@ -1644,15 +1626,14 @@ fn should_default_missing_offset_to_zero_in_execution() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -1686,7 +1667,7 @@ fn should_default_missing_offset_to_zero_in_execution() {
                 &session,
                 "SELECT id FROM exec_default_offset ORDER BY title ASC LIMIT 1",
                 vec![],
-            );
+            )
             .expect("query should execute");
 
         let explicit_offset_result = cassie
@@ -1694,7 +1675,7 @@ fn should_default_missing_offset_to_zero_in_execution() {
                 &session,
                 "SELECT id FROM exec_default_offset ORDER BY title ASC LIMIT 1 OFFSET 0",
                 vec![],
-            );
+            )
             .expect("query should execute");
 
         // Assert
@@ -1729,15 +1710,14 @@ fn should_execute_query_across_multiple_batches_without_truncation() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         for index in 0..1105 {
             let id = format!("d{index:04}");
@@ -1755,7 +1735,7 @@ fn should_execute_query_across_multiple_batches_without_truncation() {
                 &session,
                 "SELECT id FROM exec_multi_batch ORDER BY title ASC LIMIT 5 OFFSET 1095",
                 vec![],
-            );
+            )
             .expect("query should execute");
 
         // Assert
@@ -1844,7 +1824,7 @@ fn should_preserve_filtered_projection_across_multiple_batches() {
                 &session,
                 "SELECT id FROM exec_multi_batch_filter WHERE status = 'keep' ORDER BY title ASC LIMIT 5 OFFSET 510",
                 vec![],
-            );
+            )
             .expect("query should execute");
 
         // Assert
@@ -1902,15 +1882,14 @@ fn should_sort_with_stable_tiebreaker() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -1944,7 +1923,7 @@ fn should_sort_with_stable_tiebreaker() {
                 &session,
                 "SELECT id FROM exec_stable_tie ORDER BY 1 ASC",
                 vec![],
-            );
+            )
             .expect("query should execute");
 
         // Assert
@@ -2150,15 +2129,14 @@ fn should_order_by_pgvector_dot_operator() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -2192,7 +2170,7 @@ fn should_order_by_pgvector_dot_operator() {
                 &session,
                 "SELECT id FROM exec_vector_dot_order ORDER BY embedding <#> '[1,0]' ASC",
                 vec![],
-            );
+            )
             .expect("query should execute");
 
         // Assert
@@ -2237,15 +2215,14 @@ fn should_order_by_pgvector_l2_operator() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -2279,7 +2256,7 @@ fn should_order_by_pgvector_l2_operator() {
                 &session,
                 "SELECT id FROM exec_vector_l2_order ORDER BY embedding <-> '[1,0]' ASC",
                 vec![],
-            );
+            )
             .expect("query should execute");
 
         // Assert
@@ -2324,15 +2301,14 @@ fn should_fail_query_when_vector_function_dimensions_mismatch() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -2352,7 +2328,7 @@ fn should_fail_query_when_vector_function_dimensions_mismatch() {
         );
 
         // Assert
-        assert!(result.await.is_err());
+        assert!(result.is_err());
     });
 }
 
@@ -2658,24 +2634,22 @@ fn should_reject_hybrid_score_with_wrong_arity() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         // Act
         let session = cassie.create_session("tester", None);
-        let result = cassie
-            .execute_sql(
-                &session,
-                "SELECT hybrid_score(search_score(body, 'red')) FROM exec_hybrid_wrong_arity",
-                vec![],
-            );
+        let result = cassie.execute_sql(
+            &session,
+            "SELECT hybrid_score(search_score(body, 'red')) FROM exec_hybrid_wrong_arity",
+            vec![],
+        );
 
         // Assert
         let error = result.expect_err("query should reject wrong arity");
@@ -2715,15 +2689,14 @@ fn should_project_missing_columns_as_null() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -2741,7 +2714,7 @@ fn should_project_missing_columns_as_null() {
                 &session,
                 "SELECT title, body FROM exec_missing_projection_column",
                 vec![],
-            );
+            )
             .expect("query should execute");
 
         // Assert
@@ -2784,15 +2757,14 @@ fn should_sort_by_unprojected_column_before_projection() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -2818,7 +2790,7 @@ fn should_sort_by_unprojected_column_before_projection() {
                 &session,
                 "SELECT title FROM exec_order_by_unprojected_field ORDER BY body ASC",
                 vec![],
-            );
+            )
             .expect("query should execute");
 
         // Assert
@@ -2860,15 +2832,14 @@ fn should_be_deterministic_for_repeated_execution_metadata() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -2894,14 +2865,14 @@ fn should_be_deterministic_for_repeated_execution_metadata() {
                 &session,
                 "SELECT title, body FROM exec_repeated_metadata ORDER BY title ASC",
                 vec![],
-            );
+            )
             .expect("query should execute");
         let second = cassie
             .execute_sql(
                 &session,
                 "SELECT title, body FROM exec_repeated_metadata ORDER BY title ASC",
                 vec![],
-            );
+            )
             .expect("query should execute");
 
         // Assert
@@ -2945,15 +2916,14 @@ fn should_fail_unknown_function_during_execution() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
         cassie
             .midge
@@ -3023,7 +2993,7 @@ async fn should_execute_create_alter_and_drop_table_commands() {
             &session,
             "CREATE TABLE ddl_table (id TEXT, title TEXT)",
             vec![],
-        );
+        )
         .unwrap();
     assert_eq!(create.command, "CREATE TABLE");
     assert_eq!(create.columns.len(), 0);
@@ -3043,24 +3013,24 @@ async fn should_execute_create_alter_and_drop_table_commands() {
             &session,
             "ALTER TABLE ddl_table ADD COLUMN status TEXT",
             vec![],
-        );
+        )
         .unwrap();
     let alter_rename = cassie
         .execute_sql(
             &session,
             "ALTER TABLE ddl_table RENAME TO ddl_table_archive",
             vec![],
-        );
+        )
         .unwrap();
     let rename_rows = cassie
         .execute_sql(
             &session,
             "SELECT id, status FROM ddl_table_archive ORDER BY id",
             vec![],
-        );
+        )
         .unwrap();
     let drop = cassie
-        .execute_sql(&session, "DROP TABLE ddl_table_archive", vec![]);
+        .execute_sql(&session, "DROP TABLE ddl_table_archive", vec![])
         .unwrap();
 
     // Assert
@@ -3089,7 +3059,7 @@ async fn should_execute_alter_table_rename_column_command() {
             &session,
             "CREATE TABLE rename_column_docs (id TEXT, title TEXT)",
             vec![],
-        );
+        )
         .unwrap();
     cassie
         .midge
@@ -3106,19 +3076,19 @@ async fn should_execute_alter_table_rename_column_command() {
             &session,
             "ALTER TABLE rename_column_docs RENAME COLUMN title TO headline",
             vec![],
-        );
+        )
         .unwrap();
     let rows = cassie
         .execute_sql(
             &session,
             "SELECT id, headline FROM rename_column_docs ORDER BY id",
             vec![],
-        );
+        )
         .unwrap();
 
     let schema = cassie
         .catalog
-        .get_schema("rename_column_docs");
+        .get_schema("rename_column_docs")
         .expect("schema should exist");
 
     // Assert
@@ -3146,7 +3116,7 @@ async fn should_execute_create_and_drop_index_commands() {
             &session,
             "CREATE TABLE idx_commands (id TEXT, title TEXT)",
             vec![],
-        );
+        )
         .unwrap();
 
     let create_index = cassie
@@ -3154,12 +3124,12 @@ async fn should_execute_create_and_drop_index_commands() {
             &session,
             "CREATE INDEX idx_title ON idx_commands USING btree (title)",
             vec![],
-        );
+        )
         .unwrap();
 
     let catalog_index = cassie
         .catalog
-        .get_index("idx_commands", "idx_title");
+        .get_index("idx_commands", "idx_title")
         .expect("index should be in catalog");
     let stored_index = cassie
         .midge
@@ -3172,7 +3142,7 @@ async fn should_execute_create_and_drop_index_commands() {
             &session,
             "DROP INDEX IF EXISTS idx_title ON idx_commands",
             vec![],
-        );
+        )
         .unwrap();
 
     // Assert
@@ -3184,7 +3154,7 @@ async fn should_execute_create_and_drop_index_commands() {
     assert_eq!(drop_index.command, "DROP INDEX");
     assert!(cassie
         .catalog
-        .get_index("idx_commands", "idx_title");
+        .get_index("idx_commands", "idx_title")
         .is_none());
 
     let _ = std::fs::remove_dir_all(path);
@@ -3203,7 +3173,7 @@ async fn should_execute_create_composite_index_command() {
             &session,
             "CREATE TABLE composite_index_docs (id TEXT, title TEXT, score INT)",
             vec![],
-        );
+        )
         .unwrap();
 
     // Act
@@ -3212,12 +3182,12 @@ async fn should_execute_create_composite_index_command() {
             &session,
             "CREATE INDEX idx_title_score ON composite_index_docs USING btree (title, score)",
             vec![],
-        );
+        )
         .unwrap();
 
     let catalog_index = cassie
         .catalog
-        .get_index("composite_index_docs", "idx_title_score");
+        .get_index("composite_index_docs", "idx_title_score")
         .expect("index should be in catalog");
     let stored_index = cassie
         .midge
@@ -3271,12 +3241,12 @@ fn should_execute_create_vector_index_command() {
                 &session,
                 "CREATE INDEX idx_vector_embedding ON idx_vector_commands USING vector (embedding) WITH (source_field = content, metric = l2)",
                 vec![],
-            );
+            )
             .unwrap();
 
         let catalog_index = cassie
             .catalog
-            .get_index("idx_vector_commands", "idx_vector_embedding");
+            .get_index("idx_vector_commands", "idx_vector_embedding")
             .expect("index should be in catalog");
         let stored_vector = cassie
             .midge
@@ -3341,7 +3311,7 @@ fn should_execute_drop_vector_index_command() {
                 &session,
                 "CREATE INDEX idx_vector_embedding ON idx_vector_commands USING vector (embedding) WITH (source_field = content, metric = l2)",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act
@@ -3350,14 +3320,14 @@ fn should_execute_drop_vector_index_command() {
                 &session,
                 "DROP INDEX idx_vector_embedding ON idx_vector_commands",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
         assert_eq!(drop_index.command, "DROP INDEX");
         assert!(cassie
             .catalog
-            .get_index("idx_vector_commands", "idx_vector_embedding");
+            .get_index("idx_vector_commands", "idx_vector_embedding")
             .is_none());
         assert!(cassie
             .midge
@@ -3381,18 +3351,17 @@ async fn should_execute_create_function_and_evaluate_user_body() {
     let collection = "udf_eval";
 
     cassie
-        .execute_sql(&session, "CREATE TABLE udf_eval (id TEXT, x INT)", vec![]);
+        .execute_sql(&session, "CREATE TABLE udf_eval (id TEXT, x INT)", vec![])
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            vec![
-                ("id".to_string(), DataType::Text),
-                ("x".to_string(), DataType::Int),
-            ]
-            .into_iter()
-            .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        vec![
+            ("id".to_string(), DataType::Text),
+            ("x".to_string(), DataType::Int),
+        ]
+        .into_iter()
+        .collect(),
+    );
 
     cassie
         .midge
@@ -3416,7 +3385,7 @@ async fn should_execute_create_function_and_evaluate_user_body() {
             &session,
             "CREATE FUNCTION double_input(x INT) RETURNS INT AS \"x\"",
             vec![],
-        );
+        )
         .unwrap();
 
     let query = cassie
@@ -3424,13 +3393,13 @@ async fn should_execute_create_function_and_evaluate_user_body() {
             &session,
             "SELECT id, double_input(x) AS doubled FROM udf_eval ORDER BY id ASC",
             vec![],
-        );
+        )
         .unwrap();
 
     // Assert
     let function = cassie
         .catalog
-        .get_function("double_input");
+        .get_function("double_input")
         .expect("function should be registered");
     assert_eq!(function.name, "double_input");
     assert_eq!(query.columns[1].name, "doubled");
@@ -3457,18 +3426,17 @@ async fn should_execute_drop_function_and_reject_subsequent_use() {
     let collection = "udf_drop";
 
     cassie
-        .execute_sql(&session, "CREATE TABLE udf_drop (id TEXT, x INT)", vec![]);
+        .execute_sql(&session, "CREATE TABLE udf_drop (id TEXT, x INT)", vec![])
         .unwrap();
-    cassie
-        .register_collection(
-            collection,
-            vec![
-                ("id".to_string(), DataType::Text),
-                ("x".to_string(), DataType::Int),
-            ]
-            .into_iter()
-            .collect(),
-        );
+    cassie.register_collection(
+        collection,
+        vec![
+            ("id".to_string(), DataType::Text),
+            ("x".to_string(), DataType::Int),
+        ]
+        .into_iter()
+        .collect(),
+    );
 
     cassie
         .midge
@@ -3484,14 +3452,13 @@ async fn should_execute_drop_function_and_reject_subsequent_use() {
             &session,
             "CREATE FUNCTION square(x INT) RETURNS INT AS \"x\"",
             vec![],
-        );
+        )
         .unwrap();
     cassie
-        .execute_sql(&session, "DROP FUNCTION square", vec![]);
+        .execute_sql(&session, "DROP FUNCTION square", vec![])
         .unwrap();
 
-    let result = cassie
-        .execute_sql(&session, "SELECT square(x) FROM udf_drop", vec![]);
+    let result = cassie.execute_sql(&session, "SELECT square(x) FROM udf_drop", vec![]);
     let missing = cassie.catalog.get_function("square").is_none();
 
     // Assert
@@ -3525,7 +3492,7 @@ fn should_execute_procedure_body_with_arguments_after_restart() {
                 &session,
                 r#"CREATE PROCEDURE store_title(title TEXT) AS "INSERT INTO procedure_exec (title) VALUES ($1)""#,
                 vec![],
-            );
+            )
             .unwrap();
 
         drop(cassie);
@@ -3544,7 +3511,7 @@ fn should_execute_procedure_body_with_arguments_after_restart() {
                 &session,
                 "SELECT title FROM procedure_exec ORDER BY title",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -3579,7 +3546,7 @@ fn should_reject_procedure_bodies_with_transaction_control() {
         );
 
         // Assert
-        let error = result.await.expect_err("procedure creation should fail");
+        let error = result.expect_err("procedure creation should fail");
         assert!(error
             .to_string()
             .contains("transaction control statements inside procedures"));
@@ -3608,14 +3575,14 @@ fn should_reject_recursive_procedure_calls() {
                 &session,
                 r#"CREATE PROCEDURE loop_a() AS "CALL loop_b()""#,
                 vec![],
-            );
+            )
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 r#"CREATE PROCEDURE loop_b() AS "CALL loop_a()""#,
                 vec![],
-            );
+            )
             .unwrap();
 
         // Act

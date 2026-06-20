@@ -174,6 +174,12 @@ pub struct ExecutionSnapshot {
     pub latency_ms_total: u64,
     pub candidate_count_total: u64,
     pub result_count_total: u64,
+    pub normalized_candidate_count_total: u64,
+    pub normalized_fallback_count_total: u64,
+    pub prefilter_input_candidate_count_total: u64,
+    pub prefilter_filtered_candidate_count_total: u64,
+    pub prefilter_fallback_count_total: u64,
+    pub prefilter_fallback_reasons: BTreeMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -481,12 +487,60 @@ impl RuntimeState {
         metrics.vector.result_count_total += results as u64;
     }
 
+    pub fn record_vector_normalization_usage(
+        &self,
+        normalized_candidates: usize,
+        fallback_candidates: usize,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.vector.normalized_candidate_count_total += normalized_candidates as u64;
+        metrics.vector.normalized_fallback_count_total += fallback_candidates as u64;
+    }
+
+    pub fn record_vector_prefilter_usage(
+        &self,
+        input_candidates: usize,
+        filtered_candidates: usize,
+        fallback_reason: Option<&str>,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.vector.prefilter_input_candidate_count_total += input_candidates as u64;
+        metrics.vector.prefilter_filtered_candidate_count_total += filtered_candidates as u64;
+        if let Some(reason) = fallback_reason {
+            metrics.vector.prefilter_fallback_count_total += 1;
+            *metrics
+                .vector
+                .prefilter_fallback_reasons
+                .entry(reason.to_string())
+                .or_insert(0) += 1;
+        }
+    }
+
     pub fn record_hybrid_execution(&self, elapsed: Duration, candidates: usize, results: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.hybrid.count += 1;
         metrics.hybrid.latency_ms_total += duration_ms(elapsed);
         metrics.hybrid.candidate_count_total += candidates as u64;
         metrics.hybrid.result_count_total += results as u64;
+    }
+
+    pub fn record_hybrid_prefilter_usage(
+        &self,
+        input_candidates: usize,
+        filtered_candidates: usize,
+        fallback_reason: Option<&str>,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.hybrid.prefilter_input_candidate_count_total += input_candidates as u64;
+        metrics.hybrid.prefilter_filtered_candidate_count_total += filtered_candidates as u64;
+        if let Some(reason) = fallback_reason {
+            metrics.hybrid.prefilter_fallback_count_total += 1;
+            *metrics
+                .hybrid
+                .prefilter_fallback_reasons
+                .entry(reason.to_string())
+                .or_insert(0) += 1;
+        }
     }
 
     pub fn record_storage_access(&self, family: &str, write: bool, success: bool) {

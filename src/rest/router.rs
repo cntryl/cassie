@@ -203,8 +203,8 @@ pub async fn route_request(
             json_response(StatusCode::OK, &value)
         }
         (Method::POST, ["v1", "collections"]) => {
-            let value = crate::rest::collections::create(&cassie, body.as_ref())
-                .map_err(|error| {
+            let value =
+                crate::rest::collections::create(&cassie, body.as_ref()).map_err(|error| {
                     record_rest_error(&cassie, method.as_str(), &path, started_at, error)
                 })?;
             json_response(StatusCode::OK, &value)
@@ -217,10 +217,9 @@ pub async fn route_request(
             json_response(StatusCode::OK, &value)
         }
         (Method::POST, ["v1", "collections", collection, "indexes"]) => {
-            let value = crate::rest::indexes::create(&cassie, collection, body.as_ref())
-                .map_err(|error| {
-                    record_rest_error(&cassie, method.as_str(), &path, started_at, error)
-                })?;
+            let value = crate::rest::indexes::create(&cassie, collection, body.as_ref()).map_err(
+                |error| record_rest_error(&cassie, method.as_str(), &path, started_at, error),
+            )?;
             json_response(StatusCode::OK, &value)
         }
         (Method::POST, ["v1", "collections", collection, "search"]) => {
@@ -231,15 +230,14 @@ pub async fn route_request(
             json_response(StatusCode::OK, &value)
         }
         (Method::GET, ["v1", "collections", collection, "documents", id]) => {
-            let value = crate::rest::documents::get(&cassie, collection, id)
-                .map_err(|error| {
-                    record_rest_error(&cassie, method.as_str(), &path, started_at, error)
-                })?;
+            let value = crate::rest::documents::get(&cassie, collection, id).map_err(|error| {
+                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+            })?;
             json_response(StatusCode::OK, &value)
         }
         (Method::DELETE, ["v1", "collections", collection, "documents", id]) => {
-            let value = crate::rest::documents::delete(&cassie, collection, id)
-                .map_err(|error| {
+            let value =
+                crate::rest::documents::delete(&cassie, collection, id).map_err(|error| {
                     record_rest_error(&cassie, method.as_str(), &path, started_at, error)
                 })?;
             json_response(StatusCode::OK, &value)

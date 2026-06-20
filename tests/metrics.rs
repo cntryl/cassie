@@ -119,7 +119,8 @@ fn should_report_runtime_metrics_snapshot() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie.register_collection(collection, schema.clone());        cassie
+        cassie.register_collection(collection, schema.clone());
+        cassie
             .midge
             .put_document(
                 collection,
@@ -136,14 +137,14 @@ fn should_report_runtime_metrics_snapshot() {
                 &session,
                 "SELECT title FROM metrics_runtime_docs WHERE title = 'alpha'",
                 vec![],
-            );
+            )
             .unwrap();
         let second = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM metrics_runtime_docs WHERE title = 'alpha'",
                 vec![],
-            );
+            )
             .unwrap();
         let metrics = cassie.metrics();
 
@@ -311,6 +312,131 @@ fn should_record_vector_counts_for_ordered_search_expression() {
 }
 
 #[test]
+fn should_record_vector_prefilter_candidate_counts() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("vector_prefilter_counts");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "metrics_vector_prefilter_counts";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "status".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "embedding".to_string(),
+                    data_type: DataType::Vector(2),
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            );
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({
+                    "status": "approved",
+                    "embedding": [1.0, 0.0],
+                }),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-2".to_string()),
+                serde_json::json!({
+                    "status": "approved",
+                    "embedding": [2.0, 0.0],
+                }),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-3".to_string()),
+                serde_json::json!({
+                    "status": "pending",
+                    "embedding": [3.0, 0.0],
+                }),
+            )
+            .unwrap();
+
+        let before = cassie.metrics();
+        let before_input = before["vector"]["prefilter_input_candidate_count_total"]
+            .as_u64()
+            .unwrap_or_default();
+        let before_filtered = before["vector"]["prefilter_filtered_candidate_count_total"]
+            .as_u64()
+            .unwrap_or_default();
+        let before_fallback = before["vector"]["prefilter_fallback_count_total"]
+            .as_u64()
+            .unwrap_or_default();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, vector_distance(embedding, '[1,0]') AS distance FROM metrics_vector_prefilter_counts WHERE status = 'approved' ORDER BY distance ASC LIMIT 1",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(
+            after["vector"]["prefilter_input_candidate_count_total"]
+                .as_u64()
+                .unwrap_or_default()
+                - before_input,
+            3
+        );
+        assert_eq!(
+            after["vector"]["prefilter_filtered_candidate_count_total"]
+                .as_u64()
+                .unwrap_or_default()
+                - before_filtered,
+            2
+        );
+        assert_eq!(
+            after["vector"]["prefilter_fallback_count_total"]
+                .as_u64()
+                .unwrap_or_default()
+                - before_fallback,
+            0
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_record_search_operator_statistics() {
     // Arrange
     with_fallback();
@@ -376,7 +502,7 @@ fn should_record_search_operator_statistics() {
                 &session,
                 "SELECT id, search_score(body, 'alpha') AS score FROM metrics_search_operator_stats ORDER BY score DESC LIMIT 1",
                 vec![],
-            );
+            )
             .unwrap();
         let after = cassie.metrics();
 
@@ -475,7 +601,7 @@ fn should_record_search_operator_candidates_after_posting_list_filtering() {
                 &session,
                 "SELECT id, search_score(body, 'alpha') AS score FROM metrics_search_operator_posting_list_candidates WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1",
                 vec![],
-            );
+            )
             .unwrap();
         let after = cassie.metrics();
 
@@ -566,7 +692,7 @@ fn should_cache_fulltext_scoring_metadata_for_repeated_search_queries() {
                 &session,
                 "SELECT id, search_score(body, 'alpha') AS score FROM metrics_fulltext_scoring_metadata_cache WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1",
                 vec![],
-            );
+            )
             .unwrap();
         let after_first = cassie.metrics();
         let second = cassie
@@ -574,7 +700,7 @@ fn should_cache_fulltext_scoring_metadata_for_repeated_search_queries() {
                 &session,
                 "SELECT id, search_score(body, 'alpha') AS score FROM metrics_fulltext_scoring_metadata_cache WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 2",
                 vec![],
-            );
+            )
             .unwrap();
         let after_second = cassie.metrics();
         cassie
@@ -582,14 +708,14 @@ fn should_cache_fulltext_scoring_metadata_for_repeated_search_queries() {
                 &session,
                 "INSERT INTO metrics_fulltext_scoring_metadata_cache (body) VALUES ('alpha delta')",
                 vec![],
-            );
+            )
             .unwrap();
         let third = cassie
             .execute_sql(
                 &session,
                 "SELECT id, search_score(body, 'alpha') AS score FROM metrics_fulltext_scoring_metadata_cache WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1",
                 vec![],
-            );
+            )
             .unwrap();
         let after_third = cassie.metrics();
 
@@ -662,12 +788,11 @@ fn should_record_query_error_statistics() {
         let before_errors = before["query"]["errors_total"].as_u64().unwrap_or_default();
 
         // Act
-        let result = cassie
-            .execute_sql(
-                &session,
-                "SELECT title FROM metrics_missing_query_errors",
-                vec![],
-            );
+        let result = cassie.execute_sql(
+            &session,
+            "SELECT title FROM metrics_missing_query_errors",
+            vec![],
+        );
         let after = cassie.metrics();
 
         // Assert
@@ -714,15 +839,14 @@ fn should_report_plan_cache_metrics() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
         cassie
             .midge
             .put_document(
@@ -740,14 +864,14 @@ fn should_report_plan_cache_metrics() {
                 &session,
                 "SELECT title FROM metrics_plan_cache_docs WHERE title = 'alpha'",
                 vec![],
-            );
+            )
             .unwrap();
         let second = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM metrics_plan_cache_docs WHERE title = 'alpha'",
                 vec![],
-            );
+            )
             .unwrap();
         let metrics = cassie.metrics();
 
@@ -779,12 +903,10 @@ fn should_count_failed_scan_as_storage_read_error() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie
-            .catalog
-            .register_collection(
-                "missing_storage_collection",
-                vec![("title".to_string(), DataType::Text)],
-            );
+        cassie.catalog.register_collection(
+            "missing_storage_collection",
+            vec![("title".to_string(), DataType::Text)],
+        );
 
         let before = cassie.metrics();
         let before_errors = before["storage"]["data"]["errors"]
@@ -802,7 +924,7 @@ fn should_count_failed_scan_as_storage_read_error() {
             vec![],
         );
         assert!(
-            result.await.is_err(),
+            result.is_err(),
             "query should fail because collection schema is missing in storage"
         );
 

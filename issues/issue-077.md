@@ -2,7 +2,7 @@
 
 Milestone: V2 - Query Performance
 Area: Vector
-Status: Open
+Status: Closed
 Priority: P1
 
 ## Requirement

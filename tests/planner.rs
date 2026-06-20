@@ -29,14 +29,13 @@ fn register_test_collection(catalog: &Catalog, name: &str) {
         .expect("runtime");
 
     runtime.block_on(async {
-        catalog
-            .register_collection(
-                name,
-                schema
-                    .into_iter()
-                    .map(|field| (field.name, field.data_type))
-                    .collect(),
-            );
+        catalog.register_collection(
+            name,
+            schema
+                .into_iter()
+                .map(|field| (field.name, field.data_type))
+                .collect(),
+        );
     });
 }
 
@@ -257,16 +256,15 @@ fn should_select_scalar_index_for_equality_filter() {
         .expect("runtime");
 
     runtime.block_on(async {
-        catalog
-            .register_index(cassie::catalog::IndexMeta {
-                collection: "planner_index_aware".to_string(),
-                name: "planner_index_aware_title_idx".to_string(),
-                field: "title".to_string(),
-                fields: vec!["title".to_string()],
-                kind: cassie::catalog::IndexKind::Scalar,
-                unique: false,
-                options: Default::default(),
-            });
+        catalog.register_index(cassie::catalog::IndexMeta {
+            collection: "planner_index_aware".to_string(),
+            name: "planner_index_aware_title_idx".to_string(),
+            field: "title".to_string(),
+            fields: vec!["title".to_string()],
+            kind: cassie::catalog::IndexKind::Scalar,
+            unique: false,
+            options: Default::default(),
+        });
         let parsed =
             parser::parse_statement("SELECT body FROM planner_index_aware WHERE title = 'alpha'")
                 .unwrap();
@@ -1137,16 +1135,15 @@ fn should_plan_drop_index_as_command() {
         .expect("runtime");
 
     runtime.block_on(async {
-        catalog
-            .register_index(cassie::catalog::IndexMeta {
-                collection: "planner_drop_index".to_string(),
-                name: "planner_idx_title".to_string(),
-                field: "title".to_string(),
-                fields: vec!["title".to_string()],
-                kind: cassie::catalog::IndexKind::Scalar,
-                unique: false,
-                options: std::collections::BTreeMap::new(),
-            });
+        catalog.register_index(cassie::catalog::IndexMeta {
+            collection: "planner_drop_index".to_string(),
+            name: "planner_idx_title".to_string(),
+            field: "title".to_string(),
+            fields: vec!["title".to_string()],
+            kind: cassie::catalog::IndexKind::Scalar,
+            unique: false,
+            options: std::collections::BTreeMap::new(),
+        });
 
         // Act
         let parsed =

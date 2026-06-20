@@ -1,5 +1,5 @@
 use cassie::app::Cassie;
-use cassie::types::{DataType, Value};
+use cassie::types::{DataType, Value, Vector};
 use uuid::Uuid;
 
 fn with_fallback() {
@@ -105,7 +105,7 @@ fn should_roundtrip_supported_sql_values() {
                     Value::Int64(12),
                     Value::Int64(9_223_372_036_854_775_807),
                 ],
-            );
+            )
             .unwrap();
 
         // Act
@@ -114,7 +114,7 @@ fn should_roundtrip_supported_sql_values() {
                 &session,
                 "SELECT item_id, item_uuid, created_on, created_at, created_at_ts, payload, values, embedding, short, wide, code, title, blob FROM type_round_trip WHERE item_id = 'row-1'",
                 vec![],
-            );
+            )
             .unwrap();
 
         // Assert
@@ -137,7 +137,7 @@ fn should_roundtrip_supported_sql_values() {
         );
         assert_eq!(
             selected.rows[0][7],
-            Value::Json(serde_json::json!([0.25, 0.75]))
+            Value::Vector(Vector::new(vec![0.25, 0.75]))
         );
         assert_eq!(selected.rows[0][8], Value::Int64(12));
         assert_eq!(
@@ -171,7 +171,7 @@ fn should_cast_string_to_uuid() {
                 &session,
                 "SELECT CAST('550e8400-e29b-41d4-a716-446655440000' AS UUID)",
                 vec![],
-            );
+            )
             .unwrap();
         // Assert
         assert_eq!(
@@ -196,7 +196,7 @@ fn should_cast_null_to_text() {
 
         // Act
         let casted_text = cassie
-            .execute_sql(&session, "SELECT CAST(NULL AS TEXT)", vec![]);
+            .execute_sql(&session, "SELECT CAST(NULL AS TEXT)", vec![])
             .unwrap();
 
         // Assert
@@ -218,10 +218,8 @@ fn should_fail_when_casting_scalar_to_unsupported_type_family() {
         let session = cassie.create_session("tester", None);
 
         // Act
-        let vector_cast = cassie
-            .execute_sql(&session, "SELECT CAST(1 AS VECTOR(2))", vec![]);
-        let array_cast = cassie
-            .execute_sql(&session, "SELECT CAST(1 AS INT[])", vec![]);
+        let vector_cast = cassie.execute_sql(&session, "SELECT CAST(1 AS VECTOR(2))", vec![]);
+        let array_cast = cassie.execute_sql(&session, "SELECT CAST(1 AS INT[])", vec![]);
 
         // Assert
         assert!(vector_cast.is_err(), "vector cast should be unsupported");

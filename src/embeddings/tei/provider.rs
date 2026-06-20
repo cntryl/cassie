@@ -3,7 +3,6 @@ use std::time::Duration;
 use reqwest::blocking::Client;
 use serde::Serialize;
 
-
 use crate::embeddings::{Embedding, EmbeddingError, EmbeddingProvider};
 
 #[derive(Debug, Clone)]

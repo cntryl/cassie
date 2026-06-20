@@ -71,9 +71,7 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
         "information_schema.tables" => information_schema_tables(catalog),
         "information_schema.columns" => information_schema_columns(catalog),
         "information_schema.views" => information_schema_views(catalog),
-        "information_schema.table_constraints" => {
-            information_schema_table_constraints(catalog)
-        }
+        "information_schema.table_constraints" => information_schema_table_constraints(catalog),
         "information_schema.key_column_usage" => information_schema_key_column_usage(catalog),
         "pg_catalog.pg_namespace" => pg_namespace(catalog),
         "pg_catalog.pg_class" => pg_class(catalog),
@@ -83,7 +81,6 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
         "pg_catalog.pg_type" => pg_type(catalog),
         "pg_catalog.pg_roles" => catalog
             .list_roles()
-            
             .into_iter()
             .map(|role| {
                 vec![
@@ -251,7 +248,6 @@ fn bool_value(name: &str, value: bool) -> (String, Value) {
 fn information_schema_tables(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = catalog
         .list_collections()
-        
         .into_iter()
         .map(|collection| {
             vec![
@@ -309,7 +305,6 @@ fn information_schema_columns(catalog: &Catalog) -> Vec<VirtualRow> {
 fn information_schema_views(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = catalog
         .list_views()
-        
         .into_iter()
         .map(|view| {
             vec![
@@ -392,7 +387,6 @@ fn pg_namespace(catalog: &Catalog) -> Vec<VirtualRow> {
     rows.extend(
         catalog
             .list_namespaces()
-            
             .into_iter()
             .map(|namespace| vec![string("nspname", namespace.name)]),
     );
@@ -404,7 +398,6 @@ fn pg_namespace(catalog: &Catalog) -> Vec<VirtualRow> {
 fn pg_class(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = catalog
         .list_collections()
-        
         .into_iter()
         .map(|collection| {
             vec![
@@ -462,13 +455,7 @@ fn pg_attribute(catalog: &Catalog) -> Vec<VirtualRow> {
 }
 
 fn pg_indexes(catalog: &Catalog) -> Vec<VirtualRow> {
-    let mut indexes = catalog
-        .indexes
-        .read()
-        
-        .values()
-        .cloned()
-        .collect::<Vec<_>>();
+    let mut indexes = catalog.indexes.read().values().cloned().collect::<Vec<_>>();
     indexes.sort_by_key(|index| {
         (
             index.collection.to_ascii_lowercase(),

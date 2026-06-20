@@ -410,7 +410,7 @@ fn should_hydrate_projection_metadata_during_startup() {
         cassie.startup().unwrap();
         let metadata = cassie
             .catalog
-            .get_projection_metadata("hydrated_projection_metadata");
+            .get_projection_metadata("hydrated_projection_metadata")
             .expect("projection metadata should hydrate");
 
         // Assert
@@ -1009,7 +1009,7 @@ fn should_hydrate_from_schema_records_when_collections_index_is_missing() {
         restarted.startup().unwrap();
         let collections = restarted
             .catalog
-            .list_collections();
+            .list_collections()
             .into_iter()
             .map(|collection| collection.name)
             .collect::<Vec<_>>();
@@ -1048,23 +1048,22 @@ fn should_refresh_in_memory_catalog_during_startup() {
             )
             .unwrap();
 
-        cassie
-            .register_collection(
-                "ghost_collection",
-                Schema {
-                    fields: vec![FieldSchema {
-                        name: "title".to_string(),
-                        data_type: DataType::Text,
-                        nullable: true,
-                    }],
-                },
-            );
+        cassie.register_collection(
+            "ghost_collection",
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            },
+        );
 
         // Act
         cassie.startup().unwrap();
         let collections = cassie
             .catalog
-            .list_collections();
+            .list_collections()
             .into_iter()
             .map(|collection| collection.name)
             .collect::<Vec<_>>();
@@ -1101,7 +1100,7 @@ fn should_hydrate_namespace_catalog_from_schema_family() {
         restarted.startup().unwrap();
         let namespaces = restarted
             .catalog
-            .list_namespaces();
+            .list_namespaces()
             .into_iter()
             .map(|namespace| namespace.name)
             .collect::<Vec<_>>();
@@ -1139,7 +1138,7 @@ fn should_hydrate_renamed_namespace_catalog_from_schema_family() {
         restarted.startup().unwrap();
         let namespaces = restarted
             .catalog
-            .list_namespaces();
+            .list_namespaces()
             .into_iter()
             .map(|namespace| namespace.name)
             .collect::<Vec<_>>();
@@ -1175,7 +1174,7 @@ fn should_hydrate_dropped_namespace_catalog_from_schema_family() {
         restarted.startup().unwrap();
         let namespaces = restarted
             .catalog
-            .list_namespaces();
+            .list_namespaces()
             .into_iter()
             .map(|namespace| namespace.name)
             .collect::<Vec<_>>();

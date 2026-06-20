@@ -60,3 +60,20 @@ pub struct VectorIndexRecord {
     pub source_field: String,
     pub metadata: VectorIndexMetadata,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct NormalizedVectorRecord {
+    pub collection: String,
+    pub field: String,
+    pub id: String,
+    pub dimensions: usize,
+    pub metric: DistanceMetric,
+    pub normalization_version: u32,
+    pub payload_available: bool,
+    pub magnitude: f64,
+    pub values: Vec<f32>,
+}
+
+impl NormalizedVectorRecord {
+    pub const CURRENT_NORMALIZATION_VERSION: u32 = 1;
+}

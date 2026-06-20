@@ -1022,6 +1022,27 @@ fn should_parse_inner_join_source() {
 }
 
 #[test]
+fn should_parse_left_join_source() {
+    // Arrange
+    let sql = "SELECT users.name FROM users LEFT JOIN orders ON users.id = orders.user_id";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.source,
+        QuerySource::Join {
+            kind: JoinKind::Left,
+            ..
+        }
+    ));
+}
+
+#[test]
 fn should_parse_right_join_source() {
     // Arrange
     let sql = "SELECT users.name FROM users RIGHT JOIN orders ON users.id = orders.user_id";

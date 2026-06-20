@@ -2365,6 +2365,56 @@ fn should_store_insert_values_as_row_blobs() {
 }
 
 #[test]
+fn should_project_missing_sparse_row_fields_as_null() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("sparse_row_projection");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sparse_row_projection (title TEXT, body TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO sparse_row_projection (title) VALUES ('alpha')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT title, body FROM sparse_row_projection",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(selected.rows.len(), 1);
+        assert_eq!(selected.rows[0][0], Value::String("alpha".to_string()));
+        assert_eq!(selected.rows[0][1], Value::Null);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_execute_insert_select_with_returning_rows() {
     // Arrange
     with_fallback();

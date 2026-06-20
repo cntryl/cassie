@@ -2304,9 +2304,14 @@ async fn execute_hybrid_top_k(
     );
     let query_terms = filter::prepare_query_terms(&spec.query);
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
+    let mut text_candidate_count = 0usize;
 
     for document in &search_documents {
         let search_score = search_context.score_term_stats(&document.text_stats, &query_terms);
+        if search_score == 0.0 {
+            continue;
+        }
+        text_candidate_count += 1;
         let vector = document.vector.as_ref().ok_or_else(|| {
             QueryError::General("vector_score expects vector in first argument".to_string())
         })?;
@@ -2339,16 +2344,12 @@ async fn execute_hybrid_top_k(
         search_documents.len(),
         rows.len(),
     );
-    cassie.runtime.record_vector_execution(
-        started_at.elapsed(),
-        search_documents.len(),
-        rows.len(),
-    );
-    cassie.runtime.record_hybrid_execution(
-        started_at.elapsed(),
-        search_documents.len(),
-        rows.len(),
-    );
+    cassie
+        .runtime
+        .record_vector_execution(started_at.elapsed(), text_candidate_count, rows.len());
+    cassie
+        .runtime
+        .record_hybrid_execution(started_at.elapsed(), text_candidate_count, rows.len());
     Ok(rows)
 }
 

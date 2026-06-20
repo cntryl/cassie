@@ -1889,6 +1889,95 @@ fn should_apply_hybrid_offset_after_score_ordering() {
 }
 
 #[test]
+fn should_generate_hybrid_candidates_from_text_matches() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hybrid_text_candidates");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_hybrid_text_candidates";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "embedding".to_string(),
+                    data_type: DataType::Vector(2),
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("text_match".to_string()),
+                serde_json::json!({"body": "red", "embedding": [100.0, 0.0]}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("vector_only".to_string()),
+                serde_json::json!({"body": "blue", "embedding": [1.0, 0.0]}),
+            )
+            .unwrap();
+        let before = cassie.metrics().await;
+        let before_candidates = before["hybrid"]["candidate_count_total"]
+            .as_u64()
+            .unwrap_or_default();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_text_candidates ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let after = cassie.metrics().await;
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("text_match".to_string()));
+        assert_eq!(
+            after["hybrid"]["candidate_count_total"]
+                .as_u64()
+                .unwrap_or_default()
+                - before_candidates,
+            1
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
     // Arrange
     with_fallback();

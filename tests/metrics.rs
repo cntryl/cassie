@@ -455,6 +455,86 @@ fn should_record_query_error_statistics() {
 }
 
 #[test]
+fn should_report_plan_cache_metrics() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("plan_cache_metrics");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "metrics_plan_cache_docs";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .unwrap();
+
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let first = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM metrics_plan_cache_docs WHERE title = 'alpha'",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let second = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM metrics_plan_cache_docs WHERE title = 'alpha'",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let metrics = cassie.metrics().await;
+
+        // Assert
+        assert_eq!(first.rows.len(), 1);
+        assert_eq!(second.rows.len(), 1);
+        assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(1));
+        assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(1));
+        assert!(
+            metrics["plan_cache"]["entries"]
+                .as_u64()
+                .unwrap_or_default()
+                >= 1
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_count_failed_scan_as_storage_read_error() {
     // Arrange
     with_fallback();

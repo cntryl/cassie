@@ -1271,6 +1271,22 @@ fn should_parse_union_all_select() {
 }
 
 #[test]
+fn should_parse_union_select() {
+    // Arrange
+    let sql = "SELECT title FROM left_docs UNION SELECT title FROM right_docs";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    let set = statement.set.expect("expected set operation");
+    assert!(matches!(set.operator, SetOperator::Union));
+}
+
+#[test]
 fn should_parse_intersect_select() {
     // Arrange
     let sql = "SELECT title FROM left_docs INTERSECT SELECT title FROM right_docs";

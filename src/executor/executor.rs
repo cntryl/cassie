@@ -53,6 +53,25 @@ impl ColumnMeta {
     }
 }
 
+fn primary_key_indexes(
+    table: &str,
+    constraints: &[catalog::FieldConstraint],
+) -> Vec<catalog::IndexMeta> {
+    constraints
+        .iter()
+        .filter(|constraint| constraint.primary_key)
+        .map(|constraint| catalog::IndexMeta {
+            collection: table.to_string(),
+            name: format!("{table}_pkey"),
+            field: constraint.field.clone(),
+            fields: vec![constraint.field.clone()],
+            kind: catalog::IndexKind::Scalar,
+            unique: true,
+            options: BTreeMap::new(),
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct QueryResult {
     pub columns: Vec<ColumnMeta>,
@@ -396,6 +415,13 @@ async fn execute_command(
                 .midge
                 .save_constraints(&statement.table, constraints.as_slice())
                 .map_err(|error| QueryError::General(error.to_string()))?;
+            let primary_key_indexes = primary_key_indexes(&statement.table, constraints.as_slice());
+            for index in &primary_key_indexes {
+                cassie
+                    .midge
+                    .put_index(index.clone())
+                    .map_err(|error| QueryError::General(error.to_string()))?;
+            }
             cassie
                 .catalog
                 .register_collection_with_constraints(
@@ -408,6 +434,9 @@ async fn execute_command(
                     constraints,
                 )
                 .await;
+            for index in primary_key_indexes {
+                cassie.catalog.register_index(index).await;
+            }
             invalidate_plan_cache = true;
 
             Ok(QueryResult {

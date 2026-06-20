@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 034: Primary Key Index](issue-034.md) - V1 - Projection Query Engine / Indexes
 - [Issue 035: Secondary Indexes](issue-035.md) - V1 - Projection Query Engine / Indexes
 - [Issue 036: Composite Indexes](issue-036.md) - V1 - Projection Query Engine / Indexes
 - [Issue 037: Unique Indexes](issue-037.md) - V1 - Projection Query Engine / Indexes

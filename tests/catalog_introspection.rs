@@ -179,6 +179,57 @@ fn should_list_indexes_through_pg_catalog() {
 }
 
 #[test]
+fn should_list_primary_key_index_through_pg_catalog() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("primary_key_index");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE catalog_primary_key_docs (id INT PRIMARY KEY, title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT indexname, indexdef FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_primary_key_docs'",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(selected.rows.len(), 1);
+        assert_eq!(
+            selected.rows[0][0],
+            Value::String("catalog_primary_key_docs_pkey".to_string())
+        );
+        assert_eq!(
+            selected.rows[0][1],
+            Value::String(
+                "CREATE UNIQUE INDEX catalog_primary_key_docs_pkey ON catalog_primary_key_docs (id)"
+                    .to_string()
+            )
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_list_composite_indexes_through_pg_catalog() {
     // Arrange
     with_fallback();

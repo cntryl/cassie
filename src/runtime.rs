@@ -82,10 +82,55 @@ pub struct ExecutionResultCacheKey {
     pub mode: ExecutionMode,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct RuntimeFeedbackKey {
+    pub sql_fingerprint: u64,
+    pub schema_epoch: u64,
+    pub database: Option<String>,
+    pub collection: String,
+    pub operator: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RuntimeFeedbackRecord {
+    pub executions: u64,
+    pub rows_in_total: u64,
+    pub rows_out_total: u64,
+    pub elapsed_ms_total: u64,
+    pub storage_reads_total: u64,
+    pub storage_writes_total: u64,
+    pub temp_writes_total: u64,
+    pub candidate_count_total: u64,
+    pub result_count_total: u64,
+    pub errors_total: u64,
+    pub last_error_class: Option<String>,
+    pub first_seen_ms: u64,
+    pub last_seen_ms: u64,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RuntimeFeedbackObservation {
+    pub rows_in: u64,
+    pub rows_out: u64,
+    pub elapsed_ms: u64,
+    pub storage_reads: u64,
+    pub storage_writes: u64,
+    pub temp_writes: u64,
+    pub candidate_count: u64,
+    pub result_count: u64,
+    pub error_class: Option<String>,
+}
+
 #[derive(Debug, Default)]
 struct ExecutionResultCacheState {
     entries: HashMap<ExecutionResultCacheKey, QueryResult>,
     order: VecDeque<ExecutionResultCacheKey>,
+}
+
+#[derive(Debug, Default)]
+struct RuntimeFeedbackState {
+    entries: HashMap<RuntimeFeedbackKey, RuntimeFeedbackRecord>,
+    order: VecDeque<RuntimeFeedbackKey>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -214,6 +259,16 @@ pub struct CardinalitySnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct FeedbackSnapshot {
+    pub hits: u64,
+    pub misses: u64,
+    pub writes: u64,
+    pub evictions: u64,
+    pub entries: u64,
+    pub max_entries: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct StorageFamilySnapshot {
     pub reads: u64,
     pub writes: u64,
@@ -242,6 +297,7 @@ pub struct RuntimeMetricsSnapshot {
     pub plan_cache: PlanCacheSnapshot,
     pub query_cache: QueryCacheSnapshot,
     pub cardinality: CardinalitySnapshot,
+    pub feedback: FeedbackSnapshot,
 }
 
 #[derive(Debug, Default)]
@@ -257,6 +313,7 @@ struct RuntimeMetricsState {
     plan_cache: PlanCacheSnapshot,
     query_cache: QueryCacheSnapshot,
     cardinality: CardinalitySnapshot,
+    feedback: FeedbackSnapshot,
 }
 
 #[derive(Debug, Clone)]
@@ -284,6 +341,7 @@ pub struct RuntimeState {
     limits: CassieRuntimeLimits,
     metrics: Mutex<RuntimeMetricsState>,
     plan_cache: Mutex<PlanCacheState>,
+    feedback: Mutex<RuntimeFeedbackState>,
     execution_result_cache: Mutex<ExecutionResultCacheState>,
     fulltext_index_options: Mutex<HashMap<FulltextIndexOptionsCacheKey, FulltextIndexOptions>>,
     started_at: Mutex<Option<Instant>>,
@@ -315,10 +373,12 @@ impl RuntimeState {
     pub fn new(limits: CassieRuntimeLimits) -> Self {
         let mut metrics = RuntimeMetricsState::default();
         metrics.plan_cache.max_entries = limits.plan_cache_entries as u64;
+        metrics.feedback.max_entries = limits.feedback_entries as u64;
         Self {
             limits,
             metrics: Mutex::new(metrics),
             plan_cache: Mutex::new(PlanCacheState::default()),
+            feedback: Mutex::new(RuntimeFeedbackState::default()),
             execution_result_cache: Mutex::new(ExecutionResultCacheState::default()),
             fulltext_index_options: Mutex::new(HashMap::new()),
             started_at: Mutex::new(None),
@@ -656,6 +716,98 @@ impl RuntimeState {
         metrics.cardinality.unavailable += 1;
     }
 
+    fn record_feedback_hit(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.feedback.hits += 1;
+    }
+
+    fn record_feedback_miss(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.feedback.misses += 1;
+    }
+
+    fn record_feedback_write(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.feedback.writes += 1;
+    }
+
+    fn record_feedback_eviction(&self, evictions: u64) {
+        if evictions == 0 {
+            return;
+        }
+
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.feedback.evictions += evictions;
+    }
+
+    pub fn feedback_lookup(&self, key: &RuntimeFeedbackKey) -> Option<RuntimeFeedbackRecord> {
+        let now_ms = current_time_millis();
+        let mut feedback = self.feedback.lock().expect("runtime feedback");
+        let evictions =
+            prune_feedback_by_age(&mut feedback, now_ms, self.limits.feedback_ttl_seconds);
+        let record = feedback.entries.get(key).cloned();
+        if record.is_some() {
+            touch_feedback(&mut feedback.order, key);
+        }
+        drop(feedback);
+
+        self.record_feedback_eviction(evictions);
+        if record.is_some() {
+            self.record_feedback_hit();
+        } else {
+            self.record_feedback_miss();
+        }
+        record
+    }
+
+    pub fn feedback_record(&self, key: &RuntimeFeedbackKey) -> Option<RuntimeFeedbackRecord> {
+        self.feedback
+            .lock()
+            .expect("runtime feedback")
+            .entries
+            .get(key)
+            .cloned()
+    }
+
+    pub fn record_feedback(
+        &self,
+        key: RuntimeFeedbackKey,
+        observation: RuntimeFeedbackObservation,
+    ) {
+        let now_ms = current_time_millis();
+        let max_entries = self.limits.feedback_entries.max(1);
+        let mut feedback = self.feedback.lock().expect("runtime feedback");
+        let mut evictions =
+            prune_feedback_by_age(&mut feedback, now_ms, self.limits.feedback_ttl_seconds);
+
+        if let Some(record) = feedback.entries.get_mut(&key) {
+            apply_feedback_observation(record, &observation, now_ms);
+            touch_feedback(&mut feedback.order, &key);
+        } else {
+            while feedback.entries.len() >= max_entries {
+                let Some(oldest) = feedback.order.pop_front() else {
+                    break;
+                };
+                if feedback.entries.remove(&oldest).is_some() {
+                    evictions += 1;
+                }
+            }
+
+            let mut record = RuntimeFeedbackRecord {
+                first_seen_ms: now_ms,
+                last_seen_ms: now_ms,
+                ..RuntimeFeedbackRecord::default()
+            };
+            apply_feedback_observation(&mut record, &observation, now_ms);
+            feedback.entries.insert(key.clone(), record);
+            feedback.order.push_back(key);
+        }
+
+        drop(feedback);
+        self.record_feedback_write();
+        self.record_feedback_eviction(evictions);
+    }
+
     pub fn record_plan_cache_invalidation(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.plan_cache.invalidations += 1;
@@ -882,12 +1034,23 @@ impl RuntimeState {
             plan_cache: metrics.plan_cache.clone(),
             query_cache: metrics.query_cache.clone(),
             cardinality: metrics.cardinality.clone(),
+            feedback: metrics.feedback.clone(),
         };
         snapshot.runtime.uptime_seconds = uptime_seconds;
         snapshot.runtime.running_queries = metrics.runtime.running_queries;
         snapshot.plan_cache.entries = self.plan_cache_entry_count() as u64;
         snapshot.plan_cache.max_entries = self.limits.plan_cache_entries as u64;
+        snapshot.feedback.entries = self.feedback_entry_count() as u64;
+        snapshot.feedback.max_entries = self.limits.feedback_entries as u64;
         snapshot
+    }
+
+    pub fn feedback_entry_count(&self) -> usize {
+        self.feedback
+            .lock()
+            .expect("runtime feedback")
+            .entries
+            .len()
     }
 }
 
@@ -1034,6 +1197,80 @@ fn touch(order: &mut VecDeque<PlanCacheKey>, key: &PlanCacheKey) {
         order.remove(position);
     }
     order.push_back(key.clone());
+}
+
+fn touch_feedback(order: &mut VecDeque<RuntimeFeedbackKey>, key: &RuntimeFeedbackKey) {
+    if let Some(position) = order.iter().position(|entry| entry == key) {
+        order.remove(position);
+    }
+    order.push_back(key.clone());
+}
+
+fn apply_feedback_observation(
+    record: &mut RuntimeFeedbackRecord,
+    observation: &RuntimeFeedbackObservation,
+    now_ms: u64,
+) {
+    record.executions = record.executions.saturating_add(1);
+    record.rows_in_total = record.rows_in_total.saturating_add(observation.rows_in);
+    record.rows_out_total = record.rows_out_total.saturating_add(observation.rows_out);
+    record.elapsed_ms_total = record
+        .elapsed_ms_total
+        .saturating_add(observation.elapsed_ms);
+    record.storage_reads_total = record
+        .storage_reads_total
+        .saturating_add(observation.storage_reads);
+    record.storage_writes_total = record
+        .storage_writes_total
+        .saturating_add(observation.storage_writes);
+    record.temp_writes_total = record
+        .temp_writes_total
+        .saturating_add(observation.temp_writes);
+    record.candidate_count_total = record
+        .candidate_count_total
+        .saturating_add(observation.candidate_count);
+    record.result_count_total = record
+        .result_count_total
+        .saturating_add(observation.result_count);
+    if let Some(error_class) = observation.error_class.as_ref() {
+        record.errors_total = record.errors_total.saturating_add(1);
+        record.last_error_class = Some(error_class.clone());
+    }
+    if record.first_seen_ms == 0 {
+        record.first_seen_ms = now_ms;
+    }
+    record.last_seen_ms = now_ms;
+}
+
+fn prune_feedback_by_age(
+    feedback: &mut RuntimeFeedbackState,
+    now_ms: u64,
+    ttl_seconds: u64,
+) -> u64 {
+    if ttl_seconds == 0 {
+        return 0;
+    }
+
+    let ttl_ms = ttl_seconds.saturating_mul(1_000);
+    let mut evictions = 0;
+    let expired = feedback
+        .entries
+        .iter()
+        .filter_map(|(key, record)| {
+            (now_ms.saturating_sub(record.last_seen_ms) > ttl_ms).then(|| key.clone())
+        })
+        .collect::<Vec<_>>();
+
+    for key in expired {
+        if feedback.entries.remove(&key).is_some() {
+            evictions += 1;
+        }
+        if let Some(position) = feedback.order.iter().position(|entry| entry == &key) {
+            feedback.order.remove(position);
+        }
+    }
+
+    evictions
 }
 
 #[cfg(test)]

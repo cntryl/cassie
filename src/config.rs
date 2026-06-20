@@ -23,6 +23,8 @@ pub struct CassieRuntimeLimits {
     pub cf2_plan_ttl_seconds: u64,
     pub cf2_plan_candidate_ttl_seconds: u64,
     pub cf2_fulltext_stats_ttl_seconds: u64,
+    pub feedback_entries: usize,
+    pub feedback_ttl_seconds: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +94,8 @@ impl Default for CassieRuntimeLimits {
             cf2_plan_ttl_seconds: 900,
             cf2_plan_candidate_ttl_seconds: 300,
             cf2_fulltext_stats_ttl_seconds: 300,
+            feedback_entries: 128,
+            feedback_ttl_seconds: 900,
         }
     }
 }
@@ -162,6 +166,14 @@ impl CassieRuntimeConfig {
             cf2_fulltext_stats_ttl_seconds: parse_u64(
                 "CASSIE_CF2_FULLTEXT_STATS_TTL_SECONDS",
                 config.limits.cf2_fulltext_stats_ttl_seconds,
+            ),
+            feedback_entries: parse_usize(
+                "CASSIE_FEEDBACK_ENTRIES",
+                config.limits.feedback_entries,
+            ),
+            feedback_ttl_seconds: parse_u64(
+                "CASSIE_FEEDBACK_TTL_SECONDS",
+                config.limits.feedback_ttl_seconds,
             ),
         };
 

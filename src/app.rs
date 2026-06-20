@@ -39,7 +39,10 @@ use crate::executor::{
 };
 use crate::midge::adapter::{DocumentRef, Midge, MidgeScanTimings, RowDecode, RowFilter};
 use crate::query_cache;
-use crate::runtime::{ExecutionMode, PlanCacheKey, QueryExecutionControls, RuntimeState};
+use crate::runtime::{
+    ExecutionMode, PlanCacheKey, QueryExecutionControls, RuntimeFeedbackKey,
+    RuntimeFeedbackObservation, RuntimeState,
+};
 use crate::sql::ast::{
     QueryStatement, TransactionAction, TransactionIsolation, TransactionStatement,
 };
@@ -654,6 +657,43 @@ impl Cassie {
         }
     }
 
+    fn feedback_keys_for_plan(
+        &self,
+        sql_fingerprint: u64,
+        database: Option<String>,
+        physical: &crate::planner::physical::PhysicalPlan,
+    ) -> Vec<RuntimeFeedbackKey> {
+        let schema_epoch = self.runtime.schema_epoch();
+        let collection = physical.collection.clone();
+        physical
+            .operators
+            .iter()
+            .map(|operator| RuntimeFeedbackKey {
+                sql_fingerprint,
+                schema_epoch,
+                database: database.clone(),
+                collection: collection.clone(),
+                operator: format!("{operator:?}"),
+            })
+            .collect()
+    }
+
+    fn observe_feedback_lookup(&self, keys: &[RuntimeFeedbackKey]) {
+        for key in keys {
+            let _ = self.runtime.feedback_lookup(key);
+        }
+    }
+
+    fn record_feedback_for_keys(
+        &self,
+        keys: Vec<RuntimeFeedbackKey>,
+        observation: RuntimeFeedbackObservation,
+    ) {
+        for key in keys {
+            self.runtime.record_feedback(key, observation.clone());
+        }
+    }
+
     #[doc(hidden)]
     pub fn plan_cache_hit_for_diagnostics(
         &self,
@@ -669,6 +709,14 @@ impl Cassie {
             database,
         );
         self.runtime.plan_cache_lookup(&key).is_some()
+    }
+
+    #[doc(hidden)]
+    pub fn feedback_record_for_diagnostics(
+        &self,
+        key: &RuntimeFeedbackKey,
+    ) -> Option<crate::runtime::RuntimeFeedbackRecord> {
+        self.runtime.feedback_record(key)
     }
 
     fn plan_cache_provenance(
@@ -1026,6 +1074,12 @@ impl Cassie {
                 PlanCacheProvenance::Compiled,
             )
         };
+        let feedback_keys = is_select.then(|| {
+            let keys =
+                self.feedback_keys_for_plan(sql_fingerprint, session.database.clone(), &physical);
+            self.observe_feedback_lookup(&keys);
+            keys
+        });
 
         if controls.is_timed_out() {
             return Err(CassieError::Execution("query timeout exceeded".to_string()));
@@ -1054,14 +1108,86 @@ impl Cassie {
             }
         }
 
-        let result = crate::executor::run_with_session_controls(
+        let feedback_before = feedback_keys.as_ref().map(|_| self.runtime.snapshot());
+        let feedback_started_at = Instant::now();
+        let execution = crate::executor::run_with_session_controls(
             self,
             Some(session),
             physical.clone(),
             params,
             controls,
         )
-        .map_err(CassieError::from)?;
+        .map_err(CassieError::from);
+
+        if let Some(keys) = feedback_keys.clone() {
+            let after = self.runtime.snapshot();
+            let before = feedback_before.expect("feedback snapshot");
+            let observation = RuntimeFeedbackObservation {
+                rows_in: physical.estimates.scan_rows,
+                rows_out: execution
+                    .as_ref()
+                    .map(|result| result.rows.len() as u64)
+                    .unwrap_or(0),
+                elapsed_ms: feedback_started_at
+                    .elapsed()
+                    .as_millis()
+                    .min(u64::MAX as u128) as u64,
+                storage_reads: after
+                    .storage
+                    .data
+                    .reads
+                    .saturating_sub(before.storage.data.reads),
+                storage_writes: after
+                    .storage
+                    .data
+                    .writes
+                    .saturating_sub(before.storage.data.writes),
+                temp_writes: after
+                    .storage
+                    .temp
+                    .writes
+                    .saturating_sub(before.storage.temp.writes),
+                candidate_count: after
+                    .search
+                    .candidate_count_total
+                    .saturating_sub(before.search.candidate_count_total)
+                    .saturating_add(
+                        after
+                            .vector
+                            .candidate_count_total
+                            .saturating_sub(before.vector.candidate_count_total),
+                    )
+                    .saturating_add(
+                        after
+                            .hybrid
+                            .candidate_count_total
+                            .saturating_sub(before.hybrid.candidate_count_total),
+                    ),
+                result_count: after
+                    .search
+                    .result_count_total
+                    .saturating_sub(before.search.result_count_total)
+                    .saturating_add(
+                        after
+                            .vector
+                            .result_count_total
+                            .saturating_sub(before.vector.result_count_total),
+                    )
+                    .saturating_add(
+                        after
+                            .hybrid
+                            .result_count_total
+                            .saturating_sub(before.hybrid.result_count_total),
+                    ),
+                error_class: execution
+                    .as_ref()
+                    .err()
+                    .map(|error| crate::runtime::error_class(error).to_string()),
+            };
+            self.record_feedback_for_keys(keys, observation);
+        }
+
+        let result = execution?;
 
         if result.rows.len() > controls.max_result_rows {
             return Err(CassieError::Execution(format!(
@@ -1169,6 +1295,7 @@ impl Cassie {
         analyze: bool,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        let sql_fingerprint = crate::runtime::sql_fingerprint(&statement);
         let before = analyze.then(|| self.runtime.snapshot());
         let physical = self.compile_physical_plan(statement, Some(controls))?;
         let operators = physical
@@ -1243,6 +1370,9 @@ impl Cassie {
         );
 
         if analyze {
+            let feedback_keys =
+                self.feedback_keys_for_plan(sql_fingerprint, session.database.clone(), &physical);
+            self.observe_feedback_lookup(&feedback_keys);
             let started_at = Instant::now();
             let result = crate::executor::run_with_session_controls(
                 self,
@@ -1276,15 +1406,85 @@ impl Cassie {
                 .temp
                 .writes
                 .saturating_sub(before.storage.temp.writes);
+            let candidate_count_delta = after
+                .search
+                .candidate_count_total
+                .saturating_sub(before.search.candidate_count_total)
+                .saturating_add(
+                    after
+                        .vector
+                        .candidate_count_total
+                        .saturating_sub(before.vector.candidate_count_total),
+                )
+                .saturating_add(
+                    after
+                        .hybrid
+                        .candidate_count_total
+                        .saturating_sub(before.hybrid.candidate_count_total),
+                );
+            let result_count_delta = after
+                .search
+                .result_count_total
+                .saturating_sub(before.search.result_count_total)
+                .saturating_add(
+                    after
+                        .vector
+                        .result_count_total
+                        .saturating_sub(before.vector.result_count_total),
+                )
+                .saturating_add(
+                    after
+                        .hybrid
+                        .result_count_total
+                        .saturating_sub(before.hybrid.result_count_total),
+                );
+            self.record_feedback_for_keys(
+                feedback_keys,
+                RuntimeFeedbackObservation {
+                    rows_in: physical.estimates.scan_rows,
+                    rows_out: result.rows.len() as u64,
+                    elapsed_ms: elapsed_ms.min(u128::from(u64::MAX)) as u64,
+                    storage_reads: storage_reads_delta,
+                    storage_writes: storage_writes_delta,
+                    temp_writes: temp_writes_delta,
+                    candidate_count: candidate_count_delta,
+                    result_count: result_count_delta,
+                    error_class: None,
+                },
+            );
+            let actual_operators = if physical.operators.is_empty() {
+                "Command".to_string()
+            } else {
+                physical
+                    .operators
+                    .iter()
+                    .map(|operator| {
+                        format!("{operator:?}:rows_in:{} rows_out:{} elapsed_ms:{} storage_reads:{} storage_writes:{} temp_writes:{} candidates:{} results:{}",
+                            physical.estimates.scan_rows,
+                            result.rows.len(),
+                            elapsed_ms,
+                            storage_reads_delta,
+                            storage_writes_delta,
+                            temp_writes_delta,
+                            candidate_count_delta,
+                            result_count_delta
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("|")
+            };
             plan.push_str(&format!(
-                " analyze=true actual_rows={} actual_ms={} diagnostics=plan_cache_hits_delta:{},plan_cache_misses_delta:{},storage_reads_delta:{},storage_writes_delta:{},temp_writes_delta:{}",
+                " analyze=true actual_rows={} actual_ms={} operator_actuals={} diagnostics=plan_cache_hits_delta:{},plan_cache_misses_delta:{},storage_reads_delta:{},storage_writes_delta:{},temp_writes_delta:{},candidate_count_delta:{},result_count_delta:{}",
                 result.rows.len(),
                 elapsed_ms,
+                actual_operators,
                 plan_cache_hits_delta,
                 plan_cache_misses_delta,
                 storage_reads_delta,
                 storage_writes_delta,
-                temp_writes_delta
+                temp_writes_delta,
+                candidate_count_delta,
+                result_count_delta
             ));
         }
 
@@ -2614,6 +2814,7 @@ impl Cassie {
             "plan_cache": snapshot.plan_cache,
             "query_cache": snapshot.query_cache,
             "cardinality": snapshot.cardinality,
+            "feedback": snapshot.feedback,
         })
     }
 

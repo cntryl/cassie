@@ -5,11 +5,11 @@ use crate::sql::ast::{
     CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement, CreateRoleStatement,
     CreateSchemaStatement, CreateTableStatement, CreateViewStatement, CteQuery,
     DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropRoleStatement,
-    DropSchemaStatement, DropTableStatement, DropViewStatement, Expr, FieldDefinition, FunctionArg,
-    FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement, QuerySource,
-    QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement,
-    ShowStatement, SortDirection, TransactionAction, TransactionIsolation, TransactionStatement,
-    Volatility, WindowFunctionCall,
+    DropSchemaStatement, DropTableStatement, DropViewStatement, ExplainStatement, Expr,
+    FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr,
+    ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement,
+    SetOperator, SetStatement, ShowStatement, SortDirection, TransactionAction,
+    TransactionIsolation, TransactionStatement, Volatility, WindowFunctionCall,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -21,7 +21,9 @@ pub struct SqlError(pub String);
 pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let lower = trimmed.to_lowercase();
-    if lower.starts_with("with ") || lower == "with" {
+    if lower.starts_with("explain ") || lower == "explain" {
+        parse_explain_statement(trimmed)
+    } else if lower.starts_with("with ") || lower == "with" {
         parse_with_statement(trimmed)
     } else if lower.starts_with("insert ") || lower == "insert" {
         parse_insert_statement(trimmed)
@@ -95,6 +97,32 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     } else {
         Err(SqlError("unsupported SQL statement".into()))
     }
+}
+
+fn parse_explain_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let rest = sql["EXPLAIN".len()..].trim();
+    if rest.is_empty() {
+        return Err(SqlError("EXPLAIN requires a statement".to_string()));
+    }
+
+    let lower = rest.to_ascii_lowercase();
+    let (analyze, inner_sql) = if lower.starts_with("analyze ") {
+        (true, rest[7..].trim())
+    } else {
+        (false, rest)
+    };
+    if inner_sql.is_empty() {
+        return Err(SqlError("EXPLAIN requires a statement".to_string()));
+    }
+
+    let statement = parse_statement(inner_sql)?;
+    Ok(ParsedStatement {
+        raw_sql: sql.to_string(),
+        statement: QueryStatement::Explain(ExplainStatement {
+            analyze,
+            statement: Box::new(statement),
+        }),
+    })
 }
 
 fn is_transaction_control_statement(lower: &str) -> bool {

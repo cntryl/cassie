@@ -47,6 +47,16 @@ fn bind_statement<'a>(
                     statement: QueryStatement::Select(select),
                 })
             }
+            QueryStatement::Explain(statement) => {
+                let inner = bind_statement(*statement.statement, catalog, outer_scope).await?;
+                Ok(ParsedStatement {
+                    raw_sql,
+                    statement: QueryStatement::Explain(crate::sql::ast::ExplainStatement {
+                        analyze: statement.analyze,
+                        statement: Box::new(inner),
+                    }),
+                })
+            }
             QueryStatement::Show(statement) => {
                 let mut clone = statement.clone();
                 clone.variable = clone.variable.trim().to_string();
@@ -1957,6 +1967,9 @@ fn cte_contains_parameters(cte: &CommonTableExpression) -> bool {
 
 fn parsed_statement_contains_parameters(statement: &ParsedStatement) -> bool {
     match &statement.statement {
+        QueryStatement::Explain(statement) => {
+            parsed_statement_contains_parameters(statement.statement.as_ref())
+        }
         QueryStatement::Select(select) => select_contains_parameters(select),
         QueryStatement::Show(_)
         | QueryStatement::Set(_)

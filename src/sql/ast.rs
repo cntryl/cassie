@@ -97,6 +97,7 @@ pub struct SelectSet {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QueryStatement {
+    Explain(ExplainStatement),
     Select(SelectStatement),
     Show(ShowStatement),
     Set(SetStatement),
@@ -122,6 +123,12 @@ pub enum QueryStatement {
     CallProcedure(CallProcedureStatement),
     DropSchema(DropSchemaStatement),
     AlterSchema(AlterSchemaStatement),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExplainStatement {
+    pub analyze: bool,
+    pub statement: Box<ParsedStatement>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

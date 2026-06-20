@@ -60,6 +60,9 @@ pub enum LogicalCommand {
 
 pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
     match &bound.statement.statement {
+        QueryStatement::Explain(_) => Err(CassieError::Planner(
+            "EXPLAIN is handled before logical planning".to_string(),
+        )),
         QueryStatement::Select(select) => {
             validate_logical_plan(select)?;
             Ok(LogicalPlan {

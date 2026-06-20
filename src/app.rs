@@ -750,6 +750,9 @@ impl Cassie {
         parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
     ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
+        if matches!(parsed.statement, QueryStatement::Explain(_)) {
+            return Ok(vec![ColumnMeta::text("QUERY PLAN")]);
+        }
         if matches!(parsed.statement, QueryStatement::Transaction(_)) {
             return Ok(Vec::new());
         }
@@ -952,6 +955,11 @@ impl Cassie {
                 "transaction is failed; rollback required".to_string(),
             ));
         }
+        if let QueryStatement::Explain(statement) = &parsed.statement {
+            return self
+                .explain_statement(statement.statement.as_ref().clone(), controls)
+                .await;
+        }
         if let QueryStatement::Transaction(statement) = &parsed.statement {
             return self.execute_transaction_statement(session, statement).await;
         }
@@ -1061,6 +1069,37 @@ impl Cassie {
             columns: Vec::new(),
             rows: Vec::new(),
             command: command.to_string(),
+        })
+    }
+
+    async fn explain_statement(
+        &self,
+        statement: crate::sql::ast::ParsedStatement,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        let physical = self
+            .compile_physical_plan(statement, Some(controls))
+            .await?;
+        let operators = physical
+            .operators
+            .iter()
+            .map(|operator| format!("{operator:?}"))
+            .collect::<Vec<_>>()
+            .join(">");
+        let plan = format!(
+            "collection={} operators={}",
+            physical.collection,
+            if operators.is_empty() {
+                "Command".to_string()
+            } else {
+                operators
+            }
+        );
+
+        Ok(QueryResult {
+            columns: vec![ColumnMeta::text("QUERY PLAN")],
+            rows: vec![vec![Value::String(plan)]],
+            command: "EXPLAIN".to_string(),
         })
     }
 

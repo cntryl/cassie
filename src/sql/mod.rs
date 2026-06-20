@@ -34,6 +34,7 @@ pub fn parameter_type_oids(statement: &ParsedStatement, provided: &[i32]) -> Vec
 
 fn parameter_count_query(statement: &QueryStatement) -> usize {
     match statement {
+        QueryStatement::Explain(statement) => parameter_count(&statement.statement),
         QueryStatement::Select(statement) => parameter_count_select(statement),
         QueryStatement::Show(_) => 0,
         QueryStatement::Set(_) => 0,

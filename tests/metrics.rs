@@ -140,10 +140,19 @@ fn should_report_runtime_metrics_snapshot() {
             )
             .await
             .unwrap();
+        let second = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM metrics_runtime_docs WHERE title = 'alpha'",
+                vec![],
+            )
+            .await
+            .unwrap();
         let metrics = cassie.metrics().await;
 
         // Assert
         assert_eq!(result.rows.len(), 1);
+        assert_eq!(second.rows.len(), 1);
         assert_eq!(metrics["ready"], serde_json::Value::Bool(true));
         assert!(
             metrics["runtime"]["startup_total"]
@@ -159,8 +168,8 @@ fn should_report_runtime_metrics_snapshot() {
                 >= 1,
             "catalog hydration counter should be recorded"
         );
-        assert_eq!(metrics["query"]["count"].as_u64(), Some(1));
-        assert_eq!(metrics["query"]["rows_returned_total"].as_u64(), Some(1));
+        assert_eq!(metrics["query"]["count"].as_u64(), Some(2));
+        assert_eq!(metrics["query"]["rows_returned_total"].as_u64(), Some(2));
         assert!(
             metrics["storage"]["schema"]["reads"]
                 .as_u64()

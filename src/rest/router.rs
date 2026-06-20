@@ -147,7 +147,7 @@ pub async fn route_request(
     let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     let started_at = Instant::now();
     if !is_route_public(&method, segments.as_slice()) && !cassie.auth_password.is_empty() {
-        let role = match authenticate_rest_request(&cassie, request.headers()).await {
+        let role = match authenticate_rest_request(&cassie, request.headers()) {
             Ok(role) => role,
             Err((status, message)) => {
                 cassie.runtime.record_rest_request(
@@ -187,24 +187,23 @@ pub async fn route_request(
 
     let response = match (method.clone(), segments.as_slice()) {
         (Method::GET, ["health"]) => {
-            let value = crate::rest::health::health(&cassie).await;
+            let value = crate::rest::health::health(&cassie);
             json_response(StatusCode::OK, &value)
         }
         (Method::GET, ["liveness"]) => {
-            let value = crate::rest::health::liveness(&cassie).await;
+            let value = crate::rest::health::liveness(&cassie);
             json_response(StatusCode::OK, &value)
         }
         (Method::GET, ["metrics"]) => {
-            let value = crate::rest::health::metrics(&cassie).await;
+            let value = crate::rest::health::metrics(&cassie);
             json_response(StatusCode::OK, &value)
         }
         (Method::GET, ["v1", "collections"]) => {
-            let value = crate::rest::collections::list(&cassie).await;
+            let value = crate::rest::collections::list(&cassie);
             json_response(StatusCode::OK, &value)
         }
         (Method::POST, ["v1", "collections"]) => {
             let value = crate::rest::collections::create(&cassie, body.as_ref())
-                .await
                 .map_err(|error| {
                     record_rest_error(&cassie, method.as_str(), &path, started_at, error)
                 })?;
@@ -212,7 +211,6 @@ pub async fn route_request(
         }
         (Method::POST, ["v1", "collections", collection, "documents"]) => {
             let value = crate::rest::documents::create(&cassie, collection, body.as_ref())
-                .await
                 .map_err(|error| {
                     record_rest_error(&cassie, method.as_str(), &path, started_at, error)
                 })?;
@@ -220,7 +218,6 @@ pub async fn route_request(
         }
         (Method::POST, ["v1", "collections", collection, "indexes"]) => {
             let value = crate::rest::indexes::create(&cassie, collection, body.as_ref())
-                .await
                 .map_err(|error| {
                     record_rest_error(&cassie, method.as_str(), &path, started_at, error)
                 })?;
@@ -228,7 +225,6 @@ pub async fn route_request(
         }
         (Method::POST, ["v1", "collections", collection, "search"]) => {
             let value = crate::rest::search::vector_search(&cassie, collection, body.as_ref())
-                .await
                 .map_err(|error| {
                     record_rest_error(&cassie, method.as_str(), &path, started_at, error)
                 })?;
@@ -236,7 +232,6 @@ pub async fn route_request(
         }
         (Method::GET, ["v1", "collections", collection, "documents", id]) => {
             let value = crate::rest::documents::get(&cassie, collection, id)
-                .await
                 .map_err(|error| {
                     record_rest_error(&cassie, method.as_str(), &path, started_at, error)
                 })?;
@@ -244,7 +239,6 @@ pub async fn route_request(
         }
         (Method::DELETE, ["v1", "collections", collection, "documents", id]) => {
             let value = crate::rest::documents::delete(&cassie, collection, id)
-                .await
                 .map_err(|error| {
                     record_rest_error(&cassie, method.as_str(), &path, started_at, error)
                 })?;
@@ -281,7 +275,7 @@ fn is_route_public(method: &Method, segments: &[&str]) -> bool {
     )
 }
 
-async fn authenticate_rest_request(
+fn authenticate_rest_request(
     cassie: &Arc<Cassie>,
     headers: &hyper::HeaderMap,
 ) -> Result<RoleMeta, (StatusCode, String)> {
@@ -291,7 +285,6 @@ async fn authenticate_rest_request(
 
     let session = cassie
         .authenticate_role(&user, password.as_deref(), None)
-        .await
         .map_err(|error| match error {
             crate::app::CassieError::Unauthorized => {
                 (StatusCode::UNAUTHORIZED, "unauthorized".to_string())
@@ -304,7 +297,6 @@ async fn authenticate_rest_request(
 
     let Some(role) = cassie
         .lookup_role(&session.user)
-        .await
         .map_err(|error| (StatusCode::SERVICE_UNAVAILABLE, error.to_string()))?
     else {
         return Err((

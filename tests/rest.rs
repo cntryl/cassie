@@ -24,25 +24,20 @@ fn should_crud_collection_documents_through_rest() {
         });
 
         // Act
-        let create = collections::create(&cassie, body.to_string().as_bytes())
-            .await
+        let create = collections::create(&cassie, body.to_string().as_bytes());
             .expect("create collection");
-        let list = collections::list(&cassie).await;
-        let doc = documents::create(
+        let list = collections::list(&cassie);        let doc = documents::create(
             &cassie,
             collection,
             serde_json::json!({"title": "hello", "payload": {"k": 1}, "embedding": [1.0, 2.0]})
                 .to_string()
                 .as_bytes(),
-        )
-        .await
+        );
         .expect("create document");
         let doc_id = doc["id"].as_str().expect("id present");
-        let got = documents::get(&cassie, collection, doc_id)
-            .await
+        let got = documents::get(&cassie, collection, doc_id);
             .expect("get document");
-        let removed = documents::delete(&cassie, collection, doc_id)
-            .await
+        let removed = documents::delete(&cassie, collection, doc_id);
             .expect("delete document");
 
         // Assert
@@ -73,8 +68,7 @@ fn should_reject_invalid_vector_dimensions_through_rest() {
             })
             .to_string()
             .as_bytes(),
-        )
-        .await;
+        );
 
         // Act
         let insert = documents::create(
@@ -83,8 +77,7 @@ fn should_reject_invalid_vector_dimensions_through_rest() {
             serde_json::json!({"embedding": [1.0, 2.0, 3.0]})
                 .to_string()
                 .as_bytes(),
-        )
-        .await;
+        );
 
         // Assert
         assert!(insert.is_err(), "dimension mismatch should fail");
@@ -111,12 +104,10 @@ fn should_reject_missing_document_lookup_through_rest() {
             })
             .to_string()
             .as_bytes(),
-        )
-        .await;
+        );
 
         // Act
-        let missing = documents::get(&cassie, collection, "missing-id").await;
-
+        let missing = documents::get(&cassie, collection, "missing-id");
         // Assert
         assert!(missing.is_err(), "missing document should fail");
         let error = format!("{:?}", missing.unwrap_err());
@@ -147,15 +138,14 @@ fn should_apply_default_values_for_rest_ingest() {
                 vec![],
             )
 
-            .await.unwrap();
+.unwrap();
 
         // Act
         let doc = documents::create(
             &cassie,
             collection,
             serde_json::json!({"id": 1}).to_string().as_bytes(),
-        )
-        .await
+        );
         .expect("create rest document");
         let id = doc["id"].as_str().expect("id present");
         let stored = cassie
@@ -190,8 +180,7 @@ fn should_reject_rest_ingest_when_not_null_constraint_is_violated() {
                 &session,
                 "CREATE TABLE rest_constraint_not_null (id INT PRIMARY KEY, email TEXT NOT NULL)",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Act
@@ -199,8 +188,7 @@ fn should_reject_rest_ingest_when_not_null_constraint_is_violated() {
             &cassie,
             collection,
             serde_json::json!({"id": 1}).to_string().as_bytes(),
-        )
-        .await;
+        );
 
         // Assert
         assert!(
@@ -237,7 +225,7 @@ fn should_reject_rest_ingest_when_unique_constraint_is_violated() {
                 vec![],
             )
 
-            .await.unwrap();
+.unwrap();
 
         documents::create(
             &cassie,
@@ -245,8 +233,7 @@ fn should_reject_rest_ingest_when_unique_constraint_is_violated() {
             serde_json::json!({"id": 1, "email": "a@example.com"})
                 .to_string()
                 .as_bytes(),
-        )
-        .await
+        );
         .expect("first insert");
 
         // Act
@@ -256,8 +243,7 @@ fn should_reject_rest_ingest_when_unique_constraint_is_violated() {
             serde_json::json!({"id": 2, "email": "a@example.com"})
                 .to_string()
                 .as_bytes(),
-        )
-        .await;
+        );
 
         // Assert
         assert!(duplicate.is_err(), "duplicate unique field should be rejected");
@@ -291,7 +277,7 @@ fn should_reject_rest_ingest_when_check_constraint_is_violated() {
                 vec![],
             )
 
-            .await.unwrap();
+.unwrap();
 
         // Act
         let invalid = documents::create(
@@ -300,8 +286,7 @@ fn should_reject_rest_ingest_when_check_constraint_is_violated() {
             serde_json::json!({"id": 1, "score": 17})
                 .to_string()
                 .as_bytes(),
-        )
-        .await;
+        );
 
         // Assert
         assert!(invalid.is_err(), "check constraint failure should be rejected");

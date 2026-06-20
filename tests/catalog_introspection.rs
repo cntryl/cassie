@@ -32,7 +32,7 @@ fn should_list_user_tables_through_information_schema() {
             },
         )
         .unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -41,7 +41,7 @@ fn should_list_user_tables_through_information_schema() {
                 vec![],
             )
 
-            .await.unwrap();
+.unwrap();
 
         // Act
         let selected = cassie
@@ -49,8 +49,7 @@ fn should_list_user_tables_through_information_schema() {
                 &session,
                 "SELECT table_name FROM information_schema.tables WHERE table_name = 'catalog_tables_docs'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Assert
@@ -82,7 +81,7 @@ fn should_list_columns_through_information_schema_after_restart() {
             },
         )
         .unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -91,11 +90,11 @@ fn should_list_columns_through_information_schema_after_restart() {
                 vec![],
             )
 
-            .await.unwrap();
+.unwrap();
         drop(cassie);
 
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
-        restarted.startup().await.unwrap();
+        restarted.startup().unwrap();
         let session = restarted.create_session("tester", None);
 
         // Act
@@ -106,7 +105,7 @@ fn should_list_columns_through_information_schema_after_restart() {
                 vec![],
             )
 
-            .await.unwrap();
+.unwrap();
 
         // Assert
         assert_eq!(
@@ -139,7 +138,7 @@ fn should_list_indexes_through_pg_catalog() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -148,14 +147,13 @@ fn should_list_indexes_through_pg_catalog() {
                 vec![],
             )
 
-            .await.unwrap();
+.unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE UNIQUE INDEX catalog_email_idx ON catalog_index_docs USING btree (email)",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Act
@@ -164,8 +162,7 @@ fn should_list_indexes_through_pg_catalog() {
                 &session,
                 "SELECT indexname FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_index_docs'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Assert
@@ -190,15 +187,14 @@ fn should_list_primary_key_index_through_pg_catalog() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
                 &session,
                 "CREATE TABLE catalog_primary_key_docs (id INT PRIMARY KEY, title TEXT)",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Act
@@ -207,8 +203,7 @@ fn should_list_primary_key_index_through_pg_catalog() {
                 &session,
                 "SELECT indexname, indexdef FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_primary_key_docs'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Assert
@@ -241,7 +236,7 @@ fn should_list_composite_indexes_through_pg_catalog() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -250,14 +245,13 @@ fn should_list_composite_indexes_through_pg_catalog() {
                 vec![],
             )
 
-            .await.unwrap();
+.unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE INDEX catalog_title_score_idx ON catalog_composite_index_docs USING btree (title, score)",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Act
@@ -266,8 +260,7 @@ fn should_list_composite_indexes_through_pg_catalog() {
                 &session,
                 "SELECT indexname, indexdef FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_composite_index_docs'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Assert
@@ -298,11 +291,10 @@ fn should_list_namespaces_through_pg_catalog() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
-            .execute_sql(&session, "CREATE SCHEMA analytics", vec![])
-            .await
+            .execute_sql(&session, "CREATE SCHEMA analytics", vec![]);
             .unwrap();
 
         // Act
@@ -311,8 +303,7 @@ fn should_list_namespaces_through_pg_catalog() {
                 &session,
                 "SELECT nspname FROM pg_catalog.pg_namespace ORDER BY nspname",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Assert
@@ -342,7 +333,7 @@ fn should_list_constraints_through_information_schema() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -351,7 +342,7 @@ fn should_list_constraints_through_information_schema() {
                 vec![],
             )
 
-            .await.unwrap();
+.unwrap();
 
         // Act
         let selected = cassie
@@ -359,8 +350,7 @@ fn should_list_constraints_through_information_schema() {
                 &session,
                 "SELECT constraint_type FROM information_schema.table_constraints WHERE table_name = 'catalog_constraint_docs' ORDER BY constraint_type",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Assert
@@ -388,13 +378,12 @@ fn should_return_admin_role_for_pg_roles_catalog_view() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
         // Act
         let selected = cassie
-            .execute_sql(&session, "SELECT rolname FROM pg_catalog.pg_roles", vec![])
-            .await
+            .execute_sql(&session, "SELECT rolname FROM pg_catalog.pg_roles", vec![]);
             .unwrap();
 
         // Assert
@@ -419,7 +408,7 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
         // Act
@@ -430,7 +419,7 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
                 vec![],
             )
 
-            .await.unwrap();
+.unwrap();
 
         // Assert
         assert_eq!(
@@ -515,7 +504,7 @@ fn should_list_user_defined_views_through_catalog_views() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -524,14 +513,13 @@ fn should_list_user_defined_views_through_catalog_views() {
                 vec![],
             )
 
-            .await.unwrap();
+.unwrap();
         cassie
             .execute_sql(
                 &session,
                 "CREATE VIEW catalog_views_ready AS SELECT title, score FROM catalog_views_docs",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Act
@@ -540,24 +528,21 @@ fn should_list_user_defined_views_through_catalog_views() {
                 &session,
                 "SELECT table_type FROM information_schema.tables WHERE table_name = 'catalog_views_ready'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
         let views = cassie
             .execute_sql(
                 &session,
                 "SELECT table_name FROM information_schema.views WHERE table_name = 'catalog_views_ready'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
         let classes = cassie
             .execute_sql(
                 &session,
                 "SELECT relkind FROM pg_catalog.pg_class WHERE relname = 'catalog_views_ready'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Assert

@@ -18,20 +18,19 @@ pub(crate) struct ProjectedDocumentFilter {
     pub(crate) value: Value,
 }
 
-pub(crate) async fn scan(
+pub(crate) fn scan(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     collection: &str,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
     let document_batches = cassie
         .scan_documents_batched_for_session(session, collection, DEFAULT_BATCH_SIZE)
-        .await
         .map_err(|error| {
             cassie.runtime.record_storage_access("data", false, false);
             crate::executor::QueryError::General(error.to_string())
         })?;
     cassie.runtime.record_storage_access("data", false, true);
-    let schema = cassie.catalog.get_schema(collection).await;
+    let schema = cassie.catalog.get_schema(collection);
 
     Ok(document_batches
         .into_iter()
@@ -70,7 +69,7 @@ pub(crate) async fn scan(
         .collect())
 }
 
-pub(crate) async fn scan_projected_filtered(
+pub(crate) fn scan_projected_filtered(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     collection: &str,
@@ -88,14 +87,13 @@ pub(crate) async fn scan_projected_filtered(
             storage_filter.as_ref(),
             limit,
         )
-        .await
         .map(|(batches, _)| batches)
         .map_err(|error| {
             cassie.runtime.record_storage_access("data", false, false);
             crate::executor::QueryError::General(error.to_string())
         })?;
     cassie.runtime.record_storage_access("data", false, true);
-    let schema = cassie.catalog.get_schema(collection).await;
+    let schema = cassie.catalog.get_schema(collection);
 
     Ok(projected_document_batches_to_rows(
         document_batches,
@@ -105,7 +103,7 @@ pub(crate) async fn scan_projected_filtered(
     ))
 }
 
-pub(crate) async fn scan_projected_filtered_with_timings(
+pub(crate) fn scan_projected_filtered_with_timings(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     collection: &str,
@@ -123,7 +121,6 @@ pub(crate) async fn scan_projected_filtered_with_timings(
             storage_filter.as_ref(),
             limit,
         )
-        .await
         .map_err(|error| {
             cassie.runtime.record_storage_access("data", false, false);
             crate::executor::QueryError::General(error.to_string())
@@ -135,7 +132,7 @@ pub(crate) async fn scan_projected_filtered_with_timings(
         row_decode: raw_timings.row_decode,
     };
     let materialize_started = std::time::Instant::now();
-    let schema = cassie.catalog.get_schema(collection).await;
+    let schema = cassie.catalog.get_schema(collection);
     let batches = projected_document_batches_to_rows(
         document_batches,
         fields,
@@ -295,57 +292,49 @@ mod tests {
         // Arrange
         std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
         let path = data_dir("projected-lazy-lookup");
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("runtime");
-
-        runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
-            let collection = "scan_projected_lazy_lookup";
-            let schema = Schema {
-                fields: vec![FieldSchema {
-                    name: "title".to_string(),
-                    data_type: DataType::Text,
-                    nullable: true,
-                }],
-            };
-            cassie
-                .midge
-                .create_collection(collection, schema.clone())
-                .expect("create collection");
-            cassie.register_collection(collection, schema).await;
-            cassie
-                .midge
-                .put_document(
-                    collection,
-                    Some("doc-1".to_string()),
-                    serde_json::json!({"title": "alpha"}),
-                )
-                .expect("put document");
-
-            // Act
-            let batches = scan_projected_filtered(
-                &cassie,
-                None,
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let collection = "scan_projected_lazy_lookup";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .expect("create collection");
+        cassie.register_collection(collection, schema);
+        cassie
+            .midge
+            .put_document(
                 collection,
-                &["title".to_string()],
-                None,
-                None,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
             )
-            .await
-            .expect("scan projected");
+            .expect("put document");
 
-            // Assert
-            assert_eq!(batches.len(), 1);
-            assert_eq!(batches[0].len(), 1);
-            assert!(!batches[0][0].lookup_initialized());
-            assert_eq!(
-                batches[0][0].entries()[1].1,
-                Value::String("alpha".to_string())
-            );
+        // Act
+        let batches = scan_projected_filtered(
+            &cassie,
+            None,
+            collection,
+            &["title".to_string()],
+            None,
+            None,
+        )
+        .expect("scan projected");
 
-            let _ = std::fs::remove_dir_all(path);
-        });
+        // Assert
+        assert_eq!(batches.len(), 1);
+        assert_eq!(batches[0].len(), 1);
+        assert!(!batches[0][0].lookup_initialized());
+        assert_eq!(
+            batches[0][0].entries()[1].1,
+            Value::String("alpha".to_string())
+        );
+
+        let _ = std::fs::remove_dir_all(path);
     }
 }

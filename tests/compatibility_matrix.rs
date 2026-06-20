@@ -32,7 +32,7 @@ impl CompatibilityServer {
         with_fallback();
         let data_dir = data_dir(label);
         let cassie = Cassie::new_with_data_dir(&data_dir).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let mut config = CassieRuntimeConfig::from_env();
         config.password.clear();

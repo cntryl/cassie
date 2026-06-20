@@ -1,14 +1,12 @@
 use std::cmp::Ordering as CmpOrdering;
 use std::collections::{BTreeMap, BinaryHeap};
-use std::future::Future;
 use std::path::Path;
-use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
 use serde::Serialize;
-use tokio::sync::Mutex;
+use parking_lot::Mutex;
 use uuid::Uuid;
 
 use argon2::{
@@ -96,19 +94,19 @@ impl CassieSession {
         }
     }
 
-    pub async fn transaction_status(&self) -> &'static str {
-        match self.transaction.lock().await.status {
+    pub fn transaction_status(&self) -> &'static str {
+        match self.transaction.lock().status {
             SessionTransactionStatus::Idle => "idle",
             SessionTransactionStatus::InTransaction => "in_transaction",
             SessionTransactionStatus::Failed => "failed",
         }
     }
 
-    pub(crate) async fn begin_transaction(
+    pub(crate) fn begin_transaction(
         &self,
         isolation: Option<TransactionIsolation>,
     ) -> Result<(), CassieError> {
-        let mut transaction = self.transaction.lock().await;
+        let mut transaction = self.transaction.lock();
         if transaction.status != SessionTransactionStatus::Idle {
             return Err(CassieError::Unsupported(
                 "transaction already in progress".to_string(),
@@ -122,24 +120,24 @@ impl CassieSession {
         Ok(())
     }
 
-    pub(crate) async fn commit_transaction(&self) {
-        let mut transaction = self.transaction.lock().await;
+    pub(crate) fn commit_transaction(&self) {
+        let mut transaction = self.transaction.lock();
         transaction.status = SessionTransactionStatus::Idle;
         transaction.isolation = None;
         transaction.writes.clear();
         transaction.savepoints.clear();
     }
 
-    pub(crate) async fn rollback_transaction(&self) {
-        let mut transaction = self.transaction.lock().await;
+    pub(crate) fn rollback_transaction(&self) {
+        let mut transaction = self.transaction.lock();
         transaction.status = SessionTransactionStatus::Idle;
         transaction.isolation = None;
         transaction.writes.clear();
         transaction.savepoints.clear();
     }
 
-    pub(crate) async fn create_savepoint(&self, name: &str) -> Result<(), CassieError> {
-        let mut transaction = self.transaction.lock().await;
+    pub(crate) fn create_savepoint(&self, name: &str) -> Result<(), CassieError> {
+        let mut transaction = self.transaction.lock();
         if transaction.status != SessionTransactionStatus::InTransaction {
             return Err(CassieError::Execution(
                 "SAVEPOINT requires an active transaction".to_string(),
@@ -154,8 +152,8 @@ impl CassieSession {
         Ok(())
     }
 
-    pub(crate) async fn rollback_to_savepoint(&self, name: &str) -> Result<(), CassieError> {
-        let mut transaction = self.transaction.lock().await;
+    pub(crate) fn rollback_to_savepoint(&self, name: &str) -> Result<(), CassieError> {
+        let mut transaction = self.transaction.lock();
         if !matches!(
             transaction.status,
             SessionTransactionStatus::InTransaction | SessionTransactionStatus::Failed
@@ -182,8 +180,8 @@ impl CassieSession {
         Ok(())
     }
 
-    pub(crate) async fn release_savepoint(&self, name: &str) -> Result<(), CassieError> {
-        let mut transaction = self.transaction.lock().await;
+    pub(crate) fn release_savepoint(&self, name: &str) -> Result<(), CassieError> {
+        let mut transaction = self.transaction.lock();
         if transaction.status != SessionTransactionStatus::InTransaction {
             return Err(CassieError::Execution(
                 "RELEASE SAVEPOINT requires an active transaction".to_string(),
@@ -205,23 +203,23 @@ impl CassieSession {
         Ok(())
     }
 
-    pub(crate) async fn is_transaction_active(&self) -> bool {
-        self.transaction.lock().await.status == SessionTransactionStatus::InTransaction
+    pub(crate) fn is_transaction_active(&self) -> bool {
+        self.transaction.lock().status == SessionTransactionStatus::InTransaction
     }
 
-    pub(crate) async fn is_transaction_failed(&self) -> bool {
-        self.transaction.lock().await.status == SessionTransactionStatus::Failed
+    pub(crate) fn is_transaction_failed(&self) -> bool {
+        self.transaction.lock().status == SessionTransactionStatus::Failed
     }
 
-    pub(crate) async fn mark_transaction_failed(&self) {
-        let mut transaction = self.transaction.lock().await;
+    pub(crate) fn mark_transaction_failed(&self) {
+        let mut transaction = self.transaction.lock();
         if transaction.status == SessionTransactionStatus::InTransaction {
             transaction.status = SessionTransactionStatus::Failed;
         }
     }
 
-    pub(crate) async fn enter_procedure_call(&self, name: &str) -> Result<(), CassieError> {
-        let mut procedure_calls = self.procedure_calls.lock().await;
+    pub(crate) fn enter_procedure_call(&self, name: &str) -> Result<(), CassieError> {
+        let mut procedure_calls = self.procedure_calls.lock();
         let normalized = name.to_ascii_lowercase();
         if procedure_calls.iter().any(|entry| entry == &normalized) {
             return Err(CassieError::Execution(format!(
@@ -233,18 +231,18 @@ impl CassieSession {
         Ok(())
     }
 
-    pub(crate) async fn leave_procedure_call(&self) {
-        let mut procedure_calls = self.procedure_calls.lock().await;
+    pub(crate) fn leave_procedure_call(&self) {
+        let mut procedure_calls = self.procedure_calls.lock();
         procedure_calls.pop();
     }
 
-    pub(crate) async fn stage_document_write(
+    pub(crate) fn stage_document_write(
         &self,
         collection: &str,
         id: String,
         payload: serde_json::Value,
     ) {
-        let mut transaction = self.transaction.lock().await;
+        let mut transaction = self.transaction.lock();
         transaction
             .writes
             .entry(collection.to_string())
@@ -252,8 +250,8 @@ impl CassieSession {
             .insert(id, TransactionRowChange::Upsert(payload));
     }
 
-    pub(crate) async fn stage_document_delete(&self, collection: &str, id: String) {
-        let mut transaction = self.transaction.lock().await;
+    pub(crate) fn stage_document_delete(&self, collection: &str, id: String) {
+        let mut transaction = self.transaction.lock();
         transaction
             .writes
             .entry(collection.to_string())
@@ -261,36 +259,34 @@ impl CassieSession {
             .insert(id, TransactionRowChange::Delete);
     }
 
-    pub(crate) async fn document_change(
+    pub(crate) fn document_change(
         &self,
         collection: &str,
         id: &str,
     ) -> Option<TransactionRowChange> {
         self.transaction
             .lock()
-            .await
             .writes
             .get(collection)
             .and_then(|collection_writes| collection_writes.get(id).cloned())
     }
 
-    pub(crate) async fn collection_changes(
+    pub(crate) fn collection_changes(
         &self,
         collection: &str,
     ) -> BTreeMap<String, TransactionRowChange> {
         self.transaction
             .lock()
-            .await
             .writes
             .get(collection)
             .cloned()
             .unwrap_or_default()
     }
 
-    pub(crate) async fn transaction_writes(
+    pub(crate) fn transaction_writes(
         &self,
     ) -> BTreeMap<String, BTreeMap<String, TransactionRowChange>> {
-        self.transaction.lock().await.writes.clone()
+        self.transaction.lock().writes.clone()
     }
 }
 
@@ -420,15 +416,15 @@ impl Cassie {
         })
     }
 
-    pub async fn hydrate_catalog(&self) -> Result<(), CassieError> {
+    pub fn hydrate_catalog(&self) -> Result<(), CassieError> {
         let started_at = Instant::now();
-        self.catalog.clear().await;
+        self.catalog.clear();
         self.invalidate_plan_cache();
 
         let namespaces = self.midge.list_namespaces();
         self.runtime.record_storage_access("schema", false, true);
         for namespace in namespaces {
-            self.catalog.register_namespace(&namespace, None).await;
+            self.catalog.register_namespace(&namespace, None);
         }
 
         let mut collections = self.midge.list_collections();
@@ -458,14 +454,14 @@ impl Cassie {
                             .collect(),
                         constraints,
                     )
-                    .await;
+                    ;
                 let projection_metadata = self
                     .midge
                     .projection_metadata(&name)?
                     .unwrap_or_else(|| crate::catalog::ProjectionMeta::new(&name, 1));
                 self.catalog
                     .register_projection_metadata(projection_metadata)
-                    .await;
+                    ;
             }
         }
 
@@ -475,7 +471,7 @@ impl Cassie {
         })?;
         self.runtime.record_storage_access("schema", false, true);
         for index in indexes {
-            self.catalog.register_vector_index(index).await;
+            self.catalog.register_vector_index(index);
         }
 
         let indexes = self.midge.list_indexes().map_err(|error| {
@@ -484,7 +480,7 @@ impl Cassie {
         })?;
         self.runtime.record_storage_access("schema", false, true);
         for index in indexes {
-            self.catalog.register_index(index).await;
+            self.catalog.register_index(index);
         }
 
         let functions = self.midge.list_functions().map_err(|error| {
@@ -493,7 +489,7 @@ impl Cassie {
         })?;
         self.runtime.record_storage_access("schema", false, true);
         for metadata in functions {
-            self.catalog.register_function(metadata).await;
+            self.catalog.register_function(metadata);
         }
 
         let procedures = self.midge.list_procedures().map_err(|error| {
@@ -502,7 +498,7 @@ impl Cassie {
         })?;
         self.runtime.record_storage_access("schema", false, true);
         for metadata in procedures {
-            self.catalog.register_procedure(metadata).await;
+            self.catalog.register_procedure(metadata);
         }
 
         let views = self.midge.list_views().map_err(|error| {
@@ -511,15 +507,15 @@ impl Cassie {
         })?;
         self.runtime.record_storage_access("schema", false, true);
         for metadata in views {
-            self.catalog.register_view(metadata).await;
+            self.catalog.register_view(metadata);
         }
 
-        self.hydrate_roles().await?;
+        self.hydrate_roles()?;
         self.runtime.record_catalog_hydration(started_at.elapsed());
         Ok(())
     }
 
-    pub async fn startup(&self) -> Result<(), CassieError> {
+    pub fn startup(&self) -> Result<(), CassieError> {
         let started_at = Instant::now();
         let families_ready = self.midge.ensure_families_ready();
         self.runtime
@@ -537,7 +533,6 @@ impl Cassie {
         );
 
         self.hydrate_catalog()
-            .await
             .map_err(|error| CassieError::Storage(format!("catalog hydration: {error}")))?;
         self.runtime.mark_started();
         self.runtime.record_startup(started_at.elapsed());
@@ -549,14 +544,14 @@ impl Cassie {
         self.started.load(Ordering::SeqCst)
     }
 
-    pub async fn shutdown(&self) {
+    pub fn shutdown(&self) {
         if self.started.swap(false, Ordering::SeqCst) {
             self.runtime.record_shutdown();
             self.runtime.mark_shutdown();
         }
     }
 
-    async fn hydrate_roles(&self) -> Result<(), CassieError> {
+    fn hydrate_roles(&self) -> Result<(), CassieError> {
         let mut roles = self.midge.list_roles().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list roles: {error}"))
@@ -580,7 +575,7 @@ impl Cassie {
         }
 
         for role in roles {
-            self.catalog.register_role(role).await;
+            self.catalog.register_role(role);
         }
 
         Ok(())
@@ -638,7 +633,7 @@ impl Cassie {
         )
     }
 
-    async fn resolve_physical_plan(
+    fn resolve_physical_plan(
         &self,
         parsed: crate::sql::ast::ParsedStatement,
         key: PlanCacheKey,
@@ -660,7 +655,7 @@ impl Cassie {
         }
 
         self.runtime.record_query_cache_compile_miss();
-        let plan = self.compile_physical_plan(parsed, controls).await?;
+        let plan = self.compile_physical_plan(parsed, controls)?;
         self.runtime.plan_cache_store(key, plan.clone(), false);
         Ok((plan, PlanCacheProvenance::Compiled))
     }
@@ -720,17 +715,16 @@ impl Cassie {
         }
     }
 
-    pub async fn execute_sql(
+    pub fn execute_sql(
         &self,
         session: &CassieSession,
         sql: &str,
         params: Vec<crate::types::Value>,
     ) -> Result<QueryResult, CassieError> {
         self.execute_sql_with_mode(session, sql, params, ExecutionMode::SimpleQuery)
-            .await
     }
 
-    pub async fn describe_sql(
+    pub fn describe_sql(
         &self,
         sql: &str,
     ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
@@ -742,10 +736,9 @@ impl Cassie {
         let parsed = parser::parse_statement(sql)?;
         let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
         self.describe_parsed_statement(parsed, sql_fingerprint)
-            .await
     }
 
-    pub(crate) async fn describe_parsed_statement(
+    pub(crate) fn describe_parsed_statement(
         &self,
         parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
@@ -772,10 +765,10 @@ impl Cassie {
         });
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
             self.resolve_physical_plan(parsed, key, Some(&controls))
-                .await?
+                ?
         } else {
             (
-                self.compile_physical_plan(parsed, Some(&controls)).await?,
+                self.compile_physical_plan(parsed, Some(&controls))?,
                 PlanCacheProvenance::Compiled,
             )
         };
@@ -783,14 +776,13 @@ impl Cassie {
         let user_functions = if crate::executor::plan_needs_user_functions(&physical.logical) {
             self.catalog
                 .list_functions()
-                .await
                 .into_iter()
                 .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
                 .collect::<std::collections::HashMap<String, _>>()
         } else {
             std::collections::HashMap::new()
         };
-        let collection_schema = self.catalog.get_schema(&physical.logical.collection).await;
+        let collection_schema = self.catalog.get_schema(&physical.logical.collection);
 
         if physical.logical.command.is_some() {
             return Ok(Vec::new());
@@ -807,7 +799,7 @@ impl Cassie {
         ))
     }
 
-    pub(crate) async fn execute_sql_with_mode(
+    pub(crate) fn execute_sql_with_mode(
         &self,
         session: &CassieSession,
         sql: &str,
@@ -819,7 +811,7 @@ impl Cassie {
         let controls = self.runtime.query_controls(query_started);
         let result = self
             .execute_sql_core(session, sql, params, mode, &controls)
-            .await;
+            ;
         let elapsed = query_started.elapsed();
 
         match &result {
@@ -828,8 +820,8 @@ impl Cassie {
                 .record_query_success(elapsed, result.rows.len()),
             Err(error) => {
                 self.runtime.record_query_error(elapsed, error);
-                if session.is_transaction_active().await {
-                    session.mark_transaction_failed().await;
+                if session.is_transaction_active() {
+                    session.mark_transaction_failed();
                 }
             }
         }
@@ -838,23 +830,23 @@ impl Cassie {
         result
     }
 
-    pub(crate) fn execute_sql_with_controls<'a>(
-        &'a self,
-        session: &'a CassieSession,
-        sql: &'a str,
+    pub(crate) fn execute_sql_with_controls(
+        &self,
+        session: &CassieSession,
+        sql: &str,
         params: Vec<crate::types::Value>,
         mode: ExecutionMode,
-        controls: &'a QueryExecutionControls,
-    ) -> Pin<Box<dyn Future<Output = Result<QueryResult, CassieError>> + Send + 'a>> {
-        Box::pin(self.execute_sql_core(session, sql, params, mode, controls))
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        self.execute_sql_core(session, sql, params, mode, controls)
     }
 
-    async fn compile_physical_plan(
+    fn compile_physical_plan(
         &self,
         parsed: crate::sql::ast::ParsedStatement,
         controls: Option<&QueryExecutionControls>,
     ) -> Result<Arc<crate::planner::physical::PhysicalPlan>, CassieError> {
-        let bound = binder::bind(parsed, &self.catalog).await?;
+        let bound = binder::bind(parsed, &self.catalog)?;
         if controls.is_some_and(QueryExecutionControls::is_timed_out) {
             return Err(CassieError::Execution("query timeout exceeded".to_string()));
         }
@@ -867,7 +859,7 @@ impl Cassie {
         )))
     }
 
-    async fn execute_sql_core(
+    fn execute_sql_core(
         &self,
         session: &CassieSession,
         sql: &str,
@@ -891,10 +883,9 @@ impl Cassie {
         let parsed = parser::parse_statement(sql)?;
         let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
         self.execute_parsed_statement_core(session, parsed, sql_fingerprint, params, mode, controls)
-            .await
     }
 
-    pub(crate) async fn execute_preparsed_statement_with_mode(
+    pub(crate) fn execute_preparsed_statement_with_mode(
         &self,
         session: &CassieSession,
         parsed: crate::sql::ast::ParsedStatement,
@@ -914,7 +905,7 @@ impl Cassie {
                 mode,
                 &controls,
             )
-            .await;
+            ;
         let elapsed = query_started.elapsed();
 
         match &result {
@@ -923,8 +914,8 @@ impl Cassie {
                 .record_query_success(elapsed, result.rows.len()),
             Err(error) => {
                 self.runtime.record_query_error(elapsed, error);
-                if session.is_transaction_active().await {
-                    session.mark_transaction_failed().await;
+                if session.is_transaction_active() {
+                    session.mark_transaction_failed();
                 }
             }
         }
@@ -933,7 +924,7 @@ impl Cassie {
         result
     }
 
-    async fn execute_parsed_statement_core(
+    fn execute_parsed_statement_core(
         &self,
         session: &CassieSession,
         parsed: crate::sql::ast::ParsedStatement,
@@ -945,7 +936,7 @@ impl Cassie {
         if controls.is_timed_out() {
             return Err(CassieError::Execution("query timeout exceeded".to_string()));
         }
-        if session.is_transaction_failed().await
+        if session.is_transaction_failed()
             && !matches!(
                 &parsed.statement,
                 QueryStatement::Transaction(TransactionStatement {
@@ -967,10 +958,10 @@ impl Cassie {
                     statement.analyze,
                     controls,
                 )
-                .await;
+                ;
         }
         if let QueryStatement::Transaction(statement) = &parsed.statement {
-            return self.execute_transaction_statement(session, statement).await;
+            return self.execute_transaction_statement(session, statement);
         }
 
         let is_select = Self::is_query_cacheable(&parsed.statement);
@@ -984,10 +975,10 @@ impl Cassie {
         });
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
             self.resolve_physical_plan(parsed, key, Some(controls))
-                .await?
+                ?
         } else {
             (
-                self.compile_physical_plan(parsed, Some(controls)).await?,
+                self.compile_physical_plan(parsed, Some(controls))?,
                 PlanCacheProvenance::Compiled,
             )
         };
@@ -1026,7 +1017,6 @@ impl Cassie {
             params,
             controls,
         )
-        .await
         .map_err(CassieError::from)?;
 
         if result.rows.len() > controls.max_result_rows {
@@ -1065,23 +1055,23 @@ impl Cassie {
         Ok(result)
     }
 
-    async fn execute_transaction_statement(
+    fn execute_transaction_statement(
         &self,
         session: &CassieSession,
         statement: &TransactionStatement,
     ) -> Result<QueryResult, CassieError> {
         let command = match &statement.action {
             TransactionAction::Begin => {
-                session.begin_transaction(statement.isolation).await?;
+                session.begin_transaction(statement.isolation)?;
                 "BEGIN"
             }
             TransactionAction::Commit => {
-                if session.is_transaction_failed().await {
+                if session.is_transaction_failed() {
                     return Err(CassieError::Execution(
                         "transaction is failed; rollback required".to_string(),
                     ));
                 }
-                for (collection, writes) in session.transaction_writes().await {
+                for (collection, writes) in session.transaction_writes() {
                     for (id, change) in writes {
                         let result = match change {
                             TransactionRowChange::Upsert(payload) => self
@@ -1093,28 +1083,28 @@ impl Cassie {
                             }
                         };
                         if let Err(error) = result {
-                            session.mark_transaction_failed().await;
+                            session.mark_transaction_failed();
                             return Err(error);
                         }
                     }
                 }
-                session.commit_transaction().await;
+                session.commit_transaction();
                 "COMMIT"
             }
             TransactionAction::Rollback => {
-                session.rollback_transaction().await;
+                session.rollback_transaction();
                 "ROLLBACK"
             }
             TransactionAction::Savepoint { name } => {
-                session.create_savepoint(name).await?;
+                session.create_savepoint(name)?;
                 "SAVEPOINT"
             }
             TransactionAction::RollbackTo { name } => {
-                session.rollback_to_savepoint(name).await?;
+                session.rollback_to_savepoint(name)?;
                 "ROLLBACK"
             }
             TransactionAction::Release { name } => {
-                session.release_savepoint(name).await?;
+                session.release_savepoint(name)?;
                 "RELEASE"
             }
         };
@@ -1126,7 +1116,7 @@ impl Cassie {
         })
     }
 
-    async fn explain_statement(
+    fn explain_statement(
         &self,
         session: &CassieSession,
         statement: crate::sql::ast::ParsedStatement,
@@ -1137,7 +1127,7 @@ impl Cassie {
         let before = analyze.then(|| self.runtime.snapshot());
         let physical = self
             .compile_physical_plan(statement, Some(controls))
-            .await?;
+            ?;
         let operators = physical
             .operators
             .iter()
@@ -1184,16 +1174,15 @@ impl Cassie {
 
         if analyze {
             let started_at = Instant::now();
-            let result = crate::executor::run_with_session_controls(
-                self,
-                Some(session),
-                physical.clone(),
-                params,
-                controls,
-            )
-            .await
-            .map_err(CassieError::from)?;
-            let elapsed_ms = started_at.elapsed().as_millis();
+        let result = crate::executor::run_with_session_controls(
+            self,
+            Some(session),
+            physical.clone(),
+            params,
+            controls,
+        )
+        .map_err(CassieError::from)?;
+        let elapsed_ms = started_at.elapsed().as_millis();
             let after = self.runtime.snapshot();
             let before = before.expect("analyze snapshot");
             let plan_cache_hits_delta =
@@ -1236,7 +1225,7 @@ impl Cassie {
         })
     }
 
-    pub async fn execute_vector_search(
+    pub fn execute_vector_search(
         &self,
         collection: &str,
         vector_field: &str,
@@ -1248,7 +1237,6 @@ impl Cassie {
         let index = self
             .catalog
             .get_vector_index(collection, vector_field)
-            .await
             .ok_or_else(|| {
                 CassieError::InvalidEmbedding(format!(
                     "vector index not found for collection '{collection}', field '{vector_field}'"
@@ -1256,7 +1244,7 @@ impl Cassie {
             })?;
 
         self.validate_embedding_compatibility(&index, metric.as_ref())
-            .await?;
+            ?;
 
         let embedding = self
             .embedding_provider
@@ -1273,10 +1261,9 @@ impl Cassie {
             limit,
             offset,
         )
-        .await
     }
 
-    async fn execute_projected_vector_search(
+    fn execute_projected_vector_search(
         &self,
         collection: &str,
         vector_field: &str,
@@ -1290,7 +1277,6 @@ impl Cassie {
         let schema = self
             .catalog
             .get_schema(collection)
-            .await
             .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
         let candidates = self.midge.scan_rows_for_rebuild(
             collection,
@@ -1336,16 +1322,15 @@ impl Cassie {
         })
     }
 
-    pub async fn ingest_document(
+    pub fn ingest_document(
         &self,
         collection: &str,
         payload: serde_json::Value,
     ) -> Result<String, CassieError> {
         self.write_document(collection, None, payload, true, None)
-            .await
     }
 
-    pub(crate) async fn write_document(
+    pub(crate) fn write_document(
         &self,
         collection: &str,
         id: Option<String>,
@@ -1354,10 +1339,9 @@ impl Cassie {
         exclude_id: Option<&str>,
     ) -> Result<String, CassieError> {
         self.write_document_for_session(None, collection, id, payload, apply_defaults, exclude_id)
-            .await
     }
 
-    pub(crate) async fn write_document_for_session(
+    pub(crate) fn write_document_for_session(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -1374,14 +1358,14 @@ impl Cassie {
                 apply_defaults,
                 exclude_id,
             )
-            .await?;
+            ?;
 
         if let Some(session) = session {
-            if session.is_transaction_active().await {
+            if session.is_transaction_active() {
                 let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
                 session
                     .stage_document_write(collection, id.clone(), payload)
-                    .await;
+                    ;
                 return Ok(id);
             }
         }
@@ -1389,7 +1373,7 @@ impl Cassie {
         self.midge.put_document(collection, id, payload)
     }
 
-    pub(crate) async fn prepare_document_write_for_session(
+    pub(crate) fn prepare_document_write_for_session(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -1397,17 +1381,17 @@ impl Cassie {
         apply_defaults: bool,
         exclude_id: Option<&str>,
     ) -> Result<serde_json::Value, CassieError> {
-        let constraints = self.catalog.get_constraints(collection).await;
+        let constraints = self.catalog.get_constraints(collection);
         if apply_defaults && !constraints.is_empty() {
             self.apply_default_values(&mut payload, &constraints)?;
         }
 
-        self.validate_payload_schema(collection, &payload).await?;
+        self.validate_payload_schema(collection, &payload)?;
 
-        let indexes = self.catalog.list_vector_indexes(collection).await;
+        let indexes = self.catalog.list_vector_indexes(collection);
         if !indexes.is_empty() {
             self.apply_vector_indexes(collection, &mut payload, indexes.as_slice())
-                .await?;
+                ?;
         }
 
         self.validate_constraints_for_session(
@@ -1417,14 +1401,14 @@ impl Cassie {
             &constraints,
             exclude_id,
         )
-        .await?;
+        ?;
         self.validate_unique_indexes_for_session(session, collection, &payload, exclude_id)
-            .await?;
+            ?;
 
         Ok(payload)
     }
 
-    pub(crate) async fn put_prepared_document_for_session(
+    pub(crate) fn put_prepared_document_for_session(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -1432,10 +1416,10 @@ impl Cassie {
         payload: serde_json::Value,
     ) -> Result<String, CassieError> {
         if let Some(session) = session {
-            if session.is_transaction_active().await {
+            if session.is_transaction_active() {
                 session
                     .stage_document_write(collection, id.clone(), payload)
-                    .await;
+                    ;
                 return Ok(id);
             }
         }
@@ -1443,21 +1427,21 @@ impl Cassie {
         self.midge.put_document(collection, Some(id), payload)
     }
 
-    pub(crate) async fn delete_document_for_session(
+    pub(crate) fn delete_document_for_session(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
         id: &str,
     ) -> Result<bool, CassieError> {
         if let Some(session) = session {
-            if session.is_transaction_active().await {
+            if session.is_transaction_active() {
                 let existed = self
                     .get_document_for_session(Some(session), collection, id)
-                    .await?
+                    ?
                     .is_some();
                 session
                     .stage_document_delete(collection, id.to_string())
-                    .await;
+                    ;
                 return Ok(existed);
             }
         }
@@ -1465,14 +1449,14 @@ impl Cassie {
         self.midge.delete_document(collection, id)
     }
 
-    pub(crate) async fn get_document_for_session(
+    pub(crate) fn get_document_for_session(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
         id: &str,
     ) -> Result<Option<DocumentRef>, CassieError> {
         if let Some(session) = session {
-            if let Some(change) = session.document_change(collection, id).await {
+            if let Some(change) = session.document_change(collection, id) {
                 return Ok(match change {
                     TransactionRowChange::Upsert(payload) => Some(DocumentRef {
                         id: id.to_string(),
@@ -1486,7 +1470,7 @@ impl Cassie {
         self.midge.get_document(collection, id)
     }
 
-    pub(crate) async fn scan_documents_batched_for_session(
+    pub(crate) fn scan_documents_batched_for_session(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -1500,7 +1484,7 @@ impl Cassie {
             .collect::<BTreeMap<_, _>>();
 
         if let Some(session) = session {
-            for (id, change) in session.collection_changes(collection).await {
+            for (id, change) in session.collection_changes(collection) {
                 match change {
                     TransactionRowChange::Upsert(payload) => {
                         rows.insert(id.clone(), DocumentRef { id, payload });
@@ -1529,7 +1513,7 @@ impl Cassie {
         Ok(batches)
     }
 
-    pub(crate) async fn scan_projected_documents_batched_for_session(
+    pub(crate) fn scan_projected_documents_batched_for_session(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -1540,11 +1524,10 @@ impl Cassie {
         self.scan_projected_documents_batched_for_session_with_timings(
             session, collection, batch_size, fields, limit,
         )
-        .await
         .map(|(batches, _)| batches)
     }
 
-    pub(crate) async fn scan_projected_documents_batched_for_session_with_timings(
+    pub(crate) fn scan_projected_documents_batched_for_session_with_timings(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -1555,10 +1538,9 @@ impl Cassie {
         self.scan_projected_documents_batched_for_session_with_filter_and_timings(
             session, collection, batch_size, fields, None, limit,
         )
-        .await
     }
 
-    pub(crate) async fn scan_projected_documents_batched_for_session_with_filter_and_timings(
+    pub(crate) fn scan_projected_documents_batched_for_session_with_filter_and_timings(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -1570,7 +1552,7 @@ impl Cassie {
         let started = Instant::now();
         let mut timings = MidgeScanTimings::default();
         let collection_changes = if let Some(session) = session {
-            session.collection_changes(collection).await
+            session.collection_changes(collection)
         } else {
             BTreeMap::new()
         };
@@ -1638,7 +1620,7 @@ impl Cassie {
         Ok((batches, timings))
     }
 
-    async fn validate_payload_schema(
+    fn validate_payload_schema(
         &self,
         collection: &str,
         payload: &serde_json::Value,
@@ -1646,7 +1628,6 @@ impl Cassie {
         let schema = self
             .catalog
             .get_schema(collection)
-            .await
             .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
 
         let object = payload.as_object().ok_or_else(|| {
@@ -1930,7 +1911,7 @@ impl Cassie {
         Ok(())
     }
 
-    async fn validate_constraints_for_session(
+    fn validate_constraints_for_session(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -1968,7 +1949,6 @@ impl Cassie {
         }
 
         self.validate_uniques(session, collection, object, constraints, exclude_id)
-            .await
     }
 
     fn satisfies_check_constraint(
@@ -2043,7 +2023,7 @@ impl Cassie {
         }
     }
 
-    async fn validate_uniques(
+    fn validate_uniques(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -2071,7 +2051,7 @@ impl Cassie {
                     value,
                     exclude_id,
                 )
-                .await?
+                ?
             {
                 return Err(CassieError::InvalidVector(format!(
                     "unique constraint failed for '{}'",
@@ -2083,7 +2063,7 @@ impl Cassie {
         Ok(())
     }
 
-    async fn validate_unique_indexes_for_session(
+    fn validate_unique_indexes_for_session(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -2094,7 +2074,7 @@ impl Cassie {
             CassieError::InvalidVector("document payload must be a JSON object".to_string())
         })?;
 
-        for index in self.catalog.list_indexes(collection).await {
+        for index in self.catalog.list_indexes(collection) {
             if !index.unique || index.kind != crate::catalog::IndexKind::Scalar {
                 continue;
             }
@@ -2119,7 +2099,7 @@ impl Cassie {
 
             if self
                 .values_exist_for_collection_fields(session, collection, &values, exclude_id)
-                .await?
+                ?
             {
                 return Err(CassieError::InvalidVector(format!(
                     "unique index '{}' failed",
@@ -2131,7 +2111,7 @@ impl Cassie {
         Ok(())
     }
 
-    async fn value_exists_for_collection_field(
+    fn value_exists_for_collection_field(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -2141,7 +2121,7 @@ impl Cassie {
     ) -> Result<bool, CassieError> {
         for document in self
             .scan_documents_batched_for_session(session, collection, 1024)
-            .await?
+            ?
             .into_iter()
             .flatten()
         {
@@ -2157,7 +2137,7 @@ impl Cassie {
         Ok(false)
     }
 
-    async fn values_exist_for_collection_fields(
+    fn values_exist_for_collection_fields(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -2166,7 +2146,7 @@ impl Cassie {
     ) -> Result<bool, CassieError> {
         for document in self
             .scan_documents_batched_for_session(session, collection, 1024)
-            .await?
+            ?
             .into_iter()
             .flatten()
         {
@@ -2185,7 +2165,7 @@ impl Cassie {
         Ok(false)
     }
 
-    async fn apply_vector_indexes(
+    fn apply_vector_indexes(
         &self,
         _collection: &str,
         payload: &mut serde_json::Value,
@@ -2196,7 +2176,7 @@ impl Cassie {
         })?;
 
         for index in indexes {
-            self.validate_embedding_compatibility(index, None).await?;
+            self.validate_embedding_compatibility(index, None)?;
 
             let source_value = object.get(&index.source_field).ok_or_else(|| {
                 CassieError::InvalidEmbedding(format!(
@@ -2232,7 +2212,7 @@ impl Cassie {
         Ok(())
     }
 
-    async fn validate_embedding_compatibility(
+    fn validate_embedding_compatibility(
         &self,
         index: &VectorIndexRecord,
         requested_metric: Option<&DistanceMetric>,
@@ -2290,7 +2270,7 @@ impl Cassie {
         Ok(())
     }
 
-    pub async fn register_collection(&self, name: impl Into<String>, schema: crate::types::Schema) {
+    pub fn register_collection(&self, name: impl Into<String>, schema: crate::types::Schema) {
         let name = name.into();
         self.catalog
             .register_collection(
@@ -2301,16 +2281,16 @@ impl Cassie {
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
             )
-            .await;
+            ;
         self.invalidate_plan_cache();
     }
 
-    pub async fn register_vector_index(&self, index: VectorIndexRecord) {
-        self.catalog.register_vector_index(index).await;
+    pub fn register_vector_index(&self, index: VectorIndexRecord) {
+        self.catalog.register_vector_index(index);
         self.invalidate_plan_cache();
     }
 
-    pub async fn health(&self) -> serde_json::Value {
+    pub fn health(&self) -> serde_json::Value {
         let ready = self.is_started();
         let collections = self.midge.list_collections();
         serde_json::json!({
@@ -2326,13 +2306,13 @@ impl Cassie {
         CassieSession::new(user.to_string(), database)
     }
 
-    pub(crate) async fn lookup_role(&self, name: &str) -> Result<Option<RoleMeta>, CassieError> {
+    pub(crate) fn lookup_role(&self, name: &str) -> Result<Option<RoleMeta>, CassieError> {
         let normalized = normalize_role_name(name);
         if normalized.is_empty() {
             return Ok(None);
         }
 
-        if let Some(role) = self.catalog.get_role(&normalized).await {
+        if let Some(role) = self.catalog.get_role(&normalized) {
             return Ok(Some(role));
         }
 
@@ -2341,14 +2321,14 @@ impl Cassie {
             .map_err(|error| CassieError::Storage(format!("load role '{normalized}': {error}")))
     }
 
-    pub async fn authenticate_role(
+    pub fn authenticate_role(
         &self,
         user: &str,
         password: Option<&str>,
         database: Option<String>,
     ) -> Result<CassieSession, CassieError> {
         let normalized = normalize_role_name(user);
-        let Some(role) = self.lookup_role(&normalized).await? else {
+        let Some(role) = self.lookup_role(&normalized)? else {
             return Err(CassieError::Unauthorized);
         };
         if !role.can_login {
@@ -2372,7 +2352,7 @@ impl Cassie {
         ))
     }
 
-    pub async fn create_role(
+    pub fn create_role(
         &self,
         name: &str,
         login: bool,
@@ -2386,7 +2366,7 @@ impl Cassie {
             ));
         }
 
-        if self.lookup_role(&normalized).await?.is_some() {
+        if self.lookup_role(&normalized)?.is_some() {
             if if_not_exists {
                 return Ok(());
             }
@@ -2414,19 +2394,19 @@ impl Cassie {
         self.midge
             .put_role(role.clone())
             .map_err(|error| CassieError::Storage(format!("persist role '{name}': {error}")))?;
-        self.catalog.register_role(role).await;
+        self.catalog.register_role(role);
         self.bump_schema_epoch_and_invalidate_query_cache()?;
         Ok(())
     }
 
-    pub async fn alter_role(
+    pub fn alter_role(
         &self,
         name: &str,
         login: Option<bool>,
         password: Option<String>,
     ) -> Result<(), CassieError> {
         let normalized = normalize_role_name(name);
-        let Some(mut role) = self.lookup_role(&normalized).await? else {
+        let Some(mut role) = self.lookup_role(&normalized)? else {
             return Err(CassieError::NotFound(format!(
                 "role '{normalized}' not found"
             )));
@@ -2457,14 +2437,14 @@ impl Cassie {
         self.midge
             .put_role(role.clone())
             .map_err(|error| CassieError::Storage(format!("persist role '{name}': {error}")))?;
-        self.catalog.register_role(role).await;
+        self.catalog.register_role(role);
         self.bump_schema_epoch_and_invalidate_query_cache()?;
         Ok(())
     }
 
-    pub async fn drop_role(&self, name: &str, if_exists: bool) -> Result<(), CassieError> {
+    pub fn drop_role(&self, name: &str, if_exists: bool) -> Result<(), CassieError> {
         let normalized = normalize_role_name(name);
-        let Some(role) = self.lookup_role(&normalized).await? else {
+        let Some(role) = self.lookup_role(&normalized)? else {
             if if_exists {
                 return Ok(());
             }
@@ -2482,12 +2462,12 @@ impl Cassie {
         self.midge
             .delete_role(&normalized)
             .map_err(|error| CassieError::Storage(format!("delete role '{name}': {error}")))?;
-        self.catalog.unregister_role(&normalized).await;
+        self.catalog.unregister_role(&normalized);
         self.bump_schema_epoch_and_invalidate_query_cache()?;
         Ok(())
     }
 
-    pub async fn metrics(&self) -> serde_json::Value {
+    pub fn metrics(&self) -> serde_json::Value {
         let snapshot = self.runtime.snapshot();
         serde_json::json!({
             "uptime_seconds": snapshot.runtime.uptime_seconds,

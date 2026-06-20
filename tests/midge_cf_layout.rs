@@ -390,7 +390,7 @@ fn should_hydrate_projection_metadata_during_startup() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         cassie
             .midge
@@ -407,11 +407,10 @@ fn should_hydrate_projection_metadata_during_startup() {
             .unwrap();
 
         // Act
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let metadata = cassie
             .catalog
-            .get_projection_metadata("hydrated_projection_metadata")
-            .await
+            .get_projection_metadata("hydrated_projection_metadata");
             .expect("projection metadata should hydrate");
 
         // Assert
@@ -817,7 +816,7 @@ fn should_bootstrap_via_startup_path() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
 
         // Act
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let layout = cassie.midge.ensure_families_ready().unwrap();
 
         // Assert
@@ -840,7 +839,7 @@ fn should_preserve_temp_family_during_startup() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let mut tx = cassie
             .midge
             .temp_tx(cntryl_midge::TransactionMode::ReadWrite)
@@ -850,7 +849,7 @@ fn should_preserve_temp_family_during_startup() {
         tx.commit(cntryl_midge::WriteOptions::sync()).unwrap();
 
         // Act
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let entries = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Temp, b"temp_")
@@ -934,9 +933,9 @@ fn should_make_startup_idempotent_when_reinvoked() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
 
         // Act
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let families_first = cassie.midge.ensure_families_ready().unwrap().clone();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let families_second = cassie.midge.ensure_families_ready().unwrap().clone();
 
         // Assert
@@ -986,7 +985,7 @@ fn should_hydrate_from_schema_records_when_collections_index_is_missing() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "fallback_collection";
         let schema = Schema {
@@ -1007,11 +1006,10 @@ fn should_hydrate_from_schema_records_when_collections_index_is_missing() {
 
         // Act
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
-        restarted.startup().await.unwrap();
+        restarted.startup().unwrap();
         let collections = restarted
             .catalog
-            .list_collections()
-            .await
+            .list_collections();
             .into_iter()
             .map(|collection| collection.name)
             .collect::<Vec<_>>();
@@ -1034,7 +1032,7 @@ fn should_refresh_in_memory_catalog_during_startup() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         cassie
             .midge
@@ -1060,15 +1058,13 @@ fn should_refresh_in_memory_catalog_during_startup() {
                         nullable: true,
                     }],
                 },
-            )
-            .await;
+            );
 
         // Act
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let collections = cassie
             .catalog
-            .list_collections()
-            .await
+            .list_collections();
             .into_iter()
             .map(|collection| collection.name)
             .collect::<Vec<_>>();
@@ -1094,7 +1090,7 @@ fn should_hydrate_namespace_catalog_from_schema_family() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         cassie.midge.create_namespace("reporting").unwrap();
 
@@ -1102,11 +1098,10 @@ fn should_hydrate_namespace_catalog_from_schema_family() {
 
         // Act
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
-        restarted.startup().await.unwrap();
+        restarted.startup().unwrap();
         let namespaces = restarted
             .catalog
-            .list_namespaces()
-            .await
+            .list_namespaces();
             .into_iter()
             .map(|namespace| namespace.name)
             .collect::<Vec<_>>();
@@ -1129,7 +1124,7 @@ fn should_hydrate_renamed_namespace_catalog_from_schema_family() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         cassie.midge.create_namespace("reporting").unwrap();
         cassie
@@ -1141,11 +1136,10 @@ fn should_hydrate_renamed_namespace_catalog_from_schema_family() {
 
         // Act
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
-        restarted.startup().await.unwrap();
+        restarted.startup().unwrap();
         let namespaces = restarted
             .catalog
-            .list_namespaces()
-            .await
+            .list_namespaces();
             .into_iter()
             .map(|namespace| namespace.name)
             .collect::<Vec<_>>();
@@ -1169,7 +1163,7 @@ fn should_hydrate_dropped_namespace_catalog_from_schema_family() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         cassie.midge.create_namespace("reporting").unwrap();
         cassie.midge.drop_namespace("reporting").unwrap();
@@ -1178,11 +1172,10 @@ fn should_hydrate_dropped_namespace_catalog_from_schema_family() {
 
         // Act
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
-        restarted.startup().await.unwrap();
+        restarted.startup().unwrap();
         let namespaces = restarted
             .catalog
-            .list_namespaces()
-            .await
+            .list_namespaces();
             .into_iter()
             .map(|namespace| namespace.name)
             .collect::<Vec<_>>();

@@ -93,7 +93,7 @@ fn should_support_binary_startup_without_password() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let mut config = cassie::config::CassieRuntimeConfig::from_env();
         config.password.clear();
@@ -145,7 +145,7 @@ fn should_return_not_supported_for_ssl_request() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let mut config = cassie::config::CassieRuntimeConfig::from_env();
         config.password.clear();
@@ -198,7 +198,7 @@ fn should_error_when_password_does_not_match_for_cleartext_auth() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let mut config = cassie::config::CassieRuntimeConfig::from_env();
         config.password = "correct-password".to_string();

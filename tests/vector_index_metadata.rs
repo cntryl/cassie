@@ -33,7 +33,7 @@ fn should_persist_vector_index_metadata() {
     runtime.block_on(async move {
         // Act
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "index_meta_docs";
         let schema = Schema {
@@ -68,8 +68,7 @@ fn should_persist_vector_index_metadata() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
 
         let record = VectorIndexRecord {
             collection: collection.to_string(),
@@ -112,7 +111,7 @@ fn should_reload_registry_after_restart_simulation() {
     runtime.block_on(async move {
         // Act
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "restart_index_docs";
         let schema = Schema {
@@ -142,8 +141,7 @@ fn should_reload_registry_after_restart_simulation() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
 
         let record = VectorIndexRecord {
             collection: collection.to_string(),
@@ -167,7 +165,7 @@ fn should_reload_registry_after_restart_simulation() {
 
         drop(cassie);
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
-        restarted.startup().await.unwrap();
+        restarted.startup().unwrap();
 
         let stored = restarted
             .midge
@@ -177,8 +175,7 @@ fn should_reload_registry_after_restart_simulation() {
 
         let hydrated = restarted
             .catalog
-            .get_vector_index(collection, "vector")
-            .await
+            .get_vector_index(collection, "vector");
             .unwrap();
 
         // Assert
@@ -202,7 +199,7 @@ fn should_reload_generic_index_registry_after_restart() {
     runtime.block_on(async move {
         // Act
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "generic_index_docs";
         let schema = Schema {
@@ -232,8 +229,7 @@ fn should_reload_generic_index_registry_after_restart() {
                     .into_iter()
                     .map(|field| (field.name, field.data_type))
                     .collect(),
-            )
-            .await;
+            );
 
         let record = IndexMeta {
             collection: collection.to_string(),
@@ -248,13 +244,12 @@ fn should_reload_generic_index_registry_after_restart() {
 
         drop(cassie);
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
-        restarted.startup().await.unwrap();
+        restarted.startup().unwrap();
 
         // Assert
         let loaded = restarted
             .catalog
-            .get_index(collection, "idx_generic_title")
-            .await
+            .get_index(collection, "idx_generic_title");
             .expect("index should hydrate");
         assert_eq!(loaded, record);
     });
@@ -276,7 +271,7 @@ fn should_persist_fulltext_index_metadata_after_restart() {
     runtime.block_on(async move {
         // Act
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "fulltext_restart_docs";
         let schema = Schema {
@@ -306,8 +301,7 @@ fn should_persist_fulltext_index_metadata_after_restart() {
                     .into_iter()
                     .map(|field| (field.name, field.data_type))
                     .collect(),
-            )
-            .await;
+            );
 
         let expected = IndexMeta {
             collection: collection.to_string(),
@@ -327,13 +321,12 @@ fn should_persist_fulltext_index_metadata_after_restart() {
         drop(cassie);
 
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
-        restarted.startup().await.unwrap();
+        restarted.startup().unwrap();
 
         // Assert
         let loaded = restarted
             .catalog
-            .get_index(collection, "idx_fulltext_body")
-            .await
+            .get_index(collection, "idx_fulltext_body");
             .expect("index should hydrate");
         assert_eq!(loaded, expected);
     });

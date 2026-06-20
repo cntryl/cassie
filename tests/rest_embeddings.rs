@@ -160,8 +160,7 @@ async fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Ve
         })
         .to_string()
         .as_bytes(),
-    )
-    .await
+    );
     .unwrap();
 
     rest::indexes::create(
@@ -177,8 +176,7 @@ async fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Ve
         })
         .to_string()
         .as_bytes(),
-    )
-    .await
+    );
     .unwrap();
 
     let doc_one = rest::documents::create(
@@ -190,8 +188,7 @@ async fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Ve
         })
         .to_string()
         .as_bytes(),
-    )
-    .await
+    );
     .unwrap();
     let doc_two = rest::documents::create(
         cassie,
@@ -202,8 +199,7 @@ async fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Ve
         })
         .to_string()
         .as_bytes(),
-    )
-    .await
+    );
     .unwrap();
 
     let first_id = doc_one["id"].as_str().expect("doc one id").to_string();
@@ -220,8 +216,7 @@ async fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Ve
         })
         .to_string()
         .as_bytes(),
-    )
-    .await
+    );
     .unwrap();
 
     let rows = search["rows"].as_array().expect("rows array");
@@ -281,7 +276,7 @@ fn should_search_vector_docs_after_ingest() {
 
     runtime.block_on(async {
         // Arrange
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         rest::collections::create(
             &cassie,
@@ -295,8 +290,7 @@ fn should_search_vector_docs_after_ingest() {
             })
             .to_string()
             .as_bytes(),
-        )
-        .await
+        );
         .unwrap();
 
         rest::indexes::create(
@@ -312,8 +306,7 @@ fn should_search_vector_docs_after_ingest() {
             })
             .to_string()
             .as_bytes(),
-        )
-        .await
+        );
         .unwrap();
 
         let doc_one = rest::documents::create(
@@ -325,8 +318,7 @@ fn should_search_vector_docs_after_ingest() {
             })
             .to_string()
             .as_bytes(),
-        )
-        .await
+        );
         .unwrap();
         let doc_two = rest::documents::create(
             &cassie,
@@ -337,8 +329,7 @@ fn should_search_vector_docs_after_ingest() {
             })
             .to_string()
             .as_bytes(),
-        )
-        .await
+        );
         .unwrap();
 
         let first_id = doc_one["id"].as_str().expect("doc one id");
@@ -356,8 +347,7 @@ fn should_search_vector_docs_after_ingest() {
             })
             .to_string()
             .as_bytes(),
-        )
-        .await
+        );
         .unwrap();
 
         // Assert
@@ -412,11 +402,10 @@ fn should_search_vector_docs_with_tei_provider() {
     .unwrap();
 
     runtime.block_on(async {
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         // Act
         let rows = search_self_hosted_vector_docs(&cassie, "tei_search_collection").await;
-
         // Assert
         assert_eq!(rows.len(), 2);
     });
@@ -462,7 +451,7 @@ fn should_apply_vector_search_offset_after_distance_ordering() {
     .unwrap();
 
     runtime.block_on(async {
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         rest::collections::create(
             &cassie,
             serde_json::json!({
@@ -475,8 +464,7 @@ fn should_apply_vector_search_offset_after_distance_ordering() {
             })
             .to_string()
             .as_bytes(),
-        )
-        .await
+        );
         .unwrap();
         rest::indexes::create(
             &cassie,
@@ -491,8 +479,7 @@ fn should_apply_vector_search_offset_after_distance_ordering() {
             })
             .to_string()
             .as_bytes(),
-        )
-        .await
+        );
         .unwrap();
 
         rest::documents::create(
@@ -501,8 +488,7 @@ fn should_apply_vector_search_offset_after_distance_ordering() {
             serde_json::json!({"content": "far", "label": "third"})
                 .to_string()
                 .as_bytes(),
-        )
-        .await
+        );
         .unwrap();
         let nearest = rest::documents::create(
             &cassie,
@@ -510,8 +496,7 @@ fn should_apply_vector_search_offset_after_distance_ordering() {
             serde_json::json!({"content": "near", "label": "first"})
                 .to_string()
                 .as_bytes(),
-        )
-        .await
+        );
         .unwrap();
         let middle = rest::documents::create(
             &cassie,
@@ -519,8 +504,7 @@ fn should_apply_vector_search_offset_after_distance_ordering() {
             serde_json::json!({"content": "middle", "label": "second"})
                 .to_string()
                 .as_bytes(),
-        )
-        .await
+        );
         .unwrap();
         let nearest_id = nearest["id"].as_str().expect("nearest id");
         let middle_id = middle["id"].as_str().expect("middle id");
@@ -538,8 +522,7 @@ fn should_apply_vector_search_offset_after_distance_ordering() {
             })
             .to_string()
             .as_bytes(),
-        )
-        .await
+        );
         .unwrap();
 
         // Assert
@@ -590,11 +573,10 @@ fn should_search_vector_docs_with_ollama_provider() {
     .unwrap();
 
     runtime.block_on(async {
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         // Act
         let rows = search_self_hosted_vector_docs(&cassie, "ollama_search_collection").await;
-
         // Assert
         assert_eq!(rows.len(), 2);
     });
@@ -622,7 +604,7 @@ fn should_fail_vector_search_when_metric_incompatible_with_index() {
     .unwrap();
 
     runtime.block_on(async {
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         rest::collections::create(
             &cassie,
@@ -635,8 +617,7 @@ fn should_fail_vector_search_when_metric_incompatible_with_index() {
             })
             .to_string()
             .as_bytes(),
-        )
-        .await
+        );
         .unwrap();
 
         rest::indexes::create(
@@ -652,8 +633,7 @@ fn should_fail_vector_search_when_metric_incompatible_with_index() {
             })
             .to_string()
             .as_bytes(),
-        )
-        .await
+        );
         .unwrap();
 
         // Act
@@ -667,8 +647,7 @@ fn should_fail_vector_search_when_metric_incompatible_with_index() {
             })
             .to_string()
             .as_bytes(),
-        )
-        .await;
+        );
 
         // Assert
         assert!(result.is_err());

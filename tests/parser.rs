@@ -168,12 +168,11 @@ fn should_reject_unknown_function_during_binding() {
                         nullable: true,
                     }],
                 },
-            )
-            .await;
+            );
 
         // Act
         let parsed = parse_statement("SELECT unknown_fn(id) FROM binder_docs").unwrap();
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());
@@ -201,12 +200,11 @@ fn should_reject_bad_function_arity_during_binding() {
                         nullable: true,
                     }],
                 },
-            )
-            .await;
+            );
 
         // Act
         let parsed = parse_statement("SELECT search(id) FROM binder_docs_arity").unwrap();
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());
@@ -551,13 +549,12 @@ fn should_accept_case_insensitive_function_names_during_binding() {
                         nullable: true,
                     }],
                 },
-            )
-            .await;
+            );
 
         // Act
         let parsed =
             parse_statement("SELECT SEARCH_SCORE(body, 'q') FROM binder_docs_case").unwrap();
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_ok(), "function names should be case-insensitive");
@@ -585,12 +582,11 @@ fn should_allow_snippet_function_binding() {
                         nullable: true,
                     }],
                 },
-            )
-            .await;
+            );
 
         // Act
         let parsed = parse_statement("SELECT snippet(body, 'q') FROM binder_docs_snippet").unwrap();
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_ok());
@@ -626,12 +622,11 @@ fn should_bind_insert_statement_for_existing_collection() {
     runtime.block_on(async {
         cassie
             .catalog
-            .register_collection("docs", vec![("id".to_string(), DataType::Int)])
-            .await;
+            .register_collection("docs", vec![("id".to_string(), DataType::Int)]);
 
         // Act
         let parsed = parse_statement(sql).expect("insert statements should parse");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(
@@ -1504,15 +1499,14 @@ fn should_reject_unresolvable_order_by_identifier_during_binding() {
                         nullable: true,
                     }],
                 },
-            )
-            .await;
+            );
 
         // Act
         let parsed = parse_statement(
             "SELECT search_score(body, 'world') AS score FROM binder_docs_order_alias ORDER BY missing_alias",
         )
         .unwrap();
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());
@@ -1540,15 +1534,14 @@ fn should_allow_projection_alias_order_by_during_binding() {
                         nullable: true,
                     }],
                 },
-            )
-            .await;
+            );
 
         // Act
         let parsed = parse_statement(
             "SELECT search_score(body, 'world') AS Score FROM binder_docs_order_alias_ok ORDER BY score",
         )
         .unwrap();
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_ok());
@@ -1576,12 +1569,11 @@ fn should_reject_unknown_projection_column_during_binding() {
                         nullable: true,
                     }],
                 },
-            )
-            .await;
+            );
 
         // Act
         let parsed = parse_statement("SELECT unknown FROM binder_docs_projection_col").unwrap();
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());
@@ -1805,13 +1797,12 @@ fn should_reject_create_schema_when_schema_exists_without_if_not_exists() {
     runtime.block_on(async {
         cassie
             .catalog
-            .register_namespace("reporting", None)
-            .await;
+            .register_namespace("reporting", None);
 
         // Act
         let parsed = parse_statement("CREATE SCHEMA reporting")
             .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(matches!(bound, Err(err) if err.to_string().contains("namespace 'reporting' already exists")));
@@ -2002,7 +1993,7 @@ fn should_reject_reserved_namespace_on_create_schema() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         assert!(bound.is_err());
     });
@@ -2027,7 +2018,7 @@ fn should_reject_reserved_namespace_on_drop_schema() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         assert!(bound.is_err());
     });
@@ -2053,7 +2044,7 @@ fn should_reject_reserved_namespace_on_alter_schema() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         assert!(bound.is_err());
     });
@@ -2135,8 +2126,7 @@ fn should_parse_fulltext_create_index_statement_with_options() {
             "CREATE INDEX idx_ft_docs_body ON ft_docs_options USING fulltext (body) WITH (boost = 2.5, k1 = 0.8, b = 0.1)",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog)
-            .await
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
             .expect("bind should succeed");
 
         // Assert
@@ -2189,8 +2179,7 @@ fn should_apply_fulltext_create_index_defaults() {
             "CREATE INDEX idx_ft_docs_defaults ON ft_docs_defaults USING fulltext (body)",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog)
-            .await
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
             .expect("bind should succeed");
 
         // Assert
@@ -2242,7 +2231,7 @@ fn should_reject_fulltext_create_index_with_non_finite_boost() {
             "CREATE INDEX idx_ft_docs_non_finite ON ft_docs_non_finite USING fulltext (body) WITH (boost = inf)",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());
@@ -2297,15 +2286,14 @@ fn should_reject_duplicate_fulltext_index_on_same_field() {
                     ("k1".to_string(), "1.2".to_string()),
                     ("b".to_string(), "0.75".to_string()),
                 ]),
-            })
-            .await;
+            });
 
         // Act
         let parsed = parse_statement(
             "CREATE INDEX idx_ft_docs_duplicate_secondary ON ft_docs_duplicate USING fulltext (body)",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());
@@ -2336,15 +2324,14 @@ fn should_reject_fulltext_index_on_non_text_field() {
                         nullable: true,
                     }],
                 },
-            )
-            .await;
+            );
 
         // Act
         let parsed = parse_statement(
             "CREATE INDEX idx_ft_docs_bad_field ON ft_docs_bad_field USING fulltext (score)",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());
@@ -2390,7 +2377,7 @@ fn should_reject_fulltext_create_index_with_unsupported_option() {
             "CREATE INDEX idx_ft_docs_unsupported ON ft_docs_unsupported USING fulltext (body) WITH (alpha = 0.5)",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());
@@ -2436,7 +2423,7 @@ fn should_reject_fulltext_create_index_with_invalid_fulltext_k1() {
             "CREATE INDEX idx_ft_docs_bad_k1 ON ft_docs_bad_k1 USING fulltext (body) WITH (k1 = -1)",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());
@@ -2487,7 +2474,7 @@ fn should_reject_vector_create_index_without_source_field() {
             "CREATE INDEX idx_docs_embedding ON vec_docs_no_source USING vector (embedding)",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());
@@ -2533,7 +2520,7 @@ fn should_reject_vector_create_index_with_invalid_metric() {
             "CREATE INDEX idx_docs_embedding ON vec_docs_invalid_metric USING vector (embedding) WITH (source_field = content, metric = 'unsupported')",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());
@@ -2566,15 +2553,14 @@ fn should_reject_vector_create_index_on_non_vector_field() {
                         },
                     ],
                 },
-            )
-            .await;
+            );
 
         // Act
         let parsed = parse_statement(
             "CREATE INDEX idx_docs_embedding ON vec_docs_not_vector USING vector (content) WITH (source_field = content)",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());
@@ -2620,8 +2606,7 @@ fn should_default_vector_metric_to_cosine() {
             "CREATE INDEX idx_docs_embedding ON vec_docs_default_metric USING vector (embedding) WITH (source_field = content)",
         )
         .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog)
-            .await
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
             .expect("bind should succeed");
 
         // Assert
@@ -2671,13 +2656,12 @@ fn should_reject_create_table_when_collection_exists_without_if_not_exists() {
                         nullable: true,
                     }],
                 },
-            )
-            .await;
+            );
 
         // Act
         let parsed = parse_statement("CREATE TABLE existing_table (title TEXT)")
             .expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());
@@ -2697,7 +2681,7 @@ fn should_reject_drop_table_when_collection_missing_without_if_exists() {
     runtime.block_on(async {
         // Act
         let parsed = parse_statement("DROP TABLE missing_table").expect("parse should succeed");
-        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog).await;
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
 
         // Assert
         assert!(bound.is_err());

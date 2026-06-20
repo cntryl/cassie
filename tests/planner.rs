@@ -36,8 +36,7 @@ fn register_test_collection(catalog: &Catalog, name: &str) {
                     .into_iter()
                     .map(|field| (field.name, field.data_type))
                     .collect(),
-            )
-            .await;
+            );
     });
 }
 
@@ -56,7 +55,7 @@ fn should_plan_select_collection_projection_filter_limit_offset() {
             "SELECT title, body FROM planner_projection WHERE title = 'alpha' ORDER BY title DESC LIMIT 2 OFFSET 1",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let plan = logical::plan(&bound).unwrap();
 
         // Act
@@ -100,7 +99,7 @@ fn should_default_offset_to_zero_in_optimizer() {
             "SELECT title FROM planner_offset_default ORDER BY title ASC LIMIT 3",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
 
         // Act
@@ -128,7 +127,7 @@ fn should_build_physical_operators_in_execution_order() {
             "SELECT title FROM planner_physical WHERE title = 'alpha' ORDER BY title DESC LIMIT 2 OFFSET 1",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
         let logical = optimizer::optimize(logical);
 
@@ -179,7 +178,7 @@ fn should_mark_literal_equality_filter_as_pushed_down() {
             "SELECT title FROM planner_predicate_pushdown WHERE title = 'alpha'",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
         let logical = optimizer::optimize(logical);
 
@@ -206,7 +205,7 @@ fn should_mark_projected_scan_fields_for_projection_pruning() {
             "SELECT title FROM planner_projection_pruning WHERE body = 'alpha'",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
         let logical = optimizer::optimize(logical);
 
@@ -235,7 +234,7 @@ fn should_mark_scan_limit_for_limit_pushdown() {
         let parsed =
             parser::parse_statement("SELECT title FROM planner_limit_pushdown LIMIT 20 OFFSET 5")
                 .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
         let logical = optimizer::optimize(logical);
 
@@ -267,12 +266,11 @@ fn should_select_scalar_index_for_equality_filter() {
                 kind: cassie::catalog::IndexKind::Scalar,
                 unique: false,
                 options: Default::default(),
-            })
-            .await;
+            });
         let parsed =
             parser::parse_statement("SELECT body FROM planner_index_aware WHERE title = 'alpha'")
                 .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
         let logical = optimizer::optimize(logical);
 
@@ -301,7 +299,7 @@ fn should_mark_order_limit_query_as_top_k() {
         let parsed =
             parser::parse_statement("SELECT title FROM planner_top_k ORDER BY title DESC LIMIT 5")
                 .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
         let logical = optimizer::optimize(logical);
 
@@ -330,7 +328,7 @@ fn should_plan_join_source_with_physical_join_operator() {
             "SELECT planner_join_left.title FROM planner_join_left JOIN planner_join_right ON planner_join_left.title = planner_join_right.title",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
 
         // Act
@@ -369,7 +367,7 @@ fn should_mark_exists_predicate_as_semi_join() {
             "SELECT title FROM planner_semi_outer WHERE EXISTS (SELECT title FROM planner_semi_inner)",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
         let logical = optimizer::optimize(logical);
 
@@ -397,7 +395,7 @@ fn should_mark_not_exists_predicate_as_anti_join() {
             "SELECT title FROM planner_anti_outer WHERE NOT EXISTS (SELECT title FROM planner_anti_inner)",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
         let logical = optimizer::optimize(logical);
 
@@ -424,7 +422,7 @@ fn should_plan_grouped_distinct_select_controls() {
             "SELECT DISTINCT title, COUNT(*) AS total FROM planner_grouped GROUP BY title HAVING COUNT(*) > 1",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
 
         // Act
         let logical = logical::plan(&bound).unwrap();
@@ -452,7 +450,7 @@ fn should_keep_set_query_result_controls_in_logical_plan() {
             "SELECT title FROM planner_set_result_left UNION ALL SELECT title FROM planner_set_result_right ORDER BY title DESC LIMIT 2 OFFSET 1",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
 
         // Act
         let logical = logical::plan(&bound).unwrap();
@@ -482,7 +480,7 @@ fn should_build_physical_operators_for_aggregate_distinct_set() {
             "SELECT DISTINCT title, COUNT(*) AS total FROM planner_set_left GROUP BY title UNION SELECT title, COUNT(*) AS total FROM planner_set_right GROUP BY title",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
 
         // Act
@@ -521,13 +519,12 @@ fn should_build_physical_operators_for_hybrid_search() {
                     ("body".to_string(), DataType::Text),
                     ("embedding".to_string(), DataType::Vector(2)),
                 ],
-            )
-            .await;
+            );
         let parsed = parser::parse_statement(
             "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM planner_hybrid_physical ORDER BY score DESC LIMIT 1",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
 
         // Act
@@ -560,7 +557,7 @@ fn should_emit_offset_node_even_with_default_zero() {
             "SELECT id FROM planner_default_offset_operator ORDER BY id ASC LIMIT 5",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
 
         // Act
@@ -595,7 +592,7 @@ fn should_keep_collection_clause_values_in_logical_plan() {
             "SELECT * FROM planner_clauses WHERE body = 'hello' ORDER BY title ASC LIMIT 1 OFFSET 2",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
 
         // Act
         let logical = logical::plan(&bound).unwrap();
@@ -792,7 +789,7 @@ fn should_be_deterministic_for_repeated_planning_of_same_query() {
             "SELECT title FROM planner_repeat_logical WHERE title = 'gamma' ORDER BY title ASC LIMIT 3 OFFSET 1",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
 
         // Act
         let first = logical::plan(&bound).unwrap();
@@ -818,7 +815,7 @@ fn should_be_deterministic_for_repeated_optimization_of_same_logical_plan() {
             "SELECT title FROM planner_repeat_optimizer WHERE title = 'gamma' ORDER BY title ASC LIMIT 3",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let logical_plan = logical::plan(&bound).unwrap();
 
         // Act
@@ -847,7 +844,7 @@ fn should_plan_non_recursive_cte_source_as_logical_source() {
             "WITH docs_cte AS (SELECT title FROM planner_cte_source) SELECT title FROM docs_cte",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
 
         // Act
         let logical = logical::plan(&bound).unwrap();
@@ -875,7 +872,7 @@ fn should_preserve_recursive_cte_aliases_in_logical_plan() {
             "WITH RECURSIVE seq(id) AS (SELECT id FROM planner_recursive_aliases UNION ALL SELECT id FROM seq) SELECT id FROM seq",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
 
         // Act
         let logical = logical::plan(&bound).unwrap();
@@ -906,7 +903,7 @@ fn should_plan_create_table_as_command() {
         let parsed =
             parser::parse_statement("CREATE TABLE planner_create (id INT, title TEXT, body TEXT)")
                 .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let plan = logical::plan(&bound).unwrap();
 
         // Assert
@@ -930,7 +927,7 @@ fn should_plan_drop_table_as_command() {
     runtime.block_on(async {
         // Act
         let parsed = parser::parse_statement("DROP TABLE planner_drop").unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let plan = logical::plan(&bound).unwrap();
 
         // Assert
@@ -954,7 +951,7 @@ fn should_plan_insert_values_as_command() {
         let parsed =
             parser::parse_statement("INSERT INTO planner_insert_values (title) VALUES ('alpha')")
                 .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let plan = logical::plan(&bound).unwrap();
 
         // Assert
@@ -987,7 +984,7 @@ fn should_plan_insert_select_as_command() {
             "INSERT INTO planner_insert_select_target (title) SELECT title FROM planner_insert_select_source",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let plan = logical::plan(&bound).unwrap();
 
         // Assert
@@ -1019,7 +1016,7 @@ fn should_plan_update_as_command() {
             "UPDATE planner_update SET title = 'alpha' WHERE body = 'old' RETURNING title",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let plan = logical::plan(&bound).unwrap();
 
         // Assert
@@ -1052,7 +1049,7 @@ fn should_plan_delete_as_command() {
             "DELETE FROM planner_delete WHERE title = 'alpha' RETURNING title",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let plan = logical::plan(&bound).unwrap();
 
         // Assert
@@ -1082,7 +1079,7 @@ fn should_plan_alter_table_command() {
         // Act
         let parsed =
             parser::parse_statement("ALTER TABLE planner_alter ADD COLUMN score FLOAT").unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let plan = logical::plan(&bound).unwrap();
 
         // Assert
@@ -1113,7 +1110,7 @@ fn should_plan_create_index_as_command() {
             "CREATE UNIQUE INDEX planner_idx_title ON planner_create_index USING btree (title)",
         )
         .unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let plan = logical::plan(&bound).unwrap();
 
         // Assert
@@ -1149,13 +1146,12 @@ fn should_plan_drop_index_as_command() {
                 kind: cassie::catalog::IndexKind::Scalar,
                 unique: false,
                 options: std::collections::BTreeMap::new(),
-            })
-            .await;
+            });
 
         // Act
         let parsed =
             parser::parse_statement("DROP INDEX planner_idx_title ON planner_drop_index").unwrap();
-        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
         let plan = logical::plan(&bound).unwrap();
 
         // Assert

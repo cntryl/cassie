@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use tokio::sync::RwLock;
+use parking_lot::RwLock;
 
 use crate::catalog::{
     normalize_role_name, CollectionMeta, CollectionSchema, FieldConstraint, FieldMeta,
@@ -49,21 +49,21 @@ impl Catalog {
         self.version.load(Ordering::SeqCst)
     }
 
-    pub async fn register_collection(&self, name: &str, schema: Vec<(String, DataType)>) {
+    pub fn register_collection(&self, name: &str, schema: Vec<(String, DataType)>) {
         self.register_collection_with_constraints(name, schema, Vec::new())
-            .await;
+            ;
     }
 
-    pub async fn register_collection_with_constraints(
+    pub fn register_collection_with_constraints(
         &self,
         name: &str,
         schema: Vec<(String, DataType)>,
         constraints: Vec<FieldConstraint>,
     ) {
-        let mut collections = self.collections.write().await;
+        let mut collections = self.collections.write();
         collections.insert(name.to_string(), CollectionMeta::new(name, None));
 
-        let mut schemas = self.schemas.write().await;
+        let mut schemas = self.schemas.write();
         let fields = schema
             .into_iter()
             .map(|(name, data_type)| crate::catalog::FieldMeta {
@@ -87,45 +87,45 @@ impl Catalog {
             .collect::<Vec<_>>();
         self.constraints
             .write()
-            .await
+            
             .insert(name.to_string(), normalized);
         self.register_projection_metadata(ProjectionMeta::new(name, 1))
-            .await;
+            ;
         self.bump_version();
     }
 
-    pub async fn list_collections(&self) -> Vec<CollectionMeta> {
-        let collections = self.collections.read().await;
+    pub fn list_collections(&self) -> Vec<CollectionMeta> {
+        let collections = self.collections.read();
         let mut out = collections.values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|entry| entry.name.to_ascii_lowercase());
         out
     }
 
-    pub async fn register_projection_metadata(&self, metadata: ProjectionMeta) {
+    pub fn register_projection_metadata(&self, metadata: ProjectionMeta) {
         self.projections
             .write()
-            .await
+            
             .insert(metadata.collection.clone(), metadata);
         self.bump_version();
     }
 
-    pub async fn get_projection_metadata(&self, collection: &str) -> Option<ProjectionMeta> {
-        self.projections.read().await.get(collection).cloned()
+    pub fn get_projection_metadata(&self, collection: &str) -> Option<ProjectionMeta> {
+        self.projections.read().get(collection).cloned()
     }
 
-    pub async fn register_namespace(&self, name: &str, description: Option<String>) {
-        let mut namespaces = self.namespaces.write().await;
+    pub fn register_namespace(&self, name: &str, description: Option<String>) {
+        let mut namespaces = self.namespaces.write();
         namespaces.insert(name.to_string(), NamespaceMeta::new(name, description));
         self.bump_version();
     }
 
-    pub async fn unregister_namespace(&self, name: &str) {
-        self.namespaces.write().await.remove(name);
+    pub fn unregister_namespace(&self, name: &str) {
+        self.namespaces.write().remove(name);
         self.bump_version();
     }
 
-    pub async fn rename_namespace(&self, current_name: &str, next_name: &str) {
-        let mut namespaces = self.namespaces.write().await;
+    pub fn rename_namespace(&self, current_name: &str, next_name: &str) {
+        let mut namespaces = self.namespaces.write();
         let Some(namespace) = namespaces.remove(current_name) else {
             return;
         };
@@ -137,40 +137,40 @@ impl Catalog {
         self.bump_version();
     }
 
-    pub async fn list_namespaces(&self) -> Vec<NamespaceMeta> {
-        let namespaces = self.namespaces.read().await;
+    pub fn list_namespaces(&self) -> Vec<NamespaceMeta> {
+        let namespaces = self.namespaces.read();
         let mut out = namespaces.values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|entry| entry.name.to_ascii_lowercase());
         out
     }
 
-    pub async fn register_function(&self, metadata: FunctionMeta) {
-        let mut functions = self.functions.write().await;
+    pub fn register_function(&self, metadata: FunctionMeta) {
+        let mut functions = self.functions.write();
         functions.insert(metadata.name.to_ascii_lowercase(), metadata);
         self.bump_version();
     }
 
-    pub async fn unregister_function(&self, name: &str) {
+    pub fn unregister_function(&self, name: &str) {
         self.functions
             .write()
-            .await
+            
             .remove(&name.to_ascii_lowercase());
         self.bump_version();
     }
 
-    pub async fn get_function(&self, name: &str) -> Option<FunctionMeta> {
+    pub fn get_function(&self, name: &str) -> Option<FunctionMeta> {
         self.functions
             .read()
-            .await
+            
             .get(&name.to_ascii_lowercase())
             .cloned()
     }
 
-    pub async fn list_functions(&self) -> Vec<FunctionMeta> {
+    pub fn list_functions(&self) -> Vec<FunctionMeta> {
         let mut out = self
             .functions
             .read()
-            .await
+            
             .values()
             .cloned()
             .collect::<Vec<_>>();
@@ -178,26 +178,26 @@ impl Catalog {
         out
     }
 
-    pub async fn register_view(&self, metadata: ViewMeta) {
-        let mut views = self.views.write().await;
+    pub fn register_view(&self, metadata: ViewMeta) {
+        let mut views = self.views.write();
         views.insert(metadata.name.clone(), metadata);
         self.bump_version();
     }
 
-    pub async fn unregister_view(&self, name: &str) {
-        self.views.write().await.remove(name);
+    pub fn unregister_view(&self, name: &str) {
+        self.views.write().remove(name);
         self.bump_version();
     }
 
-    pub async fn get_view(&self, name: &str) -> Option<ViewMeta> {
-        self.views.read().await.get(name).cloned()
+    pub fn get_view(&self, name: &str) -> Option<ViewMeta> {
+        self.views.read().get(name).cloned()
     }
 
-    pub async fn list_views(&self) -> Vec<ViewMeta> {
+    pub fn list_views(&self) -> Vec<ViewMeta> {
         let mut out = self
             .views
             .read()
-            .await
+            
             .values()
             .cloned()
             .collect::<Vec<_>>();
@@ -205,33 +205,33 @@ impl Catalog {
         out
     }
 
-    pub async fn register_procedure(&self, metadata: ProcedureMeta) {
-        let mut procedures = self.procedures.write().await;
+    pub fn register_procedure(&self, metadata: ProcedureMeta) {
+        let mut procedures = self.procedures.write();
         procedures.insert(metadata.name.to_ascii_lowercase(), metadata);
         self.bump_version();
     }
 
-    pub async fn unregister_procedure(&self, name: &str) {
+    pub fn unregister_procedure(&self, name: &str) {
         self.procedures
             .write()
-            .await
+            
             .remove(&name.to_ascii_lowercase());
         self.bump_version();
     }
 
-    pub async fn get_procedure(&self, name: &str) -> Option<ProcedureMeta> {
+    pub fn get_procedure(&self, name: &str) -> Option<ProcedureMeta> {
         self.procedures
             .read()
-            .await
+            
             .get(&name.to_ascii_lowercase())
             .cloned()
     }
 
-    pub async fn list_procedures(&self) -> Vec<ProcedureMeta> {
+    pub fn list_procedures(&self) -> Vec<ProcedureMeta> {
         let mut out = self
             .procedures
             .read()
-            .await
+            
             .values()
             .cloned()
             .collect::<Vec<_>>();
@@ -239,30 +239,30 @@ impl Catalog {
         out
     }
 
-    pub async fn register_role(&self, metadata: RoleMeta) {
-        let mut roles = self.roles.write().await;
+    pub fn register_role(&self, metadata: RoleMeta) {
+        let mut roles = self.roles.write();
         roles.insert(normalize_role_name(&metadata.name), metadata);
         self.bump_version();
     }
 
-    pub async fn unregister_role(&self, name: &str) {
-        self.roles.write().await.remove(&normalize_role_name(name));
+    pub fn unregister_role(&self, name: &str) {
+        self.roles.write().remove(&normalize_role_name(name));
         self.bump_version();
     }
 
-    pub async fn get_role(&self, name: &str) -> Option<RoleMeta> {
+    pub fn get_role(&self, name: &str) -> Option<RoleMeta> {
         self.roles
             .read()
-            .await
+            
             .get(&normalize_role_name(name))
             .cloned()
     }
 
-    pub async fn list_roles(&self) -> Vec<RoleMeta> {
+    pub fn list_roles(&self) -> Vec<RoleMeta> {
         let mut out = self
             .roles
             .read()
-            .await
+            
             .values()
             .cloned()
             .collect::<Vec<_>>();
@@ -270,54 +270,54 @@ impl Catalog {
         out
     }
 
-    pub async fn namespace_exists(&self, namespace: &str) -> bool {
-        self.namespaces.read().await.contains_key(namespace)
+    pub fn namespace_exists(&self, namespace: &str) -> bool {
+        self.namespaces.read().contains_key(namespace)
     }
 
-    pub async fn clear(&self) {
-        self.collections.write().await.clear();
-        self.namespaces.write().await.clear();
-        self.schemas.write().await.clear();
-        self.projections.write().await.clear();
-        self.constraints.write().await.clear();
-        self.functions.write().await.clear();
-        self.procedures.write().await.clear();
-        self.views.write().await.clear();
-        self.roles.write().await.clear();
-        self.indexes.write().await.clear();
-        self.vector_indexes.write().await.clear();
+    pub fn clear(&self) {
+        self.collections.write().clear();
+        self.namespaces.write().clear();
+        self.schemas.write().clear();
+        self.projections.write().clear();
+        self.constraints.write().clear();
+        self.functions.write().clear();
+        self.procedures.write().clear();
+        self.views.write().clear();
+        self.roles.write().clear();
+        self.indexes.write().clear();
+        self.vector_indexes.write().clear();
         self.bump_version();
     }
 
-    pub async fn unregister_collection(&self, collection: &str) {
-        self.collections.write().await.remove(collection);
-        self.schemas.write().await.remove(collection);
-        self.projections.write().await.remove(collection);
-        self.constraints.write().await.remove(collection);
+    pub fn unregister_collection(&self, collection: &str) {
+        self.collections.write().remove(collection);
+        self.schemas.write().remove(collection);
+        self.projections.write().remove(collection);
+        self.constraints.write().remove(collection);
         self.indexes
             .write()
-            .await
+            
             .retain(|_, index| index.collection != collection);
         self.vector_indexes
             .write()
-            .await
+            
             .retain(|_, record| record.collection != collection);
         self.bump_version();
     }
 
-    pub async fn get_constraints(&self, collection: &str) -> Vec<FieldConstraint> {
+    pub fn get_constraints(&self, collection: &str) -> Vec<FieldConstraint> {
         self.constraints
             .read()
-            .await
+            
             .get(collection)
             .cloned()
             .unwrap_or_default()
     }
 
-    pub async fn get_constraint(&self, collection: &str, field: &str) -> Option<FieldConstraint> {
+    pub fn get_constraint(&self, collection: &str, field: &str) -> Option<FieldConstraint> {
         self.constraints
             .read()
-            .await
+            
             .get(collection)
             .and_then(|constraints| {
                 constraints
@@ -327,33 +327,33 @@ impl Catalog {
             })
     }
 
-    pub async fn register_constraints(&self, collection: &str, constraints: Vec<FieldConstraint>) {
+    pub fn register_constraints(&self, collection: &str, constraints: Vec<FieldConstraint>) {
         let normalized = constraints
             .into_iter()
             .filter(Self::is_constraint_populated)
             .collect::<Vec<_>>();
         self.constraints
             .write()
-            .await
+            
             .insert(collection.to_string(), normalized);
         self.bump_version();
     }
 
-    pub async fn replace_collection_constraint_set(
+    pub fn replace_collection_constraint_set(
         &self,
         collection: &str,
         constraints: Vec<FieldConstraint>,
     ) {
-        self.register_constraints(collection, constraints).await;
+        self.register_constraints(collection, constraints);
     }
 
-    pub async fn replace_constraints_for_field(
+    pub fn replace_constraints_for_field(
         &self,
         collection: &str,
         field: &str,
         constraint: Option<FieldConstraint>,
     ) {
-        let mut constraints = self.constraints.write().await;
+        let mut constraints = self.constraints.write();
         let Some(entries) = constraints.get_mut(collection) else {
             return;
         };
@@ -372,8 +372,8 @@ impl Catalog {
         self.bump_version();
     }
 
-    pub async fn register_index(&self, metadata: IndexMeta) {
-        let mut indexes = self.indexes.write().await;
+    pub fn register_index(&self, metadata: IndexMeta) {
+        let mut indexes = self.indexes.write();
         indexes.insert(
             Self::index_key(&metadata.collection, &metadata.name),
             metadata,
@@ -381,21 +381,21 @@ impl Catalog {
         self.bump_version();
     }
 
-    pub async fn unregister_index(&self, collection: &str, name: &str) {
+    pub fn unregister_index(&self, collection: &str, name: &str) {
         self.indexes
             .write()
-            .await
+            
             .remove(&Self::index_key(collection, name));
         self.bump_version();
     }
 
-    pub async fn get_index(&self, collection: &str, name: &str) -> Option<IndexMeta> {
-        let indexes = self.indexes.read().await;
+    pub fn get_index(&self, collection: &str, name: &str) -> Option<IndexMeta> {
+        let indexes = self.indexes.read();
         indexes.get(&Self::index_key(collection, name)).cloned()
     }
 
-    pub async fn list_indexes(&self, collection: &str) -> Vec<IndexMeta> {
-        let indexes = self.indexes.read().await;
+    pub fn list_indexes(&self, collection: &str) -> Vec<IndexMeta> {
+        let indexes = self.indexes.read();
         let mut out = indexes
             .values()
             .filter(|index| index.collection == collection)
@@ -405,8 +405,8 @@ impl Catalog {
         out
     }
 
-    pub async fn get_schema(&self, collection: &str) -> Option<CollectionSchema> {
-        let schemas = self.schemas.read().await;
+    pub fn get_schema(&self, collection: &str) -> Option<CollectionSchema> {
+        let schemas = self.schemas.read();
         if let Some(schema) = schemas.get(collection).cloned() {
             return Some(schema);
         }
@@ -414,13 +414,13 @@ impl Catalog {
 
         self.views
             .read()
-            .await
+            
             .get(collection)
             .map(|view| view_schema_to_collection_schema(&view.name, &view.schema))
     }
 
-    pub async fn add_collection_field(&self, collection: &str, name: String, data_type: DataType) {
-        let mut schemas = self.schemas.write().await;
+    pub fn add_collection_field(&self, collection: &str, name: String, data_type: DataType) {
+        let mut schemas = self.schemas.write();
         let Some(schema) = schemas.get_mut(collection) else {
             return;
         };
@@ -438,8 +438,8 @@ impl Catalog {
         self.bump_version();
     }
 
-    pub async fn remove_collection_field(&self, collection: &str, name: &str) {
-        let mut schemas = self.schemas.write().await;
+    pub fn remove_collection_field(&self, collection: &str, name: &str) {
+        let mut schemas = self.schemas.write();
         let Some(schema) = schemas.get_mut(collection) else {
             return;
         };
@@ -448,12 +448,12 @@ impl Catalog {
         self.bump_version();
     }
 
-    pub async fn rename_collection(&self, current_name: &str, next_name: &str) {
-        let mut collections = self.collections.write().await;
+    pub fn rename_collection(&self, current_name: &str, next_name: &str) {
+        let mut collections = self.collections.write();
         collections.remove(current_name);
         collections.insert(next_name.to_string(), CollectionMeta::new(next_name, None));
 
-        let mut schemas = self.schemas.write().await;
+        let mut schemas = self.schemas.write();
         if let Some(schema) = schemas.remove(current_name) {
             schemas.insert(
                 next_name.to_string(),
@@ -463,24 +463,24 @@ impl Catalog {
                 },
             );
         }
-        let mut projections = self.projections.write().await;
+        let mut projections = self.projections.write();
         if let Some(mut projection) = projections.remove(current_name) {
             projection.collection = next_name.to_string();
             projections.insert(next_name.to_string(), projection);
         }
 
         let normalized_constraints = {
-            let mut constraints = self.constraints.write().await;
+            let mut constraints = self.constraints.write();
             constraints.remove(current_name).unwrap_or_default()
         };
         if !normalized_constraints.is_empty() {
             self.constraints
                 .write()
-                .await
+                
                 .insert(next_name.to_string(), normalized_constraints);
         }
 
-        let mut indexes = self.indexes.write().await;
+        let mut indexes = self.indexes.write();
         let existing_indexes = indexes
             .iter()
             .filter(|(_, index)| index.collection == current_name)
@@ -493,7 +493,7 @@ impl Catalog {
             indexes.insert(Self::index_key(&index.collection, &index.name), index);
         }
 
-        let mut vector_indexes = self.vector_indexes.write().await;
+        let mut vector_indexes = self.vector_indexes.write();
         let keys: Vec<(String, String)> = vector_indexes
             .iter()
             .filter(|(_, record)| record.collection == current_name)
@@ -510,13 +510,13 @@ impl Catalog {
         self.bump_version();
     }
 
-    pub async fn rename_collection_field(
+    pub fn rename_collection_field(
         &self,
         collection: &str,
         current_name: &str,
         next_name: &str,
     ) {
-        let mut schemas = self.schemas.write().await;
+        let mut schemas = self.schemas.write();
         let Some(schema) = schemas.get_mut(collection) else {
             return;
         };
@@ -530,7 +530,7 @@ impl Catalog {
         };
         field.name = next_name.to_string();
 
-        let mut constraints = self.constraints.write().await;
+        let mut constraints = self.constraints.write();
         if let Some(entries) = constraints.get_mut(collection) {
             for constraint in entries {
                 if constraint.field.eq_ignore_ascii_case(current_name) {
@@ -544,7 +544,7 @@ impl Catalog {
             }
         }
 
-        let mut indexes = self.indexes.write().await;
+        let mut indexes = self.indexes.write();
         for index in indexes
             .values_mut()
             .filter(|index| index.collection == collection)
@@ -552,7 +552,7 @@ impl Catalog {
             let _ = index.rename_field(current_name, next_name);
         }
 
-        let mut vector_indexes = self.vector_indexes.write().await;
+        let mut vector_indexes = self.vector_indexes.write();
         let keys = vector_indexes
             .iter()
             .filter(|(_, record)| record.collection == collection)
@@ -587,28 +587,28 @@ impl Catalog {
         self.bump_version();
     }
 
-    pub async fn exists(&self, collection: &str) -> bool {
-        self.collections.read().await.contains_key(collection)
+    pub fn exists(&self, collection: &str) -> bool {
+        self.collections.read().contains_key(collection)
     }
 
-    pub async fn relation_exists(&self, name: &str) -> bool {
-        if self.collections.read().await.contains_key(name) {
+    pub fn relation_exists(&self, name: &str) -> bool {
+        if self.collections.read().contains_key(name) {
             return true;
         }
 
-        self.views.read().await.contains_key(name)
+        self.views.read().contains_key(name)
     }
 
-    pub async fn get_field_boost(&self, collection: &str, field: &str) -> Option<f32> {
-        let schemas = self.schemas.read().await;
+    pub fn get_field_boost(&self, collection: &str, field: &str) -> Option<f32> {
+        let schemas = self.schemas.read();
         schemas
             .get(collection)
             .and_then(|schema| schema.field(field))
             .and_then(|field| field.boost)
     }
 
-    pub async fn set_field_boost(&self, collection: &str, field: &str, boost: f32) -> bool {
-        let mut schemas = self.schemas.write().await;
+    pub fn set_field_boost(&self, collection: &str, field: &str, boost: f32) -> bool {
+        let mut schemas = self.schemas.write();
         let Some(schema) = schemas.get_mut(collection) else {
             return false;
         };
@@ -622,8 +622,8 @@ impl Catalog {
         true
     }
 
-    pub async fn text_fields(&self, collection: &str) -> Vec<String> {
-        let schemas = self.schemas.read().await;
+    pub fn text_fields(&self, collection: &str) -> Vec<String> {
+        let schemas = self.schemas.read();
         schemas
             .get(collection)
             .map(|schema| {
@@ -637,34 +637,34 @@ impl Catalog {
             .unwrap_or_default()
     }
 
-    pub async fn register_vector_index(&self, record: VectorIndexRecord) {
-        let mut indexes = self.vector_indexes.write().await;
+    pub fn register_vector_index(&self, record: VectorIndexRecord) {
+        let mut indexes = self.vector_indexes.write();
         let key = Self::vector_index_key(&record.collection, &record.field);
         indexes.insert(key, record);
         self.bump_version();
     }
 
-    pub async fn unregister_vector_index(&self, collection: &str, field: &str) {
+    pub fn unregister_vector_index(&self, collection: &str, field: &str) {
         self.vector_indexes
             .write()
-            .await
+            
             .remove(&Self::vector_index_key(collection, field));
         self.bump_version();
     }
 
-    pub async fn get_vector_index(
+    pub fn get_vector_index(
         &self,
         collection: &str,
         vector_field: &str,
     ) -> Option<VectorIndexRecord> {
-        let indexes = self.vector_indexes.read().await;
+        let indexes = self.vector_indexes.read();
         indexes
             .get(&Self::vector_index_key(collection, vector_field))
             .cloned()
     }
 
-    pub async fn list_vector_indexes(&self, collection: &str) -> Vec<VectorIndexRecord> {
-        let indexes = self.vector_indexes.read().await;
+    pub fn list_vector_indexes(&self, collection: &str) -> Vec<VectorIndexRecord> {
+        let indexes = self.vector_indexes.read();
         indexes
             .values()
             .filter(|record| record.collection == collection)
@@ -672,8 +672,8 @@ impl Catalog {
             .collect()
     }
 
-    pub async fn clear_vector_indexes(&self, collection: &str) {
-        let mut indexes = self.vector_indexes.write().await;
+    pub fn clear_vector_indexes(&self, collection: &str) {
+        let mut indexes = self.vector_indexes.write();
         indexes.retain(|_, value| value.collection != collection);
         self.bump_version();
     }

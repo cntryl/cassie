@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
-use tokio::task;
+
 
 use crate::embeddings::{Embedding, EmbeddingError, EmbeddingProvider};
 
@@ -276,11 +276,7 @@ impl OpenAiProvider {
     where
         F: FnOnce() -> reqwest::Result<T>,
     {
-        if tokio::runtime::Handle::try_current().is_ok() {
-            task::block_in_place(f)
-        } else {
-            f()
-        }
+        f()
     }
 }
 

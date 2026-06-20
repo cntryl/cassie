@@ -8,7 +8,7 @@ async fn main() -> Result<(), CassieError> {
 
     let config = CassieRuntimeConfig::from_env();
     let cassie = Arc::new(Cassie::new()?);
-    cassie.startup().await?;
+    cassie.startup()?;
 
     let shutdown = Arc::new(Notify::new());
     let mut pgwire = tokio::spawn(cassie::pgwire::server::run_with_shutdown(
@@ -52,7 +52,7 @@ async fn main() -> Result<(), CassieError> {
     }
     .await;
 
-    cassie.shutdown().await;
+    cassie.shutdown();
     result
 }
 

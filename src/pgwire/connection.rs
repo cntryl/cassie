@@ -213,7 +213,6 @@ pub async fn run_connection(
                         runtime.record_pgwire_message("password");
                         match cassie
                             .authenticate_role(&user, Some(&password), database.clone())
-                            .await
                         {
                             Ok(session) => {
                                 state.authenticated = true;
@@ -372,7 +371,7 @@ pub async fn run_connection(
                         }
                     };
 
-                    match cassie.execute_sql(session, &sql, Vec::new()).await {
+                    match cassie.execute_sql(session, &sql, Vec::new()) {
                         Ok(result) => {
                             if write_simple_query_result(&mut write_half, result)
                                 .await
@@ -662,7 +661,6 @@ pub async fn run_connection(
                                     prepared.parsed.clone(),
                                     prepared.sql_fingerprint,
                                 )
-                                .await
                             {
                                 Ok(columns) => {
                                     if write_parameter_description(
@@ -751,8 +749,7 @@ pub async fn run_connection(
                                     prepared.sql_fingerprint,
                                     portal.params.clone(),
                                     ExecutionMode::ExtendedQuery,
-                                )
-                                .await;
+                                );
                             match query_result {
                                 Ok(mut result) => {
                                     if let Some(limit) = limit {
@@ -1127,9 +1124,9 @@ async fn write_ready_for_query(
     write_half: &mut (impl AsyncWrite + Unpin),
     session: &CassieSession,
 ) -> io::Result<()> {
-    let status = if session.is_transaction_failed().await {
+    let status = if session.is_transaction_failed() {
         b'E'
-    } else if session.is_transaction_active().await {
+    } else if session.is_transaction_active() {
         b'T'
     } else {
         b'I'

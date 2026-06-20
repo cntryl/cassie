@@ -16,7 +16,7 @@ pub struct SearchRequest {
     pub offset: Option<usize>,
 }
 
-pub async fn vector_search(
+pub fn vector_search(
     cassie: &Cassie,
     collection: &str,
     body: &[u8],
@@ -50,8 +50,7 @@ pub async fn vector_search(
             metric,
             limit,
             offset,
-        )
-        .await?;
+        )?;
 
     Ok(serde_json::to_value(result)
         .unwrap_or_else(|_| serde_json::json!({"error":"invalid result"})))

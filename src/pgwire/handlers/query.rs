@@ -5,13 +5,13 @@ use crate::executor::ColumnMeta;
 use crate::pgwire::protocol::{RowDescriptionField, ServerMessage};
 use crate::types::Value;
 
-pub async fn run_simple_query(
+pub fn run_simple_query(
     cassie: &Arc<Cassie>,
     session: &CassieSession,
     sql: &str,
     params: Vec<Value>,
 ) -> Vec<ServerMessage> {
-    match cassie.execute_sql(session, sql, params).await {
+    match cassie.execute_sql(session, sql, params) {
         Ok(result) => {
             let mut out = Vec::new();
             out.push(ServerMessage::RowDescription(
@@ -33,11 +33,11 @@ pub async fn run_simple_query(
     }
 }
 
-pub async fn describe_query(
+pub fn describe_query(
     cassie: &Cassie,
     sql: &str,
 ) -> Result<Vec<ColumnMeta>, crate::app::CassieError> {
-    cassie.describe_sql(sql).await
+    cassie.describe_sql(sql)
 }
 
 pub fn parse_bind_param(raw: &str) -> Value {

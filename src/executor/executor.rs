@@ -1,7 +1,5 @@
 use std::cmp::Ordering as CmpOrdering;
 use std::collections::{BTreeMap, BinaryHeap, HashMap, HashSet};
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -133,10 +131,9 @@ pub enum QueryError {
 
 type CteRows = Vec<Vec<(String, Value)>>;
 type CteContext = HashMap<String, CteRows>;
-type CteExecution<'a> = Pin<Box<dyn Future<Output = Result<CteRows, QueryError>> + Send + 'a>>;
-type ExprResolution<'a> = Pin<Box<dyn Future<Output = Result<Expr, QueryError>> + Send + 'a>>;
-type SourceExecution<'a> =
-    Pin<Box<dyn Future<Output = Result<(Vec<Batch>, Vec<String>), QueryError>> + Send + 'a>>;
+type CteExecution<'a> = Result<CteRows, QueryError>;
+type ExprResolution<'a> = Result<Expr, QueryError>;
+type SourceExecution<'a> = Result<(Vec<Batch>, Vec<String>), QueryError>;
 
 struct SourceExecutionEnv<'a> {
     cassie: &'a Cassie,
@@ -146,35 +143,35 @@ struct SourceExecutionEnv<'a> {
     controls: &'a QueryExecutionControls,
 }
 
-pub async fn run(
+pub fn run(
     cassie: &Cassie,
     plan: PhysicalPlan,
     params: Vec<Value>,
 ) -> Result<QueryResult, QueryError> {
     let controls = cassie.runtime.query_controls(std::time::Instant::now());
-    run_with_controls(cassie, Arc::new(plan), params, &controls).await
+    run_with_controls(cassie, Arc::new(plan), params, &controls)
 }
 
-pub async fn run_with_controls(
+pub fn run_with_controls(
     cassie: &Cassie,
     plan: Arc<PhysicalPlan>,
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    run_with_session_controls(cassie, None, plan, params, controls).await
+    run_with_session_controls(cassie, None, plan, params, controls)
 }
 
 #[doc(hidden)]
-pub async fn run_with_execution_breakdown(
+pub fn run_with_execution_breakdown(
     cassie: &Cassie,
     plan: PhysicalPlan,
     params: Vec<Value>,
 ) -> Result<ExecutionBreakdownOutput, QueryError> {
     let controls = cassie.runtime.query_controls(std::time::Instant::now());
-    run_with_execution_breakdown_controls(cassie, Arc::new(plan), params, &controls).await
+    run_with_execution_breakdown_controls(cassie, Arc::new(plan), params, &controls)
 }
 
-async fn run_with_execution_breakdown_controls(
+fn run_with_execution_breakdown_controls(
     cassie: &Cassie,
     plan: Arc<PhysicalPlan>,
     params: Vec<Value>,
@@ -185,7 +182,7 @@ async fn run_with_execution_breakdown_controls(
             cassie
                 .catalog
                 .list_functions()
-                .await
+                
                 .into_iter()
                 .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
                 .collect::<HashMap<String, FunctionMeta>>()
@@ -196,7 +193,7 @@ async fn run_with_execution_breakdown_controls(
     if let Some(command) = plan.logical.command.as_ref() {
         let started = Instant::now();
         let result =
-            execute_command(cassie, None, command, &params, &user_functions, controls).await?;
+            execute_command(cassie, None, command, &params, &user_functions, controls)?;
         let breakdown = ExecutionBreakdownDurations {
             result_build: started.elapsed(),
             ..Default::default()
@@ -217,10 +214,10 @@ async fn run_with_execution_breakdown_controls(
         &params,
         controls,
     )
-    .await?;
+    ?;
 
     let result_started = Instant::now();
-    let collection_schema = cassie.catalog.get_schema(&plan.logical.collection).await;
+    let collection_schema = cassie.catalog.get_schema(&plan.logical.collection);
     let columns = aggregate::columns_from_projection(
         &plan.logical.projection,
         collection_schema.as_ref(),
@@ -247,7 +244,7 @@ async fn run_with_execution_breakdown_controls(
     })
 }
 
-pub(crate) async fn run_with_session_controls(
+pub(crate) fn run_with_session_controls(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     plan: Arc<PhysicalPlan>,
@@ -259,7 +256,7 @@ pub(crate) async fn run_with_session_controls(
             cassie
                 .catalog
                 .list_functions()
-                .await
+                
                 .into_iter()
                 .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
                 .collect::<HashMap<String, FunctionMeta>>()
@@ -268,7 +265,7 @@ pub(crate) async fn run_with_session_controls(
         };
 
     if let Some(command) = plan.logical.command.as_ref() {
-        return execute_command(cassie, session, command, &params, &user_functions, controls).await;
+        return execute_command(cassie, session, command, &params, &user_functions, controls);
     }
 
     let mut cte_context: CteContext = HashMap::new();
@@ -281,9 +278,9 @@ pub(crate) async fn run_with_session_controls(
         &params,
         controls,
     )
-    .await?;
+    ?;
 
-    let collection_schema = cassie.catalog.get_schema(&plan.logical.collection).await;
+    let collection_schema = cassie.catalog.get_schema(&plan.logical.collection);
     let columns = aggregate::columns_from_projection(
         &plan.logical.projection,
         collection_schema.as_ref(),
@@ -306,7 +303,7 @@ pub(crate) async fn run_with_session_controls(
     })
 }
 
-async fn execute_command(
+fn execute_command(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     command: &LogicalCommand,
@@ -369,17 +366,17 @@ async fn execute_command(
             }
         }
         LogicalCommand::Insert(statement) => {
-            execute_insert(cassie, session, statement, params, user_functions, controls).await
+            execute_insert(cassie, session, statement, params, user_functions, controls)
         }
         LogicalCommand::Update(statement) => {
-            execute_update(cassie, session, statement, params, user_functions, controls).await
+            execute_update(cassie, session, statement, params, user_functions, controls)
         }
         LogicalCommand::Delete(statement) => {
-            execute_delete(cassie, session, statement, params, user_functions, controls).await
+            execute_delete(cassie, session, statement, params, user_functions, controls)
         }
         LogicalCommand::CreateTable(statement) => {
             if statement.if_not_exists
-                && (cassie.catalog.relation_exists(&statement.table).await
+                && (cassie.catalog.relation_exists(&statement.table)
                     || virtual_views::schema(&statement.table).is_some())
             {
                 return Ok(QueryResult {
@@ -434,9 +431,9 @@ async fn execute_command(
                         .collect(),
                     constraints,
                 )
-                .await;
+                ;
             for index in primary_key_indexes {
-                cassie.catalog.register_index(index).await;
+                cassie.catalog.register_index(index);
             }
             invalidate_plan_cache = true;
 
@@ -448,7 +445,7 @@ async fn execute_command(
         }
         LogicalCommand::CreateView(statement) => {
             if statement.if_not_exists
-                && (cassie.catalog.relation_exists(&statement.name).await
+                && (cassie.catalog.relation_exists(&statement.name)
                     || virtual_views::schema(&statement.name).is_some())
             {
                 return Ok(QueryResult {
@@ -461,7 +458,7 @@ async fn execute_command(
             let parsed = crate::sql::parser::parse_statement(&statement.query)
                 .map_err(|error| QueryError::General(error.0))?;
             let bound = crate::sql::binder::bind(parsed, &cassie.catalog)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             let QueryStatement::Select(select) = &bound.statement.statement else {
                 return Err(QueryError::General(
@@ -470,7 +467,7 @@ async fn execute_command(
             };
 
             let schema = crate::sql::binder::infer_select_schema(select, &cassie.catalog)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             let metadata = crate::catalog::ViewMeta::new(
                 statement.name.clone(),
@@ -482,7 +479,7 @@ async fn execute_command(
                 .midge
                 .put_view(metadata.clone())
                 .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.register_view(metadata).await;
+            cassie.catalog.register_view(metadata);
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -492,7 +489,7 @@ async fn execute_command(
             })
         }
         LogicalCommand::DropView(statement) => {
-            let view = cassie.catalog.get_view(&statement.name).await;
+            let view = cassie.catalog.get_view(&statement.name);
             if statement.if_exists && view.is_none() {
                 return Ok(QueryResult {
                     columns: Vec::new(),
@@ -512,7 +509,7 @@ async fn execute_command(
                 .midge
                 .delete_view(&statement.name)
                 .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.unregister_view(&statement.name).await;
+            cassie.catalog.unregister_view(&statement.name);
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -522,7 +519,7 @@ async fn execute_command(
             })
         }
         LogicalCommand::DropTable(statement) => {
-            if statement.if_exists && !cassie.catalog.exists(&statement.table).await {
+            if statement.if_exists && !cassie.catalog.exists(&statement.table) {
                 return Ok(QueryResult {
                     columns: Vec::new(),
                     rows: Vec::new(),
@@ -534,7 +531,7 @@ async fn execute_command(
                 .midge
                 .drop_collection(&statement.table)
                 .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.unregister_collection(&statement.table).await;
+            cassie.catalog.unregister_collection(&statement.table);
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -558,7 +555,7 @@ async fn execute_command(
                     cassie
                         .catalog
                         .add_collection_field(&statement.table, field.name, field.data_type.clone())
-                        .await;
+                        ;
                     invalidate_plan_cache = true;
                 }
                 crate::sql::ast::AlterTableOperation::DropColumn { field } => {
@@ -569,7 +566,7 @@ async fn execute_command(
                     cassie
                         .catalog
                         .remove_collection_field(&statement.table, field)
-                        .await;
+                        ;
                     invalidate_plan_cache = true;
                 }
                 crate::sql::ast::AlterTableOperation::RenameColumn { from, to } => {
@@ -580,11 +577,11 @@ async fn execute_command(
                     cassie
                         .catalog
                         .rename_collection_field(&statement.table, from, to)
-                        .await;
+                        ;
                     invalidate_plan_cache = true;
                 }
                 crate::sql::ast::AlterTableOperation::RenameTo { table } => {
-                    if cassie.catalog.exists(table).await {
+                    if cassie.catalog.exists(table) {
                         return Err(QueryError::General(format!(
                             "collection '{table}' already exists"
                         )));
@@ -597,7 +594,7 @@ async fn execute_command(
                     cassie
                         .catalog
                         .rename_collection(&statement.table, table)
-                        .await;
+                        ;
                     invalidate_plan_cache = true;
                 }
             }
@@ -609,7 +606,7 @@ async fn execute_command(
             })
         }
         LogicalCommand::CreateSchema(statement) => {
-            if statement.if_not_exists && cassie.catalog.namespace_exists(&statement.schema).await {
+            if statement.if_not_exists && cassie.catalog.namespace_exists(&statement.schema) {
                 return Ok(QueryResult {
                     columns: Vec::new(),
                     rows: Vec::new(),
@@ -624,7 +621,7 @@ async fn execute_command(
             cassie
                 .catalog
                 .register_namespace(&statement.schema, None)
-                .await;
+                ;
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -634,7 +631,7 @@ async fn execute_command(
             })
         }
         LogicalCommand::DropSchema(statement) => {
-            if statement.if_exists && !cassie.catalog.namespace_exists(&statement.schema).await {
+            if statement.if_exists && !cassie.catalog.namespace_exists(&statement.schema) {
                 return Ok(QueryResult {
                     columns: Vec::new(),
                     rows: Vec::new(),
@@ -646,7 +643,7 @@ async fn execute_command(
                 .midge
                 .drop_namespace(&statement.schema)
                 .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.unregister_namespace(&statement.schema).await;
+            cassie.catalog.unregister_namespace(&statement.schema);
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -661,7 +658,7 @@ async fn execute_command(
             };
             let target_schema = statement.schema.clone();
 
-            if cassie.catalog.namespace_exists(&next_schema).await {
+            if cassie.catalog.namespace_exists(&next_schema) {
                 return Err(QueryError::General(format!(
                     "namespace '{next_schema}' already exists"
                 )));
@@ -674,7 +671,7 @@ async fn execute_command(
             cassie
                 .catalog
                 .rename_namespace(&target_schema, &next_schema)
-                .await;
+                ;
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -691,7 +688,7 @@ async fn execute_command(
                     statement.password.clone(),
                     statement.if_not_exists,
                 )
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             invalidate_plan_cache = true;
 
@@ -704,7 +701,7 @@ async fn execute_command(
         LogicalCommand::AlterRole(statement) => {
             cassie
                 .alter_role(&statement.name, statement.login, statement.password.clone())
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             invalidate_plan_cache = true;
 
@@ -717,7 +714,7 @@ async fn execute_command(
         LogicalCommand::DropRole(statement) => {
             cassie
                 .drop_role(&statement.name, statement.if_exists)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             invalidate_plan_cache = true;
 
@@ -729,13 +726,13 @@ async fn execute_command(
         }
         LogicalCommand::CreateIndex(statement) => {
             if matches!(statement.kind, catalog::IndexKind::Vector) {
-                let vector_index = vector_index_metadata(cassie, statement).await?;
+                let vector_index = vector_index_metadata(cassie, statement)?;
 
                 cassie
                     .midge
                     .put_vector_index(vector_index.clone())
                     .map_err(|error| QueryError::General(error.to_string()))?;
-                cassie.catalog.register_vector_index(vector_index).await;
+                cassie.catalog.register_vector_index(vector_index);
             }
 
             let metadata = catalog::IndexMeta {
@@ -752,7 +749,7 @@ async fn execute_command(
                 .midge
                 .put_index(metadata.clone())
                 .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.register_index(metadata).await;
+            cassie.catalog.register_index(metadata);
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -765,7 +762,7 @@ async fn execute_command(
             let index = cassie
                 .catalog
                 .get_index(&statement.table, &statement.name)
-                .await;
+                ;
 
             if statement.if_exists && index.is_none() {
                 return Ok(QueryResult {
@@ -784,7 +781,7 @@ async fn execute_command(
                     cassie
                         .catalog
                         .unregister_vector_index(&statement.table, &index.field)
-                        .await;
+                        ;
                 }
             }
 
@@ -795,7 +792,7 @@ async fn execute_command(
             cassie
                 .catalog
                 .unregister_index(&statement.table, &statement.name)
-                .await;
+                ;
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -806,7 +803,7 @@ async fn execute_command(
         }
         LogicalCommand::CreateFunction(statement) => {
             if statement.if_not_exists
-                && cassie.catalog.get_function(&statement.name).await.is_some()
+                && cassie.catalog.get_function(&statement.name).is_some()
             {
                 return Ok(QueryResult {
                     columns: Vec::new(),
@@ -834,7 +831,7 @@ async fn execute_command(
                 .midge
                 .put_function(metadata.clone())
                 .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.register_function(metadata).await;
+            cassie.catalog.register_function(metadata);
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -844,7 +841,7 @@ async fn execute_command(
             })
         }
         LogicalCommand::DropFunction(statement) => {
-            if statement.if_exists && cassie.catalog.get_function(&statement.name).await.is_none() {
+            if statement.if_exists && cassie.catalog.get_function(&statement.name).is_none() {
                 return Ok(QueryResult {
                     columns: Vec::new(),
                     rows: Vec::new(),
@@ -856,7 +853,7 @@ async fn execute_command(
                 .midge
                 .delete_function(&statement.name)
                 .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.unregister_function(&statement.name).await;
+            cassie.catalog.unregister_function(&statement.name);
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -870,7 +867,7 @@ async fn execute_command(
                 && cassie
                     .catalog
                     .get_procedure(&statement.name)
-                    .await
+                    
                     .is_some()
             {
                 return Ok(QueryResult {
@@ -897,7 +894,7 @@ async fn execute_command(
                 .midge
                 .put_procedure(metadata.clone())
                 .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.register_procedure(metadata).await;
+            cassie.catalog.register_procedure(metadata);
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -911,7 +908,7 @@ async fn execute_command(
                 && cassie
                     .catalog
                     .get_procedure(&statement.name)
-                    .await
+                    
                     .is_none()
             {
                 return Ok(QueryResult {
@@ -925,7 +922,7 @@ async fn execute_command(
                 .midge
                 .delete_procedure(&statement.name)
                 .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.unregister_procedure(&statement.name).await;
+            cassie.catalog.unregister_procedure(&statement.name);
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -935,7 +932,7 @@ async fn execute_command(
             })
         }
         LogicalCommand::CallProcedure(statement) => {
-            let Some(metadata) = cassie.catalog.get_procedure(&statement.name).await else {
+            let Some(metadata) = cassie.catalog.get_procedure(&statement.name) else {
                 return Err(QueryError::General(format!(
                     "procedure '{}' does not exist",
                     statement.name
@@ -964,7 +961,7 @@ async fn execute_command(
 
             call_session
                 .enter_procedure_call(&statement.name)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             let body_result = cassie
                 .execute_sql_with_controls(
@@ -974,8 +971,8 @@ async fn execute_command(
                     crate::runtime::ExecutionMode::SimpleQuery,
                     controls,
                 )
-                .await;
-            call_session.leave_procedure_call().await;
+                ;
+            call_session.leave_procedure_call();
             body_result.map_err(|error| QueryError::General(error.to_string()))?;
 
             Ok(QueryResult {
@@ -995,7 +992,7 @@ async fn execute_command(
     result
 }
 
-async fn execute_insert(
+fn execute_insert(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     statement: &crate::sql::ast::InsertStatement,
@@ -1006,13 +1003,13 @@ async fn execute_insert(
     let schema = cassie
         .catalog
         .get_schema(&statement.table)
-        .await
+        
         .ok_or_else(|| {
             QueryError::General(format!("collection '{}' not found", statement.table))
         })?;
 
     let source_rows =
-        insert_source_rows(cassie, session, statement, params, user_functions, controls).await?;
+        insert_source_rows(cassie, session, statement, params, user_functions, controls)?;
     let source_width = source_rows
         .first()
         .map(Vec::len)
@@ -1041,13 +1038,13 @@ async fn execute_insert(
                 true,
                 None,
             )
-            .await
+            
             .map_err(|error| QueryError::General(error.to_string()))?;
 
         if !statement.returning.is_empty() {
             let document = cassie
                 .get_document_for_session(session, &statement.table, &row_id)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?
                 .ok_or_else(|| {
                     QueryError::General(format!(
@@ -1081,7 +1078,7 @@ async fn execute_insert(
         session,
     )?;
 
-    let column_schema = cassie.catalog.get_schema(&statement.table).await;
+    let column_schema = cassie.catalog.get_schema(&statement.table);
     let columns =
         dml_returning_columns(&statement.returning, column_schema.as_ref(), user_functions);
 
@@ -1092,7 +1089,7 @@ async fn execute_insert(
     })
 }
 
-async fn insert_source_rows(
+fn insert_source_rows(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     statement: &crate::sql::ast::InsertStatement,
@@ -1145,7 +1142,7 @@ async fn insert_source_rows(
                 params,
                 controls,
             )
-            .await?;
+            ?;
             Ok(rows
                 .into_iter()
                 .map(|row| {
@@ -1384,7 +1381,7 @@ fn json_to_value(value: &serde_json::Value) -> Value {
     Value::Json(value.clone())
 }
 
-async fn execute_update(
+fn execute_update(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     statement: &crate::sql::ast::UpdateStatement,
@@ -1396,12 +1393,12 @@ async fn execute_update(
     let schema = cassie
         .catalog
         .get_schema(&statement.table)
-        .await
+        
         .ok_or_else(|| {
             QueryError::General(format!("collection '{}' not found", statement.table))
         })?;
 
-    let batches = scan::scan(cassie, session, &statement.table).await?;
+    let batches = scan::scan(cassie, session, &statement.table)?;
     ensure_temp_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);
     let matched_rows = if let Some(filter_expr) = &statement.filter {
@@ -1415,7 +1412,7 @@ async fn execute_update(
         let row_id = row_id_from_batch_row(row)?;
         let current = cassie
             .get_document_for_session(session, &statement.table, &row_id)
-            .await
+            
             .map_err(|error| QueryError::General(error.to_string()))?
             .ok_or_else(|| {
                 QueryError::General(format!(
@@ -1452,7 +1449,7 @@ async fn execute_update(
                 true,
                 Some(&row_id),
             )
-            .await
+            
             .map_err(|error| QueryError::General(error.to_string()))?;
         prepared_rows.push((row_id, payload));
     }
@@ -1461,13 +1458,13 @@ async fn execute_update(
     for (row_id, payload) in prepared_rows {
         cassie
             .put_prepared_document_for_session(session, &statement.table, row_id.clone(), payload)
-            .await
+            
             .map_err(|error| QueryError::General(error.to_string()))?;
 
         if !statement.returning.is_empty() {
             let document = cassie
                 .get_document_for_session(session, &statement.table, &row_id)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?
                 .ok_or_else(|| {
                     QueryError::General(format!(
@@ -1505,7 +1502,7 @@ async fn execute_update(
         session,
     )?;
 
-    let column_schema = cassie.catalog.get_schema(&statement.table).await;
+    let column_schema = cassie.catalog.get_schema(&statement.table);
     let columns =
         dml_returning_columns(&statement.returning, column_schema.as_ref(), user_functions);
 
@@ -1525,7 +1522,7 @@ fn row_id_from_batch_row(row: &BatchRow) -> Result<String, QueryError> {
     }
 }
 
-async fn execute_delete(
+fn execute_delete(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     statement: &crate::sql::ast::DeleteStatement,
@@ -1537,12 +1534,12 @@ async fn execute_delete(
     let schema = cassie
         .catalog
         .get_schema(&statement.table)
-        .await
+        
         .ok_or_else(|| {
             QueryError::General(format!("collection '{}' not found", statement.table))
         })?;
 
-    let batches = scan::scan(cassie, session, &statement.table).await?;
+    let batches = scan::scan(cassie, session, &statement.table)?;
     ensure_temp_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);
     let matched_rows = if let Some(filter_expr) = &statement.filter {
@@ -1558,7 +1555,7 @@ async fn execute_delete(
         if !statement.returning.is_empty() {
             let current = cassie
                 .get_document_for_session(session, &statement.table, &row_id)
-                .await
+                
                 .map_err(|error| QueryError::General(error.to_string()))?
                 .ok_or_else(|| {
                     QueryError::General(format!(
@@ -1578,7 +1575,7 @@ async fn execute_delete(
     for row_id in &delete_ids {
         cassie
             .delete_document_for_session(session, &statement.table, row_id)
-            .await
+            
             .map_err(|error| QueryError::General(error.to_string()))?;
     }
 
@@ -1600,7 +1597,7 @@ async fn execute_delete(
         session,
     )?;
 
-    let column_schema = cassie.catalog.get_schema(&statement.table).await;
+    let column_schema = cassie.catalog.get_schema(&statement.table);
     let columns =
         dml_returning_columns(&statement.returning, column_schema.as_ref(), user_functions);
 
@@ -1611,7 +1608,7 @@ async fn execute_delete(
     })
 }
 
-async fn vector_index_metadata(
+fn vector_index_metadata(
     cassie: &Cassie,
     statement: &crate::sql::ast::CreateIndexStatement,
 ) -> Result<VectorIndexRecord, QueryError> {
@@ -1707,7 +1704,7 @@ async fn vector_index_metadata(
     })
 }
 
-async fn execute_plan(
+fn execute_plan(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     plan: &LogicalPlan,
@@ -1726,11 +1723,11 @@ async fn execute_plan(
         controls,
         None,
     )
-    .await
+    
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn execute_plan_with_outer_row(
+fn execute_plan_with_outer_row(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     plan: &LogicalPlan,
@@ -1757,26 +1754,26 @@ async fn execute_plan_with_outer_row(
             params,
             controls,
         )
-        .await?;
+        ?;
         cte_context.insert(cte.name.to_ascii_lowercase(), rows);
     }
 
     if outer_row.is_none() {
-        if let Some(rows) = execute_vector_distance_top_k(cassie, plan).await? {
+        if let Some(rows) = execute_vector_distance_top_k(cassie, plan)? {
             return Ok(rows);
         }
 
-        if let Some(rows) = execute_scored_search_top_k(cassie, session, plan).await? {
+        if let Some(rows) = execute_scored_search_top_k(cassie, session, plan)? {
             return Ok(rows);
         }
 
-        if let Some(rows) = execute_ordered_column_top_k(cassie, plan).await? {
+        if let Some(rows) = execute_ordered_column_top_k(cassie, plan)? {
             return Ok(rows);
         }
 
         if let Some(rows) =
             execute_projected_filtered_read(cassie, session, plan, user_functions, params, controls)
-                .await?
+                ?
         {
             return Ok(rows);
         }
@@ -1792,10 +1789,10 @@ async fn execute_plan_with_outer_row(
         controls,
         outer_row,
     )
-    .await
+    
 }
 
-async fn execute_plan_with_execution_breakdown(
+fn execute_plan_with_execution_breakdown(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     plan: &LogicalPlan,
@@ -1812,7 +1809,7 @@ async fn execute_plan_with_execution_breakdown(
         params,
         controls,
     )
-    .await?
+    ?
     {
         return Ok(output);
     }
@@ -1827,7 +1824,7 @@ async fn execute_plan_with_execution_breakdown(
         params,
         controls,
     )
-    .await?;
+    ?;
     let breakdown = ExecutionBreakdownDurations {
         scan: started.elapsed(),
         ..ExecutionBreakdownDurations::default()
@@ -1844,7 +1841,6 @@ fn execute_cte<'a>(
     params: &'a [Value],
     controls: &'a QueryExecutionControls,
 ) -> CteExecution<'a> {
-    Box::pin(async move {
         check_timeout(controls)?;
         let cte_name = cte.name.to_ascii_lowercase();
         let previous = cte_context.remove(&cte_name);
@@ -1861,7 +1857,7 @@ fn execute_cte<'a>(
                     params,
                     controls,
                 )
-                .await?
+                ?
                 .into_iter()
                 .map(BatchRow::into_entries)
                 .collect()
@@ -1877,7 +1873,7 @@ fn execute_cte<'a>(
                     params,
                     controls,
                 )
-                .await?
+                ?
                 .into_iter()
                 .map(BatchRow::into_entries)
                 .collect::<Vec<_>>();
@@ -1899,7 +1895,7 @@ fn execute_cte<'a>(
                         params,
                         controls,
                     )
-                    .await?
+                    ?
                     .into_iter()
                     .map(BatchRow::into_entries)
                     .collect::<Vec<_>>();
@@ -1940,10 +1936,9 @@ fn execute_cte<'a>(
         }
 
         Ok(output)
-    })
 }
 
-async fn execute_vector_distance_top_k(
+fn execute_vector_distance_top_k(
     cassie: &Cassie,
     plan: &LogicalPlan,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
@@ -2163,25 +2158,25 @@ fn compare_sql_vector_candidates(
         .then_with(|| left.id.cmp(&right.id))
 }
 
-async fn execute_scored_search_top_k(
+fn execute_scored_search_top_k(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     plan: &LogicalPlan,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     if let Some(spec) = fulltext_top_k_spec(plan) {
-        return execute_fulltext_top_k(cassie, spec).await.map(Some);
+        return execute_fulltext_top_k(cassie, spec).map(Some);
     }
     if let Some(spec) = hybrid_top_k_spec(plan) {
-        return execute_hybrid_top_k(cassie, spec).await.map(Some);
+        return execute_hybrid_top_k(cassie, spec).map(Some);
     }
     if let Some(spec) = fulltext_filtered_read_spec(plan) {
         if virtual_views::schema(&spec.collection).is_some()
-            || cassie.catalog.get_view(&spec.collection).await.is_some()
+            || cassie.catalog.get_view(&spec.collection).is_some()
         {
             return Ok(None);
         }
         return execute_fulltext_filtered_read(cassie, session, spec)
-            .await
+            
             .map(Some);
     }
     Ok(None)
@@ -2267,7 +2262,7 @@ where
     index.candidate_documents(query_terms)
 }
 
-async fn cached_search_context<D>(
+fn cached_search_context<D>(
     cassie: &Cassie,
     collection: &str,
     field: &str,
@@ -2314,7 +2309,7 @@ where
     Ok(context)
 }
 
-async fn execute_fulltext_top_k(
+fn execute_fulltext_top_k(
     cassie: &Cassie,
     spec: FulltextTopKSpec,
 ) -> Result<Vec<BatchRow>, QueryError> {
@@ -2338,7 +2333,7 @@ async fn execute_fulltext_top_k(
         &spec.collection,
         std::slice::from_ref(&spec.text_field),
     )
-    .await?;
+    ?;
     let search_context = cached_search_context(
         cassie,
         &spec.collection,
@@ -2348,7 +2343,7 @@ async fn execute_fulltext_top_k(
         &search_index_options.field_k1,
         &search_index_options.field_b,
     )
-    .await?;
+    ?;
     let query_terms = filter::prepare_query_terms(&spec.query);
     let candidate_ids = if spec.require_match {
         Some(posting_list_candidate_ids(&search_documents, &query_terms))
@@ -2395,7 +2390,7 @@ async fn execute_fulltext_top_k(
     Ok(rows)
 }
 
-async fn execute_hybrid_top_k(
+fn execute_hybrid_top_k(
     cassie: &Cassie,
     spec: HybridTopKSpec,
 ) -> Result<Vec<BatchRow>, QueryError> {
@@ -2423,7 +2418,7 @@ async fn execute_hybrid_top_k(
         &spec.collection,
         std::slice::from_ref(&spec.text_field),
     )
-    .await?;
+    ?;
     let search_context = cached_search_context(
         cassie,
         &spec.collection,
@@ -2433,7 +2428,7 @@ async fn execute_hybrid_top_k(
         &search_index_options.field_k1,
         &search_index_options.field_b,
     )
-    .await?;
+    ?;
     let query_terms = filter::prepare_query_terms(&spec.query);
     let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
@@ -2492,7 +2487,7 @@ async fn execute_hybrid_top_k(
     Ok(rows)
 }
 
-async fn execute_fulltext_filtered_read(
+fn execute_fulltext_filtered_read(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     spec: FulltextFilteredReadSpec,
@@ -2507,7 +2502,7 @@ async fn execute_fulltext_filtered_read(
             &scan_fields,
             None,
         )
-        .await
+        
         .map_err(|error| QueryError::General(error.to_string()))?;
     let search_documents = document_batches
         .into_iter()
@@ -2526,7 +2521,7 @@ async fn execute_fulltext_filtered_read(
         &spec.collection,
         std::slice::from_ref(&spec.text_field),
     )
-    .await?;
+    ?;
     let search_context = cached_search_context(
         cassie,
         &spec.collection,
@@ -2536,7 +2531,7 @@ async fn execute_fulltext_filtered_read(
         &search_index_options.field_k1,
         &search_index_options.field_b,
     )
-    .await?;
+    ?;
     let query_terms = filter::prepare_query_terms(&spec.query);
     let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
 
@@ -2586,7 +2581,7 @@ async fn execute_fulltext_filtered_read(
     Ok(rows)
 }
 
-async fn search_context_for_fields(
+fn search_context_for_fields(
     cassie: &Cassie,
     collection: &str,
     fields: &[String],
@@ -2595,7 +2590,7 @@ async fn search_context_for_fields(
         .iter()
         .map(|field| field.to_ascii_lowercase())
         .collect::<HashSet<_>>();
-    load_fulltext_index_options(cassie, collection, &requested_fields).await
+    load_fulltext_index_options(cassie, collection, &requested_fields)
 }
 
 struct FulltextTopKSpec {
@@ -3031,7 +3026,7 @@ fn scored_candidates_to_rows(
         .collect()
 }
 
-async fn execute_ordered_column_top_k(
+fn execute_ordered_column_top_k(
     cassie: &Cassie,
     plan: &LogicalPlan,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
@@ -3275,7 +3270,7 @@ fn json_to_query_value(value: &serde_json::Value) -> Value {
     Value::Json(value.clone())
 }
 
-async fn execute_projected_filtered_read(
+fn execute_projected_filtered_read(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     plan: &LogicalPlan,
@@ -3287,7 +3282,7 @@ async fn execute_projected_filtered_read(
         return Ok(None);
     };
     if virtual_views::schema(&spec.collection).is_some()
-        || cassie.catalog.get_view(&spec.collection).await.is_some()
+        || cassie.catalog.get_view(&spec.collection).is_some()
     {
         return Ok(None);
     }
@@ -3304,7 +3299,7 @@ async fn execute_projected_filtered_read(
         spec.scan_limit,
         pushdown_filter.as_ref(),
     )
-    .await?;
+    ?;
     ensure_temp_budget(controls, &batches)?;
 
     if pushdown_filter.is_none() {
@@ -3343,7 +3338,7 @@ async fn execute_projected_filtered_read(
     Ok(Some(batch::flatten_batches(batches)))
 }
 
-async fn execute_projected_filtered_read_with_breakdown(
+fn execute_projected_filtered_read_with_breakdown(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     plan: &LogicalPlan,
@@ -3355,7 +3350,7 @@ async fn execute_projected_filtered_read_with_breakdown(
         return Ok(None);
     };
     if virtual_views::schema(&spec.collection).is_some()
-        || cassie.catalog.get_view(&spec.collection).await.is_some()
+        || cassie.catalog.get_view(&spec.collection).is_some()
     {
         return Ok(None);
     }
@@ -3375,7 +3370,7 @@ async fn execute_projected_filtered_read_with_breakdown(
         spec.scan_limit,
         pushdown_filter.as_ref(),
     )
-    .await?;
+    ?;
     breakdown.row_decode += scan_timings.row_decode;
     let measured_scan = scan_timings.scan.saturating_add(scan_timings.row_decode);
     breakdown.scan += scan_timings
@@ -3601,7 +3596,6 @@ fn resolve_exists_expr<'a>(
     params: &'a [Value],
     controls: &'a QueryExecutionControls,
 ) -> ExprResolution<'a> {
-    Box::pin(async move {
         match expr {
             Expr::Binary { left, op, right } => Ok(Expr::Binary {
                 left: Box::new(
@@ -3614,7 +3608,7 @@ fn resolve_exists_expr<'a>(
                         params,
                         controls,
                     )
-                    .await?,
+                    ?,
                 ),
                 op: op.clone(),
                 right: Box::new(
@@ -3627,7 +3621,7 @@ fn resolve_exists_expr<'a>(
                         params,
                         controls,
                     )
-                    .await?,
+                    ?,
                 ),
             }),
             Expr::IsNull { expr, negated } => Ok(Expr::IsNull {
@@ -3641,7 +3635,7 @@ fn resolve_exists_expr<'a>(
                         params,
                         controls,
                     )
-                    .await?,
+                    ?,
                 ),
                 negated: *negated,
             }),
@@ -3659,7 +3653,7 @@ fn resolve_exists_expr<'a>(
                     params,
                     controls,
                 )
-                .await?;
+                ?;
                 let mut resolved_values = Vec::with_capacity(values.len());
                 for value in values {
                     resolved_values.push(
@@ -3672,7 +3666,7 @@ fn resolve_exists_expr<'a>(
                             params,
                             controls,
                         )
-                        .await?,
+                        ?,
                     );
                 }
                 Ok(Expr::InList {
@@ -3697,7 +3691,7 @@ fn resolve_exists_expr<'a>(
                         params,
                         controls,
                     )
-                    .await?,
+                    ?,
                 ),
                 low: Box::new(
                     resolve_exists_expr(
@@ -3709,7 +3703,7 @@ fn resolve_exists_expr<'a>(
                         params,
                         controls,
                     )
-                    .await?,
+                    ?,
                 ),
                 high: Box::new(
                     resolve_exists_expr(
@@ -3721,7 +3715,7 @@ fn resolve_exists_expr<'a>(
                         params,
                         controls,
                     )
-                    .await?,
+                    ?,
                 ),
                 negated: *negated,
             }),
@@ -3736,7 +3730,7 @@ fn resolve_exists_expr<'a>(
                         params,
                         controls,
                     )
-                    .await?,
+                    ?,
                 ),
             }),
             Expr::Cast { expr, data_type } => Ok(Expr::Cast {
@@ -3750,7 +3744,7 @@ fn resolve_exists_expr<'a>(
                         params,
                         controls,
                     )
-                    .await?,
+                    ?,
                 ),
                 data_type: data_type.clone(),
             }),
@@ -3766,7 +3760,7 @@ fn resolve_exists_expr<'a>(
                     params,
                     controls,
                 )
-                .await?;
+                ?;
                 Ok(Expr::BoolLiteral(!rows.is_empty()))
             }
             Expr::Column(_)
@@ -3777,7 +3771,6 @@ fn resolve_exists_expr<'a>(
             | Expr::Null
             | Expr::Function(_) => Ok(expr.clone()),
         }
-    })
 }
 
 fn build_logical_plan(
@@ -3805,10 +3798,9 @@ fn execute_query_source<'a>(
     qualify: bool,
     outer_row: Option<&'a BatchRow>,
 ) -> SourceExecution<'a> {
-    Box::pin(async move {
         match source {
             QuerySource::Collection(name) => {
-                if let Some(rows) = virtual_views::rows(&env.cassie.catalog, name).await {
+                if let Some(rows) = virtual_views::rows(&env.cassie.catalog, name) {
                     let mut batches = materialize_virtual_rows(rows);
                     if qualify {
                         batches = qualify_batches(batches, name);
@@ -3817,7 +3809,7 @@ fn execute_query_source<'a>(
                     return Ok((batches, Vec::new()));
                 }
 
-                if let Some(view) = env.cassie.catalog.get_view(name).await {
+                if let Some(view) = env.cassie.catalog.get_view(name) {
                     let parsed = crate::sql::parser::parse_statement(&view.query)
                         .map_err(|error| QueryError::General(error.0))?;
                     let logical = build_logical_plan(&parsed)?;
@@ -3831,7 +3823,7 @@ fn execute_query_source<'a>(
                         env.params,
                         env.controls,
                     )
-                    .await?;
+                    ?;
                     let rows = project_rows_to_schema(rows, &view.schema, name)?;
                     let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
                     if qualify {
@@ -3848,12 +3840,12 @@ fn execute_query_source<'a>(
                     return Ok((batches, text_fields));
                 }
 
-                let mut batches = scan::scan(env.cassie, env.session, name).await?;
+                let mut batches = scan::scan(env.cassie, env.session, name)?;
                 if qualify {
                     batches = qualify_batches(batches, name);
                 }
                 ensure_temp_budget(env.controls, &batches)?;
-                Ok((batches, env.cassie.catalog.text_fields(name).await))
+                Ok((batches, env.cassie.catalog.text_fields(name)))
             }
             QuerySource::SingleRow => {
                 let batches =
@@ -3909,7 +3901,7 @@ fn execute_query_source<'a>(
                     env.controls,
                     if *lateral { outer_row } else { None },
                 )
-                .await?;
+                ?;
                 let text_fields = deduce_text_fields(
                     &rows
                         .iter()
@@ -3928,7 +3920,7 @@ fn execute_query_source<'a>(
                 on,
             } => {
                 let (left_batches, _left_text) =
-                    execute_query_source(env, left, cte_context, true, outer_row).await?;
+                    execute_query_source(env, left, cte_context, true, outer_row)?;
                 if source_contains_lateral(right) {
                     let left_rows = batch::flatten_batches(left_batches);
                     let mut joined = Vec::new();
@@ -3936,7 +3928,7 @@ fn execute_query_source<'a>(
                     for left_row in &left_rows {
                         let (right_batches, _right_text) =
                             execute_query_source(env, right, cte_context, true, Some(left_row))
-                                .await?;
+                                ?;
                         let right_rows = batch::flatten_batches(right_batches);
                         let right_columns = row_columns(&right_rows);
                         let mut matched = false;
@@ -3976,7 +3968,7 @@ fn execute_query_source<'a>(
                 }
 
                 let (right_batches, _right_text) =
-                    execute_query_source(env, right, cte_context, true, outer_row).await?;
+                    execute_query_source(env, right, cte_context, true, outer_row)?;
                 let left_rows = batch::flatten_batches(left_batches);
                 let right_rows = batch::flatten_batches(right_batches);
                 let left_columns = row_columns(&left_rows);
@@ -4030,7 +4022,6 @@ fn execute_query_source<'a>(
                 Ok((batches, text_fields))
             }
         }
-    })
 }
 
 fn qualify_batches(batches: Vec<Batch>, qualifier: &str) -> Vec<Batch> {
@@ -5061,7 +5052,7 @@ fn value_sort_key(value: &Value) -> String {
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn execute_source_query_with_outer_row(
+fn execute_source_query_with_outer_row(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     plan: &LogicalPlan,
@@ -5081,7 +5072,7 @@ async fn execute_source_query_with_outer_row(
         controls,
     };
     let (mut batches, text_fields) =
-        execute_query_source(&env, &plan.source, cte_context, false, outer_row).await?;
+        execute_query_source(&env, &plan.source, cte_context, false, outer_row)?;
     if let Some(outer_row) = outer_row {
         batches = combine_batches_with_outer_row(batches, outer_row);
     }
@@ -5094,15 +5085,15 @@ async fn execute_source_query_with_outer_row(
         None
     } else {
         let (field_boost, field_k1, field_b) = if let QuerySource::Collection(name) = &plan.source {
-            let fields = cassie.catalog.text_fields(name).await;
+            let fields = cassie.catalog.text_fields(name);
             let mut boost = HashMap::with_capacity(fields.len());
             for field in fields {
-                if let Some(value) = cassie.catalog.get_field_boost(name, &field).await {
+                if let Some(value) = cassie.catalog.get_field_boost(name, &field) {
                     boost.insert(field, value as f64);
                 }
             }
 
-            let index_options = load_fulltext_index_options(cassie, name, &fulltext_fields).await?;
+            let index_options = load_fulltext_index_options(cassie, name, &fulltext_fields)?;
             for (field, value) in index_options.field_boost {
                 boost.insert(field, value);
             }
@@ -5132,7 +5123,7 @@ async fn execute_source_query_with_outer_row(
                 params,
                 controls,
             )
-            .await?,
+            ?,
         )
     } else {
         None
@@ -5235,7 +5226,7 @@ async fn execute_source_query_with_outer_row(
     let mut rows = batch::flatten_batches(batches);
     if let Some(set) = &plan.set {
         let right_plan = logical_plan_from_select(&set.right);
-        let right_rows = Box::pin(execute_plan(
+        let right_rows = execute_plan(
             cassie,
             session,
             &right_plan,
@@ -5243,8 +5234,7 @@ async fn execute_source_query_with_outer_row(
             user_functions,
             params,
             controls,
-        ))
-        .await?;
+        )?;
         rows = apply_set_operation(rows, right_rows, set)?;
     }
     if plan.set.is_some() && !plan.order.is_empty() {
@@ -5280,7 +5270,7 @@ async fn execute_source_query_with_outer_row(
     Ok(rows)
 }
 
-async fn load_fulltext_index_options(
+fn load_fulltext_index_options(
     cassie: &Cassie,
     collection: &str,
     requested_fields: &HashSet<String>,
@@ -5299,7 +5289,7 @@ async fn load_fulltext_index_options(
     let mut field_b = HashMap::new();
     let mut seen_fields = HashSet::new();
 
-    for index in cassie.catalog.list_indexes(collection).await {
+    for index in cassie.catalog.list_indexes(collection) {
         if index.kind != catalog::IndexKind::FullText {
             continue;
         }
@@ -6119,59 +6109,52 @@ mod tests {
             "cassie-execution-breakdown-{}",
             uuid::Uuid::new_v4()
         ));
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("runtime");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let collection = "breakdown_documents";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .expect("create collection");
+        cassie.register_collection(collection, schema);
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .expect("put document");
 
-        runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
-            let collection = "breakdown_documents";
-            let schema = Schema {
-                fields: vec![FieldSchema {
-                    name: "title".to_string(),
-                    data_type: DataType::Text,
-                    nullable: true,
-                }],
-            };
-            cassie
-                .midge
-                .create_collection(collection, schema.clone())
-                .expect("create collection");
-            cassie.register_collection(collection, schema).await;
-            cassie
-                .midge
-                .put_document(
-                    collection,
-                    Some("doc-1".to_string()),
-                    serde_json::json!({"title": "alpha"}),
-                )
-                .expect("put document");
+        let logical =
+            plan_for_sql("SELECT id, title FROM breakdown_documents WHERE title = 'alpha'");
+        let physical = crate::planner::physical::build(logical);
 
-            let logical =
-                plan_for_sql("SELECT id, title FROM breakdown_documents WHERE title = 'alpha'");
-            let physical = crate::planner::physical::build(logical);
+        // Act
+        let output = run_with_execution_breakdown(&cassie, physical, vec![])
+            
+            .expect("execution breakdown");
 
-            // Act
-            let output = run_with_execution_breakdown(&cassie, physical, vec![])
-                .await
-                .expect("execution breakdown");
+        // Assert
+        assert_eq!(output.result.rows.len(), 1);
+        assert_eq!(
+            output.result.rows[0],
+            vec![
+                Value::String("doc-1".to_string()),
+                Value::String("alpha".to_string()),
+            ]
+        );
+        assert!(output.breakdown.scan_us > 0 || output.breakdown.row_decode_us > 0);
+        assert_eq!(output.breakdown.filter_us, 0);
+        assert!(output.breakdown.projection_us > 0);
+        assert!(output.breakdown.result_build_us > 0);
 
-            // Assert
-            assert_eq!(output.result.rows.len(), 1);
-            assert_eq!(
-                output.result.rows[0],
-                vec![
-                    Value::String("doc-1".to_string()),
-                    Value::String("alpha".to_string()),
-                ]
-            );
-            assert!(output.breakdown.scan_us > 0 || output.breakdown.row_decode_us > 0);
-            assert_eq!(output.breakdown.filter_us, 0);
-            assert!(output.breakdown.projection_us > 0);
-            assert!(output.breakdown.result_build_us > 0);
-
-            let _ = std::fs::remove_dir_all(path);
-        });
+        let _ = std::fs::remove_dir_all(path);
     }
 }

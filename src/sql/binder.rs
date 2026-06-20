@@ -1,7 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::future::Future;
 use std::mem;
-use std::pin::Pin;
 
 use crate::app::CassieError;
 use crate::catalog::{is_reserved_namespace, virtual_views, Catalog, CollectionSchema, IndexMeta};
@@ -25,20 +23,20 @@ pub struct BoundStatement {
     pub indexes: Vec<IndexMeta>,
 }
 
-pub async fn bind(
+pub fn bind(
     statement: ParsedStatement,
     catalog: &Catalog,
 ) -> Result<BoundStatement, CassieError> {
-    let statement = bind_statement(statement, catalog, &HashMap::new()).await?;
-    let indexes = bound_indexes(&statement, catalog).await;
+    let statement = bind_statement(statement, catalog, &HashMap::new())?;
+    let indexes = bound_indexes(&statement, catalog);
     Ok(BoundStatement { statement, indexes })
 }
 
-async fn bound_indexes(statement: &ParsedStatement, catalog: &Catalog) -> Vec<IndexMeta> {
+fn bound_indexes(statement: &ParsedStatement, catalog: &Catalog) -> Vec<IndexMeta> {
     let Some(collection) = bound_statement_collection(statement) else {
         return Vec::new();
     };
-    catalog.list_indexes(&collection).await
+    catalog.list_indexes(&collection)
 }
 
 fn bound_statement_collection(statement: &ParsedStatement) -> Option<String> {
@@ -58,213 +56,211 @@ fn source_collection(source: &QuerySource) -> Option<String> {
     }
 }
 
-fn bind_statement<'a>(
+fn bind_statement(
     statement: ParsedStatement,
-    catalog: &'a Catalog,
-    outer_scope: &'a CteScope,
-) -> Pin<Box<dyn Future<Output = Result<ParsedStatement, CassieError>> + Send + 'a>> {
-    Box::pin(async move {
-        let raw_sql = statement.raw_sql.clone();
-        match statement.statement {
-            QueryStatement::Select(select) => {
-                let select = bind_select(select, catalog, outer_scope).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::Select(select),
-                })
-            }
-            QueryStatement::Explain(statement) => {
-                let inner = bind_statement(*statement.statement, catalog, outer_scope).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::Explain(crate::sql::ast::ExplainStatement {
-                        analyze: statement.analyze,
-                        statement: Box::new(inner),
-                    }),
-                })
-            }
-            QueryStatement::Show(statement) => {
-                let mut clone = statement.clone();
-                clone.variable = clone.variable.trim().to_string();
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::Show(clone),
-                })
-            }
-            QueryStatement::Set(statement) => {
-                let mut clone = statement.clone();
-                clone.variable = clone.variable.trim().to_string();
-                clone.value = clone.value.map(|value| value.trim().to_string());
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::Set(clone),
-                })
-            }
-            QueryStatement::CreateTable(statement) => {
-                let statement = bind_create_table(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::CreateTable(statement),
-                })
-            }
-            QueryStatement::DropTable(statement) => {
-                let statement = bind_drop_table(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::DropTable(statement),
-                })
-            }
-            QueryStatement::AlterTable(statement) => {
-                let statement = bind_alter_table(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::AlterTable(statement),
-                })
-            }
-            QueryStatement::CreateIndex(statement) => {
-                let statement = bind_create_index(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::CreateIndex(statement),
-                })
-            }
-            QueryStatement::DropIndex(statement) => {
-                let statement = bind_drop_index(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::DropIndex(statement),
-                })
-            }
-            QueryStatement::CreateSchema(statement) => {
-                let schema = statement.schema.trim().to_string();
-                if schema.is_empty() {
-                    return Err(CassieError::Planner("CREATE SCHEMA requires a name".into()));
-                }
-
-                if is_reserved_namespace(&schema) {
-                    return Err(CassieError::Unsupported(format!(
-                        "namespace '{schema}' is reserved"
-                    )));
-                }
-                if !statement.if_not_exists && catalog.namespace_exists(&schema).await {
-                    return Err(CassieError::Planner(format!(
-                        "namespace '{schema}' already exists"
-                    )));
-                }
-
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::CreateSchema(CreateSchemaStatement {
-                        schema,
-                        if_not_exists: statement.if_not_exists,
-                    }),
-                })
-            }
-            QueryStatement::DropSchema(statement) => {
-                let statement = bind_drop_schema(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::DropSchema(statement),
-                })
-            }
-            QueryStatement::AlterSchema(statement) => {
-                let statement = bind_alter_schema(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::AlterSchema(statement),
-                })
-            }
-            QueryStatement::CreateView(statement) => {
-                let statement = bind_create_view(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::CreateView(statement),
-                })
-            }
-            QueryStatement::DropView(statement) => {
-                let statement = bind_drop_view(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::DropView(statement),
-                })
-            }
-            QueryStatement::CreateRole(statement) => Ok(ParsedStatement {
+    catalog: &Catalog,
+    outer_scope: &CteScope,
+) -> Result<ParsedStatement, CassieError> {
+    let raw_sql = statement.raw_sql.clone();
+    match statement.statement {
+        QueryStatement::Select(select) => {
+            let select = bind_select(select, catalog, outer_scope)?;
+            Ok(ParsedStatement {
                 raw_sql,
-                statement: QueryStatement::CreateRole(statement),
-            }),
-            QueryStatement::AlterRole(statement) => Ok(ParsedStatement {
-                raw_sql,
-                statement: QueryStatement::AlterRole(statement),
-            }),
-            QueryStatement::DropRole(statement) => Ok(ParsedStatement {
-                raw_sql,
-                statement: QueryStatement::DropRole(statement),
-            }),
-            QueryStatement::CreateFunction(statement) => {
-                let statement = bind_create_function(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::CreateFunction(statement),
-                })
-            }
-            QueryStatement::DropFunction(statement) => {
-                let statement = bind_drop_function(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::DropFunction(statement),
-                })
-            }
-            QueryStatement::CreateProcedure(statement) => {
-                let statement = bind_create_procedure(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::CreateProcedure(statement),
-                })
-            }
-            QueryStatement::DropProcedure(statement) => {
-                let statement = bind_drop_procedure(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::DropProcedure(statement),
-                })
-            }
-            QueryStatement::CallProcedure(statement) => {
-                let statement = bind_call_procedure(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::CallProcedure(statement),
-                })
-            }
-            QueryStatement::Insert(statement) => {
-                let statement = bind_insert(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::Insert(statement),
-                })
-            }
-            QueryStatement::Update(statement) => {
-                let statement = bind_update(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::Update(statement),
-                })
-            }
-            QueryStatement::Delete(statement) => {
-                let statement = bind_delete(statement, catalog).await?;
-                Ok(ParsedStatement {
-                    raw_sql,
-                    statement: QueryStatement::Delete(statement),
-                })
-            }
-            QueryStatement::Transaction(statement) => Ok(ParsedStatement {
-                raw_sql,
-                statement: QueryStatement::Transaction(statement),
-            }),
+                statement: QueryStatement::Select(select),
+            })
         }
-    })
+        QueryStatement::Explain(statement) => {
+            let inner = bind_statement(*statement.statement, catalog, outer_scope)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::Explain(crate::sql::ast::ExplainStatement {
+                    analyze: statement.analyze,
+                    statement: Box::new(inner),
+                }),
+            })
+        }
+        QueryStatement::Show(statement) => {
+            let mut clone = statement.clone();
+            clone.variable = clone.variable.trim().to_string();
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::Show(clone),
+            })
+        }
+        QueryStatement::Set(statement) => {
+            let mut clone = statement.clone();
+            clone.variable = clone.variable.trim().to_string();
+            clone.value = clone.value.map(|value| value.trim().to_string());
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::Set(clone),
+            })
+        }
+        QueryStatement::CreateTable(statement) => {
+            let statement = bind_create_table(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::CreateTable(statement),
+            })
+        }
+        QueryStatement::DropTable(statement) => {
+            let statement = bind_drop_table(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::DropTable(statement),
+            })
+        }
+        QueryStatement::AlterTable(statement) => {
+            let statement = bind_alter_table(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::AlterTable(statement),
+            })
+        }
+        QueryStatement::CreateIndex(statement) => {
+            let statement = bind_create_index(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::CreateIndex(statement),
+            })
+        }
+        QueryStatement::DropIndex(statement) => {
+            let statement = bind_drop_index(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::DropIndex(statement),
+            })
+        }
+        QueryStatement::CreateSchema(statement) => {
+            let schema = statement.schema.trim().to_string();
+            if schema.is_empty() {
+                return Err(CassieError::Planner("CREATE SCHEMA requires a name".into()));
+            }
+
+            if is_reserved_namespace(&schema) {
+                return Err(CassieError::Unsupported(format!(
+                    "namespace '{schema}' is reserved"
+                )));
+            }
+            if !statement.if_not_exists && catalog.namespace_exists(&schema) {
+                return Err(CassieError::Planner(format!(
+                    "namespace '{schema}' already exists"
+                )));
+            }
+
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::CreateSchema(CreateSchemaStatement {
+                    schema,
+                    if_not_exists: statement.if_not_exists,
+                }),
+            })
+        }
+        QueryStatement::DropSchema(statement) => {
+            let statement = bind_drop_schema(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::DropSchema(statement),
+            })
+        }
+        QueryStatement::AlterSchema(statement) => {
+            let statement = bind_alter_schema(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::AlterSchema(statement),
+            })
+        }
+        QueryStatement::CreateView(statement) => {
+            let statement = bind_create_view(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::CreateView(statement),
+            })
+        }
+        QueryStatement::DropView(statement) => {
+            let statement = bind_drop_view(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::DropView(statement),
+            })
+        }
+        QueryStatement::CreateRole(statement) => Ok(ParsedStatement {
+            raw_sql,
+            statement: QueryStatement::CreateRole(statement),
+        }),
+        QueryStatement::AlterRole(statement) => Ok(ParsedStatement {
+            raw_sql,
+            statement: QueryStatement::AlterRole(statement),
+        }),
+        QueryStatement::DropRole(statement) => Ok(ParsedStatement {
+            raw_sql,
+            statement: QueryStatement::DropRole(statement),
+        }),
+        QueryStatement::CreateFunction(statement) => {
+            let statement = bind_create_function(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::CreateFunction(statement),
+            })
+        }
+        QueryStatement::DropFunction(statement) => {
+            let statement = bind_drop_function(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::DropFunction(statement),
+            })
+        }
+        QueryStatement::CreateProcedure(statement) => {
+            let statement = bind_create_procedure(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::CreateProcedure(statement),
+            })
+        }
+        QueryStatement::DropProcedure(statement) => {
+            let statement = bind_drop_procedure(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::DropProcedure(statement),
+            })
+        }
+        QueryStatement::CallProcedure(statement) => {
+            let statement = bind_call_procedure(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::CallProcedure(statement),
+            })
+        }
+        QueryStatement::Insert(statement) => {
+            let statement = bind_insert(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::Insert(statement),
+            })
+        }
+        QueryStatement::Update(statement) => {
+            let statement = bind_update(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::Update(statement),
+            })
+        }
+        QueryStatement::Delete(statement) => {
+            let statement = bind_delete(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::Delete(statement),
+            })
+        }
+        QueryStatement::Transaction(statement) => Ok(ParsedStatement {
+            raw_sql,
+            statement: QueryStatement::Transaction(statement),
+        }),
+    }
 }
 
-async fn bind_insert(
+fn bind_insert(
     mut statement: crate::sql::ast::InsertStatement,
     catalog: &Catalog,
 ) -> Result<crate::sql::ast::InsertStatement, CassieError> {
@@ -274,18 +270,17 @@ async fn bind_insert(
             "INSERT requires a target table".into(),
         ));
     }
-    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).await.is_some() {
+    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).is_some() {
         return Err(CassieError::Unsupported(format!(
             "relation '{table}' is read-only"
         )));
     }
-    if !catalog.exists(&table).await {
+    if !catalog.exists(&table) {
         return Err(CassieError::CollectionNotFound(table));
     }
 
     let schema = catalog
         .get_schema(&table)
-        .await
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
 
     let mut seen_columns = HashSet::new();
@@ -317,17 +312,17 @@ async fn bind_insert(
     }
 
     if let InsertSource::Select(select) = statement.source {
-        let source = bind_select(*select, catalog, &HashMap::new()).await?;
+        let source = bind_select(*select, catalog, &HashMap::new())?;
         statement.source = InsertSource::Select(Box::new(source));
     }
 
-    validate_returning_items(&statement.returning, &schema, &table, "INSERT", catalog).await?;
+    validate_returning_items(&statement.returning, &schema, &table, "INSERT", catalog)?;
 
     statement.table = table;
     Ok(statement)
 }
 
-async fn bind_update(
+fn bind_update(
     mut statement: crate::sql::ast::UpdateStatement,
     catalog: &Catalog,
 ) -> Result<crate::sql::ast::UpdateStatement, CassieError> {
@@ -337,18 +332,17 @@ async fn bind_update(
             "UPDATE requires a target table".into(),
         ));
     }
-    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).await.is_some() {
+    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).is_some() {
         return Err(CassieError::Unsupported(format!(
             "relation '{table}' is read-only"
         )));
     }
-    if !catalog.exists(&table).await {
+    if !catalog.exists(&table) {
         return Err(CassieError::CollectionNotFound(table));
     }
 
     let schema = catalog
         .get_schema(&table)
-        .await
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
 
     let mut seen = HashSet::new();
@@ -378,13 +372,13 @@ async fn bind_update(
         *field = normalized_field;
     }
 
-    validate_returning_items(&statement.returning, &schema, &table, "UPDATE", catalog).await?;
+    validate_returning_items(&statement.returning, &schema, &table, "UPDATE", catalog)?;
 
     statement.table = table;
     Ok(statement)
 }
 
-async fn bind_delete(
+fn bind_delete(
     mut statement: crate::sql::ast::DeleteStatement,
     catalog: &Catalog,
 ) -> Result<crate::sql::ast::DeleteStatement, CassieError> {
@@ -394,26 +388,25 @@ async fn bind_delete(
             "DELETE requires a target table".into(),
         ));
     }
-    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).await.is_some() {
+    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).is_some() {
         return Err(CassieError::Unsupported(format!(
             "relation '{table}' is read-only"
         )));
     }
-    if !catalog.exists(&table).await {
+    if !catalog.exists(&table) {
         return Err(CassieError::CollectionNotFound(table));
     }
     let schema = catalog
         .get_schema(&table)
-        .await
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
 
-    validate_returning_items(&statement.returning, &schema, &table, "DELETE", catalog).await?;
+    validate_returning_items(&statement.returning, &schema, &table, "DELETE", catalog)?;
 
     statement.table = table;
     Ok(statement)
 }
 
-async fn validate_returning_items(
+fn validate_returning_items(
     returning: &[SelectItem],
     schema: &CollectionSchema,
     table: &str,
@@ -466,10 +459,10 @@ async fn validate_returning_items(
         }
     }
 
-    validate_function_calls(functions, catalog).await
+    validate_function_calls(functions, catalog)
 }
 
-async fn bind_create_table(
+fn bind_create_table(
     mut statement: crate::sql::ast::CreateTableStatement,
     catalog: &Catalog,
 ) -> Result<crate::sql::ast::CreateTableStatement, CassieError> {
@@ -480,7 +473,7 @@ async fn bind_create_table(
         ));
     }
     if !statement.if_not_exists
-        && (catalog.relation_exists(&name).await || virtual_views::schema(&name).is_some())
+        && (catalog.relation_exists(&name) || virtual_views::schema(&name).is_some())
     {
         return Err(CassieError::Planner(format!(
             "collection '{name}' already exists"
@@ -521,7 +514,7 @@ async fn bind_create_table(
     Ok(statement)
 }
 
-async fn bind_create_view(
+fn bind_create_view(
     mut statement: CreateViewStatement,
     catalog: &Catalog,
 ) -> Result<CreateViewStatement, CassieError> {
@@ -530,7 +523,7 @@ async fn bind_create_view(
         return Err(CassieError::Planner("CREATE VIEW requires a name".into()));
     }
     if !statement.if_not_exists
-        && (catalog.relation_exists(&name).await || virtual_views::schema(&name).is_some())
+        && (catalog.relation_exists(&name) || virtual_views::schema(&name).is_some())
     {
         return Err(CassieError::Planner(format!(
             "relation '{name}' already exists"
@@ -546,21 +539,21 @@ async fn bind_create_view(
         ));
     };
 
-    let bound = bind_select(select, catalog, &HashMap::new()).await?;
+    let bound = bind_select(select, catalog, &HashMap::new())?;
     if select_contains_parameters(&bound) {
         return Err(CassieError::Planner(
             "CREATE VIEW cannot contain bind parameters".into(),
         ));
     }
 
-    let _schema = infer_select_schema(&bound, catalog).await?;
+    let _schema = infer_select_schema(&bound, catalog)?;
 
     statement.name = name;
     statement.query = raw_sql;
     Ok(statement)
 }
 
-async fn bind_drop_view(
+fn bind_drop_view(
     mut statement: DropViewStatement,
     catalog: &Catalog,
 ) -> Result<DropViewStatement, CassieError> {
@@ -569,8 +562,8 @@ async fn bind_drop_view(
         return Err(CassieError::Planner("DROP VIEW requires a name".into()));
     }
 
-    if catalog.get_view(&name).await.is_none() {
-        if virtual_views::schema(&name).is_some() || catalog.exists(&name).await {
+    if catalog.get_view(&name).is_none() {
+        if virtual_views::schema(&name).is_some() || catalog.exists(&name) {
             return Err(CassieError::Planner(format!(
                 "relation '{name}' is not a view"
             )));
@@ -586,7 +579,7 @@ async fn bind_drop_view(
     Ok(statement)
 }
 
-async fn bind_create_index(
+fn bind_create_index(
     mut statement: CreateIndexStatement,
     catalog: &Catalog,
 ) -> Result<CreateIndexStatement, CassieError> {
@@ -596,7 +589,7 @@ async fn bind_create_index(
             "CREATE INDEX requires a collection name".into(),
         ));
     }
-    if !catalog.exists(&table).await {
+    if !catalog.exists(&table) {
         return Err(CassieError::CollectionNotFound(table));
     }
 
@@ -621,7 +614,6 @@ async fn bind_create_index(
 
     let schema = catalog
         .get_schema(&table)
-        .await
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
 
     if !matches!(statement.kind, crate::catalog::IndexKind::Scalar) && fields.len() > 1 {
@@ -651,10 +643,9 @@ async fn bind_create_index(
                 ))
             })?;
 
-        if let Some(existing_vector) = catalog.get_vector_index(&table, field).await {
+        if let Some(existing_vector) = catalog.get_vector_index(&table, field) {
             let existing_index = catalog
                 .get_index(&table, &name)
-                .await
                 .filter(|metadata| metadata.field == existing_vector.field)
                 .filter(|metadata| metadata.kind == crate::catalog::IndexKind::Vector);
 
@@ -725,7 +716,6 @@ async fn bind_create_index(
         let existing_fulltext_index =
             catalog
                 .list_indexes(&table)
-                .await
                 .into_iter()
                 .find(|metadata| {
                     metadata.kind == crate::catalog::IndexKind::FullText
@@ -734,7 +724,6 @@ async fn bind_create_index(
         if let Some(existing_fulltext_index) = existing_fulltext_index {
             let existing_index = catalog
                 .get_index(&table, &name)
-                .await
                 .filter(|metadata| metadata.kind == crate::catalog::IndexKind::FullText)
                 .filter(|metadata| {
                     metadata
@@ -791,7 +780,7 @@ async fn bind_create_index(
         statement.options.insert("b".to_string(), b.to_string());
     }
 
-    if !statement.if_not_exists && catalog.get_index(&table, &name).await.is_some() {
+    if !statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
         return Err(CassieError::Planner(format!(
             "index '{name}' already exists on collection '{table}'"
         )));
@@ -854,7 +843,7 @@ fn parse_fulltext_index_float_option(
     Ok(parsed)
 }
 
-async fn bind_drop_index(
+fn bind_drop_index(
     mut statement: DropIndexStatement,
     catalog: &Catalog,
 ) -> Result<DropIndexStatement, CassieError> {
@@ -871,7 +860,7 @@ async fn bind_drop_index(
         ));
     }
 
-    if !catalog.exists(&table).await {
+    if !catalog.exists(&table) {
         if !statement.if_exists {
             return Err(CassieError::CollectionNotFound(table));
         }
@@ -880,7 +869,7 @@ async fn bind_drop_index(
         return Ok(statement);
     }
 
-    if !statement.if_exists && catalog.get_index(&table, &name).await.is_none() {
+    if !statement.if_exists && catalog.get_index(&table, &name).is_none() {
         return Err(CassieError::Planner(format!(
             "index '{name}' does not exist on collection '{table}'"
         )));
@@ -891,7 +880,7 @@ async fn bind_drop_index(
     Ok(statement)
 }
 
-async fn bind_drop_schema(
+fn bind_drop_schema(
     mut statement: DropSchemaStatement,
     catalog: &Catalog,
 ) -> Result<DropSchemaStatement, CassieError> {
@@ -906,7 +895,7 @@ async fn bind_drop_schema(
             "namespace '{schema}' is reserved"
         )));
     }
-    if !statement.if_exists && !catalog.namespace_exists(&schema).await {
+    if !statement.if_exists && !catalog.namespace_exists(&schema) {
         return Err(CassieError::NotFound(format!(
             "namespace '{schema}' does not exist"
         )));
@@ -916,7 +905,7 @@ async fn bind_drop_schema(
     Ok(statement)
 }
 
-async fn bind_alter_schema(
+fn bind_alter_schema(
     mut statement: AlterSchemaStatement,
     catalog: &Catalog,
 ) -> Result<AlterSchemaStatement, CassieError> {
@@ -931,7 +920,7 @@ async fn bind_alter_schema(
             "namespace '{schema}' is reserved"
         )));
     }
-    if !catalog.namespace_exists(&schema).await {
+    if !catalog.namespace_exists(&schema) {
         return Err(CassieError::NotFound(format!(
             "namespace '{schema}' does not exist"
         )));
@@ -955,7 +944,7 @@ async fn bind_alter_schema(
                     "ALTER SCHEMA cannot rename namespace to same name".into(),
                 ));
             }
-            if catalog.namespace_exists(&next).await {
+            if catalog.namespace_exists(&next) {
                 return Err(CassieError::Planner(format!(
                     "namespace '{next}' already exists"
                 )));
@@ -968,7 +957,7 @@ async fn bind_alter_schema(
     Ok(statement)
 }
 
-async fn bind_drop_table(
+fn bind_drop_table(
     mut statement: crate::sql::ast::DropTableStatement,
     catalog: &Catalog,
 ) -> Result<crate::sql::ast::DropTableStatement, CassieError> {
@@ -978,19 +967,19 @@ async fn bind_drop_table(
             "DROP TABLE requires a table name".into(),
         ));
     }
-    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).await.is_some() {
+    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).is_some() {
         return Err(CassieError::Planner(format!(
             "relation '{table}' is a view"
         )));
     }
-    if !statement.if_exists && !catalog.exists(&table).await {
+    if !statement.if_exists && !catalog.exists(&table) {
         return Err(CassieError::CollectionNotFound(table));
     }
     statement.table = table;
     Ok(statement)
 }
 
-async fn bind_alter_table(
+fn bind_alter_table(
     mut statement: AlterTableStatement,
     catalog: &Catalog,
 ) -> Result<AlterTableStatement, CassieError> {
@@ -1000,7 +989,7 @@ async fn bind_alter_table(
             "ALTER TABLE requires a table name".into(),
         ));
     }
-    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).await.is_some() {
+    if virtual_views::schema(&table).is_some() || catalog.get_view(&table).is_some() {
         return Err(CassieError::Planner(format!(
             "relation '{table}' is a view"
         )));
@@ -1008,7 +997,6 @@ async fn bind_alter_table(
 
     let schema = catalog
         .get_schema(&table)
-        .await
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
 
     let existing_fields = schema
@@ -1111,15 +1099,15 @@ fn validate_alter_schema(
     Ok(())
 }
 
-async fn bind_select(
+fn bind_select(
     select: SelectStatement,
     catalog: &Catalog,
     outer_scope: &CteScope,
 ) -> Result<SelectStatement, CassieError> {
-    bind_select_with_lateral_fields(select, catalog, outer_scope, &HashSet::new()).await
+    bind_select_with_lateral_fields(select, catalog, outer_scope, &HashSet::new())
 }
 
-async fn bind_select_with_lateral_fields(
+fn bind_select_with_lateral_fields(
     select: SelectStatement,
     catalog: &Catalog,
     outer_scope: &CteScope,
@@ -1146,7 +1134,7 @@ async fn bind_select_with_lateral_fields(
 
         let query = match cte.query {
             CteQuery::Simple(next) => {
-                CteQuery::Simple(Box::new(bind_statement(*next, catalog, &scope).await?))
+                CteQuery::Simple(Box::new(bind_statement(*next, catalog, &scope)?))
             }
             CteQuery::Recursive { base, recursive } => {
                 if cte.aliases.is_empty() {
@@ -1158,8 +1146,8 @@ async fn bind_select_with_lateral_fields(
                 let mut recursive_scope = scope.clone();
                 recursive_scope.insert(cte_name_lc.clone(), cte.aliases.clone());
 
-                let bound_base = bind_statement(*base, catalog, &recursive_scope).await?;
-                let bound_recursive = bind_statement(*recursive, catalog, &recursive_scope).await?;
+                let bound_base = bind_statement(*base, catalog, &recursive_scope)?;
+                let bound_recursive = bind_statement(*recursive, catalog, &recursive_scope)?;
 
                 if !recursive_cte_references_self(&bound_recursive, cte_name) {
                     return Err(CassieError::Planner(format!(
@@ -1174,7 +1162,7 @@ async fn bind_select_with_lateral_fields(
             }
         };
 
-        let visible_fields = cte_output_fields(&query).await?;
+        let visible_fields = cte_output_fields(&query)?;
         let aliases = if cte.aliases.is_empty() {
             visible_fields
         } else {
@@ -1203,9 +1191,8 @@ async fn bind_select_with_lateral_fields(
         catalog,
         &scope,
         lateral_fields,
-    )
-    .await?;
-    let mut known_fields = source_fields(catalog, &source, &scope).await?;
+    )?;
+    let mut known_fields = source_fields(catalog, &source, &scope)?;
     known_fields.extend(lateral_fields.iter().cloned());
     select.source = source;
     select.ctes = bound_ctes;
@@ -1234,19 +1221,19 @@ async fn bind_select_with_lateral_fields(
     validate_distinct_on_order_prefix(&select.distinct_on, &select.order)?;
 
     if let Some(set) = set {
-        let right = Box::pin(bind_select(*set.right, catalog, &scope)).await?;
+        let right = bind_select(*set.right, catalog, &scope)?;
         select.set = Some(Box::new(SelectSet {
             operator: set.operator,
             right: Box::new(right),
         }));
     }
 
-    validate_functions(&select, catalog).await?;
+    validate_functions(&select, catalog)?;
 
     Ok(select)
 }
 
-async fn bind_create_function(
+fn bind_create_function(
     mut statement: CreateFunctionStatement,
     catalog: &Catalog,
 ) -> Result<CreateFunctionStatement, CassieError> {
@@ -1266,7 +1253,7 @@ async fn bind_create_function(
         )));
     }
 
-    if !statement.if_not_exists && catalog.get_function(&name).await.is_some() {
+    if !statement.if_not_exists && catalog.get_function(&name).is_some() {
         return Err(CassieError::Planner(format!(
             "function '{name}' already exists"
         )));
@@ -1310,7 +1297,7 @@ async fn bind_create_function(
     Ok(statement)
 }
 
-async fn bind_drop_function(
+fn bind_drop_function(
     mut statement: DropFunctionStatement,
     catalog: &Catalog,
 ) -> Result<DropFunctionStatement, CassieError> {
@@ -1319,7 +1306,7 @@ async fn bind_drop_function(
         return Err(CassieError::Planner("DROP FUNCTION requires a name".into()));
     }
 
-    if !statement.if_exists && catalog.get_function(&name).await.is_none() {
+    if !statement.if_exists && catalog.get_function(&name).is_none() {
         return Err(CassieError::Planner(format!(
             "function '{name}' does not exist"
         )));
@@ -1329,7 +1316,7 @@ async fn bind_drop_function(
     Ok(statement)
 }
 
-async fn bind_create_procedure(
+fn bind_create_procedure(
     mut statement: CreateProcedureStatement,
     catalog: &Catalog,
 ) -> Result<CreateProcedureStatement, CassieError> {
@@ -1340,7 +1327,7 @@ async fn bind_create_procedure(
         ));
     }
 
-    if !statement.if_not_exists && catalog.get_procedure(&name).await.is_some() {
+    if !statement.if_not_exists && catalog.get_procedure(&name).is_some() {
         return Err(CassieError::Planner(format!(
             "procedure '{name}' already exists"
         )));
@@ -1393,7 +1380,7 @@ async fn bind_create_procedure(
     Ok(statement)
 }
 
-async fn bind_drop_procedure(
+fn bind_drop_procedure(
     mut statement: DropProcedureStatement,
     catalog: &Catalog,
 ) -> Result<DropProcedureStatement, CassieError> {
@@ -1404,7 +1391,7 @@ async fn bind_drop_procedure(
         ));
     }
 
-    if !statement.if_exists && catalog.get_procedure(&name).await.is_none() {
+    if !statement.if_exists && catalog.get_procedure(&name).is_none() {
         return Err(CassieError::Planner(format!(
             "procedure '{name}' does not exist"
         )));
@@ -1414,7 +1401,7 @@ async fn bind_drop_procedure(
     Ok(statement)
 }
 
-async fn bind_call_procedure(
+fn bind_call_procedure(
     statement: CallProcedureStatement,
     catalog: &Catalog,
 ) -> Result<CallProcedureStatement, CassieError> {
@@ -1423,7 +1410,7 @@ async fn bind_call_procedure(
         return Err(CassieError::Planner("CALL requires a name".into()));
     }
 
-    let Some(metadata) = catalog.get_procedure(&name).await else {
+    let Some(metadata) = catalog.get_procedure(&name) else {
         return Err(CassieError::Planner(format!(
             "procedure '{name}' does not exist"
         )));
@@ -1483,7 +1470,7 @@ fn function_body_references(expr: &Expr, function_name: &str) -> bool {
     }
 }
 
-async fn cte_output_fields(cte_query: &CteQuery) -> Result<Vec<String>, CassieError> {
+fn cte_output_fields(cte_query: &CteQuery) -> Result<Vec<String>, CassieError> {
     let query = match cte_query {
         CteQuery::Simple(statement) => statement,
         CteQuery::Recursive { base, .. } => base,
@@ -1531,272 +1518,254 @@ fn matches_wildcard(item: &SelectItem) -> bool {
     matches!(item, SelectItem::Wildcard)
 }
 
-fn bind_query_source_with_lateral_fields<'a>(
+fn bind_query_source_with_lateral_fields(
     source: QuerySource,
-    catalog: &'a Catalog,
-    scope: &'a CteScope,
-    lateral_fields: &'a HashSet<String>,
-) -> Pin<Box<dyn Future<Output = Result<QuerySource, CassieError>> + Send + 'a>> {
-    Box::pin(async move {
-        match source {
-            QuerySource::Collection(name) => {
-                let source_name_lc = name.to_ascii_lowercase();
-                if scope.contains_key(&source_name_lc) {
-                    Ok(QuerySource::Cte(name))
-                } else if catalog.relation_exists(&name).await
-                    || virtual_views::schema(&name).is_some()
-                {
-                    Ok(QuerySource::Collection(name))
-                } else {
-                    Err(CassieError::CollectionNotFound(name))
-                }
+    catalog: &Catalog,
+    scope: &CteScope,
+    lateral_fields: &HashSet<String>,
+) -> Result<QuerySource, CassieError> {
+    match source {
+        QuerySource::Collection(name) => {
+            let source_name_lc = name.to_ascii_lowercase();
+            if scope.contains_key(&source_name_lc) {
+                Ok(QuerySource::Cte(name))
+            } else if catalog.relation_exists(&name)
+                || virtual_views::schema(&name).is_some()
+            {
+                Ok(QuerySource::Collection(name))
+            } else {
+                Err(CassieError::CollectionNotFound(name))
             }
-            QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
-            QuerySource::SingleRow => Ok(QuerySource::SingleRow),
-            QuerySource::Subquery {
+        }
+        QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
+        QuerySource::SingleRow => Ok(QuerySource::SingleRow),
+        QuerySource::Subquery {
+            alias,
+            select,
+            lateral,
+        } => {
+            let empty = HashSet::new();
+            let visible_lateral_fields = if lateral { lateral_fields } else { &empty };
+            let select = bind_select_with_lateral_fields(
+                *select,
+                catalog,
+                scope,
+                visible_lateral_fields,
+            )?;
+            Ok(QuerySource::Subquery {
                 alias,
-                select,
+                select: Box::new(select),
                 lateral,
-            } => {
-                let empty = HashSet::new();
-                let visible_lateral_fields = if lateral { lateral_fields } else { &empty };
-                let select = bind_select_with_lateral_fields(
-                    *select,
-                    catalog,
-                    scope,
-                    visible_lateral_fields,
-                )
-                .await?;
-                Ok(QuerySource::Subquery {
-                    alias,
-                    select: Box::new(select),
-                    lateral,
-                })
-            }
-            QuerySource::Join {
-                left,
-                right,
+            })
+        }
+        QuerySource::Join {
+            left,
+            right,
+            kind,
+            on,
+        } => {
+            let left =
+                bind_query_source_with_lateral_fields(*left, catalog, scope, lateral_fields)?;
+            let mut right_lateral_fields = lateral_fields.clone();
+            right_lateral_fields.extend(source_fields(catalog, &left, scope)?);
+            let right = bind_query_source_with_lateral_fields(
+                *right,
+                catalog,
+                scope,
+                &right_lateral_fields,
+            )?;
+            let joined = QuerySource::Join {
+                left: Box::new(left),
+                right: Box::new(right),
                 kind,
-                on,
-            } => {
-                let left =
-                    bind_query_source_with_lateral_fields(*left, catalog, scope, lateral_fields)
-                        .await?;
-                let mut right_lateral_fields = lateral_fields.clone();
-                right_lateral_fields.extend(source_fields(catalog, &left, scope).await?);
-                let right = bind_query_source_with_lateral_fields(
-                    *right,
-                    catalog,
-                    scope,
-                    &right_lateral_fields,
-                )
-                .await?;
-                let joined = QuerySource::Join {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                    kind,
-                    on: on.clone(),
-                };
-                let known_fields = source_fields(catalog, &joined, scope).await?;
-                validate_expression(&on, &known_fields, &HashSet::new(), false)?;
-                Ok(joined)
-            }
+                on: on.clone(),
+            };
+            let known_fields = source_fields(catalog, &joined, scope)?;
+            validate_expression(&on, &known_fields, &HashSet::new(), false)?;
+            Ok(joined)
         }
-    })
+    }
 }
 
-fn source_fields<'a>(
-    catalog: &'a Catalog,
-    source: &'a QuerySource,
-    scope: &'a CteScope,
-) -> Pin<Box<dyn Future<Output = Result<HashSet<String>, CassieError>> + Send + 'a>> {
-    Box::pin(async move {
-        match source {
-            QuerySource::Collection(name) => {
-                if let Some(fields) = virtual_views::schema(name) {
-                    Ok(qualified_fields(
-                        name,
-                        fields.into_iter().map(|(field, _)| field),
-                    ))
-                } else {
-                    let schema = catalog
-                        .get_schema(name)
-                        .await
-                        .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?;
-                    Ok(qualified_fields(
-                        name,
-                        schema
-                            .fields
-                            .iter()
-                            .map(|field| field.name.to_ascii_lowercase()),
-                    ))
-                }
-            }
-            QuerySource::Cte(name) => scope
-                .get(&name.to_ascii_lowercase())
-                .cloned()
-                .map(|fields| qualified_fields(name, fields))
-                .ok_or_else(|| CassieError::CollectionNotFound(name.clone())),
-            QuerySource::SingleRow => Ok(HashSet::new()),
-            QuerySource::Subquery { alias, select, .. } => Ok(qualified_fields(
-                alias,
-                projected_column_names(&select.projection),
-            )),
-            QuerySource::Join { left, right, .. } => {
-                let mut fields = source_fields(catalog, left, scope).await?;
-                fields.extend(source_fields(catalog, right, scope).await?);
-                Ok(fields)
+fn source_fields(
+    catalog: &Catalog,
+    source: &QuerySource,
+    scope: &CteScope,
+) -> Result<HashSet<String>, CassieError> {
+    match source {
+        QuerySource::Collection(name) => {
+            if let Some(fields) = virtual_views::schema(name) {
+                Ok(qualified_fields(
+                    name,
+                    fields.into_iter().map(|(field, _)| field),
+                ))
+            } else {
+                let schema = catalog
+                    .get_schema(name)
+                    .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?;
+                Ok(qualified_fields(
+                    name,
+                    schema
+                        .fields
+                        .iter()
+                        .map(|field| field.name.to_ascii_lowercase()),
+                ))
             }
         }
-    })
+        QuerySource::Cte(name) => scope
+            .get(&name.to_ascii_lowercase())
+            .cloned()
+            .map(|fields| qualified_fields(name, fields))
+            .ok_or_else(|| CassieError::CollectionNotFound(name.clone())),
+        QuerySource::SingleRow => Ok(HashSet::new()),
+        QuerySource::Subquery { alias, select, .. } => Ok(qualified_fields(
+            alias,
+            projected_column_names(&select.projection),
+        )),
+        QuerySource::Join { left, right, .. } => {
+            let mut fields = source_fields(catalog, left, scope)?;
+            fields.extend(source_fields(catalog, right, scope)?);
+            Ok(fields)
+        }
+    }
 }
 
-pub async fn infer_select_schema(
+pub fn infer_select_schema(
     select: &SelectStatement,
     catalog: &Catalog,
 ) -> Result<Schema, CassieError> {
     let user_functions = catalog
         .list_functions()
-        .await
         .into_iter()
         .map(|function| (function.name.to_ascii_lowercase(), function))
         .collect::<HashMap<_, _>>();
 
-    infer_select_schema_with_scope(select, catalog, &HashMap::new(), &user_functions).await
+    infer_select_schema_with_scope(select, catalog, &HashMap::new(), &user_functions)
 }
 
-fn infer_select_schema_with_scope<'a>(
-    select: &'a SelectStatement,
-    catalog: &'a Catalog,
-    outer_ctes: &'a HashMap<String, Schema>,
-    user_functions: &'a HashMap<String, crate::catalog::FunctionMeta>,
-) -> Pin<Box<dyn Future<Output = Result<Schema, CassieError>> + Send + 'a>> {
-    Box::pin(async move {
-        let mut cte_schemas = outer_ctes.clone();
-        for cte in &select.ctes {
-            let schema = infer_cte_schema(cte, catalog, &cte_schemas, user_functions).await?;
-            cte_schemas.insert(cte.name.to_ascii_lowercase(), schema);
+fn infer_select_schema_with_scope(
+    select: &SelectStatement,
+    catalog: &Catalog,
+    outer_ctes: &HashMap<String, Schema>,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> Result<Schema, CassieError> {
+    let mut cte_schemas = outer_ctes.clone();
+    for cte in &select.ctes {
+        let schema = infer_cte_schema(cte, catalog, &cte_schemas, user_functions)?;
+        cte_schemas.insert(cte.name.to_ascii_lowercase(), schema);
+    }
+
+    let source_schema =
+        infer_source_schema(&select.source, catalog, &cte_schemas, user_functions, false)?;
+    let mut fields =
+        infer_projection_schema(&select.projection, &source_schema, user_functions);
+
+    if let Some(set) = &select.set {
+        let right_schema =
+            infer_select_schema_with_scope(&set.right, catalog, &cte_schemas, user_functions)?;
+        if fields.fields.len() != right_schema.fields.len() {
+            return Err(CassieError::Planner(format!(
+                "set operation column count mismatch: {} != {}",
+                fields.fields.len(),
+                right_schema.fields.len()
+            )));
         }
+    }
 
-        let source_schema =
-            infer_source_schema(&select.source, catalog, &cte_schemas, user_functions, false)
-                .await?;
-        let mut fields =
-            infer_projection_schema(&select.projection, &source_schema, user_functions);
-
-        if let Some(set) = &select.set {
-            let right_schema =
-                infer_select_schema_with_scope(&set.right, catalog, &cte_schemas, user_functions)
-                    .await?;
-            if fields.fields.len() != right_schema.fields.len() {
-                return Err(CassieError::Planner(format!(
-                    "set operation column count mismatch: {} != {}",
-                    fields.fields.len(),
-                    right_schema.fields.len()
-                )));
-            }
+    for group_expr in &select.group_by {
+        if let Expr::Column(name) = group_expr {
+            let _ = schema_field_type(&source_schema, name);
         }
+    }
 
-        for group_expr in &select.group_by {
-            if let Expr::Column(name) = group_expr {
-                let _ = schema_field_type(&source_schema, name);
-            }
-        }
+    fields.fields.iter_mut().for_each(|field| {
+        field.nullable = true;
+    });
 
-        fields.fields.iter_mut().for_each(|field| {
-            field.nullable = true;
-        });
-
-        Ok(fields)
-    })
+    Ok(fields)
 }
 
-fn infer_cte_schema<'a>(
-    cte: &'a CommonTableExpression,
-    catalog: &'a Catalog,
-    cte_schemas: &'a HashMap<String, Schema>,
-    user_functions: &'a HashMap<String, crate::catalog::FunctionMeta>,
-) -> Pin<Box<dyn Future<Output = Result<Schema, CassieError>> + Send + 'a>> {
-    Box::pin(async move {
-        let query = match &cte.query {
-            CteQuery::Simple(statement) => statement,
-            CteQuery::Recursive { base, .. } => base,
-        };
+fn infer_cte_schema(
+    cte: &CommonTableExpression,
+    catalog: &Catalog,
+    cte_schemas: &HashMap<String, Schema>,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> Result<Schema, CassieError> {
+    let query = match &cte.query {
+        CteQuery::Simple(statement) => statement,
+        CteQuery::Recursive { base, .. } => base,
+    };
 
-        let QueryStatement::Select(select) = &query.statement else {
-            return Err(CassieError::Planner(
-                "CTE body must be a SELECT statement".into(),
-            ));
-        };
+    let QueryStatement::Select(select) = &query.statement else {
+        return Err(CassieError::Planner(
+            "CTE body must be a SELECT statement".into(),
+        ));
+    };
 
-        let mut schema =
-            infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions).await?;
+    let mut schema =
+        infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions)?;
 
-        if !cte.aliases.is_empty() {
-            if schema.fields.len() != cte.aliases.len() {
-                return Err(CassieError::Planner(format!(
-                    "CTE '{}' alias count does not match output columns",
-                    cte.name
-                )));
-            }
-
-            for (field, alias) in schema.fields.iter_mut().zip(cte.aliases.iter()) {
-                field.name = alias.clone();
-            }
+    if !cte.aliases.is_empty() {
+        if schema.fields.len() != cte.aliases.len() {
+            return Err(CassieError::Planner(format!(
+                "CTE '{}' alias count does not match output columns",
+                cte.name
+            )));
         }
 
-        Ok(schema)
-    })
+        for (field, alias) in schema.fields.iter_mut().zip(cte.aliases.iter()) {
+            field.name = alias.clone();
+        }
+    }
+
+    Ok(schema)
 }
 
-fn infer_source_schema<'a>(
-    source: &'a QuerySource,
-    catalog: &'a Catalog,
-    cte_schemas: &'a HashMap<String, Schema>,
-    user_functions: &'a HashMap<String, crate::catalog::FunctionMeta>,
+fn infer_source_schema(
+    source: &QuerySource,
+    catalog: &Catalog,
+    cte_schemas: &HashMap<String, Schema>,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
     qualify: bool,
-) -> Pin<Box<dyn Future<Output = Result<Schema, CassieError>> + Send + 'a>> {
-    Box::pin(async move {
-        let schema = match source {
-            QuerySource::Collection(name) => relation_output_schema(catalog, name).await?,
-            QuerySource::Cte(name) => cte_schemas
-                .get(&name.to_ascii_lowercase())
-                .cloned()
-                .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?,
-            QuerySource::SingleRow => Schema { fields: Vec::new() },
-            QuerySource::Subquery { alias, select, .. } => {
-                let inner =
-                    infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions)
-                        .await?;
-                qualify_schema(&inner, alias)
-            }
-            QuerySource::Join { left, right, .. } => {
-                let left =
-                    infer_source_schema(left, catalog, cte_schemas, user_functions, true).await?;
-                let right =
-                    infer_source_schema(right, catalog, cte_schemas, user_functions, true).await?;
-                let mut fields = left.fields;
-                fields.extend(right.fields);
-                Schema { fields }
-            }
-        };
-
-        if qualify {
-            Ok(match source {
-                QuerySource::Collection(name) | QuerySource::Cte(name) => {
-                    qualify_schema(&schema, name)
-                }
-                QuerySource::SingleRow
-                | QuerySource::Subquery { .. }
-                | QuerySource::Join { .. } => schema,
-            })
-        } else {
-            Ok(schema)
+) -> Result<Schema, CassieError> {
+    let schema = match source {
+        QuerySource::Collection(name) => relation_output_schema(catalog, name)?,
+        QuerySource::Cte(name) => cte_schemas
+            .get(&name.to_ascii_lowercase())
+            .cloned()
+            .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?,
+        QuerySource::SingleRow => Schema { fields: Vec::new() },
+        QuerySource::Subquery { alias, select, .. } => {
+            let inner =
+                infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions)?;
+            qualify_schema(&inner, alias)
         }
-    })
+        QuerySource::Join { left, right, .. } => {
+            let left =
+                infer_source_schema(left, catalog, cte_schemas, user_functions, true)?;
+            let right =
+                infer_source_schema(right, catalog, cte_schemas, user_functions, true)?;
+            let mut fields = left.fields;
+            fields.extend(right.fields);
+            Schema { fields }
+        }
+    };
+
+    if qualify {
+        Ok(match source {
+            QuerySource::Collection(name) | QuerySource::Cte(name) => {
+                qualify_schema(&schema, name)
+            }
+            QuerySource::SingleRow
+            | QuerySource::Subquery { .. }
+            | QuerySource::Join { .. } => schema,
+        })
+    } else {
+        Ok(schema)
+    }
 }
 
-async fn relation_output_schema(catalog: &Catalog, name: &str) -> Result<Schema, CassieError> {
+fn relation_output_schema(catalog: &Catalog, name: &str) -> Result<Schema, CassieError> {
     if let Some(fields) = virtual_views::schema(name) {
         return Ok(Schema {
             fields: fields
@@ -1810,13 +1779,12 @@ async fn relation_output_schema(catalog: &Catalog, name: &str) -> Result<Schema,
         });
     }
 
-    if let Some(view) = catalog.get_view(name).await {
+    if let Some(view) = catalog.get_view(name) {
         return Ok(view.schema);
     }
 
     let schema = catalog
         .get_schema(name)
-        .await
         .ok_or_else(|| CassieError::CollectionNotFound(name.to_string()))?;
 
     let mut fields = Vec::with_capacity(schema.fields.len() + 1);
@@ -2115,16 +2083,16 @@ fn collect_projection_aliases(select: &SelectStatement) -> HashSet<String> {
     aliases
 }
 
-async fn validate_functions(
+fn validate_functions(
     statement: &SelectStatement,
     catalog: &Catalog,
 ) -> Result<(), CassieError> {
     let mut seen = Vec::new();
     collect_functions(statement, &mut seen);
-    validate_function_calls(seen, catalog).await
+    validate_function_calls(seen, catalog)
 }
 
-async fn validate_function_calls(
+fn validate_function_calls(
     functions: Vec<FunctionCall>,
     catalog: &Catalog,
 ) -> Result<(), CassieError> {
@@ -2133,7 +2101,7 @@ async fn validate_function_calls(
         .map(|function| (function.name.to_ascii_lowercase(), function.arity))
         .collect::<HashMap<_, _>>();
 
-    for function in catalog.list_functions().await {
+    for function in catalog.list_functions() {
         signatures.insert(
             function.name.to_ascii_lowercase(),
             crate::sql::functions::FunctionArity::Exact(function.args.len()),

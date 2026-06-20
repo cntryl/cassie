@@ -110,7 +110,7 @@ fn should_record_pgwire_connection_metrics() {
         let mut config = CassieRuntimeConfig::from_env();
         config.password.clear();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "pgwire_metrics_docs";
         let schema = Schema {
@@ -134,8 +134,7 @@ fn should_record_pgwire_connection_metrics() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -207,7 +206,7 @@ fn should_record_pgwire_connection_metrics() {
         drop(socket);
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-        let metrics = cassie.metrics().await;
+        let metrics = cassie.metrics();
 
         // Assert
         assert!(

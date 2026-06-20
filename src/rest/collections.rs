@@ -19,11 +19,11 @@ pub struct FieldSpec {
     pub data_type: String,
 }
 
-pub async fn list(cassie: &Cassie) -> Vec<String> {
+pub fn list(cassie: &Cassie) -> Vec<String> {
     cassie.midge.list_collections()
 }
 
-pub async fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> {
+pub fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> {
     let request: CreateCollectionRequest =
         serde_json::from_slice(body).map_err(|e| CassieError::Parse(e.to_string()))?;
 
@@ -54,8 +54,7 @@ pub async fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> 
                 .iter()
                 .map(|f| (f.name.clone(), f.data_type.clone()))
                 .collect(),
-        )
-        .await;
+        );
 
     Ok(serde_json::json!({
         "collection": request.name,

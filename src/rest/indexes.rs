@@ -20,7 +20,7 @@ fn default_kind() -> String {
     "vector".to_string()
 }
 
-pub async fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Value, CassieError> {
+pub fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Value, CassieError> {
     let payload: CreateIndexRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
 
@@ -92,7 +92,6 @@ pub async fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Va
     if let Some(existing) = cassie
         .catalog
         .get_vector_index(collection, &payload.field)
-        .await
     {
         if existing.source_field != source_field
             || existing.metadata.provider != metadata.provider
@@ -147,7 +146,7 @@ pub async fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Va
     };
 
     cassie.midge.put_vector_index(record.clone())?;
-    cassie.register_vector_index(record.clone()).await;
+    cassie.register_vector_index(record.clone());
 
     Ok(serde_json::json!({
         "collection": collection,

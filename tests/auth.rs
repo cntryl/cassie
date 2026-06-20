@@ -63,8 +63,7 @@ fn should_expose_session_identity_in_context_functions() {
             // Act
             let query = format!("SELECT {function}");
             let result = cassie
-                .execute_sql(&session, &query, vec![])
-                .await
+                .execute_sql(&session, &query, vec![]);
                 .expect("identity function query");
             let value = result
                 .rows
@@ -100,7 +99,7 @@ fn should_present_default_admin_role_in_pg_roles() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         // Act
         let session = cassie.create_session("alice", None);
@@ -109,8 +108,7 @@ fn should_present_default_admin_role_in_pg_roles() {
                 &session,
                 "SELECT rolname FROM pg_catalog.pg_roles ORDER BY rolname",
                 vec![],
-            )
-            .await
+            );
             .expect("pg_roles query");
 
         // Assert
@@ -136,10 +134,9 @@ fn should_persist_created_login_role_in_pg_roles() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let admin = cassie
-            .authenticate_role("sa", Some("sa-secret"), None)
-            .await
+            .authenticate_role("sa", Some("sa-secret"), None);
             .expect("admin login");
 
         // Act
@@ -148,16 +145,14 @@ fn should_persist_created_login_role_in_pg_roles() {
                 &admin,
                 "CREATE ROLE alice LOGIN PASSWORD 'alice-secret'",
                 vec![],
-            )
-            .await
+            );
             .expect("create role");
         let result = cassie
             .execute_sql(
                 &admin,
                 "SELECT rolname FROM pg_catalog.pg_roles ORDER BY rolname",
                 vec![],
-            )
-            .await
+            );
             .expect("pg_roles query");
 
         // Assert
@@ -189,32 +184,28 @@ fn should_authenticate_persisted_login_role_with_password() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let admin = cassie
-            .authenticate_role("sa", Some("sa-secret"), None)
-            .await
+            .authenticate_role("sa", Some("sa-secret"), None);
             .expect("admin login");
         cassie
             .execute_sql(
                 &admin,
                 "CREATE ROLE alice LOGIN PASSWORD 'alice-secret'",
                 vec![],
-            )
-            .await
+            );
             .expect("create role");
 
         // Act
         let alice = cassie
-            .authenticate_role("alice", Some("alice-secret"), None)
-            .await
+            .authenticate_role("alice", Some("alice-secret"), None);
             .expect("alice login");
         let result = cassie
             .execute_sql(
                 &alice,
                 "SELECT current_user(), session_user(), current_role(), current_database()",
                 vec![],
-            )
-            .await
+            );
             .expect("identity query");
 
         // Assert
@@ -249,32 +240,27 @@ fn should_rotate_login_role_password() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let admin = cassie
-            .authenticate_role("sa", Some("sa-secret"), None)
-            .await
+            .authenticate_role("sa", Some("sa-secret"), None);
             .expect("admin login");
         cassie
             .execute_sql(
                 &admin,
                 "CREATE ROLE alice LOGIN PASSWORD 'alice-secret'",
                 vec![],
-            )
-            .await
+            );
             .expect("create role");
 
         // Act
         cassie
-            .execute_sql(&admin, "ALTER ROLE alice PASSWORD 'alice-rotated'", vec![])
-            .await
+            .execute_sql(&admin, "ALTER ROLE alice PASSWORD 'alice-rotated'", vec![]);
             .expect("rotate password");
 
         let old_password = cassie
-            .authenticate_role("alice", Some("alice-secret"), None)
-            .await;
+            .authenticate_role("alice", Some("alice-secret"), None);
         let new_password = cassie
-            .authenticate_role("alice", Some("alice-rotated"), None)
-            .await;
+            .authenticate_role("alice", Some("alice-rotated"), None);
 
         // Assert
         assert!(old_password.is_err(), "old password should be rejected");
@@ -300,24 +286,21 @@ fn should_drop_login_role() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let admin = cassie
-            .authenticate_role("sa", Some("sa-secret"), None)
-            .await
+            .authenticate_role("sa", Some("sa-secret"), None);
             .expect("admin login");
         cassie
             .execute_sql(
                 &admin,
                 "CREATE ROLE alice LOGIN PASSWORD 'alice-secret'",
                 vec![],
-            )
-            .await
+            );
             .expect("create role");
 
         // Act
         cassie
-            .execute_sql(&admin, "DROP ROLE alice", vec![])
-            .await
+            .execute_sql(&admin, "DROP ROLE alice", vec![]);
             .expect("drop role");
 
         // Assert
@@ -326,8 +309,7 @@ fn should_drop_login_role() {
                 &admin,
                 "SELECT rolname FROM pg_catalog.pg_roles ORDER BY rolname",
                 vec![],
-            )
-            .await
+            );
             .expect("pg_roles query");
 
         assert_eq!(
@@ -356,28 +338,24 @@ fn should_reject_authentication_for_dropped_login_role() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let admin = cassie
-            .authenticate_role("sa", Some("sa-secret"), None)
-            .await
+            .authenticate_role("sa", Some("sa-secret"), None);
             .expect("admin login");
         cassie
             .execute_sql(
                 &admin,
                 "CREATE ROLE alice LOGIN PASSWORD 'alice-secret'",
                 vec![],
-            )
-            .await
+            );
             .expect("create role");
         cassie
-            .execute_sql(&admin, "DROP ROLE alice", vec![])
-            .await
+            .execute_sql(&admin, "DROP ROLE alice", vec![]);
             .expect("drop role");
 
         // Act
         let result = cassie
-            .authenticate_role("alice", Some("alice-secret"), None)
-            .await;
+            .authenticate_role("alice", Some("alice-secret"), None);
 
         // Assert
         assert!(result.is_err(), "dropped role should not authenticate");
@@ -402,18 +380,16 @@ fn should_enforce_deterministic_rest_bearer_auth() {
         .expect("runtime");
 
     runtime.block_on(async {
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let admin = cassie
-            .authenticate_role("sa", Some("topsecret"), None)
-            .await
+            .authenticate_role("sa", Some("topsecret"), None);
             .expect("admin login");
         cassie
             .execute_sql(
                 &admin,
                 "CREATE ROLE alice LOGIN PASSWORD 'alice-secret'",
                 vec![],
-            )
-            .await
+            );
             .expect("create role");
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

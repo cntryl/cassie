@@ -177,7 +177,7 @@ fn should_execute_binary_simple_query_return_backend_frames() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "simple_query_docs";
         let schema = Schema {
@@ -191,7 +191,7 @@ fn should_execute_binary_simple_query_return_backend_frames() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie.register_collection(collection, schema).await;
+        cassie.register_collection(collection, schema);
         cassie
             .midge
             .put_document(
@@ -303,7 +303,7 @@ fn should_return_row_description_for_empty_simple_query_result() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "simple_query_empty_docs";
         let schema = Schema {
@@ -317,7 +317,7 @@ fn should_return_row_description_for_empty_simple_query_result() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie.register_collection(collection, schema).await;
+        cassie.register_collection(collection, schema);
 
         let mut config = CassieRuntimeConfig::from_env();
         config.password.clear();
@@ -398,7 +398,7 @@ fn should_recover_ready_after_simple_query_error() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let mut config = CassieRuntimeConfig::from_env();
         config.password.clear();

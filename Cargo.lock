@@ -208,6 +208,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "parking_lot",
  "reqwest",
  "serde",
  "serde_json",

@@ -52,8 +52,7 @@ async fn ensure_collection(cassie: &Cassie, collection: &str, schema: Schema) {
                 .iter()
                 .map(|field| (field.name.clone(), field.data_type.clone()))
                 .collect(),
-        )
-        .await;
+        );
 }
 
 fn vector_index_record(
@@ -186,17 +185,15 @@ fn should_reject_ingest_when_dimensions_change() {
             ],
         };
 
-        cassie.startup().await.unwrap();
-        ensure_collection(&cassie, collection, schema.clone()).await;
-
+        cassie.startup().unwrap();
+        ensure_collection(&cassie, collection, schema.clone());
         let index_record = vector_index_record(collection, "openai", 2, DistanceMetric::Cosine);
         cassie.midge.put_vector_index(index_record.clone()).unwrap();
-        cassie.register_vector_index(index_record).await;
+        cassie.register_vector_index(index_record);
 
         // Assert
         let result = cassie
-            .ingest_document(collection, serde_json::json!({"content": "sample text"}))
-            .await;
+            .ingest_document(collection, serde_json::json!({"content": "sample text"}));
         assert!(matches!(result, Err(CassieError::InvalidEmbedding(_))));
     });
 
@@ -237,11 +234,10 @@ fn should_reject_query_when_metric_different() {
             ],
         };
 
-        cassie.startup().await.unwrap();
-        ensure_collection(&cassie, collection, schema).await;
-        let index_record = vector_index_record(collection, "openai", 1536, DistanceMetric::Cosine);
+        cassie.startup().unwrap();
+        ensure_collection(&cassie, collection, schema);        let index_record = vector_index_record(collection, "openai", 1536, DistanceMetric::Cosine);
         cassie.midge.put_vector_index(index_record.clone()).unwrap();
-        cassie.register_vector_index(index_record).await;
+        cassie.register_vector_index(index_record);
 
         // Assert
         let result = cassie
@@ -252,8 +248,7 @@ fn should_reject_query_when_metric_different() {
                 Some(DistanceMetric::Dot),
                 10,
                 0,
-            )
-            .await;
+            );
         assert!(matches!(result, Err(CassieError::InvalidEmbedding(_))));
     });
 

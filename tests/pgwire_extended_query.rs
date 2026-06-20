@@ -305,7 +305,7 @@ fn should_close_connection_on_cancel_request_without_response() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let config = CassieRuntimeConfig::from_env();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -369,7 +369,7 @@ fn should_reject_copy_data_message_with_unsupported_error() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let mut config = CassieRuntimeConfig::from_env();
         config.password.clear();
@@ -454,7 +454,7 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "extended_query_recovery_docs";
         let schema = Schema {
@@ -468,7 +468,7 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie.register_collection(collection, schema).await;
+        cassie.register_collection(collection, schema);
         cassie
             .midge
             .put_document(
@@ -624,7 +624,7 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "extended_query_close_docs";
         let schema = Schema {
@@ -638,7 +638,7 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie.register_collection(collection, schema).await;
+        cassie.register_collection(collection, schema);
         cassie
             .midge
             .put_document(
@@ -749,7 +749,7 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
                 .any(|(field, value)| *field == 'M' && value.contains("not bound")),
             "execute after statement close should mention the missing portal"
         );
-        let metrics = cassie.metrics().await;
+        let metrics = cassie.metrics();
         assert_eq!(metrics["pgwire"]["prepared_statements"].as_u64(), Some(0));
         assert_eq!(metrics["pgwire"]["portals"].as_u64(), Some(0));
 
@@ -772,7 +772,7 @@ fn should_return_unsupported_error_for_copy_statement() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let mut config = CassieRuntimeConfig::from_env();
         config.password.clear();
@@ -854,7 +854,7 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "extended_query_docs";
         let schema = Schema {
@@ -868,7 +868,7 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie.register_collection(collection, schema).await;
+        cassie.register_collection(collection, schema);
         cassie
             .midge
             .put_document(
@@ -1020,7 +1020,7 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "extended_query_numbers";
         let schema = Schema {
@@ -1034,7 +1034,7 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie.register_collection(collection, schema).await;
+        cassie.register_collection(collection, schema);
         cassie
             .midge
             .put_document(
@@ -1175,7 +1175,7 @@ fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "extended_query_parse_once";
         let schema = Schema {
@@ -1189,7 +1189,7 @@ fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie.register_collection(collection, schema).await;
+        cassie.register_collection(collection, schema);
         cassie
             .midge
             .put_document(
@@ -1284,7 +1284,7 @@ fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
                 break;
             }
         }
-        let metrics = cassie.metrics().await;
+        let metrics = cassie.metrics();
 
         // Assert
         assert_eq!(metrics["runtime"]["sql_parse_total"].as_u64(), Some(1));

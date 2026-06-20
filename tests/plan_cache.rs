@@ -49,8 +49,7 @@ fn should_reuse_cached_plan_across_sessions_without_sharing_bind_values() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -77,18 +76,16 @@ fn should_reuse_cached_plan_across_sessions_without_sharing_bind_values() {
                 &session_one,
                 "SELECT title FROM plan_cache_docs WHERE title = $1",
                 vec![cassie::types::Value::String("alpha".to_string())],
-            )
-            .await
+            );
             .unwrap();
         let second = cassie
             .execute_sql(
                 &session_two,
                 "SELECT title FROM plan_cache_docs WHERE title = $1",
                 vec![cassie::types::Value::String("beta".to_string())],
-            )
-            .await
+            );
             .unwrap();
-        let metrics = cassie.metrics().await;
+        let metrics = cassie.metrics();
 
         // Assert
         assert_eq!(first.rows.len(), 1);
@@ -142,8 +139,7 @@ fn should_report_diagnostic_plan_cache_hit_after_query_execution() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -157,8 +153,7 @@ fn should_report_diagnostic_plan_cache_hit_after_query_execution() {
         let sql = "SELECT title FROM plan_cache_diagnostic_docs WHERE title = $1";
         let params = vec![cassie::types::Value::String("alpha".to_string())];
         cassie
-            .execute_sql(&session, sql, params.clone())
-            .await
+            .execute_sql(&session, sql, params.clone());
             .unwrap();
         let parsed = parse_statement(sql).unwrap();
 
@@ -211,8 +206,7 @@ fn should_reuse_cached_plan_for_equivalent_sql_with_different_whitespace() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -230,18 +224,16 @@ fn should_reuse_cached_plan_for_equivalent_sql_with_different_whitespace() {
                 &session,
                 "SELECT title FROM plan_cache_whitespace_docs WHERE title = $1",
                 vec![cassie::types::Value::String("alpha".to_string())],
-            )
-            .await
+            );
             .unwrap();
         let second = cassie
             .execute_sql(
                 &session,
                 "  select   title  from   plan_cache_whitespace_docs where   title = $1  ",
                 vec![cassie::types::Value::String("alpha".to_string())],
-            )
-            .await
+            );
             .unwrap();
-        let metrics = cassie.metrics().await;
+        let metrics = cassie.metrics();
 
         // Assert
         assert_eq!(first.rows.len(), 1);
@@ -287,8 +279,7 @@ fn should_reuse_cached_execution_result_without_additional_storage_reads() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -299,7 +290,7 @@ fn should_reuse_cached_execution_result_without_additional_storage_reads() {
             .unwrap();
 
         let session = cassie.create_session("alice", None);
-        let before = cassie.metrics().await;
+        let before = cassie.metrics();
         let before_reads = before["storage"]["data"]["reads"]
             .as_u64()
             .unwrap_or_default();
@@ -310,10 +301,9 @@ fn should_reuse_cached_execution_result_without_additional_storage_reads() {
                 &session,
                 "SELECT title FROM execution_cache_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
-        let middle = cassie.metrics().await;
+        let middle = cassie.metrics();
         let middle_reads = middle["storage"]["data"]["reads"]
             .as_u64()
             .unwrap_or_default();
@@ -322,10 +312,9 @@ fn should_reuse_cached_execution_result_without_additional_storage_reads() {
                 &session,
                 "SELECT title FROM execution_cache_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
-        let after = cassie.metrics().await;
+        let after = cassie.metrics();
         let after_reads = after["storage"]["data"]["reads"]
             .as_u64()
             .unwrap_or_default();
@@ -375,8 +364,7 @@ fn should_invalidate_cached_execution_result_after_write() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -394,24 +382,21 @@ fn should_invalidate_cached_execution_result_after_write() {
                 &session,
                 "SELECT title FROM execution_cache_invalidation_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO execution_cache_invalidation_docs (title) VALUES ('alpha')",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
         let second = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM execution_cache_invalidation_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Assert
@@ -456,8 +441,7 @@ fn should_isolate_cached_plans_by_database() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -472,9 +456,9 @@ fn should_isolate_cached_plans_by_database() {
         let sql = "SELECT title FROM plan_cache_database_docs WHERE title = 'alpha'";
 
         // Act
-        let first = cassie.execute_sql(&primary, sql, vec![]).await.unwrap();
-        let second = cassie.execute_sql(&analytics, sql, vec![]).await.unwrap();
-        let metrics = cassie.metrics().await;
+        let first = cassie.execute_sql(&primary, sql, vec![]).unwrap();
+        let second = cassie.execute_sql(&analytics, sql, vec![]).unwrap();
+        let metrics = cassie.metrics();
 
         // Assert
         assert_eq!(first.rows.len(), 1);
@@ -520,8 +504,7 @@ fn should_keep_first_non_durable_plan_miss_out_of_cf2() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -538,10 +521,9 @@ fn should_keep_first_non_durable_plan_miss_out_of_cf2() {
                 &session,
                 "SELECT title FROM plan_cache_first_miss_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
-        let metrics = cassie.metrics().await;
+        let metrics = cassie.metrics();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -566,7 +548,7 @@ fn should_reuse_cf2_cached_plan_after_restart_without_l1_state() {
     runtime.block_on(async {
         {
             let cassie = Cassie::new_with_data_dir(&path).unwrap();
-            cassie.startup().await.unwrap();
+            cassie.startup().unwrap();
 
             let collection = "plan_cache_restart_docs";
             let schema = Schema {
@@ -590,8 +572,7 @@ fn should_reuse_cf2_cached_plan_after_restart_without_l1_state() {
                         .iter()
                         .map(|field| (field.name.clone(), field.data_type.clone()))
                         .collect(),
-                )
-                .await;
+                );
             cassie
                 .midge
                 .put_document(
@@ -608,25 +589,23 @@ fn should_reuse_cf2_cached_plan_after_restart_without_l1_state() {
                     &session,
                     "SELECT title FROM plan_cache_restart_docs WHERE title = 'alpha'",
                     vec![],
-                )
-                .await
+                );
                 .unwrap();
             let second = cassie
                 .execute_sql(
                     &session,
                     "SELECT title FROM plan_cache_restart_docs WHERE title = 'alpha'",
                     vec![],
-                )
-                .await
+                );
                 .unwrap();
 
             assert_eq!(first.rows.len(), 1);
             assert_eq!(second.rows.len(), 1);
-            cassie.shutdown().await;
+            cassie.shutdown();
         }
 
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
-        restarted.startup().await.unwrap();
+        restarted.startup().unwrap();
         let session = restarted.create_session("alice", None);
 
         // Act
@@ -635,10 +614,9 @@ fn should_reuse_cf2_cached_plan_after_restart_without_l1_state() {
                 &session,
                 "SELECT title FROM plan_cache_restart_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
-        let metrics = restarted.metrics().await;
+        let metrics = restarted.metrics();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -683,8 +661,7 @@ fn should_invalidate_cached_plan_after_ddl_changes_catalog_state() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -702,22 +679,19 @@ fn should_invalidate_cached_plan_after_ddl_changes_catalog_state() {
                 &session,
                 "SELECT title FROM plan_cache_ddl_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
         cassie
-            .execute_sql(&session, "CREATE TABLE plan_cache_guard (id INT)", vec![])
-            .await
+            .execute_sql(&session, "CREATE TABLE plan_cache_guard (id INT)", vec![]);
             .unwrap();
         let second = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM plan_cache_ddl_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
-        let metrics = cassie.metrics().await;
+        let metrics = cassie.metrics();
 
         // Assert
         assert_eq!(first.rows.len(), 1);
@@ -765,8 +739,7 @@ fn should_evict_oldest_plan_when_cache_capacity_is_one() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -792,26 +765,23 @@ fn should_evict_oldest_plan_when_cache_capacity_is_one() {
                 &session,
                 "SELECT title FROM plan_cache_eviction_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
         let second = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM plan_cache_eviction_docs WHERE title = 'beta'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
         let third = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM plan_cache_eviction_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
-        let metrics = cassie.metrics().await;
+        let metrics = cassie.metrics();
 
         // Assert
         assert_eq!(first.rows.len(), 1);
@@ -837,17 +807,16 @@ fn should_not_cache_transaction_control_statements() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("alice", None);
-        let before = cassie.metrics().await;
+        let before = cassie.metrics();
 
         // Act
-        cassie.execute_sql(&session, "BEGIN", vec![]).await.unwrap();
+        cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
         cassie
-            .execute_sql(&session, "COMMIT", vec![])
-            .await
+            .execute_sql(&session, "COMMIT", vec![]);
             .unwrap();
-        let after = cassie.metrics().await;
+        let after = cassie.metrics();
 
         // Assert
         assert_eq!(
@@ -897,8 +866,7 @@ fn should_promote_non_durable_l1_plan_without_extra_cf2_reads_on_second_hit() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -912,15 +880,13 @@ fn should_promote_non_durable_l1_plan_without_extra_cf2_reads_on_second_hit() {
         let first_sql = "SELECT title FROM plan_cache_l1_promotion_docs WHERE title = 'alpha'";
         // Act
         let first = cassie
-            .execute_sql(&session, first_sql, vec![])
-            .await
+            .execute_sql(&session, first_sql, vec![]);
             .unwrap();
-        let after_first = cassie.metrics().await;
+        let after_first = cassie.metrics();
         let second = cassie
-            .execute_sql(&session, first_sql, vec![])
-            .await
+            .execute_sql(&session, first_sql, vec![]);
             .unwrap();
-        let after_second = cassie.metrics().await;
+        let after_second = cassie.metrics();
 
         // Assert
         assert_eq!(first.rows.len(), 1);

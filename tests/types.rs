@@ -80,7 +80,7 @@ fn should_roundtrip_supported_sql_values() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -89,7 +89,7 @@ fn should_roundtrip_supported_sql_values() {
                 vec![],
             )
 
-            .await.unwrap();
+.unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -105,8 +105,7 @@ fn should_roundtrip_supported_sql_values() {
                     Value::Int64(12),
                     Value::Int64(9_223_372_036_854_775_807),
                 ],
-            )
-            .await
+            );
             .unwrap();
 
         // Act
@@ -115,8 +114,7 @@ fn should_roundtrip_supported_sql_values() {
                 &session,
                 "SELECT item_id, item_uuid, created_on, created_at, created_at_ts, payload, values, embedding, short, wide, code, title, blob FROM type_round_trip WHERE item_id = 'row-1'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
 
         // Assert
@@ -164,7 +162,7 @@ fn should_cast_string_to_uuid() {
 
     runtime.block_on(async {
         let cassie = Cassie::new().unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
         // Act
@@ -173,8 +171,7 @@ fn should_cast_string_to_uuid() {
                 &session,
                 "SELECT CAST('550e8400-e29b-41d4-a716-446655440000' AS UUID)",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
         // Assert
         assert_eq!(
@@ -194,13 +191,12 @@ fn should_cast_null_to_text() {
 
     runtime.block_on(async {
         let cassie = Cassie::new().unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
         // Act
         let casted_text = cassie
-            .execute_sql(&session, "SELECT CAST(NULL AS TEXT)", vec![])
-            .await
+            .execute_sql(&session, "SELECT CAST(NULL AS TEXT)", vec![]);
             .unwrap();
 
         // Assert
@@ -218,16 +214,14 @@ fn should_fail_when_casting_scalar_to_unsupported_type_family() {
 
     runtime.block_on(async {
         let cassie = Cassie::new().unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
         // Act
         let vector_cast = cassie
-            .execute_sql(&session, "SELECT CAST(1 AS VECTOR(2))", vec![])
-            .await;
+            .execute_sql(&session, "SELECT CAST(1 AS VECTOR(2))", vec![]);
         let array_cast = cassie
-            .execute_sql(&session, "SELECT CAST(1 AS INT[])", vec![])
-            .await;
+            .execute_sql(&session, "SELECT CAST(1 AS INT[])", vec![]);
 
         // Assert
         assert!(vector_cast.is_err(), "vector cast should be unsupported");

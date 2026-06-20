@@ -65,25 +65,25 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
     Some(fields)
 }
 
-pub async fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
+pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
     let name = normalize_name(name);
     let rows = match name.as_str() {
-        "information_schema.tables" => information_schema_tables(catalog).await,
-        "information_schema.columns" => information_schema_columns(catalog).await,
-        "information_schema.views" => information_schema_views(catalog).await,
+        "information_schema.tables" => information_schema_tables(catalog),
+        "information_schema.columns" => information_schema_columns(catalog),
+        "information_schema.views" => information_schema_views(catalog),
         "information_schema.table_constraints" => {
-            information_schema_table_constraints(catalog).await
+            information_schema_table_constraints(catalog)
         }
-        "information_schema.key_column_usage" => information_schema_key_column_usage(catalog).await,
-        "pg_catalog.pg_namespace" => pg_namespace(catalog).await,
-        "pg_catalog.pg_class" => pg_class(catalog).await,
-        "pg_catalog.pg_attribute" => pg_attribute(catalog).await,
-        "pg_catalog.pg_indexes" => pg_indexes(catalog).await,
-        "pg_catalog.pg_constraint" => pg_constraint(catalog).await,
+        "information_schema.key_column_usage" => information_schema_key_column_usage(catalog),
+        "pg_catalog.pg_namespace" => pg_namespace(catalog),
+        "pg_catalog.pg_class" => pg_class(catalog),
+        "pg_catalog.pg_attribute" => pg_attribute(catalog),
+        "pg_catalog.pg_indexes" => pg_indexes(catalog),
+        "pg_catalog.pg_constraint" => pg_constraint(catalog),
         "pg_catalog.pg_type" => pg_type(catalog),
         "pg_catalog.pg_roles" => catalog
             .list_roles()
-            .await
+            
             .into_iter()
             .map(|role| {
                 vec![
@@ -248,10 +248,10 @@ fn bool_value(name: &str, value: bool) -> (String, Value) {
     (name.to_string(), Value::Bool(value))
 }
 
-async fn information_schema_tables(catalog: &Catalog) -> Vec<VirtualRow> {
+fn information_schema_tables(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = catalog
         .list_collections()
-        .await
+        
         .into_iter()
         .map(|collection| {
             vec![
@@ -262,7 +262,7 @@ async fn information_schema_tables(catalog: &Catalog) -> Vec<VirtualRow> {
         })
         .collect::<Vec<_>>();
 
-    rows.extend(catalog.list_views().await.into_iter().map(|view| {
+    rows.extend(catalog.list_views().into_iter().map(|view| {
         vec![
             string("table_schema", "public"),
             string("table_name", view.name),
@@ -274,10 +274,10 @@ async fn information_schema_tables(catalog: &Catalog) -> Vec<VirtualRow> {
     rows
 }
 
-async fn information_schema_columns(catalog: &Catalog) -> Vec<VirtualRow> {
+fn information_schema_columns(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
-    for collection in catalog.list_collections().await {
-        let Some(schema) = catalog.get_schema(&collection.name).await else {
+    for collection in catalog.list_collections() {
+        let Some(schema) = catalog.get_schema(&collection.name) else {
             continue;
         };
         for (index, field) in schema.fields.iter().enumerate() {
@@ -291,7 +291,7 @@ async fn information_schema_columns(catalog: &Catalog) -> Vec<VirtualRow> {
             ]);
         }
     }
-    for view in catalog.list_views().await {
+    for view in catalog.list_views() {
         for (index, field) in view.schema.fields.iter().enumerate() {
             rows.push(vec![
                 string("table_schema", "public"),
@@ -306,10 +306,10 @@ async fn information_schema_columns(catalog: &Catalog) -> Vec<VirtualRow> {
     rows
 }
 
-async fn information_schema_views(catalog: &Catalog) -> Vec<VirtualRow> {
+fn information_schema_views(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = catalog
         .list_views()
-        .await
+        
         .into_iter()
         .map(|view| {
             vec![
@@ -323,10 +323,10 @@ async fn information_schema_views(catalog: &Catalog) -> Vec<VirtualRow> {
     rows
 }
 
-async fn information_schema_table_constraints(catalog: &Catalog) -> Vec<VirtualRow> {
+fn information_schema_table_constraints(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
-    for collection in catalog.list_collections().await {
-        for constraint in catalog.get_constraints(&collection.name).await {
+    for collection in catalog.list_collections() {
+        for constraint in catalog.get_constraints(&collection.name) {
             if constraint.primary_key {
                 rows.push(table_constraint_row(
                     &collection.name,
@@ -354,10 +354,10 @@ async fn information_schema_table_constraints(catalog: &Catalog) -> Vec<VirtualR
     rows
 }
 
-async fn information_schema_key_column_usage(catalog: &Catalog) -> Vec<VirtualRow> {
+fn information_schema_key_column_usage(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
-    for collection in catalog.list_collections().await {
-        for constraint in catalog.get_constraints(&collection.name).await {
+    for collection in catalog.list_collections() {
+        for constraint in catalog.get_constraints(&collection.name) {
             if constraint.primary_key || constraint.unique {
                 rows.push(vec![
                     string("table_schema", "public"),
@@ -383,7 +383,7 @@ async fn information_schema_key_column_usage(catalog: &Catalog) -> Vec<VirtualRo
     rows
 }
 
-async fn pg_namespace(catalog: &Catalog) -> Vec<VirtualRow> {
+fn pg_namespace(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = vec![
         vec![string("nspname", "information_schema")],
         vec![string("nspname", "pg_catalog")],
@@ -392,7 +392,7 @@ async fn pg_namespace(catalog: &Catalog) -> Vec<VirtualRow> {
     rows.extend(
         catalog
             .list_namespaces()
-            .await
+            
             .into_iter()
             .map(|namespace| vec![string("nspname", namespace.name)]),
     );
@@ -401,10 +401,10 @@ async fn pg_namespace(catalog: &Catalog) -> Vec<VirtualRow> {
     rows
 }
 
-async fn pg_class(catalog: &Catalog) -> Vec<VirtualRow> {
+fn pg_class(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = catalog
         .list_collections()
-        .await
+        
         .into_iter()
         .map(|collection| {
             vec![
@@ -414,14 +414,14 @@ async fn pg_class(catalog: &Catalog) -> Vec<VirtualRow> {
             ]
         })
         .collect::<Vec<_>>();
-    rows.extend(catalog.list_views().await.into_iter().map(|view| {
+    rows.extend(catalog.list_views().into_iter().map(|view| {
         vec![
             string("relname", view.name),
             string("relkind", "v"),
             string("relnamespace", "public"),
         ]
     }));
-    rows.extend(pg_indexes(catalog).await.into_iter().map(|index| {
+    rows.extend(pg_indexes(catalog).into_iter().map(|index| {
         let indexname = lookup_string(&index, "indexname");
         vec![
             string("relname", indexname),
@@ -433,10 +433,10 @@ async fn pg_class(catalog: &Catalog) -> Vec<VirtualRow> {
     rows
 }
 
-async fn pg_attribute(catalog: &Catalog) -> Vec<VirtualRow> {
+fn pg_attribute(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
-    for collection in catalog.list_collections().await {
-        let Some(schema) = catalog.get_schema(&collection.name).await else {
+    for collection in catalog.list_collections() {
+        let Some(schema) = catalog.get_schema(&collection.name) else {
             continue;
         };
         for (index, field) in schema.fields.iter().enumerate() {
@@ -448,7 +448,7 @@ async fn pg_attribute(catalog: &Catalog) -> Vec<VirtualRow> {
             ]);
         }
     }
-    for view in catalog.list_views().await {
+    for view in catalog.list_views() {
         for (index, field) in view.schema.fields.iter().enumerate() {
             rows.push(vec![
                 string("attrelid", &view.name),
@@ -461,11 +461,11 @@ async fn pg_attribute(catalog: &Catalog) -> Vec<VirtualRow> {
     rows
 }
 
-async fn pg_indexes(catalog: &Catalog) -> Vec<VirtualRow> {
+fn pg_indexes(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut indexes = catalog
         .indexes
         .read()
-        .await
+        
         .values()
         .cloned()
         .collect::<Vec<_>>();
@@ -498,10 +498,10 @@ async fn pg_indexes(catalog: &Catalog) -> Vec<VirtualRow> {
         .collect()
 }
 
-async fn pg_constraint(catalog: &Catalog) -> Vec<VirtualRow> {
+fn pg_constraint(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
-    for collection in catalog.list_collections().await {
-        for constraint in catalog.get_constraints(&collection.name).await {
+    for collection in catalog.list_collections() {
+        for constraint in catalog.get_constraints(&collection.name) {
             if constraint.primary_key {
                 rows.push(pg_constraint_row(&collection.name, &constraint.field, "p"));
             }

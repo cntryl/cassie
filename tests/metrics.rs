@@ -104,7 +104,7 @@ fn should_report_runtime_metrics_snapshot() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "metrics_runtime_docs";
         let schema = Schema {
@@ -119,8 +119,7 @@ fn should_report_runtime_metrics_snapshot() {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
-        cassie.register_collection(collection, schema.clone()).await;
-        cassie
+        cassie.register_collection(collection, schema.clone());        cassie
             .midge
             .put_document(
                 collection,
@@ -137,18 +136,16 @@ fn should_report_runtime_metrics_snapshot() {
                 &session,
                 "SELECT title FROM metrics_runtime_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
         let second = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM metrics_runtime_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
-        let metrics = cassie.metrics().await;
+        let metrics = cassie.metrics();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -237,8 +234,7 @@ fn should_record_vector_counts_for_ordered_search_expression() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -276,7 +272,7 @@ fn should_record_vector_counts_for_ordered_search_expression() {
 
             .unwrap();
 
-        let before = cassie.metrics().await;
+        let before = cassie.metrics();
         let before_candidates = before["vector"]["candidate_count_total"].as_u64().unwrap_or_default();
         let before_results = before["vector"]["result_count_total"].as_u64().unwrap_or_default();
 
@@ -289,9 +285,9 @@ fn should_record_vector_counts_for_ordered_search_expression() {
                 vec![],
             )
 
-            .await.unwrap();
+.unwrap();
 
-        let after = cassie.metrics().await;
+        let after = cassie.metrics();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -347,8 +343,7 @@ fn should_record_search_operator_statistics() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -366,7 +361,7 @@ fn should_record_search_operator_statistics() {
             )
             .unwrap();
 
-        let before = cassie.metrics().await;
+        let before = cassie.metrics();
         let before_candidates = before["search"]["candidate_count_total"]
             .as_u64()
             .unwrap_or_default();
@@ -381,10 +376,9 @@ fn should_record_search_operator_statistics() {
                 &session,
                 "SELECT id, search_score(body, 'alpha') AS score FROM metrics_search_operator_stats ORDER BY score DESC LIMIT 1",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
-        let after = cassie.metrics().await;
+        let after = cassie.metrics();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -440,8 +434,7 @@ fn should_record_search_operator_candidates_after_posting_list_filtering() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -467,7 +460,7 @@ fn should_record_search_operator_candidates_after_posting_list_filtering() {
             )
             .unwrap();
 
-        let before = cassie.metrics().await;
+        let before = cassie.metrics();
         let before_candidates = before["search"]["candidate_count_total"]
             .as_u64()
             .unwrap_or_default();
@@ -482,10 +475,9 @@ fn should_record_search_operator_candidates_after_posting_list_filtering() {
                 &session,
                 "SELECT id, search_score(body, 'alpha') AS score FROM metrics_search_operator_posting_list_candidates WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
-        let after = cassie.metrics().await;
+        let after = cassie.metrics();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -541,8 +533,7 @@ fn should_cache_fulltext_scoring_metadata_for_repeated_search_queries() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -560,7 +551,7 @@ fn should_cache_fulltext_scoring_metadata_for_repeated_search_queries() {
             )
             .unwrap();
 
-        let before = cassie.metrics().await;
+        let before = cassie.metrics();
         let before_hits = before["query_cache"]["fulltext_stats_hits"]
             .as_u64()
             .unwrap_or_default();
@@ -575,36 +566,32 @@ fn should_cache_fulltext_scoring_metadata_for_repeated_search_queries() {
                 &session,
                 "SELECT id, search_score(body, 'alpha') AS score FROM metrics_fulltext_scoring_metadata_cache WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
-        let after_first = cassie.metrics().await;
+        let after_first = cassie.metrics();
         let second = cassie
             .execute_sql(
                 &session,
                 "SELECT id, search_score(body, 'alpha') AS score FROM metrics_fulltext_scoring_metadata_cache WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 2",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
-        let after_second = cassie.metrics().await;
+        let after_second = cassie.metrics();
         cassie
             .execute_sql(
                 &session,
                 "INSERT INTO metrics_fulltext_scoring_metadata_cache (body) VALUES ('alpha delta')",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
         let third = cassie
             .execute_sql(
                 &session,
                 "SELECT id, search_score(body, 'alpha') AS score FROM metrics_fulltext_scoring_metadata_cache WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
-        let after_third = cassie.metrics().await;
+        let after_third = cassie.metrics();
 
         // Assert
         assert_eq!(first.rows.len(), 1);
@@ -670,7 +657,7 @@ fn should_record_query_error_statistics() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", None);
-        let before = cassie.metrics().await;
+        let before = cassie.metrics();
         let before_count = before["query"]["count"].as_u64().unwrap_or_default();
         let before_errors = before["query"]["errors_total"].as_u64().unwrap_or_default();
 
@@ -680,9 +667,8 @@ fn should_record_query_error_statistics() {
                 &session,
                 "SELECT title FROM metrics_missing_query_errors",
                 vec![],
-            )
-            .await;
-        let after = cassie.metrics().await;
+            );
+        let after = cassie.metrics();
 
         // Assert
         assert!(result.is_err(), "missing collection should fail");
@@ -736,8 +722,7 @@ fn should_report_plan_cache_metrics() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            )
-            .await;
+            );
         cassie
             .midge
             .put_document(
@@ -755,18 +740,16 @@ fn should_report_plan_cache_metrics() {
                 &session,
                 "SELECT title FROM metrics_plan_cache_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
         let second = cassie
             .execute_sql(
                 &session,
                 "SELECT title FROM metrics_plan_cache_docs WHERE title = 'alpha'",
                 vec![],
-            )
-            .await
+            );
             .unwrap();
-        let metrics = cassie.metrics().await;
+        let metrics = cassie.metrics();
 
         // Assert
         assert_eq!(first.rows.len(), 1);
@@ -801,10 +784,9 @@ fn should_count_failed_scan_as_storage_read_error() {
             .register_collection(
                 "missing_storage_collection",
                 vec![("title".to_string(), DataType::Text)],
-            )
-            .await;
+            );
 
-        let before = cassie.metrics().await;
+        let before = cassie.metrics();
         let before_errors = before["storage"]["data"]["errors"]
             .as_u64()
             .unwrap_or_default();
@@ -824,7 +806,7 @@ fn should_count_failed_scan_as_storage_read_error() {
             "query should fail because collection schema is missing in storage"
         );
 
-        let after = cassie.metrics().await;
+        let after = cassie.metrics();
 
         // Assert
         assert_eq!(
@@ -858,8 +840,8 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
-        let before_protocol_errors = cassie.metrics().await["pgwire"]["protocol_errors_total"]
+        cassie.startup().unwrap();
+        let before_protocol_errors = cassie.metrics()["pgwire"]["protocol_errors_total"]
             .as_u64()
             .unwrap_or_default();
 
@@ -912,7 +894,7 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
         drop(socket);
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-        let metrics = cassie.metrics().await;
+        let metrics = cassie.metrics();
 
         // Assert
         assert_eq!(

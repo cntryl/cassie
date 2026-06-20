@@ -23,7 +23,7 @@ fn should_record_rest_request_metrics_for_http_routes() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

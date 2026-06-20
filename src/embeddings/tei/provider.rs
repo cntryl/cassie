@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use reqwest::blocking::Client;
 use serde::Serialize;
-use tokio::task;
+
 
 use crate::embeddings::{Embedding, EmbeddingError, EmbeddingProvider};
 
@@ -135,21 +135,9 @@ impl TeiProvider {
 
     fn run_blocking<T, F>(&self, f: F) -> Result<reqwest::Result<T>, EmbeddingError>
     where
-        T: Send + 'static,
-        F: FnOnce() -> reqwest::Result<T> + Send + 'static,
+        F: FnOnce() -> reqwest::Result<T>,
     {
-        match tokio::runtime::Handle::try_current().map(|handle| handle.runtime_flavor()) {
-            Ok(tokio::runtime::RuntimeFlavor::MultiThread) => Ok(task::block_in_place(f)),
-            Ok(tokio::runtime::RuntimeFlavor::CurrentThread) => {
-                std::thread::spawn(f).join().map_err(|_| {
-                    EmbeddingError::RequestError("TEI request thread panicked".to_string())
-                })
-            }
-            Ok(_) => std::thread::spawn(f).join().map_err(|_| {
-                EmbeddingError::RequestError("TEI request thread panicked".to_string())
-            }),
-            Err(_) => Ok(f()),
-        }
+        Ok(f())
     }
 }
 

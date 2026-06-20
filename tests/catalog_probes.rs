@@ -29,8 +29,7 @@ fn should_return_version_function() {
 
         // Act
         let result = cassie
-            .execute_sql(&session, "SELECT version()", vec![])
-            .await
+            .execute_sql(&session, "SELECT version()", vec![]);
             .unwrap();
 
         // Assert
@@ -61,8 +60,7 @@ fn should_return_current_schema_function() {
 
         // Act
         let result = cassie
-            .execute_sql(&session, "SELECT current_schema()", vec![])
-            .await
+            .execute_sql(&session, "SELECT current_schema()", vec![]);
             .unwrap();
 
         // Assert
@@ -90,8 +88,7 @@ fn should_return_current_database_function() {
 
         // Act
         let result = cassie
-            .execute_sql(&session, "SELECT current_database()", vec![])
-            .await
+            .execute_sql(&session, "SELECT current_database()", vec![]);
             .unwrap();
 
         // Assert
@@ -119,8 +116,7 @@ fn should_return_search_path_from_show_statement() {
 
         // Act
         let result = cassie
-            .execute_sql(&session, "SHOW search_path", vec![])
-            .await;
+            .execute_sql(&session, "SHOW search_path", vec![]);
 
         // Assert
         let result = result.unwrap();
@@ -158,8 +154,7 @@ fn should_treat_supported_set_statement_as_noop() {
 
         // Act
         let result = cassie
-            .execute_sql(&session, "SET search_path = public", vec![])
-            .await;
+            .execute_sql(&session, "SET search_path = public", vec![]);
 
         // Assert
         let result = result.unwrap();
@@ -187,8 +182,7 @@ fn should_reject_unsupported_show_variable() {
 
         // Act
         let result = cassie
-            .execute_sql(&session, "SHOW unsupported_metadata", vec![])
-            .await;
+            .execute_sql(&session, "SHOW unsupported_metadata", vec![]);
 
         // Assert
         assert!(result.is_err());
@@ -213,8 +207,7 @@ fn should_reject_unsupported_set_variable() {
 
         // Act
         let result = cassie
-            .execute_sql(&session, "SET unsupported_variable = foo", vec![])
-            .await;
+            .execute_sql(&session, "SET unsupported_variable = foo", vec![]);
 
         // Assert
         assert!(result.is_err());

@@ -27,7 +27,7 @@ fn should_startup_be_idempotent_without_state_corruption() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "runtime_docs";
         let schema = Schema {
@@ -58,14 +58,14 @@ fn should_startup_be_idempotent_without_state_corruption() {
             )
             .unwrap();
 
-        cassie.startup().await.unwrap();
-        let baseline_collections = cassie.catalog.list_collections().await;
+        cassie.startup().unwrap();
+        let baseline_collections = cassie.catalog.list_collections();
         let baseline_docs = cassie.midge.scan_documents(collection).unwrap();
         let baseline_layout = cassie.midge.ensure_families_ready().unwrap().clone();
 
         // Act
-        cassie.startup().await.unwrap();
-        let after_collections = cassie.catalog.list_collections().await;
+        cassie.startup().unwrap();
+        let after_collections = cassie.catalog.list_collections();
         let after_docs = cassie.midge.scan_documents(collection).unwrap();
         let after_layout = cassie.midge.ensure_families_ready().unwrap().clone();
 
@@ -116,7 +116,7 @@ fn should_startup_not_create_side_effects_in_default_family() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         let collection = "runtime_default_guard";
         let schema = Schema {
@@ -136,7 +136,7 @@ fn should_startup_not_create_side_effects_in_default_family() {
                 serde_json::json!({"title": "alpha"}),
             )
             .unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         // Act
         let default_entries = cassie.midge.raw_scan_prefix_named("default", b"").unwrap();
@@ -166,13 +166,13 @@ fn should_health_after_startup_reports_ready_state() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
 
-        let before = cassie.health().await;
+        let before = cassie.health();
         assert_eq!(before["ready"].as_bool(), Some(false));
 
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         // Act
-        let after = cassie.health().await;
+        let after = cassie.health();
 
         // Assert
         assert_eq!(after["ready"].as_bool(), Some(true));
@@ -193,12 +193,12 @@ fn should_clear_ready_state_after_shutdown() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
         // Act
-        cassie.shutdown().await;
-        let after_health = cassie.health().await;
-        let after_metrics = cassie.metrics().await;
+        cassie.shutdown();
+        let after_health = cassie.health();
+        let after_metrics = cassie.metrics();
 
         // Assert
         assert_eq!(after_health["ready"].as_bool(), Some(false));
@@ -264,15 +264,15 @@ fn should_create_session_without_mutating_runtime_state() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().await.unwrap();
+        cassie.startup().unwrap();
 
-        let before_health = cassie.health().await;
-        let before_collections = cassie.catalog.list_collections().await.len();
+        let before_health = cassie.health();
+        let before_collections = cassie.catalog.list_collections().len();
 
         // Act
         let session = cassie.create_session("tester", Some("postgres".to_string()));
-        let after_health = cassie.health().await;
-        let after_collections = cassie.catalog.list_collections().await.len();
+        let after_health = cassie.health();
+        let after_collections = cassie.catalog.list_collections().len();
 
         // Assert
         assert_eq!(session.user, "tester");

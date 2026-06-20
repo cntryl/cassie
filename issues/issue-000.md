@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 057: Prepared Statements](issue-057.md) - V1 - Projection Query Engine / Execution
 - [Issue 058: PostgreSQL Wire Protocol](issue-058.md) - V1 - Projection Query Engine / Protocols
 - [Issue 059: HTTP API](issue-059.md) - V1 - Projection Query Engine / Protocols
 - [Issue 060: EXPLAIN](issue-060.md) - V1 - Projection Query Engine / Observability

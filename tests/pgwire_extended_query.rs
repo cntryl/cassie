@@ -749,6 +749,9 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
                 .any(|(field, value)| *field == 'M' && value.contains("not bound")),
             "execute after statement close should mention the missing portal"
         );
+        let metrics = cassie.metrics().await;
+        assert_eq!(metrics["pgwire"]["prepared_statements"].as_u64(), Some(0));
+        assert_eq!(metrics["pgwire"]["portals"].as_u64(), Some(0));
 
         drop(socket);
         server.abort();

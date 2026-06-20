@@ -38,6 +38,40 @@ fn should_compute_vector_distances_deterministically() {
 }
 
 #[test]
+fn should_compute_vector_distances_with_simd_tail_elements() {
+    // Arrange
+    let a = vec![1.0f32; 9];
+    let b = vec![2.0f32; 9];
+
+    // Act
+    let l2 = l2_distance(&a, &b);
+    let cosine = cosine_distance(&a, &b);
+    let dot = dot_score(&a, &b);
+
+    // Assert
+    assert_eq!(l2, 3.0);
+    assert_eq!(cosine, 0.0);
+    assert_eq!(dot, 18.0);
+}
+
+#[test]
+fn should_return_sentinel_values_for_mismatched_vector_lengths() {
+    // Arrange
+    let a = vec![1.0f32, 2.0, 3.0];
+    let b = vec![1.0f32, 2.0];
+
+    // Act
+    let l2 = l2_distance(&a, &b);
+    let cosine = cosine_distance(&a, &b);
+    let dot = dot_score(&a, &b);
+
+    // Assert
+    assert_eq!(l2, f64::MAX);
+    assert_eq!(cosine, 1.0);
+    assert_eq!(dot, 0.0);
+}
+
+#[test]
 fn should_compute_hybrid_score_deterministically() {
     // Arrange
     let search_score = 0.2;

@@ -2,12 +2,7 @@ pub fn distance(query: &[f32], target: &[f32]) -> f64 {
     if query.len() != target.len() {
         return f64::MAX;
     }
-    let mut sum = 0f64;
-    for (q, t) in query.iter().zip(target.iter()) {
-        let d = *q as f64 - *t as f64;
-        sum += d * d;
-    }
-    sum.sqrt()
+    super::simd::squared_l2(query, target).sqrt()
 }
 
 pub fn score(query: &[f32], target: &[f32]) -> f64 {

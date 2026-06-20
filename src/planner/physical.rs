@@ -23,6 +23,7 @@ pub struct PhysicalPlan {
     pub collection: String,
     pub operators: Vec<Operator>,
     pub logical: LogicalPlan,
+    pub predicate_pushdown: bool,
 }
 
 pub fn build(plan: LogicalPlan) -> PhysicalPlan {
@@ -31,9 +32,11 @@ pub fn build(plan: LogicalPlan) -> PhysicalPlan {
             collection: plan.collection.clone(),
             operators: Vec::new(),
             logical: plan,
+            predicate_pushdown: false,
         };
     }
 
+    let predicate_pushdown = plan_supports_predicate_pushdown(&plan);
     let mut operators = vec![Operator::Scan];
     if source_contains_join(&plan.source) {
         operators.push(Operator::Join);
@@ -72,7 +75,68 @@ pub fn build(plan: LogicalPlan) -> PhysicalPlan {
         collection: plan.collection.clone(),
         operators,
         logical: plan,
+        predicate_pushdown,
     }
+}
+
+fn plan_supports_predicate_pushdown(plan: &LogicalPlan) -> bool {
+    if plan.command.is_some()
+        || !plan.ctes.is_empty()
+        || plan.distinct
+        || !plan.distinct_on.is_empty()
+        || !plan.group_by.is_empty()
+        || plan.having.is_some()
+        || plan.set.is_some()
+        || !plan.order.is_empty()
+    {
+        return false;
+    }
+
+    if !matches!(plan.source, QuerySource::Collection(_)) {
+        return false;
+    }
+
+    if plan.projection.is_empty()
+        || !plan
+            .projection
+            .iter()
+            .all(|item| matches!(item, SelectItem::Column { .. }))
+    {
+        return false;
+    }
+
+    plan.filter
+        .as_ref()
+        .is_some_and(filter_supports_predicate_pushdown)
+}
+
+fn filter_supports_predicate_pushdown(expr: &Expr) -> bool {
+    let Expr::Binary {
+        left,
+        op: BinaryOp::Eq,
+        right,
+    } = expr
+    else {
+        return false;
+    };
+
+    match (left.as_ref(), right.as_ref()) {
+        (Expr::Column(field), literal) | (literal, Expr::Column(field)) => {
+            !is_row_id_column(field) && expr_is_pushdown_literal(literal)
+        }
+        _ => false,
+    }
+}
+
+fn expr_is_pushdown_literal(expr: &Expr) -> bool {
+    matches!(
+        expr,
+        Expr::StringLiteral(_) | Expr::BoolLiteral(_) | Expr::Null
+    )
+}
+
+fn is_row_id_column(field: &str) -> bool {
+    field == "_id" || field.eq_ignore_ascii_case("id")
 }
 
 fn source_contains_join(source: &QuerySource) -> bool {

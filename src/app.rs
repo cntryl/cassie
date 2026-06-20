@@ -1087,13 +1087,14 @@ impl Cassie {
             .collect::<Vec<_>>()
             .join(">");
         let plan = format!(
-            "collection={} operators={}",
+            "collection={} operators={} predicate_pushdown={}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
             } else {
                 operators
-            }
+            },
+            physical.predicate_pushdown
         );
 
         Ok(QueryResult {

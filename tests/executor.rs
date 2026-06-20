@@ -3050,6 +3050,7 @@ fn should_fail_unknown_function_during_execution() {
         let physical = PhysicalPlan {
             collection: logical.collection.clone(),
             operators: vec![cassie::planner::physical::Operator::Project],
+            predicate_pushdown: false,
             logical,
         };
 

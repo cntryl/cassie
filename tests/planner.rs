@@ -165,6 +165,33 @@ fn should_build_physical_operators_in_execution_order() {
 }
 
 #[test]
+fn should_mark_literal_equality_filter_as_pushed_down() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_predicate_pushdown");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_predicate_pushdown WHERE title = 'alpha'",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let logical = logical::plan(&bound).unwrap();
+        let logical = optimizer::optimize(logical);
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert!(physical_plan.predicate_pushdown);
+    });
+}
+
+#[test]
 fn should_plan_join_source_with_physical_join_operator() {
     // Arrange
     let catalog = Catalog::new();

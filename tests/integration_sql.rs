@@ -1168,6 +1168,70 @@ fn should_execute_unordered_fulltext_query_with_matching_search_predicate() {
 }
 
 #[test]
+fn should_project_search_function_as_boolean_match() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("search_boolean_projection");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_search_boolean_projection";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"body": "alpha beta"}),
+            )
+            .unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT search(body, 'alpha') AS matches_alpha, search(body, 'gamma') AS matches_gamma FROM sql_search_boolean_projection",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![vec![Value::Bool(true), Value::Bool(false)]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_fall_back_for_unordered_fulltext_mismatched_search_query_without_changing_results() {
     // Arrange
     with_fallback();

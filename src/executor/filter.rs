@@ -1135,7 +1135,11 @@ fn evaluate_function<R: RowAccess + ?Sized>(
             } else {
                 simple_search_score(&source, &query)
             };
-            Ok(Value::Float64(score))
+            if name.eq_ignore_ascii_case("search") {
+                Ok(Value::Bool(score > 0.0))
+            } else {
+                Ok(Value::Float64(score))
+            }
         }
         "vector_distance" => {
             let (left, right) = vector_operands(function, &args)?;

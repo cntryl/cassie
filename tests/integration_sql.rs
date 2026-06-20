@@ -2752,6 +2752,8 @@ fn should_explain_analyze_select_query_plan() {
         };
         assert!(plan.contains("analyze=true"));
         assert!(plan.contains("actual_rows=1"));
+        assert!(plan.contains("diagnostics="));
+        assert!(plan.contains("storage_reads_delta:"));
 
         let _ = std::fs::remove_dir_all(path);
     });

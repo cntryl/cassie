@@ -1134,6 +1134,7 @@ impl Cassie {
         analyze: bool,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        let before = analyze.then(|| self.runtime.snapshot());
         let physical = self
             .compile_physical_plan(statement, Some(controls))
             .await?;
@@ -1193,10 +1194,38 @@ impl Cassie {
             .await
             .map_err(CassieError::from)?;
             let elapsed_ms = started_at.elapsed().as_millis();
+            let after = self.runtime.snapshot();
+            let before = before.expect("analyze snapshot");
+            let plan_cache_hits_delta =
+                after.plan_cache.hits.saturating_sub(before.plan_cache.hits);
+            let plan_cache_misses_delta = after
+                .plan_cache
+                .misses
+                .saturating_sub(before.plan_cache.misses);
+            let storage_reads_delta = after
+                .storage
+                .data
+                .reads
+                .saturating_sub(before.storage.data.reads);
+            let storage_writes_delta = after
+                .storage
+                .data
+                .writes
+                .saturating_sub(before.storage.data.writes);
+            let temp_writes_delta = after
+                .storage
+                .temp
+                .writes
+                .saturating_sub(before.storage.temp.writes);
             plan.push_str(&format!(
-                " analyze=true actual_rows={} actual_ms={}",
+                " analyze=true actual_rows={} actual_ms={} diagnostics=plan_cache_hits_delta:{},plan_cache_misses_delta:{},storage_reads_delta:{},storage_writes_delta:{},temp_writes_delta:{}",
                 result.rows.len(),
-                elapsed_ms
+                elapsed_ms,
+                plan_cache_hits_delta,
+                plan_cache_misses_delta,
+                storage_reads_delta,
+                storage_writes_delta,
+                temp_writes_delta
             ));
         }
 

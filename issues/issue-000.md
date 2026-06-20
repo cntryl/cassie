@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 016: NOT EXISTS](issue-016.md) - V1 - Projection Query Engine / SQL
 - [Issue 017: INNER JOIN](issue-017.md) - V1 - Projection Query Engine / SQL
 - [Issue 018: LEFT JOIN](issue-018.md) - V1 - Projection Query Engine / SQL
 - [Issue 019: UNION](issue-019.md) - V1 - Projection Query Engine / SQL

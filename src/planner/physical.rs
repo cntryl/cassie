@@ -86,6 +86,7 @@ fn plan_uses_aggregate(plan: &LogicalPlan) -> bool {
             }
             SelectItem::Wildcard
             | SelectItem::Column { .. }
+            | SelectItem::Expr { .. }
             | SelectItem::WindowFunction { .. } => false,
         })
 }

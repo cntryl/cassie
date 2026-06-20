@@ -123,6 +123,7 @@ fn parameter_count_select_item(item: &ast::SelectItem) -> usize {
     match item {
         ast::SelectItem::Wildcard | ast::SelectItem::Column { .. } => 0,
         ast::SelectItem::Function { function, .. } => parameter_count_function(function),
+        ast::SelectItem::Expr { expr, .. } => parameter_count_expr(expr),
         ast::SelectItem::WindowFunction { function, .. } => function
             .args
             .iter()

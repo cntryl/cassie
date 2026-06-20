@@ -52,6 +52,10 @@ pub fn columns_from_projection(
                     data_type,
                 )]
             }
+            SelectItem::Expr { alias, .. } => vec![ColumnMeta::from_data_type(
+                alias.clone().unwrap_or_else(|| "expr".to_string()),
+                DataType::Float,
+            )],
             SelectItem::WindowFunction { function, alias } => vec![ColumnMeta::from_data_type(
                 alias.clone().unwrap_or_else(|| function.name.clone()),
                 DataType::BigInt,

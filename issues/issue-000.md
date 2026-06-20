@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 048: Pgvector Operators](issue-048.md) - V1 - Projection Query Engine / Vector
 - [Issue 049: Embedding Validation](issue-049.md) - V1 - Projection Query Engine / Vector
 - [Issue 050: Hybrid_score()](issue-050.md) - V1 - Projection Query Engine / Hybrid
 - [Issue 051: Text Candidate Generation](issue-051.md) - V1 - Projection Query Engine / Hybrid

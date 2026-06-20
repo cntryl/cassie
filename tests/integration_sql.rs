@@ -1110,6 +1110,74 @@ fn should_project_l2_distance_for_vector_fields() {
 }
 
 #[test]
+fn should_project_pgvector_operator_distances() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("pgvector_operator_projection");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_pgvector_operator_projection";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "embedding".to_string(),
+                data_type: DataType::Vector(2),
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"embedding": [2.0, 0.0]}),
+            )
+            .unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT embedding <-> '[1,0]' AS l2, embedding <=> '[1,0]' AS cosine, embedding <#> '[1,0]' AS dot FROM sql_pgvector_operator_projection",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![vec![
+                Value::Float64(1.0),
+                Value::Float64(0.0),
+                Value::Float64(-2.0)
+            ]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_order_fulltext_top_k_by_score_with_limit() {
     // Arrange
     with_fallback();

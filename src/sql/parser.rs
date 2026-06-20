@@ -1428,6 +1428,7 @@ fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
             alias,
         },
         Expr::Column(name) => SelectItem::Column { name, alias },
+        Expr::Binary { .. } => SelectItem::Expr { expr, alias },
         _ => {
             return Err(SqlError("unsupported projection expression".into()));
         }

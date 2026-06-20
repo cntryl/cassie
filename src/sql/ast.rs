@@ -360,6 +360,10 @@ pub enum SelectItem {
         function: FunctionCall,
         alias: Option<String>,
     },
+    Expr {
+        expr: Expr,
+        alias: Option<String>,
+    },
     WindowFunction {
         function: WindowFunctionCall,
         alias: Option<String>,

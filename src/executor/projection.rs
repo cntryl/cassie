@@ -92,6 +92,10 @@ fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {
                     }
                 }
             }
+            SelectItem::Expr { expr, alias } => ProjectionOp::ScalarFunction {
+                key: alias.as_deref().unwrap_or("expr").to_string(),
+                expr: expr.clone(),
+            },
             SelectItem::WindowFunction { function, alias } => ProjectionOp::WindowFunction {
                 key: alias
                     .as_deref()

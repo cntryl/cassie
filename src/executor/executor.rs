@@ -4815,6 +4815,7 @@ fn plan_uses_aggregate(plan: &LogicalPlan) -> bool {
             }
             SelectItem::Wildcard
             | SelectItem::Column { .. }
+            | SelectItem::Expr { .. }
             | SelectItem::WindowFunction { .. } => false,
         })
 }
@@ -5324,6 +5325,7 @@ fn query_source_needs_user_functions(source: &QuerySource) -> bool {
 fn select_item_needs_user_functions(item: &SelectItem) -> bool {
     match item {
         SelectItem::Function { function, .. } => function_needs_user_functions(function),
+        SelectItem::Expr { expr, .. } => expr_needs_user_functions(expr),
         SelectItem::Column { .. } | SelectItem::Wildcard | SelectItem::WindowFunction { .. } => {
             false
         }

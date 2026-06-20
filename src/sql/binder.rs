@@ -419,6 +419,9 @@ async fn validate_returning_items(
                 )?;
                 collect_item(item, &mut functions);
             }
+            SelectItem::Expr { expr, .. } => {
+                validate_expression(expr, &known_fields, &HashSet::new(), false)?;
+            }
             SelectItem::WindowFunction { .. } => {
                 return Err(CassieError::Planner(format!(
                     "{operation} RETURNING does not support window functions"
@@ -1477,6 +1480,9 @@ fn projected_column_names(projection: &[SelectItem]) -> Vec<String> {
                 .as_deref()
                 .unwrap_or(&function.name)
                 .to_ascii_lowercase(),
+            SelectItem::Expr { alias, .. } => {
+                alias.as_deref().unwrap_or("expr").to_ascii_lowercase()
+            }
             SelectItem::WindowFunction { function, alias } => alias
                 .as_deref()
                 .unwrap_or(&function.name)
@@ -1835,6 +1841,13 @@ fn infer_projection_schema(
                     nullable: true,
                 });
             }
+            SelectItem::Expr { alias, .. } => {
+                fields.push(FieldSchema {
+                    name: alias.as_deref().unwrap_or("expr").to_string(),
+                    data_type: DataType::Float,
+                    nullable: true,
+                });
+            }
             SelectItem::WindowFunction { function, alias } => {
                 fields.push(FieldSchema {
                     name: alias
@@ -1977,6 +1990,7 @@ fn select_item_contains_parameters(item: &SelectItem) -> bool {
         SelectItem::Wildcard => false,
         SelectItem::Column { .. } => false,
         SelectItem::Function { function, .. } => function.args.iter().any(expr_contains_parameters),
+        SelectItem::Expr { expr, .. } => expr_contains_parameters(expr),
         SelectItem::WindowFunction { function, .. } => {
             function.args.iter().any(expr_contains_parameters)
                 || function.partition_by.iter().any(expr_contains_parameters)
@@ -2150,6 +2164,9 @@ fn validate_projection_references(
                 for arg in &function.args {
                     validate_expression(arg, known_fields, &HashSet::new(), false)?;
                 }
+            }
+            SelectItem::Expr { expr, .. } => {
+                validate_expression(expr, known_fields, &HashSet::new(), false)?;
             }
             SelectItem::WindowFunction { function, .. } => {
                 for arg in &function.args {
@@ -2426,6 +2443,9 @@ fn collect_item(item: &SelectItem, out: &mut Vec<FunctionCall>) {
             for order in &function.order_by {
                 collect_expr(&order.expr, out);
             }
+        }
+        SelectItem::Expr { expr, .. } => {
+            collect_expr(expr, out);
         }
         SelectItem::Wildcard | SelectItem::Column { .. } => {}
     }

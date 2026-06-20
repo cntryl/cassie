@@ -5,31 +5,41 @@ Area: Execution
 Status: Open
 Priority: P1
 
-## Concept
+## Requirement
 
-`buffer reuse` from `docs/milestones.md`.
+Reuse bounded per-query scratch buffers in executor hot paths to reduce allocation churn without leaking data across rows, queries, sessions, or tenants.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for buffer reuse within the V2 - Query Performance scope.
+- Add reusable buffers for row decoding, projection construction, expression evaluation, sorting/top-k, aggregate state updates, and vector/search scoring where ownership is local.
+- Bound buffer capacity by runtime limits and shrink/clear buffers after large queries.
+- Ensure reused buffers are reset between rows and are not shared across concurrent queries without synchronization.
+- Preserve deterministic output ordering and exact error behavior.
+- Expose enough metrics or benchmark instrumentation to verify reuse is active and bounded.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Prefer measured optimization with focused benchmarks and observable plan diagnostics.
+- Do not add a global unbounded buffer pool.
+- Do not retain user row contents longer than the query/session requires.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Repeated execution of projected/filter/sort queries performs fewer allocations or buffer creations than the baseline.
+- Query results remain identical for multi-batch execution, errors, and concurrent sessions.
+- Large temporary buffers are released or shrunk according to runtime limits.
+- Tests cover clearing behavior so previous row values cannot appear in later results.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering multi-batch projected scans, sort/top-k reuse, aggregate reuse, error cleanup, and concurrent query isolation if concurrency primitives are involved.
+- Include instrumentation or benchmark evidence for fewer allocations.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked` and targeted executor benchmarks if allocation instrumentation depends on them.
+- Run `cargo fmt --all -- --check`.
+- Document any new runtime limit or metric names.
 
 ## Validation
 

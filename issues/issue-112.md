@@ -5,31 +5,41 @@ Area: Column Store Indexes
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`compressed column segments` from `docs/milestones.md`.
+Compress column-batch segments with versioned codecs that preserve exact value reconstruction and row alignment.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for compressed column segments within the V4 - Analytical Overlay scope.
+- Add codec metadata per column segment, including codec name, version, uncompressed length, value count, null bitmap encoding, and checksum/hash where available.
+- Support an uncompressed codec plus at least one value-aware codec suitable for common analytical data, such as dictionary/RLE for repeated values or delta encoding for numeric/timestamp values.
+- Select codecs deterministically during batch build/rebuild and allow fallback to uncompressed when compression is ineffective or unsupported.
+- Decode compressed segments for scan and aggregate paths with the same type/null/sparse behavior as uncompressed column batches.
+- Report compressed bytes, uncompressed bytes, codec choice, and decode fallback through metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep row blobs as truth; indexes are acceleration and must have correctness fallback.
+- Do not change row blob encoding.
+- Do not require every type to have a specialized codec in the first implementation.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Compressed and uncompressed segment reads return identical values and row-id ordering.
+- Restart, rebuild, and mixed codec-version hydration work without data loss.
+- Corrupt or unsupported compressed segments fail clearly or fall back to row blobs without silent incorrect results.
+- Metrics demonstrate compression ratio and decode usage.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering codec selection, round-trip decode, null/sparse fields, unsupported codec fallback, restart hydration, rebuild, and corruption handling.
+- Include planner/integration coverage for compressed column scans.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document codec metadata and compatibility rules.
 
 ## Validation
 

@@ -5,31 +5,43 @@ Area: Vector
 Status: Open
 Priority: P1
 
-## Concept
+## Requirement
 
-`normalized vector storage` from `docs/milestones.md`.
+Persist a normalized representation for vector fields/indexes so cosine and dot-product ranking can avoid repeated norm work while preserving existing query results.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for normalized vector storage within the V2 - Query Performance scope.
+- Keep the original vector value as the source of truth in row blobs and SQL/REST results.
+- Add versioned persisted metadata for normalized vectors: field name, dimensions, metric, normalization version, and whether a normalized payload is available.
+- Compute normalized payloads during SQL inserts, REST ingest, updates, and index rebuilds when the vector is finite and dimensions match the declared field/index.
+- Use normalized payloads only for compatible cosine/dot vector search and scoring paths; L2 and unsupported shapes continue using the existing raw-vector path.
+- Hydrate normalized-vector metadata after restart and rebuild missing normalized payloads from row blobs without changing row IDs or user-visible values.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Preserve query correctness before adding specialized acceleration paths.
+- Do not introduce a second storage abstraction or replace row blob storage.
+- Do not change pgvector operator semantics, result ordering, or REST response shapes.
+- Do not silently accept invalid dimensions or non-finite vector values.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Cosine and dot-product `ORDER BY`, `vector_score`, and pgvector operator queries return the same rows and deterministic tie order as the raw-vector baseline.
+- Restart and rebuild paths preserve normalized-vector metadata and continue to answer equivalent vector queries.
+- Missing or incompatible normalized payloads fall back to raw row-vector scoring without incorrect results.
+- Dimension, metric, provider, and model validation errors remain explicit and unchanged for callers.
+- EXPLAIN or metrics identify when normalized vector storage is used versus fallback.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering normalized cosine/dot search, fallback when normalized payloads are missing, restart hydration, rebuild, and dimension mismatch rejection.
+- Include at least one SQL integration test and one vector metadata persistence test.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked` before marking complete because this touches storage/executor contracts.
+- Run `cargo fmt --all -- --check`.
+- Update docs if any SQL, REST, EXPLAIN, or metrics surface changes.
 
 ## Validation
 

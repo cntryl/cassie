@@ -5,31 +5,41 @@ Area: Indexes
 Status: Open
 Priority: P1
 
-## Concept
+## Requirement
 
-`INCLUDE columns` from `docs/milestones.md`.
+Support PostgreSQL-style INCLUDE columns on scalar/composite indexes and persist included field payloads for covered-query execution.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for INCLUDE columns within the V2 - Query Performance scope.
+- Parse and bind `CREATE INDEX name ON table USING btree (key1, key2) INCLUDE (field1, field2)`.
+- Persist and hydrate include column metadata in the existing index catalog records.
+- Reject duplicate include fields, include fields that duplicate key fields, unknown fields, and unsupported full-text/vector INCLUDE usage.
+- Maintain versioned include payloads on SQL INSERT/UPDATE/DELETE, REST ingest, collection rename/drop, and index rebuild.
+- Expose INCLUDE metadata through catalog introspection where index metadata is already exposed.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep row blobs as truth; indexes are acceleration and must have correctness fallback.
+- Do not implement covered-query planning in this issue; that is issue 084.
+- Do not support expressions or functions inside INCLUDE lists.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Parser, binder, executor command path, persistence, hydration, and drop paths all preserve include column metadata.
+- Index payloads contain included values with correct type, null, and sparse-field behavior.
+- Invalid INCLUDE statements return deterministic planner/parser errors.
+- Existing scalar/composite indexes without INCLUDE continue to behave unchanged.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering valid syntax, duplicate/unknown rejection, metadata persistence after restart, payload maintenance on update/delete, and rebuild.
+- Include parser, planner/catalog, and integration tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked` because this touches AST/catalog/storage types.
+- Run `cargo fmt --all -- --check`.
+- Update catalog/introspection docs if visible metadata changes.
 
 ## Validation
 

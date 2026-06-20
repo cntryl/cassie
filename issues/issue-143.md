@@ -5,35 +5,48 @@ Area: Distributed Read Models
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`multi-instance consistency checks` from `docs/milestones.md`.
+Compare verification manifests from multiple Cassie instances to detect read-model divergence without performing replication or repair.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for multi-instance consistency checks within the V5 - Verification & Advanced Execution scope.
+- Add an authenticated/admin-only path to export a projection verification manifest containing instance id, projection id/version, schema/hash metadata, root/range summaries, and generated timestamp.
+- Add a consistency-check operation that imports two or more manifests and compares compatibility, roots, ranges, and optional row-level diffs.
+- Report consistent, divergent, stale, incompatible, and unverifiable states with deterministic ordering.
+- Store check reports locally and expose metrics for checks, mismatches, stale manifests, and incompatible manifests.
+- Ensure exported manifests contain no row values or sensitive bind data.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep verification metadata as an overlay and avoid replacing Midge as the direct storage layer.
+- Do not implement data replication, leader election, quorum reads, or automatic repair.
+- Do not require network calls from the query path.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Manifests from identical instances compare consistent.
+- Divergent manifests report changed projections/ranges/rows where available.
+- Stale, incompatible, or missing metadata reports clear non-success states.
+- Manifest export/import and report persistence work after restart.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering manifest export, equal comparison, divergent comparison, stale manifest, incompatible schema/hash metadata, privacy/no row values, report persistence, and metrics.
+- Include integration tests for admin/export/import paths.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Validate any additional touched test file before closing.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document manifest format, auth requirements, and non-repair semantics.
 
 ## Validation
 
 - `cargo test --test planner --quiet`
 - `cargo test --test integration_sql --quiet`
 - `cargo test --test metrics --quiet`
-- `cntryl-tools validate-tests -f <touched-test-file>`
+- `cntryl-tools validate-tests -f tests/planner.rs`
+- `cntryl-tools validate-tests -f tests/integration_sql.rs`
+- `cntryl-tools validate-tests -f tests/metrics.rs`

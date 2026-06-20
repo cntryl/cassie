@@ -5,31 +5,41 @@ Area: Time Series
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`time-series indexes` from `docs/milestones.md`.
+Support time-series indexes that accelerate timestamp range predicates and bucketed analytical queries while keeping row blobs authoritative.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for time-series indexes within the V4 - Analytical Overlay scope.
+- Add parser/binder/catalog support for a time-series index over a timestamp field with optional bucket width and partition fields.
+- Store index keys ordered by collection, partition values, bucket/range start, timestamp, and row id.
+- Maintain index entries on ingest, SQL writes, updates, deletes, rebuild, restart hydration, rename, and drop.
+- Planner selects time-series indexes for timestamp range filters, bucket predicates, retention enforcement, and eligible rollup refreshes.
+- Expose index usage, buckets scanned/skipped, and fallback through EXPLAIN/metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep row blobs as truth; indexes are acceleration and must have correctness fallback.
+- Do not implement distributed partition movement or retention policy enforcement in this issue.
+- Do not require time-series indexes for correctness.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Timestamp range queries using time-series indexes return identical rows and ordering to row-scan execution.
+- Bucketed queries scan only relevant buckets when possible.
+- Index maintenance handles rows that change timestamp or partition fields.
+- Restart and rebuild preserve index metadata and entries.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering index creation, range query planning, bucket pruning, partition fields, timestamp update/delete maintenance, restart hydration, rebuild, and fallback.
+- Include parser/planner/integration tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document syntax, key shape, and bucket semantics.
 
 ## Validation
 

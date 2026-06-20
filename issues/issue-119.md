@@ -5,31 +5,41 @@ Area: Materialization
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`materialized projections` from `docs/milestones.md`.
+Support persisted materialized projections derived from deterministic SELECT queries over source collections.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for materialized projections within the V4 - Analytical Overlay scope.
+- Add SQL/catalog support for creating, listing, refreshing, and dropping materialized projections.
+- Store projection definition, source collections, schema epoch, output schema, version, state, refresh cursor, and dependency metadata.
+- Build projection rows from source row blobs and maintain or refresh them deterministically after source writes.
+- Query materialized projections through the existing SQL path as read-only collections/views.
+- Prevent DML against materialized projection outputs unless a future issue explicitly adds writable projections.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep behavior deterministic, testable, and aligned with the milestone roadmap.
+- Do not support arbitrary non-deterministic functions, external side effects, or recursive materialized projections.
+- Do not replace normal views or row blob source collections.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Materialized projections create, build, refresh, hydrate after restart, and drop cleanly.
+- Projection rows match the defining SELECT result for supported deterministic queries.
+- Source writes either update projection state or mark it stale with observable diagnostics until refreshed.
+- DML against materialized projection outputs is rejected with clear errors.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering create/build/query, refresh after source writes, restart hydration, stale-state diagnostics, drop cleanup, and DML rejection.
+- Include integration and catalog introspection tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document supported SELECT shapes and refresh semantics.
 
 ## Validation
 

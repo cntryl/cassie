@@ -5,31 +5,41 @@ Area: Indexes
 Status: Open
 Priority: P2
 
-## Concept
+## Requirement
 
-`partial indexes` from `docs/milestones.md`.
+Support partial scalar/composite indexes with deterministic predicates so filtered read-model queries can use smaller index ranges.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for partial indexes within the V3 - Advanced Query Features scope.
+- Parse and bind `CREATE INDEX name ON table USING btree (fields...) WHERE <predicate>`.
+- Allow deterministic predicates over fields, literals, casts, comparisons, `AND`, `OR`, `NOT`, `IS NULL`, `IN`, and `BETWEEN` where those expressions are already supported by SQL binding.
+- Persist and hydrate the predicate AST or a versioned normalized predicate representation in index metadata.
+- Maintain index entries only for rows whose current values satisfy the partial predicate across ingest, SQL writes, updates, deletes, rebuild, rename, drop, and restart.
+- Select a partial index only when the query predicate implies the index predicate for supported simple conjunction/equality/range shapes; otherwise use the correctness fallback.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep row blobs as truth; indexes are acceleration and must have correctness fallback.
+- Do not implement arbitrary theorem proving or implication for all SQL expressions.
+- Do not support volatile functions, user-defined functions, subqueries, joins, or aggregate expressions in partial predicates.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Partial indexes are parsed, bound, persisted, hydrated, rebuilt, and dropped correctly.
+- Write maintenance adds, removes, or updates index entries as rows enter or leave the predicate.
+- Planner uses partial indexes only for safe predicate shapes and never returns rows outside the query predicate.
+- EXPLAIN identifies selected partial indexes and fallback reasons for unsupported implication.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering syntax, invalid predicates, write membership changes, restart hydration, rebuild, safe planner selection, and unsafe fallback.
+- Include parser, planner, and SQL integration tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked` because this touches parser/AST/catalog/planner/executor.
+- Run `cargo fmt --all -- --check`.
+- Update `docs/index_constraint_roadmap.md` if predicate support or non-goals change.
 
 ## Validation
 

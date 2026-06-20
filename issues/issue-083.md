@@ -5,31 +5,41 @@ Area: Adaptive
 Status: Open
 Priority: P1
 
-## Concept
+## Requirement
 
-`adaptive candidate sizing` from `docs/milestones.md`.
+Adapt full-text, vector, and hybrid candidate limits so filtered top-k queries return enough correct rows without overscanning by default.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for adaptive candidate sizing within the V2 - Query Performance scope.
+- Derive an initial candidate budget from LIMIT, OFFSET, metadata filters, and available cardinality/runtime feedback.
+- Expand candidate batches deterministically when post-filtering leaves too few rows, until enough rows are produced or the source is exhausted.
+- Apply hard minimum/maximum candidate bounds from runtime limits to prevent unbounded work.
+- Preserve exact final ordering, tie-breaking, LIMIT, and OFFSET semantics.
+- Report initial budget, expansions, final candidate count, and exhaustion through metrics/EXPLAIN.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Prefer measured optimization with focused benchmarks and observable plan diagnostics.
+- Do not approximate final results; correctness remains exact for supported query shapes.
+- Do not introduce background training or workload-specific tuning outside captured runtime feedback.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Top-k search/vector/hybrid queries with selective filters return the same rows as an exhaustive baseline.
+- Candidate expansion stops once LIMIT/OFFSET requirements are satisfied or all candidates are exhausted.
+- Runtime limits cap expansion and return a clear query-limit error rather than partial silent results.
+- Metrics make adaptive sizing decisions observable.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering selective filters, OFFSET expansion, exhausted candidates, limit cap error, and runtime-feedback-informed initial sizing.
+- Include at least one regression test for deterministic tie order.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked` because this touches search/vector execution controls.
+- Run `cargo fmt --all -- --check`.
+- Document any new runtime limits or metrics.
 
 ## Validation
 

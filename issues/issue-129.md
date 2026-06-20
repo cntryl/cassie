@@ -5,33 +5,44 @@ Area: Merkle Overlay
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`projection diffing` from `docs/milestones.md`.
+Compare two projection versions or collections using Merkle roots/ranges and report deterministic changed ranges and row ids.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for projection diffing within the V5 - Verification & Advanced Execution scope.
+- Add an internal and administrative diff operation that accepts two projection identifiers or versions with compatible hash algorithm metadata.
+- Compare roots first, descend through range hashes only where hashes differ, and optionally resolve differing ranges to row ids and row-hash pairs.
+- Return added, removed, changed, and unverifiable ranges/rows with deterministic ordering.
+- Handle missing/stale hashes by reporting `unverifiable` instead of claiming equality.
+- Expose diff counters and elapsed time through metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep behavior deterministic, testable, and aligned with the milestone roadmap.
+- Do not repair differences automatically in this issue.
+- Do not compare incompatible schema epochs unless an explicit compatibility layer exists.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Identical projections diff as equal without scanning all rows.
+- Controlled added, removed, and changed rows are reported accurately and deterministically.
+- Missing/stale hash data is reported as unverifiable.
+- Diffing works across projection versions after restart hydration.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering equal roots, added rows, removed rows, changed rows, mixed range differences, stale hashes, incompatible schemas, and restart hydration.
+- Include integration tests for the exposed admin/internal operation.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Validate any additional touched test file before closing.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document diff result shape and compatibility rules.
 
 ## Validation
 
 - `cargo test --test integration_sql --quiet`
-- `cntryl-tools validate-tests -f <touched-test-file>`
+- `cntryl-tools validate-tests -f tests/integration_sql.rs`

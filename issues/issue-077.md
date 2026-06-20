@@ -5,31 +5,41 @@ Area: Vector
 Status: Open
 Priority: P1
 
-## Concept
+## Requirement
 
-`metadata prefilters` from `docs/milestones.md`.
+Apply scalar metadata predicates before vector scoring so search candidates can be narrowed without changing SQL or REST query results.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for metadata prefilters within the V2 - Query Performance scope.
+- Detect simple metadata filters on non-vector fields for vector and hybrid queries: equality, range, `IN`, `IS NULL`, and conjunctions already supported by the binder.
+- Prefer existing scalar/composite indexes when a prefilter matches indexable predicates; otherwise use a row-scan prefilter before vector scoring.
+- Preserve predicate semantics for nulls, missing sparse fields, type casts, and case-insensitive field resolution.
+- Report prefilter activity through EXPLAIN and metrics, including input candidates, filtered candidates, and fallback reason when no prefilter is used.
+- Keep full correctness fallback when predicates are unsupported, volatile, reference computed aliases, or require post-score filtering.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Preserve query correctness before adding specialized acceleration paths.
+- Do not implement arbitrary predicate implication or join-aware prefilters in this issue.
+- Do not change vector ranking semantics or the final ordering after LIMIT/OFFSET.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Vector and hybrid queries with metadata filters return the same rows as the unoptimized executor baseline.
+- Matching scalar indexes reduce the vector candidate set before scoring and are visible in EXPLAIN/metrics.
+- Unsupported filters fall back to existing behavior and emit no incorrect partial results.
+- Prefilters work for SQL paths and REST vector/search APIs when equivalent metadata filters are available.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering indexed equality prefilter, range prefilter, null/missing-field behavior, unsupported predicate fallback, and hybrid search interaction.
+- Include a metrics assertion that candidate counts decrease when prefiltering is selected.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked` before marking complete because this touches planner/executor contracts.
+- Run `cargo fmt --all -- --check`.
+- Update docs if EXPLAIN, REST filter syntax, or metrics fields change.
 
 ## Validation
 

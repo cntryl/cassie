@@ -9,6 +9,22 @@ Priority: P0
 
 Track one open issue for every active, uncompleted concept in `docs/milestones.md`.
 
+## Requirement
+
+Maintain a live coverage index that links every active roadmap concept to its implementation issue and removes concepts once their issue files are completed and deleted.
+
+## Functional Scope
+
+- Keep one linked issue entry for each active, uncompleted milestone concept.
+- Keep completed/deleted issue files out of the coverage list.
+- Preserve issue numbering; do not renumber existing open issues.
+- Update this index when roadmap concepts are added, removed, completed, or split.
+
+## Non-Goals
+
+- Do not track detailed implementation requirements in this index; those belong in the individual issue files.
+- Do not keep broken links to deleted completed issue files.
+
 ## Coverage
 
 - [Issue 076: Normalized Vector Storage](issue-076.md) - V2 - Query Performance / Vector
@@ -71,3 +87,15 @@ Track one open issue for every active, uncompleted concept in `docs/milestones.m
 - Every active, uncompleted milestone bullet has exactly one linked issue.
 - New milestone bullets require a new issue before implementation starts.
 - Completed concepts are removed from this index when their issue files are deleted.
+
+## Required Tests
+
+- Run link and status checks with repository search commands rather than cargo tests.
+- Confirm the index contains no references to deleted issue files and no completed implementation issues.
+
+## Closeout Steps
+
+- Confirm every remaining linked issue file exists.
+- Confirm no linked issue has `Status: Completed`.
+- Run `rg '^Status: Completed' issues` and verify it returns no active implementation issues.
+- Run `rg 'issue-[0-9]+\.md' issues/issue-000.md` and spot-check that each link resolves.

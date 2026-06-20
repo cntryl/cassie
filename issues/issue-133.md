@@ -5,31 +5,41 @@ Area: Column Tables
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`hybrid row/column planning` from `docs/milestones.md`.
+Plan queries across row and column access paths, choosing the lowest safe combination per operator while preserving a single logical result.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for hybrid row/column planning within the V5 - Verification & Advanced Execution scope.
+- Extend planning to consider row scans, row indexes, column batches, column-store tables, and row materialization costs for eligible subplans.
+- Insert explicit row/column conversion operators when a downstream operator requires a different representation.
+- Use cost-informed planning, cardinality stats, and operator feedback when available; otherwise use deterministic defaults.
+- Preserve row-level correctness for filters, joins, ordering, LIMIT/OFFSET, DML, and protocol output.
+- Explain chosen row/column paths, conversion points, and fallback reasons.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep behavior deterministic, testable, and aligned with the milestone roadmap.
+- Do not mix storage representations in a way that bypasses Midge or duplicates truth without catalog metadata.
+- Do not implement runtime operator switching here.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Hybrid plans return identical results to pure row plans for covered query shapes.
+- Planner chooses column paths for column-covered analytical work and row paths for row-oriented lookup/DML.
+- Conversion operators are explicit and metrics report materialization counts.
+- Missing column metadata or unsupported expressions fall back deterministically.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering row-only, column-only, mixed row/column, conversion boundaries, cost preference, fallback, and EXPLAIN diagnostics.
+- Include planner and executor tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document planner representation choices and conversion rules.
 
 ## Validation
 

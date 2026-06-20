@@ -5,35 +5,48 @@ Area: Distributed Read Models
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`projection comparison` from `docs/milestones.md`.
+Compare two local projection versions or imported projection manifests and produce a deterministic consistency report.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for projection comparison within the V5 - Verification & Advanced Execution scope.
+- Accept local projection identifiers/versions or imported verification manifests containing schema/hash metadata and Merkle roots/ranges.
+- Validate compatibility before comparison: schema epoch, hash algorithm, range fanout, projection definition fingerprint, and collection identity.
+- Use projection diffing to summarize equality, changed ranges, row counts, and unverifiable regions.
+- Store comparison reports with timestamp, inputs, status, mismatch counts, and diagnostic samples.
+- Expose reports through an admin/internal API, catalog diagnostics, and metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep verification metadata as an overlay and avoid replacing Midge as the direct storage layer.
+- Do not contact remote Cassie instances directly in this issue; multi-instance checks are issue 143.
+- Do not repair differences automatically.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Compatible identical projections compare equal using Merkle metadata.
+- Changed projections produce deterministic mismatch summaries.
+- Incompatible or stale manifests fail with explicit compatibility diagnostics.
+- Reports persist and hydrate after restart until retention/cleanup removes them.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering equal comparison, mismatches, incompatible metadata, stale/unverifiable ranges, report persistence, restart hydration, and metrics.
+- Include integration tests for the exposed comparison operation.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Validate any additional touched test file before closing.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document comparison report shape and compatibility rules.
 
 ## Validation
 
 - `cargo test --test planner --quiet`
 - `cargo test --test integration_sql --quiet`
 - `cargo test --test metrics --quiet`
-- `cntryl-tools validate-tests -f <touched-test-file>`
+- `cntryl-tools validate-tests -f tests/planner.rs`
+- `cntryl-tools validate-tests -f tests/integration_sql.rs`
+- `cntryl-tools validate-tests -f tests/metrics.rs`

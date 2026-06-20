@@ -5,31 +5,41 @@ Area: Materialization
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`projection swaps` from `docs/milestones.md`.
+Atomically promote a built materialized projection version to active while preserving rollback and cleanup behavior.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for projection swaps within the V4 - Analytical Overlay scope.
+- Add a SQL/admin path to swap the active projection version after the target version is built and verified.
+- Perform the active-version pointer update atomically in catalog metadata so readers see either the old version or the new version, never a mixed version.
+- Keep the previous active version retained as retired/rollback-capable until explicitly dropped or retention cleanup runs.
+- Invalidate plan/result caches that depend on the swapped projection.
+- Emit metrics and catalog diagnostics for swap success, failure, rollback, and active version.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep behavior deterministic, testable, and aligned with the milestone roadmap.
+- Do not rebuild projections in this issue; swaps operate on already-built versions.
+- Do not implement distributed consensus for swaps across multiple Cassie instances.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Successful swap changes future reads to the new version without affecting in-flight query correctness.
+- Failed swap leaves the previous active version intact and readable.
+- Cache invalidation prevents stale plans/results from using the wrong version.
+- Restart after swap hydrates the new active version.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering successful swap, invalid target version rejection, failure rollback, cache invalidation, restart hydration, and retired-version cleanup.
+- Include integration and catalog tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document swap and rollback operational semantics.
 
 ## Validation
 

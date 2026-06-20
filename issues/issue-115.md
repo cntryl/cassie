@@ -5,31 +5,41 @@ Area: Time Series
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`bucket functions` from `docs/milestones.md`.
+Add deterministic time bucket scalar functions for grouping timestamps into fixed-width windows.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for bucket functions within the V4 - Analytical Overlay scope.
+- Support `time_bucket(width, timestamp[, origin])`, where `width` is a positive duration literal/string accepted by the binder and `origin` defaults to the Unix epoch.
+- Return the inclusive bucket-start timestamp in UTC using deterministic arithmetic.
+- Reject zero, negative, malformed, calendar-dependent, or overflowing widths with clear errors.
+- Allow bucket functions in SELECT, GROUP BY, ORDER BY, HAVING, and time-series index planning.
+- Preserve null propagation and type errors consistent with other scalar functions.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep behavior deterministic, testable, and aligned with the milestone roadmap.
+- Do not implement timezone calendars, month-length buckets, or business-calendar logic.
+- Do not implement rollup storage here; that is issue 116.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Bucket function output is deterministic for boundary, before-origin, after-origin, null, and overflow cases.
+- GROUP BY and ORDER BY over bucket expressions produce correct rows.
+- Invalid widths and argument types fail during binding/execution with stable errors.
+- Function behavior is available through pgwire and REST SQL paths.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering fixed windows, custom origin, boundary timestamps, nulls, invalid widths, GROUP BY/HAVING, and pgwire/SQL execution.
+- Include scalar function and integration tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document supported duration literals and timezone assumptions.
 
 ## Validation
 

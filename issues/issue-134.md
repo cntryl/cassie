@@ -5,31 +5,41 @@ Area: Execution
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`merge joins` from `docs/milestones.md`.
+Add merge join as a physical strategy for eligible equi-joins with sorted inputs.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for merge joins within the V5 - Verification & Advanced Execution scope.
+- Planner selects merge join for inner, left, right, full, semi, and anti equi-join shapes only when both sides can be produced in compatible sorted order or sorting is cheaper than alternatives.
+- Executor merges sorted inputs with correct handling of duplicate keys, null join keys, unmatched rows, and projection aliases.
+- Preserve existing join semantics, deterministic output ordering, and error behavior.
+- Fall back to hash/nested-loop joins when join predicates are unsupported or sorted inputs are not beneficial.
+- Report merge join selection, sort requirements, input rows, matched rows, and fallback through EXPLAIN/metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Prefer measured optimization with focused benchmarks and observable plan diagnostics.
+- Do not support non-equi merge joins in this issue.
+- Do not change SQL join syntax or binder semantics.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Merge join results match existing join execution for supported join types and duplicate/null-key cases.
+- Planner chooses merge join only for safe equi-join shapes and cost conditions.
+- Required sort operators are explicit in plans.
+- EXPLAIN identifies merge join strategy and join keys.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering inner/outer/semi/anti joins, duplicate keys, null keys, pre-sorted input, sort-required input, fallback, and EXPLAIN.
+- Include planner and executor tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Add benchmark evidence for sorted join workloads.
 
 ## Validation
 

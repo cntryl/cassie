@@ -5,31 +5,41 @@ Area: Execution
 Status: Open
 Priority: P2
 
-## Concept
+## Requirement
 
-`parallel scoring` from `docs/milestones.md`.
+Score full-text, vector, and hybrid candidates across bounded parallel workers while preserving exact final ranking and error behavior.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for parallel scoring within the V3 - Advanced Query Features scope.
+- Partition candidate sets deterministically for BM25, vector distance, and hybrid scoring.
+- Share read-only scoring metadata safely across workers and aggregate partial top-k results with stable tie-breaking.
+- Respect query timeout, result limit, candidate limit, and cancellation across all workers.
+- Keep single-worker fallback for small candidate sets, unsupported score expressions, or worker limit of one.
+- Report workers, candidate partitions, scored rows, and fallback reason through EXPLAIN/metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Prefer measured optimization with focused benchmarks and observable plan diagnostics.
+- Do not approximate scores or change BM25/vector/hybrid formulas.
+- Do not parallelize external embedding provider calls in this issue.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Parallel scoring returns identical scores, rows, and deterministic tie order as single-worker scoring.
+- Worker failures, timeout, and cancellation are reported once and clean up all worker state.
+- Metrics show candidate counts and worker participation.
+- Unsupported query shapes fall back without changing results.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering full-text, vector, hybrid scoring, stable tie order, timeout cleanup, fallback, and worker-limit behavior.
+- Include executor and metrics assertions.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Add benchmark evidence for large candidate sets.
 
 ## Validation
 

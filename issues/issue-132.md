@@ -5,31 +5,41 @@ Area: Column Tables
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`column-native execution paths` from `docs/milestones.md`.
+Execute eligible scan/filter/project/aggregate operations directly on columnar batches without first materializing full rows.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for column-native execution paths within the V5 - Verification & Advanced Execution scope.
+- Add physical operators for column-native scan, filter, projection, and simple aggregate paths.
+- Keep row materialization only at boundaries that require row-shaped output, unsupported expressions, joins, or protocol encoding.
+- Preserve null/missing semantics, casts, aliases, deterministic ordering, LIMIT/OFFSET, and errors.
+- Fall back to row execution when expressions or data types are unsupported by column-native operators.
+- Report column-native operator selection, decoded columns, row materialization count, and fallback through EXPLAIN/metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep behavior deterministic, testable, and aligned with the milestone roadmap.
+- Do not implement vectorized joins or vectorized aggregation beyond simple column-native operations in this issue.
+- Do not change user-visible result formats.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Column-native plans return identical results to row execution for supported scan/filter/project/aggregate shapes.
+- Row materialization is avoided until required and is observable in metrics.
+- Unsupported expressions fall back without changing results.
+- Restart and mixed row/column storage states are handled deterministically.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering column-native filter/projection, aggregate, fallback, null/sparse behavior, row materialization boundary, and EXPLAIN diagnostics.
+- Include planner and executor tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Add benchmark evidence for column-native scans.
 
 ## Validation
 

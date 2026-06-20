@@ -5,33 +5,44 @@ Area: Merkle Overlay
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`rebuild verification` from `docs/milestones.md`.
+Verify rebuilt indexes/projections against source row hashes and Merkle roots before marking rebuilds healthy or swappable.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for rebuild verification within the V5 - Verification & Advanced Execution scope.
+- Add a rebuild verification phase that compares source row hashes, rebuilt row hashes, range hashes, and projection roots for compatible rebuild targets.
+- Record verification status, started/completed timestamps, mismatch counts, unverifiable ranges, and failure reason in catalog metadata.
+- Block projection swaps or index activation when verification fails unless an explicit unsafe override exists and is tested.
+- Support retry/resume after partial verification failure.
+- Expose verification status through catalog/introspection, EXPLAIN/admin diagnostics, and metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep behavior deterministic, testable, and aligned with the milestone roadmap.
+- Do not repair corrupted data automatically.
+- Do not require verification for features that do not yet produce hashes.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Successful rebuild verification marks the rebuilt target verified and eligible for activation.
+- Mismatched, missing, stale, or incompatible hashes fail verification with deterministic diagnostics.
+- Failed verification leaves the previous active projection/index state usable.
+- Verification retry is idempotent after the underlying mismatch is corrected.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering successful verification, row mismatch, missing hash, stale root, failed swap blocking, retry after repair, restart hydration, and metrics.
+- Include integration tests around rebuild/activation flows.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Validate any additional touched test file before closing.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document verification states and activation rules.
 
 ## Validation
 
 - `cargo test --test integration_sql --quiet`
-- `cntryl-tools validate-tests -f <touched-test-file>`
+- `cntryl-tools validate-tests -f tests/integration_sql.rs`

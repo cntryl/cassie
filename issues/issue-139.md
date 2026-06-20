@@ -5,35 +5,48 @@ Area: Query Intelligence
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`adaptive execution plans` from `docs/milestones.md`.
+Plan safe adaptive alternatives that can choose among pre-validated execution paths based on early runtime observations.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for adaptive execution plans within the V5 - Verification & Advanced Execution scope.
+- Extend physical plans with explicit adaptive decision points, alternatives, guard conditions, and fallback operators.
+- Allow adaptive choices for safe categories such as scan/index path, join strategy, candidate sizing, and row/column representation when semantics are identical.
+- Base decisions on early observed cardinality, runtime feedback, memory pressure, and configured thresholds.
+- Record the selected alternative in EXPLAIN ANALYZE and metrics.
+- Ensure all alternatives are planned and type-checked before execution starts.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Build on runtime statistics and planner diagnostics; prefer observable decisions over hidden heuristics.
+- Do not generate arbitrary new plans mid-query; runtime operator switching is issue 140.
+- Do not adapt in ways that change result ordering, LIMIT/OFFSET semantics, or error behavior.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Adaptive plans select different safe alternatives under controlled runtime observations while returning identical results.
+- Disabled/adaptive-limit-one mode uses the deterministic base plan.
+- Thresholds and selected alternatives are observable through EXPLAIN ANALYZE/metrics.
+- Errors in one alternative do not leave partial worker/operator state behind.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering adaptive branch selection, disabled mode, threshold boundaries, identical results across alternatives, error cleanup, and diagnostics.
+- Include planner, integration, and metrics tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Validate any additional touched test file before closing.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document adaptive decision points and runtime controls.
 
 ## Validation
 
 - `cargo test --test planner --quiet`
 - `cargo test --test integration_sql --quiet`
 - `cargo test --test metrics --quiet`
-- `cntryl-tools validate-tests -f <touched-test-file>`
+- `cntryl-tools validate-tests -f tests/planner.rs`
+- `cntryl-tools validate-tests -f tests/integration_sql.rs`
+- `cntryl-tools validate-tests -f tests/metrics.rs`

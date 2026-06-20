@@ -5,31 +5,41 @@ Area: Execution
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`advanced parallel execution` from `docs/milestones.md`.
+Introduce a bounded parallel execution framework for multi-operator plans beyond single parallel scan/scoring/aggregation features.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for advanced parallel execution within the V5 - Verification & Advanced Execution scope.
+- Add exchange/partition/merge operators that can connect parallel scan, filter, projection, join, aggregate, sort, and scoring stages.
+- Respect runtime worker limits, memory/spill budgets, query timeout, cancellation, and result limits across the whole pipeline.
+- Preserve deterministic final results and stable tie-breaking across worker partitions.
+- Propagate errors and cancellation exactly once while cleaning up all worker state.
+- Report pipeline topology, workers, queue/backpressure metrics, and fallback through EXPLAIN/metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Prefer measured optimization with focused benchmarks and observable plan diagnostics.
+- Do not require every physical operator to become parallel in this issue.
+- Do not implement distributed execution across Cassie instances.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Parallel pipelines return identical results to single-worker execution for supported plans.
+- Resource limits and cancellation are enforced across all workers and stages.
+- Unsupported operators fall back to single-worker execution without changing results.
+- EXPLAIN and metrics make the parallel topology observable.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering multi-stage parallel plans, deterministic merge, backpressure/resource limits, timeout/cancellation cleanup, error propagation, and fallback.
+- Include planner and executor tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Add benchmark evidence for multi-operator parallel plans.
 
 ## Validation
 

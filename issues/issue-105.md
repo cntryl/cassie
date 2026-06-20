@@ -5,31 +5,41 @@ Area: Vector
 Status: Open
 Priority: P2
 
-## Concept
+## Requirement
 
-`HNSW indexes` from `docs/milestones.md`.
+Support HNSW vector indexes as an optional approximate acceleration path for vector search while keeping row blobs and brute-force scoring as the correctness fallback.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for HNSW indexes within the V3 - Advanced Query Features scope.
+- Add parser/binder/catalog support for HNSW vector indexes and options such as metric, dimensions, `m`, `ef_construction`, and query `ef_search` where exposed.
+- Persist HNSW graph metadata and entries in Midge with versioned keys, and hydrate or rebuild after restart.
+- Maintain graph membership on ingest, SQL writes, deletes, rebuilds, collection rename/drop, and vector index drop.
+- Planner selects HNSW only for compatible vector top-k shapes, metric, dimensions, and optional metadata prefilters.
+- Executor verifies candidates against stored row vectors before final ordering so returned distances/scores are exact for emitted rows.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep row blobs as truth; indexes are acceleration and must have correctness fallback.
+- Do not guarantee exact nearest-neighbor recall for HNSW candidate generation.
+- Do not remove brute-force vector search or require HNSW for vector queries.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- HNSW index creation, persistence, hydration, rebuild, query, and drop work for cosine, dot, and L2 metrics where supported.
+- Returned rows are sorted by exact distance/score after candidate verification.
+- Unsupported metrics, dimensions, options, or query shapes fall back or fail with deterministic errors as appropriate.
+- EXPLAIN and metrics identify HNSW use, candidate counts, fallback, and rebuild behavior.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering index creation/options, query selection, exact re-ranking, update/delete maintenance, restart hydration, rebuild, incompatible metric/dimension rejection, and fallback.
+- Include vector metadata and SQL integration tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked` because this touches vector storage/planner/executor.
+- Run `cargo fmt --all -- --check`.
+- Add or update benchmarks for HNSW query and rebuild behavior.
 
 ## Validation
 

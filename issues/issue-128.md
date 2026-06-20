@@ -5,33 +5,44 @@ Area: Merkle Overlay
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`projection Merkle roots` from `docs/milestones.md`.
+Compute projection-level Merkle roots from range hashes so a complete projection version can be verified with one digest.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for projection Merkle roots within the V5 - Verification & Advanced Execution scope.
+- Define a root-hash input that includes projection/collection identity, schema epoch, hash algorithm version, range fanout version, and ordered child range hashes.
+- Maintain roots after row/range hash updates, rebuilds, projection version builds, swaps, rename/drop, and startup hydration.
+- Persist roots with version/state metadata and expose them through catalog/introspection, metrics, and internal verification APIs.
+- Mark roots stale when required child hashes are missing or when source data changes before recomputation.
+- Support empty projections with a deterministic root value.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep behavior deterministic, testable, and aligned with the milestone roadmap.
+- Do not compare roots across instances in this issue.
+- Do not make roots a query-planning dependency.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Roots are deterministic across restarts and rebuilds for identical projection content.
+- Any logical row change in the projection changes the root after recomputation.
+- Stale/missing root state is observable and does not report false success.
+- Projection versioning and swaps maintain separate roots per version.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering root creation, empty projection root, row-change propagation, stale state, restart hydration, rebuild, and projection-version isolation.
+- Include catalog/metrics assertions where root state is exposed.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Validate any additional touched test file before closing.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document root input and stale-state semantics.
 
 ## Validation
 
 - `cargo test --test integration_sql --quiet`
-- `cntryl-tools validate-tests -f <touched-test-file>`
+- `cntryl-tools validate-tests -f tests/integration_sql.rs`

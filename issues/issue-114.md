@@ -5,31 +5,41 @@ Area: Column Store Indexes
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`scan acceleration` from `docs/milestones.md`.
+Use column batches to accelerate projection-pruned scans and simple analytical filters while preserving row-blob fallback.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for scan acceleration within the V4 - Analytical Overlay scope.
+- Planner selects column-batch scan when projected fields, filter fields, and order requirements are covered by compatible column batches.
+- Executor reads only required columns and applies filters using column values, segment min/max/null metadata, and row-id reconciliation.
+- Preserve sparse-field null behavior, casts, aliases, deterministic ordering, LIMIT/OFFSET, and error behavior.
+- Fall back to row scans when expressions, functions, joins, missing batches, unsupported types, or incompatible segment versions require it.
+- Report skipped segments, decoded columns, row-blob fetches, and fallback reasons through EXPLAIN/metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep row blobs as truth; indexes are acceleration and must have correctness fallback.
+- Do not make column scans mandatory for correctness.
+- Do not implement full column-native execution for joins/aggregates here; those are later issues.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Column-batch scan results match row-scan results for covered projections and filters.
+- Segment pruning reduces decoded rows/segments for supported range/equality filters.
+- Fallback paths preserve results for unsupported query shapes.
+- Restart and rebuild paths keep scan acceleration available.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering projection-only scans, equality/range filters, segment pruning, null/sparse fields, fallback, restart hydration, and rebuild.
+- Include planner and integration tests with EXPLAIN assertions.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Add benchmark evidence for scan acceleration.
 
 ## Validation
 

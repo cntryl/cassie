@@ -5,31 +5,41 @@ Area: Execution
 Status: Open
 Priority: P2
 
-## Concept
+## Requirement
 
-`parallel aggregation` from `docs/milestones.md`.
+Execute eligible aggregate queries using partial per-worker aggregation and deterministic final merge.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for parallel aggregation within the V3 - Advanced Query Features scope.
+- Support parallel partial aggregation for `count`, `sum`, `avg`, `min`, and `max` over grouped and ungrouped queries where input expressions are deterministic.
+- Partition input rows deterministically and merge partial aggregate states with stable group-key encoding.
+- Preserve null handling, numeric type behavior, HAVING filters, DISTINCT interaction, ORDER BY, LIMIT, and OFFSET semantics.
+- Keep single-worker fallback for unsupported aggregate expressions, user-defined functions, unstable ordering requirements, or worker limit of one.
+- Report partial/final aggregate operators, worker counts, group counts, and fallback reason through EXPLAIN/metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Prefer measured optimization with focused benchmarks and observable plan diagnostics.
+- Do not implement vectorized aggregation here; that is issue 136.
+- Do not parallelize aggregate queries whose expressions have side effects or unsupported semantics.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Parallel aggregation returns identical rows, aggregate values, group ordering, and errors as single-worker aggregation.
+- HAVING, DISTINCT, ORDER BY, LIMIT, and OFFSET still apply in the same logical order.
+- Timeout/cancellation cleans up all worker state.
+- EXPLAIN and metrics identify parallel aggregate execution.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering grouped and ungrouped aggregates, nulls, HAVING, DISTINCT, order/limit, fallback, timeout cleanup, and worker-limit behavior.
+- Include planner and executor tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Add benchmark evidence for large aggregation workloads.
 
 ## Validation
 

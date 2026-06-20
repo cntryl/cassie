@@ -5,31 +5,41 @@ Area: Time Series
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`rollups` from `docs/milestones.md`.
+Support materialized time-series rollups over bucketed source data for common aggregate queries.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for rollups within the V4 - Analytical Overlay scope.
+- Add catalog metadata for rollup definitions: source collection, timestamp field, bucket expression, group keys, aggregate expressions, version, state, and refresh cursor.
+- Provide a SQL/admin creation path for rollups using deterministic aggregate expressions over `time_bucket`.
+- Build and refresh rollup rows from row blobs, and maintain them across inserts, updates, deletes, rebuild, restart hydration, source rename/drop, and rollup drop.
+- Planner can rewrite eligible aggregate queries to rollup reads when bucket, group keys, filters, and aggregates match safely.
+- Expose rollup metadata, freshness, lag, and selected rewrites through catalog views, EXPLAIN, and metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep behavior deterministic, testable, and aligned with the milestone roadmap.
+- Do not support arbitrary continuous queries or user-defined aggregate functions.
+- Do not return stale rollup results silently when freshness requirements are not met; fall back to source rows instead.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Rollup build, refresh, restart hydration, and drop are deterministic and idempotent.
+- Eligible aggregate queries return the same results via rollup as via source-row execution.
+- Ineligible or stale rollups fall back to source execution with observable diagnostics.
+- Updates/deletes that move rows across buckets correct previous rollup rows.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering rollup creation, initial build, incremental refresh, update/delete movement, restart hydration, query rewrite, stale fallback, and drop cleanup.
+- Include integration and catalog introspection tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document rollup SQL/admin syntax and freshness semantics.
 
 ## Validation
 

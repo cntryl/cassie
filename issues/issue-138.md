@@ -5,35 +5,48 @@ Area: Query Intelligence
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`advanced cardinality estimation` from `docs/milestones.md`.
+Improve planner cardinality estimates using persisted histograms, sketches, and correlation-aware statistics where available.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for advanced cardinality estimation within the V5 - Verification & Advanced Execution scope.
+- Maintain advanced statistics for selected fields/indexes: value distribution buckets, null/missing counts, min/max, distinct estimates, and optional multi-field correlation stats.
+- Persist statistics with schema/index epochs and rebuild them from row blobs or column batches.
+- Use advanced estimates for filters, joins, GROUP BY, DISTINCT, search/vector prefilters, and index selection.
+- Fall back to basic cardinality/default estimates when statistics are missing, stale, unsupported, or below confidence thresholds.
+- Expose estimate source, confidence, and actual-vs-estimated diagnostics through EXPLAIN/metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Build on runtime statistics and planner diagnostics; prefer observable decisions over hidden heuristics.
+- Do not require exact statistics for query correctness.
+- Do not implement automatic background sampling without explicit runtime controls.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Planner estimates improve for skewed values, null-heavy fields, range predicates, and correlated predicates compared with basic row counts.
+- Statistics invalidate or partition across schema/index changes and database/collection boundaries.
+- Missing/stale stats fall back deterministically.
+- EXPLAIN shows which statistic source informed an estimate.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering histograms, distinct estimates, null/missing counts, correlated predicates, stale invalidation, fallback, and EXPLAIN diagnostics.
+- Include planner, integration, and metrics tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Validate any additional touched test file before closing.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document statistic types, rebuild policy, and confidence defaults.
 
 ## Validation
 
 - `cargo test --test planner --quiet`
 - `cargo test --test integration_sql --quiet`
 - `cargo test --test metrics --quiet`
-- `cntryl-tools validate-tests -f <touched-test-file>`
+- `cntryl-tools validate-tests -f tests/planner.rs`
+- `cntryl-tools validate-tests -f tests/integration_sql.rs`
+- `cntryl-tools validate-tests -f tests/metrics.rs`

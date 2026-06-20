@@ -5,31 +5,41 @@ Area: Adaptive Planning
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`operator selection feedback` from `docs/milestones.md`.
+Feed observed operator performance back into future operator selection without compromising deterministic planning or correctness.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for operator selection feedback within the V4 - Analytical Overlay scope.
+- Aggregate runtime feedback by normalized operator shape, collection, schema epoch, and relevant predicate/index characteristics.
+- Compare estimated versus actual rows, elapsed time, storage reads, temp writes, and memory/spill indicators.
+- Adjust future cost inputs for eligible operator alternatives when feedback is fresh and statistically meaningful.
+- Bound feedback influence so a single outlier cannot permanently bias planning.
+- Expose feedback use, age, confidence, and ignored/outlier status through EXPLAIN/metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Prefer measured optimization with focused benchmarks and observable plan diagnostics.
+- Do not switch operators during an already-running query; that is issue 140.
+- Do not make planning depend on bind values that are not part of the normalized safe key.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Repeated workloads can influence future operator selection when feedback is consistent.
+- Feedback is invalidated or ignored across schema/catalog changes and stale epochs.
+- Missing, low-confidence, or outlier feedback falls back to base cost estimates.
+- Query results remain identical regardless of feedback availability.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering feedback aggregation, plan influence, stale feedback invalidation, outlier damping, missing feedback fallback, and EXPLAIN diagnostics.
+- Include planner and metrics tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document feedback confidence/retention policy.
 
 ## Validation
 

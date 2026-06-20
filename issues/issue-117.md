@@ -5,31 +5,41 @@ Area: Time Series
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`retention policies` from `docs/milestones.md`.
+Allow collections to declare deterministic time-based retention policies that remove expired projection rows and associated index/materialized state.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for retention policies within the V4 - Analytical Overlay scope.
+- Add catalog metadata for retention policy: collection, timestamp field, retention duration, enforcement mode, last enforcement timestamp, and state.
+- Provide a SQL/admin path to create, alter, drop, and inspect retention policies.
+- Enforce retention through an explicit deterministic maintenance operation and optional startup/background scheduling only when configured.
+- Delete expired row blobs and all associated scalar, full-text, vector, time-series, column, and materialized projection entries atomically per row where existing write guarantees allow.
+- Report deleted rows, skipped rows, errors, and lag through metrics and catalog/introspection.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep behavior deterministic, testable, and aligned with the milestone roadmap.
+- Do not implement legal hold, archive storage, or cross-instance distributed retention in this issue.
+- Do not silently delete rows when timestamp values are missing or invalid; use configured behavior or skip with diagnostics.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Retention policies persist, hydrate, alter, and drop correctly.
+- Explicit enforcement deletes only rows older than the configured cutoff and removes dependent index/projection state.
+- Enforcement is idempotent and safe to retry after partial failure.
+- Queries after enforcement do not return expired rows.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering policy create/alter/drop, explicit enforcement, missing timestamp behavior, index cleanup, rollup/materialized cleanup if present, restart hydration, and idempotent retry.
+- Include scalar/integration tests and catalog assertions.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document retention syntax, enforcement mode, and operational risks.
 
 ## Validation
 

@@ -5,31 +5,41 @@ Area: Adaptive
 Status: Open
 Priority: P1
 
-## Concept
+## Requirement
 
-`runtime feedback` from `docs/milestones.md`.
+Record execution feedback for normalized plans and physical operators so later planning can compare estimates with observed work.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for runtime feedback within the V2 - Query Performance scope.
+- Capture actual rows in/out, elapsed time, storage reads/writes, temp writes, candidate counts, and error status per operator where instrumentation already exists or can be added locally.
+- Key feedback by normalized SQL fingerprint, database, collection, schema epoch, and operator kind without storing bind values or sensitive literals.
+- Keep feedback bounded by count and age, with deterministic eviction and no unbounded growth.
+- Expose feedback through metrics and EXPLAIN ANALYZE diagnostics.
+- Make feedback advisory only: failures to read/write feedback cannot fail user queries.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Prefer measured optimization with focused benchmarks and observable plan diagnostics.
+- Do not implement adaptive execution or runtime operator switching here.
+- Do not persist personally sensitive bind values or raw SQL literals in feedback records.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Repeated execution of the same normalized plan accumulates feedback counters without sharing bind values.
+- EXPLAIN ANALYZE reports actual operator information that matches the executed query.
+- Feedback records are invalidated or partitioned across schema/catalog changes, database names, and collection names.
+- Bounded retention and eviction are covered by deterministic tests.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering feedback capture, repeated-query aggregation, schema invalidation, retention eviction, and EXPLAIN ANALYZE output.
+- Include metrics assertions for feedback hits, misses, writes, and evictions.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked` because this touches runtime diagnostics.
+- Run `cargo fmt --all -- --check`.
+- Update metrics documentation if new fields are added.
 
 ## Validation
 

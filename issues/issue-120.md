@@ -5,31 +5,41 @@ Area: Materialization
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`projection versioning` from `docs/milestones.md`.
+Version materialized projection definitions and storage so new projection builds can coexist with the currently active version.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for projection versioning within the V4 - Analytical Overlay scope.
+- Store projection versions with definition fingerprint, source schema epochs, output schema, storage prefix, build state, created timestamp, and active/retired markers.
+- Route reads to exactly one active version unless an explicit admin/debug path requests another version.
+- Allow a new version to build from source rows without corrupting or replacing the active version.
+- Keep versioned index, column, and metadata entries isolated by projection version.
+- Expose active, building, failed, and retired versions through catalog/introspection and metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep behavior deterministic, testable, and aligned with the milestone roadmap.
+- Do not implement atomic active-version swaps here; that is issue 121.
+- Do not support concurrent writes directly into projection output versions.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Multiple projection versions can exist without key collisions or mixed reads.
+- Restart hydration preserves version state and active-version routing.
+- Failed builds leave the previous active version readable.
+- Dropping a version cleans up its storage without affecting other versions.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering version creation, active routing, failed build isolation, restart hydration, version drop cleanup, and metadata introspection.
+- Include integration and catalog tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document version states and storage key invariants.
 
 ## Validation
 

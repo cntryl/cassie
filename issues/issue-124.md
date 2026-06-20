@@ -5,31 +5,41 @@ Area: Adaptive Planning
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`index performance feedback` from `docs/milestones.md`.
+Track observed index selectivity and cost so the planner can choose among competing indexes more accurately.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for index performance feedback within the V4 - Analytical Overlay scope.
+- Record per-index feedback for predicate shape, estimated rows, scanned index entries, fetched row blobs, returned rows, elapsed time, and fallback reason.
+- Partition feedback by collection, index id/version, schema epoch, predicate shape, and database.
+- Use feedback in cost-informed planning to prefer indexes that have lower observed cost for matching shapes.
+- Invalidate feedback when index definition, schema epoch, collection, or database changes.
+- Expose per-index feedback through metrics and EXPLAIN diagnostics without leaking bind values.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Keep row blobs as truth; indexes are acceleration and must have correctness fallback.
+- Do not change row blob truth or index correctness semantics.
+- Do not implement automatic index creation/drop decisions here.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Index feedback is captured after indexed query execution and ignored for full-scan fallback.
+- Competing index selection can change when feedback consistently favors one index.
+- Stale or missing feedback falls back to static estimates.
+- Metrics show feedback reads, writes, invalidations, and selected index influence.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering feedback capture, competing index choice, stale invalidation, missing fallback, privacy/no bind values, and EXPLAIN diagnostics.
+- Include planner and metrics tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document feedback keys and invalidation rules.
 
 ## Validation
 

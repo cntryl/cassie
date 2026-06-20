@@ -5,31 +5,41 @@ Area: Search
 Status: Open
 Priority: P2
 
-## Concept
+## Requirement
 
-`custom tokenizers` from `docs/milestones.md`.
+Provide a bounded tokenizer registry for full-text indexing so built-in tokenization strategies can be selected per full-text index.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for custom tokenizers within the V3 - Advanced Query Features scope.
+- Add a tokenizer option to full-text index metadata and bind it to a known built-in tokenizer implementation.
+- Support at least the existing default tokenizer plus one tokenizer with materially different boundaries, such as whitespace-only or ngram/prefix tokenization.
+- Ensure indexing, querying, scoring, snippets, rebuilds, and cache keys all use the configured tokenizer consistently.
+- Persist and hydrate tokenizer configuration with versioned metadata.
+- Reject unknown tokenizer names and invalid tokenizer options before index creation.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Preserve query correctness before adding specialized acceleration paths.
+- Do not load arbitrary external code or runtime plugins.
+- Do not make tokenizers mutable after index creation without an explicit rebuild path.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Different tokenizers produce expected token streams and search results for the same documents.
+- Restart and rebuild preserve tokenizer-specific index contents and search behavior.
+- Unknown tokenizer names/options return clear parser/binder errors.
+- Existing full-text indexes continue using the default tokenizer.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering tokenizer selection, invalid tokenizer rejection, restart hydration, rebuild, snippet consistency, and cache separation by tokenizer.
+- Include unit tests for tokenizer output and integration tests for search behavior.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Document supported tokenizer names and options.
 
 ## Validation
 

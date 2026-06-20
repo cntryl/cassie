@@ -5,31 +5,41 @@ Area: Execution
 Status: Open
 Priority: P3
 
-## Concept
+## Requirement
 
-`vectorized joins` from `docs/milestones.md`.
+Execute eligible join build/probe operations in batches to reduce per-row overhead while preserving SQL join semantics.
 
-## Goal
+## Functional Scope
 
-Deliver complete Cassie support for vectorized joins within the V5 - Verification & Advanced Execution scope.
+- Add vectorized/batch kernels for equi-join key extraction, hash build/probe, match materialization, and null-key handling.
+- Support inner and left joins first, with right/full/semi/anti support only when semantics are explicitly implemented and tested.
+- Use batch/column inputs where available and materialize rows only for matched output or unsupported downstream operators.
+- Preserve duplicate-key behavior, null semantics, projection aliases, deterministic ordering, timeout/cancellation, and memory/spill budgets.
+- Report vectorized join selection, batch sizes, build/probe rows, matches, spills, and fallback through EXPLAIN/metrics.
 
-## TDD Plan
+## Non-Goals
 
-- Add the smallest failing test that proves the concept is missing or incomplete.
-- Implement only enough behavior to make that test pass.
-- Add focused edge-case tests after the happy path is green.
-- Refactor without broadening behavior.
-
-## Implementation Notes
-
-Prefer measured optimization with focused benchmarks and observable plan diagnostics.
+- Do not change parser/binder join semantics.
+- Do not implement non-equi vectorized joins in this issue.
 
 ## Acceptance Criteria
 
-- The concept has parser, binder, planner, executor, catalog, protocol, or storage support where applicable.
-- Happy path and edge cases are covered by focused tests.
-- Existing related behavior does not regress.
-- Touched test files pass `cntryl-tools validate-tests`.
+- Vectorized join results match scalar/hash join results for supported join types and key shapes.
+- Unsupported join types or predicates fall back deterministically.
+- Memory/spill limits are enforced during batch build/probe.
+- Benchmarks or metrics show reduced per-row overhead for eligible joins.
+
+## Required Tests
+
+- Add `should_` tests with `// Arrange / Act / Assert` covering inner/left joins, duplicate keys, null keys, unmatched rows, fallback, spill/limit behavior, cancellation cleanup, and EXPLAIN diagnostics.
+- Include planner and executor tests.
+
+## Closeout Steps
+
+- Run the validation commands below.
+- Run `cargo build --locked`.
+- Run `cargo fmt --all -- --check`.
+- Add benchmark evidence for vectorized joins.
 
 ## Validation
 

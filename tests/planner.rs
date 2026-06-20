@@ -354,6 +354,34 @@ fn should_plan_join_source_with_physical_join_operator() {
 }
 
 #[test]
+fn should_mark_exists_predicate_as_semi_join() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_semi_outer");
+    register_test_collection(&catalog, "planner_semi_inner");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_semi_outer WHERE EXISTS (SELECT title FROM planner_semi_inner)",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let logical = logical::plan(&bound).unwrap();
+        let logical = optimizer::optimize(logical);
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert_eq!(physical_plan.join_strategy.as_deref(), Some("semi"));
+    });
+}
+
+#[test]
 fn should_plan_grouped_distinct_select_controls() {
     // Arrange
     let catalog = Catalog::new();

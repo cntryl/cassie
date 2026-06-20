@@ -62,7 +62,7 @@ pub fn build_with_indexes(plan: LogicalPlan, indexes: Vec<IndexMeta>) -> Physica
     let selected_index = selected_index(&plan, indexes.as_slice());
     let top_k_limit = top_k_limit(&plan);
     let top_k = top_k_limit.is_some();
-    let join_strategy = join_strategy(&plan.source);
+    let join_strategy = join_strategy(&plan);
     let mut operators = vec![Operator::Scan];
     if source_contains_join(&plan.source) {
         operators.push(Operator::Join);
@@ -111,15 +111,40 @@ pub fn build_with_indexes(plan: LogicalPlan, indexes: Vec<IndexMeta>) -> Physica
     }
 }
 
-fn join_strategy(source: &QuerySource) -> Option<String> {
-    match source {
+fn join_strategy(plan: &LogicalPlan) -> Option<String> {
+    match &plan.source {
         QuerySource::Join {
             kind: JoinKind::Inner,
             on,
             ..
         } if is_equi_join_predicate(on) => Some("hash".to_string()),
         QuerySource::Join { .. } => Some("nested_loop".to_string()),
+        _ if plan.filter.as_ref().is_some_and(expr_contains_exists) => Some("semi".to_string()),
         _ => None,
+    }
+}
+
+fn expr_contains_exists(expr: &Expr) -> bool {
+    match expr {
+        Expr::Exists(_) => true,
+        Expr::Binary { left, right, .. } => {
+            expr_contains_exists(left) || expr_contains_exists(right)
+        }
+        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } => expr_contains_exists(expr),
+        Expr::InList { expr, values, .. } => {
+            expr_contains_exists(expr) || values.iter().any(expr_contains_exists)
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => expr_contains_exists(expr) || expr_contains_exists(low) || expr_contains_exists(high),
+        Expr::Not { .. }
+        | Expr::Column(_)
+        | Expr::Param(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null
+        | Expr::Function(_) => false,
     }
 }
 

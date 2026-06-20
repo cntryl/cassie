@@ -509,6 +509,155 @@ fn should_record_search_operator_candidates_after_posting_list_filtering() {
 }
 
 #[test]
+fn should_cache_fulltext_scoring_metadata_for_repeated_search_queries() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("fulltext_scoring_metadata_cache");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "metrics_fulltext_scoring_metadata_cache";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"body": "alpha bravo"}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-2".to_string()),
+                serde_json::json!({"body": "alpha charlie"}),
+            )
+            .unwrap();
+
+        let before = cassie.metrics().await;
+        let before_hits = before["query_cache"]["fulltext_stats_hits"]
+            .as_u64()
+            .unwrap_or_default();
+        let before_misses = before["query_cache"]["fulltext_stats_misses"]
+            .as_u64()
+            .unwrap_or_default();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let first = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM metrics_fulltext_scoring_metadata_cache WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let after_first = cassie.metrics().await;
+        let second = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM metrics_fulltext_scoring_metadata_cache WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 2",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let after_second = cassie.metrics().await;
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO metrics_fulltext_scoring_metadata_cache (body) VALUES ('alpha delta')",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let third = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM metrics_fulltext_scoring_metadata_cache WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let after_third = cassie.metrics().await;
+
+        // Assert
+        assert_eq!(first.rows.len(), 1);
+        assert_eq!(second.rows.len(), 2);
+        assert_eq!(third.rows.len(), 1);
+        assert_eq!(
+            after_first["query_cache"]["fulltext_stats_misses"]
+                .as_u64()
+                .unwrap_or_default()
+                - before_misses,
+            1
+        );
+        assert_eq!(
+            after_first["query_cache"]["fulltext_stats_hits"]
+                .as_u64()
+                .unwrap_or_default()
+                - before_hits,
+            0
+        );
+        assert_eq!(
+            after_second["query_cache"]["fulltext_stats_hits"]
+                .as_u64()
+                .unwrap_or_default()
+                - before_hits,
+            1
+        );
+        assert_eq!(
+            after_second["query_cache"]["fulltext_stats_misses"]
+                .as_u64()
+                .unwrap_or_default()
+                - before_misses,
+            1
+        );
+        assert_eq!(
+            after_third["query_cache"]["fulltext_stats_hits"]
+                .as_u64()
+                .unwrap_or_default()
+                - before_hits,
+            1
+        );
+        assert_eq!(
+            after_third["query_cache"]["fulltext_stats_misses"]
+                .as_u64()
+                .unwrap_or_default()
+                - before_misses,
+            2
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_record_query_error_statistics() {
     // Arrange
     with_fallback();

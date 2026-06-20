@@ -15,6 +15,7 @@ use crate::executor::{aggregate, filter, projection, scan, sort};
 use crate::midge::adapter::RowDecode;
 use crate::planner::logical::{LogicalCommand, LogicalPlan};
 use crate::planner::physical::PhysicalPlan;
+use crate::query_cache;
 use crate::runtime::{FulltextIndexOptions, FulltextIndexOptionsCacheKey, QueryExecutionControls};
 use crate::sql::ast::{
     BinaryOp, CommonTableExpression, CteQuery, Expr, FunctionCall, InsertSource, JoinKind,
@@ -2205,12 +2206,17 @@ struct TokenizedHybridDocument {
 
 trait PostingListDocument {
     fn doc_id(&self) -> &str;
+    fn term_stats(&self) -> &filter::SearchTermStats;
     fn term_counts(&self) -> &HashMap<String, usize>;
 }
 
 impl PostingListDocument for TokenizedFulltextDocument {
     fn doc_id(&self) -> &str {
         &self.id
+    }
+
+    fn term_stats(&self) -> &filter::SearchTermStats {
+        &self.text_stats
     }
 
     fn term_counts(&self) -> &HashMap<String, usize> {
@@ -2223,6 +2229,10 @@ impl PostingListDocument for TokenizedFulltextReadDocument {
         &self.id
     }
 
+    fn term_stats(&self) -> &filter::SearchTermStats {
+        &self.text_stats
+    }
+
     fn term_counts(&self) -> &HashMap<String, usize> {
         self.text_stats.term_counts()
     }
@@ -2231,6 +2241,10 @@ impl PostingListDocument for TokenizedFulltextReadDocument {
 impl PostingListDocument for TokenizedHybridDocument {
     fn doc_id(&self) -> &str {
         &self.id
+    }
+
+    fn term_stats(&self) -> &filter::SearchTermStats {
+        &self.text_stats
     }
 
     fn term_counts(&self) -> &HashMap<String, usize> {
@@ -2251,6 +2265,53 @@ where
         index.index_term_counts(document.doc_id(), document.term_counts());
     }
     index.candidate_documents(query_terms)
+}
+
+async fn cached_search_context<D>(
+    cassie: &Cassie,
+    collection: &str,
+    field: &str,
+    documents: &[D],
+    field_boost: &HashMap<String, f64>,
+    field_k1: &HashMap<String, f64>,
+    field_b: &HashMap<String, f64>,
+) -> Result<filter::SearchContext, QueryError>
+where
+    D: PostingListDocument,
+{
+    let schema_epoch = cassie.runtime.schema_epoch();
+    let data_epoch = cassie.runtime.data_epoch();
+    if let Some(context) = query_cache::lookup_fulltext_stats(
+        &cassie.midge,
+        &cassie.runtime,
+        collection,
+        field,
+        schema_epoch,
+        data_epoch,
+    )
+    .map_err(|error| QueryError::General(error.to_string()))?
+    {
+        return Ok(context);
+    }
+
+    let context = filter::SearchContext::from_term_stats(
+        field,
+        documents.iter().map(|document| document.term_stats()),
+        field_boost,
+        field_k1,
+        field_b,
+    );
+    query_cache::store_fulltext_stats(
+        &cassie.midge,
+        &cassie.runtime,
+        collection,
+        field,
+        schema_epoch,
+        data_epoch,
+        &context,
+    )
+    .map_err(|error| QueryError::General(error.to_string()))?;
+    Ok(context)
 }
 
 async fn execute_fulltext_top_k(
@@ -2278,13 +2339,16 @@ async fn execute_fulltext_top_k(
         std::slice::from_ref(&spec.text_field),
     )
     .await?;
-    let search_context = filter::SingleFieldSearchContext::from_term_stats(
+    let search_context = cached_search_context(
+        cassie,
+        &spec.collection,
         &spec.text_field,
-        search_documents.iter().map(|document| &document.text_stats),
+        &search_documents,
         &search_index_options.field_boost,
         &search_index_options.field_k1,
         &search_index_options.field_b,
-    );
+    )
+    .await?;
     let query_terms = filter::prepare_query_terms(&spec.query);
     let candidate_ids = if spec.require_match {
         Some(posting_list_candidate_ids(&search_documents, &query_terms))
@@ -2299,7 +2363,11 @@ async fn execute_fulltext_top_k(
                 continue;
             }
         }
-        let score = search_context.score_term_stats(&document.text_stats, &query_terms);
+        let score = search_context.score_term_stats(
+            Some(&spec.text_field),
+            &document.text_stats,
+            &query_terms,
+        );
         if spec.require_match && score == 0.0 {
             continue;
         }
@@ -2356,13 +2424,16 @@ async fn execute_hybrid_top_k(
         std::slice::from_ref(&spec.text_field),
     )
     .await?;
-    let search_context = filter::SingleFieldSearchContext::from_term_stats(
+    let search_context = cached_search_context(
+        cassie,
+        &spec.collection,
         &spec.text_field,
-        search_documents.iter().map(|document| &document.text_stats),
+        &search_documents,
         &search_index_options.field_boost,
         &search_index_options.field_k1,
         &search_index_options.field_b,
-    );
+    )
+    .await?;
     let query_terms = filter::prepare_query_terms(&spec.query);
     let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
@@ -2372,7 +2443,11 @@ async fn execute_hybrid_top_k(
         if !candidate_ids.contains(document.id.as_str()) {
             continue;
         }
-        let search_score = search_context.score_term_stats(&document.text_stats, &query_terms);
+        let search_score = search_context.score_term_stats(
+            Some(&spec.text_field),
+            &document.text_stats,
+            &query_terms,
+        );
         if search_score == 0.0 {
             continue;
         }
@@ -2452,13 +2527,16 @@ async fn execute_fulltext_filtered_read(
         std::slice::from_ref(&spec.text_field),
     )
     .await?;
-    let search_context = filter::SingleFieldSearchContext::from_term_stats(
+    let search_context = cached_search_context(
+        cassie,
+        &spec.collection,
         &spec.text_field,
-        search_documents.iter().map(|document| &document.text_stats),
+        &search_documents,
         &search_index_options.field_boost,
         &search_index_options.field_k1,
         &search_index_options.field_b,
-    );
+    )
+    .await?;
     let query_terms = filter::prepare_query_terms(&spec.query);
     let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
 
@@ -2468,7 +2546,11 @@ async fn execute_fulltext_filtered_read(
         if !candidate_ids.contains(document.id.as_str()) {
             continue;
         }
-        let score = search_context.score_term_stats(&document.text_stats, &query_terms);
+        let score = search_context.score_term_stats(
+            Some(&spec.text_field),
+            &document.text_stats,
+            &query_terms,
+        );
         if score == 0.0 {
             continue;
         }

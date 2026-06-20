@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 073: Precomputed Scoring Metadata](issue-073.md) - V2 - Query Performance / Search
 - [Issue 074: Top-K Search Execution](issue-074.md) - V2 - Query Performance / Search
 - [Issue 075: SIMD Distance Calculations](issue-075.md) - V2 - Query Performance / Vector
 - [Issue 076: Normalized Vector Storage](issue-076.md) - V2 - Query Performance / Vector

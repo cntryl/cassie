@@ -33,6 +33,7 @@ struct FulltextStatsRecord {
     collection: String,
     field: String,
     schema_epoch: u64,
+    data_epoch: u64,
     created_at_ms: u64,
     context: SearchContext,
 }
@@ -43,6 +44,7 @@ struct FulltextStatsKey<'a> {
     collection: &'a str,
     field: &'a str,
     schema_epoch: u64,
+    data_epoch: u64,
 }
 
 #[allow(dead_code)]
@@ -70,11 +72,13 @@ fn fulltext_stats_key(
     collection: &str,
     field: &str,
     schema_epoch: u64,
+    data_epoch: u64,
 ) -> Result<Vec<u8>, CassieError> {
     let key = FulltextStatsKey {
         collection,
         field,
         schema_epoch,
+        data_epoch,
     };
     Ok(format!("{FULLTEXT_STATS_PREFIX}{:016x}", fingerprint(&key)).into_bytes())
 }
@@ -195,13 +199,14 @@ pub(crate) fn lookup_fulltext_stats(
     collection: &str,
     field: &str,
     schema_epoch: u64,
+    data_epoch: u64,
 ) -> Result<Option<SearchContext>, CassieError> {
     if runtime.limits().cf2_fulltext_stats_ttl_seconds == 0 {
         runtime.record_query_cache_fulltext_stats_miss();
         return Ok(None);
     }
 
-    let storage_key = fulltext_stats_key(collection, field, schema_epoch)?;
+    let storage_key = fulltext_stats_key(collection, field, schema_epoch, data_epoch)?;
     let Some(raw) = (match midge.raw_get(StorageFamily::Temp, &storage_key) {
         Ok(value) => {
             runtime.record_storage_access("temp", false, true);
@@ -226,7 +231,7 @@ pub(crate) fn lookup_fulltext_stats(
         }
     };
 
-    if record.schema_epoch != schema_epoch {
+    if record.schema_epoch != schema_epoch || record.data_epoch != data_epoch {
         runtime.record_query_cache_schema_epoch_reject();
         runtime.record_query_cache_fulltext_stats_miss();
         return Ok(None);
@@ -243,6 +248,7 @@ pub(crate) fn store_fulltext_stats(
     collection: &str,
     field: &str,
     schema_epoch: u64,
+    data_epoch: u64,
     context: &SearchContext,
 ) -> Result<(), CassieError> {
     let ttl_seconds = runtime.limits().cf2_fulltext_stats_ttl_seconds;
@@ -254,13 +260,14 @@ pub(crate) fn store_fulltext_stats(
         collection: collection.to_string(),
         field: field.to_string(),
         schema_epoch,
+        data_epoch,
         created_at_ms: current_time_millis(),
         context: context.clone(),
     };
     put_temp_json(
         midge,
         runtime,
-        fulltext_stats_key(collection, field, schema_epoch)?,
+        fulltext_stats_key(collection, field, schema_epoch, data_epoch)?,
         &record,
         ttl_seconds,
     )

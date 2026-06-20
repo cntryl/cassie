@@ -144,6 +144,7 @@ pub(crate) struct SearchTermStats {
     term_counts: HashMap<String, usize>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
 pub(crate) struct SingleFieldSearchContext {
     total_documents: usize,
@@ -172,6 +173,7 @@ impl SearchTermStats {
     }
 }
 
+#[allow(dead_code)]
 impl SingleFieldSearchContext {
     pub(crate) fn from_term_stats<'a, I>(
         field: &str,

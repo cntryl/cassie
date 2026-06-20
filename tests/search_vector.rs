@@ -94,6 +94,25 @@ fn should_compute_tokenized_bm25_like_score_for_query_terms() {
 }
 
 #[test]
+fn should_clamp_bm25_score_for_invalid_document_frequency() {
+    // Arrange
+    let tf = 1.0;
+    let df = 10.0;
+    let n = 1.0;
+    let k1 = 1.2;
+    let b = 0.75;
+    let dl = 3.0;
+    let avg_dl = 3.0;
+
+    // Act
+    let score = bm25::bm25_score(tf, df, n, k1, b, dl, avg_dl);
+
+    // Assert
+    assert!(score.is_finite());
+    assert!(score >= 0.0);
+}
+
+#[test]
 fn should_generate_snippet_with_highlight_markup() {
     // Arrange
     let input = "Rust enables fast, reliable systems programming";

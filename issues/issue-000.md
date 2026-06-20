@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 012: DISTINCT](issue-012.md) - V1 - Projection Query Engine / SQL
 - [Issue 013: GROUP BY](issue-013.md) - V1 - Projection Query Engine / SQL
 - [Issue 014: HAVING](issue-014.md) - V1 - Projection Query Engine / SQL
 - [Issue 015: EXISTS](issue-015.md) - V1 - Projection Query Engine / SQL

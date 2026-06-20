@@ -2117,6 +2117,116 @@ fn should_reject_insert_when_primary_key_is_null() {
 }
 
 #[test]
+fn should_reject_insert_when_unique_value_is_duplicate() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("unique_insert_duplicate");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE unique_insert_duplicate (email TEXT UNIQUE)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO unique_insert_duplicate (email) VALUES ('a@example.com')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO unique_insert_duplicate (email) VALUES ('a@example.com')",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(inserted.is_err());
+        assert!(inserted
+            .unwrap_err()
+            .to_string()
+            .contains("unique constraint failed for 'email'"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_update_when_unique_value_conflicts() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("unique_update_conflict");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE unique_update_conflict (email TEXT UNIQUE)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO unique_update_conflict (email) VALUES ('a@example.com')",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO unique_update_conflict (email) VALUES ('b@example.com')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let updated = cassie
+            .execute_sql(
+                &session,
+                "UPDATE unique_update_conflict SET email = 'a@example.com' WHERE email = 'b@example.com'",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(updated.is_err());
+        assert!(updated
+            .unwrap_err()
+            .to_string()
+            .contains("unique constraint failed for 'email'"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
     // Arrange
     with_fallback();

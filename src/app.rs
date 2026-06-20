@@ -1246,6 +1246,8 @@ impl Cassie {
             exclude_id,
         )
         .await?;
+        self.validate_unique_indexes_for_session(session, collection, &payload, exclude_id)
+            .await?;
 
         Ok(payload)
     }
@@ -1909,6 +1911,54 @@ impl Cassie {
         Ok(())
     }
 
+    async fn validate_unique_indexes_for_session(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        payload: &serde_json::Value,
+        exclude_id: Option<&str>,
+    ) -> Result<(), CassieError> {
+        let object = payload.as_object().ok_or_else(|| {
+            CassieError::InvalidVector("document payload must be a JSON object".to_string())
+        })?;
+
+        for index in self.catalog.list_indexes(collection).await {
+            if !index.unique || index.kind != crate::catalog::IndexKind::Scalar {
+                continue;
+            }
+
+            let fields = index.normalized_fields();
+            let mut values = Vec::with_capacity(fields.len());
+            for field in &fields {
+                let Some(value) = object.get(field) else {
+                    values.clear();
+                    break;
+                };
+                if value.is_null() {
+                    values.clear();
+                    break;
+                }
+                values.push((field.as_str(), value));
+            }
+
+            if values.is_empty() {
+                continue;
+            }
+
+            if self
+                .values_exist_for_collection_fields(session, collection, &values, exclude_id)
+                .await?
+            {
+                return Err(CassieError::InvalidVector(format!(
+                    "unique index '{}' failed",
+                    index.name
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
     async fn value_exists_for_collection_field(
         &self,
         session: Option<&CassieSession>,
@@ -1928,6 +1978,34 @@ impl Cassie {
             }
 
             if document.payload.get(field) == Some(value) {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
+    async fn values_exist_for_collection_fields(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        values: &[(&str, &serde_json::Value)],
+        exclude_id: Option<&str>,
+    ) -> Result<bool, CassieError> {
+        for document in self
+            .scan_documents_batched_for_session(session, collection, 1024)
+            .await?
+            .into_iter()
+            .flatten()
+        {
+            if exclude_id.is_some_and(|id| document.id == id) {
+                continue;
+            }
+
+            if values
+                .iter()
+                .all(|(field, value)| document.payload.get(*field) == Some(*value))
+            {
                 return Ok(true);
             }
         }

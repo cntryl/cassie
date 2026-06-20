@@ -915,6 +915,79 @@ fn should_apply_vector_distance_offset_after_ordering() {
 }
 
 #[test]
+fn should_project_cosine_distance_for_vector_fields() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("cosine_distance_projection");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_cosine_distance_projection";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "embedding".to_string(),
+                data_type: DataType::Vector(2),
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("same".to_string()),
+                serde_json::json!({"embedding": [1.0, 0.0]}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("orthogonal".to_string()),
+                serde_json::json!({"embedding": [0.0, 1.0]}),
+            )
+            .unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, cosine_distance(embedding, '[1,0]') AS distance FROM sql_cosine_distance_projection ORDER BY id",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0][0], Value::String("orthogonal".to_string()));
+        assert_eq!(result.rows[0][1], Value::Float64(1.0));
+        assert_eq!(result.rows[1][0], Value::String("same".to_string()));
+        assert_eq!(result.rows[1][1], Value::Float64(0.0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_order_fulltext_top_k_by_score_with_limit() {
     // Arrange
     with_fallback();

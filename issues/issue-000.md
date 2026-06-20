@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 045: Cosine Distance](issue-045.md) - V1 - Projection Query Engine / Vector
 - [Issue 046: Dot Product](issue-046.md) - V1 - Projection Query Engine / Vector
 - [Issue 047: L2 Distance](issue-047.md) - V1 - Projection Query Engine / Vector
 - [Issue 048: Pgvector Operators](issue-048.md) - V1 - Projection Query Engine / Vector

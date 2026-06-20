@@ -3121,6 +3121,135 @@ fn should_reject_update_validation_failure_without_mutating_row() {
 }
 
 #[test]
+fn should_report_zero_rows_for_update_without_matches() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("update_no_match");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE update_no_match (title TEXT, status TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO update_no_match (title, status) VALUES ('alpha', 'old')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let updated = cassie
+            .execute_sql(
+                &session,
+                "UPDATE update_no_match SET status = 'done' WHERE title = 'missing' RETURNING title",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(updated.command, "UPDATE 0");
+        assert!(updated.rows.is_empty());
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_update_with_duplicate_assignment_target() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("update_duplicate_assignment");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE update_duplicate_assignment (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let updated = cassie
+            .execute_sql(
+                &session,
+                "UPDATE update_duplicate_assignment SET title = 'alpha', title = 'beta'",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(updated.is_err());
+        assert!(updated.unwrap_err().to_string().contains("duplicated"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_update_with_unknown_assignment_target() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("update_unknown_assignment");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE update_unknown_assignment (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let updated = cassie
+            .execute_sql(
+                &session,
+                "UPDATE update_unknown_assignment SET missing = 'alpha'",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(updated.is_err());
+        assert!(updated.unwrap_err().to_string().contains("does not exist"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_execute_delete_where_returning_rows() {
     // Arrange
     with_fallback();

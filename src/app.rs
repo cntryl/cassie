@@ -1045,7 +1045,10 @@ impl Cassie {
         }
 
         let command = result.command.as_str();
-        if command.starts_with("INSERT") || command.starts_with("UPDATE") || command.starts_with("DELETE") {
+        if command.starts_with("INSERT")
+            || command.starts_with("UPDATE")
+            || command.starts_with("DELETE")
+        {
             self.runtime.bump_data_epoch();
         }
 

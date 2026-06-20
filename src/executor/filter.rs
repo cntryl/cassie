@@ -33,7 +33,10 @@ impl FunctionCache {
     }
 
     fn lookup(&self, key: u64) -> Option<&Value> {
-        self.keys.iter().position(|k| *k == key).and_then(|i| self.values.get(i))
+        self.keys
+            .iter()
+            .position(|k| *k == key)
+            .and_then(|i| self.values.get(i))
     }
 
     fn store(&mut self, key: u64, value: Value) {
@@ -55,12 +58,30 @@ fn function_cache_key(name: &str, args: &[Value]) -> u64 {
     fn hash_value(hasher: &mut std::hash::DefaultHasher, value: &Value) {
         match value {
             Value::Null => 0u8.hash(hasher),
-            Value::Bool(v) => { 1u8.hash(hasher); v.hash(hasher); }
-            Value::Int64(v) => { 2u8.hash(hasher); v.hash(hasher); }
-            Value::Float64(v) => { 3u8.hash(hasher); v.to_bits().hash(hasher); }
-            Value::String(v) => { 4u8.hash(hasher); v.hash(hasher); }
-            Value::Vector(v) => { 5u8.hash(hasher); v.values.len().hash(hasher); }
-            Value::Json(v) => { 6u8.hash(hasher); v.to_string().hash(hasher); }
+            Value::Bool(v) => {
+                1u8.hash(hasher);
+                v.hash(hasher);
+            }
+            Value::Int64(v) => {
+                2u8.hash(hasher);
+                v.hash(hasher);
+            }
+            Value::Float64(v) => {
+                3u8.hash(hasher);
+                v.to_bits().hash(hasher);
+            }
+            Value::String(v) => {
+                4u8.hash(hasher);
+                v.hash(hasher);
+            }
+            Value::Vector(v) => {
+                5u8.hash(hasher);
+                v.values.len().hash(hasher);
+            }
+            Value::Json(v) => {
+                6u8.hash(hasher);
+                v.to_string().hash(hasher);
+            }
         }
     }
     let mut hasher = std::hash::DefaultHasher::new();
@@ -1083,7 +1104,9 @@ fn evaluate_function<R: RowAccess + ?Sized>(
     };
 
     if cacheable {
-        if let Some(cached) = FUNCTION_CACHE.with_borrow(|fc| fc.lookup(cache_key.unwrap()).cloned()) {
+        if let Some(cached) =
+            FUNCTION_CACHE.with_borrow(|fc| fc.lookup(cache_key.unwrap()).cloned())
+        {
             return Ok(cached);
         }
     }

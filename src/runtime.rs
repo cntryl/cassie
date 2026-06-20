@@ -672,7 +672,10 @@ impl RuntimeState {
         &self,
         key: &ExecutionResultCacheKey,
     ) -> Option<QueryResult> {
-        let mut cache = self.execution_result_cache.lock().expect("execution result cache");
+        let mut cache = self
+            .execution_result_cache
+            .lock()
+            .expect("execution result cache");
         if let Some(result) = cache.entries.get(key).cloned() {
             Self::execution_result_cache_touch(&mut cache.order, key);
             drop(cache);
@@ -683,9 +686,14 @@ impl RuntimeState {
 
     pub fn execution_result_cache_store(&self, key: ExecutionResultCacheKey, result: QueryResult) {
         const MAX_ENTRIES: usize = 64;
-        let mut cache = self.execution_result_cache.lock().expect("execution result cache");
-        if cache.entries.contains_key(&key) {
-            cache.entries.insert(key, result);
+        let mut cache = self
+            .execution_result_cache
+            .lock()
+            .expect("execution result cache");
+        if let std::collections::hash_map::Entry::Occupied(mut entry) =
+            cache.entries.entry(key.clone())
+        {
+            entry.insert(result);
             return;
         }
         if cache.entries.len() >= MAX_ENTRIES {
@@ -698,7 +706,10 @@ impl RuntimeState {
     }
 
     pub fn invalidate_execution_result_cache(&self) {
-        let mut cache = self.execution_result_cache.lock().expect("execution result cache");
+        let mut cache = self
+            .execution_result_cache
+            .lock()
+            .expect("execution result cache");
         cache.entries.clear();
         cache.order.clear();
     }
@@ -708,7 +719,10 @@ impl RuntimeState {
     }
 
     pub fn bump_data_epoch(&self) {
-        let epoch = self.data_epoch.fetch_add(1, Ordering::SeqCst).wrapping_add(1);
+        let epoch = self
+            .data_epoch
+            .fetch_add(1, Ordering::SeqCst)
+            .wrapping_add(1);
         self.data_epoch.store(epoch, Ordering::SeqCst);
         self.invalidate_execution_result_cache();
     }
@@ -797,12 +811,30 @@ pub fn hash_params(params: &[Value]) -> u64 {
     fn hash_value(hasher: &mut std::hash::DefaultHasher, value: &Value) {
         match value {
             Value::Null => 0u8.hash(hasher),
-            Value::Bool(v) => { 1u8.hash(hasher); v.hash(hasher); }
-            Value::Int64(v) => { 2u8.hash(hasher); v.hash(hasher); }
-            Value::Float64(v) => { 3u8.hash(hasher); v.to_bits().hash(hasher); }
-            Value::String(v) => { 4u8.hash(hasher); v.hash(hasher); }
-            Value::Vector(v) => { 5u8.hash(hasher); v.values.len().hash(hasher); }
-            Value::Json(v) => { 6u8.hash(hasher); v.to_string().hash(hasher); }
+            Value::Bool(v) => {
+                1u8.hash(hasher);
+                v.hash(hasher);
+            }
+            Value::Int64(v) => {
+                2u8.hash(hasher);
+                v.hash(hasher);
+            }
+            Value::Float64(v) => {
+                3u8.hash(hasher);
+                v.to_bits().hash(hasher);
+            }
+            Value::String(v) => {
+                4u8.hash(hasher);
+                v.hash(hasher);
+            }
+            Value::Vector(v) => {
+                5u8.hash(hasher);
+                v.values.len().hash(hasher);
+            }
+            Value::Json(v) => {
+                6u8.hash(hasher);
+                v.to_string().hash(hasher);
+            }
         }
     }
     let mut hasher = std::hash::DefaultHasher::new();

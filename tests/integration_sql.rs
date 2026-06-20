@@ -4690,6 +4690,113 @@ fn should_filter_rows_with_postgres_style_cast_expression() {
 }
 
 #[test]
+fn should_project_rows_with_cast_expressions() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projection_cast_expressions");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE projection_cast_expressions (score INT, active BOOLEAN, flag TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO projection_cast_expressions (score, active, flag) VALUES (10, true, 't')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT CAST(score AS TEXT) AS score_text, score::FLOAT AS score_float, CAST(active AS INT) AS active_int, CAST(flag AS BOOLEAN) AS flag_bool FROM projection_cast_expressions",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![vec![
+                Value::String("10".to_string()),
+                Value::Float64(10.0),
+                Value::Int64(1),
+                Value::Bool(true)
+            ]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_invalid_cast_expression() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("invalid_cast_expression");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE invalid_cast_expression (label TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO invalid_cast_expression (label) VALUES ('not-a-number')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT CAST(label AS INT) FROM invalid_cast_expression",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(selected.is_err());
+        assert!(selected
+            .unwrap_err()
+            .to_string()
+            .contains("cannot cast value to INT"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_order_nulls_first_when_requested() {
     // Arrange
     with_fallback();

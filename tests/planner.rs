@@ -230,6 +230,36 @@ fn should_plan_grouped_distinct_select_controls() {
 }
 
 #[test]
+fn should_keep_set_query_result_controls_in_logical_plan() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_set_result_left");
+    register_test_collection(&catalog, "planner_set_result_right");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_set_result_left UNION ALL SELECT title FROM planner_set_result_right ORDER BY title DESC LIMIT 2 OFFSET 1",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+
+        // Act
+        let logical = logical::plan(&bound).unwrap();
+
+        // Assert
+        assert!(logical.set.is_some());
+        assert_eq!(logical.order.len(), 1);
+        assert!(matches!(logical.order[0].direction, SortDirection::Desc));
+        assert_eq!(logical.limit, Some(2));
+        assert_eq!(logical.offset, Some(1));
+    });
+}
+
+#[test]
 fn should_build_physical_operators_for_aggregate_distinct_set() {
     // Arrange
     let catalog = Catalog::new();

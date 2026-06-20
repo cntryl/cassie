@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 003: Field-Id Based Encoding](issue-003.md) - V1 - Projection Query Engine / Storage
 - [Issue 004: Sparse Rows](issue-004.md) - V1 - Projection Query Engine / Storage
 - [Issue 005: Projection Metadata](issue-005.md) - V1 - Projection Query Engine / Storage
 - [Issue 006: SELECT](issue-006.md) - V1 - Projection Query Engine / SQL

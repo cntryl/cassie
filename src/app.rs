@@ -1086,15 +1086,23 @@ impl Cassie {
             .map(|operator| format!("{operator:?}"))
             .collect::<Vec<_>>()
             .join(">");
+        let projection_pruning = !physical.projected_scan_fields.is_empty();
+        let scan_fields = if projection_pruning {
+            physical.projected_scan_fields.join(",")
+        } else {
+            "all".to_string()
+        };
         let plan = format!(
-            "collection={} operators={} predicate_pushdown={}",
+            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
             } else {
                 operators
             },
-            physical.predicate_pushdown
+            physical.predicate_pushdown,
+            projection_pruning,
+            scan_fields
         );
 
         Ok(QueryResult {

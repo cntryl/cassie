@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 065: Projection Pruning](issue-065.md) - V2 - Query Performance / Planner
 - [Issue 066: Limit Pushdown](issue-066.md) - V2 - Query Performance / Planner
 - [Issue 067: Index-Aware Planning](issue-067.md) - V2 - Query Performance / Planner
 - [Issue 068: Top-K Optimization](issue-068.md) - V2 - Query Performance / Planner

@@ -192,6 +192,36 @@ fn should_mark_literal_equality_filter_as_pushed_down() {
 }
 
 #[test]
+fn should_mark_projected_scan_fields_for_projection_pruning() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_projection_pruning");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_projection_pruning WHERE body = 'alpha'",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let logical = logical::plan(&bound).unwrap();
+        let logical = optimizer::optimize(logical);
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert_eq!(
+            physical_plan.projected_scan_fields,
+            vec!["title".to_string(), "body".to_string()]
+        );
+    });
+}
+
+#[test]
 fn should_plan_join_source_with_physical_join_operator() {
     // Arrange
     let catalog = Catalog::new();

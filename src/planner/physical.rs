@@ -24,6 +24,7 @@ pub struct PhysicalPlan {
     pub operators: Vec<Operator>,
     pub logical: LogicalPlan,
     pub predicate_pushdown: bool,
+    pub projected_scan_fields: Vec<String>,
 }
 
 pub fn build(plan: LogicalPlan) -> PhysicalPlan {
@@ -33,10 +34,12 @@ pub fn build(plan: LogicalPlan) -> PhysicalPlan {
             operators: Vec::new(),
             logical: plan,
             predicate_pushdown: false,
+            projected_scan_fields: Vec::new(),
         };
     }
 
     let predicate_pushdown = plan_supports_predicate_pushdown(&plan);
+    let projected_scan_fields = projected_scan_fields(&plan).unwrap_or_default();
     let mut operators = vec![Operator::Scan];
     if source_contains_join(&plan.source) {
         operators.push(Operator::Join);
@@ -76,6 +79,7 @@ pub fn build(plan: LogicalPlan) -> PhysicalPlan {
         operators,
         logical: plan,
         predicate_pushdown,
+        projected_scan_fields,
     }
 }
 
@@ -108,6 +112,107 @@ fn plan_supports_predicate_pushdown(plan: &LogicalPlan) -> bool {
     plan.filter
         .as_ref()
         .is_some_and(filter_supports_predicate_pushdown)
+}
+
+fn projected_scan_fields(plan: &LogicalPlan) -> Option<Vec<String>> {
+    if plan.command.is_some()
+        || !plan.ctes.is_empty()
+        || plan.distinct
+        || !plan.distinct_on.is_empty()
+        || !plan.group_by.is_empty()
+        || plan.having.is_some()
+        || plan.set.is_some()
+        || !plan.order.is_empty()
+    {
+        return None;
+    }
+
+    if !matches!(plan.source, QuerySource::Collection(_)) {
+        return None;
+    }
+
+    let projection_columns = plan
+        .projection
+        .iter()
+        .map(|item| match item {
+            SelectItem::Column { name, .. } => Some(name.clone()),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if projection_columns.is_empty() {
+        return None;
+    }
+
+    let filter_columns = match plan.filter.as_ref() {
+        Some(filter) => projected_filter_columns(filter)?,
+        None => Vec::new(),
+    };
+
+    let mut fields = Vec::new();
+    for column in projection_columns.into_iter().chain(filter_columns) {
+        if is_row_id_column(&column) || fields.iter().any(|field: &String| field == &column) {
+            continue;
+        }
+        fields.push(column);
+    }
+    Some(fields)
+}
+
+fn projected_filter_columns(expr: &Expr) -> Option<Vec<String>> {
+    let mut fields = Vec::new();
+    collect_projected_filter_columns(expr, &mut fields)?;
+    Some(fields)
+}
+
+fn collect_projected_filter_columns(expr: &Expr, fields: &mut Vec<String>) -> Option<()> {
+    match expr {
+        Expr::Column(name) => {
+            if !fields.iter().any(|field| field.eq_ignore_ascii_case(name)) {
+                fields.push(name.clone());
+            }
+            Some(())
+        }
+        Expr::Param(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null => Some(()),
+        Expr::Binary { left, op, right } => {
+            match op {
+                BinaryOp::Eq
+                | BinaryOp::NotEq
+                | BinaryOp::Lt
+                | BinaryOp::Lte
+                | BinaryOp::Gt
+                | BinaryOp::Gte
+                | BinaryOp::And
+                | BinaryOp::Or
+                | BinaryOp::Like => {}
+                _ => return None,
+            }
+            collect_projected_filter_columns(left, fields)?;
+            collect_projected_filter_columns(right, fields)
+        }
+        Expr::IsNull { expr, .. } => collect_projected_filter_columns(expr, fields),
+        Expr::InList { expr, values, .. } => {
+            collect_projected_filter_columns(expr, fields)?;
+            for value in values {
+                collect_projected_filter_columns(value, fields)?;
+            }
+            Some(())
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            collect_projected_filter_columns(expr, fields)?;
+            collect_projected_filter_columns(low, fields)?;
+            collect_projected_filter_columns(high, fields)
+        }
+        Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            collect_projected_filter_columns(expr, fields)
+        }
+        Expr::Function(_) | Expr::Exists(_) => None,
+    }
 }
 
 fn filter_supports_predicate_pushdown(expr: &Expr) -> bool {

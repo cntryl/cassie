@@ -3051,6 +3051,7 @@ fn should_fail_unknown_function_during_execution() {
             collection: logical.collection.clone(),
             operators: vec![cassie::planner::physical::Operator::Project],
             predicate_pushdown: false,
+            projected_scan_fields: Vec::new(),
             logical,
         };
 

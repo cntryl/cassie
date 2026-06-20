@@ -834,6 +834,7 @@ mod tests {
             collection: "bench_documents".to_string(),
             operators: vec![Operator::Scan, Operator::Filter, Operator::Project],
             predicate_pushdown: false,
+            projected_scan_fields: Vec::new(),
             logical: LogicalPlan {
                 command: None,
                 source: QuerySource::Collection("bench_documents".to_string()),

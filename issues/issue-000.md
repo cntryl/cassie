@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 038: Inverted Index](issue-038.md) - V1 - Projection Query Engine / Search
 - [Issue 039: BM25 Scoring](issue-039.md) - V1 - Projection Query Engine / Search
 - [Issue 040: Snippets](issue-040.md) - V1 - Projection Query Engine / Search
 - [Issue 041: Search()](issue-041.md) - V1 - Projection Query Engine / Search

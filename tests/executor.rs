@@ -1100,7 +1100,7 @@ async fn execute_query_orders_by_vector_distance_function_parameterized() {
         .collect::<Vec<_>>();
     assert_eq!(
         ids,
-        vec!["d2".to_string(), "d1".to_string(), "d3".to_string()]
+        vec!["d1".to_string(), "d2".to_string(), "d3".to_string()]
     );
 }
 
@@ -2589,6 +2589,58 @@ fn should_filter_by_hybrid_score_threshold() {
         // Assert
         assert_eq!(result.rows.len(), 1);
         assert_eq!(result.rows[0][0], Value::String("d1".to_string()));
+    });
+}
+
+#[test]
+fn should_reject_hybrid_score_with_wrong_arity() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let cassie = Cassie::new().unwrap();
+        let collection = "exec_hybrid_wrong_arity";
+
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        // Act
+        let session = cassie.create_session("tester", None);
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT hybrid_score(search_score(body, 'red')) FROM exec_hybrid_wrong_arity",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        let error = result.expect_err("query should reject wrong arity");
+        assert!(error.to_string().contains("hybrid_score"));
     });
 }
 

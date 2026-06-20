@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 062: Operator Statistics](issue-062.md) - V1 - Projection Query Engine / Observability
 - [Issue 063: Metrics](issue-063.md) - V1 - Projection Query Engine / Observability
 - [Issue 064: Predicate Pushdown](issue-064.md) - V2 - Query Performance / Planner
 - [Issue 065: Projection Pruning](issue-065.md) - V2 - Query Performance / Planner

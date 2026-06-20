@@ -292,6 +292,101 @@ fn should_execute_binary_simple_query_return_backend_frames() {
 }
 
 #[test]
+fn should_return_row_description_for_empty_simple_query_result() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("empty_result");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        let collection = "simple_query_empty_docs";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(collection, schema).await;
+
+        let mut config = CassieRuntimeConfig::from_env();
+        config.password.clear();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener address");
+        drop(listener);
+
+        let server = tokio::spawn(cassie::pgwire::server::run(
+            addr.to_string(),
+            std::sync::Arc::new(cassie.clone()),
+            config,
+        ));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
+            .await
+            .expect("write startup");
+        let auth = read_wire_frame(&mut reader).await;
+        assert_eq!(auth.0, b'R', "startup should return an auth response");
+        let startup_ready = read_wire_frame(&mut reader).await;
+        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
+
+        // Act
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &simple_query_frame(
+                "SELECT title FROM simple_query_empty_docs WHERE title = 'missing'",
+            ),
+        )
+        .await
+        .expect("write query");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("flush query");
+
+        let mut frames = Vec::new();
+        loop {
+            let frame = read_wire_frame(&mut reader).await;
+            let tag = frame.0;
+            frames.push(frame);
+            if tag == b'Z' {
+                break;
+            }
+        }
+
+        // Assert
+        assert_eq!(frames.len(), 3);
+        assert_eq!(frames[0].0, b'T', "empty select should describe columns");
+        assert_eq!(frames[1].0, b'C', "empty select should complete command");
+        assert_eq!(frames[2].0, b'Z', "empty select should return ready");
+        assert_eq!(parse_row_description(&frames[0].1)[0].0, "title");
+        assert_eq!(frames[2].1, vec![b'I']);
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_recover_ready_after_simple_query_error() {
     // Arrange
     with_fallback();

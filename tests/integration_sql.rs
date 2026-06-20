@@ -3368,6 +3368,57 @@ fn should_query_rows_after_creating_composite_index() {
 }
 
 #[test]
+fn should_round_trip_insert_values_vector_field() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("insert_values_vector_round_trip");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE insert_values_vector_round_trip (doc_id TEXT, embedding VECTOR(3))",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO insert_values_vector_round_trip (doc_id, embedding) VALUES ('row-1', $1)",
+                vec![Value::Vector(Vector::new(vec![1.0, 2.0, 3.0]))],
+            )
+            .await
+            .unwrap();
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT embedding FROM insert_values_vector_round_trip WHERE doc_id = 'row-1'",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![vec![Value::Vector(Vector::new(vec![1.0, 2.0, 3.0]))]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_reject_insert_values_when_vector_dimensions_mismatch() {
     // Arrange
     with_fallback();

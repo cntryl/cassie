@@ -1,7 +1,8 @@
 use crate::app::{Cassie, CassieSession};
+use crate::catalog::CollectionSchema;
 use crate::executor::batch::{Batch, BatchRow, DEFAULT_BATCH_SIZE};
 use crate::midge::adapter::RowFilter;
-use crate::types::Value;
+use crate::types::{DataType, Value, Vector};
 use std::collections::HashSet;
 use std::time::Duration;
 
@@ -46,7 +47,7 @@ pub(crate) async fn scan(
                             for field in &schema.fields {
                                 let value = obj
                                     .get(&field.name)
-                                    .map(json_to_value)
+                                    .map(|value| json_to_typed_value(value, &field.data_type))
                                     .unwrap_or(Value::Null);
                                 row.push((field.name.clone(), value));
                                 seen.insert(field.name.clone());
@@ -94,11 +95,13 @@ pub(crate) async fn scan_projected_filtered(
             crate::executor::QueryError::General(error.to_string())
         })?;
     cassie.runtime.record_storage_access("data", false, true);
+    let schema = cassie.catalog.get_schema(collection).await;
 
     Ok(projected_document_batches_to_rows(
         document_batches,
         fields,
         document_filter,
+        schema.as_ref(),
     ))
 }
 
@@ -132,7 +135,13 @@ pub(crate) async fn scan_projected_filtered_with_timings(
         row_decode: raw_timings.row_decode,
     };
     let materialize_started = std::time::Instant::now();
-    let batches = projected_document_batches_to_rows(document_batches, fields, document_filter);
+    let schema = cassie.catalog.get_schema(collection).await;
+    let batches = projected_document_batches_to_rows(
+        document_batches,
+        fields,
+        document_filter,
+        schema.as_ref(),
+    );
     timings.scan += materialize_started.elapsed();
 
     Ok((batches, timings))
@@ -162,6 +171,7 @@ fn projected_document_batches_to_rows(
     document_batches: Vec<Vec<crate::midge::adapter::DocumentRef>>,
     fields: &[String],
     document_filter: Option<&ProjectedDocumentFilter>,
+    schema: Option<&CollectionSchema>,
 ) -> Vec<Batch> {
     document_batches
         .into_iter()
@@ -180,7 +190,11 @@ fn projected_document_batches_to_rows(
                     for field in fields {
                         let value = object
                             .and_then(|object| projected_field_value(object, field))
-                            .map(json_to_value)
+                            .map(|value| {
+                                field_data_type(schema, field)
+                                    .map(|data_type| json_to_typed_value(value, data_type))
+                                    .unwrap_or_else(|| json_to_value(value))
+                            })
                             .unwrap_or(Value::Null);
                         row.push((field.clone(), value));
                     }
@@ -190,6 +204,14 @@ fn projected_document_batches_to_rows(
             (!rows.is_empty()).then_some(rows)
         })
         .collect()
+}
+
+fn field_data_type<'a>(schema: Option<&'a CollectionSchema>, field: &str) -> Option<&'a DataType> {
+    schema?
+        .fields
+        .iter()
+        .find(|entry| entry.name.eq_ignore_ascii_case(field))
+        .map(|entry| &entry.data_type)
 }
 
 fn projected_document_matches(
@@ -235,6 +257,24 @@ fn json_to_value(value: &serde_json::Value) -> Value {
         return Value::Float64(v);
     }
     Value::Json(value.clone())
+}
+
+fn json_to_typed_value(value: &serde_json::Value, data_type: &DataType) -> Value {
+    if let DataType::Vector(dimensions) = data_type {
+        if let Some(values) = value.as_array() {
+            if values.len() == *dimensions {
+                let vector_values = values
+                    .iter()
+                    .map(|value| value.as_f64().map(|value| value as f32))
+                    .collect::<Option<Vec<_>>>();
+                if let Some(vector_values) = vector_values {
+                    return Value::Vector(Vector::new(vector_values));
+                }
+            }
+        }
+    }
+
+    json_to_value(value)
 }
 
 #[cfg(test)]

@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 043: Vector Fields](issue-043.md) - V1 - Projection Query Engine / Vector
 - [Issue 044: Brute-Force Search](issue-044.md) - V1 - Projection Query Engine / Vector
 - [Issue 045: Cosine Distance](issue-045.md) - V1 - Projection Query Engine / Vector
 - [Issue 046: Dot Product](issue-046.md) - V1 - Projection Query Engine / Vector

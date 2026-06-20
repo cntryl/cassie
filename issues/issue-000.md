@@ -7,14 +7,12 @@ Priority: P0
 
 ## Goal
 
-Track one issue for every concept in `docs/milestones.md`.
+Track one open issue for every active, uncompleted concept in `docs/milestones.md`.
 
 ## Coverage
 
 - [Issue 076: Normalized Vector Storage](issue-076.md) - V2 - Query Performance / Vector
 - [Issue 077: Metadata Prefilters](issue-077.md) - V2 - Query Performance / Vector
-- [Issue 078: Function Cache](issue-078.md) - V2 - Query Performance / Caching
-- [Issue 080: Runtime Statistics](issue-080.md) - V2 - Query Performance / Caching
 - [Issue 081: Cardinality Tracking](issue-081.md) - V2 - Query Performance / Adaptive
 - [Issue 082: Runtime Feedback](issue-082.md) - V2 - Query Performance / Adaptive
 - [Issue 083: Adaptive Candidate Sizing](issue-083.md) - V2 - Query Performance / Adaptive
@@ -23,18 +21,6 @@ Track one issue for every concept in `docs/milestones.md`.
 - [Issue 086: Zero-Copy Value Access](issue-086.md) - V2 - Query Performance / Execution
 - [Issue 087: Buffer Reuse](issue-087.md) - V2 - Query Performance / Execution
 - [Issue 088: Allocation Reduction](issue-088.md) - V2 - Query Performance / Execution
-- [Issue 089: Recursive CTEs](issue-089.md) - V3 - Advanced Query Features / SQL
-- [Issue 090: INTERSECT](issue-090.md) - V3 - Advanced Query Features / SQL
-- [Issue 091: EXCEPT](issue-091.md) - V3 - Advanced Query Features / SQL
-- [Issue 092: RIGHT JOIN](issue-092.md) - V3 - Advanced Query Features / SQL
-- [Issue 093: FULL OUTER JOIN](issue-093.md) - V3 - Advanced Query Features / SQL
-- [Issue 094: Row_number](issue-094.md) - V3 - Advanced Query Features / Window Functions
-- [Issue 095: Rank](issue-095.md) - V3 - Advanced Query Features / Window Functions
-- [Issue 096: Dense_rank](issue-096.md) - V3 - Advanced Query Features / Window Functions
-- [Issue 097: Lag](issue-097.md) - V3 - Advanced Query Features / Window Functions
-- [Issue 098: Lead](issue-098.md) - V3 - Advanced Query Features / Window Functions
-- [Issue 099: First_value](issue-099.md) - V3 - Advanced Query Features / Window Functions
-- [Issue 100: Last_value](issue-100.md) - V3 - Advanced Query Features / Window Functions
 - [Issue 101: Partial Indexes](issue-101.md) - V3 - Advanced Query Features / Indexes
 - [Issue 102: Expression Indexes](issue-102.md) - V3 - Advanced Query Features / Indexes
 - [Issue 103: Advanced Analyzers](issue-103.md) - V3 - Advanced Query Features / Search
@@ -82,21 +68,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Acceptance Criteria
 
-- Every milestone bullet has exactly one linked issue.
+- Every active, uncompleted milestone bullet has exactly one linked issue.
 - New milestone bullets require a new issue before implementation starts.
-- Completed concepts update their individual issue status and this index if needed.
-
-## Status
-
-- [Issue 089: Recursive CTEs](issue-089.md) — **Completed**
-- [Issue 090: INTERSECT](issue-090.md) — **Completed**
-- [Issue 091: EXCEPT](issue-091.md) — **Completed**
-- [Issue 092: RIGHT JOIN](issue-092.md) — **Completed**
-- [Issue 093: FULL OUTER JOIN](issue-093.md) — **Completed**
-- [Issue 094: Row_number](issue-094.md) — **Completed**
-- [Issue 095: Rank](issue-095.md) — **Completed**
-- [Issue 096: Dense_rank](issue-096.md) — **Completed**
-- [Issue 097: Lag](issue-097.md) — **Completed**
-- [Issue 098: Lead](issue-098.md) — **Completed**
-- [Issue 099: First_value](issue-099.md) — **Completed**
-- [Issue 100: Last_value](issue-100.md) — **Completed**
+- Completed concepts are removed from this index when their issue files are deleted.

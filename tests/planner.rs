@@ -222,6 +222,32 @@ fn should_mark_projected_scan_fields_for_projection_pruning() {
 }
 
 #[test]
+fn should_mark_scan_limit_for_limit_pushdown() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_limit_pushdown");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed =
+            parser::parse_statement("SELECT title FROM planner_limit_pushdown LIMIT 20 OFFSET 5")
+                .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let logical = logical::plan(&bound).unwrap();
+        let logical = optimizer::optimize(logical);
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert_eq!(physical_plan.scan_limit, Some(25));
+    });
+}
+
+#[test]
 fn should_plan_join_source_with_physical_join_operator() {
     // Arrange
     let catalog = Catalog::new();

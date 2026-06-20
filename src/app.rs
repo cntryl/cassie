@@ -1092,8 +1092,13 @@ impl Cassie {
         } else {
             "all".to_string()
         };
+        let limit_pushdown = physical.scan_limit.is_some();
+        let scan_limit = physical
+            .scan_limit
+            .map(|limit| limit.to_string())
+            .unwrap_or_else(|| "none".to_string());
         let plan = format!(
-            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={}",
+            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
@@ -1102,7 +1107,9 @@ impl Cassie {
             },
             physical.predicate_pushdown,
             projection_pruning,
-            scan_fields
+            scan_fields,
+            limit_pushdown,
+            scan_limit
         );
 
         Ok(QueryResult {

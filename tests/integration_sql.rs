@@ -2451,6 +2451,63 @@ fn should_explain_projection_pruning_fields() {
 }
 
 #[test]
+fn should_explain_limit_pushdown_scan_limit() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("explain_limit_pushdown");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_explain_limit_pushdown";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM sql_explain_limit_pushdown LIMIT 20 OFFSET 5",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        let Value::String(plan) = &result.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("limit_pushdown=true"));
+        assert!(plan.contains("scan_limit=25"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_execute_sql_with_non_recursive_cte() {
     // Arrange
     with_fallback();

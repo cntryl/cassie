@@ -25,6 +25,7 @@ pub struct PhysicalPlan {
     pub logical: LogicalPlan,
     pub predicate_pushdown: bool,
     pub projected_scan_fields: Vec<String>,
+    pub scan_limit: Option<usize>,
 }
 
 pub fn build(plan: LogicalPlan) -> PhysicalPlan {
@@ -35,11 +36,13 @@ pub fn build(plan: LogicalPlan) -> PhysicalPlan {
             logical: plan,
             predicate_pushdown: false,
             projected_scan_fields: Vec::new(),
+            scan_limit: None,
         };
     }
 
     let predicate_pushdown = plan_supports_predicate_pushdown(&plan);
     let projected_scan_fields = projected_scan_fields(&plan).unwrap_or_default();
+    let scan_limit = scan_limit(&plan, &projected_scan_fields);
     let mut operators = vec![Operator::Scan];
     if source_contains_join(&plan.source) {
         operators.push(Operator::Join);
@@ -80,7 +83,18 @@ pub fn build(plan: LogicalPlan) -> PhysicalPlan {
         logical: plan,
         predicate_pushdown,
         projected_scan_fields,
+        scan_limit,
     }
+}
+
+fn scan_limit(plan: &LogicalPlan, projected_scan_fields: &[String]) -> Option<usize> {
+    if projected_scan_fields.is_empty() || plan.filter.is_some() {
+        return None;
+    }
+    let limit = plan.limit?;
+    let limit = usize::try_from(limit.max(0)).ok()?;
+    let offset = usize::try_from(plan.offset.unwrap_or(0).max(0)).ok()?;
+    limit.checked_add(offset)
 }
 
 fn plan_supports_predicate_pushdown(plan: &LogicalPlan) -> bool {

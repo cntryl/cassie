@@ -988,6 +988,67 @@ fn should_project_cosine_distance_for_vector_fields() {
 }
 
 #[test]
+fn should_project_dot_product_for_vector_fields() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("dot_product_projection");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_dot_product_projection";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "embedding".to_string(),
+                data_type: DataType::Vector(2),
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"embedding": [1.0, 2.0]}),
+            )
+            .unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT dot_product(embedding, '[3,4]') AS score FROM sql_dot_product_projection",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows, vec![vec![Value::Float64(11.0)]]);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_order_fulltext_top_k_by_score_with_limit() {
     // Arrange
     with_fallback();

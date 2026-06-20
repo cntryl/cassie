@@ -18,43 +18,40 @@ pub fn bm25_score(tf: f64, df: f64, n: f64, k1: f64, b: f64, dl: f64, avgdl: f64
 }
 
 pub fn snippet(text: &str, terms: &[String]) -> String {
-    let mut out = text.to_string();
-    for term in terms {
-        if term.trim().is_empty() {
-            continue;
-        }
-
-        if !contains_case_insensitive(&out, term) {
-            continue;
-        }
-
-        out = highlight_term_case_insensitive(&out, term);
+    let mut normalized_terms = terms
+        .iter()
+        .map(|term| term.trim().to_lowercase())
+        .filter(|term| !term.is_empty())
+        .collect::<Vec<_>>();
+    normalized_terms.sort_by_key(|term| std::cmp::Reverse(term.len()));
+    normalized_terms.dedup();
+    if normalized_terms.is_empty() {
+        return text.to_string();
     }
 
-    out
-}
-
-fn contains_case_insensitive(haystack: &str, needle: &str) -> bool {
-    haystack.to_lowercase().contains(&needle.to_lowercase())
-}
-
-fn highlight_term_case_insensitive(haystack: &str, term: &str) -> String {
-    if term.is_empty() {
-        return haystack.to_string();
-    }
-
-    let lower_haystack = haystack.to_lowercase();
-    let lower_term = term.to_lowercase();
+    let lower_text = text.to_lowercase();
     let mut out = String::new();
     let mut cursor = 0usize;
+    while cursor < text.len() {
+        let matched = normalized_terms
+            .iter()
+            .find(|term| lower_text[cursor..].starts_with(term.as_str()));
 
-    while let Some(offset) = lower_haystack[cursor..].find(&lower_term) {
-        let start = cursor + offset;
-        let end = start + term.len();
-        out.push_str(&haystack[cursor..start]);
-        out.push_str(&format!("<mark>{}</mark>", &haystack[start..end]));
-        cursor = end;
+        if let Some(term) = matched {
+            let end = cursor + term.len();
+            out.push_str("<mark>");
+            out.push_str(&text[cursor..end]);
+            out.push_str("</mark>");
+            cursor = end;
+            continue;
+        }
+
+        let Some(ch) = text[cursor..].chars().next() else {
+            break;
+        };
+        out.push(ch);
+        cursor += ch.len_utf8();
     }
-    out.push_str(&haystack[cursor..]);
+
     out
 }

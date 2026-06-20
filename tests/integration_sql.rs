@@ -1568,6 +1568,70 @@ fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
 }
 
 #[test]
+fn should_project_snippet_without_highlighting_generated_markup() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("snippet_generated_markup");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_snippet_generated_markup";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"body": "alpha beta"}),
+            )
+            .unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT snippet(body, 'alpha mark') AS excerpt FROM sql_snippet_generated_markup",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![vec![Value::String("<mark>alpha</mark> beta".to_string())]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_describe_select_projection_with_column_metadata() {
     // Arrange
     with_fallback();

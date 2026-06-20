@@ -1978,6 +1978,82 @@ fn should_generate_hybrid_candidates_from_text_matches() {
 }
 
 #[test]
+fn should_reject_hybrid_text_candidate_without_vector() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hybrid_missing_vector");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_hybrid_missing_vector";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "embedding".to_string(),
+                    data_type: DataType::Vector(2),
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("text_without_vector".to_string()),
+                serde_json::json!({"body": "red"}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("ignored_non_match".to_string()),
+                serde_json::json!({"body": "blue"}),
+            )
+            .unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_missing_vector ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        let error = result.expect_err("text candidate should require a vector");
+        assert!(error.to_string().contains("vector_score expects vector"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
     // Arrange
     with_fallback();

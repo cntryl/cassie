@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 052: Vector Reranking](issue-052.md) - V1 - Projection Query Engine / Hybrid
 - [Issue 053: Logical Plans](issue-053.md) - V1 - Projection Query Engine / Execution
 - [Issue 054: Physical Plans](issue-054.md) - V1 - Projection Query Engine / Execution
 - [Issue 055: Batch Execution](issue-055.md) - V1 - Projection Query Engine / Execution

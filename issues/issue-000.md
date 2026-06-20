@@ -27,7 +27,6 @@ Maintain a live coverage index that links every active roadmap concept to its im
 
 ## Coverage
 
-- [Issue 076: Normalized Vector Storage](issue-076.md) - V2 - Query Performance / Vector
 - [Issue 077: Metadata Prefilters](issue-077.md) - V2 - Query Performance / Vector
 - [Issue 082: Runtime Feedback](issue-082.md) - V2 - Query Performance / Adaptive
 - [Issue 083: Adaptive Candidate Sizing](issue-083.md) - V2 - Query Performance / Adaptive

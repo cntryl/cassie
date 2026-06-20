@@ -2026,6 +2026,97 @@ fn should_hydrate_collection_constraints_on_startup() {
 }
 
 #[test]
+fn should_reject_insert_when_primary_key_is_duplicate() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("primary_key_duplicate");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE primary_key_duplicate (id INT PRIMARY KEY, title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO primary_key_duplicate (id, title) VALUES (1, 'alpha')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO primary_key_duplicate (id, title) VALUES (1, 'beta')",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(inserted.is_err());
+        assert!(inserted
+            .unwrap_err()
+            .to_string()
+            .contains("unique constraint failed for 'id'"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_insert_when_primary_key_is_null() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("primary_key_null");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE primary_key_null (id INT PRIMARY KEY, title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO primary_key_null (id, title) VALUES (NULL, 'alpha')",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(inserted.is_err());
+        assert!(inserted.unwrap_err().to_string().contains("cannot be null"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
     // Arrange
     with_fallback();

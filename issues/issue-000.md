@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 001: Row Blob Storage](issue-001.md) - V1 - Projection Query Engine / Storage
 - [Issue 002: Schema Versioning](issue-002.md) - V1 - Projection Query Engine / Storage
 - [Issue 003: Field-Id Based Encoding](issue-003.md) - V1 - Projection Query Engine / Storage
 - [Issue 004: Sparse Rows](issue-004.md) - V1 - Projection Query Engine / Storage

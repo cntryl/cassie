@@ -94,6 +94,7 @@ pub struct SelectSet {
     pub right: Box<SelectStatement>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QueryStatement {
     Select(SelectStatement),

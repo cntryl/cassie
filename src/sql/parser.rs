@@ -2571,9 +2571,12 @@ fn find_set_operation(sql: &str) -> Option<(usize, &'static str, SetOperator)> {
     })
 }
 
+type ResultClauses = (Vec<OrderExpr>, Option<i64>, Option<i64>);
+type SetRightAndResultClauses = (String, Vec<OrderExpr>, Option<i64>, Option<i64>);
+
 fn split_set_right_and_global_clauses(
     right_sql: &str,
-) -> Result<(String, Vec<OrderExpr>, Option<i64>, Option<i64>), SqlError> {
+) -> Result<SetRightAndResultClauses, SqlError> {
     let trimmed = right_sql.trim();
     if !trimmed.to_lowercase().starts_with("select ") {
         return Err(SqlError("set operation requires SELECT operands".into()));
@@ -2599,9 +2602,7 @@ fn split_set_right_and_global_clauses(
     Ok((right_without_global, order, limit, offset))
 }
 
-fn parse_global_result_clauses(
-    rest: &str,
-) -> Result<(Vec<OrderExpr>, Option<i64>, Option<i64>), SqlError> {
+fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, SqlError> {
     let clauses = parse_clauses(rest)?;
     let mut order = Vec::new();
     let mut limit = None;

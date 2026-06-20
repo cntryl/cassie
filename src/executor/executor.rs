@@ -177,8 +177,10 @@ async fn run_with_execution_breakdown_controls(
         let started = Instant::now();
         let result =
             execute_command(cassie, None, command, &params, &user_functions, controls).await?;
-        let mut breakdown = ExecutionBreakdownDurations::default();
-        breakdown.result_build = started.elapsed();
+        let breakdown = ExecutionBreakdownDurations {
+            result_build: started.elapsed(),
+            ..Default::default()
+        };
         return Ok(ExecutionBreakdownOutput {
             result,
             breakdown: breakdown.into_micros(),
@@ -1641,6 +1643,7 @@ async fn execute_plan(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn execute_plan_with_outer_row(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -4154,7 +4157,7 @@ fn apply_window_functions(
             }
         }
 
-        for (row, value) in rows.iter_mut().zip(values.into_iter()) {
+        for (row, value) in rows.iter_mut().zip(values) {
             let mut entries = row.clone().into_entries();
             entries.push((output_name.clone(), value));
             *row = BatchRow::new(entries);
@@ -4820,6 +4823,7 @@ fn value_sort_key(value: &Value) -> String {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn execute_source_query_with_outer_row(
     cassie: &Cassie,
     session: Option<&CassieSession>,

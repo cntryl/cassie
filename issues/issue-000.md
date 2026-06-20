@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 027: DELETE](issue-027.md) - V1 - Projection Query Engine / DML
 - [Issue 028: RETURNING](issue-028.md) - V1 - Projection Query Engine / DML
 - [Issue 029: PRIMARY KEY](issue-029.md) - V1 - Projection Query Engine / Constraints
 - [Issue 030: NOT NULL](issue-030.md) - V1 - Projection Query Engine / Constraints

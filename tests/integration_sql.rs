@@ -5558,6 +5558,117 @@ fn should_execute_grouped_count_query() {
 }
 
 #[test]
+fn should_execute_basic_numeric_aggregates_query() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("aggregate_numeric");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE aggregate_numeric_sales (amount INT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        for sql in [
+            "INSERT INTO aggregate_numeric_sales (amount) VALUES (7)",
+            "INSERT INTO aggregate_numeric_sales (amount) VALUES (5)",
+            "INSERT INTO aggregate_numeric_sales (amount) VALUES (3)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).await.unwrap();
+        }
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT SUM(amount) AS total, AVG(amount) AS average, MIN(amount) AS smallest, MAX(amount) AS largest FROM aggregate_numeric_sales",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![vec![
+                Value::Int64(15),
+                Value::Float64(5.0),
+                Value::Int64(3),
+                Value::Int64(7)
+            ]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_ignore_null_values_for_basic_aggregates_query() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("aggregate_nulls");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE aggregate_null_sales (amount INT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        for sql in [
+            "INSERT INTO aggregate_null_sales (amount) VALUES (7)",
+            "INSERT INTO aggregate_null_sales (amount) VALUES (NULL)",
+            "INSERT INTO aggregate_null_sales (amount) VALUES (3)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).await.unwrap();
+        }
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT COUNT(amount) AS present, SUM(amount) AS total, AVG(amount) AS average, MIN(amount) AS smallest, MAX(amount) AS largest FROM aggregate_null_sales",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![vec![
+                Value::Int64(2),
+                Value::Int64(10),
+                Value::Float64(5.0),
+                Value::Int64(3),
+                Value::Int64(7)
+            ]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_execute_row_number_window_function_query() {
     // Arrange
     with_fallback();

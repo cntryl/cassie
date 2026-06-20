@@ -315,6 +315,53 @@ fn should_record_vector_counts_for_ordered_search_expression() {
 }
 
 #[test]
+fn should_record_query_error_statistics() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("query_errors");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+        let before = cassie.metrics().await;
+        let before_count = before["query"]["count"].as_u64().unwrap_or_default();
+        let before_errors = before["query"]["errors_total"].as_u64().unwrap_or_default();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM metrics_missing_query_errors",
+                vec![],
+            )
+            .await;
+        let after = cassie.metrics().await;
+
+        // Assert
+        assert!(result.is_err(), "missing collection should fail");
+        assert_eq!(
+            after["query"]["count"].as_u64().unwrap_or_default() - before_count,
+            1
+        );
+        assert_eq!(
+            after["query"]["errors_total"].as_u64().unwrap_or_default() - before_errors,
+            1
+        );
+        assert!(after["query"]["errors_by_class"]
+            .as_object()
+            .expect("errors by class")
+            .values()
+            .any(|count| count.as_u64().unwrap_or_default() > 0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_count_failed_scan_as_storage_read_error() {
     // Arrange
     with_fallback();

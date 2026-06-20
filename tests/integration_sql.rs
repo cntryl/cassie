@@ -2604,6 +2604,57 @@ fn should_explain_top_k_plan_for_order_limit_query() {
 }
 
 #[test]
+fn should_explain_hash_join_strategy_for_inner_equi_join() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("explain_hash_join");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_hash_join_users (user_key TEXT, name TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_hash_join_orders (order_user_key TEXT, total INT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT sql_hash_join_users.name, sql_hash_join_orders.total FROM sql_hash_join_users JOIN sql_hash_join_orders ON sql_hash_join_users.user_key = sql_hash_join_orders.order_user_key",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        let Value::String(plan) = &result.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("join_strategy=hash"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_execute_sql_with_non_recursive_cte() {
     // Arrange
     with_fallback();

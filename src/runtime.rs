@@ -839,6 +839,7 @@ mod tests {
             selected_index: None,
             top_k: false,
             top_k_limit: None,
+            join_strategy: None,
             logical: LogicalPlan {
                 command: None,
                 source: QuerySource::Collection("bench_documents".to_string()),

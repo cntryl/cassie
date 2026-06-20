@@ -1106,8 +1106,9 @@ impl Cassie {
             .top_k_limit
             .map(|limit| limit.to_string())
             .unwrap_or_else(|| "none".to_string());
+        let join_strategy = physical.join_strategy.as_deref().unwrap_or("none");
         let plan = format!(
-            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} top_k={} top_k_limit={}",
+            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} top_k={} top_k_limit={} join_strategy={}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
@@ -1122,7 +1123,8 @@ impl Cassie {
             index_aware,
             index,
             physical.top_k,
-            top_k_limit
+            top_k_limit,
+            join_strategy
         );
 
         Ok(QueryResult {

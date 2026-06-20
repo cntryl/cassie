@@ -349,6 +349,7 @@ fn should_plan_join_source_with_physical_join_operator() {
             physical_plan.operators.get(1),
             Some(Operator::Join)
         ));
+        assert_eq!(physical_plan.join_strategy.as_deref(), Some("hash"));
     });
 }
 

@@ -1,6 +1,8 @@
 use crate::catalog::{IndexKind, IndexMeta};
 use crate::planner::logical::LogicalPlan;
-use crate::sql::ast::{BinaryOp, Expr, FunctionCall, QuerySource, SelectItem, WindowFunctionCall};
+use crate::sql::ast::{
+    BinaryOp, Expr, FunctionCall, JoinKind, QuerySource, SelectItem, WindowFunctionCall,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -31,6 +33,7 @@ pub struct PhysicalPlan {
     pub selected_index: Option<String>,
     pub top_k: bool,
     pub top_k_limit: Option<usize>,
+    pub join_strategy: Option<String>,
 }
 
 pub fn build(plan: LogicalPlan) -> PhysicalPlan {
@@ -49,6 +52,7 @@ pub fn build_with_indexes(plan: LogicalPlan, indexes: Vec<IndexMeta>) -> Physica
             selected_index: None,
             top_k: false,
             top_k_limit: None,
+            join_strategy: None,
         };
     }
 
@@ -58,6 +62,7 @@ pub fn build_with_indexes(plan: LogicalPlan, indexes: Vec<IndexMeta>) -> Physica
     let selected_index = selected_index(&plan, indexes.as_slice());
     let top_k_limit = top_k_limit(&plan);
     let top_k = top_k_limit.is_some();
+    let join_strategy = join_strategy(&plan.source);
     let mut operators = vec![Operator::Scan];
     if source_contains_join(&plan.source) {
         operators.push(Operator::Join);
@@ -102,7 +107,31 @@ pub fn build_with_indexes(plan: LogicalPlan, indexes: Vec<IndexMeta>) -> Physica
         selected_index,
         top_k,
         top_k_limit,
+        join_strategy,
     }
+}
+
+fn join_strategy(source: &QuerySource) -> Option<String> {
+    match source {
+        QuerySource::Join {
+            kind: JoinKind::Inner,
+            on,
+            ..
+        } if is_equi_join_predicate(on) => Some("hash".to_string()),
+        QuerySource::Join { .. } => Some("nested_loop".to_string()),
+        _ => None,
+    }
+}
+
+fn is_equi_join_predicate(expr: &Expr) -> bool {
+    matches!(
+        expr,
+        Expr::Binary {
+            left,
+            op: BinaryOp::Eq,
+            right
+        } if matches!((left.as_ref(), right.as_ref()), (Expr::Column(_), Expr::Column(_)))
+    )
 }
 
 fn top_k_limit(plan: &LogicalPlan) -> Option<usize> {

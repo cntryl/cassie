@@ -3056,6 +3056,7 @@ fn should_fail_unknown_function_during_execution() {
             selected_index: None,
             top_k: false,
             top_k_limit: None,
+            join_strategy: None,
             logical,
         };
 

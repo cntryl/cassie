@@ -960,7 +960,13 @@ impl Cassie {
         }
         if let QueryStatement::Explain(statement) = &parsed.statement {
             return self
-                .explain_statement(statement.statement.as_ref().clone(), controls)
+                .explain_statement(
+                    session,
+                    statement.statement.as_ref().clone(),
+                    params,
+                    statement.analyze,
+                    controls,
+                )
                 .await;
         }
         if let QueryStatement::Transaction(statement) = &parsed.statement {
@@ -1122,7 +1128,10 @@ impl Cassie {
 
     async fn explain_statement(
         &self,
+        session: &CassieSession,
         statement: crate::sql::ast::ParsedStatement,
+        params: Vec<crate::types::Value>,
+        analyze: bool,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
         let physical = self
@@ -1152,7 +1161,7 @@ impl Cassie {
             .map(|limit| limit.to_string())
             .unwrap_or_else(|| "none".to_string());
         let join_strategy = physical.join_strategy.as_deref().unwrap_or("none");
-        let plan = format!(
+        let mut plan = format!(
             "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} top_k={} top_k_limit={} join_strategy={}",
             physical.collection,
             if operators.is_empty() {
@@ -1171,6 +1180,25 @@ impl Cassie {
             top_k_limit,
             join_strategy
         );
+
+        if analyze {
+            let started_at = Instant::now();
+            let result = crate::executor::run_with_session_controls(
+                self,
+                Some(session),
+                physical.clone(),
+                params,
+                controls,
+            )
+            .await
+            .map_err(CassieError::from)?;
+            let elapsed_ms = started_at.elapsed().as_millis();
+            plan.push_str(&format!(
+                " analyze=true actual_rows={} actual_ms={}",
+                result.rows.len(),
+                elapsed_ms
+            ));
+        }
 
         Ok(QueryResult {
             columns: vec![ColumnMeta::text("QUERY PLAN")],

@@ -47,7 +47,6 @@ Track one issue for every concept in `docs/milestones.md`.
 - [Issue 106: Parallel Scans](issue-106.md) - V3 - Advanced Query Features / Execution
 - [Issue 107: Parallel Scoring](issue-107.md) - V3 - Advanced Query Features / Execution
 - [Issue 108: Parallel Aggregation](issue-108.md) - V3 - Advanced Query Features / Execution
-- [Issue 109: EXPLAIN ANALYZE](issue-109.md) - V3 - Advanced Query Features / Observability
 - [Issue 110: Runtime Plan Diagnostics](issue-110.md) - V3 - Advanced Query Features / Observability
 - [Issue 111: Column Batches](issue-111.md) - V4 - Analytical Overlay / Column Store Indexes
 - [Issue 112: Compressed Column Segments](issue-112.md) - V4 - Analytical Overlay / Column Store Indexes

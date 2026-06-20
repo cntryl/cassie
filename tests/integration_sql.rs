@@ -2706,6 +2706,58 @@ fn should_explain_semi_join_strategy_for_exists_predicate() {
 }
 
 #[test]
+fn should_explain_analyze_select_query_plan() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("explain_analyze_select");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_explain_analyze_docs (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO sql_explain_analyze_docs (title) VALUES ('alpha')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN ANALYZE SELECT title FROM sql_explain_analyze_docs WHERE title = 'alpha'",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        let Value::String(plan) = &result.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("analyze=true"));
+        assert!(plan.contains("actual_rows=1"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_explain_anti_join_strategy_for_not_exists_predicate() {
     // Arrange
     with_fallback();

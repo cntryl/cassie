@@ -1957,7 +1957,7 @@ async fn execute_vector_distance_top_k(
             .and_then(vector_from_json)
             .unwrap_or_default();
         let score = if vector.len() == spec.query.len() && !vector.is_empty() {
-            crate::vector::dot_score(&vector, &spec.query)
+            crate::vector::l2_distance(&vector, &spec.query)
         } else {
             f64::INFINITY
         };

@@ -1143,7 +1143,7 @@ fn evaluate_function<R: RowAccess + ?Sized>(
         }
         "vector_distance" => {
             let (left, right) = vector_operands(function, &args)?;
-            Ok(Value::Float64(crate::vector::dot_score(&left, &right)))
+            Ok(Value::Float64(crate::vector::l2_distance(&left, &right)))
         }
         "vector_score" => {
             let (left, right) = vector_operands(function, &args)?;

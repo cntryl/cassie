@@ -2,7 +2,7 @@
 
 Milestone: V3 - Advanced Query Features
 Area: Window Functions
-Status: Open
+Status: Completed
 Priority: P2
 
 ## Concept

@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
@@ -10,6 +12,90 @@ use crate::sql::ast::FunctionCall;
 use crate::sql::ast::{BinaryOp, Expr};
 use crate::types::{DataType, Value};
 use uuid::Uuid;
+
+thread_local! {
+    static FUNCTION_CACHE: RefCell<FunctionCache> = RefCell::new(FunctionCache::new());
+}
+
+const FUNCTION_CACHE_SIZE: usize = 256;
+
+struct FunctionCache {
+    keys: Vec<u64>,
+    values: Vec<Value>,
+}
+
+impl FunctionCache {
+    fn new() -> Self {
+        Self {
+            keys: Vec::with_capacity(FUNCTION_CACHE_SIZE),
+            values: Vec::with_capacity(FUNCTION_CACHE_SIZE),
+        }
+    }
+
+    fn lookup(&self, key: u64) -> Option<&Value> {
+        self.keys.iter().position(|k| *k == key).and_then(|i| self.values.get(i))
+    }
+
+    fn store(&mut self, key: u64, value: Value) {
+        if let Some(pos) = self.keys.iter().position(|k| *k == key) {
+            self.values[pos] = value;
+            return;
+        }
+        if self.keys.len() >= FUNCTION_CACHE_SIZE {
+            self.keys.remove(0);
+            self.values.remove(0);
+        }
+        self.keys.push(key);
+        self.values.push(value);
+    }
+}
+
+fn function_cache_key(name: &str, args: &[Value]) -> u64 {
+    use std::hash::Hasher;
+    fn hash_value(hasher: &mut std::hash::DefaultHasher, value: &Value) {
+        match value {
+            Value::Null => 0u8.hash(hasher),
+            Value::Bool(v) => { 1u8.hash(hasher); v.hash(hasher); }
+            Value::Int64(v) => { 2u8.hash(hasher); v.hash(hasher); }
+            Value::Float64(v) => { 3u8.hash(hasher); v.to_bits().hash(hasher); }
+            Value::String(v) => { 4u8.hash(hasher); v.hash(hasher); }
+            Value::Vector(v) => { 5u8.hash(hasher); v.values.len().hash(hasher); }
+            Value::Json(v) => { 6u8.hash(hasher); v.to_string().hash(hasher); }
+        }
+    }
+    let mut hasher = std::hash::DefaultHasher::new();
+    name.hash(&mut hasher);
+    for arg in args {
+        hash_value(&mut hasher, arg);
+    }
+    hasher.finish()
+}
+
+fn has_only_constant_args(exprs: &[Expr]) -> bool {
+    exprs.iter().all(is_constant_expr)
+}
+
+fn is_constant_expr(expr: &Expr) -> bool {
+    match expr {
+        Expr::Null
+        | Expr::BoolLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::StringLiteral(_)
+        | Expr::Param(_) => true,
+        Expr::Function(f) => f.args.iter().all(is_constant_expr),
+        Expr::Binary { left, right, .. } => is_constant_expr(left) && is_constant_expr(right),
+        Expr::Cast { expr, .. } => is_constant_expr(expr),
+        Expr::InList { expr, values, .. } => {
+            is_constant_expr(expr) && values.iter().all(is_constant_expr)
+        }
+        Expr::Not { expr } => is_constant_expr(expr),
+        Expr::IsNull { expr, .. } => is_constant_expr(expr),
+        Expr::Between {
+            expr, low, high, ..
+        } => is_constant_expr(expr) && is_constant_expr(low) && is_constant_expr(high),
+        _ => false,
+    }
+}
 
 #[derive(Debug, Clone)]
 pub(crate) enum ScalarValue {
@@ -989,7 +1075,20 @@ fn evaluate_function<R: RowAccess + ?Sized>(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    match name.as_str() {
+    let cacheable = name != "coalesce" && has_only_constant_args(&function.args);
+    let cache_key = if cacheable {
+        Some(function_cache_key(&name, &args))
+    } else {
+        None
+    };
+
+    if cacheable {
+        if let Some(cached) = FUNCTION_CACHE.with_borrow(|fc| fc.lookup(cache_key.unwrap()).cloned()) {
+            return Ok(cached);
+        }
+    }
+
+    let result = match name.as_str() {
         "version" => {
             if !args.is_empty() {
                 return Err(QueryError::General(format!("{} requires 0 args", name)));
@@ -1247,7 +1346,15 @@ fn evaluate_function<R: RowAccess + ?Sized>(
             )
             .map(|value| value.to_value())
         }
+    };
+
+    if let Some(key) = cache_key {
+        if let Ok(ref value) = result {
+            FUNCTION_CACHE.with_borrow_mut(|fc| fc.store(key, value.clone()));
+        }
     }
+
+    result
 }
 
 fn evaluate_coalesce<R: RowAccess + ?Sized>(

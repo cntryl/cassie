@@ -93,3 +93,18 @@ Track one issue for every concept in `docs/milestones.md`.
 - Every milestone bullet has exactly one linked issue.
 - New milestone bullets require a new issue before implementation starts.
 - Completed concepts update their individual issue status and this index if needed.
+
+## Status
+
+- [Issue 089: Recursive CTEs](issue-089.md) — **Completed**
+- [Issue 090: INTERSECT](issue-090.md) — **Completed**
+- [Issue 091: EXCEPT](issue-091.md) — **Completed**
+- [Issue 092: RIGHT JOIN](issue-092.md) — **Completed**
+- [Issue 093: FULL OUTER JOIN](issue-093.md) — **Completed**
+- [Issue 094: Row_number](issue-094.md) — **Completed**
+- [Issue 095: Rank](issue-095.md) — **Completed**
+- [Issue 096: Dense_rank](issue-096.md) — **Completed**
+- [Issue 097: Lag](issue-097.md) — **Completed**
+- [Issue 098: Lead](issue-098.md) — **Completed**
+- [Issue 099: First_value](issue-099.md) — **Completed**
+- [Issue 100: Last_value](issue-100.md) — **Completed**

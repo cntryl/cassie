@@ -967,7 +967,8 @@ impl Cassie {
             return self.execute_transaction_statement(session, statement).await;
         }
 
-        let cache_key = Self::is_query_cacheable(&parsed.statement).then(|| {
+        let is_select = Self::is_query_cacheable(&parsed.statement);
+        let cache_key = is_select.then(|| {
             self.plan_cache_key_from_fingerprint(
                 sql_fingerprint,
                 crate::runtime::parameter_shape(&params),
@@ -989,6 +990,29 @@ impl Cassie {
             return Err(CassieError::Execution("query timeout exceeded".to_string()));
         }
 
+        let params_hash = if is_select {
+            Some(crate::runtime::hash_params(&params))
+        } else {
+            None
+        };
+
+        if is_select {
+            let exec_cache_key = crate::runtime::ExecutionResultCacheKey {
+                sql_fingerprint,
+                params_hash: params_hash.unwrap(),
+                schema_epoch: self.runtime.schema_epoch(),
+                data_epoch: self.runtime.data_epoch(),
+                database: session.database.clone(),
+                mode,
+            };
+            if let Some(cached) = self.runtime.execution_result_cache_lookup(&exec_cache_key) {
+                if let Some(key) = cache_key.as_ref() {
+                    self.observe_query_plan_usage(key, &physical, &provenance)?;
+                }
+                return Ok(cached);
+            }
+        }
+
         let result = crate::executor::run_with_session_controls(
             self,
             Some(session),
@@ -1005,6 +1029,24 @@ impl Cassie {
                 result.rows.len(),
                 controls.max_result_rows
             )));
+        }
+
+        if is_select {
+            let exec_cache_key = crate::runtime::ExecutionResultCacheKey {
+                sql_fingerprint,
+                params_hash: params_hash.unwrap(),
+                schema_epoch: self.runtime.schema_epoch(),
+                data_epoch: self.runtime.data_epoch(),
+                database: session.database.clone(),
+                mode,
+            };
+            self.runtime
+                .execution_result_cache_store(exec_cache_key, result.clone());
+        }
+
+        let command = result.command.as_str();
+        if command.starts_with("INSERT") || command.starts_with("UPDATE") || command.starts_with("DELETE") {
+            self.runtime.bump_data_epoch();
         }
 
         if let Some(key) = cache_key.as_ref() {

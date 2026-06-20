@@ -2,7 +2,7 @@
 
 Milestone: V3 - Advanced Query Features
 Area: SQL
-Status: Open
+Status: Completed
 Priority: P2
 
 ## Concept

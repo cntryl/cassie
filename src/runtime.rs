@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::hash::Hash;
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -8,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::app::CassieError;
 use crate::config::CassieRuntimeLimits;
+use crate::executor::QueryResult;
 use crate::planner::physical::PhysicalPlan;
 use crate::types::Value;
 
@@ -68,6 +70,22 @@ pub enum ParameterShape {
     String,
     Vector(usize),
     Json,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ExecutionResultCacheKey {
+    pub sql_fingerprint: u64,
+    pub params_hash: u64,
+    pub schema_epoch: u64,
+    pub data_epoch: u64,
+    pub database: Option<String>,
+    pub mode: ExecutionMode,
+}
+
+#[derive(Debug, Default)]
+struct ExecutionResultCacheState {
+    entries: HashMap<ExecutionResultCacheKey, QueryResult>,
+    order: VecDeque<ExecutionResultCacheKey>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -250,9 +268,11 @@ pub struct RuntimeState {
     limits: CassieRuntimeLimits,
     metrics: Mutex<RuntimeMetricsState>,
     plan_cache: Mutex<PlanCacheState>,
+    execution_result_cache: Mutex<ExecutionResultCacheState>,
     fulltext_index_options: Mutex<HashMap<FulltextIndexOptionsCacheKey, FulltextIndexOptions>>,
     started_at: Mutex<Option<Instant>>,
     schema_epoch: AtomicU64,
+    data_epoch: AtomicU64,
 }
 
 pub struct RunningQueryGuard {
@@ -283,9 +303,11 @@ impl RuntimeState {
             limits,
             metrics: Mutex::new(metrics),
             plan_cache: Mutex::new(PlanCacheState::default()),
+            execution_result_cache: Mutex::new(ExecutionResultCacheState::default()),
             fulltext_index_options: Mutex::new(HashMap::new()),
             started_at: Mutex::new(None),
             schema_epoch: AtomicU64::new(0),
+            data_epoch: AtomicU64::new(0),
         }
     }
 
@@ -646,6 +668,61 @@ impl RuntimeState {
         self.record_plan_cache_invalidation();
     }
 
+    pub fn execution_result_cache_lookup(
+        &self,
+        key: &ExecutionResultCacheKey,
+    ) -> Option<QueryResult> {
+        let mut cache = self.execution_result_cache.lock().expect("execution result cache");
+        if let Some(result) = cache.entries.get(key).cloned() {
+            Self::execution_result_cache_touch(&mut cache.order, key);
+            drop(cache);
+            return Some(result);
+        }
+        None
+    }
+
+    pub fn execution_result_cache_store(&self, key: ExecutionResultCacheKey, result: QueryResult) {
+        const MAX_ENTRIES: usize = 64;
+        let mut cache = self.execution_result_cache.lock().expect("execution result cache");
+        if cache.entries.contains_key(&key) {
+            cache.entries.insert(key, result);
+            return;
+        }
+        if cache.entries.len() >= MAX_ENTRIES {
+            if let Some(oldest) = cache.order.pop_front() {
+                cache.entries.remove(&oldest);
+            }
+        }
+        cache.entries.insert(key.clone(), result);
+        cache.order.push_back(key);
+    }
+
+    pub fn invalidate_execution_result_cache(&self) {
+        let mut cache = self.execution_result_cache.lock().expect("execution result cache");
+        cache.entries.clear();
+        cache.order.clear();
+    }
+
+    pub fn data_epoch(&self) -> u64 {
+        self.data_epoch.load(Ordering::SeqCst)
+    }
+
+    pub fn bump_data_epoch(&self) {
+        let epoch = self.data_epoch.fetch_add(1, Ordering::SeqCst).wrapping_add(1);
+        self.data_epoch.store(epoch, Ordering::SeqCst);
+        self.invalidate_execution_result_cache();
+    }
+
+    fn execution_result_cache_touch(
+        order: &mut VecDeque<ExecutionResultCacheKey>,
+        key: &ExecutionResultCacheKey,
+    ) {
+        if let Some(position) = order.iter().position(|entry| entry == key) {
+            order.remove(position);
+        }
+        order.push_back(key.clone());
+    }
+
     pub fn plan_cache_entry_count(&self) -> usize {
         self.plan_cache.lock().expect("plan cache").entries.len()
     }
@@ -713,6 +790,26 @@ impl RuntimeState {
         snapshot.plan_cache.max_entries = self.limits.plan_cache_entries as u64;
         snapshot
     }
+}
+
+pub fn hash_params(params: &[Value]) -> u64 {
+    use std::hash::Hasher;
+    fn hash_value(hasher: &mut std::hash::DefaultHasher, value: &Value) {
+        match value {
+            Value::Null => 0u8.hash(hasher),
+            Value::Bool(v) => { 1u8.hash(hasher); v.hash(hasher); }
+            Value::Int64(v) => { 2u8.hash(hasher); v.hash(hasher); }
+            Value::Float64(v) => { 3u8.hash(hasher); v.to_bits().hash(hasher); }
+            Value::String(v) => { 4u8.hash(hasher); v.hash(hasher); }
+            Value::Vector(v) => { 5u8.hash(hasher); v.values.len().hash(hasher); }
+            Value::Json(v) => { 6u8.hash(hasher); v.to_string().hash(hasher); }
+        }
+    }
+    let mut hasher = std::hash::DefaultHasher::new();
+    for param in params {
+        hash_value(&mut hasher, param);
+    }
+    hasher.finish()
 }
 
 pub fn parameter_shape(params: &[Value]) -> Vec<ParameterShape> {

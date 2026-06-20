@@ -2572,6 +2572,46 @@ fn should_reject_insert_values_when_not_null_constraint_fails() {
 }
 
 #[test]
+fn should_reject_insert_values_when_not_null_column_is_missing() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("insert_values_missing_not_null");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE insert_values_missing_not_null (title TEXT NOT NULL, body TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO insert_values_missing_not_null (body) VALUES ('first')",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(inserted.is_err());
+        assert!(inserted.unwrap_err().to_string().contains("cannot be null"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_apply_default_values_for_insert_values() {
     // Arrange
     with_fallback();

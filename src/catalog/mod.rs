@@ -1,3 +1,4 @@
+pub mod cardinality;
 pub mod collections;
 pub mod constraints;
 pub mod indexes;
@@ -7,6 +8,10 @@ pub mod roles;
 pub mod schemas;
 pub mod virtual_views;
 
+pub use cardinality::{
+    index_cardinality_key, payload_contains_index_membership, payload_contains_vector_membership,
+    vector_index_cardinality_key, CollectionCardinalityStats, IndexCardinalityStats,
+};
 pub use collections::{
     is_reserved_namespace, CollectionMeta, NamespaceMeta, ProjectionMeta, ProjectionRebuildState,
 };

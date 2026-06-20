@@ -427,6 +427,9 @@ fn execute_command(
             for index in primary_key_indexes {
                 cassie.catalog.register_index(index);
             }
+            cassie
+                .refresh_cardinality_stats(&statement.table)
+                .map_err(|error| QueryError::General(error.to_string()))?;
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -547,6 +550,9 @@ fn execute_command(
                         field.name,
                         field.data_type.clone(),
                     );
+                    cassie
+                        .refresh_cardinality_stats(&statement.table)
+                        .map_err(|error| QueryError::General(error.to_string()))?;
                     invalidate_plan_cache = true;
                 }
                 crate::sql::ast::AlterTableOperation::DropColumn { field } => {
@@ -557,6 +563,9 @@ fn execute_command(
                     cassie
                         .catalog
                         .remove_collection_field(&statement.table, field);
+                    cassie
+                        .refresh_cardinality_stats(&statement.table)
+                        .map_err(|error| QueryError::General(error.to_string()))?;
                     invalidate_plan_cache = true;
                 }
                 crate::sql::ast::AlterTableOperation::RenameColumn { from, to } => {
@@ -567,6 +576,9 @@ fn execute_command(
                     cassie
                         .catalog
                         .rename_collection_field(&statement.table, from, to);
+                    cassie
+                        .refresh_cardinality_stats(&statement.table)
+                        .map_err(|error| QueryError::General(error.to_string()))?;
                     invalidate_plan_cache = true;
                 }
                 crate::sql::ast::AlterTableOperation::RenameTo { table } => {
@@ -729,6 +741,9 @@ fn execute_command(
                 .put_index(metadata.clone())
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_index(metadata);
+            cassie
+                .refresh_cardinality_stats(&statement.table)
+                .map_err(|error| QueryError::General(error.to_string()))?;
             invalidate_plan_cache = true;
 
             Ok(QueryResult {
@@ -767,6 +782,9 @@ fn execute_command(
             cassie
                 .catalog
                 .unregister_index(&statement.table, &statement.name);
+            cassie
+                .refresh_cardinality_stats(&statement.table)
+                .map_err(|error| QueryError::General(error.to_string()))?;
             invalidate_plan_cache = true;
 
             Ok(QueryResult {

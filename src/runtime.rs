@@ -206,6 +206,14 @@ pub struct QueryCacheSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct CardinalitySnapshot {
+    pub reads: u64,
+    pub writes: u64,
+    pub rebuilds: u64,
+    pub unavailable: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct StorageFamilySnapshot {
     pub reads: u64,
     pub writes: u64,
@@ -233,6 +241,7 @@ pub struct RuntimeMetricsSnapshot {
     pub storage: StorageSnapshot,
     pub plan_cache: PlanCacheSnapshot,
     pub query_cache: QueryCacheSnapshot,
+    pub cardinality: CardinalitySnapshot,
 }
 
 #[derive(Debug, Default)]
@@ -247,6 +256,7 @@ struct RuntimeMetricsState {
     storage: StorageSnapshot,
     plan_cache: PlanCacheSnapshot,
     query_cache: QueryCacheSnapshot,
+    cardinality: CardinalitySnapshot,
 }
 
 #[derive(Debug, Clone)]
@@ -626,6 +636,26 @@ impl RuntimeState {
         metrics.query_cache.fulltext_stats_misses += 1;
     }
 
+    pub fn record_cardinality_read(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.cardinality.reads += 1;
+    }
+
+    pub fn record_cardinality_write(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.cardinality.writes += 1;
+    }
+
+    pub fn record_cardinality_rebuild(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.cardinality.rebuilds += 1;
+    }
+
+    pub fn record_cardinality_unavailable(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.cardinality.unavailable += 1;
+    }
+
     pub fn record_plan_cache_invalidation(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.plan_cache.invalidations += 1;
@@ -851,6 +881,7 @@ impl RuntimeState {
             storage: metrics.storage.clone(),
             plan_cache: metrics.plan_cache.clone(),
             query_cache: metrics.query_cache.clone(),
+            cardinality: metrics.cardinality.clone(),
         };
         snapshot.runtime.uptime_seconds = uptime_seconds;
         snapshot.runtime.running_queries = metrics.runtime.running_queries;

@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
 
@@ -188,6 +189,113 @@ fn should_report_runtime_metrics_snapshot() {
                 .unwrap_or_default()
                 > 0,
             "temp storage writes should be recorded"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_expose_cardinality_metrics_with_explain_plan_estimates() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("cardinality_metrics");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "metrics_cardinality_docs";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha", "body": "bravo"}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_index(IndexMeta {
+                collection: collection.to_string(),
+                name: "idx_title".to_string(),
+                field: "title".to_string(),
+                fields: vec!["title".to_string()],
+                kind: IndexKind::Scalar,
+                unique: false,
+                options: Default::default(),
+            })
+            .unwrap();
+        cassie.midge.delete_cardinality_stats(collection).unwrap();
+
+        // Act
+        cassie.startup().unwrap();
+        cassie
+            .ingest_document(
+                collection,
+                serde_json::json!({"title": "beta", "body": "charlie"}),
+            )
+            .unwrap();
+
+        let session = cassie.create_session("tester", None);
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM metrics_cardinality_docs WHERE title = 'alpha'",
+                vec![],
+            )
+            .unwrap();
+        let plan = explain.rows[0][0].as_str().unwrap().to_string();
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert!(plan.contains("estimates=scan:2"), "plan={plan}");
+        assert!(plan.contains("index:2"), "plan={plan}");
+        assert!(
+            metrics["cardinality"]["reads"].as_u64().unwrap_or_default() >= 1,
+            "cardinality reads should be tracked"
+        );
+        assert!(
+            metrics["cardinality"]["writes"]
+                .as_u64()
+                .unwrap_or_default()
+                >= 1,
+            "cardinality writes should be tracked"
+        );
+        assert!(
+            metrics["cardinality"]["rebuilds"]
+                .as_u64()
+                .unwrap_or_default()
+                >= 1,
+            "cardinality rebuilds should be tracked"
+        );
+        assert!(
+            metrics["cardinality"]["unavailable"]
+                .as_u64()
+                .unwrap_or_default()
+                >= 1,
+            "missing stats should be tracked"
         );
 
         let _ = std::fs::remove_dir_all(path);

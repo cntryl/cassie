@@ -8,7 +8,11 @@ use cntryl_midge::{ColumnFamilyHandle, Engine, Query, TransactionMode, WriteOpti
 use uuid::Uuid;
 
 use crate::app::CassieError;
-use crate::catalog::{FieldConstraint, IndexMeta, NamespaceMeta, ProjectionMeta, RoleMeta};
+use crate::catalog::{
+    payload_contains_index_membership, payload_contains_vector_membership,
+    CollectionCardinalityStats, FieldConstraint, IndexMeta, NamespaceMeta, ProjectionMeta,
+    RoleMeta,
+};
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord};
 use crate::midge::row_blob::{
     decode_projected_row, decode_projected_row_matching, decode_row, encode_row, RowSchema,
@@ -41,6 +45,7 @@ const ROLE_PREFIX: &str = "__cassie__/role/";
 const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
 const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
 const PROJECTION_KEY_PREFIX: &str = "__cassie__/projection/";
+const CARDINALITY_KEY_PREFIX: &str = "__cassie__/cardinality/v1/";
 const NORMALIZED_VECTOR_PREFIX: &str = "__cassie__/normalized-vector/";
 const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
 const NAMESPACES_KEY: &str = "__cassie__/namespaces";
@@ -652,6 +657,45 @@ impl Midge {
         Ok(())
     }
 
+    fn cardinality_key(collection: &str) -> Vec<u8> {
+        format!("{CARDINALITY_KEY_PREFIX}{collection}").into_bytes()
+    }
+
+    fn cardinality_prefix() -> Vec<u8> {
+        CARDINALITY_KEY_PREFIX.as_bytes().to_vec()
+    }
+
+    fn load_cardinality_stats_from_tx(
+        tx: &cntryl_midge::Transaction,
+        collection: &str,
+    ) -> Result<Option<CollectionCardinalityStats>, CassieError> {
+        let Some(raw) = tx
+            .get(Self::cardinality_key(collection).as_slice())
+            .map_err(CassieError::from)?
+        else {
+            return Ok(None);
+        };
+        serde_json::from_slice(&raw).map(Some).map_err(|error| {
+            CassieError::Parse(format!(
+                "invalid cardinality stats for '{collection}': {error}"
+            ))
+        })
+    }
+
+    fn save_cardinality_stats_to_tx(
+        tx: &mut cntryl_midge::Transaction,
+        collection: &str,
+        stats: &CollectionCardinalityStats,
+    ) -> Result<(), CassieError> {
+        tx.put(
+            Self::cardinality_key(collection),
+            serde_json::to_vec(stats).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+        Ok(())
+    }
+
     fn update_projection_schema_version_to_tx(
         tx: &mut cntryl_midge::Transaction,
         collection: &str,
@@ -705,6 +749,17 @@ impl Midge {
             Self::save_projection_metadata_to_tx(
                 &mut tx,
                 &ProjectionMeta::new(name, row_schema.schema_version),
+            )?;
+        }
+        if tx
+            .get(Self::cardinality_key(name).as_slice())
+            .map_err(CassieError::from)?
+            .is_none()
+        {
+            Self::save_cardinality_stats_to_tx(
+                &mut tx,
+                name,
+                &CollectionCardinalityStats::default(),
             )?;
         }
 
@@ -900,6 +955,9 @@ impl Midge {
             .map_err(CassieError::from)?;
         schema_tx
             .delete(Self::projection_key(name))
+            .map_err(CassieError::from)?;
+        schema_tx
+            .delete(Self::cardinality_key(name))
             .map_err(CassieError::from)?;
 
         let mut collections = self.load_collections(&schema_tx)?;
@@ -1373,6 +1431,19 @@ impl Midge {
                 .map_err(CassieError::from)?;
         }
 
+        let current_cardinality_key = Self::cardinality_key(current_name);
+        if let Some(raw) = schema_tx
+            .get(current_cardinality_key.as_slice())
+            .map_err(CassieError::from)?
+        {
+            schema_tx
+                .delete(current_cardinality_key)
+                .map_err(CassieError::from)?;
+            schema_tx
+                .put(Self::cardinality_key(next_name), raw.to_vec(), None)
+                .map_err(CassieError::from)?;
+        }
+
         schema_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
@@ -1582,6 +1653,96 @@ impl Midge {
         }
 
         Ok(out)
+    }
+
+    pub fn get_cardinality_stats(
+        &self,
+        collection: &str,
+    ) -> Result<Option<CollectionCardinalityStats>, CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        Self::load_cardinality_stats_from_tx(&tx, collection)
+    }
+
+    pub fn list_cardinality_stats(
+        &self,
+    ) -> Result<std::collections::HashMap<String, CollectionCardinalityStats>, CassieError> {
+        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::cardinality_prefix())?;
+        let mut out = std::collections::HashMap::new();
+        for (key, raw_value) in entries {
+            let Ok(stats) = serde_json::from_slice::<CollectionCardinalityStats>(&raw_value) else {
+                continue;
+            };
+            let collection = String::from_utf8(key)
+                .ok()
+                .and_then(|key| key.strip_prefix(CARDINALITY_KEY_PREFIX).map(str::to_string));
+            if let Some(collection) = collection {
+                out.insert(collection, stats);
+            }
+        }
+        Ok(out)
+    }
+
+    pub fn save_cardinality_stats(
+        &self,
+        collection: &str,
+        stats: &CollectionCardinalityStats,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        Self::save_cardinality_stats_to_tx(&mut tx, collection, stats)?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub fn delete_cardinality_stats(&self, collection: &str) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.delete(Self::cardinality_key(collection))
+            .map_err(CassieError::from)?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub fn rebuild_cardinality_stats_for_collection(
+        &self,
+        collection: &str,
+    ) -> Result<CollectionCardinalityStats, CassieError> {
+        let documents = self.scan_documents(collection)?;
+        let row_count = documents.len() as u64;
+        let mut stats = CollectionCardinalityStats {
+            row_count,
+            hydrated: true,
+            ..CollectionCardinalityStats::default()
+        };
+
+        for index in self.list_indexes()? {
+            if index.collection != collection {
+                continue;
+            }
+            let cardinality = documents
+                .iter()
+                .filter(|document| payload_contains_index_membership(&document.payload, &index))
+                .count() as u64;
+            stats.set_index_cardinality(
+                CollectionCardinalityStats::index_key(&index.kind, &index.name),
+                cardinality,
+            );
+        }
+
+        for record in self.list_vector_indexes()? {
+            if record.collection != collection {
+                continue;
+            }
+            let cardinality = documents
+                .iter()
+                .filter(|document| payload_contains_vector_membership(&document.payload, &record))
+                .count() as u64;
+            stats.set_index_cardinality(
+                CollectionCardinalityStats::vector_index_key(&record.field),
+                cardinality,
+            );
+        }
+
+        self.save_cardinality_stats(collection, &stats)?;
+        Ok(stats)
     }
 
     fn normalized_vector_record_from_value(

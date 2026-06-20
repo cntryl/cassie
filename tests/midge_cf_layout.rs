@@ -1,5 +1,6 @@
 use cassie::app::Cassie;
 use cassie::catalog::ProjectionRebuildState;
+use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::midge::adapter::{RowDecode, StorageFamily, StorageLayout};
 use cassie::types::{DataType, FieldSchema, Schema};
 use cntryl_midge::TransactionMode;
@@ -320,6 +321,151 @@ fn should_preserve_retired_field_ids_in_row_schema_metadata() {
         assert_eq!(body["retired"], false);
         assert_eq!(status["field_id"], 3);
         assert_eq!(status["retired"], false);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_restore_cardinality_stats_after_restart() {
+    // Arrange
+    let path = data_dir("cardinality_restart");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.midge.ensure_families_ready().unwrap();
+
+        let collection = "cf_layout_cardinality_restart";
+        cassie
+            .midge
+            .create_collection(
+                collection,
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "title".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                        FieldSchema {
+                            name: "body".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                    ],
+                },
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha", "body": "bravo"}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_index(IndexMeta {
+                collection: collection.to_string(),
+                name: "idx_title".to_string(),
+                field: "title".to_string(),
+                fields: vec!["title".to_string()],
+                kind: IndexKind::Scalar,
+                unique: false,
+                options: Default::default(),
+            })
+            .unwrap();
+        cassie
+            .midge
+            .rebuild_cardinality_stats_for_collection(collection)
+            .unwrap();
+
+        // Act
+        drop(cassie);
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.midge.ensure_families_ready().unwrap();
+        let stats = restarted
+            .midge
+            .get_cardinality_stats(collection)
+            .unwrap()
+            .expect("stored cardinality stats");
+
+        // Assert
+        assert!(stats.hydrated);
+        assert_eq!(stats.row_count, 1);
+        assert_eq!(
+            stats
+                .indexes
+                .get("scalar:idx_title")
+                .map(|entry| entry.cardinality),
+            Some(1)
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_move_and_cleanup_cardinality_stats_on_collection_rename_and_drop() {
+    // Arrange
+    let path = data_dir("cardinality_cleanup");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.midge.ensure_families_ready().unwrap();
+
+        let current = "cf_layout_cardinality_cleanup";
+        let next = "cf_layout_cardinality_cleanup_next";
+        cassie
+            .midge
+            .create_collection(
+                current,
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "title".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                current,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .rebuild_cardinality_stats_for_collection(current)
+            .unwrap();
+
+        // Act
+        cassie.midge.rename_collection(current, next).unwrap();
+        let renamed_stats = cassie
+            .midge
+            .get_cardinality_stats(next)
+            .unwrap()
+            .expect("renamed stats");
+        let old_stats = cassie.midge.get_cardinality_stats(current).unwrap();
+        cassie.midge.drop_collection(next).unwrap();
+        let dropped_stats = cassie.midge.get_cardinality_stats(next).unwrap();
+
+        // Assert
+        assert_eq!(renamed_stats.row_count, 1);
+        assert!(old_stats.is_none());
+        assert!(dropped_stats.is_none());
 
         let _ = std::fs::remove_dir_all(path);
     });

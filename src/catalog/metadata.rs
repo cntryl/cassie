@@ -5,8 +5,9 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use crate::catalog::{
-    normalize_role_name, CollectionMeta, CollectionSchema, FieldConstraint, FieldMeta,
-    FunctionMeta, IndexMeta, NamespaceMeta, ProcedureMeta, ProjectionMeta, RoleMeta, ViewMeta,
+    normalize_role_name, CollectionCardinalityStats, CollectionMeta, CollectionSchema,
+    FieldConstraint, FieldMeta, FunctionMeta, IndexMeta, NamespaceMeta, ProcedureMeta,
+    ProjectionMeta, RoleMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
@@ -24,6 +25,7 @@ pub struct Catalog {
     pub views: Arc<RwLock<HashMap<String, ViewMeta>>>,
     pub roles: Arc<RwLock<HashMap<String, RoleMeta>>>,
     pub vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
+    pub cardinality: Arc<RwLock<HashMap<String, CollectionCardinalityStats>>>,
     version: Arc<AtomicU64>,
 }
 
@@ -41,6 +43,7 @@ impl Catalog {
             views: Arc::new(RwLock::new(HashMap::new())),
             roles: Arc::new(RwLock::new(HashMap::new())),
             vector_indexes: Arc::new(RwLock::new(HashMap::new())),
+            cardinality: Arc::new(RwLock::new(HashMap::new())),
             version: Arc::new(AtomicU64::new(0)),
         }
     }
@@ -88,6 +91,13 @@ impl Catalog {
             .write()
             .insert(name.to_string(), normalized);
         self.register_projection_metadata(ProjectionMeta::new(name, 1));
+        self.cardinality.write().insert(
+            name.to_string(),
+            CollectionCardinalityStats {
+                hydrated: false,
+                ..CollectionCardinalityStats::default()
+            },
+        );
         self.bump_version();
     }
 
@@ -246,6 +256,7 @@ impl Catalog {
         self.roles.write().clear();
         self.indexes.write().clear();
         self.vector_indexes.write().clear();
+        self.cardinality.write().clear();
         self.bump_version();
     }
 
@@ -260,6 +271,7 @@ impl Catalog {
         self.vector_indexes
             .write()
             .retain(|_, record| record.collection != collection);
+        self.cardinality.write().remove(collection);
         self.bump_version();
     }
 
@@ -459,6 +471,11 @@ impl Catalog {
                 vector_indexes.insert(next_key, metadata);
             }
         }
+
+        let mut cardinality = self.cardinality.write();
+        if let Some(stats) = cardinality.remove(current_name) {
+            cardinality.insert(next_name.to_string(), stats);
+        }
         self.bump_version();
     }
 
@@ -588,6 +605,69 @@ impl Catalog {
         let mut indexes = self.vector_indexes.write();
         let key = Self::vector_index_key(&record.collection, &record.field);
         indexes.insert(key, record);
+        self.bump_version();
+    }
+
+    pub fn get_cardinality_stats(&self, collection: &str) -> Option<CollectionCardinalityStats> {
+        self.cardinality.read().get(collection).cloned()
+    }
+
+    pub fn set_cardinality_stats(&self, collection: &str, stats: CollectionCardinalityStats) {
+        self.cardinality
+            .write()
+            .insert(collection.to_string(), stats);
+        self.bump_version();
+    }
+
+    pub fn clear_cardinality_stats(&self, collection: &str) {
+        self.cardinality.write().remove(collection);
+        self.bump_version();
+    }
+
+    pub fn adjust_row_cardinality(&self, collection: &str, delta: i64) {
+        let mut cardinality = self.cardinality.write();
+        let stats = cardinality
+            .entry(collection.to_string())
+            .or_insert_with(|| CollectionCardinalityStats {
+                hydrated: false,
+                ..CollectionCardinalityStats::default()
+            });
+        if delta.is_positive() {
+            stats.row_count = stats.row_count.saturating_add(delta as u64);
+        } else if delta.is_negative() {
+            stats.row_count = stats.row_count.saturating_sub(delta.unsigned_abs());
+        }
+        self.bump_version();
+    }
+
+    pub fn set_index_cardinality(&self, collection: &str, key: String, cardinality: u64) {
+        let mut cardinality_map = self.cardinality.write();
+        let stats = cardinality_map
+            .entry(collection.to_string())
+            .or_insert_with(|| CollectionCardinalityStats {
+                hydrated: false,
+                ..CollectionCardinalityStats::default()
+            });
+        stats.set_index_cardinality(key, cardinality);
+        self.bump_version();
+    }
+
+    pub fn remove_index_cardinality(&self, collection: &str, key: &str) {
+        if let Some(stats) = self.cardinality.write().get_mut(collection) {
+            stats.indexes.remove(key);
+            self.bump_version();
+        }
+    }
+
+    pub fn hydrate_cardinality_stats(
+        &self,
+        collection: &str,
+        mut stats: CollectionCardinalityStats,
+    ) {
+        stats.hydrated = true;
+        self.cardinality
+            .write()
+            .insert(collection.to_string(), stats);
         self.bump_version();
     }
 

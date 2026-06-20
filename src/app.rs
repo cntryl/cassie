@@ -489,6 +489,10 @@ impl Cassie {
             self.catalog.register_index(index);
         }
 
+        for collection in self.catalog.list_collections() {
+            self.hydrate_cardinality_stats(&collection.name)?;
+        }
+
         let functions = self.midge.list_functions().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list functions: {error}"))
@@ -584,6 +588,49 @@ impl Cassie {
             self.catalog.register_role(role);
         }
 
+        Ok(())
+    }
+
+    fn hydrate_cardinality_stats(&self, collection: &str) -> Result<(), CassieError> {
+        self.runtime.record_cardinality_read();
+        match self.midge.get_cardinality_stats(collection) {
+            Ok(Some(stats)) if stats.hydrated => {
+                self.catalog.hydrate_cardinality_stats(collection, stats);
+                Ok(())
+            }
+            Ok(_) => {
+                self.runtime.record_cardinality_unavailable();
+                let stats = self
+                    .midge
+                    .rebuild_cardinality_stats_for_collection(collection)
+                    .map_err(|error| {
+                        CassieError::Storage(format!(
+                            "rebuild cardinality stats for collection '{collection}': {error}"
+                        ))
+                    })?;
+                self.runtime.record_cardinality_rebuild();
+                self.runtime.record_cardinality_write();
+                self.catalog.hydrate_cardinality_stats(collection, stats);
+                Ok(())
+            }
+            Err(error) => Err(CassieError::Storage(format!(
+                "load cardinality stats for collection '{collection}': {error}"
+            ))),
+        }
+    }
+
+    pub(crate) fn refresh_cardinality_stats(&self, collection: &str) -> Result<(), CassieError> {
+        let stats = self
+            .midge
+            .rebuild_cardinality_stats_for_collection(collection)
+            .map_err(|error| {
+                CassieError::Storage(format!(
+                    "rebuild cardinality stats for collection '{collection}': {error}"
+                ))
+            })?;
+        self.runtime.record_cardinality_rebuild();
+        self.runtime.record_cardinality_write();
+        self.catalog.hydrate_cardinality_stats(collection, stats);
         Ok(())
     }
 
@@ -853,9 +900,11 @@ impl Cassie {
 
         let logical = crate::planner::logical::plan(&bound)?;
         let optimized = crate::planner::optimizer::optimize(logical);
+        let cardinality_stats = self.catalog.cardinality.read().clone();
         Ok(Arc::new(crate::planner::physical::build_with_indexes(
             optimized,
             bound.indexes,
+            &cardinality_stats,
         )))
     }
 
@@ -1081,6 +1130,7 @@ impl Cassie {
                             session.mark_transaction_failed();
                             return Err(error);
                         }
+                        self.refresh_cardinality_stats(&collection)?;
                     }
                 }
                 session.commit_transaction();
@@ -1164,8 +1214,9 @@ impl Cassie {
             .map(|limit| limit.to_string())
             .unwrap_or_else(|| "none".to_string());
         let join_strategy = physical.join_strategy.as_deref().unwrap_or("none");
+        let estimates = &physical.estimates;
         let mut plan = format!(
-            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} prefilter={} top_k={} top_k_limit={} join_strategy={}",
+            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} prefilter={} top_k={} top_k_limit={} join_strategy={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
@@ -1182,7 +1233,13 @@ impl Cassie {
             prefilter,
             physical.top_k,
             top_k_limit,
-            join_strategy
+            join_strategy,
+            estimates.scan_rows,
+            estimates.index_rows,
+            estimates.join_rows,
+            estimates.search_rows,
+            estimates.vector_rows,
+            estimates.aggregate_rows
         );
 
         if analyze {
@@ -1452,7 +1509,9 @@ impl Cassie {
             }
         }
 
-        self.midge.put_document(collection, id, payload)
+        let row_id = self.midge.put_document(collection, id, payload)?;
+        self.refresh_cardinality_stats(collection)?;
+        Ok(row_id)
     }
 
     pub(crate) fn prepare_document_write_for_session(
@@ -1501,7 +1560,9 @@ impl Cassie {
             }
         }
 
-        self.midge.put_document(collection, Some(id), payload)
+        let row_id = self.midge.put_document(collection, Some(id), payload)?;
+        self.refresh_cardinality_stats(collection)?;
+        Ok(row_id)
     }
 
     pub(crate) fn delete_document_for_session(
@@ -1520,7 +1581,11 @@ impl Cassie {
             }
         }
 
-        self.midge.delete_document(collection, id)
+        let removed = self.midge.delete_document(collection, id)?;
+        if removed {
+            self.refresh_cardinality_stats(collection)?;
+        }
+        Ok(removed)
     }
 
     pub(crate) fn get_document_for_session(
@@ -2548,6 +2613,7 @@ impl Cassie {
             "storage": snapshot.storage,
             "plan_cache": snapshot.plan_cache,
             "query_cache": snapshot.query_cache,
+            "cardinality": snapshot.cardinality,
         })
     }
 

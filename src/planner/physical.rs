@@ -1,4 +1,4 @@
-use crate::catalog::{IndexKind, IndexMeta};
+use crate::catalog::{CollectionCardinalityStats, IndexKind, IndexMeta};
 use crate::planner::logical::LogicalPlan;
 use crate::sql::ast::{
     BinaryOp, Expr, FunctionCall, JoinKind, QuerySource, SelectItem, WindowFunctionCall,
@@ -27,6 +27,7 @@ pub struct PhysicalPlan {
     pub collection: String,
     pub operators: Vec<Operator>,
     pub logical: LogicalPlan,
+    pub estimates: PlanEstimates,
     pub predicate_pushdown: bool,
     pub projected_scan_fields: Vec<String>,
     pub scan_limit: Option<usize>,
@@ -36,16 +37,31 @@ pub struct PhysicalPlan {
     pub join_strategy: Option<String>,
 }
 
-pub fn build(plan: LogicalPlan) -> PhysicalPlan {
-    build_with_indexes(plan, Vec::new())
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PlanEstimates {
+    pub scan_rows: u64,
+    pub index_rows: u64,
+    pub join_rows: u64,
+    pub search_rows: u64,
+    pub vector_rows: u64,
+    pub aggregate_rows: u64,
 }
 
-pub fn build_with_indexes(plan: LogicalPlan, indexes: Vec<IndexMeta>) -> PhysicalPlan {
+pub fn build(plan: LogicalPlan) -> PhysicalPlan {
+    build_with_indexes(plan, Vec::new(), &Default::default())
+}
+
+pub fn build_with_indexes(
+    plan: LogicalPlan,
+    indexes: Vec<IndexMeta>,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+) -> PhysicalPlan {
     if plan.command.is_some() {
         return PhysicalPlan {
             collection: plan.collection.clone(),
             operators: Vec::new(),
             logical: plan,
+            estimates: PlanEstimates::default(),
             predicate_pushdown: false,
             projected_scan_fields: Vec::new(),
             scan_limit: None,
@@ -63,6 +79,7 @@ pub fn build_with_indexes(plan: LogicalPlan, indexes: Vec<IndexMeta>) -> Physica
     let top_k_limit = top_k_limit(&plan);
     let top_k = top_k_limit.is_some();
     let join_strategy = join_strategy(&plan);
+    let estimates = PlanEstimates::from_plan(&plan, selected_index.as_deref(), cardinality_stats);
     let mut operators = vec![Operator::Scan];
     if source_contains_join(&plan.source) {
         operators.push(Operator::Join);
@@ -101,6 +118,7 @@ pub fn build_with_indexes(plan: LogicalPlan, indexes: Vec<IndexMeta>) -> Physica
         collection: plan.collection.clone(),
         operators,
         logical: plan,
+        estimates,
         predicate_pushdown,
         projected_scan_fields,
         scan_limit,
@@ -108,6 +126,134 @@ pub fn build_with_indexes(plan: LogicalPlan, indexes: Vec<IndexMeta>) -> Physica
         top_k,
         top_k_limit,
         join_strategy,
+    }
+}
+
+impl PlanEstimates {
+    const DEFAULT_ROWS: u64 = 1_000;
+
+    fn from_plan(
+        plan: &LogicalPlan,
+        selected_index: Option<&str>,
+        cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+    ) -> Self {
+        let scan_rows = estimated_source_rows(&plan.source, cardinality_stats);
+        let index_rows = selected_index
+            .and_then(|name| {
+                collection_stats(&plan.collection, cardinality_stats).and_then(|stats| {
+                    stats
+                        .index_cardinality(&CollectionCardinalityStats::scalar_index_key(name))
+                        .or_else(|| {
+                            stats.index_cardinality(
+                                &CollectionCardinalityStats::fulltext_index_key(name),
+                            )
+                        })
+                        .or_else(|| {
+                            stats.index_cardinality(&CollectionCardinalityStats::vector_index_key(
+                                name,
+                            ))
+                        })
+                        .or_else(|| {
+                            stats.index_cardinality(&CollectionCardinalityStats::hybrid_index_key(
+                                name,
+                            ))
+                        })
+                })
+            })
+            .unwrap_or(scan_rows);
+        let join_rows = join_rows(&plan.source, cardinality_stats);
+        let search_rows = if plan_uses_fulltext(plan) {
+            scan_rows.saturating_div(2).max(1)
+        } else {
+            0
+        };
+        let vector_rows = if plan_uses_vector(plan) {
+            scan_rows.saturating_div(2).max(1)
+        } else {
+            0
+        };
+        let aggregate_rows = if plan_uses_aggregate(plan) {
+            if plan.group_by.is_empty() {
+                1
+            } else {
+                scan_rows.saturating_div(2).max(1)
+            }
+        } else {
+            0
+        };
+
+        Self {
+            scan_rows,
+            index_rows,
+            join_rows,
+            search_rows,
+            vector_rows,
+            aggregate_rows,
+        }
+    }
+}
+
+fn collection_stats<'a>(
+    collection: &str,
+    cardinality_stats: &'a std::collections::HashMap<String, CollectionCardinalityStats>,
+) -> Option<&'a CollectionCardinalityStats> {
+    cardinality_stats
+        .get(collection)
+        .filter(|stats| stats.hydrated)
+}
+
+fn estimated_source_rows(
+    source: &QuerySource,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+) -> u64 {
+    match source {
+        QuerySource::Collection(collection) => collection_stats(collection, cardinality_stats)
+            .map(|stats| stats.row_count)
+            .unwrap_or(PlanEstimates::DEFAULT_ROWS),
+        QuerySource::Join {
+            left,
+            right,
+            kind,
+            on,
+        } => {
+            let left_rows = estimated_source_rows(left, cardinality_stats);
+            let right_rows = estimated_source_rows(right, cardinality_stats);
+            match kind {
+                JoinKind::Inner if is_equi_join_predicate(on) => left_rows.min(right_rows),
+                JoinKind::Cross => left_rows.saturating_mul(right_rows),
+                _ => left_rows.saturating_add(right_rows),
+            }
+        }
+        QuerySource::Subquery { select, .. } => select
+            .limit
+            .and_then(|limit| usize::try_from(limit.max(0)).ok())
+            .map(|limit| limit as u64)
+            .unwrap_or(PlanEstimates::DEFAULT_ROWS),
+        QuerySource::Cte(_) => PlanEstimates::DEFAULT_ROWS,
+        QuerySource::SingleRow => 1,
+    }
+}
+
+fn join_rows(
+    source: &QuerySource,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+) -> u64 {
+    match source {
+        QuerySource::Join {
+            left,
+            right,
+            kind,
+            on,
+        } => {
+            let left_rows = estimated_source_rows(left, cardinality_stats);
+            let right_rows = estimated_source_rows(right, cardinality_stats);
+            match kind {
+                JoinKind::Inner if is_equi_join_predicate(on) => left_rows.min(right_rows),
+                JoinKind::Cross => left_rows.saturating_mul(right_rows),
+                _ => left_rows.saturating_add(right_rows),
+            }
+        }
+        _ => 0,
     }
 }
 

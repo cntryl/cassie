@@ -1232,6 +1232,79 @@ fn should_project_search_function_as_boolean_match() {
 }
 
 #[test]
+fn should_project_search_score_as_numeric_relevance() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("search_score_projection");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_search_score_projection";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"body": "alpha alpha beta"}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"body": "gamma delta"}),
+            )
+            .unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM sql_search_score_projection ORDER BY id",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0][0], Value::String("d1".to_string()));
+        assert!(matches!(result.rows[0][1], Value::Float64(score) if score > 0.0));
+        assert_eq!(result.rows[1][0], Value::String("d2".to_string()));
+        assert_eq!(result.rows[1][1], Value::Float64(0.0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_fall_back_for_unordered_fulltext_mismatched_search_query_without_changing_results() {
     // Arrange
     with_fallback();

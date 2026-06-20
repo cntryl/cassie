@@ -1650,6 +1650,16 @@ async fn vector_index_metadata(
             )));
         }
     };
+    if cassie.embedding_provider.dimensions() != dimensions {
+        return Err(QueryError::General(format!(
+            "embedding dimension mismatch: field '{}' has {}, active provider '{}' model '{}' has {}",
+            vector_field.name,
+            dimensions,
+            cassie.embedding_provider.provider_name(),
+            cassie.embedding_provider.model_name(),
+            cassie.embedding_provider.dimensions()
+        )));
+    }
 
     let source_field = statement
         .options

@@ -3682,6 +3682,49 @@ fn should_round_trip_insert_values_vector_field() {
 }
 
 #[test]
+fn should_reject_vector_index_when_embedding_dimensions_mismatch() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("vector_index_embedding_dimension_mismatch");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE vector_index_embedding_dimension_mismatch (content TEXT, embedding VECTOR(3))",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let created = cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX vector_index_embedding_dimension_mismatch_idx ON vector_index_embedding_dimension_mismatch USING vector (embedding) WITH (source_field = content)",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(created.is_err());
+        assert!(created
+            .unwrap_err()
+            .to_string()
+            .contains("embedding dimension mismatch"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_reject_insert_values_when_vector_dimensions_mismatch() {
     // Arrange
     with_fallback();

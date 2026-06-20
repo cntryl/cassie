@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 071: Anti Joins](issue-071.md) - V2 - Query Performance / Joins
 - [Issue 072: Posting-List Optimizations](issue-072.md) - V2 - Query Performance / Search
 - [Issue 073: Precomputed Scoring Metadata](issue-073.md) - V2 - Query Performance / Search
 - [Issue 074: Top-K Search Execution](issue-074.md) - V2 - Query Performance / Search
@@ -19,7 +18,6 @@ Track one issue for every concept in `docs/milestones.md`.
 - [Issue 076: Normalized Vector Storage](issue-076.md) - V2 - Query Performance / Vector
 - [Issue 077: Metadata Prefilters](issue-077.md) - V2 - Query Performance / Vector
 - [Issue 078: Function Cache](issue-078.md) - V2 - Query Performance / Caching
-- [Issue 079: Execution Cache](issue-079.md) - V2 - Query Performance / Caching
 - [Issue 080: Runtime Statistics](issue-080.md) - V2 - Query Performance / Caching
 - [Issue 081: Cardinality Tracking](issue-081.md) - V2 - Query Performance / Adaptive
 - [Issue 082: Runtime Feedback](issue-082.md) - V2 - Query Performance / Adaptive
@@ -96,7 +94,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Status
 
-- [Issue 071: Anti Joins](issue-071.md) — **Completed**
 - [Issue 089: Recursive CTEs](issue-089.md) — **Completed**
 - [Issue 090: INTERSECT](issue-090.md) — **Completed**
 - [Issue 091: EXCEPT](issue-091.md) — **Completed**

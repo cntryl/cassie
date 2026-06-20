@@ -254,6 +254,175 @@ fn should_reuse_cached_plan_for_equivalent_sql_with_different_whitespace() {
 }
 
 #[test]
+fn should_reuse_cached_execution_result_without_additional_storage_reads() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("execution_result_cache_hit");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "execution_cache_docs";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .catalog
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .unwrap();
+
+        let session = cassie.create_session("alice", None);
+        let before = cassie.metrics().await;
+        let before_reads = before["storage"]["data"]["reads"]
+            .as_u64()
+            .unwrap_or_default();
+
+        // Act
+        let first = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM execution_cache_docs WHERE title = 'alpha'",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let middle = cassie.metrics().await;
+        let middle_reads = middle["storage"]["data"]["reads"]
+            .as_u64()
+            .unwrap_or_default();
+        let second = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM execution_cache_docs WHERE title = 'alpha'",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let after = cassie.metrics().await;
+        let after_reads = after["storage"]["data"]["reads"]
+            .as_u64()
+            .unwrap_or_default();
+
+        // Assert
+        assert_eq!(first.rows, second.rows);
+        assert_eq!(first.rows.len(), 1);
+        assert!(middle_reads > before_reads);
+        assert_eq!(after_reads, middle_reads);
+        assert_eq!(after["query"]["count"].as_u64(), Some(2));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_invalidate_cached_execution_result_after_write() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("execution_result_cache_invalidation");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "execution_cache_invalidation_docs";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .catalog
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .unwrap();
+
+        let session = cassie.create_session("alice", None);
+
+        // Act
+        let first = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM execution_cache_invalidation_docs WHERE title = 'alpha'",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO execution_cache_invalidation_docs (title) VALUES ('alpha')",
+                vec![],
+            )
+            .await
+            .unwrap();
+        let second = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM execution_cache_invalidation_docs WHERE title = 'alpha'",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(first.rows.len(), 1);
+        assert_eq!(second.rows.len(), 2);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_isolate_cached_plans_by_database() {
     // Arrange
     with_fallback();

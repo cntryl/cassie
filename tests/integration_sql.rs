@@ -603,6 +603,163 @@ fn should_fall_back_for_function_projection_query_without_changing_results() {
 }
 
 #[test]
+fn should_execute_text_scalar_functions_query() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("scalar_text_functions");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE scalar_text_functions (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO scalar_text_functions (title) VALUES ('  Alpha  ')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT lower(title) AS lowered, upper(title) AS raised, length(title) AS chars, substring(title, 3, 5) AS slice, trim(title) AS trimmed, concat(trim(title), '-done') AS combined FROM scalar_text_functions",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![vec![
+                Value::String("  alpha  ".to_string()),
+                Value::String("  ALPHA  ".to_string()),
+                Value::Int64(9),
+                Value::String("Alpha".to_string()),
+                Value::String("Alpha".to_string()),
+                Value::String("Alpha-done".to_string())
+            ]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_execute_coalesce_scalar_function_query() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("scalar_coalesce_function");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE scalar_coalesce_function (title TEXT, fallback TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO scalar_coalesce_function (title, fallback) VALUES (NULL, 'backup')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT coalesce(title, fallback, 'missing') AS value FROM scalar_coalesce_function",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![vec![Value::String("backup".to_string())]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_execute_numeric_scalar_function_query() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("scalar_numeric_function");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE scalar_numeric_function (delta INT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO scalar_numeric_function (delta) VALUES (-42)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT abs(delta) AS magnitude FROM scalar_numeric_function",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(selected.rows, vec![vec![Value::Int64(42)]]);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_fall_back_for_wildcard_projection_query_without_changing_results() {
     // Arrange
     with_fallback();

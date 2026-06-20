@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 023: Scalar Functions](issue-023.md) - V1 - Projection Query Engine / SQL
 - [Issue 024: Casts](issue-024.md) - V1 - Projection Query Engine / SQL
 - [Issue 025: INSERT](issue-025.md) - V1 - Projection Query Engine / DML
 - [Issue 026: UPDATE](issue-026.md) - V1 - Projection Query Engine / DML

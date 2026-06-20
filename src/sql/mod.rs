@@ -78,6 +78,9 @@ fn parameter_count_select(statement: &ast::SelectStatement) -> usize {
     if let Some(filter) = &statement.filter {
         count = count.max(parameter_count_expr(filter));
     }
+    for expr in &statement.distinct_on {
+        count = count.max(parameter_count_expr(expr));
+    }
     for expr in &statement.group_by {
         count = count.max(parameter_count_expr(expr));
     }
@@ -120,6 +123,19 @@ fn parameter_count_select_item(item: &ast::SelectItem) -> usize {
     match item {
         ast::SelectItem::Wildcard | ast::SelectItem::Column { .. } => 0,
         ast::SelectItem::Function { function, .. } => parameter_count_function(function),
+        ast::SelectItem::WindowFunction { function, .. } => function
+            .args
+            .iter()
+            .map(parameter_count_expr)
+            .chain(function.partition_by.iter().map(parameter_count_expr))
+            .chain(
+                function
+                    .order_by
+                    .iter()
+                    .map(|order| parameter_count_expr(&order.expr)),
+            )
+            .max()
+            .unwrap_or(0),
     }
 }
 
@@ -195,6 +211,7 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
         } => parameter_count_expr(expr)
             .max(parameter_count_expr(low))
             .max(parameter_count_expr(high)),
+        ast::Expr::Not { expr } => parameter_count_expr(expr),
         ast::Expr::Cast { expr, .. } => parameter_count_expr(expr),
         ast::Expr::Exists(statement) => parameter_count_query(&statement.statement),
         ast::Expr::Function(function) => parameter_count_function(function),

@@ -1,6 +1,6 @@
 use crate::planner::logical::LogicalPlan;
-use serde::{Deserialize, Serialize};
 use crate::sql::ast::{QuerySource, SelectItem};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Operator {
@@ -44,7 +44,7 @@ pub fn build(plan: LogicalPlan) -> PhysicalPlan {
     if plan_uses_aggregate(&plan) {
         operators.push(Operator::Aggregate);
     }
-    if plan.distinct {
+    if plan.distinct || !plan.distinct_on.is_empty() {
         operators.push(Operator::Distinct);
     }
     if plan.set.is_some() {
@@ -84,6 +84,8 @@ fn plan_uses_aggregate(plan: &LogicalPlan) -> bool {
             SelectItem::Function { function, .. } => {
                 crate::sql::functions::is_aggregate_function(&function.name)
             }
-            SelectItem::Wildcard | SelectItem::Column { .. } => false,
+            SelectItem::Wildcard
+            | SelectItem::Column { .. }
+            | SelectItem::WindowFunction { .. } => false,
         })
 }

@@ -43,8 +43,7 @@ pub async fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> 
 
     cassie
         .midge
-        .create_collection(&request.name, schema.clone())
-        ?;
+        .create_collection(&request.name, schema.clone())?;
 
     cassie
         .catalog

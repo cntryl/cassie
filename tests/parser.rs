@@ -728,15 +728,70 @@ fn should_parse_transaction_control_statements() {
 }
 
 #[test]
-fn should_reject_unsupported_transaction_control() {
+fn should_parse_savepoint_transaction_control_statement() {
     // Arrange
     let sql = "SAVEPOINT sp";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    assert!(matches!(
+        parsed.statement,
+        QueryStatement::Transaction(cassie::sql::ast::TransactionStatement {
+            action: cassie::sql::ast::TransactionAction::Savepoint { .. },
+            ..
+        })
+    ));
+}
+
+#[test]
+fn should_parse_rollback_to_savepoint_transaction_control_statement() {
+    // Arrange
+    let sql = "ROLLBACK TO SAVEPOINT sp";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    assert!(matches!(
+        parsed.statement,
+        QueryStatement::Transaction(cassie::sql::ast::TransactionStatement {
+            action: cassie::sql::ast::TransactionAction::RollbackTo { .. },
+            ..
+        })
+    ));
+}
+
+#[test]
+fn should_parse_release_savepoint_transaction_control_statement() {
+    // Arrange
+    let sql = "RELEASE SAVEPOINT sp";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    assert!(matches!(
+        parsed.statement,
+        QueryStatement::Transaction(cassie::sql::ast::TransactionStatement {
+            action: cassie::sql::ast::TransactionAction::Release { .. },
+            ..
+        })
+    ));
+}
+
+#[test]
+fn should_reject_savepoint_without_name() {
+    // Arrange
+    let sql = "SAVEPOINT";
 
     // Act
     let parsed = parse_statement(sql);
 
     // Assert
     assert!(parsed.is_err());
+    assert!(parsed.unwrap_err().0.contains("SAVEPOINT requires a name"));
 }
 
 #[test]
@@ -889,6 +944,37 @@ fn should_parse_exists_predicate() {
 }
 
 #[test]
+fn should_parse_not_exists_predicate() {
+    // Arrange
+    let sql = "SELECT title FROM docs WHERE NOT EXISTS (SELECT title FROM archived_docs)";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.filter,
+        Some(Expr::Not { ref expr }) if matches!(expr.as_ref(), Expr::Exists(_))
+    ));
+}
+
+#[test]
+fn should_reject_not_without_expression() {
+    // Arrange
+    let sql = "SELECT title FROM docs WHERE NOT";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+    assert!(parsed.unwrap_err().0.contains("NOT requires an expression"));
+}
+
+#[test]
 fn should_reject_empty_in_list_predicate() {
     // Arrange
     let sql = "SELECT title FROM docs WHERE title IN ()";
@@ -936,6 +1022,95 @@ fn should_parse_inner_join_source() {
 }
 
 #[test]
+fn should_parse_right_join_source() {
+    // Arrange
+    let sql = "SELECT users.name FROM users RIGHT JOIN orders ON users.id = orders.user_id";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.source,
+        QuerySource::Join {
+            kind: JoinKind::Right,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn should_parse_full_outer_join_source() {
+    // Arrange
+    let sql = "SELECT users.name FROM users FULL JOIN orders ON users.key = orders.user_key";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.source,
+        QuerySource::Join {
+            kind: JoinKind::Full,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn should_parse_cross_join_source() {
+    // Arrange
+    let sql = "SELECT users.name FROM users CROSS JOIN orders";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.source,
+        QuerySource::Join {
+            kind: JoinKind::Cross,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn should_reject_right_join_without_on_predicate() {
+    // Arrange
+    let sql = "SELECT users.name FROM users RIGHT JOIN orders";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+    assert!(parsed.unwrap_err().0.contains("JOIN requires ON"));
+}
+
+#[test]
+fn should_reject_cross_join_with_on_predicate() {
+    // Arrange
+    let sql = "SELECT users.name FROM users CROSS JOIN orders ON users.id = orders.user_id";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
+    assert!(parsed.unwrap_err().0.contains("unsupported FROM syntax"));
+}
+
+#[test]
 fn should_parse_from_subquery_source() {
     // Arrange
     let sql = "SELECT recent.title FROM (SELECT title FROM docs) AS recent";
@@ -954,29 +1129,59 @@ fn should_parse_from_subquery_source() {
 }
 
 #[test]
-fn should_reject_unsupported_full_join_source() {
-    // Arrange
-    let sql = "SELECT users.name FROM users FULL JOIN orders ON users.key = orders.user_key";
-
-    // Act
-    let parsed = parse_statement(sql);
-
-    // Assert
-    assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().0.contains("unsupported JOIN"));
-}
-
-#[test]
-fn should_reject_unsupported_lateral_source() {
+fn should_parse_lateral_join_source() {
     // Arrange
     let sql = "SELECT users.name FROM users JOIN LATERAL (SELECT user_key FROM orders) AS recent ON users.key = recent.user_key";
 
     // Act
-    let parsed = parse_statement(sql);
+    let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().0.contains("unsupported JOIN"));
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.source,
+        QuerySource::Join { ref right, .. } if matches!(right.as_ref(), QuerySource::Subquery { ref alias, lateral: true, .. } if alias == "recent")
+    ));
+}
+
+#[test]
+fn should_parse_cross_apply_join_source() {
+    // Arrange
+    let sql = "SELECT users.name FROM users CROSS APPLY (SELECT total FROM orders) AS recent";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.source,
+        QuerySource::Join { kind: JoinKind::Cross, ref right, .. }
+            if matches!(right.as_ref(), QuerySource::Subquery { lateral: true, .. })
+    ));
+}
+
+#[test]
+fn should_parse_outer_apply_join_source() {
+    // Arrange
+    let sql = "SELECT users.name FROM users OUTER APPLY (SELECT total FROM orders) AS recent";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.source,
+        QuerySource::Join { kind: JoinKind::Left, ref right, .. }
+            if matches!(right.as_ref(), QuerySource::Subquery { lateral: true, .. })
+    ));
 }
 
 #[test]
@@ -992,6 +1197,24 @@ fn should_parse_distinct_select() {
         panic!("expected select statement");
     };
     assert!(statement.distinct);
+}
+
+#[test]
+fn should_parse_distinct_on_select() {
+    // Arrange
+    let sql =
+        "SELECT DISTINCT ON (tenant_id) tenant_id, title FROM docs ORDER BY tenant_id, score DESC";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(!statement.distinct);
+    assert_eq!(statement.distinct_on.len(), 1);
+    assert!(matches!(&statement.distinct_on[0], Expr::Column(name) if name == "tenant_id"));
 }
 
 #[test]
@@ -1027,29 +1250,108 @@ fn should_parse_union_all_select() {
 }
 
 #[test]
-fn should_reject_unsupported_intersect_query() {
+fn should_parse_intersect_select() {
     // Arrange
     let sql = "SELECT title FROM left_docs INTERSECT SELECT title FROM right_docs";
 
     // Act
-    let parsed = parse_statement(sql);
+    let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().0.contains("unsupported set operation"));
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    let set = statement.set.expect("set clause should exist");
+    assert!(matches!(set.operator, SetOperator::Intersect));
 }
 
 #[test]
-fn should_reject_unsupported_window_function_query() {
+fn should_parse_except_select() {
     // Arrange
-    let sql = "SELECT COUNT(*) OVER () FROM docs";
+    let sql = "SELECT title FROM left_docs EXCEPT SELECT title FROM right_docs";
 
     // Act
-    let parsed = parse_statement(sql);
+    let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().0.contains("window function"));
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    let set = statement.set.expect("set clause should exist");
+    assert!(matches!(set.operator, SetOperator::Except));
+}
+
+#[test]
+fn should_parse_global_order_limit_after_set_operation() {
+    // Arrange
+    let sql = "SELECT title FROM left_docs UNION ALL SELECT title FROM right_docs ORDER BY title LIMIT 1 OFFSET 1";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    let set = statement.set.expect("set clause should exist");
+    assert!(matches!(set.operator, SetOperator::UnionAll));
+    assert!(set.right.order.is_empty());
+    assert_eq!(statement.order.len(), 1);
+    assert_eq!(statement.limit, Some(1));
+    assert_eq!(statement.offset, Some(1));
+}
+
+#[test]
+fn should_parse_chained_set_operation() {
+    // Arrange
+    let sql = "SELECT title FROM first_docs UNION ALL SELECT title FROM second_docs UNION ALL SELECT title FROM third_docs";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    let set = statement.set.expect("set operation expected");
+    assert!(set.right.set.is_some());
+}
+
+#[test]
+fn should_parse_row_number_window_function_query() {
+    // Arrange
+    let sql =
+        "SELECT row_number() OVER (PARTITION BY category ORDER BY score DESC) AS rank FROM docs";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.projection.as_slice(),
+        [SelectItem::WindowFunction { alias: Some(alias), .. }] if alias == "rank"
+    ));
+}
+
+#[test]
+fn should_parse_value_window_function_query() {
+    // Arrange
+    let sql = "SELECT lag(title) OVER (PARTITION BY category ORDER BY score DESC) AS previous_title FROM docs";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(
+        statement.projection.as_slice(),
+        [SelectItem::WindowFunction { alias: Some(alias), .. }] if alias == "previous_title"
+    ));
 }
 
 #[test]
@@ -1703,7 +2005,8 @@ fn should_reject_reserved_namespace_on_alter_schema() {
     .unwrap();
 
     // Act
-    let parsed = parse_statement("ALTER SCHEMA public RENAME TO archive").expect("parse should succeed");
+    let parsed =
+        parse_statement("ALTER SCHEMA public RENAME TO archive").expect("parse should succeed");
 
     // Assert
     let runtime = tokio::runtime::Builder::new_current_thread()

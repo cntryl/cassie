@@ -31,6 +31,8 @@ pub(crate) struct RowSchema {
 pub(crate) struct RowFieldMeta {
     pub field_id: u32,
     pub name: String,
+    #[serde(default)]
+    pub normalized_name: String,
     pub data_type: DataType,
     pub nullable: bool,
     pub retired: bool,
@@ -38,18 +40,20 @@ pub(crate) struct RowFieldMeta {
 
 impl RowSchema {
     pub(crate) fn from_schema(schema: &Schema) -> Self {
-        let fields = schema
+        let mut fields = schema
             .fields
             .iter()
             .enumerate()
             .map(|(index, field)| RowFieldMeta {
                 field_id: (index + 1) as u32,
                 name: field.name.clone(),
+                normalized_name: field.name.to_ascii_lowercase(),
                 data_type: field.data_type.clone(),
                 nullable: field.nullable,
                 retired: false,
             })
             .collect::<Vec<_>>();
+        hydrate_normalized_names(fields.as_mut_slice());
 
         Self {
             schema_version: 1,
@@ -85,9 +89,11 @@ impl RowSchema {
             )));
         }
 
+        let normalized_name = field.name.to_ascii_lowercase();
         self.fields.push(RowFieldMeta {
             field_id: self.next_field_id,
             name: field.name,
+            normalized_name,
             data_type: field.data_type,
             nullable: field.nullable,
             retired: false,
@@ -119,6 +125,7 @@ impl RowSchema {
         };
 
         field.name = next.to_string();
+        field.normalized_name = next.to_ascii_lowercase();
         self.schema_version += 1;
         Ok(())
     }
@@ -138,23 +145,29 @@ impl RowSchema {
     }
 
     fn active_fields_by_id(&self) -> Vec<&RowFieldMeta> {
-        let mut fields = self
-            .fields
-            .iter()
-            .filter(|field| !field.retired)
-            .collect::<Vec<_>>();
-        fields.sort_by_key(|field| field.field_id);
-        fields
+        self.fields.iter().filter(|field| !field.retired).collect()
     }
 
     fn field_by_id(&self, field_id: u32) -> Option<&RowFieldMeta> {
-        self.fields.iter().find(|field| field.field_id == field_id)
+        let index = usize::try_from(field_id.checked_sub(1)?).ok()?;
+        self.fields
+            .get(index)
+            .filter(|field| field.field_id == field_id)
     }
 
     fn active_field_by_name(&self, name: &str) -> Option<&RowFieldMeta> {
+        let normalized = name.to_ascii_lowercase();
         self.fields
             .iter()
-            .find(|field| !field.retired && field.name.eq_ignore_ascii_case(name))
+            .find(|field| !field.retired && field.normalized_name == normalized)
+    }
+}
+
+fn hydrate_normalized_names(fields: &mut [RowFieldMeta]) {
+    for field in fields {
+        if field.normalized_name.is_empty() {
+            field.normalized_name = field.name.to_ascii_lowercase();
+        }
     }
 }
 
@@ -231,6 +244,67 @@ pub(crate) fn decode_projected_row(
     decode_row_with_projection(schema, row, Some(projection))
 }
 
+pub(crate) fn decode_projected_row_matching(
+    schema: &RowSchema,
+    row: &[u8],
+    projection: &HashSet<String>,
+    filter_field: &str,
+    filter_value: &serde_json::Value,
+) -> Result<Option<serde_json::Value>, CassieError> {
+    if row.first() == Some(&b'{') {
+        let payload: serde_json::Value = serde_json::from_slice(row).map_err(|error| {
+            CassieError::Parse(format!("invalid legacy JSON document: {error}"))
+        })?;
+        if !json_object_matches_filter(schema, &payload, filter_field, filter_value)? {
+            return Ok(None);
+        }
+        return filter_json_object(schema, payload, Some(projection)).map(Some);
+    }
+
+    let mut cursor = Cursor::new(row);
+    cursor.expect_bytes(MAGIC)?;
+    let version = cursor.read_u8()?;
+    if version != FORMAT_VERSION {
+        return Err(CassieError::Parse(format!(
+            "unsupported row blob format version {version}"
+        )));
+    }
+
+    let _schema_version = cursor.read_u32()?;
+    let _flags = cursor.read_u8()?;
+    let field_count = cursor.read_varint()?;
+    let filter_field = filter_field.to_ascii_lowercase();
+    let mut object = serde_json::Map::new();
+    let mut matched_filter = false;
+    let mut saw_filter = false;
+
+    for _ in 0..field_count {
+        let field_id = cursor.read_varint()? as u32;
+        let type_tag = cursor.read_u8()?;
+        let Some(field) = schema.field_by_id(field_id) else {
+            skip_value(type_tag, &mut cursor)?;
+            continue;
+        };
+
+        let include_field = should_include_field(field, Some(projection));
+        let is_filter_field = !field.retired && field.normalized_name == filter_field;
+        if include_field || is_filter_field {
+            let value = decode_value(type_tag, &mut cursor)?;
+            if is_filter_field {
+                saw_filter = true;
+                matched_filter = value_matches_filter(&value, filter_value);
+            }
+            if include_field {
+                object.insert(field.name.clone(), value);
+            }
+        } else {
+            skip_value(type_tag, &mut cursor)?;
+        }
+    }
+
+    Ok((saw_filter && matched_filter).then_some(serde_json::Value::Object(object)))
+}
+
 fn decode_row_with_projection(
     schema: &RowSchema,
     row: &[u8],
@@ -260,13 +334,15 @@ fn decode_row_with_projection(
     for _ in 0..field_count {
         let field_id = cursor.read_varint()? as u32;
         let type_tag = cursor.read_u8()?;
-        let value = decode_value(type_tag, &mut cursor)?;
-
         let Some(field) = schema.field_by_id(field_id) else {
+            skip_value(type_tag, &mut cursor)?;
             continue;
         };
         if should_include_field(field, projection) {
+            let value = decode_value(type_tag, &mut cursor)?;
             object.insert(field.name.clone(), value);
+        } else {
+            skip_value(type_tag, &mut cursor)?;
         }
     }
 
@@ -305,12 +381,68 @@ fn filter_json_object(
     Ok(serde_json::Value::Object(out))
 }
 
+fn json_object_matches_filter(
+    schema: &RowSchema,
+    payload: &serde_json::Value,
+    filter_field: &str,
+    filter_value: &serde_json::Value,
+) -> Result<bool, CassieError> {
+    let object = payload
+        .as_object()
+        .ok_or_else(|| CassieError::InvalidVector("document must be object".to_string()))?;
+    let Some(field) = schema.active_field_by_name(filter_field) else {
+        return Ok(false);
+    };
+    Ok(object
+        .get(&field.name)
+        .is_some_and(|value| value_matches_filter(value, filter_value)))
+}
+
+fn value_matches_filter(value: &serde_json::Value, filter_value: &serde_json::Value) -> bool {
+    value == filter_value
+}
+
 fn should_include_field(field: &RowFieldMeta, projection: Option<&HashSet<String>>) -> bool {
     if field.retired {
         return false;
     }
 
-    projection.is_none_or(|projection| projection.contains(&field.name.to_ascii_lowercase()))
+    projection.is_none_or(|projection| projection.contains(&field.normalized_name))
+}
+
+fn skip_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<(), CassieError> {
+    match type_tag {
+        TYPE_NULL => Ok(()),
+        TYPE_BOOL => cursor.skip_exact(1),
+        TYPE_I64 | TYPE_F64 => cursor.skip_exact(8),
+        TYPE_UUID => cursor.skip_exact(16),
+        TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME | TYPE_TIMESTAMP
+        | TYPE_BYTEA => cursor.skip_len_prefixed(),
+        TYPE_ARRAY => {
+            let count = cursor.read_varint()? as usize;
+            for _ in 0..count {
+                let value_type = cursor.read_u8()?;
+                skip_array_value(value_type, cursor)?;
+            }
+            Ok(())
+        }
+        _ => Err(CassieError::Parse(format!(
+            "unsupported row blob type tag {type_tag}"
+        ))),
+    }
+}
+
+fn skip_array_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<(), CassieError> {
+    match type_tag {
+        TYPE_BOOL => cursor.skip_exact(1),
+        TYPE_I64 | TYPE_F64 => cursor.skip_exact(8),
+        TYPE_UUID => cursor.skip_exact(16),
+        TYPE_NULL | TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME
+        | TYPE_TIMESTAMP | TYPE_ARRAY | TYPE_BYTEA => cursor.skip_len_prefixed(),
+        _ => Err(CassieError::Parse(format!(
+            "unsupported row blob array type tag {type_tag}"
+        ))),
+    }
 }
 
 fn encode_value(
@@ -704,6 +836,15 @@ impl<'a> Cursor<'a> {
         Ok(self.read_exact(len)?.to_vec())
     }
 
+    fn skip_len_prefixed(&mut self) -> Result<(), CassieError> {
+        let len = self.read_varint()? as usize;
+        self.skip_exact(len)
+    }
+
+    fn skip_exact(&mut self, len: usize) -> Result<(), CassieError> {
+        self.read_exact(len).map(|_| ())
+    }
+
     fn read_exact(&mut self, len: usize) -> Result<&'a [u8], CassieError> {
         let end = self
             .offset
@@ -871,6 +1012,122 @@ mod tests {
         assert!(schema.fields[0].retired);
         assert_eq!(schema.fields[1].field_id, 2);
         assert!(!schema.fields[1].retired);
+    }
+
+    #[test]
+    fn should_decode_projected_row_with_case_insensitive_field_names() {
+        // Arrange
+        let schema = RowSchema::from_schema(&Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "Title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "Score".to_string(),
+                    data_type: DataType::Int,
+                    nullable: true,
+                },
+            ],
+        });
+        let projection = ["title".to_string()].into_iter().collect::<HashSet<_>>();
+        let encoded = encode_row(
+            &schema,
+            &serde_json::json!({
+                "Title": "alpha",
+                "Score": 42
+            }),
+        )
+        .unwrap();
+
+        // Act
+        let decoded = decode_projected_row(&schema, &encoded, &projection).unwrap();
+
+        // Assert
+        assert_eq!(decoded, serde_json::json!({"Title": "alpha"}));
+    }
+
+    #[test]
+    fn should_decode_projected_row_when_filter_matches() {
+        // Arrange
+        let schema = RowSchema::from_schema(&Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        });
+        let projection = ["title".to_string()].into_iter().collect::<HashSet<_>>();
+        let encoded = encode_row(
+            &schema,
+            &serde_json::json!({
+                "title": "alpha",
+                "body": "large payload"
+            }),
+        )
+        .unwrap();
+
+        // Act
+        let decoded = decode_projected_row_matching(
+            &schema,
+            &encoded,
+            &projection,
+            "title",
+            &serde_json::json!("alpha"),
+        )
+        .unwrap();
+
+        // Assert
+        assert_eq!(decoded, Some(serde_json::json!({"title": "alpha"})));
+    }
+
+    #[test]
+    fn should_skip_projected_row_when_filter_does_not_match() {
+        // Arrange
+        let schema = RowSchema::from_schema(&Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        });
+        let projection = ["title".to_string()].into_iter().collect::<HashSet<_>>();
+        let encoded = encode_row(
+            &schema,
+            &serde_json::json!({
+                "title": "beta",
+                "body": "large payload"
+            }),
+        )
+        .unwrap();
+
+        // Act
+        let decoded = decode_projected_row_matching(
+            &schema,
+            &encoded,
+            &projection,
+            "title",
+            &serde_json::json!("alpha"),
+        )
+        .unwrap();
+
+        // Assert
+        assert_eq!(decoded, None);
     }
 
     #[test]

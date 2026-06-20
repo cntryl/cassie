@@ -37,6 +37,16 @@ pub(crate) struct SearchTermStats {
     term_counts: HashMap<String, usize>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct SingleFieldSearchContext {
+    total_documents: usize,
+    doc_frequency: HashMap<String, usize>,
+    avg_doc_length: f64,
+    boost: f64,
+    k1: f64,
+    b: f64,
+}
+
 impl SearchTermStats {
     pub(crate) fn from_text(source: Option<&str>) -> Self {
         let Some(source) = source else {
@@ -48,6 +58,89 @@ impl SearchTermStats {
             doc_length: tokens.len(),
             term_counts: token_counts(tokens.as_slice()),
         }
+    }
+}
+
+impl SingleFieldSearchContext {
+    pub(crate) fn from_term_stats<'a, I>(
+        field: &str,
+        documents: I,
+        field_boost: &HashMap<String, f64>,
+        field_k1: &HashMap<String, f64>,
+        field_b: &HashMap<String, f64>,
+    ) -> Self
+    where
+        I: IntoIterator<Item = &'a SearchTermStats>,
+    {
+        let field = field.to_ascii_lowercase();
+        let mut context = Self {
+            boost: field_boost.get(&field).copied().unwrap_or(1.0),
+            k1: field_k1
+                .get(&field)
+                .copied()
+                .unwrap_or(crate::search::bm25::DEFAULT_BM25_K1),
+            b: field_b
+                .get(&field)
+                .copied()
+                .unwrap_or(crate::search::bm25::DEFAULT_BM25_B),
+            ..Default::default()
+        };
+        let mut docs_with_field = 0usize;
+        let mut length_sum = 0usize;
+
+        for stats in documents {
+            context.total_documents += 1;
+            if !stats.has_text {
+                continue;
+            }
+
+            docs_with_field += 1;
+            length_sum += stats.doc_length;
+            for term in stats.term_counts.keys() {
+                context
+                    .doc_frequency
+                    .entry(term.clone())
+                    .and_modify(|count| *count += 1)
+                    .or_insert(1);
+            }
+        }
+
+        if docs_with_field > 0 {
+            context.avg_doc_length = length_sum as f64 / docs_with_field as f64;
+        }
+
+        context
+    }
+
+    pub(crate) fn score_term_stats(
+        &self,
+        source_stats: &SearchTermStats,
+        query_terms: &[String],
+    ) -> f64 {
+        if query_terms.is_empty() || !source_stats.has_text || source_stats.doc_length == 0 {
+            return 0.0;
+        }
+
+        let dl = source_stats.doc_length as f64;
+        let docs = self.total_documents.max(1) as f64;
+        let avg_dl = if self.avg_doc_length > 0.0 {
+            self.avg_doc_length
+        } else {
+            dl
+        };
+
+        let mut score = 0.0;
+        for term in query_terms {
+            let tf = source_stats.term_counts.get(term).copied().unwrap_or(0) as f64;
+            if tf == 0.0 {
+                continue;
+            }
+
+            let df = self.doc_frequency.get(term).copied().unwrap_or(0) as f64;
+            score += crate::search::bm25_score(tf, df, docs, self.k1, self.b, dl, avg_dl);
+        }
+
+        score * self.boost
     }
 }
 
@@ -122,6 +215,7 @@ impl SearchContext {
         self.total_documents
     }
 
+    #[allow(dead_code)]
     pub(crate) fn from_term_stats<'a, I>(
         field: &str,
         documents: I,
@@ -546,6 +640,18 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
             } else {
                 in_range
             }))
+        }
+        Expr::Not { expr } => {
+            let value = eval_scalar(
+                row,
+                expr,
+                params,
+                search_context,
+                user_functions,
+                local_args,
+                session,
+            )?;
+            Ok(ScalarValue::Bool(!value.as_bool()))
         }
         Expr::Cast { expr, data_type } => {
             let value = eval_scalar(
@@ -1432,5 +1538,72 @@ mod tests {
         assert_eq!(row_context.total_documents, stats_context.total_documents);
         assert_eq!(row_context.doc_frequency, stats_context.doc_frequency);
         assert_eq!(row_context.avg_doc_length, stats_context.avg_doc_length);
+    }
+
+    #[test]
+    fn should_score_single_field_term_stats_same_as_generic_context_with_custom_options() {
+        // Arrange
+        let documents = [
+            SearchTermStats::from_text(Some("alpha beta alpha")),
+            SearchTermStats::from_text(Some("alpha gamma")),
+            SearchTermStats::from_text(Some("beta gamma")),
+        ];
+        let query_terms = prepare_query_terms("alpha beta");
+        let source_stats = SearchTermStats::from_text(Some("alpha beta alpha"));
+        let mut field_boost = HashMap::new();
+        field_boost.insert("body".to_string(), 2.5);
+        let mut field_k1 = HashMap::new();
+        field_k1.insert("body".to_string(), 1.7);
+        let mut field_b = HashMap::new();
+        field_b.insert("body".to_string(), 0.3);
+        let generic_context = SearchContext::from_term_stats(
+            "body",
+            documents.iter(),
+            &field_boost,
+            &field_k1,
+            &field_b,
+        );
+        let single_field_context = SingleFieldSearchContext::from_term_stats(
+            "body",
+            documents.iter(),
+            &field_boost,
+            &field_k1,
+            &field_b,
+        );
+
+        // Act
+        let generic_score =
+            generic_context.score_term_stats(Some("body"), &source_stats, &query_terms);
+        let single_field_score = single_field_context.score_term_stats(&source_stats, &query_terms);
+
+        // Assert
+        assert!((generic_score - single_field_score).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn should_score_single_field_term_stats_as_zero_for_empty_or_missing_text() {
+        // Arrange
+        let documents = [
+            SearchTermStats::from_text(Some("alpha beta")),
+            SearchTermStats::from_text(Some("gamma")),
+        ];
+        let query_terms = prepare_query_terms("alpha");
+        let context = SingleFieldSearchContext::from_term_stats(
+            "body",
+            documents.iter(),
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+        );
+        let empty_stats = SearchTermStats::from_text(Some(""));
+        let missing_stats = SearchTermStats::from_text(None);
+
+        // Act
+        let empty_score = context.score_term_stats(&empty_stats, &query_terms);
+        let missing_score = context.score_term_stats(&missing_stats, &query_terms);
+
+        // Assert
+        assert_eq!(empty_score, 0.0);
+        assert_eq!(missing_score, 0.0);
     }
 }

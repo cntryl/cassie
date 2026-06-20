@@ -64,8 +64,8 @@ fn should_expose_session_identity_in_context_functions() {
             let query = format!("SELECT {function}");
             let result = cassie
                 .execute_sql(&session, &query, vec![])
-                
-                .await.expect("identity function query");
+                .await
+                .expect("identity function query");
             let value = result
                 .rows
                 .first()
@@ -110,8 +110,8 @@ fn should_present_default_admin_role_in_pg_roles() {
                 "SELECT rolname FROM pg_catalog.pg_roles ORDER BY rolname",
                 vec![],
             )
-            
-            .await.expect("pg_roles query");
+            .await
+            .expect("pg_roles query");
 
         // Assert
         assert_eq!(result.rows, vec![vec![Value::String("admin".to_string())]]);

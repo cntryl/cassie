@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BinaryHeap, HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::app::{Cassie, CassieSession};
 use crate::catalog;
@@ -15,10 +15,11 @@ use crate::executor::{aggregate, filter, projection, scan, sort};
 use crate::midge::adapter::RowDecode;
 use crate::planner::logical::{LogicalCommand, LogicalPlan};
 use crate::planner::physical::PhysicalPlan;
-use crate::runtime::QueryExecutionControls;
+use crate::runtime::{FulltextIndexOptions, FulltextIndexOptionsCacheKey, QueryExecutionControls};
 use crate::sql::ast::{
-    CommonTableExpression, CteQuery, Expr, FunctionCall, InsertSource, JoinKind, QuerySource,
-    QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator, SortDirection,
+    BinaryOp, CommonTableExpression, CteQuery, Expr, FunctionCall, InsertSource, JoinKind,
+    QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator,
+    SortDirection,
 };
 use crate::types::{DataType, FieldSchema, Schema, Value};
 
@@ -59,6 +60,52 @@ pub struct QueryResult {
     pub command: String,
 }
 
+#[derive(Debug, Clone, Copy, Default, serde::Serialize)]
+pub struct ExecutionBreakdownMicros {
+    pub scan_us: u64,
+    pub row_decode_us: u64,
+    pub filter_us: u64,
+    pub projection_us: u64,
+    pub sort_us: u64,
+    pub result_build_us: u64,
+    pub stats_us: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExecutionBreakdownOutput {
+    pub result: QueryResult,
+    pub breakdown: ExecutionBreakdownMicros,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct ExecutionBreakdownDurations {
+    scan: Duration,
+    row_decode: Duration,
+    filter: Duration,
+    projection: Duration,
+    sort: Duration,
+    result_build: Duration,
+    stats: Duration,
+}
+
+impl ExecutionBreakdownDurations {
+    fn into_micros(self) -> ExecutionBreakdownMicros {
+        ExecutionBreakdownMicros {
+            scan_us: duration_micros(self.scan),
+            row_decode_us: duration_micros(self.row_decode),
+            filter_us: duration_micros(self.filter),
+            projection_us: duration_micros(self.projection),
+            sort_us: duration_micros(self.sort),
+            result_build_us: duration_micros(self.result_build),
+            stats_us: duration_micros(self.stats),
+        }
+    }
+}
+
+fn duration_micros(duration: Duration) -> u64 {
+    duration.as_micros().try_into().unwrap_or(u64::MAX)
+}
+
 #[derive(Debug)]
 pub enum QueryError {
     General(String),
@@ -95,6 +142,87 @@ pub async fn run_with_controls(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     run_with_session_controls(cassie, None, plan, params, controls).await
+}
+
+#[doc(hidden)]
+pub async fn run_with_execution_breakdown(
+    cassie: &Cassie,
+    plan: PhysicalPlan,
+    params: Vec<Value>,
+) -> Result<ExecutionBreakdownOutput, QueryError> {
+    let controls = cassie.runtime.query_controls(std::time::Instant::now());
+    run_with_execution_breakdown_controls(cassie, Arc::new(plan), params, &controls).await
+}
+
+async fn run_with_execution_breakdown_controls(
+    cassie: &Cassie,
+    plan: Arc<PhysicalPlan>,
+    params: Vec<Value>,
+    controls: &QueryExecutionControls,
+) -> Result<ExecutionBreakdownOutput, QueryError> {
+    let user_functions =
+        if plan.logical.command.is_some() || plan_needs_user_functions(&plan.logical) {
+            cassie
+                .catalog
+                .list_functions()
+                .await
+                .into_iter()
+                .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
+                .collect::<HashMap<String, FunctionMeta>>()
+        } else {
+            HashMap::new()
+        };
+
+    if let Some(command) = plan.logical.command.as_ref() {
+        let started = Instant::now();
+        let result =
+            execute_command(cassie, None, command, &params, &user_functions, controls).await?;
+        let mut breakdown = ExecutionBreakdownDurations::default();
+        breakdown.result_build = started.elapsed();
+        return Ok(ExecutionBreakdownOutput {
+            result,
+            breakdown: breakdown.into_micros(),
+        });
+    }
+
+    let mut cte_context: CteContext = HashMap::new();
+    let (rows, mut breakdown) = execute_plan_with_execution_breakdown(
+        cassie,
+        None,
+        &plan.logical,
+        &mut cte_context,
+        &user_functions,
+        &params,
+        controls,
+    )
+    .await?;
+
+    let result_started = Instant::now();
+    let collection_schema = cassie.catalog.get_schema(&plan.logical.collection).await;
+    let columns = aggregate::columns_from_projection(
+        &plan.logical.projection,
+        collection_schema.as_ref(),
+        &user_functions,
+    );
+    let rows: Vec<Vec<Value>> = rows.into_iter().map(BatchRow::into_values).collect();
+
+    if rows.len() > controls.max_result_rows {
+        return Err(QueryError::General(format!(
+            "query result row limit exceeded: {} > {}",
+            rows.len(),
+            controls.max_result_rows
+        )));
+    }
+
+    breakdown.result_build += result_started.elapsed();
+    Ok(ExecutionBreakdownOutput {
+        result: QueryResult {
+            columns,
+            rows,
+            command: "SELECT".to_string(),
+        },
+        breakdown: breakdown.into_micros(),
+    })
 }
 
 pub(crate) async fn run_with_session_controls(
@@ -254,7 +382,6 @@ async fn execute_command(
             cassie
                 .midge
                 .create_collection(&statement.table, schema.clone())
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
 
             let constraints = statement
@@ -266,7 +393,6 @@ async fn execute_command(
             cassie
                 .midge
                 .save_constraints(&statement.table, constraints.as_slice())
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
@@ -323,7 +449,6 @@ async fn execute_command(
             cassie
                 .midge
                 .put_view(metadata.clone())
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_view(metadata).await;
             invalidate_plan_cache = true;
@@ -354,7 +479,6 @@ async fn execute_command(
             cassie
                 .midge
                 .delete_view(&statement.name)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.unregister_view(&statement.name).await;
             invalidate_plan_cache = true;
@@ -377,7 +501,6 @@ async fn execute_command(
             cassie
                 .midge
                 .drop_collection(&statement.table)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.unregister_collection(&statement.table).await;
             invalidate_plan_cache = true;
@@ -399,7 +522,6 @@ async fn execute_command(
                     cassie
                         .midge
                         .alter_collection_add_column(&statement.table, field.clone())
-                        
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
@@ -411,7 +533,6 @@ async fn execute_command(
                     cassie
                         .midge
                         .alter_collection_drop_column(&statement.table, field)
-                        
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
@@ -423,7 +544,6 @@ async fn execute_command(
                     cassie
                         .midge
                         .alter_collection_rename_column(&statement.table, from, to)
-                        
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
@@ -441,7 +561,6 @@ async fn execute_command(
                     cassie
                         .midge
                         .rename_collection(&statement.table, table)
-                        
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
@@ -469,7 +588,6 @@ async fn execute_command(
             cassie
                 .midge
                 .create_namespace(&statement.schema)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
@@ -495,7 +613,6 @@ async fn execute_command(
             cassie
                 .midge
                 .drop_namespace(&statement.schema)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.unregister_namespace(&statement.schema).await;
             invalidate_plan_cache = true;
@@ -521,7 +638,6 @@ async fn execute_command(
             cassie
                 .midge
                 .rename_namespace(&target_schema, &next_schema)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
@@ -586,7 +702,6 @@ async fn execute_command(
                 cassie
                     .midge
                     .put_vector_index(vector_index.clone())
-                    
                     .map_err(|error| QueryError::General(error.to_string()))?;
                 cassie.catalog.register_vector_index(vector_index).await;
             }
@@ -604,7 +719,6 @@ async fn execute_command(
             cassie
                 .midge
                 .put_index(metadata.clone())
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_index(metadata).await;
             invalidate_plan_cache = true;
@@ -634,7 +748,6 @@ async fn execute_command(
                     cassie
                         .midge
                         .delete_vector_index(&statement.table, &index.field)
-                        
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
@@ -646,7 +759,6 @@ async fn execute_command(
             cassie
                 .midge
                 .delete_index(&statement.table, &statement.name)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
@@ -689,7 +801,6 @@ async fn execute_command(
             cassie
                 .midge
                 .put_function(metadata.clone())
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_function(metadata).await;
             invalidate_plan_cache = true;
@@ -712,7 +823,6 @@ async fn execute_command(
             cassie
                 .midge
                 .delete_function(&statement.name)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.unregister_function(&statement.name).await;
             invalidate_plan_cache = true;
@@ -754,7 +864,6 @@ async fn execute_command(
             cassie
                 .midge
                 .put_procedure(metadata.clone())
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_procedure(metadata).await;
             invalidate_plan_cache = true;
@@ -783,7 +892,6 @@ async fn execute_command(
             cassie
                 .midge
                 .delete_procedure(&statement.name)
-                
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.unregister_procedure(&statement.name).await;
             invalidate_plan_cache = true;
@@ -985,6 +1093,7 @@ async fn insert_source_rows(
                 },
                 ctes: select.ctes.clone(),
                 distinct: select.distinct,
+                distinct_on: select.distinct_on.clone(),
                 projection: select.projection.clone(),
                 filter: select.filter.clone(),
                 group_by: select.group_by.clone(),
@@ -1107,6 +1216,7 @@ fn insert_expr_to_json(expr: &Expr, params: &[Value]) -> Result<serde_json::Valu
         | Expr::IsNull { .. }
         | Expr::InList { .. }
         | Expr::Between { .. }
+        | Expr::Not { .. }
         | Expr::Cast { .. }
         | Expr::Exists(_)
         | Expr::Binary {
@@ -1430,7 +1540,6 @@ async fn vector_index_metadata(
     let schema = cassie
         .midge
         .collection_schema(&statement.table)
-        
         .ok_or_else(|| {
             QueryError::General(format!(
                 "collection '{}' not found while creating vector index",
@@ -1519,6 +1628,29 @@ async fn execute_plan(
     params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<Vec<BatchRow>, QueryError> {
+    execute_plan_with_outer_row(
+        cassie,
+        session,
+        plan,
+        cte_context,
+        user_functions,
+        params,
+        controls,
+        None,
+    )
+    .await
+}
+
+async fn execute_plan_with_outer_row(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &LogicalPlan,
+    cte_context: &mut CteContext,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+    outer_row: Option<&BatchRow>,
+) -> Result<Vec<BatchRow>, QueryError> {
     check_timeout(controls)?;
     if plan.command.is_some() {
         return Err(QueryError::General(
@@ -1540,26 +1672,64 @@ async fn execute_plan(
         cte_context.insert(cte.name.to_ascii_lowercase(), rows);
     }
 
-    if let Some(rows) = execute_vector_distance_top_k(cassie, plan).await? {
-        return Ok(rows);
+    if outer_row.is_none() {
+        if let Some(rows) = execute_vector_distance_top_k(cassie, plan).await? {
+            return Ok(rows);
+        }
+
+        if let Some(rows) = execute_scored_search_top_k(cassie, session, plan).await? {
+            return Ok(rows);
+        }
+
+        if let Some(rows) = execute_ordered_column_top_k(cassie, plan).await? {
+            return Ok(rows);
+        }
+
+        if let Some(rows) =
+            execute_projected_filtered_read(cassie, session, plan, user_functions, params, controls)
+                .await?
+        {
+            return Ok(rows);
+        }
     }
 
-    if let Some(rows) = execute_scored_search_top_k(cassie, session, plan).await? {
-        return Ok(rows);
-    }
+    execute_source_query_with_outer_row(
+        cassie,
+        session,
+        plan,
+        cte_context,
+        user_functions,
+        params,
+        controls,
+        outer_row,
+    )
+    .await
+}
 
-    if let Some(rows) = execute_ordered_column_top_k(cassie, plan).await? {
-        return Ok(rows);
-    }
-
-    if let Some(rows) =
-        execute_projected_filtered_read(cassie, session, plan, user_functions, params, controls)
-            .await?
+async fn execute_plan_with_execution_breakdown(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &LogicalPlan,
+    cte_context: &mut CteContext,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+) -> Result<(Vec<BatchRow>, ExecutionBreakdownDurations), QueryError> {
+    if let Some(output) = execute_projected_filtered_read_with_breakdown(
+        cassie,
+        session,
+        plan,
+        user_functions,
+        params,
+        controls,
+    )
+    .await?
     {
-        return Ok(rows);
+        return Ok(output);
     }
 
-    execute_source_query(
+    let started = Instant::now();
+    let rows = execute_plan(
         cassie,
         session,
         plan,
@@ -1568,7 +1738,12 @@ async fn execute_plan(
         params,
         controls,
     )
-    .await
+    .await?;
+    let breakdown = ExecutionBreakdownDurations {
+        scan: started.elapsed(),
+        ..ExecutionBreakdownDurations::default()
+    };
+    Ok((rows, breakdown))
 }
 
 fn execute_cte<'a>(
@@ -1693,7 +1868,6 @@ async fn execute_vector_distance_top_k(
             &spec.collection,
             RowDecode::Projected(vec![spec.vector_field.clone()]),
         )
-        
         .map_err(|error| QueryError::General(error.to_string()))?;
     let top_needed = spec.limit.saturating_add(spec.offset).max(1);
     let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
@@ -1758,6 +1932,7 @@ fn vector_distance_top_k_spec(plan: &LogicalPlan) -> Option<VectorDistanceTopKSp
     if plan.command.is_some()
         || !plan.ctes.is_empty()
         || plan.distinct
+        || !plan.distinct_on.is_empty()
         || plan.filter.is_some()
         || !plan.group_by.is_empty()
         || plan.having.is_some()
@@ -1951,7 +2126,6 @@ async fn execute_fulltext_top_k(
             &spec.collection,
             RowDecode::Projected(vec![spec.text_field.clone()]),
         )
-        
         .map_err(|error| QueryError::General(error.to_string()))?;
     let search_documents = documents
         .into_iter()
@@ -1966,7 +2140,7 @@ async fn execute_fulltext_top_k(
         std::slice::from_ref(&spec.text_field),
     )
     .await?;
-    let search_context = filter::SearchContext::from_term_stats(
+    let search_context = filter::SingleFieldSearchContext::from_term_stats(
         &spec.text_field,
         search_documents.iter().map(|document| &document.text_stats),
         &search_index_options.field_boost,
@@ -1977,11 +2151,7 @@ async fn execute_fulltext_top_k(
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
 
     for document in &search_documents {
-        let score = search_context.score_term_stats(
-            Some(&spec.text_field),
-            &document.text_stats,
-            &query_terms,
-        );
+        let score = search_context.score_term_stats(&document.text_stats, &query_terms);
         if spec.require_match && score == 0.0 {
             continue;
         }
@@ -2019,7 +2189,6 @@ async fn execute_hybrid_top_k(
             &spec.collection,
             RowDecode::Projected(vec![spec.text_field.clone(), spec.vector_field.clone()]),
         )
-        
         .map_err(|error| QueryError::General(error.to_string()))?;
     let search_documents = documents
         .into_iter()
@@ -2038,7 +2207,7 @@ async fn execute_hybrid_top_k(
         std::slice::from_ref(&spec.text_field),
     )
     .await?;
-    let search_context = filter::SearchContext::from_term_stats(
+    let search_context = filter::SingleFieldSearchContext::from_term_stats(
         &spec.text_field,
         search_documents.iter().map(|document| &document.text_stats),
         &search_index_options.field_boost,
@@ -2049,11 +2218,7 @@ async fn execute_hybrid_top_k(
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
 
     for document in &search_documents {
-        let search_score = search_context.score_term_stats(
-            Some(&spec.text_field),
-            &document.text_stats,
-            &query_terms,
-        );
+        let search_score = search_context.score_term_stats(&document.text_stats, &query_terms);
         let vector = document.vector.as_ref().ok_or_else(|| {
             QueryError::General("vector_score expects vector in first argument".to_string())
         })?;
@@ -2112,6 +2277,7 @@ async fn execute_fulltext_filtered_read(
             &spec.collection,
             batch::DEFAULT_BATCH_SIZE,
             &scan_fields,
+            None,
         )
         .await
         .map_err(|error| QueryError::General(error.to_string()))?;
@@ -2133,7 +2299,7 @@ async fn execute_fulltext_filtered_read(
         std::slice::from_ref(&spec.text_field),
     )
     .await?;
-    let search_context = filter::SearchContext::from_term_stats(
+    let search_context = filter::SingleFieldSearchContext::from_term_stats(
         &spec.text_field,
         search_documents.iter().map(|document| &document.text_stats),
         &search_index_options.field_boost,
@@ -2145,11 +2311,7 @@ async fn execute_fulltext_filtered_read(
     let mut skipped = 0usize;
     let mut rows = Vec::new();
     for document in &search_documents {
-        let score = search_context.score_term_stats(
-            Some(&spec.text_field),
-            &document.text_stats,
-            &query_terms,
-        );
+        let score = search_context.score_term_stats(&document.text_stats, &query_terms);
         if score == 0.0 {
             continue;
         }
@@ -2186,28 +2348,16 @@ async fn execute_fulltext_filtered_read(
     Ok(rows)
 }
 
-struct SearchIndexOptions {
-    field_boost: HashMap<String, f64>,
-    field_k1: HashMap<String, f64>,
-    field_b: HashMap<String, f64>,
-}
-
 async fn search_context_for_fields(
     cassie: &Cassie,
     collection: &str,
     fields: &[String],
-) -> Result<SearchIndexOptions, QueryError> {
+) -> Result<FulltextIndexOptions, QueryError> {
     let requested_fields = fields
         .iter()
         .map(|field| field.to_ascii_lowercase())
         .collect::<HashSet<_>>();
-    let (field_boost, field_k1, field_b) =
-        load_fulltext_index_options(cassie, collection, &requested_fields).await?;
-    Ok(SearchIndexOptions {
-        field_boost,
-        field_k1,
-        field_b,
-    })
+    load_fulltext_index_options(cassie, collection, &requested_fields).await
 }
 
 struct FulltextTopKSpec {
@@ -2306,6 +2456,7 @@ fn fulltext_filtered_read_spec(plan: &LogicalPlan) -> Option<FulltextFilteredRea
     if plan.command.is_some()
         || !plan.ctes.is_empty()
         || plan.distinct
+        || !plan.distinct_on.is_empty()
         || !plan.group_by.is_empty()
         || plan.having.is_some()
         || plan.set.is_some()
@@ -2349,9 +2500,9 @@ fn fulltext_filtered_read_spec(plan: &LogicalPlan) -> Option<FulltextFilteredRea
     })
 }
 
-fn fulltext_filtered_projection<'a>(
-    projection: &'a [SelectItem],
-) -> Option<(Vec<SearchProjectionColumn>, &'a FunctionCall, String)> {
+fn fulltext_filtered_projection(
+    projection: &[SelectItem],
+) -> Option<(Vec<SearchProjectionColumn>, &FunctionCall, String)> {
     let (last, columns) = projection.split_last()?;
     let SelectItem::Function {
         function,
@@ -2435,6 +2586,7 @@ fn simple_scored_top_k_plan(plan: &LogicalPlan) -> bool {
     plan.command.is_none()
         && plan.ctes.is_empty()
         && !plan.distinct
+        && plan.distinct_on.is_empty()
         && plan.group_by.is_empty()
         && plan.having.is_none()
         && plan.set.is_none()
@@ -2655,7 +2807,6 @@ async fn execute_ordered_column_top_k(
             &spec.collection,
             RowDecode::Projected(spec.projected_scan_fields()),
         )
-        
         .map_err(|error| QueryError::General(error.to_string()))?;
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
 
@@ -2742,6 +2893,7 @@ fn ordered_column_top_k_spec(plan: &LogicalPlan) -> Option<OrderedColumnTopKSpec
     if plan.command.is_some()
         || !plan.ctes.is_empty()
         || plan.distinct
+        || !plan.distinct_on.is_empty()
         || plan.filter.is_some()
         || !plan.group_by.is_empty()
         || plan.having.is_some()
@@ -2896,20 +3048,39 @@ async fn execute_projected_filtered_read(
     let Some(spec) = projected_filtered_read_spec(plan) else {
         return Ok(None);
     };
-        if virtual_views::schema(&spec.collection).is_some()
-            || cassie.catalog.get_view(&spec.collection).await.is_some()
-        {
+    if virtual_views::schema(&spec.collection).is_some()
+        || cassie.catalog.get_view(&spec.collection).await.is_some()
+    {
         return Ok(None);
     }
 
-    let mut batches =
-        scan::scan_projected(cassie, session, &spec.collection, &spec.scan_fields).await?;
+    let pushdown_filter = plan
+        .filter
+        .as_ref()
+        .and_then(projected_scan_pushdown_filter);
+    let mut batches = scan::scan_projected_filtered(
+        cassie,
+        session,
+        &spec.collection,
+        &spec.scan_fields,
+        spec.scan_limit,
+        pushdown_filter.as_ref(),
+    )
+    .await?;
     ensure_temp_budget(controls, &batches)?;
 
-    if let Some(filter_expr) = &plan.filter {
-        batches =
-            filter::filter_batches(batches, filter_expr, params, None, user_functions, session)?;
-        ensure_temp_budget(controls, &batches)?;
+    if pushdown_filter.is_none() {
+        if let Some(filter_expr) = &plan.filter {
+            batches = filter::filter_batches(
+                batches,
+                filter_expr,
+                params,
+                None,
+                user_functions,
+                session,
+            )?;
+            ensure_temp_budget(controls, &batches)?;
+        }
     }
 
     batches = projection::project_batches(
@@ -2934,15 +3105,100 @@ async fn execute_projected_filtered_read(
     Ok(Some(batch::flatten_batches(batches)))
 }
 
+async fn execute_projected_filtered_read_with_breakdown(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &LogicalPlan,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+) -> Result<Option<(Vec<BatchRow>, ExecutionBreakdownDurations)>, QueryError> {
+    let Some(spec) = projected_filtered_read_spec(plan) else {
+        return Ok(None);
+    };
+    if virtual_views::schema(&spec.collection).is_some()
+        || cassie.catalog.get_view(&spec.collection).await.is_some()
+    {
+        return Ok(None);
+    }
+
+    let mut breakdown = ExecutionBreakdownDurations::default();
+
+    let scan_started = Instant::now();
+    let pushdown_filter = plan
+        .filter
+        .as_ref()
+        .and_then(projected_scan_pushdown_filter);
+    let (mut batches, scan_timings) = scan::scan_projected_filtered_with_timings(
+        cassie,
+        session,
+        &spec.collection,
+        &spec.scan_fields,
+        spec.scan_limit,
+        pushdown_filter.as_ref(),
+    )
+    .await?;
+    breakdown.row_decode += scan_timings.row_decode;
+    let measured_scan = scan_timings.scan.saturating_add(scan_timings.row_decode);
+    breakdown.scan += scan_timings
+        .scan
+        .saturating_add(scan_started.elapsed().saturating_sub(measured_scan));
+    ensure_temp_budget(controls, &batches)?;
+
+    if pushdown_filter.is_none() {
+        if let Some(filter_expr) = &plan.filter {
+            let filter_started = Instant::now();
+            batches = filter::filter_batches(
+                batches,
+                filter_expr,
+                params,
+                None,
+                user_functions,
+                session,
+            )?;
+            ensure_temp_budget(controls, &batches)?;
+            breakdown.filter += filter_started.elapsed();
+        }
+    }
+
+    let projection_started = Instant::now();
+    batches = projection::project_batches(
+        batches,
+        &plan.projection,
+        params,
+        None,
+        user_functions,
+        session,
+    )?;
+    ensure_temp_budget(controls, &batches)?;
+    breakdown.projection += projection_started.elapsed();
+
+    let result_started = Instant::now();
+    if let Some(offset) = plan.offset {
+        let offset = offset.max(0) as usize;
+        let limit = plan.limit.map(|value| value.max(0) as usize);
+        batches = batch::slice_batches(batches, offset, limit);
+    } else if let Some(limit) = plan.limit {
+        let limit = limit.max(0) as usize;
+        batches = batch::slice_batches(batches, 0, Some(limit));
+    }
+    let rows = batch::flatten_batches(batches);
+    breakdown.result_build += result_started.elapsed();
+
+    Ok(Some((rows, breakdown)))
+}
+
 struct ProjectedFilteredReadSpec {
     collection: String,
     scan_fields: Vec<String>,
+    scan_limit: Option<usize>,
 }
 
 fn projected_filtered_read_spec(plan: &LogicalPlan) -> Option<ProjectedFilteredReadSpec> {
     if plan.command.is_some()
         || !plan.ctes.is_empty()
         || plan.distinct
+        || !plan.distinct_on.is_empty()
         || !plan.group_by.is_empty()
         || plan.having.is_some()
         || plan.set.is_some()
@@ -2954,7 +3210,10 @@ fn projected_filtered_read_spec(plan: &LogicalPlan) -> Option<ProjectedFilteredR
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
     };
-    let filter_columns = projected_scan_filter_columns(plan.filter.as_ref()?)?;
+    let filter_columns = match plan.filter.as_ref() {
+        Some(filter) => projected_scan_filter_columns(filter)?,
+        None => Vec::new(),
+    };
     let projection_columns = plan
         .projection
         .iter()
@@ -2975,10 +3234,66 @@ fn projected_filtered_read_spec(plan: &LogicalPlan) -> Option<ProjectedFilteredR
         scan_fields.push(column);
     }
 
+    let scan_limit = if plan.filter.is_none() {
+        projected_scan_limit(plan.limit, plan.offset)
+    } else {
+        None
+    };
+
     Some(ProjectedFilteredReadSpec {
         collection: collection.clone(),
         scan_fields,
+        scan_limit,
     })
+}
+
+fn projected_scan_limit(limit: Option<i64>, offset: Option<i64>) -> Option<usize> {
+    let limit = limit?;
+    let limit = usize::try_from(limit.max(0)).ok()?;
+    let offset = usize::try_from(offset.unwrap_or(0).max(0)).ok()?;
+    limit.checked_add(offset)
+}
+
+fn projected_scan_pushdown_filter(expr: &Expr) -> Option<scan::ProjectedDocumentFilter> {
+    let Expr::Binary {
+        left,
+        op: BinaryOp::Eq,
+        right,
+    } = expr
+    else {
+        return None;
+    };
+
+    match (left.as_ref(), right.as_ref()) {
+        (Expr::Column(field), literal) => {
+            if is_row_id_column(field) {
+                return None;
+            }
+            projected_pushdown_literal(literal).map(|value| scan::ProjectedDocumentFilter {
+                field: field.clone(),
+                value,
+            })
+        }
+        (literal, Expr::Column(field)) => {
+            if is_row_id_column(field) {
+                return None;
+            }
+            projected_pushdown_literal(literal).map(|value| scan::ProjectedDocumentFilter {
+                field: field.clone(),
+                value,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn projected_pushdown_literal(expr: &Expr) -> Option<Value> {
+    match expr {
+        Expr::StringLiteral(value) => Some(Value::String(value.clone())),
+        Expr::BoolLiteral(value) => Some(Value::Bool(*value)),
+        Expr::Null => Some(Value::Null),
+        _ => None,
+    }
 }
 
 fn projected_scan_filter_columns(expr: &Expr) -> Option<Vec<String>> {
@@ -3033,6 +3348,7 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
             collect_projected_scan_filter_columns(low, fields)?;
             collect_projected_scan_filter_columns(high, fields)
         }
+        Expr::Not { expr } => collect_projected_scan_filter_columns(expr, fields),
         Expr::Cast { expr, .. } => collect_projected_scan_filter_columns(expr, fields),
         Expr::Function(_) | Expr::Exists(_) => None,
     }
@@ -3171,6 +3487,20 @@ fn resolve_exists_expr<'a>(
                 ),
                 negated: *negated,
             }),
+            Expr::Not { expr } => Ok(Expr::Not {
+                expr: Box::new(
+                    resolve_exists_expr(
+                        cassie,
+                        session,
+                        expr,
+                        cte_context,
+                        user_functions,
+                        params,
+                        controls,
+                    )
+                    .await?,
+                ),
+            }),
             Expr::Cast { expr, data_type } => Ok(Expr::Cast {
                 expr: Box::new(
                     resolve_exists_expr(
@@ -3234,6 +3564,7 @@ fn execute_query_source<'a>(
     source: &'a QuerySource,
     cte_context: &'a mut CteContext,
     qualify: bool,
+    outer_row: Option<&'a BatchRow>,
 ) -> SourceExecution<'a> {
     Box::pin(async move {
         match source {
@@ -3307,13 +3638,18 @@ fn execute_query_source<'a>(
                 ensure_temp_budget(env.controls, &batches)?;
                 Ok((batches, text_fields))
             }
-            QuerySource::Subquery { alias, select } => {
+            QuerySource::Subquery {
+                alias,
+                select,
+                lateral,
+            } => {
                 let logical = LogicalPlan {
                     command: None,
                     source: select.source.clone(),
                     collection: alias.clone(),
                     ctes: select.ctes.clone(),
                     distinct: select.distinct,
+                    distinct_on: select.distinct_on.clone(),
                     projection: select.projection.clone(),
                     filter: select.filter.clone(),
                     group_by: select.group_by.clone(),
@@ -3324,7 +3660,7 @@ fn execute_query_source<'a>(
                     set: select.set.clone(),
                 };
                 let mut subquery_context = cte_context.clone();
-                let rows = execute_plan(
+                let rows = execute_plan_with_outer_row(
                     env.cassie,
                     env.session,
                     &logical,
@@ -3332,6 +3668,7 @@ fn execute_query_source<'a>(
                     env.user_functions,
                     env.params,
                     env.controls,
+                    if *lateral { outer_row } else { None },
                 )
                 .await?;
                 let text_fields = deduce_text_fields(
@@ -3352,36 +3689,94 @@ fn execute_query_source<'a>(
                 on,
             } => {
                 let (left_batches, _left_text) =
-                    execute_query_source(env, left, cte_context, true).await?;
+                    execute_query_source(env, left, cte_context, true, outer_row).await?;
+                if source_contains_lateral(right) {
+                    let left_rows = batch::flatten_batches(left_batches);
+                    let mut joined = Vec::new();
+
+                    for left_row in &left_rows {
+                        let (right_batches, _right_text) =
+                            execute_query_source(env, right, cte_context, true, Some(left_row))
+                                .await?;
+                        let right_rows = batch::flatten_batches(right_batches);
+                        let right_columns = row_columns(&right_rows);
+                        let mut matched = false;
+                        for right_row in &right_rows {
+                            let combined = combine_rows(left_row, right_row);
+                            let passes = matches!(kind, JoinKind::Cross)
+                                || filter::eval_scalar(
+                                    &combined,
+                                    on,
+                                    env.params,
+                                    None,
+                                    env.user_functions,
+                                    None,
+                                    env.session,
+                                )?
+                                .as_bool();
+                            if passes {
+                                matched = true;
+                                joined.push(combined);
+                            }
+                        }
+
+                        if !matched && matches!(kind, JoinKind::Left | JoinKind::Full) {
+                            joined.push(combine_row_with_nulls(left_row, &right_columns));
+                        }
+                    }
+
+                    let text_fields = deduce_text_fields(
+                        &joined
+                            .iter()
+                            .map(|row| row.entries().to_vec())
+                            .collect::<Vec<_>>(),
+                    );
+                    let batches = batch::chunk_rows(joined, batch::DEFAULT_BATCH_SIZE);
+                    ensure_temp_budget(env.controls, &batches)?;
+                    return Ok((batches, text_fields));
+                }
+
                 let (right_batches, _right_text) =
-                    execute_query_source(env, right, cte_context, true).await?;
+                    execute_query_source(env, right, cte_context, true, outer_row).await?;
                 let left_rows = batch::flatten_batches(left_batches);
                 let right_rows = batch::flatten_batches(right_batches);
+                let left_columns = row_columns(&left_rows);
                 let right_columns = row_columns(&right_rows);
                 let mut joined = Vec::new();
+                let mut right_matched = vec![false; right_rows.len()];
 
                 for left_row in &left_rows {
                     let mut matched = false;
-                    for right_row in &right_rows {
+                    for (right_index, right_row) in right_rows.iter().enumerate() {
                         let combined = combine_rows(left_row, right_row);
-                        if filter::eval_scalar(
-                            &combined,
-                            on,
-                            env.params,
-                            None,
-                            env.user_functions,
-                            None,
-                            env.session,
-                        )?
-                        .as_bool()
-                        {
+                        let passes = matches!(kind, JoinKind::Cross)
+                            || filter::eval_scalar(
+                                &combined,
+                                on,
+                                env.params,
+                                None,
+                                env.user_functions,
+                                None,
+                                env.session,
+                            )?
+                            .as_bool();
+                        if passes {
                             matched = true;
+                            right_matched[right_index] = true;
                             joined.push(combined);
                         }
                     }
 
-                    if !matched && matches!(kind, JoinKind::Left) {
+                    if !matched && matches!(kind, JoinKind::Left | JoinKind::Full) {
                         joined.push(combine_row_with_nulls(left_row, &right_columns));
+                    }
+                }
+
+                if matches!(kind, JoinKind::Right | JoinKind::Full) {
+                    for (right_index, right_row) in right_rows.iter().enumerate() {
+                        if !right_matched[right_index] {
+                            joined.push(combine_nulls_with_row(&left_columns, right_row));
+                        }
                     }
                 }
 
@@ -3411,6 +3806,28 @@ fn qualify_batches(batches: Vec<Batch>, qualifier: &str) -> Vec<Batch> {
         .collect()
 }
 
+fn combine_batches_with_outer_row(batches: Vec<Batch>, outer_row: &BatchRow) -> Vec<Batch> {
+    batches
+        .into_iter()
+        .map(|batch| {
+            batch
+                .into_iter()
+                .map(|row| combine_rows(outer_row, &row))
+                .collect()
+        })
+        .collect()
+}
+
+fn source_contains_lateral(source: &QuerySource) -> bool {
+    match source {
+        QuerySource::Subquery { lateral, .. } => *lateral,
+        QuerySource::Join { left, right, .. } => {
+            source_contains_lateral(left) || source_contains_lateral(right)
+        }
+        QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
+    }
+}
+
 fn qualify_row(row: BatchRow, qualifier: &str) -> BatchRow {
     let qualifier = qualifier.to_ascii_lowercase();
     let mut values = Vec::new();
@@ -3434,6 +3851,15 @@ fn combine_row_with_nulls(left: &BatchRow, right_columns: &[String]) -> BatchRow
             .iter()
             .map(|column| (column.clone(), Value::Null)),
     );
+    BatchRow::new(values)
+}
+
+fn combine_nulls_with_row(left_columns: &[String], right: &BatchRow) -> BatchRow {
+    let mut values = left_columns
+        .iter()
+        .map(|column| (column.clone(), Value::Null))
+        .collect::<Vec<_>>();
+    values.extend(right.entries().iter().cloned());
     BatchRow::new(values)
 }
 
@@ -3576,6 +4002,264 @@ fn aggregate_specs(plan: &LogicalPlan) -> Vec<AggregateSpec> {
     specs
 }
 
+fn apply_window_functions(
+    batches: Vec<Batch>,
+    projection: &[SelectItem],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+) -> Result<Vec<Batch>, QueryError> {
+    let windows = projection
+        .iter()
+        .filter_map(|item| match item {
+            SelectItem::WindowFunction { function, alias } => Some((function, alias)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if windows.is_empty() {
+        return Ok(batches);
+    }
+
+    let mut rows = batch::flatten_batches(batches);
+    for (function, alias) in windows {
+        let function_name = function.name.to_ascii_lowercase();
+        if !matches!(
+            function_name.as_str(),
+            "row_number" | "rank" | "dense_rank" | "lag" | "lead" | "first_value" | "last_value"
+        ) {
+            return Err(QueryError::General(format!(
+                "unsupported window function '{}'",
+                function.name
+            )));
+        }
+        let output_name = alias
+            .as_deref()
+            .unwrap_or(function.name.as_str())
+            .to_string();
+        let mut partitions = BTreeMap::<String, Vec<usize>>::new();
+        for (index, row) in rows.iter().enumerate() {
+            let key = if function.partition_by.is_empty() {
+                "__all__".to_string()
+            } else {
+                function
+                    .partition_by
+                    .iter()
+                    .map(|expr| {
+                        filter::evaluate_expr_value(
+                            row,
+                            expr,
+                            params,
+                            search_context,
+                            user_functions,
+                            session,
+                            None,
+                        )
+                        .map(|value| value_sort_key(&value))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+                    .join("|")
+            };
+            partitions.entry(key).or_default().push(index);
+        }
+
+        let mut values = vec![Value::Null; rows.len()];
+        for indices in partitions.values_mut() {
+            indices.sort_by(|left, right| {
+                compare_window_rows(
+                    &rows[*left],
+                    &rows[*right],
+                    &function.order_by,
+                    params,
+                    search_context,
+                    user_functions,
+                    session,
+                )
+            });
+            let mut dense_rank = 1i64;
+            let mut previous_peer_key: Option<String> = None;
+            for (position, index) in indices.iter().enumerate() {
+                let peer_key = window_peer_key(
+                    &rows[*index],
+                    &function.order_by,
+                    params,
+                    search_context,
+                    user_functions,
+                    session,
+                )?;
+                if position > 0 && previous_peer_key.as_ref() != Some(&peer_key) {
+                    dense_rank += 1;
+                }
+                previous_peer_key = Some(peer_key);
+
+                values[*index] = match function_name.as_str() {
+                    "row_number" => Value::Int64(i64::try_from(position + 1).unwrap_or(i64::MAX)),
+                    "rank" => {
+                        let peer_position = indices[..=position]
+                            .iter()
+                            .position(|candidate| {
+                                window_peer_key(
+                                    &rows[*candidate],
+                                    &function.order_by,
+                                    params,
+                                    search_context,
+                                    user_functions,
+                                    session,
+                                )
+                                .ok()
+                                    == previous_peer_key
+                            })
+                            .unwrap_or(position);
+                        Value::Int64(i64::try_from(peer_position + 1).unwrap_or(i64::MAX))
+                    }
+                    "dense_rank" => Value::Int64(dense_rank),
+                    "lag" => window_arg_value(
+                        indices.get(position.wrapping_sub(1)).copied(),
+                        &rows,
+                        function,
+                        params,
+                        search_context,
+                        user_functions,
+                        session,
+                    )?,
+                    "lead" => window_arg_value(
+                        indices.get(position + 1).copied(),
+                        &rows,
+                        function,
+                        params,
+                        search_context,
+                        user_functions,
+                        session,
+                    )?,
+                    "first_value" => window_arg_value(
+                        indices.first().copied(),
+                        &rows,
+                        function,
+                        params,
+                        search_context,
+                        user_functions,
+                        session,
+                    )?,
+                    "last_value" => window_arg_value(
+                        indices.last().copied(),
+                        &rows,
+                        function,
+                        params,
+                        search_context,
+                        user_functions,
+                        session,
+                    )?,
+                    _ => Value::Null,
+                };
+            }
+        }
+
+        for (row, value) in rows.iter_mut().zip(values.into_iter()) {
+            let mut entries = row.clone().into_entries();
+            entries.push((output_name.clone(), value));
+            *row = BatchRow::new(entries);
+        }
+    }
+
+    Ok(batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE))
+}
+
+fn window_arg_value(
+    index: Option<usize>,
+    rows: &[BatchRow],
+    function: &crate::sql::ast::WindowFunctionCall,
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    let Some(index) = index else {
+        return Ok(Value::Null);
+    };
+    let Some(expr) = function.args.first() else {
+        return Ok(Value::Null);
+    };
+    filter::evaluate_expr_value(
+        &rows[index],
+        expr,
+        params,
+        search_context,
+        user_functions,
+        session,
+        None,
+    )
+}
+
+fn window_peer_key(
+    row: &BatchRow,
+    order_by: &[crate::sql::ast::OrderExpr],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+) -> Result<String, QueryError> {
+    if order_by.is_empty() {
+        return Ok("__all__".to_string());
+    }
+    order_by
+        .iter()
+        .map(|order| {
+            filter::evaluate_expr_value(
+                row,
+                &order.expr,
+                params,
+                search_context,
+                user_functions,
+                session,
+                None,
+            )
+            .map(|value| value_sort_key(&value))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(|parts| parts.join("|"))
+}
+
+fn compare_window_rows(
+    left: &BatchRow,
+    right: &BatchRow,
+    order_by: &[crate::sql::ast::OrderExpr],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+) -> CmpOrdering {
+    for order in order_by {
+        let left_value = filter::evaluate_expr_value(
+            left,
+            &order.expr,
+            params,
+            search_context,
+            user_functions,
+            session,
+            None,
+        )
+        .unwrap_or(Value::Null);
+        let right_value = filter::evaluate_expr_value(
+            right,
+            &order.expr,
+            params,
+            search_context,
+            user_functions,
+            session,
+            None,
+        )
+        .unwrap_or(Value::Null);
+        let cmp = compare_query_values(&left_value, &right_value);
+        if cmp != CmpOrdering::Equal {
+            return match order.direction {
+                SortDirection::Asc => cmp,
+                SortDirection::Desc => cmp.reverse(),
+            };
+        }
+    }
+    batch::row_tie_key(left).cmp(&batch::row_tie_key(right))
+}
+
 fn register_aggregate_spec(
     specs: &mut Vec<AggregateSpec>,
     function: &FunctionCall,
@@ -3628,6 +4312,7 @@ fn collect_aggregate_specs_from_expr(expr: &Expr, specs: &mut Vec<AggregateSpec>
             collect_aggregate_specs_from_expr(low, specs);
             collect_aggregate_specs_from_expr(high, specs);
         }
+        Expr::Not { expr } => collect_aggregate_specs_from_expr(expr, specs),
         Expr::Exists(_)
         | Expr::Column(_)
         | Expr::Param(_)
@@ -3883,6 +4568,9 @@ fn rewrite_aggregate_expr(expr: &Expr) -> Expr {
             high: Box::new(rewrite_aggregate_expr(high)),
             negated: *negated,
         },
+        Expr::Not { expr } => Expr::Not {
+            expr: Box::new(rewrite_aggregate_expr(expr)),
+        },
         Expr::Cast { expr, data_type } => Expr::Cast {
             expr: Box::new(rewrite_aggregate_expr(expr)),
             data_type: data_type.clone(),
@@ -3906,26 +4594,96 @@ fn distinct_batches(batches: Vec<Batch>) -> Vec<Batch> {
     batch::chunk_rows(rows.into_values().collect(), batch::DEFAULT_BATCH_SIZE)
 }
 
+fn distinct_on_batches(
+    batches: Vec<Batch>,
+    distinct_on: &[Expr],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+) -> Result<Vec<Batch>, QueryError> {
+    let mut seen = HashSet::<String>::new();
+    let mut rows = Vec::new();
+    for row in batch::flatten_batches(batches) {
+        let key = distinct_on
+            .iter()
+            .map(|expr| {
+                filter::evaluate_expr_value(
+                    &row,
+                    expr,
+                    params,
+                    search_context,
+                    user_functions,
+                    session,
+                    None,
+                )
+                .map(|value| value_sort_key(&value))
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .join("|");
+        if seen.insert(key) {
+            rows.push(row);
+        }
+    }
+    Ok(batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE))
+}
+
 fn apply_set_operation(
     left: Vec<BatchRow>,
     right: Vec<BatchRow>,
     set: &SelectSet,
 ) -> Result<Vec<BatchRow>, QueryError> {
     validate_set_width(&left, &right)?;
-    let mut rows = left;
-    rows.extend(right);
     match set.operator {
         SetOperator::UnionAll => {
+            let mut rows = left;
+            rows.extend(right);
             rows.sort_by_key(row_signature);
             Ok(rows)
         }
         SetOperator::Union => {
+            let mut rows = left;
+            rows.extend(right);
             let mut unique = BTreeMap::<String, BatchRow>::new();
             for row in rows {
                 unique.entry(row_signature(&row)).or_insert(row);
             }
             Ok(unique.into_values().collect())
         }
+        SetOperator::Intersect => {
+            let right_signatures = right.iter().map(row_signature).collect::<HashSet<_>>();
+            let mut unique = BTreeMap::<String, BatchRow>::new();
+            for row in left {
+                let signature = row_signature(&row);
+                if right_signatures.contains(&signature) {
+                    unique.entry(signature).or_insert(row);
+                }
+            }
+            Ok(unique.into_values().collect())
+        }
+        SetOperator::Except => {
+            let right_signatures = right.iter().map(row_signature).collect::<HashSet<_>>();
+            let mut unique = BTreeMap::<String, BatchRow>::new();
+            for row in left {
+                let signature = row_signature(&row);
+                if !right_signatures.contains(&signature) {
+                    unique.entry(signature).or_insert(row);
+                }
+            }
+            Ok(unique.into_values().collect())
+        }
+    }
+}
+
+fn slice_rows(rows: Vec<BatchRow>, offset: Option<i64>, limit: Option<i64>) -> Vec<BatchRow> {
+    let offset = offset
+        .and_then(|value| usize::try_from(value.max(0)).ok())
+        .unwrap_or(0);
+    let limit = limit.and_then(|value| usize::try_from(value.max(0)).ok());
+    let iter = rows.into_iter().skip(offset);
+    match limit {
+        Some(limit) => iter.take(limit).collect(),
+        None => iter.collect(),
     }
 }
 
@@ -3949,6 +4707,7 @@ fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan {
         collection: execution_source_name(&select.source),
         ctes: select.ctes.clone(),
         distinct: select.distinct,
+        distinct_on: select.distinct_on.clone(),
         projection: select.projection.clone(),
         filter: select.filter.clone(),
         group_by: select.group_by.clone(),
@@ -3976,7 +4735,9 @@ fn plan_uses_aggregate(plan: &LogicalPlan) -> bool {
             SelectItem::Function { function, .. } => {
                 crate::sql::functions::is_aggregate_function(&function.name)
             }
-            SelectItem::Wildcard | SelectItem::Column { .. } => false,
+            SelectItem::Wildcard
+            | SelectItem::Column { .. }
+            | SelectItem::WindowFunction { .. } => false,
         })
 }
 
@@ -4041,6 +4802,7 @@ fn expr_key(expr: &Expr) -> String {
             expr_key(low),
             expr_key(high)
         ),
+        Expr::Not { expr } => format!("not {}", expr_key(expr)),
         Expr::Cast { expr, data_type } => format!("{}::{data_type:?}", expr_key(expr)),
         Expr::Exists(_) => "exists".to_string(),
     }
@@ -4058,7 +4820,7 @@ fn value_sort_key(value: &Value) -> String {
     }
 }
 
-async fn execute_source_query(
+async fn execute_source_query_with_outer_row(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     plan: &LogicalPlan,
@@ -4066,6 +4828,7 @@ async fn execute_source_query(
     user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
     controls: &QueryExecutionControls,
+    outer_row: Option<&BatchRow>,
 ) -> Result<Vec<BatchRow>, QueryError> {
     check_timeout(controls)?;
     let started_at = Instant::now();
@@ -4077,7 +4840,10 @@ async fn execute_source_query(
         controls,
     };
     let (mut batches, text_fields) =
-        execute_query_source(&env, &plan.source, cte_context, false).await?;
+        execute_query_source(&env, &plan.source, cte_context, false, outer_row).await?;
+    if let Some(outer_row) = outer_row {
+        batches = combine_batches_with_outer_row(batches, outer_row);
+    }
     let candidate_rows = batches.iter().map(|batch| batch.len()).sum::<usize>();
 
     let fulltext_fields = fulltext_query_fields(plan);
@@ -4095,13 +4861,12 @@ async fn execute_source_query(
                 }
             }
 
-            let (index_boost, index_k1, index_b) =
-                load_fulltext_index_options(cassie, name, &fulltext_fields).await?;
-            for (field, value) in index_boost {
+            let index_options = load_fulltext_index_options(cassie, name, &fulltext_fields).await?;
+            for (field, value) in index_options.field_boost {
                 boost.insert(field, value);
             }
 
-            (boost, index_k1, index_b)
+            (boost, index_options.field_k1, index_options.field_b)
         } else {
             (HashMap::new(), HashMap::new(), HashMap::new())
         };
@@ -4168,7 +4933,37 @@ async fn execute_source_query(
         }
     }
 
-    if !plan.order.is_empty() {
+    batches = apply_window_functions(
+        batches,
+        &plan.projection,
+        params,
+        search_context.as_ref(),
+        user_functions,
+        session,
+    )?;
+    ensure_temp_budget(controls, &batches)?;
+
+    if !plan.distinct_on.is_empty() {
+        batches = sort::sort_batches(
+            batches,
+            &plan.order,
+            &plan.projection,
+            params,
+            search_context.as_ref(),
+            user_functions,
+            session,
+        )?;
+        ensure_temp_budget(controls, &batches)?;
+        batches = distinct_on_batches(
+            batches,
+            &plan.distinct_on,
+            params,
+            search_context.as_ref(),
+            user_functions,
+            session,
+        )?;
+        ensure_temp_budget(controls, &batches)?;
+    } else if plan.set.is_none() && !plan.order.is_empty() {
         batches = sort::sort_batches(
             batches,
             &plan.order,
@@ -4196,15 +4991,6 @@ async fn execute_source_query(
         ensure_temp_budget(controls, &batches)?;
     }
 
-    if let Some(offset) = plan.offset {
-        let offset = offset.max(0) as usize;
-        let limit = plan.limit.map(|value| value.max(0) as usize);
-        batches = batch::slice_batches(batches, offset, limit);
-    } else if let Some(limit) = plan.limit {
-        let limit = limit.max(0) as usize;
-        batches = batch::slice_batches(batches, 0, Some(limit));
-    }
-
     let mut rows = batch::flatten_batches(batches);
     if let Some(set) = &plan.set {
         let right_plan = logical_plan_from_select(&set.right);
@@ -4220,6 +5006,18 @@ async fn execute_source_query(
         .await?;
         rows = apply_set_operation(rows, right_rows, set)?;
     }
+    if plan.set.is_some() && !plan.order.is_empty() {
+        rows = sort::sort_rows(
+            rows,
+            &plan.order,
+            &plan.projection,
+            params,
+            search_context.as_ref(),
+            user_functions,
+            session,
+        )?;
+    }
+    rows = slice_rows(rows, plan.offset, plan.limit);
 
     let elapsed = started_at.elapsed();
     if !fulltext_fields.is_empty() {
@@ -4245,14 +5043,16 @@ async fn load_fulltext_index_options(
     cassie: &Cassie,
     collection: &str,
     requested_fields: &HashSet<String>,
-) -> Result<
-    (
-        HashMap<String, f64>,
-        HashMap<String, f64>,
-        HashMap<String, f64>,
-    ),
-    QueryError,
-> {
+) -> Result<FulltextIndexOptions, QueryError> {
+    let cache_key = FulltextIndexOptionsCacheKey::new(
+        cassie.runtime.schema_epoch(),
+        collection,
+        requested_fields.iter().cloned(),
+    );
+    if let Some(options) = cassie.runtime.fulltext_index_options_lookup(&cache_key) {
+        return Ok(options);
+    }
+
     let mut field_boost = HashMap::new();
     let mut field_k1 = HashMap::new();
     let mut field_b = HashMap::new();
@@ -4309,7 +5109,15 @@ async fn load_fulltext_index_options(
         field_b.insert(field, b);
     }
 
-    Ok((field_boost, field_k1, field_b))
+    let options = FulltextIndexOptions {
+        field_boost,
+        field_k1,
+        field_b,
+    };
+    cassie
+        .runtime
+        .store_fulltext_index_options(cache_key, options.clone());
+    Ok(options)
 }
 
 fn fulltext_query_fields(plan: &LogicalPlan) -> HashSet<String> {
@@ -4362,6 +5170,7 @@ pub(crate) fn plan_needs_user_functions(plan: &LogicalPlan) -> bool {
     query_source_needs_user_functions(&plan.source)
         || plan.projection.iter().any(select_item_needs_user_functions)
         || plan.filter.as_ref().is_some_and(expr_needs_user_functions)
+        || plan.distinct_on.iter().any(expr_needs_user_functions)
         || plan.group_by.iter().any(expr_needs_user_functions)
         || plan.having.as_ref().is_some_and(expr_needs_user_functions)
         || plan
@@ -4402,6 +5211,7 @@ fn select_needs_user_functions(select: &SelectStatement) -> bool {
             .filter
             .as_ref()
             .is_some_and(expr_needs_user_functions)
+        || select.distinct_on.iter().any(expr_needs_user_functions)
         || select.group_by.iter().any(expr_needs_user_functions)
         || select
             .having
@@ -4435,7 +5245,9 @@ fn query_source_needs_user_functions(source: &QuerySource) -> bool {
 fn select_item_needs_user_functions(item: &SelectItem) -> bool {
     match item {
         SelectItem::Function { function, .. } => function_needs_user_functions(function),
-        SelectItem::Column { .. } | SelectItem::Wildcard => false,
+        SelectItem::Column { .. } | SelectItem::Wildcard | SelectItem::WindowFunction { .. } => {
+            false
+        }
     }
 }
 
@@ -4455,6 +5267,7 @@ fn expr_needs_user_functions(expr: &Expr) -> bool {
                 || expr_needs_user_functions(low)
                 || expr_needs_user_functions(high)
         }
+        Expr::Not { expr } => expr_needs_user_functions(expr),
         Expr::Exists(statement) => parsed_statement_needs_user_functions(statement),
         Expr::Function(function) => function_needs_user_functions(function),
         Expr::Column(_)
@@ -4947,6 +5760,89 @@ mod tests {
     }
 
     #[test]
+    fn should_build_projected_read_spec_without_filter() {
+        // Arrange
+        let plan = plan_for_sql("SELECT id, title FROM bench_documents LIMIT 20");
+
+        // Act
+        let spec = projected_filtered_read_spec(&plan);
+
+        // Assert
+        let spec = spec.expect("projected read spec");
+        assert_eq!(spec.collection, "bench_documents");
+        assert_eq!(spec.scan_fields, vec!["title".to_string()]);
+    }
+
+    #[test]
+    fn should_push_limit_into_projected_read_spec_without_filter() {
+        // Arrange
+        let plan = plan_for_sql("SELECT id, title FROM bench_documents LIMIT 20");
+
+        // Act
+        let spec = projected_filtered_read_spec(&plan);
+
+        // Assert
+        let spec = spec.expect("projected read spec");
+        assert_eq!(spec.scan_limit, Some(20));
+    }
+
+    #[test]
+    fn should_include_offset_in_projected_read_spec_scan_limit() {
+        // Arrange
+        let plan = plan_for_sql("SELECT id, title FROM bench_documents LIMIT 20 OFFSET 5");
+
+        // Act
+        let spec = projected_filtered_read_spec(&plan);
+
+        // Assert
+        let spec = spec.expect("projected read spec");
+        assert_eq!(spec.scan_limit, Some(25));
+    }
+
+    #[test]
+    fn should_not_push_limit_into_projected_read_spec_when_filter_is_present() {
+        // Arrange
+        let plan = plan_for_sql(
+            "SELECT id, title FROM bench_documents WHERE status = 'approved' LIMIT 20",
+        );
+
+        // Act
+        let spec = projected_filtered_read_spec(&plan);
+
+        // Assert
+        let spec = spec.expect("projected read spec");
+        assert_eq!(spec.scan_limit, None);
+    }
+
+    #[test]
+    fn should_detect_projected_scan_pushdown_for_literal_equality() {
+        // Arrange
+        let plan = plan_for_sql("SELECT id, title FROM bench_documents WHERE title = 'alpha'");
+        let filter = plan.filter.as_ref().expect("filter");
+
+        // Act
+        let pushdown = projected_scan_pushdown_filter(filter);
+
+        // Assert
+        let pushdown = pushdown.expect("pushdown filter");
+        assert_eq!(pushdown.field, "title");
+        assert_eq!(pushdown.value, Value::String("alpha".to_string()));
+    }
+
+    #[test]
+    fn should_reject_projected_scan_pushdown_for_row_id_equality() {
+        // Arrange
+        let plan = plan_for_sql("SELECT id, title FROM bench_documents WHERE id = 'doc-1'");
+        let filter = plan.filter.as_ref().expect("filter");
+
+        // Act
+        let pushdown = projected_scan_pushdown_filter(filter);
+
+        // Assert
+        assert!(pushdown.is_none());
+    }
+
+    #[test]
     fn should_skip_user_function_catalog_for_builtin_only_plan() {
         // Arrange
         let plan =
@@ -4970,5 +5866,70 @@ mod tests {
 
         // Assert
         assert!(needs_user_functions);
+    }
+
+    #[test]
+    fn should_report_execution_breakdown_for_projected_filtered_read() {
+        // Arrange
+        std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "cassie-execution-breakdown-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let collection = "breakdown_documents";
+            let schema = Schema {
+                fields: vec![FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            };
+            cassie
+                .midge
+                .create_collection(collection, schema.clone())
+                .expect("create collection");
+            cassie.register_collection(collection, schema).await;
+            cassie
+                .midge
+                .put_document(
+                    collection,
+                    Some("doc-1".to_string()),
+                    serde_json::json!({"title": "alpha"}),
+                )
+                .expect("put document");
+
+            let logical =
+                plan_for_sql("SELECT id, title FROM breakdown_documents WHERE title = 'alpha'");
+            let physical = crate::planner::physical::build(logical);
+
+            // Act
+            let output = run_with_execution_breakdown(&cassie, physical, vec![])
+                .await
+                .expect("execution breakdown");
+
+            // Assert
+            assert_eq!(output.result.rows.len(), 1);
+            assert_eq!(
+                output.result.rows[0],
+                vec![
+                    Value::String("doc-1".to_string()),
+                    Value::String("alpha".to_string()),
+                ]
+            );
+            assert!(output.breakdown.scan_us > 0 || output.breakdown.row_decode_us > 0);
+            assert_eq!(output.breakdown.filter_us, 0);
+            assert!(output.breakdown.projection_us > 0);
+            assert!(output.breakdown.result_build_us > 0);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 }

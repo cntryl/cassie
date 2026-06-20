@@ -110,7 +110,7 @@ fn should_apply_default_values_for_rest_ingest() {
                 "CREATE TABLE rest_constraint_defaults (id INT PRIMARY KEY, status TEXT DEFAULT 'pending')",
                 vec![],
             )
-            
+
             .await.unwrap();
 
         // Act
@@ -125,7 +125,7 @@ fn should_apply_default_values_for_rest_ingest() {
         let stored = cassie
             .midge
             .get_document(collection, id)
-            
+
             .expect("document read");
 
         // Assert
@@ -155,8 +155,8 @@ fn should_reject_rest_ingest_when_not_null_constraint_is_violated() {
                 "CREATE TABLE rest_constraint_not_null (id INT PRIMARY KEY, email TEXT NOT NULL)",
                 vec![],
             )
-            
-            .await.unwrap();
+            .await
+            .unwrap();
 
         // Act
         let missing = documents::create(
@@ -200,7 +200,7 @@ fn should_reject_rest_ingest_when_unique_constraint_is_violated() {
                 "CREATE TABLE rest_constraint_unique (id INT PRIMARY KEY, email TEXT NOT NULL UNIQUE)",
                 vec![],
             )
-            
+
             .await.unwrap();
 
         documents::create(
@@ -254,7 +254,7 @@ fn should_reject_rest_ingest_when_check_constraint_is_violated() {
                 "CREATE TABLE rest_constraint_check (id INT PRIMARY KEY, score INT CHECK (score >= 18))",
                 vec![],
             )
-            
+
             .await.unwrap();
 
         // Act

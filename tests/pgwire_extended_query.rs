@@ -467,7 +467,6 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            
             .unwrap();
         cassie.register_collection(collection, schema).await;
         cassie
@@ -477,7 +476,6 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            
             .unwrap();
 
         let mut config = CassieRuntimeConfig::from_env();
@@ -639,7 +637,6 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            
             .unwrap();
         cassie.register_collection(collection, schema).await;
         cassie
@@ -649,7 +646,6 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            
             .unwrap();
 
         let mut config = CassieRuntimeConfig::from_env();
@@ -868,7 +864,6 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            
             .unwrap();
         cassie.register_collection(collection, schema).await;
         cassie
@@ -878,7 +873,6 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            
             .unwrap();
 
         let mut config = CassieRuntimeConfig::from_env();
@@ -1036,7 +1030,6 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            
             .unwrap();
         cassie.register_collection(collection, schema).await;
         cassie
@@ -1046,7 +1039,6 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"score": 1}),
             )
-            
             .unwrap();
         cassie
             .midge
@@ -1055,7 +1047,6 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
                 Some("doc-2".to_string()),
                 serde_json::json!({"score": 2}),
             )
-            
             .unwrap();
 
         let mut config = CassieRuntimeConfig::from_env();
@@ -1161,6 +1152,141 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
         let second_values = parse_data_row(&frames[5].1);
         assert_eq!(first_values, vec![Some("1".to_string())]);
         assert_eq!(second_values, vec![Some("2".to_string())]);
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("parse_once");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+
+        let collection = "extended_query_parse_once";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "score".to_string(),
+                data_type: DataType::Int,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(collection, schema).await;
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"score": 1}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-2".to_string()),
+                serde_json::json!({"score": 2}),
+            )
+            .unwrap();
+
+        let mut config = CassieRuntimeConfig::from_env();
+        config.password.clear();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener address");
+        drop(listener);
+
+        let server = tokio::spawn(cassie::pgwire::server::run(
+            addr.to_string(),
+            std::sync::Arc::new(cassie.clone()),
+            config,
+        ));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+
+        // Act
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
+            .await
+            .expect("write startup");
+        let auth = read_wire_frame(&mut reader).await;
+        assert_eq!(auth.0, b'R', "startup should return an auth response");
+        let startup_ready = read_wire_frame(&mut reader).await;
+        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
+        assert_eq!(startup_ready.1, vec![b'I']);
+
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &parse_frame(
+                "stmt_extended_parse_once",
+                "SELECT score FROM extended_query_parse_once WHERE score = $1 ORDER BY score",
+            ),
+        )
+        .await
+        .expect("write parse");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &bind_frame("portal_parse_once_one", "stmt_extended_parse_once", &["1"]),
+        )
+        .await
+        .expect("write first bind");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &execute_frame("portal_parse_once_one"),
+        )
+        .await
+        .expect("write first execute");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &bind_frame("portal_parse_once_two", "stmt_extended_parse_once", &["2"]),
+        )
+        .await
+        .expect("write second bind");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &execute_frame("portal_parse_once_two"),
+        )
+        .await
+        .expect("write second execute");
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &sync_frame())
+            .await
+            .expect("write sync");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("flush frames");
+
+        loop {
+            let frame = read_wire_frame(&mut reader).await;
+            if frame.0 == b'Z' {
+                break;
+            }
+        }
+        let metrics = cassie.metrics().await;
+
+        // Assert
+        assert_eq!(metrics["runtime"]["sql_parse_total"].as_u64(), Some(1));
+        assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(1));
+        assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(1));
 
         drop(socket);
         server.abort();

@@ -20,3 +20,4 @@
 
 .cassie/
 inventory.md
+*.log

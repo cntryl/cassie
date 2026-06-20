@@ -47,6 +47,7 @@ pub enum QuerySource {
     Subquery {
         alias: String,
         select: Box<SelectStatement>,
+        lateral: bool,
     },
     Join {
         left: Box<QuerySource>,
@@ -74,12 +75,17 @@ impl Eq for QuerySource {}
 pub enum JoinKind {
     Inner,
     Left,
+    Right,
+    Full,
+    Cross,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SetOperator {
     Union,
     UnionAll,
+    Intersect,
+    Except,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,11 +129,14 @@ pub struct TransactionStatement {
     pub isolation: Option<TransactionIsolation>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionAction {
     Begin,
     Commit,
     Rollback,
+    Savepoint { name: String },
+    RollbackTo { name: String },
+    Release { name: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -328,6 +337,7 @@ pub struct SelectStatement {
     pub ctes: Vec<CommonTableExpression>,
     pub recursive: bool,
     pub distinct: bool,
+    pub distinct_on: Vec<Expr>,
     pub projection: Vec<SelectItem>,
     pub filter: Option<Expr>,
     pub group_by: Vec<Expr>,
@@ -349,12 +359,24 @@ pub enum SelectItem {
         function: FunctionCall,
         alias: Option<String>,
     },
+    WindowFunction {
+        function: WindowFunctionCall,
+        alias: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionCall {
     pub name: String,
     pub args: Vec<Expr>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WindowFunctionCall {
+    pub name: String,
+    pub args: Vec<Expr>,
+    pub partition_by: Vec<Expr>,
+    pub order_by: Vec<OrderExpr>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -403,6 +425,9 @@ pub enum Expr {
         low: Box<Expr>,
         high: Box<Expr>,
         negated: bool,
+    },
+    Not {
+        expr: Box<Expr>,
     },
     Cast {
         expr: Box<Expr>,

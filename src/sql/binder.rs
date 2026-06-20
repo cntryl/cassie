@@ -4,7 +4,7 @@ use std::mem;
 use std::pin::Pin;
 
 use crate::app::CassieError;
-use crate::catalog::{is_reserved_namespace, virtual_views, Catalog};
+use crate::catalog::{is_reserved_namespace, virtual_views, Catalog, CollectionSchema};
 use crate::embeddings::DistanceMetric;
 use crate::search::bm25;
 use crate::sql::ast::{
@@ -12,7 +12,7 @@ use crate::sql::ast::{
     CallProcedureStatement, CommonTableExpression, CreateFunctionStatement, CreateIndexStatement,
     CreateProcedureStatement, CreateSchemaStatement, CreateViewStatement, CteQuery,
     DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropSchemaStatement,
-    DropViewStatement, Expr, FunctionCall, InsertSource, ParsedStatement, QuerySource,
+    DropViewStatement, Expr, FunctionCall, InsertSource, OrderExpr, ParsedStatement, QuerySource,
     QueryStatement, SelectItem, SelectSet, SelectStatement,
 };
 use crate::types::{DataType, FieldSchema, Schema};
@@ -285,32 +285,7 @@ async fn bind_insert(
         statement.source = InsertSource::Select(Box::new(source));
     }
 
-    for item in &statement.returning {
-        match item {
-            crate::sql::ast::SelectItem::Wildcard => {}
-            crate::sql::ast::SelectItem::Column { name, .. } => {
-                if name == "_id" {
-                    continue;
-                }
-
-                if !schema
-                    .fields
-                    .iter()
-                    .any(|field| field.name.eq_ignore_ascii_case(name))
-                {
-                    return Err(CassieError::Planner(format!(
-                        "INSERT RETURNING column '{name}' does not exist in '{table}'"
-                    )));
-                }
-            }
-            crate::sql::ast::SelectItem::Function { function, .. } => {
-                return Err(CassieError::Unsupported(format!(
-                    "INSERT RETURNING function '{}' is not supported in this version",
-                    function.name
-                )));
-            }
-        }
-    }
+    validate_returning_items(&statement.returning, &schema, &table, "INSERT", catalog).await?;
 
     statement.table = table;
     Ok(statement)
@@ -367,32 +342,7 @@ async fn bind_update(
         *field = normalized_field;
     }
 
-    for item in &statement.returning {
-        match item {
-            crate::sql::ast::SelectItem::Wildcard => {}
-            crate::sql::ast::SelectItem::Column { name, .. } => {
-                if name == "_id" {
-                    continue;
-                }
-
-                if !schema
-                    .fields
-                    .iter()
-                    .any(|field| field.name.eq_ignore_ascii_case(name))
-                {
-                    return Err(CassieError::Planner(format!(
-                        "UPDATE RETURNING column '{name}' does not exist in '{table}'"
-                    )));
-                }
-            }
-            crate::sql::ast::SelectItem::Function { function, .. } => {
-                return Err(CassieError::Unsupported(format!(
-                    "UPDATE RETURNING function '{}' is not supported in this version",
-                    function.name
-                )));
-            }
-        }
-    }
+    validate_returning_items(&statement.returning, &schema, &table, "UPDATE", catalog).await?;
 
     statement.table = table;
     Ok(statement)
@@ -421,10 +371,31 @@ async fn bind_delete(
         .await
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
 
-    for item in &statement.returning {
+    validate_returning_items(&statement.returning, &schema, &table, "DELETE", catalog).await?;
+
+    statement.table = table;
+    Ok(statement)
+}
+
+async fn validate_returning_items(
+    returning: &[SelectItem],
+    schema: &CollectionSchema,
+    table: &str,
+    operation: &str,
+    catalog: &Catalog,
+) -> Result<(), CassieError> {
+    let mut known_fields = schema
+        .fields
+        .iter()
+        .map(|field| field.name.to_ascii_lowercase())
+        .collect::<HashSet<_>>();
+    known_fields.insert("_id".to_string());
+
+    let mut functions = Vec::new();
+    for item in returning {
         match item {
-            crate::sql::ast::SelectItem::Wildcard => {}
-            crate::sql::ast::SelectItem::Column { name, .. } => {
+            SelectItem::Wildcard => {}
+            SelectItem::Column { name, .. } => {
                 if name == "_id" {
                     continue;
                 }
@@ -435,21 +406,28 @@ async fn bind_delete(
                     .any(|field| field.name.eq_ignore_ascii_case(name))
                 {
                     return Err(CassieError::Planner(format!(
-                        "DELETE RETURNING column '{name}' does not exist in '{table}'"
+                        "{operation} RETURNING column '{name}' does not exist in '{table}'"
                     )));
                 }
             }
-            crate::sql::ast::SelectItem::Function { function, .. } => {
-                return Err(CassieError::Unsupported(format!(
-                    "DELETE RETURNING function '{}' is not supported in this version",
-                    function.name
+            SelectItem::Function { function, .. } => {
+                validate_expression(
+                    &Expr::Function(function.clone()),
+                    &known_fields,
+                    &HashSet::new(),
+                    false,
+                )?;
+                collect_item(item, &mut functions);
+            }
+            SelectItem::WindowFunction { .. } => {
+                return Err(CassieError::Planner(format!(
+                    "{operation} RETURNING does not support window functions"
                 )));
             }
         }
     }
 
-    statement.table = table;
-    Ok(statement)
+    validate_function_calls(functions, catalog).await
 }
 
 async fn bind_create_table(
@@ -1099,6 +1077,15 @@ async fn bind_select(
     catalog: &Catalog,
     outer_scope: &CteScope,
 ) -> Result<SelectStatement, CassieError> {
+    bind_select_with_lateral_fields(select, catalog, outer_scope, &HashSet::new()).await
+}
+
+async fn bind_select_with_lateral_fields(
+    select: SelectStatement,
+    catalog: &Catalog,
+    outer_scope: &CteScope,
+    lateral_fields: &HashSet<String>,
+) -> Result<SelectStatement, CassieError> {
     let mut scope = outer_scope.clone();
     let mut local_names = HashSet::new();
     let mut select = select;
@@ -1172,8 +1159,15 @@ async fn bind_select(
         });
     }
 
-    let source = bind_query_source(select.source.clone(), catalog, &scope).await?;
-    let known_fields = source_fields(catalog, &source, &scope).await?;
+    let source = bind_query_source_with_lateral_fields(
+        select.source.clone(),
+        catalog,
+        &scope,
+        lateral_fields,
+    )
+    .await?;
+    let mut known_fields = source_fields(catalog, &source, &scope).await?;
+    known_fields.extend(lateral_fields.iter().cloned());
     select.source = source;
     select.ctes = bound_ctes;
 
@@ -1188,6 +1182,9 @@ async fn bind_select(
     for group_expr in &select.group_by {
         validate_expression(group_expr, &known_fields, &projection_aliases, false)?;
     }
+    for distinct_expr in &select.distinct_on {
+        validate_expression(distinct_expr, &known_fields, &projection_aliases, false)?;
+    }
     validate_expression_references(
         select.having.as_ref(),
         &known_fields,
@@ -1195,6 +1192,7 @@ async fn bind_select(
         false,
     )?;
     validate_order_by_references(&select.order, &known_fields, &projection_aliases)?;
+    validate_distinct_on_order_prefix(&select.distinct_on, &select.order)?;
 
     if let Some(set) = set {
         let right = Box::pin(bind_select(*set.right, catalog, &scope)).await?;
@@ -1434,6 +1432,7 @@ fn function_body_references(expr: &Expr, function_name: &str) -> bool {
                 || function_body_references(low, function_name)
                 || function_body_references(high, function_name)
         }
+        Expr::Not { expr } => function_body_references(expr, function_name),
         Expr::Cast { expr, .. } => function_body_references(expr, function_name),
         Expr::Exists(_) => false,
         Expr::StringLiteral(_)
@@ -1478,6 +1477,10 @@ fn projected_column_names(projection: &[SelectItem]) -> Vec<String> {
                 .as_deref()
                 .unwrap_or(&function.name)
                 .to_ascii_lowercase(),
+            SelectItem::WindowFunction { function, alias } => alias
+                .as_deref()
+                .unwrap_or(&function.name)
+                .to_ascii_lowercase(),
         })
         .collect()
 }
@@ -1486,10 +1489,11 @@ fn matches_wildcard(item: &SelectItem) -> bool {
     matches!(item, SelectItem::Wildcard)
 }
 
-fn bind_query_source<'a>(
+fn bind_query_source_with_lateral_fields<'a>(
     source: QuerySource,
     catalog: &'a Catalog,
     scope: &'a CteScope,
+    lateral_fields: &'a HashSet<String>,
 ) -> Pin<Box<dyn Future<Output = Result<QuerySource, CassieError>> + Send + 'a>> {
     Box::pin(async move {
         match source {
@@ -1507,11 +1511,24 @@ fn bind_query_source<'a>(
             }
             QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
             QuerySource::SingleRow => Ok(QuerySource::SingleRow),
-            QuerySource::Subquery { alias, select } => {
-                let select = bind_select(*select, catalog, scope).await?;
+            QuerySource::Subquery {
+                alias,
+                select,
+                lateral,
+            } => {
+                let empty = HashSet::new();
+                let visible_lateral_fields = if lateral { lateral_fields } else { &empty };
+                let select = bind_select_with_lateral_fields(
+                    *select,
+                    catalog,
+                    scope,
+                    visible_lateral_fields,
+                )
+                .await?;
                 Ok(QuerySource::Subquery {
                     alias,
                     select: Box::new(select),
+                    lateral,
                 })
             }
             QuerySource::Join {
@@ -1520,8 +1537,18 @@ fn bind_query_source<'a>(
                 kind,
                 on,
             } => {
-                let left = bind_query_source(*left, catalog, scope).await?;
-                let right = bind_query_source(*right, catalog, scope).await?;
+                let left =
+                    bind_query_source_with_lateral_fields(*left, catalog, scope, lateral_fields)
+                        .await?;
+                let mut right_lateral_fields = lateral_fields.clone();
+                right_lateral_fields.extend(source_fields(catalog, &left, scope).await?);
+                let right = bind_query_source_with_lateral_fields(
+                    *right,
+                    catalog,
+                    scope,
+                    &right_lateral_fields,
+                )
+                .await?;
                 let joined = QuerySource::Join {
                     left: Box::new(left),
                     right: Box::new(right),
@@ -1569,7 +1596,7 @@ fn source_fields<'a>(
                 .map(|fields| qualified_fields(name, fields))
                 .ok_or_else(|| CassieError::CollectionNotFound(name.clone())),
             QuerySource::SingleRow => Ok(HashSet::new()),
-            QuerySource::Subquery { alias, select } => Ok(qualified_fields(
+            QuerySource::Subquery { alias, select, .. } => Ok(qualified_fields(
                 alias,
                 projected_column_names(&select.projection),
             )),
@@ -1695,7 +1722,7 @@ fn infer_source_schema<'a>(
                 .cloned()
                 .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?,
             QuerySource::SingleRow => Schema { fields: Vec::new() },
-            QuerySource::Subquery { alias, select } => {
+            QuerySource::Subquery { alias, select, .. } => {
                 let inner =
                     infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions)
                         .await?;
@@ -1808,6 +1835,16 @@ fn infer_projection_schema(
                     nullable: true,
                 });
             }
+            SelectItem::WindowFunction { function, alias } => {
+                fields.push(FieldSchema {
+                    name: alias
+                        .as_deref()
+                        .unwrap_or(function.name.as_str())
+                        .to_string(),
+                    data_type: DataType::BigInt,
+                    nullable: false,
+                });
+            }
         }
     }
 
@@ -1882,6 +1919,7 @@ fn select_contains_parameters(select: &SelectStatement) -> bool {
             .iter()
             .any(select_item_contains_parameters)
         || select.filter.as_ref().is_some_and(expr_contains_parameters)
+        || select.distinct_on.iter().any(expr_contains_parameters)
         || select.group_by.iter().any(expr_contains_parameters)
         || select.having.as_ref().is_some_and(expr_contains_parameters)
         || select
@@ -1939,6 +1977,14 @@ fn select_item_contains_parameters(item: &SelectItem) -> bool {
         SelectItem::Wildcard => false,
         SelectItem::Column { .. } => false,
         SelectItem::Function { function, .. } => function.args.iter().any(expr_contains_parameters),
+        SelectItem::WindowFunction { function, .. } => {
+            function.args.iter().any(expr_contains_parameters)
+                || function.partition_by.iter().any(expr_contains_parameters)
+                || function
+                    .order_by
+                    .iter()
+                    .any(|order| expr_contains_parameters(&order.expr))
+        }
     }
 }
 
@@ -1973,6 +2019,7 @@ fn expr_contains_parameters(expr: &Expr) -> bool {
                 || expr_contains_parameters(low)
                 || expr_contains_parameters(high)
         }
+        Expr::Not { expr } => expr_contains_parameters(expr),
         Expr::Exists(statement) => parsed_statement_contains_parameters(statement),
         Expr::Function(function) => function.args.iter().any(expr_contains_parameters),
         Expr::Column(_)
@@ -2003,6 +2050,9 @@ fn collect_projection_aliases(select: &SelectStatement) -> HashSet<String> {
             }
             | SelectItem::Function {
                 alias: Some(alias), ..
+            }
+            | SelectItem::WindowFunction {
+                alias: Some(alias), ..
             } => {
                 aliases.insert(alias.to_ascii_lowercase());
             }
@@ -2014,6 +2064,15 @@ fn collect_projection_aliases(select: &SelectStatement) -> HashSet<String> {
 
 async fn validate_functions(
     statement: &SelectStatement,
+    catalog: &Catalog,
+) -> Result<(), CassieError> {
+    let mut seen = Vec::new();
+    collect_functions(statement, &mut seen);
+    validate_function_calls(seen, catalog).await
+}
+
+async fn validate_function_calls(
+    functions: Vec<FunctionCall>,
     catalog: &Catalog,
 ) -> Result<(), CassieError> {
     let mut signatures = crate::sql::functions::registry()
@@ -2028,10 +2087,7 @@ async fn validate_functions(
         );
     }
 
-    let mut seen = Vec::new();
-    collect_functions(statement, &mut seen);
-
-    for function in seen {
+    for function in functions {
         if function.name.eq_ignore_ascii_case("cast") {
             if function.args.len() != 2 {
                 return Err(CassieError::Planner(format!(
@@ -2095,6 +2151,17 @@ fn validate_projection_references(
                     validate_expression(arg, known_fields, &HashSet::new(), false)?;
                 }
             }
+            SelectItem::WindowFunction { function, .. } => {
+                for arg in &function.args {
+                    validate_expression(arg, known_fields, &HashSet::new(), false)?;
+                }
+                for expr in &function.partition_by {
+                    validate_expression(expr, known_fields, &HashSet::new(), false)?;
+                }
+                for order in &function.order_by {
+                    validate_expression(&order.expr, known_fields, &HashSet::new(), false)?;
+                }
+            }
         }
     }
     Ok(())
@@ -2126,6 +2193,35 @@ fn validate_order_by_references(
         validate_expression(&item.expr, known_fields, projection_aliases, true)?;
     }
     Ok(())
+}
+
+fn validate_distinct_on_order_prefix(
+    distinct_on: &[Expr],
+    order: &[OrderExpr],
+) -> Result<(), CassieError> {
+    if distinct_on.is_empty() {
+        return Ok(());
+    }
+    if order.len() < distinct_on.len() {
+        return Err(CassieError::Planner(
+            "DISTINCT ON expressions must match the leading ORDER BY expressions".to_string(),
+        ));
+    }
+    for (distinct_expr, order_expr) in distinct_on.iter().zip(order.iter()) {
+        if !distinct_on_expr_matches_order(distinct_expr, &order_expr.expr) {
+            return Err(CassieError::Planner(
+                "DISTINCT ON expressions must match the leading ORDER BY expressions".to_string(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn distinct_on_expr_matches_order(left: &Expr, right: &Expr) -> bool {
+    match (left, right) {
+        (Expr::Column(left), Expr::Column(right)) => left.eq_ignore_ascii_case(right),
+        _ => format!("{left:?}") == format!("{right:?}"),
+    }
 }
 
 fn validate_expression(
@@ -2209,6 +2305,12 @@ fn validate_expression(
                 allow_projection_alias,
             )
         }
+        Expr::Not { expr } => validate_expression(
+            expr,
+            known_fields,
+            projection_aliases,
+            allow_projection_alias,
+        ),
         Expr::Cast { expr, .. } => validate_expression(
             expr,
             known_fields,
@@ -2275,6 +2377,9 @@ fn collect_functions(statement: &SelectStatement, out: &mut Vec<FunctionCall>) {
     if let Some(expr) = &statement.having {
         collect_expr(expr, out);
     }
+    for expr in &statement.distinct_on {
+        collect_expr(expr, out);
+    }
     for expr in &statement.group_by {
         collect_expr(expr, out);
     }
@@ -2304,11 +2409,25 @@ fn collect_functions(statement: &SelectStatement, out: &mut Vec<FunctionCall>) {
 }
 
 fn collect_item(item: &SelectItem, out: &mut Vec<FunctionCall>) {
-    if let SelectItem::Function { function, .. } = item {
-        out.push(function.clone());
-        for arg in &function.args {
-            collect_expr(arg, out);
+    match item {
+        SelectItem::Function { function, .. } => {
+            out.push(function.clone());
+            for arg in &function.args {
+                collect_expr(arg, out);
+            }
         }
+        SelectItem::WindowFunction { function, .. } => {
+            for arg in &function.args {
+                collect_expr(arg, out);
+            }
+            for expr in &function.partition_by {
+                collect_expr(expr, out);
+            }
+            for order in &function.order_by {
+                collect_expr(&order.expr, out);
+            }
+        }
+        SelectItem::Wildcard | SelectItem::Column { .. } => {}
     }
 }
 
@@ -2341,6 +2460,9 @@ fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
         collect_expr(high, out);
     }
     if let Expr::Cast { expr, .. } = expr {
+        collect_expr(expr, out);
+    }
+    if let Expr::Not { expr } = expr {
         collect_expr(expr, out);
     }
 }

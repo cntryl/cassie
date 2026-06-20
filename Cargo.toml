@@ -124,6 +124,11 @@ harness = false
 path = "benches/tier3_system_query.rs"
 
 [[bench]]
+name = "tier3_system_query_breakdown"
+harness = false
+path = "benches/tier3_system_query_breakdown.rs"
+
+[[bench]]
 name = "tier3_system_startup"
 harness = false
 path = "benches/tier3_system_startup.rs"

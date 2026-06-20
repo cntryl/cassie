@@ -98,11 +98,7 @@ fn should_route_schema_data_temp_across_families() {
             ],
         };
 
-        cassie
-            .midge
-            .create_collection(collection, schema)
-            
-            .unwrap();
+        cassie.midge.create_collection(collection, schema).unwrap();
         let doc_id = cassie
             .midge
             .put_document(
@@ -110,7 +106,6 @@ fn should_route_schema_data_temp_across_families() {
                 None,
                 serde_json::json!({"title": "alpha", "embedding": [1.0, 2.0]}),
             )
-            
             .unwrap();
 
         // Act
@@ -120,18 +115,15 @@ fn should_route_schema_data_temp_across_families() {
         let data_entries = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Data, data_prefix.as_slice())
-            
             .unwrap();
         let schema_prefix = b"__cassie__/schema/";
         let schema_entries = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Schema, schema_prefix)
-            
             .unwrap();
         let temp_entries = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Temp, b"")
-            
             .unwrap();
 
         // Assert
@@ -158,7 +150,6 @@ fn should_route_schema_data_temp_across_families() {
         let after_put = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Temp, b"temp:")
-            
             .unwrap();
         assert_eq!(after_put.len(), 1);
 
@@ -166,7 +157,6 @@ fn should_route_schema_data_temp_across_families() {
         let after_cleanup = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Temp, b"")
-            
             .unwrap();
         assert!(after_cleanup.is_empty(), "cf2 should support cleanup");
 
@@ -203,11 +193,7 @@ fn should_store_rows_as_field_id_blobs_in_data_family() {
             ],
         };
 
-        cassie
-            .midge
-            .create_collection(collection, schema)
-            
-            .unwrap();
+        cassie.midge.create_collection(collection, schema).unwrap();
         let doc_id = cassie
             .midge
             .put_document(
@@ -215,7 +201,6 @@ fn should_store_rows_as_field_id_blobs_in_data_family() {
                 None,
                 serde_json::json!({"title": "alpha", "embedding": [1.0, 2.0]}),
             )
-            
             .unwrap();
 
         // Act
@@ -224,12 +209,10 @@ fn should_store_rows_as_field_id_blobs_in_data_family() {
         let row_entries = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Data, row_prefix.as_slice())
-            
             .unwrap();
         let stored = cassie
             .midge
             .get_document(collection, &doc_id)
-            
             .unwrap()
             .expect("stored row should decode");
 
@@ -282,12 +265,10 @@ fn should_preserve_retired_field_ids_in_row_schema_metadata() {
                     ],
                 },
             )
-            
             .unwrap();
         cassie
             .midge
             .alter_collection_drop_column(collection, "title")
-            
             .unwrap();
 
         // Act
@@ -301,7 +282,6 @@ fn should_preserve_retired_field_ids_in_row_schema_metadata() {
                     nullable: true,
                 },
             )
-            
             .unwrap();
         let row_schema_entries = cassie
             .midge
@@ -309,7 +289,6 @@ fn should_preserve_retired_field_ids_in_row_schema_metadata() {
                 StorageFamily::Schema,
                 format!("__cassie__/row-schema/{collection}").as_bytes(),
             )
-            
             .unwrap();
 
         // Assert
@@ -371,7 +350,6 @@ fn should_scan_legacy_document_rows_after_row_blob_upgrade() {
                     }],
                 },
             )
-            
             .unwrap();
         put_legacy_document(
             &cassie,
@@ -418,7 +396,6 @@ fn should_remove_legacy_document_key_when_overwriting_with_row_blob() {
                     }],
                 },
             )
-            
             .unwrap();
         put_legacy_document(
             &cassie,
@@ -435,18 +412,9 @@ fn should_remove_legacy_document_key_when_overwriting_with_row_blob() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "new"}),
             )
-            
             .unwrap();
-        cassie
-            .midge
-            .delete_document(collection, "doc-1")
-            
-            .unwrap();
-        let after_delete = cassie
-            .midge
-            .get_document(collection, "doc-1")
-            
-            .unwrap();
+        cassie.midge.delete_document(collection, "doc-1").unwrap();
+        let after_delete = cassie.midge.get_document(collection, "doc-1").unwrap();
 
         // Assert
         assert!(after_delete.is_none());
@@ -482,7 +450,6 @@ fn should_move_legacy_document_keys_when_collection_is_renamed() {
                     }],
                 },
             )
-            
             .unwrap();
         put_legacy_document(
             &cassie,
@@ -492,20 +459,11 @@ fn should_move_legacy_document_keys_when_collection_is_renamed() {
         );
 
         // Act
-        cassie
-            .midge
-            .rename_collection(collection, renamed)
-            
-            .unwrap();
-        let moved = cassie
-            .midge
-            .get_document(renamed, "legacy-1")
-            
-            .unwrap();
+        cassie.midge.rename_collection(collection, renamed).unwrap();
+        let moved = cassie.midge.get_document(renamed, "legacy-1").unwrap();
         let old_entries = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Data, format!("doc:{collection}:").as_bytes())
-            
             .unwrap();
 
         // Assert
@@ -543,7 +501,6 @@ fn should_delete_legacy_document_keys_when_collection_is_dropped() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            
             .unwrap();
         put_legacy_document(
             &cassie,
@@ -554,16 +511,8 @@ fn should_delete_legacy_document_keys_when_collection_is_dropped() {
 
         // Act
         cassie.midge.drop_collection(collection).unwrap();
-        cassie
-            .midge
-            .create_collection(collection, schema)
-            
-            .unwrap();
-        let resurrected = cassie
-            .midge
-            .get_document(collection, "legacy-1")
-            
-            .unwrap();
+        cassie.midge.create_collection(collection, schema).unwrap();
+        let resurrected = cassie.midge.get_document(collection, "legacy-1").unwrap();
 
         // Assert
         assert!(resurrected.is_none());
@@ -598,7 +547,6 @@ fn should_iterate_rebuild_rows_across_storage_sources() {
                     }],
                 },
             )
-            
             .unwrap();
         cassie
             .midge
@@ -607,7 +555,6 @@ fn should_iterate_rebuild_rows_across_storage_sources() {
                 Some("dupe-1".to_string()),
                 serde_json::json!({"title": "row"}),
             )
-            
             .unwrap();
         cassie
             .midge
@@ -616,7 +563,6 @@ fn should_iterate_rebuild_rows_across_storage_sources() {
                 Some("row-1".to_string()),
                 serde_json::json!({"title": "fresh"}),
             )
-            
             .unwrap();
         put_legacy_document(
             &cassie,
@@ -635,7 +581,6 @@ fn should_iterate_rebuild_rows_across_storage_sources() {
         let rows = cassie
             .midge
             .scan_rows_for_rebuild(collection, RowDecode::Full)
-            
             .unwrap();
 
         // Assert
@@ -691,7 +636,6 @@ fn should_project_active_fields_for_rebuild_rows() {
                     ],
                 },
             )
-            
             .unwrap();
         cassie
             .midge
@@ -704,12 +648,10 @@ fn should_project_active_fields_for_rebuild_rows() {
                     "status": "ready",
                 }),
             )
-            
             .unwrap();
         cassie
             .midge
             .alter_collection_drop_column(collection, "body")
-            
             .unwrap();
 
         // Act
@@ -719,7 +661,6 @@ fn should_project_active_fields_for_rebuild_rows() {
                 collection,
                 RowDecode::Projected(vec!["title".to_string(), "body".to_string()]),
             )
-            
             .unwrap();
 
         // Assert
@@ -790,7 +731,7 @@ fn should_bootstrap_via_startup_path() {
 }
 
 #[test]
-fn should_clear_temp_family_during_startup() {
+fn should_preserve_temp_family_during_startup() {
     // Arrange
     let path = data_dir("startup_temp_cleanup");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -814,11 +755,10 @@ fn should_clear_temp_family_during_startup() {
         let entries = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Temp, b"temp_")
-            
             .unwrap();
 
         // Assert
-        assert!(entries.is_empty());
+        assert_eq!(entries.len(), 1);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -853,11 +793,7 @@ fn should_keep_cassie_metadata_off_default_family() {
             ],
         };
 
-        cassie
-            .midge
-            .create_collection(collection, schema)
-            
-            .unwrap();
+        cassie.midge.create_collection(collection, schema).unwrap();
         let _ = cassie
             .midge
             .put_document(
@@ -865,15 +801,10 @@ fn should_keep_cassie_metadata_off_default_family() {
                 Some("doc-default-guard".to_string()),
                 serde_json::json!({"title": "alpha", "embedding": [1.0, 2.0]}),
             )
-            
             .unwrap();
 
         // Act
-        let default_entries = cassie
-            .midge
-            .raw_scan_prefix_named("default", b"")
-            
-            .unwrap();
+        let default_entries = cassie.midge.raw_scan_prefix_named("default", b"").unwrap();
 
         // Assert
         for (key, _) in default_entries {
@@ -920,7 +851,6 @@ fn should_make_startup_idempotent_when_reinvoked() {
         let entries = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Temp, b"")
-            
             .unwrap();
         assert!(entries.is_empty());
 
@@ -968,11 +898,7 @@ fn should_hydrate_from_schema_records_when_collections_index_is_missing() {
             }],
         };
 
-        cassie
-            .midge
-            .create_collection(collection, schema)
-            
-            .unwrap();
+        cassie.midge.create_collection(collection, schema).unwrap();
 
         let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
         tx.delete(b"__cassie__/collections".to_vec()).unwrap();
@@ -1023,7 +949,6 @@ fn should_refresh_in_memory_catalog_during_startup() {
                     }],
                 },
             )
-            
             .unwrap();
 
         cassie
@@ -1111,7 +1036,6 @@ fn should_hydrate_renamed_namespace_catalog_from_schema_family() {
         cassie
             .midge
             .rename_namespace("reporting", "reporting_archive")
-            
             .unwrap();
 
         drop(cassie);

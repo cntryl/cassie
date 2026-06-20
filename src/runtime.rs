@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::io::{self, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -51,11 +52,56 @@ impl QueryExecutionControls {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PlanCacheKey {
-    pub normalized_sql: String,
+    pub sql_fingerprint: u64,
     pub schema_epoch: u64,
-    pub parameter_shape: Vec<String>,
+    pub parameter_shape: Vec<ParameterShape>,
     pub mode: ExecutionMode,
     pub database: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ParameterShape {
+    Null,
+    Bool,
+    Int64,
+    Float64,
+    String,
+    Vector(usize),
+    Json,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FulltextIndexOptions {
+    pub field_boost: HashMap<String, f64>,
+    pub field_k1: HashMap<String, f64>,
+    pub field_b: HashMap<String, f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FulltextIndexOptionsCacheKey {
+    pub schema_epoch: u64,
+    pub collection: String,
+    pub fields: Vec<String>,
+}
+
+impl FulltextIndexOptionsCacheKey {
+    pub fn new<I>(schema_epoch: u64, collection: &str, fields: I) -> Self
+    where
+        I: IntoIterator<Item = String>,
+    {
+        let mut normalized_fields = fields
+            .into_iter()
+            .map(|field| field.to_ascii_lowercase())
+            .collect::<Vec<_>>();
+        normalized_fields.sort();
+        normalized_fields.dedup();
+
+        Self {
+            schema_epoch,
+            collection: collection.to_ascii_lowercase(),
+            fields: normalized_fields,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -63,6 +109,7 @@ pub struct RuntimeSnapshot {
     pub started: bool,
     pub uptime_seconds: u64,
     pub running_queries: u64,
+    pub sql_parse_total: u64,
     pub startup_total: u64,
     pub startup_ms_total: u64,
     pub shutdown_total: u64,
@@ -182,6 +229,7 @@ struct RuntimeMetricsState {
 struct L1PlanEntry {
     plan: Arc<PhysicalPlan>,
     durable: bool,
+    candidate_expires_at_ms: Option<u64>,
 }
 
 #[derive(Debug, Default)]
@@ -194,6 +242,7 @@ struct PlanCacheState {
 pub struct L1PlanHit {
     pub plan: Arc<PhysicalPlan>,
     pub durable: bool,
+    pub candidate_expires_at_ms: Option<u64>,
 }
 
 #[derive(Debug)]
@@ -201,6 +250,7 @@ pub struct RuntimeState {
     limits: CassieRuntimeLimits,
     metrics: Mutex<RuntimeMetricsState>,
     plan_cache: Mutex<PlanCacheState>,
+    fulltext_index_options: Mutex<HashMap<FulltextIndexOptionsCacheKey, FulltextIndexOptions>>,
     started_at: Mutex<Option<Instant>>,
     schema_epoch: AtomicU64,
 }
@@ -233,6 +283,7 @@ impl RuntimeState {
             limits,
             metrics: Mutex::new(metrics),
             plan_cache: Mutex::new(PlanCacheState::default()),
+            fulltext_index_options: Mutex::new(HashMap::new()),
             started_at: Mutex::new(None),
             schema_epoch: AtomicU64::new(0),
         }
@@ -271,6 +322,11 @@ impl RuntimeState {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.runtime.catalog_hydration_total += 1;
         metrics.runtime.catalog_hydration_ms_total += duration_ms(elapsed);
+    }
+
+    pub fn record_sql_parse(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.runtime.sql_parse_total += 1;
     }
 
     pub fn begin_running_query(self: &Arc<Self>) -> RunningQueryGuard {
@@ -517,6 +573,7 @@ impl RuntimeState {
             return Some(L1PlanHit {
                 plan: plan.plan,
                 durable: plan.durable,
+                candidate_expires_at_ms: plan.candidate_expires_at_ms,
             });
         }
 
@@ -529,7 +586,11 @@ impl RuntimeState {
         let max_entries = self.limits.plan_cache_entries.max(1);
         let mut cache = self.plan_cache.lock().expect("plan cache");
         let mut evictions = 0;
-        let entry = L1PlanEntry { plan, durable };
+        let entry = L1PlanEntry {
+            plan,
+            durable,
+            candidate_expires_at_ms: None,
+        };
 
         if cache.entries.contains_key(&key) {
             cache.entries.insert(key.clone(), entry);
@@ -555,6 +616,21 @@ impl RuntimeState {
         let mut cache = self.plan_cache.lock().expect("plan cache");
         if let Some(entry) = cache.entries.get_mut(key) {
             entry.durable = true;
+            entry.candidate_expires_at_ms = None;
+        }
+    }
+
+    pub fn mark_plan_cache_entry_candidate_pending(&self, key: &PlanCacheKey, ttl_seconds: u64) {
+        if ttl_seconds == 0 {
+            return;
+        }
+
+        let expires_at_ms = current_time_millis().saturating_add(ttl_seconds.saturating_mul(1000));
+        let mut cache = self.plan_cache.lock().expect("plan cache");
+        if let Some(entry) = cache.entries.get_mut(key) {
+            if !entry.durable {
+                entry.candidate_expires_at_ms = Some(expires_at_ms);
+            }
         }
     }
 
@@ -563,6 +639,10 @@ impl RuntimeState {
         cache.entries.clear();
         cache.order.clear();
         drop(cache);
+        self.fulltext_index_options
+            .lock()
+            .expect("fulltext index options")
+            .clear();
         self.record_plan_cache_invalidation();
     }
 
@@ -576,6 +656,32 @@ impl RuntimeState {
 
     pub fn set_schema_epoch(&self, schema_epoch: u64) {
         self.schema_epoch.store(schema_epoch, Ordering::SeqCst);
+        self.fulltext_index_options
+            .lock()
+            .expect("fulltext index options")
+            .clear();
+    }
+
+    pub fn fulltext_index_options_lookup(
+        &self,
+        key: &FulltextIndexOptionsCacheKey,
+    ) -> Option<FulltextIndexOptions> {
+        self.fulltext_index_options
+            .lock()
+            .expect("fulltext index options")
+            .get(key)
+            .cloned()
+    }
+
+    pub fn store_fulltext_index_options(
+        &self,
+        key: FulltextIndexOptionsCacheKey,
+        options: FulltextIndexOptions,
+    ) {
+        self.fulltext_index_options
+            .lock()
+            .expect("fulltext index options")
+            .insert(key, options);
     }
 
     pub fn query_controls(&self, started_at: Instant) -> QueryExecutionControls {
@@ -609,12 +715,12 @@ impl RuntimeState {
     }
 }
 
-pub fn parameter_shape(params: &[Value]) -> Vec<String> {
+pub fn parameter_shape(params: &[Value]) -> Vec<ParameterShape> {
     params.iter().map(parameter_shape_for_value).collect()
 }
 
-pub fn normalized_sql(statement: &crate::sql::ast::ParsedStatement) -> String {
-    format!("{:?}", statement.statement)
+pub fn sql_fingerprint(statement: &crate::sql::ast::ParsedStatement) -> u64 {
+    stable_fingerprint(&statement.statement)
 }
 
 pub fn error_class(error: &CassieError) -> &'static str {
@@ -636,15 +742,15 @@ pub fn error_class(error: &CassieError) -> &'static str {
     }
 }
 
-fn parameter_shape_for_value(value: &Value) -> String {
+fn parameter_shape_for_value(value: &Value) -> ParameterShape {
     match value {
-        Value::Null => "null".to_string(),
-        Value::Bool(_) => "bool".to_string(),
-        Value::Int64(_) => "int64".to_string(),
-        Value::Float64(_) => "float64".to_string(),
-        Value::String(_) => "string".to_string(),
-        Value::Vector(vector) => format!("vector({})", vector.values.len()),
-        Value::Json(_) => "json".to_string(),
+        Value::Null => ParameterShape::Null,
+        Value::Bool(_) => ParameterShape::Bool,
+        Value::Int64(_) => ParameterShape::Int64,
+        Value::Float64(_) => ParameterShape::Float64,
+        Value::String(_) => ParameterShape::String,
+        Value::Vector(vector) => ParameterShape::Vector(vector.values.len()),
+        Value::Json(_) => ParameterShape::Json,
     }
 }
 
@@ -662,6 +768,50 @@ fn adjust_signed(value: &mut u64, delta: isize) {
         *value = value.saturating_sub(delta.unsigned_abs() as u64);
     } else {
         *value = value.saturating_add(delta as u64);
+    }
+}
+
+fn current_time_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+pub(crate) fn stable_fingerprint<T: Serialize>(value: &T) -> u64 {
+    let mut writer = StableFingerprintWriter::default();
+    serde_json::to_writer(&mut writer, value).expect("serialize stable fingerprint");
+    writer.finish()
+}
+
+#[derive(Default)]
+struct StableFingerprintWriter {
+    state: u64,
+}
+
+impl StableFingerprintWriter {
+    fn finish(&self) -> u64 {
+        self.state
+    }
+}
+
+impl Write for StableFingerprintWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+        const FNV_PRIME: u64 = 0x100000001b3;
+
+        if self.state == 0 {
+            self.state = FNV_OFFSET_BASIS;
+        }
+        for byte in buf {
+            self.state ^= u64::from(*byte);
+            self.state = self.state.wrapping_mul(FNV_PRIME);
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -689,6 +839,7 @@ mod tests {
                 collection: "bench_documents".to_string(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -706,9 +857,9 @@ mod tests {
         // Arrange
         let runtime = RuntimeState::new(crate::config::CassieRuntimeLimits::default());
         let key = PlanCacheKey {
-            normalized_sql: "select".to_string(),
+            sql_fingerprint: 42,
             schema_epoch: 1,
-            parameter_shape: vec!["int64".to_string()],
+            parameter_shape: vec![ParameterShape::Int64],
             mode: ExecutionMode::SimpleQuery,
             database: Some("postgres".to_string()),
         };

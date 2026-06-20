@@ -357,6 +357,7 @@ fn should_reject_invalid_logical_plan_shape_missing_collection() {
                 ctes: vec![],
                 recursive: false,
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: vec![SelectItem::Column {
                     name: "id".to_string(),
                     alias: None,
@@ -394,6 +395,7 @@ fn should_reject_invalid_logical_plan_shape_empty_projection() {
                 ctes: vec![],
                 recursive: false,
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: vec![],
                 filter: None,
                 group_by: vec![],
@@ -428,6 +430,7 @@ fn should_reject_invalid_logical_plan_shape_negative_offset() {
                 ctes: vec![],
                 recursive: false,
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: vec![SelectItem::Column {
                     name: "id".to_string(),
                     alias: None,
@@ -465,6 +468,7 @@ fn should_reject_invalid_logical_plan_shape_negative_limit() {
                 ctes: vec![],
                 recursive: false,
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: vec![SelectItem::Column {
                     name: "id".to_string(),
                     alias: None,

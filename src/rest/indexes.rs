@@ -35,7 +35,6 @@ pub async fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Va
     let schema = cassie
         .midge
         .collection_schema(collection)
-        
         .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
 
     let source_field = payload

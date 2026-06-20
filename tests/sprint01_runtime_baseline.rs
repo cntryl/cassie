@@ -48,7 +48,6 @@ fn should_startup_be_idempotent_without_state_corruption() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            
             .unwrap();
         let _ = cassie
             .midge
@@ -57,7 +56,6 @@ fn should_startup_be_idempotent_without_state_corruption() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha", "body": "first"}),
             )
-            
             .unwrap();
 
         cassie.startup().await.unwrap();
@@ -129,11 +127,7 @@ fn should_startup_not_create_side_effects_in_default_family() {
             }],
         };
 
-        cassie
-            .midge
-            .create_collection(collection, schema)
-            
-            .unwrap();
+        cassie.midge.create_collection(collection, schema).unwrap();
         let _ = cassie
             .midge
             .put_document(
@@ -141,16 +135,11 @@ fn should_startup_not_create_side_effects_in_default_family() {
                 Some("doc-default-guard".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            
             .unwrap();
         cassie.startup().await.unwrap();
 
         // Act
-        let default_entries = cassie
-            .midge
-            .raw_scan_prefix_named("default", b"")
-            
-            .unwrap();
+        let default_entries = cassie.midge.raw_scan_prefix_named("default", b"").unwrap();
 
         // Assert
         for (key, _) in default_entries {
@@ -281,9 +270,7 @@ fn should_create_session_without_mutating_runtime_state() {
         let before_collections = cassie.catalog.list_collections().await.len();
 
         // Act
-        let session = cassie
-            .create_session("tester", Some("postgres".to_string()))
-            ;
+        let session = cassie.create_session("tester", Some("postgres".to_string()));
         let after_health = cassie.health().await;
         let after_collections = cassie.catalog.list_collections().await.len();
 

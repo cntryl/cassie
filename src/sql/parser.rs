@@ -9,7 +9,7 @@ use crate::sql::ast::{
     FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement, QuerySource,
     QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement,
     ShowStatement, SortDirection, TransactionAction, TransactionIsolation, TransactionStatement,
-    Volatility,
+    Volatility, WindowFunctionCall,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -106,6 +106,10 @@ fn is_transaction_control_statement(lower: &str) -> bool {
         || lower.starts_with("commit ")
         || lower == "rollback"
         || lower.starts_with("rollback ")
+        || lower == "savepoint"
+        || lower.starts_with("savepoint ")
+        || lower == "release"
+        || lower.starts_with("release ")
 }
 
 fn unsupported_privilege_statement(lower: &str) -> Option<&'static str> {
@@ -137,11 +141,7 @@ fn unsupported_privilege_statement(lower: &str) -> Option<&'static str> {
 }
 
 fn is_unsupported_transaction_control_statement(lower: &str) -> bool {
-    lower == "savepoint"
-        || lower.starts_with("savepoint ")
-        || lower == "release"
-        || lower.starts_with("release ")
-        || lower == "prepare transaction"
+    lower == "prepare transaction"
         || lower.starts_with("prepare transaction ")
         || lower == "commit prepared"
         || lower.starts_with("commit prepared ")
@@ -182,6 +182,35 @@ fn parse_transaction_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
             action: TransactionAction::Rollback,
             isolation: None,
         },
+        ["rollback", "to", name] | ["rollback", "to", "savepoint", name] => TransactionStatement {
+            action: TransactionAction::RollbackTo {
+                name: parse_savepoint_name(name, "ROLLBACK TO")?,
+            },
+            isolation: None,
+        },
+        ["rollback", "to", ..] => {
+            return Err(SqlError(
+                "ROLLBACK TO requires a savepoint name".to_string(),
+            ));
+        }
+        ["savepoint", name] => TransactionStatement {
+            action: TransactionAction::Savepoint {
+                name: parse_savepoint_name(name, "SAVEPOINT")?,
+            },
+            isolation: None,
+        },
+        ["savepoint", ..] => {
+            return Err(SqlError("SAVEPOINT requires a name".to_string()));
+        }
+        ["release", name] | ["release", "savepoint", name] => TransactionStatement {
+            action: TransactionAction::Release {
+                name: parse_savepoint_name(name, "RELEASE")?,
+            },
+            isolation: None,
+        },
+        ["release", ..] => {
+            return Err(SqlError("RELEASE requires a savepoint name".to_string()));
+        }
         _ => {
             return Err(SqlError(
                 "unsupported transaction control statement".to_string(),
@@ -193,6 +222,19 @@ fn parse_transaction_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::Transaction(statement),
     })
+}
+
+fn parse_savepoint_name(raw: &str, command: &str) -> Result<String, SqlError> {
+    let name = raw.trim();
+    if name.is_empty() {
+        return Err(SqlError(format!("{command} requires a savepoint name")));
+    }
+    if name.chars().any(|character| {
+        !(character.is_ascii_alphanumeric() || character == '_' || character == '-')
+    }) {
+        return Err(SqlError(format!("invalid savepoint name '{name}'")));
+    }
+    Ok(name.to_ascii_lowercase())
 }
 
 fn parse_transaction_isolation(tokens: &[&str]) -> Result<TransactionIsolation, SqlError> {
@@ -798,15 +840,17 @@ fn parse_alter_table_operation(raw: &str) -> Result<AlterTableOperation, SqlErro
     }
     if lower.starts_with("rename column") {
         let rest = raw["rename column".len()..].trim();
-        let (from, to) =
-            split_keyword(rest, "to").ok_or_else(|| SqlError("RENAME COLUMN requires TO clause".into()))?;
+        let (from, to) = split_keyword(rest, "to")
+            .ok_or_else(|| SqlError("RENAME COLUMN requires TO clause".into()))?;
         if from.split_whitespace().count() != 1 {
             return Err(SqlError(
                 "RENAME COLUMN supports only one source column".into(),
             ));
         }
         if to.split_whitespace().count() != 1 {
-            return Err(SqlError("RENAME COLUMN supports only one target column".into()));
+            return Err(SqlError(
+                "RENAME COLUMN supports only one target column".into(),
+            ));
         }
         return Ok(AlterTableOperation::RenameColumn {
             from: from.to_string(),
@@ -858,8 +902,8 @@ fn parse_alter_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError> 
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[12..].trim();
 
-    let (schema, rest) =
-        split_first_token(rest).ok_or_else(|| SqlError("missing schema name in ALTER SCHEMA".into()))?;
+    let (schema, rest) = split_first_token(rest)
+        .ok_or_else(|| SqlError("missing schema name in ALTER SCHEMA".into()))?;
     if schema.trim().is_empty() {
         return Err(SqlError("missing schema name in ALTER SCHEMA".into()));
     }
@@ -875,9 +919,7 @@ fn parse_alter_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError> 
         return Err(SqlError("RENAME TO requires a schema name".into()));
     }
     if target.split_whitespace().count() != 1 {
-        return Err(SqlError(
-            "RENAME TO supports only one schema name".into(),
-        ));
+        return Err(SqlError("RENAME TO supports only one schema name".into()));
     }
 
     Ok(ParsedStatement {
@@ -1336,6 +1378,10 @@ fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
         return Err(SqlError("invalid projection item".into()));
     }
 
+    if let Some(function) = parse_window_function(expr_raw)? {
+        return Ok(SelectItem::WindowFunction { function, alias });
+    }
+
     let expr = parse_expression(expr_raw)?;
     Ok(match expr {
         Expr::Function(function) => SelectItem::Function { function, alias },
@@ -1353,17 +1399,109 @@ fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
     })
 }
 
-fn parse_query_source(raw: &str) -> Result<QuerySource, SqlError> {
-    let raw = raw.trim();
-    let lower = raw.to_lowercase();
-    for unsupported in [" full join ", " right join ", " cross join ", " lateral "] {
-        if lower.contains(unsupported) {
-            return Err(SqlError("unsupported JOIN syntax".into()));
-        }
+fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCall>, SqlError> {
+    let Some((function_raw, over_raw)) = split_top_level(raw, " over ") else {
+        return Ok(None);
+    };
+    let function = parse_function(function_raw.trim())?
+        .ok_or_else(|| SqlError("window function requires function call".into()))?;
+    let function_name = function.name.to_ascii_lowercase();
+    if !matches!(
+        function_name.as_str(),
+        "row_number" | "rank" | "dense_rank" | "lag" | "lead" | "first_value" | "last_value"
+    ) {
+        return Err(SqlError(format!(
+            "unsupported window function '{}'",
+            function.name
+        )));
+    }
+    if matches!(function_name.as_str(), "row_number" | "rank" | "dense_rank")
+        && !function.args.is_empty()
+    {
+        return Err(SqlError(format!(
+            "{} window function expects no args",
+            function.name
+        )));
+    }
+    if matches!(
+        function_name.as_str(),
+        "lag" | "lead" | "first_value" | "last_value"
+    ) && function.args.len() != 1
+    {
+        return Err(SqlError(format!(
+            "{} window function expects one arg",
+            function.name
+        )));
     }
 
+    let over_body = strip_parentheses(over_raw.trim())
+        .ok_or_else(|| SqlError("window function OVER clause requires parentheses".into()))?;
+    let (partition_by, order_by) = parse_window_spec(over_body)?;
+    Ok(Some(WindowFunctionCall {
+        name: function.name,
+        args: function.args,
+        partition_by,
+        order_by,
+    }))
+}
+
+fn parse_window_spec(raw: &str) -> Result<(Vec<Expr>, Vec<OrderExpr>), SqlError> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+
+    let lower = raw.to_lowercase();
+    if lower.starts_with("partition by ") {
+        let rest = raw["partition by ".len()..].trim();
+        if let Some((partition_raw, order_raw)) = split_top_level(rest, " order by ") {
+            let partition_by = split_csv(partition_raw)
+                .into_iter()
+                .map(parse_expression)
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok((partition_by, parse_order_by(order_raw)?));
+        }
+        let partition_by = split_csv(rest)
+            .into_iter()
+            .map(parse_expression)
+            .collect::<Result<Vec<_>, _>>()?;
+        return Ok((partition_by, Vec::new()));
+    }
+
+    if lower.starts_with("order by ") {
+        return Ok((Vec::new(), parse_order_by(&raw["order by ".len()..])?));
+    }
+
+    Err(SqlError("unsupported window function syntax".into()))
+}
+
+fn parse_query_source(raw: &str) -> Result<QuerySource, SqlError> {
+    let raw = raw.trim();
+    if let Some((left, right)) = split_top_level(raw, " outer apply ") {
+        return parse_apply_source(left, right, true);
+    }
+    if let Some((left, right)) = split_top_level(raw, " cross apply ") {
+        return parse_apply_source(left, right, false);
+    }
+    if let Some((left, right)) = split_top_level(raw, " full outer join ") {
+        return parse_join_source(left, right, JoinKind::Full);
+    }
+    if let Some((left, right)) = split_top_level(raw, " full join ") {
+        return parse_join_source(left, right, JoinKind::Full);
+    }
+    if let Some((left, right)) = split_top_level(raw, " right join ") {
+        return parse_join_source(left, right, JoinKind::Right);
+    }
     if let Some((left, right)) = split_top_level(raw, " left join ") {
         return parse_join_source(left, right, JoinKind::Left);
+    }
+    if let Some((left, right)) = split_top_level(raw, " cross join ") {
+        return Ok(QuerySource::Join {
+            left: Box::new(parse_query_source(left)?),
+            right: Box::new(parse_query_source(right)?),
+            kind: JoinKind::Cross,
+            on: Expr::BoolLiteral(true),
+        });
     }
     if let Some((left, right)) = split_top_level(raw, " join ") {
         return parse_join_source(left, right, JoinKind::Inner);
@@ -1383,11 +1521,55 @@ fn parse_join_source(left: &str, right: &str, kind: JoinKind) -> Result<QuerySou
     })
 }
 
+fn parse_apply_source(left: &str, right: &str, outer: bool) -> Result<QuerySource, SqlError> {
+    let left = parse_query_source(left)?;
+    let right = mark_source_lateral(parse_query_source(right)?);
+
+    Ok(QuerySource::Join {
+        left: Box::new(left),
+        right: Box::new(right),
+        kind: if outer {
+            JoinKind::Left
+        } else {
+            JoinKind::Cross
+        },
+        on: Expr::BoolLiteral(true),
+    })
+}
+
+fn mark_source_lateral(source: QuerySource) -> QuerySource {
+    match source {
+        QuerySource::Subquery { alias, select, .. } => QuerySource::Subquery {
+            alias,
+            select,
+            lateral: true,
+        },
+        QuerySource::Join {
+            left,
+            right,
+            kind,
+            on,
+        } => QuerySource::Join {
+            left,
+            right: Box::new(mark_source_lateral(*right)),
+            kind,
+            on,
+        },
+        other => other,
+    }
+}
+
 fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlError> {
     let raw = raw.trim();
     if raw.is_empty() {
         return Err(SqlError("missing collection in FROM".into()));
     }
+
+    let lateral = raw.eq_ignore_ascii_case("lateral")
+        || raw
+            .get(..8)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("lateral "));
+    let raw = if lateral { raw[7..].trim_start() } else { raw };
 
     if raw.starts_with('(') {
         let close = matching_closing_paren(raw)
@@ -1412,6 +1594,7 @@ fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlError> {
         return Ok(QuerySource::Subquery {
             alias: alias.to_string(),
             select: Box::new(select),
+            lateral,
         });
     }
 
@@ -2108,27 +2291,14 @@ fn parse_select_statement(
     }
 
     let trimmed = sql.trim().trim_end_matches(';').trim();
-    if find_top_level_keyword(trimmed, 0, "intersect").is_some()
-        || find_top_level_keyword(trimmed, 0, "except").is_some()
-    {
-        return Err(SqlError("unsupported set operation".into()));
-    }
-    if let Some(union_pos) = find_top_level_keyword(trimmed, 0, "union all") {
+    if let Some((set_pos, set_token, set_operator)) = find_set_operation(trimmed) {
         return parse_set_select_statement(
             trimmed,
             withs,
             recursive,
-            union_pos,
-            SetOperator::UnionAll,
-        );
-    }
-    if let Some(union_pos) = find_top_level_keyword(trimmed, 0, "union") {
-        return parse_set_select_statement(
-            trimmed,
-            withs,
-            recursive,
-            union_pos,
-            SetOperator::Union,
+            set_pos,
+            set_token,
+            set_operator,
         );
     }
 
@@ -2169,12 +2339,33 @@ fn parse_select_statement(
         )
     };
 
-    let select_part_lower = select_part.to_lowercase();
-    if select_part_lower.starts_with("distinct on") {
-        return Err(SqlError("unsupported DISTINCT ON syntax".into()));
-    }
-    let distinct = if select_part_lower == "distinct" || select_part_lower.starts_with("distinct ")
-    {
+    let mut distinct_on = Vec::new();
+    let mut select_part_lower = select_part.to_lowercase();
+    let distinct = if select_part_lower.starts_with("distinct on") {
+        let after_distinct_on = select_part["distinct on".len()..].trim_start();
+        let (raw_distinct_on, remainder) = parse_parenthesized_prefix(after_distinct_on)
+            .ok_or_else(|| {
+                SqlError("DISTINCT ON requires a parenthesized expression list".into())
+            })?;
+        if raw_distinct_on.trim().is_empty() {
+            return Err(SqlError(
+                "DISTINCT ON requires at least one expression".into(),
+            ));
+        }
+        distinct_on = split_csv(&raw_distinct_on)
+            .into_iter()
+            .map(parse_expression)
+            .collect::<Result<Vec<_>, _>>()?;
+        select_part = remainder.trim().to_string();
+        if select_part.is_empty() {
+            return Err(SqlError("missing projection in SELECT statement".into()));
+        }
+        select_part_lower = select_part.to_lowercase();
+        if select_part_lower.starts_with("distinct") {
+            return Err(SqlError("duplicate DISTINCT clause".into()));
+        }
+        false
+    } else if select_part_lower == "distinct" || select_part_lower.starts_with("distinct ") {
         select_part = select_part["distinct".len()..].trim().to_string();
         true
     } else {
@@ -2284,9 +2475,6 @@ fn parse_select_statement(
         }
     }
 
-    if select_part.to_lowercase().contains(" over ") {
-        return Err(SqlError("unsupported window function syntax".into()));
-    }
     let projection_tokens: Vec<&str> = split_csv(&select_part);
     let mut projection = Vec::with_capacity(projection_tokens.len());
     for token in projection_tokens {
@@ -2315,6 +2503,7 @@ fn parse_select_statement(
             ctes: withs,
             recursive,
             distinct,
+            distinct_on,
             projection,
             filter,
             group_by,
@@ -2332,12 +2521,10 @@ fn parse_set_select_statement(
     withs: Vec<CommonTableExpression>,
     recursive: bool,
     union_pos: usize,
+    set_token: &'static str,
     operator: SetOperator,
 ) -> Result<ParsedStatement, SqlError> {
-    let token_len = match operator {
-        SetOperator::Union => "union".len(),
-        SetOperator::UnionAll => "union all".len(),
-    };
+    let token_len = set_token.len();
     let left_sql = trimmed[..union_pos].trim();
     let right_sql = trimmed[union_pos + token_len..].trim();
     if left_sql.is_empty() || right_sql.is_empty() {
@@ -2346,8 +2533,10 @@ fn parse_set_select_statement(
         ));
     }
 
+    let (right_sql, global_order, global_limit, global_offset) =
+        split_set_right_and_global_clauses(right_sql)?;
     let mut left = parse_select_statement(left_sql, withs, recursive)?;
-    let right = parse_select_statement(right_sql, Vec::new(), false)?;
+    let right = parse_select_statement(&right_sql, Vec::new(), false)?;
     let QueryStatement::Select(left_select) = &mut left.statement else {
         return Err(SqlError("set operation requires SELECT operands".into()));
     };
@@ -2358,7 +2547,114 @@ fn parse_set_select_statement(
         operator,
         right: Box::new(right_select),
     }));
+    left_select.order = global_order;
+    left_select.limit = global_limit;
+    left_select.offset = global_offset;
     Ok(left)
+}
+
+fn find_set_operation(sql: &str) -> Option<(usize, &'static str, SetOperator)> {
+    [
+        ("union all", SetOperator::UnionAll),
+        ("intersect", SetOperator::Intersect),
+        ("except", SetOperator::Except),
+        ("union", SetOperator::Union),
+    ]
+    .into_iter()
+    .filter_map(|(token, operator)| {
+        find_top_level_keyword(sql, 0, token).map(|pos| (pos, token, operator))
+    })
+    .min_by(|left, right| {
+        left.0
+            .cmp(&right.0)
+            .then_with(|| right.1.len().cmp(&left.1.len()))
+    })
+}
+
+fn split_set_right_and_global_clauses(
+    right_sql: &str,
+) -> Result<(String, Vec<OrderExpr>, Option<i64>, Option<i64>), SqlError> {
+    let trimmed = right_sql.trim();
+    if !trimmed.to_lowercase().starts_with("select ") {
+        return Err(SqlError("set operation requires SELECT operands".into()));
+    }
+    let after_select = trimmed[6..].trim();
+    let clauses = parse_clauses(after_select)?;
+    let Some(global_start) = clauses
+        .iter()
+        .find(|clause| {
+            matches!(
+                clause.token,
+                ClauseToken::Recognized(Clause::Order | Clause::Limit | Clause::Offset)
+            )
+        })
+        .map(|clause| clause.position)
+    else {
+        return Ok((trimmed.to_string(), Vec::new(), None, None));
+    };
+
+    let right_without_global = format!("SELECT {}", after_select[..global_start].trim());
+    let global_rest = after_select[global_start..].trim();
+    let (order, limit, offset) = parse_global_result_clauses(global_rest)?;
+    Ok((right_without_global, order, limit, offset))
+}
+
+fn parse_global_result_clauses(
+    rest: &str,
+) -> Result<(Vec<OrderExpr>, Option<i64>, Option<i64>), SqlError> {
+    let clauses = parse_clauses(rest)?;
+    let mut order = Vec::new();
+    let mut limit = None;
+    let mut offset = None;
+    let mut seen = HashSet::new();
+
+    for (idx, clause) in clauses.iter().enumerate() {
+        let next_pos = clauses
+            .get(idx + 1)
+            .map(|clause| clause.position)
+            .unwrap_or_else(|| rest.len());
+        let ClauseToken::Recognized(kind) = clause.token else {
+            return Err(SqlError(format!("unsupported clause '{}'", clause.text())));
+        };
+        if !matches!(kind, Clause::Order | Clause::Limit | Clause::Offset) {
+            return Err(SqlError(format!(
+                "unsupported global set operation clause '{}'",
+                clause.text()
+            )));
+        }
+        let start = clause.position + kind.token().len();
+        let raw_value = rest[start..next_pos].trim();
+        if raw_value.is_empty() {
+            return Err(SqlError(format!(
+                "missing value for clause '{}'",
+                clause.text()
+            )));
+        }
+
+        match kind {
+            Clause::Order => {
+                if !seen.insert("order by") {
+                    return Err(SqlError("duplicate ORDER BY clause".into()));
+                }
+                order = parse_order_by(raw_value)?;
+            }
+            Clause::Limit => {
+                if !seen.insert("limit") {
+                    return Err(SqlError("duplicate LIMIT clause".into()));
+                }
+                limit = take_int(raw_value).map_err(|error| SqlError(error.to_string()))?;
+            }
+            Clause::Offset => {
+                if !seen.insert("offset") {
+                    return Err(SqlError("duplicate OFFSET clause".into()));
+                }
+                offset = take_int(raw_value).map_err(|error| SqlError(error.to_string()))?;
+            }
+            Clause::Where | Clause::Group | Clause::Having => unreachable!(),
+        }
+    }
+
+    Ok((order, limit, offset))
 }
 
 fn parse_cte_definitions(
@@ -2497,6 +2793,33 @@ fn parse_enclosed_parenthesized(raw: &str) -> Option<String> {
     Some(raw[1..raw.len().saturating_sub(1)].to_string())
 }
 
+fn parse_parenthesized_prefix(raw: &str) -> Option<(String, &str)> {
+    let raw = raw.trim_start();
+    if !raw.starts_with('(') {
+        return None;
+    }
+
+    let mut depth = 0i32;
+    let mut in_single = false;
+    let mut in_double = false;
+    for (index, ch) in raw.char_indices() {
+        match ch {
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            '(' if !in_single && !in_double => depth += 1,
+            ')' if !in_single && !in_double => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some((raw[1..index].to_string(), &raw[index + 1..]));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    None
+}
+
 fn take_int(input: &str) -> Result<Option<i64>, ParserError> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
@@ -2620,7 +2943,7 @@ fn parse_or_expression(raw: &str) -> Result<Expr, SqlError> {
 
 fn parse_and_expression(raw: &str) -> Result<Expr, SqlError> {
     if contains_top_level_between(raw) {
-        return parse_comparison_expression(raw);
+        return parse_not_expression(raw);
     }
 
     if let Some((left, right)) = split_top_level(raw, " and ") {
@@ -2628,6 +2951,21 @@ fn parse_and_expression(raw: &str) -> Result<Expr, SqlError> {
             left: Box::new(parse_and_expression(left)?),
             right: Box::new(parse_and_expression(right)?),
             op: BinaryOp::And,
+        });
+    }
+
+    parse_not_expression(raw)
+}
+
+fn parse_not_expression(raw: &str) -> Result<Expr, SqlError> {
+    let raw = raw.trim();
+    if starts_with_keyword(raw, "not") {
+        let rest = raw["not".len()..].trim();
+        if rest.is_empty() {
+            return Err(SqlError("NOT requires an expression".into()));
+        }
+        return Ok(Expr::Not {
+            expr: Box::new(parse_not_expression(rest)?),
         });
     }
 

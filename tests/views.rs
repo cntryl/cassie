@@ -32,7 +32,6 @@ async fn seed_view_docs(cassie: &Cassie, collection: &str) {
     cassie
         .midge
         .create_collection(collection, schema.clone())
-        
         .unwrap();
     cassie
         .register_collection(
@@ -54,7 +53,6 @@ async fn seed_view_docs(cassie: &Cassie, collection: &str) {
                 "score": 7
             }),
         )
-        
         .unwrap();
 }
 
@@ -82,8 +80,8 @@ fn should_create_select_drop_user_defined_view() {
                 "CREATE VIEW view_docs_ready AS SELECT title, score FROM view_docs",
                 vec![],
             )
-            
-            .await.unwrap();
+            .await
+            .unwrap();
         let selected = cassie
             .execute_sql(
                 &session,
@@ -133,8 +131,8 @@ fn should_select_from_nested_user_defined_views() {
                 "CREATE VIEW view_nested_inner AS SELECT title FROM view_nested_docs",
                 vec![],
             )
-            
-            .await.unwrap();
+            .await
+            .unwrap();
         cassie
             .execute_sql(
                 &session,
@@ -186,8 +184,8 @@ fn should_hydrate_user_defined_views_after_restart() {
                 "CREATE VIEW view_restart_ready AS SELECT title, score FROM view_restart_docs",
                 vec![],
             )
-            
-            .await.unwrap();
+            .await
+            .unwrap();
         drop(cassie);
 
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
@@ -201,8 +199,8 @@ fn should_hydrate_user_defined_views_after_restart() {
                 "SELECT title, score FROM view_restart_ready WHERE score = 7",
                 vec![],
             )
-            
-            .await.unwrap();
+            .await
+            .unwrap();
 
         // Assert
         assert_eq!(
@@ -236,8 +234,8 @@ fn should_reject_dml_against_user_defined_view() {
                 "CREATE VIEW view_read_only AS SELECT title, score FROM view_read_only_docs",
                 vec![],
             )
-            
-            .await.unwrap();
+            .await
+            .unwrap();
 
         // Act
         let insert = cassie

@@ -8,10 +8,10 @@ use crate::app::CassieError;
 use crate::executor::filter::SearchContext;
 use crate::midge::adapter::{Midge, StorageFamily};
 use crate::planner::physical::PhysicalPlan;
-use crate::runtime::{PlanCacheKey, RuntimeState};
+use crate::runtime::{stable_fingerprint, PlanCacheKey, RuntimeState};
 
 const PLAN_ENTRY_PREFIX: &str = "__cassie__/cf2/plan/entry/";
-const PLAN_CANDIDATE_PREFIX: &str = "__cassie__/cf2/plan/candidate/";
+#[allow(dead_code)]
 const FULLTEXT_STATS_PREFIX: &str = "__cassie__/cf2/stats/fulltext/";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,14 +21,13 @@ struct CachedPlanEntry {
     created_at_ms: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct PlanCandidateEntry {
-    key: PlanCacheKey,
-    seen_count: u64,
-    first_seen_at_ms: u64,
-    last_seen_at_ms: u64,
+pub(crate) enum NonDurablePlanOutcome {
+    Durable,
+    CandidatePending { ttl_seconds: u64 },
+    Transient,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct FulltextStatsRecord {
     collection: String,
@@ -38,6 +37,7 @@ struct FulltextStatsRecord {
     context: SearchContext,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct FulltextStatsKey<'a> {
     collection: &'a str,
@@ -45,6 +45,7 @@ struct FulltextStatsKey<'a> {
     schema_epoch: u64,
 }
 
+#[allow(dead_code)]
 pub(crate) fn plan_entry_prefix() -> &'static [u8] {
     PLAN_ENTRY_PREFIX.as_bytes()
 }
@@ -56,28 +57,15 @@ fn current_time_millis() -> u64 {
         .unwrap_or(0)
 }
 
-fn bytes_to_hex(bytes: &[u8]) -> String {
-    let mut hex = String::with_capacity(bytes.len().saturating_mul(2));
-    for byte in bytes {
-        use std::fmt::Write as _;
-        let _ = write!(&mut hex, "{byte:02x}");
-    }
-    hex
-}
-
-fn fingerprint<T: Serialize>(value: &T) -> Result<String, CassieError> {
-    let bytes = serde_json::to_vec(value).map_err(|error| CassieError::Parse(error.to_string()))?;
-    Ok(bytes_to_hex(&bytes))
+fn fingerprint<T: Serialize>(value: &T) -> u64 {
+    stable_fingerprint(value)
 }
 
 fn plan_entry_key(key: &PlanCacheKey) -> Result<Vec<u8>, CassieError> {
-    Ok(format!("{PLAN_ENTRY_PREFIX}{}", fingerprint(key)?).into_bytes())
+    Ok(format!("{PLAN_ENTRY_PREFIX}{:016x}", fingerprint(key)).into_bytes())
 }
 
-fn plan_candidate_key(key: &PlanCacheKey) -> Result<Vec<u8>, CassieError> {
-    Ok(format!("{PLAN_CANDIDATE_PREFIX}{}", fingerprint(key)?).into_bytes())
-}
-
+#[allow(dead_code)]
 fn fulltext_stats_key(
     collection: &str,
     field: &str,
@@ -88,7 +76,7 @@ fn fulltext_stats_key(
         field,
         schema_epoch,
     };
-    Ok(format!("{FULLTEXT_STATS_PREFIX}{}", fingerprint(&key)?).into_bytes())
+    Ok(format!("{FULLTEXT_STATS_PREFIX}{:016x}", fingerprint(&key)).into_bytes())
 }
 
 fn put_temp_json<T: Serialize>(
@@ -101,7 +89,8 @@ fn put_temp_json<T: Serialize>(
     let ttl_seconds = ttl_seconds.max(1);
     let raw = serde_json::to_vec(value).map_err(|error| CassieError::Parse(error.to_string()))?;
     let mut tx = midge.temp_tx(TransactionMode::ReadWrite)?;
-    tx.put(key, raw, Some(ttl_seconds)).map_err(CassieError::from)?;
+    tx.put(key, raw, Some(ttl_seconds))
+        .map_err(CassieError::from)?;
     tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
     runtime.record_storage_access("temp", true, true);
     Ok(())
@@ -160,51 +149,19 @@ pub(crate) fn lookup_plan(
     Ok(Some(Arc::new(entry.plan)))
 }
 
-pub(crate) fn observe_plan_usage(
+pub(crate) fn observe_non_durable_plan_usage(
     midge: &Midge,
     runtime: &RuntimeState,
     key: &PlanCacheKey,
     plan: &Arc<PhysicalPlan>,
-    durable_cached: bool,
-) -> Result<bool, CassieError> {
-    if durable_cached || runtime.limits().cf2_plan_ttl_seconds == 0 {
-        return Ok(durable_cached);
+    candidate_pending: bool,
+) -> Result<NonDurablePlanOutcome, CassieError> {
+    if runtime.limits().cf2_plan_ttl_seconds == 0 {
+        return Ok(NonDurablePlanOutcome::Transient);
     }
 
-    let plan_storage_key = plan_entry_key(key)?;
-    if match midge.raw_get(StorageFamily::Temp, &plan_storage_key) {
-        Ok(value) => {
-            runtime.record_storage_access("temp", false, true);
-            value
-        }
-        Err(error) => {
-            runtime.record_storage_access("temp", false, false);
-            return Err(error);
-        }
-    }
-    .is_some()
-    {
-        return Ok(true);
-    }
-
-    let candidate_ttl = runtime.limits().cf2_plan_candidate_ttl_seconds;
-    if candidate_ttl == 0 {
-        return Ok(false);
-    }
-
-    let candidate_storage_key = plan_candidate_key(key)?;
-    if match midge.raw_get(StorageFamily::Temp, &candidate_storage_key) {
-        Ok(value) => {
-            runtime.record_storage_access("temp", false, true);
-            value
-        }
-        Err(error) => {
-            runtime.record_storage_access("temp", false, false);
-            return Err(error);
-        }
-    }
-    .is_some()
-    {
+    if candidate_pending {
+        let plan_storage_key = plan_entry_key(key)?;
         let entry = CachedPlanEntry {
             key: key.clone(),
             plan: (**plan).clone(),
@@ -216,23 +173,22 @@ pub(crate) fn observe_plan_usage(
             plan_storage_key,
             &entry,
             runtime.limits().cf2_plan_ttl_seconds,
-        )
-        ?;
-        delete_temp_key(midge, runtime, candidate_storage_key)?;
+        )?;
         runtime.record_query_cache_promotion();
-        return Ok(true);
+        return Ok(NonDurablePlanOutcome::Durable);
     }
 
-    let candidate = PlanCandidateEntry {
-        key: key.clone(),
-        seen_count: 1,
-        first_seen_at_ms: current_time_millis(),
-        last_seen_at_ms: current_time_millis(),
-    };
-    put_temp_json(midge, runtime, candidate_storage_key, &candidate, candidate_ttl)?;
-    Ok(false)
+    let candidate_ttl = runtime.limits().cf2_plan_candidate_ttl_seconds;
+    if candidate_ttl == 0 {
+        return Ok(NonDurablePlanOutcome::Transient);
+    }
+
+    Ok(NonDurablePlanOutcome::CandidatePending {
+        ttl_seconds: candidate_ttl,
+    })
 }
 
+#[allow(dead_code)]
 pub(crate) fn lookup_fulltext_stats(
     midge: &Midge,
     runtime: &RuntimeState,
@@ -280,6 +236,7 @@ pub(crate) fn lookup_fulltext_stats(
     Ok(Some(record.context))
 }
 
+#[allow(dead_code)]
 pub(crate) fn store_fulltext_stats(
     midge: &Midge,
     runtime: &RuntimeState,

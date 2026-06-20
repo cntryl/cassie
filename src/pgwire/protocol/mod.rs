@@ -96,6 +96,9 @@ pub enum ReadyState {
 pub struct PreparedStatement {
     pub name: String,
     pub query: String,
+    pub parsed: crate::sql::ast::ParsedStatement,
+    pub sql_fingerprint: u64,
+    pub parameter_count: usize,
     pub parameter_types: Vec<i32>,
 }
 

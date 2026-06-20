@@ -2,13 +2,16 @@ use std::collections::HashSet;
 use std::env;
 use std::path::Path;
 use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
 use cntryl_midge::{ColumnFamilyHandle, Engine, Query, TransactionMode, WriteOptions};
 use uuid::Uuid;
 
 use crate::app::CassieError;
 use crate::catalog::{FieldConstraint, IndexMeta, NamespaceMeta, RoleMeta};
-use crate::midge::row_blob::{decode_projected_row, decode_row, encode_row, RowSchema};
+use crate::midge::row_blob::{
+    decode_projected_row, decode_projected_row_matching, decode_row, encode_row, RowSchema,
+};
 use crate::types::{DataType, FieldSchema, Schema, Value, Vector};
 
 fn allow_memory_fallback() -> bool {
@@ -38,6 +41,8 @@ const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
 const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
 const NAMESPACES_KEY: &str = "__cassie__/namespaces";
 const SCHEMA_EPOCH_KEY: &str = "__cassie__/schema-epoch";
+
+type RawStorageEntry = (Vec<u8>, Vec<u8>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StorageFamily {
@@ -135,6 +140,18 @@ pub struct DocumentRef {
 pub enum RowDecode {
     Full,
     Projected(Vec<String>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RowFilter {
+    pub field: String,
+    pub value: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MidgeScanTimings {
+    pub scan: Duration,
+    pub row_decode: Duration,
 }
 
 impl Midge {
@@ -420,7 +437,7 @@ impl Midge {
         &self,
         family: StorageFamily,
         prefix: &[u8],
-    ) -> Result<Vec<(Vec<u8>, Vec<u8>)>, CassieError> {
+    ) -> Result<Vec<RawStorageEntry>, CassieError> {
         let tx = self.transaction(family, TransactionMode::ReadOnly)?;
         let mut iterator = tx
             .scan(&Query::new().prefix(prefix.to_vec().into()))
@@ -437,7 +454,7 @@ impl Midge {
         &self,
         family: &str,
         prefix: &[u8],
-    ) -> Result<Vec<(Vec<u8>, Vec<u8>)>, CassieError> {
+    ) -> Result<Vec<RawStorageEntry>, CassieError> {
         let tx = self.transaction_by_name(family, TransactionMode::ReadOnly)?;
         let mut iterator = tx
             .scan(&Query::new().prefix(prefix.to_vec().into()))
@@ -472,7 +489,10 @@ impl Midge {
     }
 
     fn load_schema_epoch_from_tx(tx: &cntryl_midge::Transaction) -> Result<u64, CassieError> {
-        let Some(raw) = tx.get(&Self::schema_epoch_key()).map_err(CassieError::from)? else {
+        let Some(raw) = tx
+            .get(&Self::schema_epoch_key())
+            .map_err(CassieError::from)?
+        else {
             return Ok(0);
         };
 
@@ -504,10 +524,7 @@ impl Midge {
         Ok(next)
     }
 
-    fn load_collections(
-        &self,
-        tx: &cntryl_midge::Transaction,
-    ) -> Result<Vec<String>, CassieError> {
+    fn load_collections(&self, tx: &cntryl_midge::Transaction) -> Result<Vec<String>, CassieError> {
         let raw = tx
             .get(&Self::collections_key())
             .map_err(CassieError::from)?;
@@ -519,10 +536,7 @@ impl Midge {
         Ok(parsed)
     }
 
-    fn load_namespaces(
-        &self,
-        tx: &cntryl_midge::Transaction,
-    ) -> Result<Vec<String>, CassieError> {
+    fn load_namespaces(&self, tx: &cntryl_midge::Transaction) -> Result<Vec<String>, CassieError> {
         let raw = tx.get(&Self::namespaces_key()).map_err(CassieError::from)?;
         if raw.is_none() {
             return Ok(Vec::new());
@@ -567,9 +581,15 @@ impl Midge {
             return Ok(None);
         };
 
-        serde_json::from_slice(&raw).map(Some).map_err(|error| {
+        let mut row_schema: RowSchema = serde_json::from_slice(&raw).map_err(|error| {
             CassieError::Parse(format!("invalid row schema for '{collection}': {error}"))
-        })
+        })?;
+        for field in &mut row_schema.fields {
+            if field.normalized_name.is_empty() {
+                field.normalized_name = field.name.to_ascii_lowercase();
+            }
+        }
+        Ok(Some(row_schema))
     }
 
     fn save_row_schema_to_tx(
@@ -709,11 +729,7 @@ impl Midge {
         Ok(())
     }
 
-    pub fn rename_namespace(
-        &self,
-        current_name: &str,
-        next_name: &str,
-    ) -> Result<(), CassieError> {
+    pub fn rename_namespace(&self, current_name: &str, next_name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let current_key = Self::namespace_key(current_name);
         let next_key = Self::namespace_key(next_name);
@@ -721,9 +737,9 @@ impl Midge {
         let current_raw = tx
             .get(&current_key)
             .map_err(CassieError::from)?
-            .ok_or_else(|| CassieError::NotFound(format!(
-                "namespace '{current_name}' does not exist"
-            )))?;
+            .ok_or_else(|| {
+                CassieError::NotFound(format!("namespace '{current_name}' does not exist"))
+            })?;
 
         if tx.get(&next_key).map_err(CassieError::from)?.is_some() {
             return Err(CassieError::Unsupported(format!(
@@ -1291,9 +1307,7 @@ impl Midge {
     }
 
     pub fn list_indexes(&self) -> Result<Vec<IndexMeta>, CassieError> {
-        let entries = self
-            .raw_scan_prefix(StorageFamily::Schema, &Self::index_prefix())
-            ?;
+        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::index_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
 
         for (_key, raw_value) in entries {
@@ -1315,11 +1329,7 @@ impl Midge {
         Ok(())
     }
 
-    pub fn delete_vector_index(
-        &self,
-        collection: &str,
-        field: &str,
-    ) -> Result<(), CassieError> {
+    pub fn delete_vector_index(&self, collection: &str, field: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::vector_index_key(collection, field))
             .map_err(CassieError::from)?;
@@ -1343,10 +1353,7 @@ impl Midge {
         Ok(())
     }
 
-    pub fn load_constraints(
-        &self,
-        collection: &str,
-    ) -> Result<Vec<FieldConstraint>, CassieError> {
+    pub fn load_constraints(&self, collection: &str) -> Result<Vec<FieldConstraint>, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
         let raw = tx
             .get(&Self::constraints_key(collection))
@@ -1362,9 +1369,7 @@ impl Midge {
     pub fn list_vector_indexes(
         &self,
     ) -> Result<Vec<crate::embeddings::VectorIndexRecord>, CassieError> {
-        let entries = self
-            .raw_scan_prefix(StorageFamily::Schema, &Self::vector_index_prefix())
-            ?;
+        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::vector_index_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
 
         for (_key, raw_value) in entries {
@@ -1377,10 +1382,7 @@ impl Midge {
         Ok(out)
     }
 
-    pub fn put_function(
-        &self,
-        metadata: crate::catalog::FunctionMeta,
-    ) -> Result<(), CassieError> {
+    pub fn put_function(&self, metadata: crate::catalog::FunctionMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::function_key(&metadata.name);
         let value =
@@ -1409,9 +1411,7 @@ impl Midge {
     }
 
     pub fn list_functions(&self) -> Result<Vec<crate::catalog::FunctionMeta>, CassieError> {
-        let entries = self
-            .raw_scan_prefix(StorageFamily::Schema, &Self::function_prefix())
-            ?;
+        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::function_prefix())?;
         let mut out: Vec<crate::catalog::FunctionMeta> = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -1464,9 +1464,7 @@ impl Midge {
     }
 
     pub fn list_procedures(&self) -> Result<Vec<crate::catalog::ProcedureMeta>, CassieError> {
-        let entries = self
-            .raw_scan_prefix(StorageFamily::Schema, &Self::procedure_prefix())
-            ?;
+        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::procedure_prefix())?;
         let mut out: Vec<crate::catalog::ProcedureMeta> = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -1498,10 +1496,7 @@ impl Midge {
         Ok(())
     }
 
-    pub fn get_view(
-        &self,
-        name: &str,
-    ) -> Result<Option<crate::catalog::ViewMeta>, CassieError> {
+    pub fn get_view(&self, name: &str) -> Result<Option<crate::catalog::ViewMeta>, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
         let raw = tx.get(&Self::view_key(name)).map_err(CassieError::from)?;
         let Some(raw) = raw else {
@@ -1514,9 +1509,7 @@ impl Midge {
     }
 
     pub fn list_views(&self) -> Result<Vec<crate::catalog::ViewMeta>, CassieError> {
-        let entries = self
-            .raw_scan_prefix(StorageFamily::Schema, &Self::view_prefix())
-            ?;
+        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::view_prefix())?;
         let mut out: Vec<crate::catalog::ViewMeta> = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -1560,9 +1553,7 @@ impl Midge {
     }
 
     pub fn list_roles(&self) -> Result<Vec<RoleMeta>, CassieError> {
-        let entries = self
-            .raw_scan_prefix(StorageFamily::Schema, &Self::role_prefix())
-            ?;
+        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::role_prefix())?;
         let mut out: Vec<RoleMeta> = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
@@ -1598,7 +1589,6 @@ impl Midge {
         };
 
         self.load_collections(&tx)
-            
             .map(|mut values| {
                 values.sort();
                 values
@@ -1641,7 +1631,6 @@ impl Midge {
     ) -> Result<String, CassieError> {
         let schema = self
             .collection_schema(collection)
-            
             .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
         let row_schema = self.row_schema(collection)?;
 
@@ -1717,8 +1706,8 @@ impl Midge {
         collection: &str,
         batch_size: usize,
     ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
-        self.scan_rows_batched(collection, batch_size, RowDecode::Full)
-            
+        self.scan_rows_batched(collection, batch_size, RowDecode::Full, None, None)
+            .map(|(rows, _)| rows)
     }
 
     pub fn scan_rows_for_rebuild(
@@ -1726,9 +1715,46 @@ impl Midge {
         collection: &str,
         decode: RowDecode,
     ) -> Result<Vec<DocumentRef>, CassieError> {
-        self.scan_rows_batched(collection, 1024, decode)
-            
-            .map(|batches| batches.into_iter().flatten().collect())
+        self.scan_rows_batched(collection, 1024, decode, None, None)
+            .map(|(batches, _)| batches.into_iter().flatten().collect())
+    }
+
+    pub fn scan_rows_batched_limit(
+        &self,
+        collection: &str,
+        batch_size: usize,
+        decode: RowDecode,
+        limit: Option<usize>,
+    ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
+        self.scan_rows_batched(collection, batch_size, decode, None, limit)
+            .map(|(rows, _)| rows)
+    }
+
+    pub fn scan_rows_batched_limit_with_timings(
+        &self,
+        collection: &str,
+        batch_size: usize,
+        decode: RowDecode,
+        limit: Option<usize>,
+    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
+        self.scan_rows_batched(collection, batch_size, decode, None, limit)
+    }
+
+    pub fn scan_projected_rows_batched_filter_limit_with_timings(
+        &self,
+        collection: &str,
+        batch_size: usize,
+        fields: Vec<String>,
+        filter: Option<&RowFilter>,
+        limit: Option<usize>,
+    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
+        self.scan_rows_batched(
+            collection,
+            batch_size,
+            RowDecode::Projected(fields),
+            filter,
+            limit,
+        )
     }
 
     fn scan_rows_batched(
@@ -1736,7 +1762,11 @@ impl Midge {
         collection: &str,
         batch_size: usize,
         decode: RowDecode,
-    ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
+        filter: Option<&RowFilter>,
+        limit: Option<usize>,
+    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
+        let scan_started = Instant::now();
+        let mut row_decode = Duration::ZERO;
         let row_schema = self.row_schema(collection)?;
         let projection = match decode {
             RowDecode::Full => None,
@@ -1750,9 +1780,20 @@ impl Midge {
 
         let tx = self.begin_data_readonly_tx()?;
         let batch_size = batch_size.max(1);
+        let limit = limit.unwrap_or(usize::MAX);
         let mut results = Vec::new();
+        if limit == 0 {
+            return Ok((
+                results,
+                MidgeScanTimings {
+                    scan: scan_started.elapsed(),
+                    row_decode,
+                },
+            ));
+        }
         let mut current = Vec::with_capacity(batch_size);
         let mut seen_ids = HashSet::new();
+        let mut emitted = 0usize;
 
         for (prefix, needle, include_seen) in [
             (
@@ -1779,14 +1820,41 @@ impl Midge {
                 }
                 seen_ids.insert(id.clone());
 
-                let payload = match projection.as_ref() {
-                    Some(projection) => decode_projected_row(&row_schema, &raw_value, projection)?,
-                    None => decode_row(&row_schema, &raw_value)?,
+                let decode_started = Instant::now();
+                let payload = match (projection.as_ref(), filter) {
+                    (Some(projection), Some(filter)) => decode_projected_row_matching(
+                        &row_schema,
+                        &raw_value,
+                        projection,
+                        &filter.field,
+                        &filter.value,
+                    )?,
+                    (Some(projection), None) => {
+                        Some(decode_projected_row(&row_schema, &raw_value, projection)?)
+                    }
+                    (None, _) => Some(decode_row(&row_schema, &raw_value)?),
+                };
+                row_decode += decode_started.elapsed();
+                let Some(payload) = payload else {
+                    continue;
                 };
                 current.push(DocumentRef { id, payload });
+                emitted += 1;
                 if current.len() >= batch_size {
                     results.push(current);
                     current = Vec::with_capacity(batch_size);
+                }
+                if emitted >= limit {
+                    if !current.is_empty() {
+                        results.push(current);
+                    }
+                    return Ok((
+                        results,
+                        MidgeScanTimings {
+                            scan: scan_started.elapsed().saturating_sub(row_decode),
+                            row_decode,
+                        },
+                    ));
                 }
             }
         }
@@ -1795,12 +1863,17 @@ impl Midge {
             results.push(current);
         }
 
-        Ok(results)
+        Ok((
+            results,
+            MidgeScanTimings {
+                scan: scan_started.elapsed().saturating_sub(row_decode),
+                row_decode,
+            },
+        ))
     }
 
     pub fn scan_documents(&self, collection: &str) -> Result<Vec<DocumentRef>, CassieError> {
         self.scan_documents_batched(collection, 1024)
-            
             .map(|batches| batches.into_iter().flatten().collect())
     }
 
@@ -1809,7 +1882,6 @@ impl Midge {
         collection: &str,
     ) -> Result<Vec<(String, serde_json::Value)>, CassieError> {
         self.scan_documents(collection)
-            
             .map(|docs| docs.into_iter().map(|doc| (doc.id, doc.payload)).collect())
     }
 

@@ -142,7 +142,7 @@ fn should_execute_string_scalar_functions_in_query_path() {
         cassie
             .midge
             .create_collection(table, schema.clone())
-            
+
             .unwrap();
         cassie
             .register_collection(
@@ -160,7 +160,7 @@ fn should_execute_string_scalar_functions_in_query_path() {
                 Some("d1".to_string()),
                 serde_json::json!({"id": "d1", "title": "  Alpha  "}),
             )
-            
+
             .unwrap();
 
         // Act
@@ -229,7 +229,7 @@ fn should_execute_null_numeric_scalar_functions() {
         cassie
             .midge
             .create_collection(table, schema.clone())
-            
+
             .unwrap();
         cassie
             .register_collection(
@@ -247,7 +247,7 @@ fn should_execute_null_numeric_scalar_functions() {
                 Some("d1".to_string()),
                 serde_json::json!({"id": "d1", "title": null, "score": -4}),
             )
-            
+
             .unwrap();
         cassie
             .midge
@@ -256,7 +256,7 @@ fn should_execute_null_numeric_scalar_functions() {
                 Some("d2".to_string()),
                 serde_json::json!({"id": "d2", "title": "beta", "score": 9}),
             )
-            
+
             .unwrap();
 
         // Act
@@ -325,7 +325,6 @@ fn should_short_circuit_coalesce_before_evaluating_later_arguments() {
         cassie
             .midge
             .create_collection(table, schema.clone())
-            
             .unwrap();
         cassie
             .register_collection(
@@ -335,7 +334,8 @@ fn should_short_circuit_coalesce_before_evaluating_later_arguments() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            ).await;
+            )
+            .await;
         cassie
             .midge
             .put_document(
@@ -343,7 +343,6 @@ fn should_short_circuit_coalesce_before_evaluating_later_arguments() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "alpha", "score": 7}),
             )
-            
             .unwrap();
 
         // Act
@@ -389,7 +388,6 @@ fn should_reject_scalar_function_with_invalid_arity() {
         cassie
             .midge
             .create_collection(table, schema.clone())
-            
             .unwrap();
         cassie
             .register_collection(
@@ -399,7 +397,8 @@ fn should_reject_scalar_function_with_invalid_arity() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            ).await;
+            )
+            .await;
         cassie
             .midge
             .put_document(
@@ -407,7 +406,6 @@ fn should_reject_scalar_function_with_invalid_arity() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            
             .unwrap();
 
         // Act
@@ -454,7 +452,6 @@ fn should_reject_scalar_function_with_unsupported_type() {
         cassie
             .midge
             .create_collection(table, schema.clone())
-            
             .unwrap();
         cassie
             .register_collection(
@@ -464,7 +461,8 @@ fn should_reject_scalar_function_with_unsupported_type() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            ).await;
+            )
+            .await;
         cassie
             .midge
             .put_document(
@@ -472,7 +470,6 @@ fn should_reject_scalar_function_with_unsupported_type() {
                 Some("d1".to_string()),
                 serde_json::json!({"score": 7}),
             )
-            
             .unwrap();
 
         // Act
@@ -566,7 +563,6 @@ fn should_execute_user_defined_functions_after_builtin_expansion() {
         cassie
             .midge
             .create_collection(table, schema.clone())
-            
             .unwrap();
         cassie
             .register_collection(
@@ -576,7 +572,8 @@ fn should_execute_user_defined_functions_after_builtin_expansion() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            ).await;
+            )
+            .await;
         cassie
             .midge
             .put_document(
@@ -584,7 +581,6 @@ fn should_execute_user_defined_functions_after_builtin_expansion() {
                 Some("d1".to_string()),
                 serde_json::json!({"title": "Alpha"}),
             )
-            
             .unwrap();
 
         cassie

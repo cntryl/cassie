@@ -59,7 +59,6 @@ fn should_persist_vector_index_metadata() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            
             .unwrap();
         cassie
             .register_collection(
@@ -69,7 +68,8 @@ fn should_persist_vector_index_metadata() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            ).await;
+            )
+            .await;
 
         let record = VectorIndexRecord {
             collection: collection.to_string(),
@@ -88,7 +88,6 @@ fn should_persist_vector_index_metadata() {
         let loaded = cassie
             .midge
             .get_vector_index(collection, "embedding")
-            
             .unwrap()
             .unwrap();
 
@@ -134,7 +133,6 @@ fn should_reload_registry_after_restart_simulation() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            
             .unwrap();
         cassie
             .register_collection(
@@ -144,7 +142,8 @@ fn should_reload_registry_after_restart_simulation() {
                     .iter()
                     .map(|field| (field.name.clone(), field.data_type.clone()))
                     .collect(),
-            ).await;
+            )
+            .await;
 
         let record = VectorIndexRecord {
             collection: collection.to_string(),
@@ -162,7 +161,6 @@ fn should_reload_registry_after_restart_simulation() {
         let before_restart = cassie
             .midge
             .list_vector_indexes()
-            
             .expect("vector indexes before restart");
         assert_eq!(before_restart.len(), 1);
         assert_eq!(before_restart[0], record);
@@ -174,7 +172,6 @@ fn should_reload_registry_after_restart_simulation() {
         let stored = restarted
             .midge
             .list_vector_indexes()
-            
             .expect("stored vector index records");
         assert!(!stored.is_empty());
 
@@ -226,7 +223,6 @@ fn should_reload_generic_index_registry_after_restart() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            
             .unwrap();
         cassie
             .register_collection(
@@ -236,7 +232,8 @@ fn should_reload_generic_index_registry_after_restart() {
                     .into_iter()
                     .map(|field| (field.name, field.data_type))
                     .collect(),
-            ).await;
+            )
+            .await;
 
         let record = IndexMeta {
             collection: collection.to_string(),
@@ -300,7 +297,6 @@ fn should_persist_fulltext_index_metadata_after_restart() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            
             .unwrap();
         cassie
             .register_collection(
@@ -310,7 +306,8 @@ fn should_persist_fulltext_index_metadata_after_restart() {
                     .into_iter()
                     .map(|field| (field.name, field.data_type))
                     .collect(),
-            ).await;
+            )
+            .await;
 
         let expected = IndexMeta {
             collection: collection.to_string(),

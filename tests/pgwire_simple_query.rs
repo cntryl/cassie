@@ -190,7 +190,6 @@ fn should_execute_binary_simple_query_return_backend_frames() {
         cassie
             .midge
             .create_collection(collection, schema.clone())
-            
             .unwrap();
         cassie.register_collection(collection, schema).await;
         cassie
@@ -200,7 +199,6 @@ fn should_execute_binary_simple_query_return_backend_frames() {
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
-            
             .unwrap();
 
         let mut config = CassieRuntimeConfig::from_env();

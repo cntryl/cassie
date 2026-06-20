@@ -1,21 +1,27 @@
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use crate::types::Value;
 
 #[derive(Debug, Clone)]
 pub(crate) struct BatchRow {
     values: Vec<(String, Value)>,
-    lookup: HashMap<String, usize>,
+    lookup: OnceLock<HashMap<String, usize>>,
 }
 
 impl BatchRow {
     pub(crate) fn new(values: Vec<(String, Value)>) -> Self {
-        let mut lookup = HashMap::with_capacity(values.len());
-        for (index, (name, _)) in values.iter().enumerate() {
-            lookup.entry(name.clone()).or_insert(index);
-        }
+        let lookup = OnceLock::new();
+        let _ = lookup.set(build_lookup(values.as_slice()));
 
         Self { values, lookup }
+    }
+
+    pub(crate) fn from_projected_values(values: Vec<(String, Value)>) -> Self {
+        Self {
+            values,
+            lookup: OnceLock::new(),
+        }
     }
 
     pub(crate) fn entries(&self) -> &[(String, Value)] {
@@ -23,7 +29,10 @@ impl BatchRow {
     }
 
     pub(crate) fn get(&self, name: &str) -> Option<&Value> {
-        let index = *self.lookup.get(name)?;
+        let lookup = self
+            .lookup
+            .get_or_init(|| build_lookup(self.values.as_slice()));
+        let index = *lookup.get(name)?;
         let entry = &self.values[index];
         Some(&entry.1)
     }
@@ -35,11 +44,24 @@ impl BatchRow {
     pub(crate) fn into_values(self) -> Vec<Value> {
         self.values.into_iter().map(|(_, value)| value).collect()
     }
+
+    #[cfg(test)]
+    pub(crate) fn lookup_initialized(&self) -> bool {
+        self.lookup.get().is_some()
+    }
 }
 
 pub(crate) trait RowAccess {
     fn get(&self, name: &str) -> Option<&Value>;
     fn entries(&self) -> &[(String, Value)];
+}
+
+fn build_lookup(values: &[(String, Value)]) -> HashMap<String, usize> {
+    let mut lookup = HashMap::with_capacity(values.len());
+    for (index, (name, _)) in values.iter().enumerate() {
+        lookup.entry(name.clone()).or_insert(index);
+    }
+    lookup
 }
 
 impl RowAccess for BatchRow {
@@ -203,5 +225,20 @@ mod tests {
         assert_eq!(title, Some(&Value::String("alpha".to_string())));
         assert_eq!(row.entries()[0].0, "id");
         assert_eq!(row.entries()[1].0, "title");
+    }
+
+    #[test]
+    fn should_resolve_projected_row_values_after_lazy_lookup_build() {
+        // Arrange
+        let row = BatchRow::from_projected_values(vec![
+            ("id".to_string(), Value::String("doc-1".to_string())),
+            ("title".to_string(), Value::String("alpha".to_string())),
+        ]);
+
+        // Act
+        let title = row.get("title");
+
+        // Assert
+        assert_eq!(title, Some(&Value::String("alpha".to_string())));
     }
 }

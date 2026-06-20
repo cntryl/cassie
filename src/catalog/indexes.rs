@@ -49,10 +49,7 @@ impl IndexMeta {
         }
 
         if changed {
-            self.field = fields
-                .first()
-                .cloned()
-                .unwrap_or_else(|| next.to_string());
+            self.field = fields.first().cloned().unwrap_or_else(|| next.to_string());
             self.fields = fields;
         }
 

@@ -163,9 +163,8 @@ pub async fn run_connection(
 
                     if config.password.is_empty() {
                         state.authenticated = true;
-                        let session = cassie
-                            .create_session(&startup_user, startup_database.clone())
-                            ;
+                        let session =
+                            cassie.create_session(&startup_user, startup_database.clone());
                         state.session = Some(session.clone());
                         state.ready = ReadyState::Idle;
                         runtime.record_pgwire_auth_ok();
@@ -486,13 +485,21 @@ pub async fn run_connection(
                                 }
                                 continue;
                             }
+                            runtime.record_sql_parse();
                             match crate::sql::parser::parse_statement(&query) {
-                                Ok(_) => {
+                                Ok(parsed) => {
+                                    let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
+                                    let parameter_count = crate::sql::parameter_count(&parsed);
+                                    let parameter_types =
+                                        crate::sql::parameter_type_oids(&parsed, &parameter_types);
                                     let existed = state.prepared.insert(
                                         name.clone(),
                                         PreparedStatement {
                                             name,
                                             query,
+                                            parsed,
+                                            sql_fingerprint,
+                                            parameter_count,
                                             parameter_types,
                                         },
                                     );
@@ -530,7 +537,7 @@ pub async fn run_connection(
                             result_formats,
                         } => {
                             runtime.record_pgwire_message("bind");
-                            if !state.prepared.contains_key(&statement_name) {
+                            let Some(prepared) = state.prepared.get(&statement_name) else {
                                 runtime.record_pgwire_protocol_error();
                                 awaiting_sync = true;
                                 if write_error_response(
@@ -538,6 +545,27 @@ pub async fn run_connection(
                                     "ERROR",
                                     "26000",
                                     &format!("statement '{}' is not prepared", statement_name),
+                                )
+                                .await
+                                .is_err()
+                                {
+                                    break;
+                                }
+                                continue;
+                            };
+                            if params.len() != prepared.parameter_count {
+                                runtime.record_pgwire_protocol_error();
+                                awaiting_sync = true;
+                                if write_error_response(
+                                    &mut write_half,
+                                    "ERROR",
+                                    "08P01",
+                                    &format!(
+                                        "bind message supplies {} parameters, but prepared statement '{}' requires {}",
+                                        params.len(),
+                                        statement_name,
+                                        prepared.parameter_count
+                                    ),
                                 )
                                 .await
                                 .is_err()
@@ -568,11 +596,9 @@ pub async fn run_connection(
                         }
                         FrontendMessage::Describe { target, name } => {
                             runtime.record_pgwire_message("describe");
-                            let (sql, parameter_types) = match target {
+                            let prepared = match target {
                                 DescribeTarget::Statement => match state.prepared.get(&name) {
-                                    Some(prepared) => {
-                                        (prepared.query.clone(), prepared.parameter_types.clone())
-                                    }
+                                    Some(prepared) => prepared.clone(),
                                     None => {
                                         runtime.record_pgwire_protocol_error();
                                         awaiting_sync = true;
@@ -593,10 +619,7 @@ pub async fn run_connection(
                                 DescribeTarget::Portal => match state.portals.get(&name) {
                                     Some(portal) => {
                                         match state.prepared.get(&portal.statement_name) {
-                                            Some(prepared) => (
-                                                prepared.query.clone(),
-                                                prepared.parameter_types.clone(),
-                                            ),
+                                            Some(prepared) => prepared.clone(),
                                             None => {
                                                 runtime.record_pgwire_protocol_error();
                                                 awaiting_sync = true;
@@ -634,32 +657,17 @@ pub async fn run_connection(
                                 },
                             };
 
-                            match query::describe_query(&cassie, &sql).await {
+                            match cassie
+                                .describe_parsed_statement(
+                                    prepared.parsed.clone(),
+                                    prepared.sql_fingerprint,
+                                )
+                                .await
+                            {
                                 Ok(columns) => {
-                                    let parsed = match crate::sql::parser::parse_statement(&sql) {
-                                        Ok(parsed) => parsed,
-                                        Err(error) => {
-                                            runtime.record_pgwire_protocol_error();
-                                            awaiting_sync = true;
-                                            if write_error_response(
-                                                &mut write_half,
-                                                "ERROR",
-                                                "42601",
-                                                &error.0,
-                                            )
-                                            .await
-                                            .is_err()
-                                            {
-                                                break;
-                                            }
-                                            continue;
-                                        }
-                                    };
-                                    let parameter_types =
-                                        crate::sql::parameter_type_oids(&parsed, &parameter_types);
                                     if write_parameter_description(
                                         &mut write_half,
-                                        &parameter_types,
+                                        &prepared.parameter_types,
                                     )
                                     .await
                                     .is_err()
@@ -737,9 +745,10 @@ pub async fn run_connection(
                             };
 
                             let query_result = cassie
-                                .execute_sql_with_mode(
+                                .execute_preparsed_statement_with_mode(
                                     &session,
-                                    &prepared.query,
+                                    prepared.parsed.clone(),
+                                    prepared.sql_fingerprint,
                                     portal.params.clone(),
                                     ExecutionMode::ExtendedQuery,
                                 )
@@ -952,10 +961,15 @@ async fn write_simple_query_result(
     } = result;
 
     if !columns.is_empty() {
-        write_row_description(write_half, &columns).await?;
+        let mut frames = Vec::new();
+        append_row_description_frame(&mut frames, &columns)?;
         for row in rows {
-            write_data_row(write_half, row, &columns, &[]).await?;
+            append_data_row_frame(&mut frames, row, &columns, &[])?;
         }
+        append_command_complete_frame(&mut frames, &command)?;
+        write_half.write_all(&frames).await?;
+        write_half.flush().await?;
+        return Ok(());
     }
 
     write_command_complete(write_half, &command).await?;
@@ -964,6 +978,17 @@ async fn write_simple_query_result(
 
 async fn write_row_description(
     write_half: &mut (impl AsyncWrite + Unpin),
+    columns: &[crate::executor::ColumnMeta],
+) -> io::Result<()> {
+    let mut frame = Vec::new();
+    append_row_description_frame(&mut frame, columns)?;
+    write_half.write_all(&frame).await?;
+    write_half.flush().await?;
+    Ok(())
+}
+
+fn append_row_description_frame(
+    frame: &mut Vec<u8>,
     columns: &[crate::executor::ColumnMeta],
 ) -> io::Result<()> {
     let mut payload = Vec::new();
@@ -990,7 +1015,7 @@ async fn write_row_description(
         payload.extend_from_slice(&column.format_code.to_be_bytes());
     }
 
-    write_backend_frame(write_half, b'T', &payload).await
+    append_backend_frame(frame, b'T', &payload)
 }
 
 async fn write_parameter_description(
@@ -1012,6 +1037,19 @@ async fn write_parameter_description(
 
 async fn write_data_row(
     write_half: &mut (impl AsyncWrite + Unpin),
+    row: Vec<Value>,
+    columns: &[crate::executor::ColumnMeta],
+    result_formats: &[i16],
+) -> io::Result<()> {
+    let mut frame = Vec::new();
+    append_data_row_frame(&mut frame, row, columns, result_formats)?;
+    write_half.write_all(&frame).await?;
+    write_half.flush().await?;
+    Ok(())
+}
+
+fn append_data_row_frame(
+    frame: &mut Vec<u8>,
     row: Vec<Value>,
     columns: &[crate::executor::ColumnMeta],
     result_formats: &[i16],
@@ -1064,17 +1102,25 @@ async fn write_data_row(
         }
     }
 
-    write_backend_frame(write_half, b'D', &payload).await
+    append_backend_frame(frame, b'D', &payload)
 }
 
 async fn write_command_complete(
     write_half: &mut (impl AsyncWrite + Unpin),
     command: &str,
 ) -> io::Result<()> {
+    let mut frame = Vec::new();
+    append_command_complete_frame(&mut frame, command)?;
+    write_half.write_all(&frame).await?;
+    write_half.flush().await?;
+    Ok(())
+}
+
+fn append_command_complete_frame(frame: &mut Vec<u8>, command: &str) -> io::Result<()> {
     let mut payload = Vec::new();
     payload.extend_from_slice(command.as_bytes());
     payload.push(0);
-    write_backend_frame(write_half, b'C', &payload).await
+    append_backend_frame(frame, b'C', &payload)
 }
 
 async fn write_ready_for_query(
@@ -1096,15 +1142,21 @@ async fn write_backend_frame(
     tag: u8,
     payload: &[u8],
 ) -> io::Result<()> {
-    let mut frame = vec![tag];
+    let mut frame = Vec::new();
+    append_backend_frame(&mut frame, tag, payload)?;
+    write_half.write_all(&frame).await?;
+    write_half.flush().await?;
+    Ok(())
+}
+
+fn append_backend_frame(frame: &mut Vec<u8>, tag: u8, payload: &[u8]) -> io::Result<()> {
+    frame.push(tag);
     frame.extend_from_slice(
         &i32::try_from(payload.len() + 4)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "payload too large"))?
             .to_be_bytes(),
     );
     frame.extend_from_slice(payload);
-    write_half.write_all(&frame).await?;
-    write_half.flush().await?;
     Ok(())
 }
 
@@ -1705,5 +1757,72 @@ fn decode_hex_digit(byte: u8) -> Option<u8> {
         b'a'..=b'f' => Some(byte - b'a' + 10),
         b'A'..=b'F' => Some(byte - b'A' + 10),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::executor::{ColumnMeta, QueryResult};
+    use crate::types::{DataType, Value};
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+
+    #[derive(Default)]
+    struct CountingWrite {
+        bytes: Vec<u8>,
+        flushes: usize,
+    }
+
+    impl AsyncWrite for CountingWrite {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            self.bytes.extend_from_slice(buf);
+            Poll::Ready(Ok(buf.len()))
+        }
+
+        fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            self.flushes += 1;
+            Poll::Ready(Ok(()))
+        }
+
+        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    #[test]
+    fn should_flush_pgwire_simple_query_result_once_for_multiple_rows() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let result = QueryResult {
+            columns: vec![ColumnMeta::from_data_type("id", DataType::Text)],
+            rows: vec![
+                vec![Value::String("doc-1".to_string())],
+                vec![Value::String("doc-2".to_string())],
+            ],
+            command: "SELECT".to_string(),
+        };
+
+        runtime.block_on(async {
+            let mut writer = CountingWrite::default();
+
+            // Act
+            write_simple_query_result(&mut writer, result)
+                .await
+                .expect("write simple query result");
+
+            // Assert
+            assert_eq!(writer.flushes, 1);
+            assert_eq!(writer.bytes[0], b'T');
+            assert!(writer.bytes.contains(&b'D'));
+            assert!(writer.bytes.contains(&b'C'));
+        });
     }
 }

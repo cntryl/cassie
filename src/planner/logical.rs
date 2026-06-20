@@ -1,5 +1,4 @@
 use crate::app::CassieError;
-use serde::{Deserialize, Serialize};
 use crate::sql::{
     ast::{
         AlterRoleStatement, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
@@ -12,6 +11,7 @@ use crate::sql::{
     },
     binder::BoundStatement,
 };
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogicalPlan {
@@ -20,6 +20,7 @@ pub struct LogicalPlan {
     pub collection: String,
     pub ctes: Vec<CommonTableExpression>,
     pub distinct: bool,
+    pub distinct_on: Vec<Expr>,
     pub projection: Vec<SelectItem>,
     pub filter: Option<Expr>,
     pub group_by: Vec<Expr>,
@@ -67,6 +68,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: source_name(&select.source),
                 ctes: select.ctes.clone(),
                 distinct: select.distinct,
+                distinct_on: select.distinct_on.clone(),
                 projection: select.projection.clone(),
                 filter: select.filter.clone(),
                 group_by: select.group_by.clone(),
@@ -83,6 +85,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
             collection: String::new(),
             ctes: Vec::new(),
             distinct: false,
+            distinct_on: Vec::new(),
             projection: Vec::new(),
             filter: None,
             group_by: Vec::new(),
@@ -98,6 +101,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
             collection: String::new(),
             ctes: Vec::new(),
             distinct: false,
+            distinct_on: Vec::new(),
             projection: Vec::new(),
             filter: None,
             group_by: Vec::new(),
@@ -120,6 +124,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -143,6 +148,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -166,6 +172,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -194,6 +201,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -217,6 +225,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -242,6 +251,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -263,6 +273,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.schema.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -275,7 +286,9 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
         }
         QueryStatement::DropSchema(statement) => {
             if statement.schema.trim().is_empty() {
-                return Err(CassieError::Planner("DROP SCHEMA requires a schema name".into()));
+                return Err(CassieError::Planner(
+                    "DROP SCHEMA requires a schema name".into(),
+                ));
             }
 
             Ok(LogicalPlan {
@@ -284,6 +297,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.schema.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -296,7 +310,9 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
         }
         QueryStatement::AlterSchema(statement) => {
             if statement.schema.trim().is_empty() {
-                return Err(CassieError::Planner("ALTER SCHEMA requires a schema name".into()));
+                return Err(CassieError::Planner(
+                    "ALTER SCHEMA requires a schema name".into(),
+                ));
             }
 
             Ok(LogicalPlan {
@@ -305,6 +321,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.schema.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -331,6 +348,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -352,6 +370,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -373,6 +392,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -394,6 +414,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -415,6 +436,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -438,6 +460,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -459,6 +482,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -482,6 +506,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -505,6 +530,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -528,6 +554,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.name.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -549,7 +576,9 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                     "CREATE INDEX requires an index name".into(),
                 ));
             }
-            if statement.fields.is_empty() || statement.fields.iter().any(|field| field.trim().is_empty()) {
+            if statement.fields.is_empty()
+                || statement.fields.iter().any(|field| field.trim().is_empty())
+            {
                 return Err(CassieError::Planner(
                     "CREATE INDEX requires an indexed field".into(),
                 ));
@@ -561,6 +590,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
@@ -589,6 +619,7 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
                 collection: statement.table.clone(),
                 ctes: Vec::new(),
                 distinct: false,
+                distinct_on: Vec::new(),
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),

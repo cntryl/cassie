@@ -114,7 +114,10 @@ impl Catalog {
             return;
         };
         let description = namespace.description;
-        namespaces.insert(next_name.to_string(), NamespaceMeta::new(next_name, description));
+        namespaces.insert(
+            next_name.to_string(),
+            NamespaceMeta::new(next_name, description),
+        );
         self.bump_version();
     }
 
@@ -519,7 +522,10 @@ impl Catalog {
         }
 
         let mut indexes = self.indexes.write().await;
-        for index in indexes.values_mut().filter(|index| index.collection == collection) {
+        for index in indexes
+            .values_mut()
+            .filter(|index| index.collection == collection)
+        {
             let _ = index.rename_field(current_name, next_name);
         }
 
@@ -527,7 +533,13 @@ impl Catalog {
         let keys = vector_indexes
             .iter()
             .filter(|(_, record)| record.collection == collection)
-            .map(|(key, record)| (key.clone(), record.field.clone(), record.source_field.clone()))
+            .map(|(key, record)| {
+                (
+                    key.clone(),
+                    record.field.clone(),
+                    record.source_field.clone(),
+                )
+            })
             .collect::<Vec<_>>();
         for (key, field, source_field) in keys {
             let Some(mut record) = vector_indexes.remove(&key) else {

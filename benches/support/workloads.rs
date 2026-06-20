@@ -17,6 +17,7 @@ use cassie::config::{
 use cassie::pgwire::protocol::ServerMessage;
 use cassie::planner::{logical, physical};
 use cassie::rest::{documents, search};
+use cassie::runtime::ExecutionMode;
 use cassie::search::{bm25, tokenizer};
 use cassie::sql::{binder, parameter_count, parameter_type_oids, parse_statement};
 use cassie::types::{DataType, FieldSchema, Schema, Value};
@@ -29,6 +30,24 @@ pub struct BenchContext {
     pub session: CassieSession,
     pub collection: String,
     _embedding_server: Option<Arc<MockTeiEmbeddingServer>>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct QueryBreakdownMicros {
+    pub parse_us: u64,
+    pub bind_us: u64,
+    pub plan_us: u64,
+    pub cache_us: u64,
+    pub execute_us: u64,
+    pub scan_us: u64,
+    pub row_decode_us: u64,
+    pub filter_us: u64,
+    pub projection_us: u64,
+    pub sort_us: u64,
+    pub result_build_us: u64,
+    pub stats_us: u64,
+    pub encode_us: u64,
+    pub total_us: u64,
 }
 
 pub struct MockTeiEmbeddingServer {
@@ -58,7 +77,7 @@ pub async fn context(label: &str, dataset_rows: usize) -> Result<BenchContext, C
         collection: "bench_documents".to_string(),
         _embedding_server: None,
     };
-    prepare_collection(&ctx, dataset_rows)?;
+    prepare_collection(&ctx, dataset_rows).await?;
     Ok(ctx)
 }
 
@@ -98,7 +117,7 @@ pub async fn context_with_mock_tei_embeddings(
     dir.push(format!("cassie-bench-{label}-{}", Uuid::new_v4()));
 
     let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir, config)?);
-    cassie.startup()?;
+    cassie.startup().await?;
     let session = cassie.create_session("benchmark", None);
     let ctx = BenchContext {
         cassie,
@@ -106,7 +125,7 @@ pub async fn context_with_mock_tei_embeddings(
         collection: "bench_documents".to_string(),
         _embedding_server: Some(server),
     };
-    prepare_collection(&ctx, dataset_rows)?;
+    prepare_collection(&ctx, dataset_rows).await?;
     let statement = format!(
         "CREATE INDEX {}_embedding_idx ON {} USING vector (embedding) WITH (source_field = body, metric = cosine)",
         ctx.collection, ctx.collection
@@ -220,8 +239,7 @@ async fn prepare_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(
 
     ctx.cassie
         .midge
-        .create_collection(&ctx.collection, schema.clone())
-        ?;
+        .create_collection(&ctx.collection, schema.clone())?;
     ctx.cassie
         .register_collection(
             &ctx.collection,
@@ -231,7 +249,7 @@ async fn prepare_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(
                 .map(|field| (field.name.clone(), field.data_type.clone()))
                 .collect(),
         )
-        ;
+        .await;
 
     let statements = [
         format!(
@@ -268,24 +286,21 @@ async fn prepare_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(
             "pending"
         };
 
-        ctx.cassie
-            .midge
-            .put_document(
-                &ctx.collection,
-                Some(format!("doc-{index}")),
-                json!({
-                    "title": title,
-                    "body": body,
-                    "score": (index % 100) as i64,
-                    "status": status,
-                    "embedding": [
-                        (index % 7) as f32,
-                        (index % 11) as f32,
-                        (index % 13) as f32,
-                    ],
-                }),
-            )
-            ?;
+        ctx.cassie.midge.put_document(
+            &ctx.collection,
+            Some(format!("doc-{index}")),
+            json!({
+                "title": title,
+                "body": body,
+                "score": (index % 100) as i64,
+                "status": status,
+                "embedding": [
+                    (index % 7) as f32,
+                    (index % 11) as f32,
+                    (index % 13) as f32,
+                ],
+            }),
+        )?;
     }
 
     Ok(())
@@ -499,7 +514,7 @@ pub async fn sql_binding(ctx: &BenchContext) -> usize {
     let parsed =
         parse_statement("SELECT id, title FROM bench_documents WHERE score >= 10").expect("parse");
     let bound = binder::bind(parsed, &ctx.cassie.catalog)
-        
+        .await
         .expect("bind");
     std::hint::black_box(bound);
     1
@@ -560,6 +575,85 @@ pub async fn execute_sql(ctx: &BenchContext, sql: &str) -> usize {
     std::hint::black_box(result.rows.len())
 }
 
+pub async fn simple_10k_query_breakdown(ctx: &BenchContext) -> QueryBreakdownMicros {
+    let sql = "SELECT id, title FROM bench_documents WHERE title = 'title-1'";
+    let params = Vec::new();
+
+    ctx.cassie
+        .execute_sql(&ctx.session, sql, params.clone())
+        .await
+        .expect("warm plan cache");
+
+    let total_started = Instant::now();
+    let total_result = ctx
+        .cassie
+        .execute_sql(&ctx.session, sql, params.clone())
+        .await
+        .expect("timed total query");
+    let total_query_us = micros(total_started.elapsed());
+
+    let parse_started = Instant::now();
+    let parsed = parse_statement(sql).expect("parse statement");
+    let parse_us = micros(parse_started.elapsed());
+
+    let bind_started = Instant::now();
+    let bound = binder::bind(parsed.clone(), &ctx.cassie.catalog)
+        .await
+        .expect("bind statement");
+    let bind_us = micros(bind_started.elapsed());
+
+    let plan_started = Instant::now();
+    let logical = logical::plan(&bound).expect("logical plan");
+    let physical = physical::build(logical);
+    let plan_us = micros(plan_started.elapsed());
+
+    let cache_started = Instant::now();
+    let cache_hit = ctx.cassie.plan_cache_hit_for_diagnostics(
+        &parsed,
+        &params,
+        ExecutionMode::SimpleQuery,
+        ctx.session.database.clone(),
+    );
+    let cache_us = micros(cache_started.elapsed());
+    assert!(cache_hit, "expected warmed plan cache hit");
+
+    let execute_started = Instant::now();
+    let execute_output =
+        cassie::executor::run_with_execution_breakdown(ctx.cassie.as_ref(), physical, params)
+            .await
+            .expect("execute physical plan");
+    let execute_us = micros(execute_started.elapsed());
+
+    let encode_started = Instant::now();
+    let encoded = serde_json::to_vec(&execute_output.result).expect("encode query result");
+    let encode_us = micros(encode_started.elapsed());
+    let execution_breakdown = execute_output.breakdown;
+
+    std::hint::black_box(total_result.rows.len());
+    std::hint::black_box(encoded.len());
+
+    QueryBreakdownMicros {
+        parse_us,
+        bind_us,
+        plan_us,
+        cache_us,
+        execute_us,
+        scan_us: execution_breakdown.scan_us,
+        row_decode_us: execution_breakdown.row_decode_us,
+        filter_us: execution_breakdown.filter_us,
+        projection_us: execution_breakdown.projection_us,
+        sort_us: execution_breakdown.sort_us,
+        result_build_us: execution_breakdown.result_build_us,
+        stats_us: execution_breakdown.stats_us,
+        encode_us,
+        total_us: total_query_us.saturating_add(encode_us),
+    }
+}
+
+fn micros(duration: Duration) -> u64 {
+    duration.as_micros().try_into().unwrap_or(u64::MAX)
+}
+
 pub async fn pgwire_simple_query(ctx: &BenchContext, sql: &str) -> usize {
     let messages =
         cassie::pgwire::handlers::query::run_simple_query(&ctx.cassie, &ctx.session, sql, vec![])
@@ -599,7 +693,7 @@ pub async fn pgwire_connection_churn(ctx: &BenchContext) -> usize {
         "SELECT id FROM bench_documents WHERE score = 1 LIMIT 20",
         vec![],
     )
-    ;
+    .await;
     std::hint::black_box(messages.len())
 }
 
@@ -622,7 +716,7 @@ pub async fn pgwire_concurrent_connections(ctx: &BenchContext, concurrency: usiz
                 index % 16
             );
             cassie::pgwire::handlers::query::run_simple_query(&cassie, &session, &sql, vec![])
-                
+                .await
                 .len()
         });
     }
@@ -790,7 +884,6 @@ pub async fn timed_http_document_create_get_batch(
         ctx.cassie
             .midge
             .delete_document(&ctx.collection, &id)
-            
             .expect("cleanup document");
     }
     elapsed / batch_size as u32
@@ -807,7 +900,7 @@ pub async fn ingest_document(ctx: &BenchContext) -> usize {
     let id = ctx
         .cassie
         .ingest_document(&ctx.collection, payload)
-        
+        .await
         .expect("ingest document");
     std::hint::black_box(id);
     1
@@ -926,7 +1019,6 @@ pub async fn timed_ingest_document_batch(ctx: &BenchContext, batch_size: usize) 
         ctx.cassie
             .midge
             .delete_document(&ctx.collection, &id)
-            
             .expect("cleanup ingested document");
     }
     elapsed / batch_size as u32

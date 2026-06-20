@@ -25,9 +25,7 @@ fn should_return_version_function() {
         with_fallback();
         let path = data_dir("version");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie
-            .create_session("tester", Some("catalogdb".to_string()))
-            ;
+        let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
         let result = cassie
@@ -59,9 +57,7 @@ fn should_return_current_schema_function() {
         with_fallback();
         let path = data_dir("schema");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie
-            .create_session("tester", Some("catalogdb".to_string()))
-            ;
+        let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
         let result = cassie
@@ -90,9 +86,7 @@ fn should_return_current_database_function() {
         with_fallback();
         let path = data_dir("database");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie
-            .create_session("tester", Some("catalogdb".to_string()))
-            ;
+        let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
         let result = cassie
@@ -121,9 +115,7 @@ fn should_return_search_path_from_show_statement() {
         with_fallback();
         let path = data_dir("show_search_path");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie
-            .create_session("tester", Some("catalogdb".to_string()))
-            ;
+        let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
         let result = cassie
@@ -162,9 +154,7 @@ fn should_treat_supported_set_statement_as_noop() {
         with_fallback();
         let path = data_dir("set_supported");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie
-            .create_session("tester", Some("catalogdb".to_string()))
-            ;
+        let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
         let result = cassie
@@ -193,9 +183,7 @@ fn should_reject_unsupported_show_variable() {
         with_fallback();
         let path = data_dir("show_unsupported");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie
-            .create_session("tester", Some("catalogdb".to_string()))
-            ;
+        let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
         let result = cassie
@@ -221,9 +209,7 @@ fn should_reject_unsupported_set_variable() {
         with_fallback();
         let path = data_dir("set_unsupported");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie
-            .create_session("tester", Some("catalogdb".to_string()))
-            ;
+        let session = cassie.create_session("tester", Some("catalogdb".to_string()));
 
         // Act
         let result = cassie

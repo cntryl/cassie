@@ -40,7 +40,7 @@ fn should_list_user_tables_through_information_schema() {
                 "CREATE TABLE catalog_tables_docs (title TEXT)",
                 vec![],
             )
-            
+
             .await.unwrap();
 
         // Act
@@ -90,7 +90,7 @@ fn should_list_columns_through_information_schema_after_restart() {
                 "CREATE TABLE catalog_columns_docs (title TEXT, score INT)",
                 vec![],
             )
-            
+
             .await.unwrap();
         drop(cassie);
 
@@ -105,7 +105,7 @@ fn should_list_columns_through_information_schema_after_restart() {
                 "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'catalog_columns_docs' ORDER BY ordinal_position",
                 vec![],
             )
-            
+
             .await.unwrap();
 
         // Assert
@@ -147,7 +147,7 @@ fn should_list_indexes_through_pg_catalog() {
                 "CREATE TABLE catalog_index_docs (email TEXT)",
                 vec![],
             )
-            
+
             .await.unwrap();
         cassie
             .execute_sql(
@@ -198,7 +198,7 @@ fn should_list_composite_indexes_through_pg_catalog() {
                 "CREATE TABLE catalog_composite_index_docs (title TEXT, score INT)",
                 vec![],
             )
-            
+
             .await.unwrap();
         cassie
             .execute_sql(
@@ -251,8 +251,8 @@ fn should_list_namespaces_through_pg_catalog() {
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(&session, "CREATE SCHEMA analytics", vec![])
-            
-            .await.unwrap();
+            .await
+            .unwrap();
 
         // Act
         let selected = cassie
@@ -299,7 +299,7 @@ fn should_list_constraints_through_information_schema() {
                 "CREATE TABLE catalog_constraint_docs (email TEXT UNIQUE, score INT CHECK (score >= 0))",
                 vec![],
             )
-            
+
             .await.unwrap();
 
         // Act
@@ -343,8 +343,8 @@ fn should_return_admin_role_for_pg_roles_catalog_view() {
         // Act
         let selected = cassie
             .execute_sql(&session, "SELECT rolname FROM pg_catalog.pg_roles", vec![])
-            
-            .await.unwrap();
+            .await
+            .unwrap();
 
         // Assert
         assert_eq!(
@@ -378,7 +378,7 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
                 "SELECT typname, oid, typelem, typnamespace FROM pg_catalog.pg_type WHERE typname IN ('smallint', 'bigint', 'bytea', 'char(1)', 'varchar(8)', 'int', 'int[]', 'vector(2)', 'text', 'bytea[]') ORDER BY typname",
                 vec![],
             )
-            
+
             .await.unwrap();
 
         // Assert
@@ -472,7 +472,7 @@ fn should_list_user_defined_views_through_catalog_views() {
                 "CREATE TABLE catalog_views_docs (title TEXT, score INT)",
                 vec![],
             )
-            
+
             .await.unwrap();
         cassie
             .execute_sql(

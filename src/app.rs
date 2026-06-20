@@ -1102,8 +1102,12 @@ impl Cassie {
             .unwrap_or_else(|| "none".to_string());
         let index_aware = physical.selected_index.is_some();
         let index = physical.selected_index.as_deref().unwrap_or("none");
+        let top_k_limit = physical
+            .top_k_limit
+            .map(|limit| limit.to_string())
+            .unwrap_or_else(|| "none".to_string());
         let plan = format!(
-            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={}",
+            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} top_k={} top_k_limit={}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
@@ -1116,7 +1120,9 @@ impl Cassie {
             limit_pushdown,
             scan_limit,
             index_aware,
-            index
+            index,
+            physical.top_k,
+            top_k_limit
         );
 
         Ok(QueryResult {

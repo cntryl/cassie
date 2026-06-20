@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 068: Top-K Optimization](issue-068.md) - V2 - Query Performance / Planner
 - [Issue 069: Hash Joins](issue-069.md) - V2 - Query Performance / Joins
 - [Issue 070: Semi Joins](issue-070.md) - V2 - Query Performance / Joins
 - [Issue 071: Anti Joins](issue-071.md) - V2 - Query Performance / Joins

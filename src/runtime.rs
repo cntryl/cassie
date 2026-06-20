@@ -837,6 +837,8 @@ mod tests {
             projected_scan_fields: Vec::new(),
             scan_limit: None,
             selected_index: None,
+            top_k: false,
+            top_k_limit: None,
             logical: LogicalPlan {
                 command: None,
                 source: QuerySource::Collection("bench_documents".to_string()),

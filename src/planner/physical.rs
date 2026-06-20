@@ -29,6 +29,8 @@ pub struct PhysicalPlan {
     pub projected_scan_fields: Vec<String>,
     pub scan_limit: Option<usize>,
     pub selected_index: Option<String>,
+    pub top_k: bool,
+    pub top_k_limit: Option<usize>,
 }
 
 pub fn build(plan: LogicalPlan) -> PhysicalPlan {
@@ -45,6 +47,8 @@ pub fn build_with_indexes(plan: LogicalPlan, indexes: Vec<IndexMeta>) -> Physica
             projected_scan_fields: Vec::new(),
             scan_limit: None,
             selected_index: None,
+            top_k: false,
+            top_k_limit: None,
         };
     }
 
@@ -52,6 +56,8 @@ pub fn build_with_indexes(plan: LogicalPlan, indexes: Vec<IndexMeta>) -> Physica
     let projected_scan_fields = projected_scan_fields(&plan).unwrap_or_default();
     let scan_limit = scan_limit(&plan, &projected_scan_fields);
     let selected_index = selected_index(&plan, indexes.as_slice());
+    let top_k_limit = top_k_limit(&plan);
+    let top_k = top_k_limit.is_some();
     let mut operators = vec![Operator::Scan];
     if source_contains_join(&plan.source) {
         operators.push(Operator::Join);
@@ -94,7 +100,18 @@ pub fn build_with_indexes(plan: LogicalPlan, indexes: Vec<IndexMeta>) -> Physica
         projected_scan_fields,
         scan_limit,
         selected_index,
+        top_k,
+        top_k_limit,
     }
+}
+
+fn top_k_limit(plan: &LogicalPlan) -> Option<usize> {
+    if plan.order.is_empty() || plan.limit.is_none() {
+        return None;
+    }
+    let limit = usize::try_from(plan.limit?.max(0)).ok()?;
+    let offset = usize::try_from(plan.offset.unwrap_or(0).max(0)).ok()?;
+    limit.checked_add(offset)
 }
 
 fn selected_index(plan: &LogicalPlan, indexes: &[IndexMeta]) -> Option<String> {

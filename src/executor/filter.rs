@@ -166,6 +166,10 @@ impl SearchTermStats {
             term_counts: token_counts(tokens.as_slice()),
         }
     }
+
+    pub(crate) fn term_counts(&self) -> &HashMap<String, usize> {
+        &self.term_counts
+    }
 }
 
 impl SingleFieldSearchContext {

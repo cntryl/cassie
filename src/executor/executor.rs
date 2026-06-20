@@ -2203,6 +2203,56 @@ struct TokenizedHybridDocument {
     vector: Option<Vec<f32>>,
 }
 
+trait PostingListDocument {
+    fn doc_id(&self) -> &str;
+    fn term_counts(&self) -> &HashMap<String, usize>;
+}
+
+impl PostingListDocument for TokenizedFulltextDocument {
+    fn doc_id(&self) -> &str {
+        &self.id
+    }
+
+    fn term_counts(&self) -> &HashMap<String, usize> {
+        self.text_stats.term_counts()
+    }
+}
+
+impl PostingListDocument for TokenizedFulltextReadDocument {
+    fn doc_id(&self) -> &str {
+        &self.id
+    }
+
+    fn term_counts(&self) -> &HashMap<String, usize> {
+        self.text_stats.term_counts()
+    }
+}
+
+impl PostingListDocument for TokenizedHybridDocument {
+    fn doc_id(&self) -> &str {
+        &self.id
+    }
+
+    fn term_counts(&self) -> &HashMap<String, usize> {
+        self.text_stats.term_counts()
+    }
+}
+
+fn posting_list_candidate_ids<D>(documents: &[D], query_terms: &[String]) -> HashSet<String>
+where
+    D: PostingListDocument,
+{
+    if query_terms.is_empty() {
+        return HashSet::new();
+    }
+
+    let mut index = crate::search::inverted_index::InvertedIndex::default();
+    for document in documents {
+        index.index_term_counts(document.doc_id(), document.term_counts());
+    }
+    index.candidate_documents(query_terms)
+}
+
 async fn execute_fulltext_top_k(
     cassie: &Cassie,
     spec: FulltextTopKSpec,
@@ -2236,9 +2286,19 @@ async fn execute_fulltext_top_k(
         &search_index_options.field_b,
     );
     let query_terms = filter::prepare_query_terms(&spec.query);
+    let candidate_ids = if spec.require_match {
+        Some(posting_list_candidate_ids(&search_documents, &query_terms))
+    } else {
+        None
+    };
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
 
     for document in &search_documents {
+        if let Some(candidate_ids) = candidate_ids.as_ref() {
+            if !candidate_ids.contains(document.id.as_str()) {
+                continue;
+            }
+        }
         let score = search_context.score_term_stats(&document.text_stats, &query_terms);
         if spec.require_match && score == 0.0 {
             continue;
@@ -2258,11 +2318,12 @@ async fn execute_fulltext_top_k(
         &spec.id_column,
         &spec.score_column,
     );
-    cassie.runtime.record_search_execution(
-        started_at.elapsed(),
-        search_documents.len(),
-        rows.len(),
-    );
+    let candidate_count = candidate_ids
+        .as_ref()
+        .map_or(search_documents.len(), HashSet::len);
+    cassie
+        .runtime
+        .record_search_execution(started_at.elapsed(), candidate_count, rows.len());
     Ok(rows)
 }
 
@@ -2303,10 +2364,14 @@ async fn execute_hybrid_top_k(
         &search_index_options.field_b,
     );
     let query_terms = filter::prepare_query_terms(&spec.query);
+    let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
     let mut text_candidate_count = 0usize;
 
     for document in &search_documents {
+        if !candidate_ids.contains(document.id.as_str()) {
+            continue;
+        }
         let search_score = search_context.score_term_stats(&document.text_stats, &query_terms);
         if search_score == 0.0 {
             continue;
@@ -2339,11 +2404,10 @@ async fn execute_hybrid_top_k(
         &spec.id_column,
         &spec.score_column,
     );
-    cassie.runtime.record_search_execution(
-        started_at.elapsed(),
-        search_documents.len(),
-        rows.len(),
-    );
+    let candidate_count = candidate_ids.len();
+    cassie
+        .runtime
+        .record_search_execution(started_at.elapsed(), candidate_count, rows.len());
     cassie
         .runtime
         .record_vector_execution(started_at.elapsed(), text_candidate_count, rows.len());
@@ -2396,10 +2460,14 @@ async fn execute_fulltext_filtered_read(
         &search_index_options.field_b,
     );
     let query_terms = filter::prepare_query_terms(&spec.query);
+    let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
 
     let mut skipped = 0usize;
     let mut rows = Vec::new();
     for document in &search_documents {
+        if !candidate_ids.contains(document.id.as_str()) {
+            continue;
+        }
         let score = search_context.score_term_stats(&document.text_stats, &query_terms);
         if score == 0.0 {
             continue;
@@ -2429,11 +2497,10 @@ async fn execute_fulltext_filtered_read(
         rows.push(BatchRow::new(entries));
     }
 
-    cassie.runtime.record_search_execution(
-        started_at.elapsed(),
-        search_documents.len(),
-        rows.len(),
-    );
+    let candidate_count = candidate_ids.len();
+    cassie
+        .runtime
+        .record_search_execution(started_at.elapsed(), candidate_count, rows.len());
     Ok(rows)
 }
 

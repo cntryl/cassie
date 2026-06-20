@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 020: UNION ALL](issue-020.md) - V1 - Projection Query Engine / SQL
 - [Issue 021: CTEs](issue-021.md) - V1 - Projection Query Engine / SQL
 - [Issue 022: Basic Aggregates](issue-022.md) - V1 - Projection Query Engine / SQL
 - [Issue 023: Scalar Functions](issue-023.md) - V1 - Projection Query Engine / SQL

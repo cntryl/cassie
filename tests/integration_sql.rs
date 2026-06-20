@@ -2899,6 +2899,73 @@ fn should_preserve_explicit_insert_value_when_default_exists() {
 }
 
 #[test]
+fn should_query_rows_after_creating_secondary_index() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("secondary_index_query");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE secondary_index_query (email TEXT, title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX secondary_email_idx ON secondary_index_query USING btree (email)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO secondary_index_query (email, title) VALUES ('a@example.com', 'alpha')",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO secondary_index_query (email, title) VALUES ('b@example.com', 'beta')",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM secondary_index_query WHERE email = 'b@example.com'",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![vec![Value::String("beta".to_string())]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_reject_insert_values_when_vector_dimensions_mismatch() {
     // Arrange
     with_fallback();

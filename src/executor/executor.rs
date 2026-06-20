@@ -1264,6 +1264,35 @@ fn value_to_json(value: &Value) -> serde_json::Value {
     }
 }
 
+fn update_assignment_to_json(
+    field: &str,
+    value: &Value,
+    schema: &CollectionSchema,
+) -> serde_json::Value {
+    if let Some(field_meta) = schema
+        .fields
+        .iter()
+        .find(|candidate| candidate.name.eq_ignore_ascii_case(field))
+    {
+        if matches!(
+            field_meta.data_type,
+            DataType::SmallInt | DataType::Int | DataType::BigInt
+        ) {
+            if let Value::Float64(number) = value {
+                if number.is_finite()
+                    && number.fract() == 0.0
+                    && *number >= i64::MIN as f64
+                    && *number <= i64::MAX as f64
+                {
+                    return serde_json::Value::Number((*number as i64).into());
+                }
+            }
+        }
+    }
+
+    value_to_json(value)
+}
+
 fn inserted_row_to_batch_row(
     row_id: &str,
     schema: &CollectionSchema,
@@ -1379,7 +1408,10 @@ async fn execute_update(
                 session,
                 None,
             )?;
-            payload.insert(field.clone(), value_to_json(&value));
+            payload.insert(
+                field.clone(),
+                update_assignment_to_json(field, &value, &schema),
+            );
         }
 
         let payload = cassie

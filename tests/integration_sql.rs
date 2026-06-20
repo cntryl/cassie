@@ -2227,6 +2227,101 @@ fn should_reject_update_when_unique_value_conflicts() {
 }
 
 #[test]
+fn should_reject_insert_when_check_constraint_fails() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("check_insert_failure");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE check_insert_failure (score INT CHECK (score >= 18))",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO check_insert_failure (score) VALUES (17)",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(inserted.is_err());
+        assert!(inserted
+            .unwrap_err()
+            .to_string()
+            .contains("check constraint failed"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_update_when_check_constraint_fails() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("check_update_failure");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE check_update_failure (score INT CHECK (score >= 18))",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO check_update_failure (score) VALUES (20)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let updated = cassie
+            .execute_sql(
+                &session,
+                "UPDATE check_update_failure SET score = 17",
+                vec![],
+            )
+            .await;
+
+        // Assert
+        assert!(updated.is_err());
+        let message = updated.unwrap_err().to_string();
+        assert!(
+            message.contains("check constraint failed"),
+            "expected check constraint error, got {message}"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
     // Arrange
     with_fallback();

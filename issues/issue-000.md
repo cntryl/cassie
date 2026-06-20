@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 032: CHECK](issue-032.md) - V1 - Projection Query Engine / Constraints
 - [Issue 033: DEFAULT](issue-033.md) - V1 - Projection Query Engine / Constraints
 - [Issue 034: Primary Key Index](issue-034.md) - V1 - Projection Query Engine / Indexes
 - [Issue 035: Secondary Indexes](issue-035.md) - V1 - Projection Query Engine / Indexes

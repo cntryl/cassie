@@ -1052,11 +1052,8 @@ async fn execute_insert(
     )?;
 
     let column_schema = cassie.catalog.get_schema(&statement.table).await;
-    let columns = aggregate::columns_from_projection(
-        &statement.returning,
-        column_schema.as_ref(),
-        user_functions,
-    );
+    let columns =
+        dml_returning_columns(&statement.returning, column_schema.as_ref(), user_functions);
 
     Ok(QueryResult {
         columns,
@@ -1286,6 +1283,26 @@ fn inserted_row_to_batch_row(
     BatchRow::new(row)
 }
 
+fn dml_returning_columns(
+    returning: &[SelectItem],
+    schema: Option<&CollectionSchema>,
+    user_functions: &HashMap<String, FunctionMeta>,
+) -> Vec<ColumnMeta> {
+    let mut columns = aggregate::columns_from_projection(returning, schema, user_functions);
+    if returning
+        .iter()
+        .any(|item| matches!(item, SelectItem::Wildcard))
+    {
+        for column in &mut columns {
+            if column.name == "id" {
+                column.name = "_id".to_string();
+                break;
+            }
+        }
+    }
+    columns
+}
+
 fn json_to_value(value: &serde_json::Value) -> Value {
     if value.is_null() {
         return Value::Null;
@@ -1427,11 +1444,8 @@ async fn execute_update(
     )?;
 
     let column_schema = cassie.catalog.get_schema(&statement.table).await;
-    let columns = aggregate::columns_from_projection(
-        &statement.returning,
-        column_schema.as_ref(),
-        user_functions,
-    );
+    let columns =
+        dml_returning_columns(&statement.returning, column_schema.as_ref(), user_functions);
 
     Ok(QueryResult {
         columns,
@@ -1525,11 +1539,8 @@ async fn execute_delete(
     )?;
 
     let column_schema = cassie.catalog.get_schema(&statement.table).await;
-    let columns = aggregate::columns_from_projection(
-        &statement.returning,
-        column_schema.as_ref(),
-        user_functions,
-    );
+    let columns =
+        dml_returning_columns(&statement.returning, column_schema.as_ref(), user_functions);
 
     Ok(QueryResult {
         columns,

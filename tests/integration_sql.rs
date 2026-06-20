@@ -2309,6 +2309,51 @@ fn should_return_generated_row_id_from_insert_values() {
 }
 
 #[test]
+fn should_execute_insert_returning_wildcard() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("insert_returning_wildcard");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().await.unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE insert_returning_wildcard (title TEXT, body TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let inserted = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO insert_returning_wildcard (title, body) VALUES ('alpha', 'first') RETURNING *",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(inserted.columns[0].name, "_id");
+        assert_eq!(inserted.columns[1].name, "title");
+        assert_eq!(inserted.columns[2].name, "body");
+        assert!(matches!(&inserted.rows[0][0], Value::String(id) if !id.is_empty()));
+        assert_eq!(inserted.rows[0][1], Value::String("alpha".to_string()));
+        assert_eq!(inserted.rows[0][2], Value::String("first".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_execute_insert_returning_scalar_function() {
     // Arrange
     with_fallback();

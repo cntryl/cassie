@@ -382,6 +382,34 @@ fn should_mark_exists_predicate_as_semi_join() {
 }
 
 #[test]
+fn should_mark_not_exists_predicate_as_anti_join() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_anti_outer");
+    register_test_collection(&catalog, "planner_anti_inner");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_anti_outer WHERE NOT EXISTS (SELECT title FROM planner_anti_inner)",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).await.unwrap();
+        let logical = logical::plan(&bound).unwrap();
+        let logical = optimizer::optimize(logical);
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert_eq!(physical_plan.join_strategy.as_deref(), Some("anti"));
+    });
+}
+
+#[test]
 fn should_plan_grouped_distinct_select_controls() {
     // Arrange
     let catalog = Catalog::new();

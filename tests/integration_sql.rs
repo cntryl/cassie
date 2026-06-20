@@ -2706,6 +2706,57 @@ fn should_explain_semi_join_strategy_for_exists_predicate() {
 }
 
 #[test]
+fn should_explain_anti_join_strategy_for_not_exists_predicate() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("explain_anti_join");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_anti_join_outer (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_anti_join_inner (title TEXT)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM sql_anti_join_outer WHERE NOT EXISTS (SELECT title FROM sql_anti_join_inner)",
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        let Value::String(plan) = &result.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("join_strategy=anti"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_execute_sql_with_non_recursive_cte() {
     // Arrange
     with_fallback();

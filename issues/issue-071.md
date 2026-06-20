@@ -2,7 +2,7 @@
 
 Milestone: V2 - Query Performance
 Area: Joins
-Status: Open
+Status: Completed
 Priority: P1
 
 ## Concept

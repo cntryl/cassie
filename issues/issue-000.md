@@ -96,6 +96,7 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Status
 
+- [Issue 071: Anti Joins](issue-071.md) — **Completed**
 - [Issue 089: Recursive CTEs](issue-089.md) — **Completed**
 - [Issue 090: INTERSECT](issue-090.md) — **Completed**
 - [Issue 091: EXCEPT](issue-091.md) — **Completed**

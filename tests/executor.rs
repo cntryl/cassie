@@ -1818,6 +1818,97 @@ fn should_execute_query_across_multiple_batches_without_truncation() {
 }
 
 #[test]
+fn should_preserve_filtered_projection_across_multiple_batches() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let cassie = Cassie::new().unwrap();
+        let collection = "exec_multi_batch_filter";
+
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "status".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            )
+            .await;
+
+        for index in 0..1105 {
+            let id = format!("d{index:04}");
+            let title = format!("doc-{index:04}");
+            let status = if index % 2 == 0 { "keep" } else { "drop" };
+            cassie
+                .midge
+                .put_document(
+                    collection,
+                    Some(id),
+                    serde_json::json!({ "title": title, "status": status }),
+                )
+                .unwrap();
+        }
+
+        // Act
+        let session = cassie.create_session("tester", None);
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id FROM exec_multi_batch_filter WHERE status = 'keep' ORDER BY title ASC LIMIT 5 OFFSET 510",
+                vec![],
+            )
+            .await
+            .expect("query should execute");
+
+        // Assert
+        assert_eq!(result.rows.len(), 5);
+        let ids = result
+            .rows
+            .into_iter()
+            .map(|row| match &row[0] {
+                Value::String(value) => value.clone(),
+                _ => panic!("expected id string"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            ids,
+            vec![
+                "d1020".to_string(),
+                "d1022".to_string(),
+                "d1024".to_string(),
+                "d1026".to_string(),
+                "d1028".to_string(),
+            ]
+        );
+    });
+}
+
+#[test]
 fn should_sort_with_stable_tiebreaker() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

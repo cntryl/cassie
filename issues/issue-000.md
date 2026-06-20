@@ -11,7 +11,6 @@ Track one issue for every concept in `docs/milestones.md`.
 
 ## Coverage
 
-- [Issue 055: Batch Execution](issue-055.md) - V1 - Projection Query Engine / Execution
 - [Issue 056: Plan Cache](issue-056.md) - V1 - Projection Query Engine / Execution
 - [Issue 057: Prepared Statements](issue-057.md) - V1 - Projection Query Engine / Execution
 - [Issue 058: PostgreSQL Wire Protocol](issue-058.md) - V1 - Projection Query Engine / Protocols

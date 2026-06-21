@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AnalyzerConfig {
     pub name: String,
+    pub tokenizer: String,
     pub case_folding: bool,
     pub stop_words: String,
     pub stemming: String,
@@ -18,6 +19,7 @@ impl Default for AnalyzerConfig {
     fn default() -> Self {
         Self {
             name: "standard".to_string(),
+            tokenizer: "standard".to_string(),
             case_folding: true,
             stop_words: "english".to_string(),
             stemming: "none".to_string(),
@@ -45,6 +47,12 @@ impl AnalyzerConfig {
         }
         if let Some(value) = options.get("case_folding") {
             config.case_folding = parse_bool_option("case_folding", value)?;
+        }
+        if let Some(value) = options.get("tokenizer") {
+            config.tokenizer = normalize_option(value);
+            if !matches!(config.tokenizer.as_str(), "standard" | "whitespace") {
+                return Err(format!("unsupported tokenizer '{}'", value.trim()));
+            }
         }
         if let Some(value) = options.get("stop_words") {
             config.stop_words = normalize_option(value);
@@ -77,8 +85,7 @@ impl AnalyzerConfig {
             normalized
         };
         let stop_words = crate::search::tokenizer::stop_words();
-        normalized
-            .split(|c: char| !c.is_alphanumeric())
+        tokenize_with(&normalized, &self.tokenizer)
             .filter(|token| !token.is_empty())
             .filter(|token| self.stop_words != "english" || !stop_words.contains(*token))
             .map(ToString::to_string)
@@ -114,6 +121,13 @@ fn parse_bool_option(name: &str, value: &str) -> Result<bool, String> {
     }
 }
 
+fn tokenize_with<'a>(input: &'a str, tokenizer: &str) -> Box<dyn Iterator<Item = &'a str> + 'a> {
+    match tokenizer {
+        "whitespace" => Box::new(input.split_whitespace()),
+        _ => Box::new(input.split(|c: char| !c.is_alphanumeric())),
+    }
+}
+
 fn fold_accents(input: &str) -> String {
     input
         .chars()
@@ -137,4 +151,37 @@ fn fold_accents(input: &str) -> String {
             _ => character,
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_tokenize_with_standard_boundaries() {
+        // Arrange
+        let config = AnalyzerConfig::default();
+
+        // Act
+        let tokens = config.analyze("Alpha-Beta gamma");
+
+        // Assert
+        assert_eq!(tokens, vec!["alpha", "beta", "gamma"]);
+    }
+
+    #[test]
+    fn should_tokenize_with_whitespace_boundaries() {
+        // Arrange
+        let config = AnalyzerConfig {
+            tokenizer: "whitespace".to_string(),
+            stop_words: "none".to_string(),
+            ..AnalyzerConfig::default()
+        };
+
+        // Act
+        let tokens = config.analyze("Alpha-Beta gamma");
+
+        // Assert
+        assert_eq!(tokens, vec!["alpha-beta", "gamma"]);
+    }
 }

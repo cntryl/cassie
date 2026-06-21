@@ -206,6 +206,8 @@ Supported analyzers and options:
 
 - `analyzer = standard`: default behavior, case folds text and removes English stop words.
 - `analyzer = simple`: case folds text without stop-word removal unless overridden.
+- `tokenizer = standard`: default token boundaries split on non-alphanumeric characters.
+- `tokenizer = whitespace`: token boundaries split only on whitespace, preserving punctuation within tokens.
 - `case_folding = true|false`: controls lowercase normalization.
 - `stop_words = english|none`: controls built-in stop-word filtering.
 - `stemming = none`: placeholder for future stemming modes; other values are rejected.

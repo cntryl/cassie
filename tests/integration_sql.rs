@@ -2891,6 +2891,78 @@ fn should_hydrate_fulltext_analyzer_options_after_restart() {
 }
 
 #[test]
+fn should_hydrate_fulltext_tokenizer_options_after_restart() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("fulltext_tokenizer_restart");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE sql_fulltext_tokenizer_restart (body TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO sql_fulltext_tokenizer_restart (body) VALUES ('alpha-beta gamma')",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE INDEX idx_sql_fulltext_tokenizer_restart ON sql_fulltext_tokenizer_restart USING fulltext (body) WITH (tokenizer = whitespace, stop_words = none)",
+                    vec![],
+                )
+                .unwrap();
+        }
+
+        // Act
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().unwrap();
+        let index = restarted
+            .catalog
+            .get_index(
+                "sql_fulltext_tokenizer_restart",
+                "idx_sql_fulltext_tokenizer_restart",
+            )
+            .expect("index should hydrate");
+        let session = restarted.create_session("tester", None);
+        let result = restarted
+            .execute_sql(
+                &session,
+                "SELECT search(body, 'alpha') AS standard_match, search(body, 'alpha-beta') AS whitespace_match, snippet(body, 'alpha-beta') AS excerpt FROM sql_fulltext_tokenizer_restart",
+                vec![],
+            )
+            .expect("query should execute");
+
+        // Assert
+        assert_eq!(
+            index.options.get("tokenizer"),
+            Some(&"whitespace".to_string())
+        );
+        assert_eq!(result.rows[0][0], Value::Bool(false));
+        assert_eq!(result.rows[0][1], Value::Bool(true));
+        let Value::String(excerpt) = &result.rows[0][2] else {
+            panic!("expected snippet string");
+        };
+        assert!(excerpt.contains("<mark>alpha-beta</mark>"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_use_include_columns_for_covered_projection() {
     // Arrange
     with_fallback();

@@ -824,6 +824,7 @@ fn bind_create_index(
                     | "stop_words"
                     | "stemming"
                     | "accent_folding"
+                    | "tokenizer"
             ) {
                 return Err(CassieError::Planner(format!(
                     "unsupported fulltext index option '{key}' for '{name}' on collection '{table}'"
@@ -839,6 +840,9 @@ fn bind_create_index(
         statement
             .options
             .insert("analyzer".to_string(), analyzer.name);
+        statement
+            .options
+            .insert("tokenizer".to_string(), analyzer.tokenizer);
         statement.options.insert(
             "case_folding".to_string(),
             analyzer.case_folding.to_string(),

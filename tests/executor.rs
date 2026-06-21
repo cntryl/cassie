@@ -1312,6 +1312,42 @@ fn should_reject_unknown_fulltext_analyzer() {
 }
 
 #[test]
+fn should_reject_unknown_fulltext_tokenizer() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let cassie = Cassie::new().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE exec_fulltext_bad_tokenizer (body TEXT)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let err = cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_exec_fulltext_bad_tokenizer ON exec_fulltext_bad_tokenizer USING fulltext (body) WITH (tokenizer = unsupported)",
+                vec![],
+            )
+            .expect_err("unknown tokenizer should fail");
+
+        // Assert
+        assert!(err
+            .to_string()
+            .contains("unsupported tokenizer 'unsupported'"));
+    });
+}
+
+#[test]
 fn should_reject_non_finite_fulltext_index_options_during_search_score() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

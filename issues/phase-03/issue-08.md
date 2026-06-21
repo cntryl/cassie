@@ -8,19 +8,31 @@ Priority: P2
 ## Requirements
 
 Introduce a bounded parallel execution framework for multi-operator plans beyond single parallel scan/scoring/aggregation features.
+Parallelism is a physical execution choice; every supported plan must keep the same final rows, errors, and ordering as single-worker execution.
+
+## Dependencies
+
+- Depends on existing executor cancellation/timeouts, parallel scan/scoring behavior, sort/aggregate semantics, and runtime limit configuration.
+- Consumes phase 03 issue 02 cost-informed planning and phase 03 issue 07 hybrid planning where those are available.
+
+## Handoff
+
+- Provides exchange/partition/merge infrastructure consumed by phase 03 issue 09 vectorized aggregation and phase 03 issue 13 large-scale aggregations.
 
 ## Functional Scope
 
-- Add exchange/partition/merge operators that can connect parallel scan, filter, projection, join, aggregate, sort, and scoring stages.
+- Add exchange/partition/merge operators that can connect eligible parallel scan, filter, projection, join, aggregate, sort, and scoring stages.
 - Respect runtime worker limits, memory/spill budgets, query timeout, cancellation, and result limits across the whole pipeline.
 - Preserve deterministic final results and stable tie-breaking across worker partitions.
-- Propagate errors and cancellation exactly once while cleaning up all worker state.
-- Report pipeline topology, workers, queue/backpressure metrics, and fallback through EXPLAIN/metrics.
+- Propagate errors and cancellation exactly once while cleaning up all worker state and temporary resources.
+- Define single-worker fallback when an operator, expression, limit, or runtime setting makes a parallel segment unsafe.
+- Report pipeline topology, workers, partitioning keys, queue/backpressure metrics, cancellation/error state, and fallback through EXPLAIN/metrics.
 
 ## Non-Goals
 
 - Do not require every physical operator to become parallel in this issue.
 - Do not implement distributed execution across Cassie instances.
+- Do not make parallel execution the only path for large queries.
 
 ## Acceptance Criteria
 
@@ -28,10 +40,11 @@ Introduce a bounded parallel execution framework for multi-operator plans beyond
 - Resource limits and cancellation are enforced across all workers and stages.
 - Unsupported operators fall back to single-worker execution without changing results.
 - EXPLAIN and metrics make the parallel topology observable.
+- Worker failures do not leak partial result streams, background tasks, or temporary resources.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering multi-stage parallel plans, deterministic merge, backpressure/resource limits, timeout/cancellation cleanup, error propagation, and fallback.
+- Add `should_` tests with `// Arrange / Act / Assert` covering multi-stage parallel plans, deterministic merge/tie order, worker-limit selection, backpressure/resource limits, timeout/cancellation cleanup, error propagation, temporary cleanup, and fallback.
 - Include planner and executor tests.
 
 ## Close-Out Steps

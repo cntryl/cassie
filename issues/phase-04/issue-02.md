@@ -8,6 +8,18 @@ Priority: P3
 ## Requirements
 
 Support Midge-backed column-store table storage mode for analytical tables while preserving SQL/catalog compatibility.
+This issue promotes columnar acceleration from derived execution support into an explicit table storage mode for read-heavy analytical read models.
+
+## Dependencies
+
+- Depends on phase 03 issue 06 for column-native execution paths.
+- Depends on phase 03 issue 07 for hybrid row/column planning.
+- Depends on phase 03 issue 12 for analytical projection semantics where column-store tables participate in projection workflows.
+- Depends on phase 02 issue 05 for catalog, EXPLAIN, and metrics visibility.
+
+## Handoff
+
+- Provides table-level columnar storage that phase 04 issue 04 vectorized joins and future analytical execution work can consume.
 
 ## Functional Scope
 
@@ -16,11 +28,15 @@ Support Midge-backed column-store table storage mode for analytical tables while
 - Store columnar data, row ids, visibility/deletion markers, schema/version metadata, and optional row materialization data in Midge.
 - Support INSERT, UPDATE, DELETE, SELECT, schema hydration, rename/drop, and catalog introspection for column-store tables.
 - Materialize row-shaped results for pgwire/REST consumers with the same type/null/sparse behavior as row-store tables.
+- Preserve primary key/row id identity, deletion visibility, null/missing semantics, and schema evolution behavior across row-shaped and column-shaped access.
+- Define unsupported table features up front and reject them before writing any partial Midge state.
 
 ## Non-Goals
 
 - Do not migrate existing row-store tables automatically.
 - Do not bypass Midge or introduce an independent storage engine.
+- Do not make column-store tables the default storage mode.
+- Do not add PostgreSQL storage-parameter parity beyond what Cassie needs for read-model workloads.
 
 ## Acceptance Criteria
 
@@ -28,10 +44,12 @@ Support Midge-backed column-store table storage mode for analytical tables while
 - Query results match equivalent row-store table behavior for supported types.
 - Unsupported DDL/DML features fail clearly rather than partially writing data.
 - EXPLAIN and catalog views identify column-store table storage mode.
+- Row materialization through pgwire/REST preserves field order, type tags, nulls, and sparse/missing behavior.
+- Dropping or renaming a column-store table cleans all related Midge metadata and column data.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering create/insert/select/update/delete, restart hydration, rename/drop, unsupported feature rejection, and catalog introspection.
+- Add `should_` tests with `// Arrange / Act / Assert` covering create/insert/select/update/delete, null/missing values, row materialization, restart hydration, rename/drop cleanup, unsupported feature rejection, and catalog introspection.
 - Include planner and executor tests.
 
 ## Close-Out Steps

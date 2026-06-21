@@ -8,6 +8,19 @@ Priority: P3
 ## Requirements
 
 Feed observed operator performance back into future operator selection without compromising deterministic planning or correctness.
+This issue extends earlier cost and index feedback work from access-path choice into broader physical operator choice.
+
+## Dependencies
+
+- Depends on phase 03 issue 02 for cost-informed planning.
+- Depends on phase 03 issue 03 for safe runtime feedback collection and feedback invalidation patterns.
+- Depends on phase 03 issue 10 for advanced cardinality estimates used as the base planner signal.
+- Depends on phase 02 issue 05 for bounded metrics and EXPLAIN diagnostics.
+
+## Handoff
+
+- Provides confidence-scored operator feedback consumed by phase 04 issue 05 adaptive execution plans.
+- Provides operator-level telemetry that phase 04 issue 06 runtime operator switching can use for threshold selection, without enabling switching itself.
 
 ## Functional Scope
 
@@ -15,12 +28,16 @@ Feed observed operator performance back into future operator selection without c
 - Compare estimated versus actual rows, elapsed time, storage reads, temp writes, and memory/spill indicators.
 - Adjust future cost inputs for eligible operator alternatives when feedback is fresh and statistically meaningful.
 - Bound feedback influence so a single outlier cannot permanently bias planning.
+- Persist feedback through Midge/catalog metadata with bounded retention, bounded key cardinality, and explicit schema/catalog epoch invalidation.
+- Keep feedback as a cost input only; it must not alter SQL semantics, authorization, freshness checks, or available operator eligibility.
+- Provide controls to disable feedback use and to inspect the base estimate versus feedback-adjusted estimate.
 - Expose feedback use, age, confidence, and ignored/outlier status through EXPLAIN/metrics.
 
 ## Non-Goals
 
-- Do not switch operators during an already-running query; that is issue 140.
+- Do not switch operators during an already-running query; that is phase 04 issue 06.
 - Do not make planning depend on bind values that are not part of the normalized safe key.
+- Do not use feedback to select an operator that failed semantic eligibility checks.
 
 ## Acceptance Criteria
 
@@ -28,10 +45,12 @@ Feed observed operator performance back into future operator selection without c
 - Feedback is invalidated or ignored across schema/catalog changes and stale epochs.
 - Missing, low-confidence, or outlier feedback falls back to base cost estimates.
 - Query results remain identical regardless of feedback availability.
+- Disabling feedback produces the deterministic base plan and is visible in diagnostics.
+- Feedback keys and metric labels remain bounded under varied query text and bind values.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering feedback aggregation, plan influence, stale feedback invalidation, outlier damping, missing feedback fallback, and EXPLAIN diagnostics.
+- Add `should_` tests with `// Arrange / Act / Assert` covering feedback aggregation, plan influence, stale feedback invalidation, outlier damping, disabled mode, bounded key generation, missing feedback fallback, and EXPLAIN diagnostics.
 - Include planner and metrics tests.
 
 ## Close-Out Steps

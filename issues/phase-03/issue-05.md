@@ -8,19 +8,31 @@ Priority: P2
 ## Requirements
 
 Compare two projection versions or collections using Merkle roots/ranges and report deterministic changed ranges and row ids.
+This issue is the local diff primitive built on the phase 02 hash ladder; it reports differences but does not repair them.
+
+## Dependencies
+
+- Depends on phase 02 issues 01, 02, and 03 for row hashes, range hashes, projection Merkle roots, and hash metadata.
+- Consumes phase 02 issue 05 operations diagnostics conventions for report status and metrics.
+
+## Handoff
+
+- Provides deterministic diff results consumed by phase 03 issue 11 projection comparison and future repair/export workflows.
 
 ## Functional Scope
 
-- Add an internal and administrative diff operation that accepts two projection identifiers or versions with compatible hash algorithm metadata.
+- Add an internal and administrative diff operation that accepts two projection identifiers or versions with compatible projection definitions, schema epochs, source checkpoints where available, and hash algorithm metadata.
 - Compare roots first, descend through range hashes only where hashes differ, and optionally resolve differing ranges to row ids and row-hash pairs.
 - Return added, removed, changed, and unverifiable ranges/rows with deterministic ordering.
 - Handle missing/stale hashes by reporting `unverifiable` instead of claiming equality.
-- Expose diff counters and elapsed time through metrics.
+- Support bounded output with deterministic resume/cursor metadata for large diffs.
+- Expose diff counters, skipped ranges, unverifiable regions, and elapsed time through metrics and admin diagnostics.
 
 ## Non-Goals
 
 - Do not repair differences automatically in this issue.
 - Do not compare incompatible schema epochs unless an explicit compatibility layer exists.
+- Do not contact remote Cassie instances or import remote manifests here.
 
 ## Acceptance Criteria
 
@@ -28,10 +40,11 @@ Compare two projection versions or collections using Merkle roots/ranges and rep
 - Controlled added, removed, and changed rows are reported accurately and deterministically.
 - Missing/stale hash data is reported as unverifiable.
 - Diffing works across projection versions after restart hydration.
+- Large diffs can be bounded without changing deterministic ordering or losing resume information.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering equal roots, added rows, removed rows, changed rows, mixed range differences, stale hashes, incompatible schemas, and restart hydration.
+- Add `should_` tests with `// Arrange / Act / Assert` covering equal roots, added rows, removed rows, changed rows, mixed range differences, bounded/resumed output, stale hashes, incompatible schemas, incompatible hash metadata, and restart hydration.
 - Include integration tests for the exposed admin/internal operation.
 
 ## Close-Out Steps

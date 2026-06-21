@@ -8,19 +8,33 @@ Priority: P1
 ## Requirements
 
 Plan and execute queries that combine full-text search, vector scoring, metadata filters, and analytical aggregation/projection paths with exact final results.
+This issue upgrades Cassie's read-model query engine for mixed retrieval and analytics without allowing approximate final answers.
+
+## Dependencies
+
+- Depends on phase 01 freshness/version metadata so derived execution paths can reject stale projection state.
+- Depends on phase 02 issue 05 for mixed-plan diagnostics and fallback visibility.
+- Consumes existing search, vector, hybrid, columnar, aggregate, and planner/executor modules.
+
+## Handoff
+
+- Provides the phase 02 retrieval execution baseline used by later search, vector, analytics, and observability work.
 
 ## Functional Scope
 
 - Support mixed plans involving `search()`, `search_score()`, vector distance/score expressions, hybrid scoring, scalar filters, GROUP BY/HAVING, ORDER BY, LIMIT/OFFSET, column batches, and analytical projections.
 - Use candidate generation, metadata prefilters, analytical projections, column scans, and exact re-ranking only when each stage preserves query semantics.
 - Define stage ordering explicitly: candidate generation/prefiltering, exact scoring, analytical grouping/aggregation, ordering, offset, and limit.
-- Fall back to source row execution when freshness, coverage, scoring semantics, or aggregate semantics are not compatible.
+- Define an exhaustive exact baseline for every mixed-plan shape this issue supports and compare optimized plans against it.
+- Fall back to source row execution when freshness, coverage, candidate safety, scoring semantics, or aggregate semantics are not compatible.
+- Preserve deterministic tie ordering, NULL handling, score precision, and SQL aggregate semantics across optimized and fallback paths.
 - Report stage selection, candidates, exact scoring rows, aggregate groups, projection freshness, and fallback through EXPLAIN/metrics.
 
 ## Non-Goals
 
 - Do not approximate final scores or aggregate results.
 - Do not silently use stale analytical projections.
+- Do not add new search or vector index types in this issue.
 
 ## Acceptance Criteria
 
@@ -28,10 +42,11 @@ Plan and execute queries that combine full-text search, vector scoring, metadata
 - Planner refuses or falls back for incompatible projection freshness, unsupported score expressions, or uncovered fields.
 - Candidate sizing and exact re-ranking happen before final ORDER BY/LIMIT where required by semantics.
 - Metrics expose enough detail to diagnose each mixed execution stage.
+- EXPLAIN identifies each stage used and the reason for any fallback.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering text+vector+filter top-k, hybrid score with aggregation, analytical projection routing, stale fallback, exact baseline comparison, candidate expansion, deterministic tie order, and EXPLAIN/metrics diagnostics.
+- Add `should_` tests with `// Arrange / Act / Assert` covering text+vector+filter top-k, hybrid score with aggregation, analytical projection routing, stale fallback, unsupported expression fallback, exact baseline comparison, candidate expansion, candidate underflow protection, deterministic tie order, NULL handling, and EXPLAIN/metrics diagnostics.
 - Include planner, integration, and metrics tests.
 
 ## Close-Out Steps

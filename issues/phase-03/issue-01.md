@@ -8,19 +8,31 @@ Priority: P2
 ## Requirements
 
 Support time-series indexes that accelerate timestamp range predicates and bucketed analytical queries while keeping row blobs authoritative.
+This issue defines the time-ordered index contract used by later analytical projections and large-scale aggregation planning.
+
+## Dependencies
+
+- Depends on existing catalog/index metadata, row blob storage, `time_bucket`/rollup semantics, and retention metadata where present.
+- Consumes phase 02 issue 05 operations diagnostics conventions for freshness, fallback, and metrics vocabulary.
+
+## Handoff
+
+- Provides ordered bucket/range access paths consumed by phase 03 issue 02 cost-informed planning, phase 03 issue 12 analytical projections, and phase 03 issue 13 large-scale aggregations.
 
 ## Functional Scope
 
 - Add parser/binder/catalog support for a time-series index over a timestamp field with optional bucket width and partition fields.
-- Store index keys ordered by collection, partition values, bucket/range start, timestamp, and row id.
+- Store versioned index keys ordered by database, collection, index id/version, partition values, bucket/range start, timestamp, and row id.
+- Define deterministic handling for missing, null, non-timestamp, and out-of-range timestamp values.
 - Maintain index entries on ingest, SQL writes, updates, deletes, rebuild, restart hydration, rename, and drop.
-- Planner selects time-series indexes for timestamp range filters, bucket predicates, retention enforcement, and eligible rollup refreshes.
-- Expose index usage, buckets scanned/skipped, and fallback through EXPLAIN/metrics.
+- Planner selects time-series indexes for timestamp range filters, `time_bucket` predicates, retention candidate scans, eligible rollup refreshes, and compatible ordered scans.
+- Expose index usage, index version, buckets scanned/skipped, partition pruning, stale/unavailable state, and fallback through EXPLAIN/metrics.
 
 ## Non-Goals
 
 - Do not implement distributed partition movement or retention policy enforcement in this issue.
 - Do not require time-series indexes for correctness.
+- Do not make bucketed results approximate; row blobs remain authoritative for returned rows.
 
 ## Acceptance Criteria
 
@@ -28,10 +40,11 @@ Support time-series indexes that accelerate timestamp range predicates and bucke
 - Bucketed queries scan only relevant buckets when possible.
 - Index maintenance handles rows that change timestamp or partition fields.
 - Restart and rebuild preserve index metadata and entries.
+- Missing or stale index state falls back deterministically with diagnostics instead of returning partial results.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering index creation, range query planning, bucket pruning, partition fields, timestamp update/delete maintenance, restart hydration, rebuild, and fallback.
+- Add `should_` tests with `// Arrange / Act / Assert` covering index creation/options, range query planning, bucket pruning, partition fields, null/missing/non-timestamp values, timestamp update/delete maintenance, restart hydration, rebuild, stale metadata, and fallback.
 - Include parser/planner/integration tests.
 
 ## Close-Out Steps

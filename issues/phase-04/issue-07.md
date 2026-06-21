@@ -8,6 +8,17 @@ Priority: P3
 ## Requirements
 
 Compare verification manifests from multiple Cassie instances to detect read-model divergence without performing replication or repair.
+This issue extends local verification and projection comparison into an offline/admin consistency workflow across instances.
+
+## Dependencies
+
+- Depends on phase 02 issues 01 through 06 for row hashes, range hashes, Merkle roots, rebuild verification, operations views, and local integrity reports.
+- Depends on phase 03 issue 05 for projection diffing.
+- Depends on phase 03 issue 11 for projection comparison semantics.
+
+## Handoff
+
+- Provides divergence reports for future repair, audit, or deployment tooling without adding distributed query semantics.
 
 ## Functional Scope
 
@@ -16,11 +27,14 @@ Compare verification manifests from multiple Cassie instances to detect read-mod
 - Report consistent, divergent, stale, incompatible, and unverifiable states with deterministic ordering.
 - Store check reports locally and expose metrics for checks, mismatches, stale manifests, and incompatible manifests.
 - Ensure exported manifests contain no row values or sensitive bind data.
+- Define a versioned manifest format with canonical ordering, manifest digest, hash algorithm metadata, source checkpoint where available, and expiration/staleness rules.
+- Keep comparison offline/admin-driven; query planning and query execution must never wait on remote manifest checks.
 
 ## Non-Goals
 
 - Do not implement data replication, leader election, quorum reads, or automatic repair.
 - Do not require network calls from the query path.
+- Do not treat manifest equality as proof of source-of-record correctness; it only compares Cassie read-model materialization state.
 
 ## Acceptance Criteria
 
@@ -28,10 +42,12 @@ Compare verification manifests from multiple Cassie instances to detect read-mod
 - Divergent manifests report changed projections/ranges/rows where available.
 - Stale, incompatible, or missing metadata reports clear non-success states.
 - Manifest export/import and report persistence work after restart.
+- Manifest export excludes row values, vector values, full text bodies, bind values, and credentials.
+- Compatibility checks reject mismatched schema epoch, hash algorithm, projection definition, or source checkpoint where those fields are required.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering manifest export, equal comparison, divergent comparison, stale manifest, incompatible schema/hash metadata, privacy/no row values, report persistence, and metrics.
+- Add `should_` tests with `// Arrange / Act / Assert` covering manifest export, canonical ordering, equal comparison, divergent comparison, stale manifest, incompatible schema/hash/source metadata, privacy/no row values, report persistence, restart hydration, and metrics.
 - Include integration tests for admin/export/import paths.
 
 ## Close-Out Steps

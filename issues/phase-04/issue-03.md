@@ -8,12 +8,25 @@ Priority: P3
 ## Requirements
 
 Add merge join as a physical strategy for eligible equi-joins with sorted inputs.
+This issue adds one new join strategy after the planner can reason about ordering, cost, and cardinality well enough to avoid speculative plan churn.
+
+## Dependencies
+
+- Depends on phase 03 issue 02 for cost-informed planning.
+- Depends on phase 03 issue 08 for advanced parallel execution foundations where sorted inputs are produced concurrently.
+- Depends on phase 03 issue 10 for cardinality estimates that compare merge join against hash and nested-loop joins.
+- Depends on existing sort and join executor semantics.
+
+## Handoff
+
+- Provides a sorted-input join alternative that phase 04 issue 05 adaptive execution plans can pre-validate as one safe branch.
 
 ## Functional Scope
 
 - Planner selects merge join for inner, left, right, full, semi, and anti equi-join shapes only when both sides can be produced in compatible sorted order or sorting is cheaper than alternatives.
 - Executor merges sorted inputs with correct handling of duplicate keys, null join keys, unmatched rows, and projection aliases.
-- Preserve existing join semantics, deterministic output ordering, and error behavior.
+- Define compatible ordering in terms of join key expressions, collation/type comparison, null ordering, and projection aliases.
+- Preserve existing join semantics, SQL-visible ordering guarantees, deterministic internal tie behavior where the plan advertises ordered output, and error behavior.
 - Fall back to hash/nested-loop joins when join predicates are unsupported or sorted inputs are not beneficial.
 - Report merge join selection, sort requirements, input rows, matched rows, and fallback through EXPLAIN/metrics.
 
@@ -21,6 +34,7 @@ Add merge join as a physical strategy for eligible equi-joins with sorted inputs
 
 - Do not support non-equi merge joins in this issue.
 - Do not change SQL join syntax or binder semantics.
+- Do not rely on merge join output ordering to satisfy a query `ORDER BY` unless the physical ordering proof is explicit.
 
 ## Acceptance Criteria
 
@@ -28,10 +42,11 @@ Add merge join as a physical strategy for eligible equi-joins with sorted inputs
 - Planner chooses merge join only for safe equi-join shapes and cost conditions.
 - Required sort operators are explicit in plans.
 - EXPLAIN identifies merge join strategy and join keys.
+- Unsupported collations, type comparisons, or non-equi predicates fall back deterministically.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering inner/outer/semi/anti joins, duplicate keys, null keys, pre-sorted input, sort-required input, fallback, and EXPLAIN.
+- Add `should_` tests with `// Arrange / Act / Assert` covering inner/outer/semi/anti joins, duplicate keys, null keys, incompatible ordering, pre-sorted input, sort-required input, ORDER BY proof behavior, fallback, and EXPLAIN.
 - Include planner and executor tests.
 
 ## Close-Out Steps

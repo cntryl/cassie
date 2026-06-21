@@ -9,18 +9,30 @@ Priority: P0
 
 Atomically promote a built materialized projection version to active while preserving rollback and cleanup behavior.
 
+## Dependencies
+
+- Depends on phase 01 issue 04 for versioned projection metadata and active-version routing.
+- Consumes phase 02 verification metadata when present, but must remain useful before Merkle verification is implemented.
+
+## Handoff
+
+- Completes the phase 01 projection lifecycle path: checkpointed source state, replay-safe ingestion, materialized projection definitions, versioned builds, and active-version swaps.
+- Provides swap state and active-version metadata consumed by phase 02 rebuild verification and projection integrity verification.
+
 ## Functional Scope
 
-- Add a SQL/admin path to swap the active projection version after the target version is built and verified.
+- Add a SQL/admin path to swap the active projection version after the target version is built and eligible.
 - Perform the active-version pointer update atomically in catalog metadata so readers see either the old version or the new version, never a mixed version.
 - Keep the previous active version retained as retired/rollback-capable until explicitly dropped or retention cleanup runs.
 - Invalidate plan/result caches that depend on the swapped projection.
 - Emit metrics and catalog diagnostics for swap success, failure, rollback, and active version.
+- If verification metadata exists, block swaps for failed or stale verification unless an explicit unsafe override exists and is tested.
 
 ## Non-Goals
 
 - Do not rebuild projections in this issue; swaps operate on already-built versions.
 - Do not implement distributed consensus for swaps across multiple Cassie instances.
+- Do not implement Merkle verification itself; phase 02 issues provide row hashes, roots, and rebuild verification.
 
 ## Acceptance Criteria
 
@@ -28,11 +40,13 @@ Atomically promote a built materialized projection version to active while prese
 - Failed swap leaves the previous active version intact and readable.
 - Cache invalidation prevents stale plans/results from using the wrong version.
 - Restart after swap hydrates the new active version.
+- Unsafe override, if implemented, is explicit, audited in diagnostics, and never the default.
 
 ## Required Tests
 
 - Add `should_` tests with `// Arrange / Act / Assert` covering successful swap, invalid target version rejection, failure rollback, cache invalidation, restart hydration, and retired-version cleanup.
 - Include integration and catalog tests.
+- Include tests for verification-aware swap blocking when verification metadata is available and normal built-version swap when it is not.
 
 ## Close-Out Steps
 

@@ -8,19 +8,32 @@ Priority: P2
 ## Requirements
 
 Plan queries across row and column access paths, choosing the lowest safe combination per operator while preserving a single logical result.
+Hybrid planning ties row, index, column, and derived-state execution into one deterministic physical plan.
+
+## Dependencies
+
+- Depends on phase 03 issue 02 for cost-informed alternative selection.
+- Depends on phase 03 issue 06 for column-native operators and row/column materialization boundary metadata.
+- Consumes phase 02 issue 05 operations diagnostics conventions for fallback and derived-state visibility.
+
+## Handoff
+
+- Provides mixed-representation planning used by phase 03 issue 08 advanced parallel execution, phase 03 issue 09 vectorized aggregation, phase 03 issue 12 analytical projections, and phase 03 issue 13 large-scale aggregations.
 
 ## Functional Scope
 
-- Extend planning to consider row scans, row indexes, column batches, column-store tables, and row materialization costs for eligible subplans.
+- Extend planning to consider row scans, row indexes, time-series/vector indexes, column batches, column-covered subplans, derived projections, and row materialization costs for eligible subplans.
 - Insert explicit row/column conversion operators when a downstream operator requires a different representation.
-- Use cost-informed planning, cardinality stats, and operator feedback when available; otherwise use deterministic defaults.
+- Use cost-informed planning, cardinality stats, freshness/coverage metadata, and operator feedback when available; otherwise use deterministic defaults.
 - Preserve row-level correctness for filters, joins, ordering, LIMIT/OFFSET, DML, and protocol output.
-- Explain chosen row/column paths, conversion points, and fallback reasons.
+- Reject hybrid alternatives that would apply filters, joins, grouping, ordering, or limits in a different semantic order from the row baseline.
+- Explain chosen row/column paths, conversion points, materialization counts, rejected alternatives, and fallback reasons.
 
 ## Non-Goals
 
 - Do not mix storage representations in a way that bypasses Midge or duplicates truth without catalog metadata.
 - Do not implement runtime operator switching here.
+- Do not require column metadata for correct planning when row execution is available.
 
 ## Acceptance Criteria
 
@@ -28,10 +41,11 @@ Plan queries across row and column access paths, choosing the lowest safe combin
 - Planner chooses column paths for column-covered analytical work and row paths for row-oriented lookup/DML.
 - Conversion operators are explicit and metrics report materialization counts.
 - Missing column metadata or unsupported expressions fall back deterministically.
+- Plan cache invalidation accounts for representation/freshness metadata that affects hybrid plan eligibility.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering row-only, column-only, mixed row/column, conversion boundaries, cost preference, fallback, and EXPLAIN diagnostics.
+- Add `should_` tests with `// Arrange / Act / Assert` covering row-only, column-only, mixed row/column, conversion boundaries, cost preference, stale/partial metadata, plan-cache invalidation, fallback, rejected semantic reordering, and EXPLAIN diagnostics.
 - Include planner and executor tests.
 
 ## Close-Out Steps

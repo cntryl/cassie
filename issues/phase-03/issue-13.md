@@ -8,19 +8,31 @@ Priority: P2
 ## Requirements
 
 Execute high-cardinality and high-volume aggregate workloads using column, vectorized, parallel, and spill-aware execution while preserving exact SQL results.
+This issue composes the earlier phase 03 execution work into end-to-end large aggregation behavior.
+
+## Dependencies
+
+- Depends on phase 03 issue 02 cost-informed planning, phase 03 issue 06 column-native execution, phase 03 issue 07 hybrid row/column planning, phase 03 issue 08 parallel execution, phase 03 issue 09 vectorized aggregation, and phase 03 issue 10 advanced statistics where available.
+- Consumes phase 03 issue 12 analytical projections and existing rollups only when freshness and verification rules allow.
+
+## Handoff
+
+- Provides the production-facing large aggregation path and benchmark/metrics evidence for analytical read-model workloads.
 
 ## Functional Scope
 
 - Combine cost-informed planning, column-native scans, vectorized aggregation, parallel aggregation, and temp spill controls for large aggregate queries.
 - Support grouped and ungrouped `count`, `sum`, `avg`, `min`, `max`, DISTINCT where implemented, HAVING, ORDER BY, LIMIT, and OFFSET.
 - Use rollups or analytical projections only when freshness and query shape are compatible; otherwise compute from source data.
-- Enforce memory, temp spill, timeout, and result limits with clear errors.
-- Report selected acceleration paths, rows processed, groups created, spills, and fallback through EXPLAIN/metrics.
+- Enforce memory, temp spill, timeout, cancellation, and result limits with clear errors and deterministic cleanup.
+- Preserve deterministic output order, tie-breaking, null semantics, overflow behavior, and aggregate state merges across accelerated and fallback paths.
+- Report selected acceleration paths, rejected paths, rows processed, groups created, spills, memory pressure, partial merges, and fallback through EXPLAIN/metrics.
 
 ## Non-Goals
 
 - Do not approximate aggregate results or use stale projections silently.
 - Do not introduce a second storage engine.
+- Do not require every aggregate query to use all acceleration paths.
 
 ## Acceptance Criteria
 
@@ -28,10 +40,11 @@ Execute high-cardinality and high-volume aggregate workloads using column, vecto
 - Memory/spill limits are respected and tested.
 - Planner chooses available acceleration paths when safe and falls back when not.
 - Metrics and EXPLAIN make resource use and selected paths observable.
+- Cancellation and spill cleanup leave no reusable temp state or partial results visible to later queries.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering large grouped aggregation, high cardinality, spill behavior, timeout/limit errors, rollup/projection use, stale fallback, and deterministic output.
+- Add `should_` tests with `// Arrange / Act / Assert` covering large grouped aggregation, high cardinality, spill behavior, timeout/cancellation/limit errors, rollup/projection use, stale/unverified fallback, deterministic output/tie-breaking, overflow/null semantics, cleanup, and metrics.
 - Include planner, integration, and metrics tests.
 
 ## Close-Out Steps

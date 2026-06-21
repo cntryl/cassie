@@ -8,19 +8,31 @@ Priority: P2
 ## Requirements
 
 Process aggregate inputs in columnar/vector batches for eligible numeric and timestamp aggregates while preserving exact aggregate semantics.
+Vectorized aggregation accelerates the aggregate kernels only; SQL aggregate semantics remain owned by the existing aggregate executor contract.
+
+## Dependencies
+
+- Depends on phase 03 issue 06 for column-native input paths and phase 03 issue 08 for multi-stage parallel aggregation where parallel batches are used.
+- Consumes existing aggregate semantics, numeric overflow behavior, null handling, and planner aggregate lowering.
+
+## Handoff
+
+- Provides typed aggregate kernels and metrics consumed by phase 03 issue 13 large-scale aggregations.
 
 ## Functional Scope
 
-- Add vectorized aggregate kernels for `count`, `sum`, `avg`, `min`, and `max` over supported primitive types and null bitmaps.
-- Use column-native or batch row data as input without per-value dynamic dispatch where the type is known.
+- Add versioned vectorized aggregate kernels for `count`, `sum`, `avg`, `min`, and `max` over supported primitive numeric, boolean where applicable, and timestamp/date types with null bitmaps.
+- Use column-native or batch row data as input without per-value dynamic dispatch where the type and accumulator are known.
 - Fall back to scalar aggregation for unsupported types, casts, functions, overflow-sensitive paths, or mixed dynamic values.
-- Preserve null handling, numeric overflow/error behavior, GROUP BY/HAVING, DISTINCT, ORDER BY, LIMIT, and OFFSET.
-- Report vectorized rows processed, fallback rows, kernel selected, and elapsed time through EXPLAIN/metrics.
+- Preserve null handling, numeric overflow/error behavior, GROUP BY/HAVING, DISTINCT where supported, ORDER BY, LIMIT, and OFFSET.
+- Merge partial aggregate states deterministically when vectorized aggregation is combined with parallel execution.
+- Report vectorized rows processed, fallback rows, kernel selected, partial merges, overflow/fallback reason, and elapsed time through EXPLAIN/metrics.
 
 ## Non-Goals
 
 - Do not approximate aggregate results.
-- Do not implement vectorized joins here; that is issue 137.
+- Do not implement vectorized joins here; leave that for a future focused execution issue.
+- Do not change SQL-visible aggregate types or overflow errors for speed.
 
 ## Acceptance Criteria
 
@@ -28,10 +40,11 @@ Process aggregate inputs in columnar/vector batches for eligible numeric and tim
 - Fallback paths preserve results and errors for unsupported shapes.
 - Null and overflow behavior are explicitly tested.
 - Benchmarks or metrics show reduced per-row overhead for eligible aggregates.
+- Parallel/vectorized partial-state merges are deterministic for grouped and ungrouped aggregates.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering count/sum/avg/min/max, grouped and ungrouped aggregation, nulls, overflow/error cases, fallback, and EXPLAIN diagnostics.
+- Add `should_` tests with `// Arrange / Act / Assert` covering count/sum/avg/min/max, grouped and ungrouped aggregation, nulls, timestamp/date aggregates, overflow/error cases, partial-state merge determinism, DISTINCT fallback or support, fallback, and EXPLAIN diagnostics.
 - Include planner and executor tests.
 
 ## Close-Out Steps

@@ -9,6 +9,14 @@ Priority: P0
 
 Version materialized projection definitions and storage so new projection builds can coexist with the currently active version.
 
+## Dependencies
+
+- Depends on phase 01 issue 03 for materialized projection definitions and build output.
+
+## Handoff
+
+- Provides active/building/failed/retired version state consumed by phase 01 issue 05 swaps.
+
 ## Functional Scope
 
 - Store projection versions with definition fingerprint, source schema epochs, output schema, storage prefix, build state, created timestamp, and active/retired markers.
@@ -16,11 +24,13 @@ Version materialized projection definitions and storage so new projection builds
 - Allow a new version to build from source rows without corrupting or replacing the active version.
 - Keep versioned index, column, and metadata entries isolated by projection version.
 - Expose active, building, failed, and retired versions through catalog/introspection and metrics.
+- Keep projection checkpoint/freshness metadata version-aware where it describes versioned output.
 
 ## Non-Goals
 
-- Do not implement atomic active-version swaps here; that is issue 121.
+- Do not implement atomic active-version swaps here; that is phase 01 issue 05.
 - Do not support concurrent writes directly into projection output versions.
+- Do not implement Merkle/hash verification here; phase 02 verification issues add stronger safety gates.
 
 ## Acceptance Criteria
 
@@ -28,11 +38,13 @@ Version materialized projection definitions and storage so new projection builds
 - Restart hydration preserves version state and active-version routing.
 - Failed builds leave the previous active version readable.
 - Dropping a version cleans up its storage without affecting other versions.
+- Normal query execution never reads from a building, failed, or retired version unless an explicit admin/debug path requests it.
 
 ## Required Tests
 
 - Add `should_` tests with `// Arrange / Act / Assert` covering version creation, active routing, failed build isolation, restart hydration, version drop cleanup, and metadata introspection.
 - Include integration and catalog tests.
+- Include tests proving versioned indexes/column batches/metadata do not collide where those structures are present.
 
 ## Close-Out Steps
 

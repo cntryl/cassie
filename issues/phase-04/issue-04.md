@@ -8,19 +8,35 @@ Priority: P3
 ## Requirements
 
 Execute eligible join build/probe operations in batches to reduce per-row overhead while preserving SQL join semantics.
+This issue accelerates existing join semantics; it must not introduce a second set of result rules for batched execution.
+
+## Dependencies
+
+- Depends on phase 03 issue 06 for column-native execution paths.
+- Depends on phase 03 issue 07 for hybrid row/column planning.
+- Depends on phase 03 issue 08 for parallel execution foundations.
+- Depends on phase 03 issue 09 for vectorized execution conventions and batch memory accounting.
+- Can use phase 04 issue 02 column-store tables when present, but must also work with existing batch/row inputs.
+
+## Handoff
+
+- Provides a vectorized join alternative that phase 04 issue 05 adaptive execution plans and phase 04 issue 06 runtime operator switching can pre-validate.
 
 ## Functional Scope
 
 - Add vectorized/batch kernels for equi-join key extraction, hash build/probe, match materialization, and null-key handling.
 - Support inner and left joins first, with right/full/semi/anti support only when semantics are explicitly implemented and tested.
 - Use batch/column inputs where available and materialize rows only for matched output or unsupported downstream operators.
-- Preserve duplicate-key behavior, null semantics, projection aliases, deterministic ordering, timeout/cancellation, and memory/spill budgets.
+- Preserve duplicate-key behavior, null semantics, projection aliases, SQL-visible ordering guarantees, deterministic internal tie behavior, timeout/cancellation, and memory/spill budgets.
+- Define row-to-batch and batch-to-row boundaries so unsupported downstream operators fall back without losing type/null information.
+- Keep batch sizes configurable and bounded by the existing query memory budget.
 - Report vectorized join selection, batch sizes, build/probe rows, matches, spills, and fallback through EXPLAIN/metrics.
 
 ## Non-Goals
 
 - Do not change parser/binder join semantics.
 - Do not implement non-equi vectorized joins in this issue.
+- Do not require column-store tables for vectorized joins.
 
 ## Acceptance Criteria
 
@@ -28,10 +44,11 @@ Execute eligible join build/probe operations in batches to reduce per-row overhe
 - Unsupported join types or predicates fall back deterministically.
 - Memory/spill limits are enforced during batch build/probe.
 - Benchmarks or metrics show reduced per-row overhead for eligible joins.
+- Cancellation or timeout releases batch buffers and spill state.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering inner/left joins, duplicate keys, null keys, unmatched rows, fallback, spill/limit behavior, cancellation cleanup, and EXPLAIN diagnostics.
+- Add `should_` tests with `// Arrange / Act / Assert` covering inner/left joins, duplicate keys, null keys, unmatched rows, row/batch conversion, fallback, spill/limit behavior, cancellation cleanup, and EXPLAIN diagnostics.
 - Include planner and executor tests.
 
 ## Close-Out Steps

@@ -8,19 +8,30 @@ Priority: P2
 ## Requirements
 
 Execute eligible scan/filter/project/aggregate operations directly on columnar batches without first materializing full rows.
+Column-native execution is an optimization path; the row executor remains the semantic baseline and fallback.
+
+## Dependencies
+
+- Depends on existing column-batch storage/metadata, planner physical operators, executor projection/filter/aggregate semantics, and metrics fallback counters.
+- Consumes phase 03 issue 02 cost-informed planning when available, but must support deterministic rule-based selection first.
+
+## Handoff
+
+- Provides column-native operators and materialization-boundary accounting consumed by phase 03 issue 07 hybrid row/column planning, phase 03 issue 09 vectorized aggregation, and phase 03 issue 13 large-scale aggregations.
 
 ## Functional Scope
 
 - Add physical operators for column-native scan, filter, projection, and simple aggregate paths.
-- Keep row materialization only at boundaries that require row-shaped output, unsupported expressions, joins, or protocol encoding.
+- Keep row materialization only at explicit boundaries that require row-shaped output, unsupported expressions, joins, DML, or protocol encoding.
 - Preserve null/missing semantics, casts, aliases, deterministic ordering, LIMIT/OFFSET, and errors.
-- Fall back to row execution when expressions or data types are unsupported by column-native operators.
-- Report column-native operator selection, decoded columns, row materialization count, and fallback through EXPLAIN/metrics.
+- Validate column-batch freshness/coverage before use and fall back to row execution when batches are stale, incomplete, expressions are unsupported, or data types are unsupported by column-native operators.
+- Report column-native operator selection, decoded columns, skipped columns, row materialization count, coverage/freshness state, and fallback through EXPLAIN/metrics.
 
 ## Non-Goals
 
 - Do not implement vectorized joins or vectorized aggregation beyond simple column-native operations in this issue.
 - Do not change user-visible result formats.
+- Do not bypass row blob truth for correctness decisions when column metadata is stale or unavailable.
 
 ## Acceptance Criteria
 
@@ -28,10 +39,11 @@ Execute eligible scan/filter/project/aggregate operations directly on columnar b
 - Row materialization is avoided until required and is observable in metrics.
 - Unsupported expressions fall back without changing results.
 - Restart and mixed row/column storage states are handled deterministically.
+- Stale, partial, or incompatible column batches are rejected for optimized execution with visible diagnostics.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering column-native filter/projection, aggregate, fallback, null/sparse behavior, row materialization boundary, and EXPLAIN diagnostics.
+- Add `should_` tests with `// Arrange / Act / Assert` covering column-native filter/projection, aggregate, fallback, null/sparse behavior, stale/partial batches, row materialization boundary, restart hydration, and EXPLAIN diagnostics.
 - Include planner and executor tests.
 
 ## Close-Out Steps

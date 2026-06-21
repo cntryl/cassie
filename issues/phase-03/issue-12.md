@@ -8,19 +8,31 @@ Priority: P2
 ## Requirements
 
 Support analytical projection definitions that materialize query-shaped read models optimized for scans, grouping, and search/vector analytics.
+Analytical projections are derived read models; they may accelerate eligible queries only when freshness and correctness metadata prove they are safe.
+
+## Dependencies
+
+- Depends on phase 01 materialized projection lifecycle/versioning/swaps and phase 02 verification metadata when available.
+- Consumes phase 03 issue 02 cost-informed planning, phase 03 issue 04 IVFFlat indexes, phase 03 issue 06 column-native execution, phase 03 issue 07 hybrid planning, and phase 03 issue 10 advanced statistics where implemented.
+
+## Handoff
+
+- Provides query-shaped derived read models consumed by phase 03 issue 13 large-scale aggregations and future operational reporting workflows.
 
 ## Functional Scope
 
 - Build on materialized projections, projection versioning, column batches, rollups, and verification metadata.
-- Allow analytical projections to declare source collections, selected/derived fields, partition fields, sort keys, column storage options, and refresh policy.
-- Maintain analytical projection data from source rows and mark freshness/lag explicitly.
+- Allow analytical projections to declare source collections, selected/derived fields, deterministic expressions, filters, grouping keys, partition fields, sort keys, column storage options, and refresh policy.
+- Persist definition fingerprints, source checkpoints, projection version ids, freshness/lag state, verification state where available, and dependency metadata.
+- Maintain analytical projection data from source rows or compatible replay/refresh inputs and mark freshness/lag explicitly.
 - Planner can route eligible analytical queries to projections only when fields, filters, aggregates, freshness, and correctness guarantees match.
-- Expose projection metadata, freshness, selected use, and fallback through catalog views, EXPLAIN, and metrics.
+- Expose projection metadata, definition fingerprint, freshness, verification state, selected use, and fallback through catalog views, EXPLAIN, and metrics.
 
 ## Non-Goals
 
 - Do not make analytical projections required for query correctness.
 - Do not support arbitrary external data sources or non-deterministic projection definitions.
+- Do not silently use stale or unverifiable analytical projections when source execution can preserve semantics.
 
 ## Acceptance Criteria
 
@@ -28,10 +40,11 @@ Support analytical projection definitions that materialize query-shaped read mod
 - Eligible queries return identical results through analytical projections and source execution.
 - Stale or incompatible projections fall back to source execution with diagnostics.
 - Verification metadata can confirm projection build integrity when available.
+- DML against analytical projection outputs is rejected unless it targets an allowed source write path.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering projection definition, build/refresh, query routing, stale fallback, restart hydration, drop cleanup, verification integration, and metrics.
+- Add `should_` tests with `// Arrange / Act / Assert` covering projection definition/fingerprint, deterministic expressions, build/refresh, query routing, stale/unverified fallback, DML rejection, restart hydration, drop cleanup, verification integration, and metrics.
 - Include planner, integration, and catalog tests.
 
 ## Close-Out Steps

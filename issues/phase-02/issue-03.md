@@ -8,6 +8,16 @@ Priority: P1
 ## Requirements
 
 Compute projection-level Merkle roots from range hashes so a complete projection version can be verified with one digest.
+Roots summarize one complete logical projection version; they do not by themselves prove that a rebuild is eligible for activation.
+
+## Dependencies
+
+- Depends on phase 02 issue 02 for deterministic range hashes and range-hash metadata.
+- Depends on phase 01 issue 04 for versioned projection identity.
+
+## Handoff
+
+- Provides projection-root metadata consumed by phase 02 issue 04 rebuild verification, phase 02 issue 05 operations views, and phase 02 issue 06 integrity verification.
 
 ## Functional Scope
 
@@ -15,11 +25,14 @@ Compute projection-level Merkle roots from range hashes so a complete projection
 - Maintain roots after row/range hash updates, rebuilds, projection version builds, swaps, rename/drop, and startup hydration.
 - Persist roots with version/state metadata and expose them through catalog/introspection, metrics, and internal verification APIs.
 - Mark roots stale when required child hashes are missing or when source data changes before recomputation.
+- Track root state as current, stale, missing, incomplete, or incompatible.
+- Include coverage metadata: row count, range count, source checkpoint where available, and projection version id.
 - Support empty projections with a deterministic root value.
 
 ## Non-Goals
 
 - Do not compare roots across instances in this issue.
+- Do not implement rebuild verification, integrity verification, or swap gating in this issue.
 - Do not make roots a query-planning dependency.
 
 ## Acceptance Criteria
@@ -28,10 +41,11 @@ Compute projection-level Merkle roots from range hashes so a complete projection
 - Any logical row change in the projection changes the root after recomputation.
 - Stale/missing root state is observable and does not report false success.
 - Projection versioning and swaps maintain separate roots per version.
+- Incompatible row-hash or range-hash metadata prevents a current root from being reported.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering root creation, empty projection root, row-change propagation, stale state, restart hydration, rebuild, and projection-version isolation.
+- Add `should_` tests with `// Arrange / Act / Assert` covering root creation, empty projection root, row-change propagation, stale state, incompatible metadata, restart hydration, rebuild, and projection-version isolation.
 - Include catalog/metrics assertions where root state is exposed.
 
 ## Close-Out Steps

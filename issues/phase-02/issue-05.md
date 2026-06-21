@@ -8,18 +8,32 @@ Priority: P1
 ## Requirements
 
 Expose projection operational state so users can diagnose which read model is being served, from which source position, and with what freshness and verification status.
+This issue makes the phase 01 lifecycle and phase 02 verification metadata observable through stable operator-facing surfaces.
+
+## Dependencies
+
+- Depends on phase 01 issues 01 through 05 for checkpoint, freshness, rebuild, version, and swap metadata.
+- Consumes phase 02 issues 01 through 04 metadata when hashes, roots, or rebuild verification are implemented.
+
+## Handoff
+
+- Provides the operational visibility used by phase 02 issue 06 integrity verification, phase 02 issue 07 performance target reporting, and phase 02 issue 08 mixed execution diagnostics.
 
 ## Functional Scope
 
 - Add catalog/admin diagnostics for active version, source checkpoint, lag, freshness, rebuild state, verification state, last replay batch, last error, and fallback counters.
+- Define stable state rendering for `unknown`, `fresh`, `stale`, `rebuilding`, `failed`, `pending`, `running`, `verified`, `unverifiable`, and `skipped` where those states apply.
 - Extend runtime metrics with projection operation counters and last-state fields where needed.
 - Update EXPLAIN or diagnostics when query execution reads a projection version, derived rollup, column batch, aggregate acceleration path, or fallback path.
 - Ensure diagnostics hydrate correctly after restart when persisted metadata exists.
+- Prefer PostgreSQL-visible catalog/introspection surfaces for query tooling; keep REST/admin diagnostics secondary.
+- Keep metric labels bounded so projection operations metrics do not create unbounded cardinality.
 
 ## Non-Goals
 
 - Do not implement projection versioning, swaps, or verification in this issue; consume their metadata when present.
 - Do not create a separate observability backend.
+- Do not mark optional metadata as fresh or verified when the producing feature has not been implemented.
 
 ## Acceptance Criteria
 
@@ -27,10 +41,11 @@ Expose projection operational state so users can diagnose which read model is be
 - Missing optional metadata is reported explicitly as unknown or unavailable, not fresh.
 - Restart hydration preserves visible projection operations state.
 - Query diagnostics expose derived-state use or fallback where it affects performance or freshness.
+- Metrics and diagnostics use the same state vocabulary for the same condition.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering catalog view output, metrics snapshot output, unknown-state diagnostics, restart hydration, and EXPLAIN/fallback visibility.
+- Add `should_` tests with `// Arrange / Act / Assert` covering catalog view output, metrics snapshot output, unknown/unavailable-state diagnostics, restart hydration, bounded metric labels, and EXPLAIN/fallback visibility.
 - Include pgwire-visible catalog query coverage where applicable.
 
 ## Close-Out Steps

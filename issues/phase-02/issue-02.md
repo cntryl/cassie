@@ -8,17 +8,30 @@ Priority: P1
 ## Requirements
 
 Build deterministic range hashes over ordered row hashes so large projections can be compared without reading every row.
+Range hashes are the middle layer between per-row digests and projection-level Merkle roots.
+
+## Dependencies
+
+- Depends on phase 02 issue 01 for the canonical row-hash contract, row-hash metadata, and row-hash repair API.
+
+## Handoff
+
+- Provides deterministic range nodes consumed by phase 02 issue 03 projection Merkle roots, phase 02 issue 04 rebuild verification, and phase 02 issue 06 integrity verification.
 
 ## Functional Scope
 
-- Define range boundaries by collection/projection version and stable row-id ordering.
-- Combine row hashes into fixed-size range nodes with versioned fanout/segment size metadata.
+- Define range boundaries by projection id/version id where applicable, collection id, schema epoch, row-hash algorithm version, and stable row-id ordering.
+- Combine row hashes into fixed-size leaf and parent range nodes with versioned fanout/segment size metadata.
+- Define deterministic representations for empty ranges, sparse ranges, and deleted rows.
 - Update affected range hashes when row hashes are inserted, updated, deleted, rebuilt, or repaired.
 - Store range hash nodes in Midge with enough metadata to detect stale or missing child hashes.
+- Track range state as current, stale, incomplete, incompatible, or empty.
 - Expose range verification and diagnostics for projection diffing and integrity checks.
+- Consume current row hashes directly; only rebuild row hashes from row blobs through the phase 02 issue 01 repair API.
 
 ## Non-Goals
 
+- Do not implement projection-level root hashes in this issue.
 - Do not implement cross-instance comparison APIs here; projection diffing and distributed checks are later issues.
 - Do not scan full row blobs when row hashes are current.
 
@@ -28,10 +41,11 @@ Build deterministic range hashes over ordered row hashes so large projections ca
 - Updating one row recomputes only affected ranges and parent nodes required by the chosen fanout.
 - Missing or stale row hashes trigger rebuild/repair diagnostics rather than silently incorrect range hashes.
 - Empty ranges and deleted rows have deterministic representations.
+- Fanout or segment-size changes require a range-hash metadata version change and do not mix incompatible node formats.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering range creation, row update propagation, delete propagation, empty ranges, restart hydration, rebuild repair, and deterministic fanout behavior.
+- Add `should_` tests with `// Arrange / Act / Assert` covering range creation, row update propagation, delete propagation, sparse and empty ranges, incompatible metadata, restart hydration, rebuild repair, and deterministic fanout behavior.
 - Include integration tests that compare range hashes before and after controlled data changes.
 
 ## Close-Out Steps

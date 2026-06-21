@@ -8,19 +8,33 @@ Priority: P1
 ## Requirements
 
 Compute and persist deterministic row hashes for projection rows so rebuilds, diffs, and integrity checks can compare logical row state.
+This issue establishes the canonical logical row digest contract used by the rest of phase 02.
+
+## Dependencies
+
+- Depends on phase 01 issue 03 for materialized projection row lifecycle and projection identity.
+- Uses phase 01 issue 04 version identifiers when hashing versioned projections; collection/schema identity is sufficient for non-versioned rows.
+
+## Handoff
+
+- Provides the row-hash algorithm, metadata, persistence format, and internal API consumed by phase 02 issue 02 range hashes, phase 02 issue 04 rebuild verification, and phase 02 issue 06 integrity verification.
 
 ## Functional Scope
 
-- Define a canonical row-hash input: collection id, schema epoch, row id, active field ids, type tags, null/missing markers, and canonical encoded field values ordered by field id.
-- Use a versioned hash algorithm with explicit metadata; the initial algorithm should be a 256-bit non-ambiguous digest suitable for Merkle trees.
+- Define a canonical row-hash input: projection id/version id where applicable, collection id, schema epoch, row id, active field ids, type tags, null/missing markers, and canonical encoded field values ordered by field id.
+- Use a versioned hash algorithm with explicit metadata: algorithm name, digest length, canonical encoder version, and row-hash version.
 - Compute/update row hashes on SQL inserts, updates, deletes, REST ingest, row blob rebuild, collection rename/drop, and startup hydration repair.
+- Remove or tombstone hashes deterministically on logical delete so deleted rows are not reported as missing live hashes.
 - Store hashes in Midge under versioned keys separate from row blobs while keeping row blobs authoritative.
-- Expose row-hash availability and verification through an internal API plus metrics/catalog diagnostics.
+- Expose row-hash availability, algorithm metadata, and recompute/repair diagnostics through an internal API plus metrics/catalog diagnostics.
+- Provide an internal pure function that computes the expected digest from logical row state without writing storage, for verifiers and tests.
 
 ## Non-Goals
 
+- Do not implement range hashes, Merkle roots, or rebuild verification in this issue.
 - Do not add signatures, encryption, or tamper-proof remote attestation.
 - Do not make row hash availability required for query correctness.
+- Do not introduce an external event-store dependency.
 
 ## Acceptance Criteria
 
@@ -28,10 +42,12 @@ Compute and persist deterministic row hashes for projection rows so rebuilds, di
 - Changes to any active field value, null/missing state, row id, or schema epoch change the row hash.
 - Retired fields and physical row blob encoding differences do not change the logical row hash unless logical values change.
 - Missing/corrupt hashes can be rebuilt from row blobs and are observable through diagnostics.
+- Incompatible or unknown row-hash algorithm metadata is reported as unavailable/stale rather than treated as verified.
+- Existing rows without row hashes continue to query correctly and can be backfilled deterministically.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering deterministic hashing, field changes, null/missing fields, schema epoch changes, retired fields, restart hydration, rebuild, and delete cleanup.
+- Add `should_` tests with `// Arrange / Act / Assert` covering deterministic hashing, field changes, null/missing fields, schema epoch changes, retired fields, algorithm metadata, restart hydration, rebuild, backfill, and delete cleanup.
 - Include integration coverage for SQL and REST write paths if both maintain hashes.
 
 ## Close-Out Steps

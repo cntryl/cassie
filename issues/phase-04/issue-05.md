@@ -8,6 +8,18 @@ Priority: P3
 ## Requirements
 
 Plan safe adaptive alternatives that can choose among pre-validated execution paths based on early runtime observations.
+Adaptive execution here means choosing among planned alternatives at explicit decision points, not generating new plans while a query is running.
+
+## Dependencies
+
+- Depends on phase 04 issue 01 for operator selection feedback when feedback is used as a signal.
+- Depends on phase 03 issue 10 for cardinality estimates and confidence metadata.
+- Depends on phase 03 issue 08 for executor coordination and cleanup behavior.
+- Consumes phase 04 issue 03 merge joins and phase 04 issue 04 vectorized joins when those alternatives are implemented.
+
+## Handoff
+
+- Provides the pre-validated alternative framework required by phase 04 issue 06 runtime operator switching.
 
 ## Functional Scope
 
@@ -16,11 +28,14 @@ Plan safe adaptive alternatives that can choose among pre-validated execution pa
 - Base decisions on early observed cardinality, runtime feedback, memory pressure, and configured thresholds.
 - Record the selected alternative in EXPLAIN ANALYZE and metrics.
 - Ensure all alternatives are planned and type-checked before execution starts.
+- Define which observations may be read at each decision point and ensure decisions occur before consuming data in a way that would make another alternative unsafe.
+- Provide a configuration switch to disable adaptive choices globally and per query/session where the local configuration model supports it.
 
 ## Non-Goals
 
-- Do not generate arbitrary new plans mid-query; runtime operator switching is issue 140.
+- Do not generate arbitrary new plans mid-query; runtime operator switching after work has started is phase 04 issue 06.
 - Do not adapt in ways that change result ordering, LIMIT/OFFSET semantics, or error behavior.
+- Do not choose an alternative that has not passed normal planner eligibility checks.
 
 ## Acceptance Criteria
 
@@ -28,10 +43,12 @@ Plan safe adaptive alternatives that can choose among pre-validated execution pa
 - Disabled/adaptive-limit-one mode uses the deterministic base plan.
 - Thresholds and selected alternatives are observable through EXPLAIN ANALYZE/metrics.
 - Errors in one alternative do not leave partial worker/operator state behind.
+- Plan cache keys distinguish adaptive-capable plans from fixed plans when configuration affects behavior.
+- All alternatives expose the same output schema and SQL-visible semantics.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering adaptive branch selection, disabled mode, threshold boundaries, identical results across alternatives, error cleanup, and diagnostics.
+- Add `should_` tests with `// Arrange / Act / Assert` covering adaptive branch selection, disabled mode, threshold boundaries, plan-cache behavior, identical results across alternatives, error cleanup, and diagnostics.
 - Include planner, integration, and metrics tests.
 
 ## Close-Out Steps

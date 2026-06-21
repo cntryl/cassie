@@ -8,19 +8,35 @@ Priority: P1
 ## Requirements
 
 Verify rebuilt indexes/projections against source row hashes and Merkle roots before marking rebuilds healthy or swappable.
+This issue turns the phase 02 hash ladder into an activation gate for rebuilt read-model artifacts.
+
+## Dependencies
+
+- Depends on phase 01 issue 04 for versioned projection builds and target version identity.
+- Depends on phase 01 issue 05 for active-version swap eligibility hooks.
+- Depends on phase 02 issues 01, 02, and 03 for row hashes, range hashes, and projection Merkle roots.
+
+## Handoff
+
+- Provides verification status consumed by phase 02 issue 05 operations views and phase 02 issue 06 integrity verification.
+- Provides the verification gate used by projection swaps when verification metadata is present.
 
 ## Functional Scope
 
 - Add a rebuild verification phase that compares source row hashes, rebuilt row hashes, range hashes, and projection roots for compatible rebuild targets.
+- Verify only compatible targets: matching projection definition, schema epoch, source checkpoint where available, and hash algorithm metadata.
 - Record verification status, started/completed timestamps, mismatch counts, unverifiable ranges, and failure reason in catalog metadata.
+- Track verification state as pending, running, verified, failed, unverifiable, or skipped.
 - Block projection swaps or index activation when verification fails unless an explicit unsafe override exists and is tested.
 - Support retry/resume after partial verification failure.
 - Expose verification status through catalog/introspection, EXPLAIN/admin diagnostics, and metrics.
+- Keep verification idempotent; rerunning verification over unchanged inputs must produce the same result metadata aside from timestamps.
 
 ## Non-Goals
 
 - Do not repair corrupted data automatically.
 - Do not require verification for features that do not yet produce hashes.
+- Do not compare against remote Cassie instances or external event stores.
 
 ## Acceptance Criteria
 
@@ -28,10 +44,11 @@ Verify rebuilt indexes/projections against source row hashes and Merkle roots be
 - Mismatched, missing, stale, or incompatible hashes fail verification with deterministic diagnostics.
 - Failed verification leaves the previous active projection/index state usable.
 - Verification retry is idempotent after the underlying mismatch is corrected.
+- Unverifiable targets are distinct from verified and failed targets in diagnostics and cannot be silently promoted as healthy.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering successful verification, row mismatch, missing hash, stale root, failed swap blocking, retry after repair, restart hydration, and metrics.
+- Add `should_` tests with `// Arrange / Act / Assert` covering successful verification, row mismatch, missing hash, stale root, incompatible metadata, unverifiable target, failed swap blocking, retry after repair, restart hydration, and metrics.
 - Include integration tests around rebuild/activation flows.
 
 ## Close-Out Steps

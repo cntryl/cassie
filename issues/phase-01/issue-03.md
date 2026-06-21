@@ -9,6 +9,15 @@ Priority: P0
 
 Support persisted materialized projections derived from deterministic SELECT queries over source collections.
 
+## Dependencies
+
+- Depends on phase 01 issue 01 for projection checkpoint/freshness metadata.
+- Uses phase 01 issue 02 replay semantics when source changes are applied through replay ingestion.
+
+## Handoff
+
+- Produces projection definitions, output collections, and build state consumed by phase 01 issue 04 versioning.
+
 ## Functional Scope
 
 - Add SQL/catalog support for creating, listing, refreshing, and dropping materialized projections.
@@ -16,11 +25,15 @@ Support persisted materialized projections derived from deterministic SELECT que
 - Build projection rows from source row blobs and maintain or refresh them deterministically after source writes.
 - Query materialized projections through the existing SQL path as read-only collections/views.
 - Prevent DML against materialized projection outputs unless a future issue explicitly adds writable projections.
+- Mark projections stale when source rows change and an incremental refresh cannot be proven deterministic.
+- Reject non-deterministic projection definitions with deterministic errors.
 
 ## Non-Goals
 
 - Do not support arbitrary non-deterministic functions, external side effects, or recursive materialized projections.
 - Do not replace normal views or row blob source collections.
+- Do not implement multiple active versions in this issue; that is phase 01 issue 04.
+- Do not implement atomic active-version swaps in this issue; that is phase 01 issue 05.
 
 ## Acceptance Criteria
 
@@ -28,11 +41,14 @@ Support persisted materialized projections derived from deterministic SELECT que
 - Projection rows match the defining SELECT result for supported deterministic queries.
 - Source writes either update projection state or mark it stale with observable diagnostics until refreshed.
 - DML against materialized projection outputs is rejected with clear errors.
+- Unsupported or non-deterministic definitions fail before any projection output is created.
+- Drop cleanup removes projection metadata and output rows without deleting source collections.
 
 ## Required Tests
 
 - Add `should_` tests with `// Arrange / Act / Assert` covering create/build/query, refresh after source writes, restart hydration, stale-state diagnostics, drop cleanup, and DML rejection.
 - Include integration and catalog introspection tests.
+- Include parser/binder tests for deterministic definition acceptance and non-deterministic definition rejection.
 
 ## Close-Out Steps
 

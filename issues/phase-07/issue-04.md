@@ -41,6 +41,44 @@ This issue accelerates existing join semantics; it must not introduce a second s
 - Do not implement non-equi vectorized joins in this issue.
 - Do not require column-store tables for vectorized joins.
 
+## Implementation Plan
+
+### Step 1: Define vectorized join scope
+
+- Define allowed join families, key shapes, and required batch ownership for the first implementation wave.
+- Define safe fallback boundaries for unsupported key shapes and downstream operators.
+- Define memory budget and spill behavior for batch buffers.
+
+### Step 2: Add batch conversion and row materialization helpers
+
+- Add utility methods to convert rows to compact batch keys and materialize output rows only when required.
+- Preserve null/type/sparse behavior and alias semantics across conversions.
+- Validate cancellation checks between conversion and materialization phases.
+
+### Step 3: Implement vectorized build/probe kernels
+
+- Implement batched hash/build and probe for inner and left join variants first.
+- Handle duplicate keys and null-key behavior exactly as scalar execution baseline.
+- Keep scalar path as fallback when batch transfer costs exceed configured thresholds.
+
+### Step 4: Planner and executor wiring
+
+- Extend plan nodes to represent vectorized hash build/probe selection with explicit guard conditions.
+- Add executor mode-switch within non-adaptive execution for single-query path.
+- Preserve timeout/shutdown behavior by draining/disposing batch state safely.
+
+### Step 5: Observability and controls
+
+- Add decision labels (enabled/disabled, fallback reason, batch size, spill count).
+- Add metrics for build rows, probe rows, matched rows, and spill fallback events.
+- Add config/feature gate for controlled rollout.
+
+### Step 6: Validation and close-out
+
+- Add planner/executor tests for supported join shapes, cancellation, spill limits, conversion correctness, and fallback paths.
+- Add deterministic regression fixtures for semantic equivalence with scalar/hash join behavior.
+- Add optional benchmark check that demonstrates reduced per-row overhead under supported workloads.
+
 ## Acceptance Criteria
 
 - Vectorized join results match scalar/hash join results for supported join types and key shapes.

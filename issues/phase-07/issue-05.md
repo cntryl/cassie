@@ -40,6 +40,45 @@ Adaptive execution here means choosing among planned alternatives at explicit de
 - Do not adapt in ways that change result ordering, LIMIT/OFFSET semantics, or error behavior.
 - Do not choose an alternative that has not passed normal planner eligibility checks.
 
+## Implementation Plan
+
+### Step 1: Extend plan model for decision points
+
+- Add explicit adaptive decision nodes with:
+  - candidate alternatives
+  - guard conditions
+- Keep alternatives pre-planned and pre-type-checked before execution starts.
+- Define which observations are legal at each decision gate.
+
+### Step 2: Add adaptive observation sources
+
+- Consume bounded observations from start-of-execution or first-block execution windows only.
+- Use cardinality, runtime feedback, memory pressure, and threshold signals.
+- Define deterministic tie-break logic for equally eligible alternatives.
+
+### Step 3: Implement execution-time selection
+
+- Select one alternative at each decision point without reconstructing full plans.
+- Keep state transfer contracts explicit when alternatives change operator family.
+- Ensure already-started partial work remains compatible or is replayed safely.
+
+### Step 4: Add disable/override controls
+
+- Add global and per-query/session controls for adaptive behavior.
+- Add config defaults for conservative baseline (disabled) and strict selection.
+
+### Step 5: Diagnostics and explainability
+
+- Record selected alternative, alternate candidates, guard evaluation, and ignore reason.
+- Extend EXPLAIN ANALYZE output and runtime metrics with adaptive traces.
+- Make selected path reproducible for test fixtures.
+
+### Step 6: Safety and cleanup testing
+
+- Add tests for disabled mode, threshold edges, plan cache key differentiation, identical result sets across alternatives, and error cleanup.
+- Add integration tests that force each supported adaptive decision with bounded fixtures.
+- Add benchmark checks for deterministic overhead and no semantic drift.
+
 ## Acceptance Criteria
 
 - Adaptive plans select different safe alternatives under controlled runtime observations while returning identical results.

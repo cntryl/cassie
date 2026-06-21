@@ -38,6 +38,44 @@ This issue adds one new join strategy after the planner can reason about orderin
 - Do not change SQL join syntax or binder semantics.
 - Do not rely on merge join output ordering to satisfy a query `ORDER BY` unless the physical ordering proof is explicit.
 
+## Implementation Plan
+
+### Step 1: Define merge-join operator contract
+
+- Add operator shape metadata for equi-join families and ordering requirements.
+- Define required compatibility for inner/right/full/outer/semi/anti and unsupported predicates.
+- Define deterministic null ordering and tie behavior in merge output.
+
+### Step 2: Add planner-level eligibility
+
+- Extend join decision rules to require explicit ordered inputs or explicit pre-merge sort cost.
+- Add fallback paths for unsupported comparators, missing ordering, or non-equi predicates.
+- Record join-sort proof in plan nodes for downstream diagnostics.
+
+### Step 3: Implement executor merge primitive
+
+- Add merge-state machine with duplicate-key coalescing and unmatched handling for each supported join type.
+- Preserve projection aliasing and nullability behavior exactly as existing executor.
+- Add clear overflow/short-circuit rules for stream termination.
+
+### Step 4: Preserve ordering semantics
+
+- Ensure ordered output claims only when ordering proof exists.
+- Keep merge join output ordering claims separate from unrelated query-level `ORDER BY` requirements.
+- Validate ordering proofs before claiming downstream `ORDER BY` preservation.
+
+### Step 5: Metrics and diagnostics
+
+- Add EXPLAIN labels for merge-join selection and required sort operations.
+- Add counters for input rows, matched rows, output rows, and fallback reason.
+- Add operator-specific debug/plan cache keys for stable comparison.
+
+### Step 6: Tests and close-out
+
+- Add fixture tests for all supported join shapes, duplicate/null keys, incompatible ordering, fallback, and explain evidence.
+- Add planner/executor consistency tests for deterministic equivalence against existing join execution.
+- Add regression tests to prevent non-equi merge join selection.
+
 ## Acceptance Criteria
 
 - Merge join results match existing join execution for supported join types and duplicate/null-key cases.

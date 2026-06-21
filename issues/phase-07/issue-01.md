@@ -42,6 +42,52 @@ This issue extends earlier cost and index feedback work from access-path choice 
 - Do not make planning depend on bind values that are not part of the normalized safe key.
 - Do not use feedback to select an operator that failed semantic eligibility checks.
 
+## Implementation Plan
+
+### Step 1: Define stable feedback contract
+
+- Add a normalized key format for operator-shape feedback ownership:
+  - operator family
+  - collection or source relation set
+  - schema/catalog epoch
+  - predicate/index shape hash
+- Add bounded cardinality limits and invalidation points for stale schemas and dropped relations.
+
+### Step 2: Add feedback collection points
+
+- Capture runtime deltas for each completed physical operator execution:
+  - rows produced/read
+  - elapsed time
+  - retries and errors
+  - read/write counters
+  - memory and spill indicators
+- Emit a bounded sample record so a single outlier cannot contaminate all future plans.
+
+### Step 3: Build an explicit feedback aggregator
+
+- Aggregate sampled observations into decay/quantile style compact state.
+- Track confidence, age, volume, and ignore flags.
+- Keep confidence below a hard floor unless sample count and consistency checks pass.
+
+### Step 4: Consume feedback in planner
+
+- Add a cost-modifier path that can apply feedback deltas only for eligible pre-validated operator choices.
+- Ensure the planner can always fall back to base cost when feedback is missing, stale, or disabled.
+- Preserve all original operator eligibility checks.
+
+### Step 5: Add diagnostic visibility
+
+- Add plan-level labels for feedback-used/ignored states.
+- Add metrics for ineligible feedback and outlier rejection.
+- Add session/global controls to disable feedback by config.
+- Expose base versus adjusted estimate in `EXPLAIN`.
+
+### Step 6: Validation and close-out
+
+- Add `should_` tests for aggregation, confidence gating, stale/invalidation behavior, outlier damping, disabled mode, and deterministic fallback.
+- Verify planner behavior with representative test fixtures for safe shape reuse.
+- Add test/benchmark assertions for stable plan selection under stable feedback.
+
 ## Acceptance Criteria
 
 - Repeated workloads can influence future operator selection when feedback is consistent.

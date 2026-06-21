@@ -39,6 +39,44 @@ Runtime switching is the highest-risk query-intelligence feature in this backlog
 - Do not implement distributed operator migration.
 - Do not switch after a LIMIT/OFFSET, final sort, or side-effecting administrative operation has made replay unsafe.
 
+## Implementation Plan
+
+### Step 1: Define switchable operator pairs
+
+- Add a minimal supported switch-pair registry (e.g., hash↔merge-like, scalar↔batch-like where safe).
+- Require per-pair state-transfer rules before any runtime switch can be enabled.
+- Register unsupported switch points as explicit hard no-switches.
+
+### Step 2: Build state-transfer contracts
+
+- Define serializable or replayable state per supported switch pair.
+- Add checks for replay safety once partial rows have been emitted.
+- Define fallback behavior if transfer/replay validation fails.
+
+### Step 3: Implement decision and execution hooks
+
+- Add safe switch checks inside execution loops before irreversible side effects.
+- Evaluate runtime triggers using bounded thresholds and only after stable prerequisite checks.
+- Ensure switch decisions are idempotent under repeated check cycles.
+
+### Step 4: Add cancellation/error-safe cleanup
+
+- Add cancellation-aware transfer and cleanup paths.
+- Ensure switch errors release buffers/state and continue with planned fallback.
+- Preserve result ordering and dedup/no-skip guarantees for already emitted rows.
+
+### Step 5: Controls and diagnostics
+
+- Add global/per-query control for switching.
+- Emit switch attempt/success/fallback counters in metrics and EXPLAIN.
+- Add reason codes for skipped or rejected switches.
+
+### Step 6: Tests and close-out
+
+- Add tests for each pair, disabled mode, threshold triggers, unsafe-switch skip, and cancellation cleanup.
+- Add integration-level determinism tests for result identity and order across switches.
+- Add benchmark fixture to validate runtime trigger behavior under stress.
+
 ## Acceptance Criteria
 
 - Supported operator switches return identical results to no-switch execution.

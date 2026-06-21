@@ -41,6 +41,54 @@ This issue promotes columnar acceleration from derived execution support into an
 - Do not make column-store tables the default storage mode.
 - Do not add PostgreSQL storage-parameter parity beyond what Cassie needs for read-model workloads.
 
+## Implementation Plan
+
+### Step 1: Define storage-mode metadata
+
+- Add a table-mode enum in catalog metadata (`row-store`, `column-indexed`, `column-store`).
+- Define immutable mode transitions and explicit incompatible-mode rewrite rules.
+- Add mode persistence semantics for rename/drop/restart recovery.
+
+### Step 2: Bind DDL and catalog behavior
+
+- Add DDL path support for explicit storage-mode creation and mode introspection.
+- Ensure catalog hydration and introspection surfaces report storage mode and version.
+- Add explicit rejection paths for unsupported mode combinations.
+
+### Step 3: Add column-store key families
+
+- Add a phase-ordered storage namespace for:
+  - column values
+  - row-id mapping
+  - visibility/deletion markers
+  - optional materialized row cache
+- Reuse key-layout compatibility constants from phase 05 issue 04.
+
+### Step 4: Implement column-store DML
+
+- Add column-store INSERT/UPDATE/DELETE in terms of Midge writes that preserve identity and deletion semantics.
+- Ensure restart hydration can replay metadata and visibility state without partial writes.
+- Keep row-shaped execution output semantics identical where row-mode read paths consume results.
+
+### Step 5: Extend read/write path selection
+
+- Add planner/executor recognition for storage mode-specific projections.
+- Select row-materialization or direct column-read paths only when semantics match required SQL behavior.
+- Ensure unsupported predicate combinations fail with explicit error classes before data write.
+
+### Step 6: Cleanup and observability
+
+- Add catalog/drop cleanup to remove mode metadata and all associated column-storage families.
+- Extend metrics/EXPLAIN/capability views to include storage mode and feature flags.
+- Add config-level kill switch for experimental modes.
+
+### Step 7: Validation and close-out
+
+- Add `should_` fixture tests for create/write/read/update/delete/rename/drop.
+- Add null/missing semantics tests and unsupported-feature rejection tests.
+- Add restart hydration test and catalog view assertions.
+- Add deterministic performance/regression checks for supported analytical patterns.
+
 ## Acceptance Criteria
 
 - Column-store table creation, writes, reads, updates, deletes, restart hydration, rename, and drop work through existing SQL paths.

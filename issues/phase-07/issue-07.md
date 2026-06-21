@@ -39,6 +39,48 @@ This issue extends local verification and projection comparison into an offline/
 - Do not require network calls from the query path.
 - Do not treat manifest equality as proof of source-of-record correctness; it only compares Cassie read-model materialization state.
 
+## Implementation Plan
+
+### Step 1: Define manifest schema and policy
+
+- Add versioned manifest format with canonical fields:
+  - instance metadata
+  - projection/schema identity
+  - checkpoint or source epoch
+  - range/range-hash summaries
+- Include deterministic ordering and digest strategy.
+- Define compatibility and expiration policy.
+
+### Step 2: Add admin export path
+
+- Add authenticated admin endpoint/API for manifest export.
+- Include privacy filters to remove row values, vector payloads, text bodies, and credentials.
+- Serialize manifest deterministically for stable file comparison.
+
+### Step 3: Add manifest comparison path
+
+- Add import/compare routine for two or more manifests.
+- Produce structured result states: consistent, divergent, stale, incompatible, unverifiable.
+- Keep comparison offline and non-blocking for query-critical paths.
+
+### Step 4: Persist and expose report history
+
+- Store report artifacts in Midge-backed metadata with retention and overwrite rules.
+- Add simple query/admin access to latest report per projection and stale report counts.
+- Ensure restart rehydrates compare history safely.
+
+### Step 5: Diagnostics and governance
+
+- Add metrics for export/import/check outcomes and mismatch counts.
+- Add clear errors for mismatch reasons and incompatible schema/hash/collision fields.
+- Add privacy and access audits to prevent sensitive row leakage in manifests.
+
+### Step 6: Validation and close-out
+
+- Add integration tests for export/import workflows, canonical ordering, privacy filtering, stale/incompatible states, and restart hydration.
+- Add deterministic tests for mismatch reporting and report persistence.
+- Update docs/README references for admin workflow behavior and limitations.
+
 ## Acceptance Criteria
 
 - Manifests from identical instances compare consistent.

@@ -366,17 +366,23 @@ fn selected_index(plan: &LogicalPlan, indexes: &[IndexMeta]) -> Option<String> {
     };
     let filter = plan.filter.as_ref()?;
     let equality_fields = equality_filter_fields(filter);
+    let equality_expressions = equality_filter_expressions(filter);
     indexes
         .iter()
         .filter(|index| index.collection == *collection && index.kind == IndexKind::Scalar)
         .filter(|index| partial_index_matches_query(plan.filter.as_ref(), index.predicate.as_ref()))
         .filter(|index| {
-            index
+            let field_match = index
                 .normalized_fields()
                 .iter()
-                .all(|field| equality_fields.contains(&field.to_ascii_lowercase()))
+                .all(|field| equality_fields.contains(&field.to_ascii_lowercase()));
+            let expression_match = index
+                .normalized_expressions()
+                .iter()
+                .all(|expression| equality_expressions.contains(expression));
+            field_match && expression_match
         })
-        .max_by_key(|index| index.normalized_fields().len())
+        .max_by_key(|index| index.normalized_fields().len() + index.normalized_expressions().len())
         .map(|index| index.name.clone())
 }
 
@@ -514,6 +520,93 @@ fn equality_filter_fields(expr: &Expr) -> BTreeSet<String> {
     let mut fields = BTreeSet::new();
     collect_equality_filter_fields(expr, &mut fields);
     fields
+}
+
+fn equality_filter_expressions(expr: &Expr) -> BTreeSet<String> {
+    let mut expressions = BTreeSet::new();
+    collect_equality_filter_expressions(expr, &mut expressions);
+    expressions
+}
+
+fn collect_equality_filter_expressions(expr: &Expr, expressions: &mut BTreeSet<String>) {
+    match expr {
+        Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } => {
+            collect_equality_filter_expressions(left, expressions);
+            collect_equality_filter_expressions(right, expressions);
+        }
+        Expr::Binary {
+            left,
+            op: BinaryOp::Eq,
+            right,
+        } => {
+            if expr_has_column(left)
+                && !matches!(left.as_ref(), Expr::Column(_))
+                && expr_is_constant(right)
+            {
+                if let Ok(serialized) = serde_json::to_string(left.as_ref()) {
+                    expressions.insert(serialized);
+                }
+            }
+            if expr_has_column(right)
+                && !matches!(right.as_ref(), Expr::Column(_))
+                && expr_is_constant(left)
+            {
+                if let Ok(serialized) = serde_json::to_string(right.as_ref()) {
+                    expressions.insert(serialized);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn expr_is_constant(expr: &Expr) -> bool {
+    match expr {
+        Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null
+        | Expr::Param(_) => true,
+        Expr::Column(_) | Expr::Exists(_) => false,
+        Expr::Binary { left, right, .. } => expr_is_constant(left) && expr_is_constant(right),
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            expr_is_constant(expr)
+        }
+        Expr::InList { expr, values, .. } => {
+            expr_is_constant(expr) && values.iter().all(expr_is_constant)
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => expr_is_constant(expr) && expr_is_constant(low) && expr_is_constant(high),
+        Expr::Function(function) => function.args.iter().all(expr_is_constant),
+    }
+}
+
+fn expr_has_column(expr: &Expr) -> bool {
+    match expr {
+        Expr::Column(_) => true,
+        Expr::Binary { left, right, .. } => expr_has_column(left) || expr_has_column(right),
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            expr_has_column(expr)
+        }
+        Expr::InList { expr, values, .. } => {
+            expr_has_column(expr) || values.iter().any(expr_has_column)
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => expr_has_column(expr) || expr_has_column(low) || expr_has_column(high),
+        Expr::Function(function) => function.args.iter().any(expr_has_column),
+        Expr::Exists(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null
+        | Expr::Param(_) => false,
+    }
 }
 
 fn collect_equality_filter_fields(expr: &Expr, fields: &mut BTreeSet<String>) {

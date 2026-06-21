@@ -17,6 +17,8 @@ pub struct IndexMeta {
     #[serde(default)]
     pub fields: Vec<String>,
     #[serde(default)]
+    pub expressions: Vec<String>,
+    #[serde(default)]
     pub include_fields: Vec<String>,
     #[serde(default)]
     pub predicate: Option<String>,
@@ -27,7 +29,7 @@ pub struct IndexMeta {
 
 impl IndexMeta {
     pub fn normalized_fields(&self) -> Vec<String> {
-        if self.fields.is_empty() {
+        if self.fields.is_empty() && !self.field.is_empty() {
             vec![self.field.clone()]
         } else {
             self.fields.clone()
@@ -36,6 +38,10 @@ impl IndexMeta {
 
     pub fn normalized_include_fields(&self) -> Vec<String> {
         self.include_fields.clone()
+    }
+
+    pub fn normalized_expressions(&self) -> Vec<String> {
+        self.expressions.clone()
     }
 
     pub fn primary_field(&self) -> String {

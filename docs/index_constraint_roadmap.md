@@ -189,8 +189,9 @@ CREATE INDEX ON users (lower(email));
 Required behaviors:
 
 - Only immutable built-in scalar functions are allowed initially.
-- Expression value is computed during writes and rebuilds.
-- Planner matches equivalent expression predicates.
+- Expression metadata is persisted as normalized expression JSON for catalog hydration.
+- Planner matches exact normalized expression equality predicates and falls back for non-equivalent predicates.
+- Physical expression-key maintenance remains scoped to the current scalar index metadata path until the secondary index storage layout lands.
 
 ## P2/P3 Scope
 

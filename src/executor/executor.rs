@@ -64,6 +64,7 @@ fn primary_key_indexes(
             name: format!("{table}_pkey"),
             field: constraint.field.clone(),
             fields: vec![constraint.field.clone()],
+            expressions: Vec::new(),
             include_fields: Vec::new(),
             predicate: None,
             kind: catalog::IndexKind::Scalar,
@@ -733,6 +734,11 @@ fn execute_command(
                 name: statement.name.clone(),
                 field: statement.fields.first().cloned().unwrap_or_default(),
                 fields: statement.fields.clone(),
+                expressions: statement
+                    .expressions
+                    .iter()
+                    .filter_map(|expression| serde_json::to_string(expression).ok())
+                    .collect(),
                 include_fields: statement.include_fields.clone(),
                 predicate: statement
                     .predicate

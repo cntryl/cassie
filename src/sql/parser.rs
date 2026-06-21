@@ -699,7 +699,7 @@ fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement, SqlError> 
     let remainder = remainder[on_pos + 2..].trim();
     let (table, remainder) = parse_index_target(remainder)?;
     let (kind, remainder) = parse_index_kind(remainder)?;
-    let (fields, remainder) = parse_index_fields(remainder)?;
+    let (fields, expressions, remainder) = parse_index_fields(remainder)?;
     let (include_fields, remainder) = parse_index_include_fields(remainder)?;
     let (predicate, remainder) = parse_index_predicate(remainder)?;
     let (options, remainder) = parse_index_options(remainder)?;
@@ -708,9 +708,14 @@ fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement, SqlError> 
         return Err(SqlError("unsupported CREATE INDEX syntax".to_string()));
     }
 
-    if !matches!(kind, IndexKind::Scalar) && fields.len() > 1 {
+    if !matches!(kind, IndexKind::Scalar) && fields.len() + expressions.len() > 1 {
         return Err(SqlError(
             "composite indexes are only supported for scalar index methods".to_string(),
+        ));
+    }
+    if !matches!(kind, IndexKind::Scalar) && !expressions.is_empty() {
+        return Err(SqlError(
+            "expression indexes are only supported for scalar index methods".to_string(),
         ));
     }
 
@@ -720,6 +725,7 @@ fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement, SqlError> 
             name: name.to_string(),
             table: table.to_string(),
             fields,
+            expressions,
             include_fields,
             predicate,
             if_not_exists,
@@ -2255,7 +2261,7 @@ fn parse_index_kind(raw: &str) -> Result<(IndexKind, &str), SqlError> {
     Err(SqlError("unsupported index method".to_string()))
 }
 
-fn parse_index_fields(raw: &str) -> Result<(Vec<String>, &str), SqlError> {
+fn parse_index_fields(raw: &str) -> Result<(Vec<String>, Vec<Expr>, &str), SqlError> {
     let raw = raw.trim();
     if !raw.starts_with('(') {
         return Err(SqlError(
@@ -2263,8 +2269,7 @@ fn parse_index_fields(raw: &str) -> Result<(Vec<String>, &str), SqlError> {
         ));
     }
 
-    let close = raw
-        .find(')')
+    let close = find_matching_paren(raw, 0)
         .ok_or_else(|| SqlError("CREATE INDEX field list missing closing ')'".to_string()))?;
     let field_spec = &raw[1..close];
     if field_spec.trim().is_empty() {
@@ -2273,23 +2278,32 @@ fn parse_index_fields(raw: &str) -> Result<(Vec<String>, &str), SqlError> {
 
     let before = raw[close + 1..].trim();
     let mut fields = Vec::new();
+    let mut expressions = Vec::new();
     for field in split_csv(field_spec) {
         let field = field.trim();
         if field.is_empty() {
             return Err(SqlError("CREATE INDEX field cannot be empty".to_string()));
         }
-        if field
-            .chars()
-            .any(|character| character.is_whitespace() || matches!(character, '(' | ')' | ';'))
-        {
-            return Err(SqlError(
-                "expression index definitions are not supported".to_string(),
-            ));
+        if is_index_field_identifier(field) {
+            fields.push(field.to_string());
+        } else {
+            if field.contains(';') {
+                return Err(SqlError("invalid expression index definition".to_string()));
+            }
+            expressions.push(parse_expression(field)?);
         }
-        fields.push(field.to_string());
     }
 
-    Ok((fields, before))
+    Ok((fields, expressions, before))
+}
+
+fn is_index_field_identifier(raw: &str) -> bool {
+    let mut chars = raw.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|character| character.is_ascii_alphanumeric() || character == '_')
 }
 
 fn parse_index_include_fields(raw: &str) -> Result<(Vec<String>, &str), SqlError> {

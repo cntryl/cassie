@@ -1996,6 +1996,78 @@ fn should_parse_create_partial_index_statement() {
 }
 
 #[test]
+fn should_parse_create_expression_index_statement() {
+    // Arrange
+    let sql = "CREATE INDEX idx_docs_lower_title ON docs USING btree (lower(title))";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateIndex(statement) = parsed.statement else {
+        panic!("expected create index statement");
+    };
+    assert_eq!(statement.name, "idx_docs_lower_title");
+    assert_eq!(statement.table, "docs");
+    assert!(statement.fields.is_empty());
+    assert_eq!(statement.expressions.len(), 1);
+}
+
+#[test]
+fn should_reject_non_scalar_expression_index() {
+    // Arrange
+    let sql = "CREATE INDEX idx_docs_lower_title ON docs USING fulltext (lower(title))";
+
+    // Act
+    let err = parse_statement(sql).expect_err("parse should reject expression fulltext index");
+
+    // Assert
+    assert!(err
+        .0
+        .contains("expression indexes are only supported for scalar index methods"));
+}
+
+#[test]
+fn should_reject_non_immutable_function_expression_index() {
+    // Arrange
+    let cassie = Cassie::new_with_data_dir(format!(
+        "/tmp/cassie-expression-index-volatile-{}",
+        Uuid::new_v4()
+    ))
+    .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie.register_collection(
+            "expression_index_volatile_docs".to_string(),
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            },
+        );
+        let parsed = parse_statement(
+            "CREATE INDEX idx_expression_volatile ON expression_index_volatile_docs USING btree (current_user())",
+        )
+        .expect("parse should succeed");
+
+        // Act
+        let err = cassie::sql::binder::bind(parsed, &cassie.catalog)
+            .expect_err("bind should reject volatile function");
+
+        // Assert
+        assert!(err
+            .to_string()
+            .contains("function 'current_user' is not immutable for index expressions"));
+    });
+}
+
+#[test]
 fn should_reject_duplicate_include_columns() {
     // Arrange
     let cassie =
@@ -2464,6 +2536,7 @@ fn should_reject_duplicate_fulltext_index_on_same_field() {
                 name: "idx_ft_docs_duplicate_primary".to_string(),
                 field: "body".to_string(),
                 fields: vec!["body".to_string()],
+                expressions: Vec::new(),
                 include_fields: Vec::new(),
                 predicate: None,
                 kind: IndexKind::FullText,

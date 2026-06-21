@@ -603,7 +603,8 @@ fn bind_create_index(
         .map(|field| field.trim().to_string())
         .filter(|field| !field.is_empty())
         .collect::<Vec<_>>();
-    if fields.is_empty() {
+    let expressions = statement.expressions.clone();
+    if fields.is_empty() && expressions.is_empty() {
         return Err(CassieError::Planner(
             "CREATE INDEX requires at least one indexed field".into(),
         ));
@@ -613,9 +614,16 @@ fn bind_create_index(
         .get_schema(&table)
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
 
-    if !matches!(statement.kind, crate::catalog::IndexKind::Scalar) && fields.len() > 1 {
+    if !matches!(statement.kind, crate::catalog::IndexKind::Scalar)
+        && fields.len() + expressions.len() > 1
+    {
         return Err(CassieError::Planner(
             "composite indexes are only supported for scalar index methods".into(),
+        ));
+    }
+    if !expressions.is_empty() && !matches!(statement.kind, crate::catalog::IndexKind::Scalar) {
+        return Err(CassieError::Planner(
+            "expression indexes are only supported for scalar indexes".into(),
         ));
     }
 
@@ -638,6 +646,14 @@ fn bind_create_index(
                 "index field '{field}' does not exist on collection '{table}'"
             )));
         }
+    }
+    let known_fields = schema
+        .fields
+        .iter()
+        .map(|field| field.name.clone())
+        .collect::<HashSet<_>>();
+    for expression in &expressions {
+        validate_index_expression(expression, &known_fields)?;
     }
     let mut seen_include_fields = std::collections::BTreeSet::new();
     let key_fields = fields
@@ -818,8 +834,95 @@ fn bind_create_index(
     statement.table = table;
     statement.name = name;
     statement.fields = fields;
+    statement.expressions = expressions;
     statement.include_fields = include_fields;
     Ok(statement)
+}
+
+fn validate_index_expression(
+    expr: &Expr,
+    known_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    match expr {
+        Expr::Column(name) => {
+            if known_fields.contains(name) {
+                Ok(())
+            } else {
+                Err(CassieError::Planner(format!(
+                    "index expression references unknown field '{name}'"
+                )))
+            }
+        }
+        Expr::Param(_) => Err(CassieError::Planner(
+            "index expressions cannot reference query parameters".into(),
+        )),
+        Expr::Exists(_) => Err(CassieError::Planner(
+            "index expressions cannot contain subqueries".into(),
+        )),
+        Expr::Function(function) => {
+            let normalized = function.name.to_ascii_lowercase();
+            if crate::sql::functions::is_aggregate_function(&normalized) {
+                return Err(CassieError::Planner(format!(
+                    "aggregate function '{}' is not allowed in index expressions",
+                    function.name
+                )));
+            }
+            let Some(definition) = crate::sql::functions::registry()
+                .into_iter()
+                .find(|entry| entry.name.eq_ignore_ascii_case(&normalized))
+            else {
+                return Err(CassieError::Planner(format!(
+                    "function '{}' is not allowed in index expressions",
+                    function.name
+                )));
+            };
+            if !matches!(
+                definition.name,
+                "length" | "lower" | "upper" | "substring" | "trim" | "concat" | "coalesce" | "abs"
+            ) {
+                return Err(CassieError::Planner(format!(
+                    "function '{}' is not immutable for index expressions",
+                    function.name
+                )));
+            }
+            if !definition.arity.matches(function.args.len()) {
+                return Err(CassieError::Planner(format!(
+                    "function '{}' expects {}, got {}",
+                    function.name,
+                    definition.arity.describe(),
+                    function.args.len()
+                )));
+            }
+            for arg in &function.args {
+                validate_index_expression(arg, known_fields)?;
+            }
+            Ok(())
+        }
+        Expr::Binary { left, right, .. } => {
+            validate_index_expression(left, known_fields)?;
+            validate_index_expression(right, known_fields)
+        }
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            validate_index_expression(expr, known_fields)
+        }
+        Expr::InList { expr, values, .. } => {
+            validate_index_expression(expr, known_fields)?;
+            for value in values {
+                validate_index_expression(value, known_fields)?;
+            }
+            Ok(())
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            validate_index_expression(expr, known_fields)?;
+            validate_index_expression(low, known_fields)?;
+            validate_index_expression(high, known_fields)
+        }
+        Expr::StringLiteral(_) | Expr::NumberLiteral(_) | Expr::BoolLiteral(_) | Expr::Null => {
+            Ok(())
+        }
+    }
 }
 
 fn parse_vector_metric(raw_metric: Option<&str>) -> Result<DistanceMetric, CassieError> {

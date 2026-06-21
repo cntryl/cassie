@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::*;
+use crate::midge::adapter::DocumentWriteOp;
 
 pub(super) fn reject_write(cassie: &Cassie, relation: &str) -> Result<(), QueryError> {
     if cassie.catalog.is_materialized_projection(relation)
@@ -470,6 +471,9 @@ fn activate_projection_version(
     };
     persist_projection_metadata(cassie, metadata)?;
     cassie.runtime.record_projection_swap(name.to_string());
+    cassie
+        .runtime
+        .record_projection_activation_write(name.to_string());
     Ok(empty_command("ALTER MATERIALIZED PROJECTION"))
 }
 
@@ -760,6 +764,7 @@ fn replace_output_rows(
             .collect(),
     );
 
+    let mut output_ops = Vec::with_capacity(rows.len());
     for (index, row) in rows.into_iter().enumerate() {
         let entries = row.into_entries();
         let payload = serde_json::Value::Object(
@@ -769,10 +774,19 @@ fn replace_output_rows(
                 .collect(),
         );
         let id = deterministic_row_id(index, &payload);
-        cassie
+        output_ops.push(DocumentWriteOp::Put { id, payload });
+    }
+
+    if !output_ops.is_empty() {
+        let report = cassie
             .midge
-            .put_document(output_collection, Some(id), payload)
+            .apply_document_write_batch(output_collection, output_ops)
             .map_err(|error| QueryError::General(error.to_string()))?;
+        cassie.runtime.record_projection_rebuild_writes(
+            output_collection.to_string(),
+            report.stats.row_puts,
+            report.stats.batch_flushes,
+        );
     }
     Ok(())
 }

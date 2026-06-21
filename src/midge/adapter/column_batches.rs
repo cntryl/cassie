@@ -18,13 +18,15 @@ impl Midge {
     pub fn rebuild_column_batches_for_collection(
         &self,
         collection: &str,
-    ) -> Result<(), CassieError> {
+    ) -> Result<usize, CassieError> {
+        let mut rebuilt = 0usize;
         for index in self.list_indexes()? {
             if index.collection == collection && index.kind == IndexKind::Column {
                 self.rebuild_column_batches_for_index(&index)?;
+                rebuilt += 1;
             }
         }
-        Ok(())
+        Ok(rebuilt)
     }
 
     pub fn rebuild_column_batches_for_index(

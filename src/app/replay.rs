@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::midge::adapter::DocumentWriteOp;
+
 use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +72,15 @@ impl Cassie {
 
         let mut applied = 0u64;
         let mut skipped = 0u64;
+        let mut duplicate_checks = 0u64;
+        let mut write_ops = Vec::new();
+        let mut replay_event_ids = Vec::new();
+
+        let mut position_cursor = metadata.source_position;
+        let mut source_checkpoint = metadata.source_checkpoint.clone();
+        let mut source_position = metadata.source_position;
+        let mut last_applied_event_id = metadata.last_applied_event_id.clone();
+
         for event in &batch.events {
             if event.event_id.trim().is_empty() {
                 return self.fail_replay_metadata(
@@ -78,6 +89,7 @@ impl Cassie {
                     "projection replay event id cannot be empty".to_string(),
                 );
             }
+            duplicate_checks = duplicate_checks.saturating_add(1);
             if self.midge.has_projection_event(
                 &batch.projection,
                 &batch.source_identity,
@@ -86,7 +98,7 @@ impl Cassie {
                 skipped = skipped.saturating_add(1);
                 continue;
             }
-            if let (Some(previous), Some(next)) = (metadata.source_position, event.position) {
+            if let (Some(previous), Some(next)) = (position_cursor, event.position) {
                 if next <= previous {
                     return self.fail_replay_metadata(
                         metadata,
@@ -99,44 +111,78 @@ impl Cassie {
                 }
             }
 
-            let write_result = if let Some(payload) = &event.payload {
-                self.midge
-                    .put_document(
-                        &batch.projection,
-                        Some(event.document_id.clone()),
-                        payload.clone(),
-                    )
-                    .map(|_| ())
+            if let Some(payload) = event.payload.clone() {
+                write_ops.push(DocumentWriteOp::Put {
+                    id: event.document_id.clone(),
+                    payload,
+                });
             } else {
-                self.midge
-                    .delete_document(&batch.projection, &event.document_id)
-                    .map(|_| ())
+                write_ops.push(DocumentWriteOp::Delete {
+                    id: event.document_id.clone(),
+                });
+            }
+            replay_event_ids.push(event.event_id.clone());
+
+            position_cursor = event.position;
+            applied = applied.saturating_add(1);
+            source_checkpoint = Some(event.checkpoint.clone());
+            source_position = event.position;
+            last_applied_event_id = Some(event.event_id.clone());
+        }
+
+        if !write_ops.is_empty() {
+            let write_report = match self
+                .midge
+                .apply_document_write_batch(&batch.projection, write_ops)
+            {
+                Ok(report) => report,
+                Err(error) => {
+                    return self.fail_replay_metadata(
+                        metadata,
+                        &batch,
+                        format!("projection replay failed to apply events: {error}"),
+                    );
+                }
             };
-            if let Err(error) = write_result {
-                return self.fail_replay_metadata(
-                    metadata,
-                    &batch,
-                    format!(
-                        "projection replay failed on event '{}': {error}",
-                        event.event_id
-                    ),
-                );
+            let replay_event_refs = replay_event_ids
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>();
+            if !replay_event_refs.is_empty() {
+                if let Err(error) = self.midge.record_projection_events_batch(
+                    &batch.projection,
+                    &batch.source_identity,
+                    &replay_event_refs,
+                    &batch.batch_id,
+                ) {
+                    return self.fail_replay_metadata(
+                        metadata,
+                        &batch,
+                        format!("projection replay failed to record duplicate ledger: {error}"),
+                    );
+                }
             }
 
-            self.midge.record_projection_event(
-                &batch.projection,
-                &batch.source_identity,
-                &event.event_id,
-                &batch.batch_id,
-            )?;
-            applied = applied.saturating_add(1);
-            metadata.source_checkpoint = Some(event.checkpoint.clone());
-            metadata.source_position = event.position;
-            metadata.last_applied_event_id = Some(event.event_id.clone());
+            let mut write_stats = write_report.stats;
+            write_stats.duplicate_checks = duplicate_checks;
+            self.runtime
+                .record_projection_write_batch(batch.projection.to_string(), &write_stats);
+        } else {
+            let write_stats = crate::runtime::ProjectionWriteStats {
+                duplicate_checks,
+                ..Default::default()
+            };
+            if duplicate_checks > 0 {
+                self.runtime
+                    .record_projection_write_batch(batch.projection.to_string(), &write_stats);
+            }
         }
 
         metadata.source_identity = Some(batch.source_identity);
         metadata.replay_batch_id = Some(batch.batch_id);
+        metadata.source_checkpoint = source_checkpoint;
+        metadata.source_position = source_position;
+        metadata.last_applied_event_id = last_applied_event_id;
         metadata.applied_event_count = metadata.applied_event_count.saturating_add(applied);
         metadata.skipped_duplicate_count = metadata.skipped_duplicate_count.saturating_add(skipped);
         metadata.lag = batch.lag;

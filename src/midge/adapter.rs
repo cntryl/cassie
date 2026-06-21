@@ -264,7 +264,7 @@ mod cardinality_stats;
 #[path = "adapter/column_batches.rs"]
 mod column_batches;
 #[path = "adapter/documents.rs"]
-mod documents;
+pub(crate) mod documents;
 #[path = "adapter/metadata.rs"]
 mod metadata;
 #[path = "adapter/projections.rs"]
@@ -274,6 +274,7 @@ mod schema_ops;
 #[path = "adapter/verification.rs"]
 mod verification;
 
+pub(crate) use documents::DocumentWriteOp;
 pub use verification::{
     IntegrityCheckReport, RangeHashRecord, RootHashRecord, RowHashRecord, StoredHashState,
 };

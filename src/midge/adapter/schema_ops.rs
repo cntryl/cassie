@@ -343,7 +343,7 @@ impl Midge {
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
-        self.rebuild_column_batches_for_collection(collection)?;
+        let _ = self.rebuild_column_batches_for_collection(collection)?;
         self.rebuild_projection_hashes(collection)?;
         Ok(())
     }
@@ -427,7 +427,7 @@ impl Midge {
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
-        self.rebuild_column_batches_for_collection(collection)?;
+        let _ = self.rebuild_column_batches_for_collection(collection)?;
         self.rebuild_projection_hashes(collection)?;
         Ok(())
     }
@@ -615,7 +615,7 @@ impl Midge {
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
-        self.rebuild_column_batches_for_collection(collection)?;
+        let _ = self.rebuild_column_batches_for_collection(collection)?;
         self.rebuild_projection_hashes(collection)?;
         Ok(())
     }

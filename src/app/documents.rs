@@ -46,9 +46,22 @@ impl Cassie {
             }
         }
 
-        let row_id = self.midge.put_document(collection, id, payload)?;
-        self.refresh_cardinality_stats(collection)?;
-        self.refresh_projection_metadata(collection)?;
+        let (row_id, stats) = self
+            .midge
+            .put_document_with_stats(collection, id, payload)?;
+        self.runtime
+            .record_projection_write_batch(collection.to_string(), &stats);
+        if stats.row_puts > 0
+            || stats.row_deletes > 0
+            || stats.index_puts > 0
+            || stats.index_deletes > 0
+            || stats.metadata_puts > 0
+            || stats.metadata_deletes > 0
+            || stats.batch_flushes > 0
+        {
+            self.refresh_cardinality_stats(collection)?;
+            self.refresh_projection_metadata(collection)?;
+        }
         Ok(row_id)
     }
 
@@ -99,9 +112,22 @@ impl Cassie {
             }
         }
 
-        let row_id = self.midge.put_document(collection, Some(id), payload)?;
-        self.refresh_cardinality_stats(collection)?;
-        self.refresh_projection_metadata(collection)?;
+        let (row_id, stats) = self
+            .midge
+            .put_document_with_stats(collection, Some(id), payload)?;
+        self.runtime
+            .record_projection_write_batch(collection.to_string(), &stats);
+        if stats.row_puts > 0
+            || stats.row_deletes > 0
+            || stats.index_puts > 0
+            || stats.index_deletes > 0
+            || stats.metadata_puts > 0
+            || stats.metadata_deletes > 0
+            || stats.batch_flushes > 0
+        {
+            self.refresh_cardinality_stats(collection)?;
+            self.refresh_projection_metadata(collection)?;
+        }
         Ok(row_id)
     }
 
@@ -121,7 +147,9 @@ impl Cassie {
             }
         }
 
-        let removed = self.midge.delete_document(collection, id)?;
+        let (removed, stats) = self.midge.delete_document_with_stats(collection, id)?;
+        self.runtime
+            .record_projection_write_batch(collection.to_string(), &stats);
         if removed {
             self.refresh_cardinality_stats(collection)?;
             self.refresh_projection_metadata(collection)?;

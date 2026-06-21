@@ -30,6 +30,20 @@ use super::context::{BenchContext, QueryBreakdownMicros};
 use super::pgwire::pgwire_simple_query;
 use super::sql::execute_sql;
 
+fn projection_counter_delta(
+    after: &serde_json::Value,
+    before: &serde_json::Value,
+    key: &str,
+) -> usize {
+    usize::try_from(
+        after["projections"][key]
+            .as_u64()
+            .unwrap_or_default()
+            .saturating_sub(before["projections"][key].as_u64().unwrap_or_default()),
+    )
+    .unwrap_or_default()
+}
+
 pub async fn protocol_comparison_sql(ctx: &BenchContext) -> usize {
     execute_sql(
         ctx,
@@ -172,12 +186,14 @@ pub async fn projection_rebuild_query(ctx: &BenchContext) -> usize {
 }
 
 pub async fn projection_refresh_workflow(ctx: &BenchContext) -> usize {
+    let before = ctx.cassie.metrics();
     let _ = ctx.cassie.execute_sql(
         &ctx.session,
         "CREATE MATERIALIZED PROJECTION IF NOT EXISTS bench_projection AS SELECT title, score, status FROM bench_documents",
         vec![],
     );
-    ctx.cassie
+    let command_result = ctx
+        .cassie
         .execute_sql(
             &ctx.session,
             "REFRESH MATERIALIZED PROJECTION bench_projection",
@@ -185,7 +201,12 @@ pub async fn projection_refresh_workflow(ctx: &BenchContext) -> usize {
         )
         .expect("refresh projection")
         .command
-        .len()
+        .len();
+    let after = ctx.cassie.metrics();
+    let writes = projection_counter_delta(&after, &before, "write_rebuild_target_puts");
+    let flushes = projection_counter_delta(&after, &before, "write_batch_flushes");
+    std::hint::black_box(writes + flushes + command_result);
+    command_result
 }
 
 pub async fn projection_rebuild_verification(ctx: &BenchContext) -> usize {
@@ -202,6 +223,7 @@ pub async fn projection_rebuild_verification(ctx: &BenchContext) -> usize {
 }
 
 pub async fn projection_version_swap(ctx: &BenchContext, _nonce: usize) -> usize {
+    let before = ctx.cassie.metrics();
     let _ = projection_refresh_workflow(ctx).await;
     ctx.cassie
         .execute_sql(
@@ -223,14 +245,21 @@ pub async fn projection_version_swap(ctx: &BenchContext, _nonce: usize) -> usize
         .unwrap_or_else(|| "v1".to_string());
     let sql =
         format!("ALTER MATERIALIZED PROJECTION bench_projection ACTIVATE VERSION {version_id}");
-    ctx.cassie
+    let command_len = ctx
+        .cassie
         .execute_sql(&ctx.session, &sql, vec![])
         .expect("activate projection version")
         .command
-        .len()
+        .len();
+    let after = ctx.cassie.metrics();
+    let activations = projection_counter_delta(&after, &before, "write_activation_metadata_writes");
+    let swaps = projection_counter_delta(&after, &before, "version_swaps");
+    std::hint::black_box(activations + swaps + command_len);
+    command_len
 }
 
 pub async fn projection_duplicate_replay(ctx: &BenchContext) -> usize {
+    let before = ctx.cassie.metrics();
     let batch = ProjectionReplayBatch {
         projection: ctx.collection.clone(),
         source_identity: "bench-stream".to_string(),
@@ -259,6 +288,14 @@ pub async fn projection_duplicate_replay(ctx: &BenchContext) -> usize {
         .cassie
         .replay_projection_batch(batch)
         .expect("duplicate projection replay");
+    let after = ctx.cassie.metrics();
+    let duplicate_checks = projection_counter_delta(&after, &before, "write_duplicate_checks");
+    let replay_batches = projection_counter_delta(&after, &before, "replay_batches");
+    let event_delta = projection_counter_delta(&after, &before, "replay_events_applied");
+    std::hint::black_box(
+        usize::try_from(duplicate_checks + replay_batches + event_delta)
+            .expect("metric delta fits usize"),
+    );
     std::hint::black_box(
         usize::try_from(first.applied_event_count + second.skipped_duplicate_count)
             .expect("benchmark replay count fits usize"),
@@ -266,6 +303,7 @@ pub async fn projection_duplicate_replay(ctx: &BenchContext) -> usize {
 }
 
 pub async fn projection_lag_catchup(ctx: &BenchContext) -> usize {
+    let before = ctx.cassie.metrics();
     let events = (0..64)
         .map(|index| ProjectionReplayEvent {
             event_id: format!("bench-catchup-event-{index}"),
@@ -293,6 +331,11 @@ pub async fn projection_lag_catchup(ctx: &BenchContext) -> usize {
         .cassie
         .replay_projection_batch(batch)
         .expect("projection lag catchup replay");
+    let after = ctx.cassie.metrics();
+    let applied = projection_counter_delta(&after, &before, "replay_events_applied");
+    let duplicates = projection_counter_delta(&after, &before, "replay_duplicates_skipped");
+    let batch_count = projection_counter_delta(&after, &before, "replay_batches");
+    std::hint::black_box(applied + duplicates + batch_count);
     std::hint::black_box(
         usize::try_from(result.applied_event_count + result.skipped_duplicate_count)
             .expect("benchmark replay count fits usize"),
@@ -300,6 +343,7 @@ pub async fn projection_lag_catchup(ctx: &BenchContext) -> usize {
 }
 
 pub async fn index_rebuild_ddl(ctx: &BenchContext, nonce: usize) -> usize {
+    let before = ctx.cassie.metrics();
     let name = format!("bench_rebuild_idx_{}", nonce);
     let create = format!(
         "CREATE INDEX {name} ON {} USING btree (status)",
@@ -318,6 +362,9 @@ pub async fn index_rebuild_ddl(ctx: &BenchContext, nonce: usize) -> usize {
         .expect("drop index")
         .command
         .len();
+    let after = ctx.cassie.metrics();
+    let row_puts = projection_counter_delta(&after, &before, "write_rebuild_target_puts");
+    std::hint::black_box(row_puts + created + dropped);
     std::hint::black_box(created + dropped)
 }
 

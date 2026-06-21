@@ -87,6 +87,7 @@ pub use fulltext::{FulltextIndexOptions, FulltextIndexOptionsCacheKey};
 pub(crate) use helpers::stable_fingerprint;
 use helpers::*;
 pub use helpers::{error_class, hash_params, parameter_shape, sql_fingerprint};
+pub(crate) use projection_metrics::ProjectionWriteStats;
 pub use snapshots::*;
 
 #[derive(Debug, Default)]

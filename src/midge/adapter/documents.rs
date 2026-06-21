@@ -1,5 +1,23 @@
 use super::*;
 
+#[derive(Debug)]
+pub(crate) enum DocumentWriteOp {
+    Put {
+        id: String,
+        payload: serde_json::Value,
+    },
+    Delete {
+        id: String,
+    },
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct DocumentWriteBatchReport {
+    pub ids: Vec<String>,
+    pub row_delta: i64,
+    pub stats: crate::runtime::ProjectionWriteStats,
+}
+
 impl Midge {
     pub fn put_document(
         &self,
@@ -7,52 +25,14 @@ impl Midge {
         id: Option<String>,
         payload: serde_json::Value,
     ) -> Result<String, CassieError> {
-        let schema = self
-            .collection_schema(collection)
-            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
-        let row_schema = self.row_schema(collection)?;
-
-        Self::validate_document(&schema, &payload)?;
-        let row_blob = encode_row(&row_schema, &payload)?;
-
         let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
-        let vector_indexes = self
-            .list_vector_indexes()?
-            .into_iter()
-            .filter(|index| index.collection == collection)
-            .collect::<Vec<_>>();
-        let normalized_records = vector_indexes
-            .iter()
-            .map(|index| {
-                Self::normalized_vector_record_from_value(
-                    collection,
-                    &index.field,
-                    &doc_id,
-                    index.metadata.dimensions,
-                    &index.metadata.metric,
-                    payload.get(&index.field),
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-        let mut tx = self.begin_data_rw_tx()?;
-        let row_key = Self::row_key(collection, &doc_id);
-        let legacy_key = Self::doc_key(collection, &doc_id);
-        let replacing = tx.get(&row_key).map_err(CassieError::from)?.is_some()
-            || tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
-        Self::delete_normalized_vector_keys_for_document(&mut tx, collection, &doc_id)?;
-        tx.put(row_key, row_blob, None).map_err(CassieError::from)?;
-        Self::write_document_hash_to_tx(&mut tx, collection, &doc_id, &row_schema, &payload)?;
-        if tx.get(&legacy_key).map_err(CassieError::from)?.is_some() {
-            tx.delete(legacy_key).map_err(CassieError::from)?;
-        }
-        Self::write_normalized_vector_records(&mut tx, &normalized_records)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
-        self.rebuild_column_batches_for_collection(collection)?;
-        self.refresh_ivfflat_indexes_for_collection(collection)?;
-        self.refresh_projection_hashes_after_write(collection, if replacing { 0 } else { 1 })?;
+        self.apply_document_write_batch(
+            collection,
+            vec![DocumentWriteOp::Put {
+                id: doc_id.clone(),
+                payload,
+            }],
+        )?;
         Ok(doc_id)
     }
 
@@ -61,66 +41,15 @@ impl Midge {
         collection: &str,
         documents: Vec<(Option<String>, serde_json::Value)>,
     ) -> Result<Vec<String>, CassieError> {
-        let schema = self
-            .collection_schema(collection)
-            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
-        let row_schema = self.row_schema(collection)?;
-        let vector_indexes = self
-            .list_vector_indexes()?
+        let ops = documents
             .into_iter()
-            .filter(|index| index.collection == collection)
+            .map(|(id, payload)| DocumentWriteOp::Put {
+                id: id.unwrap_or_else(|| Uuid::new_v4().to_string()),
+                payload,
+            })
             .collect::<Vec<_>>();
-
-        let mut prepared = Vec::with_capacity(documents.len());
-        for (id, payload) in documents {
-            Self::validate_document(&schema, &payload)?;
-            let row_blob = encode_row(&row_schema, &payload)?;
-            let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
-            let normalized_records = vector_indexes
-                .iter()
-                .map(|index| {
-                    Self::normalized_vector_record_from_value(
-                        collection,
-                        &index.field,
-                        &doc_id,
-                        index.metadata.dimensions,
-                        &index.metadata.metric,
-                        payload.get(&index.field),
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>();
-            prepared.push((doc_id, payload, row_blob, normalized_records));
-        }
-
-        let mut tx = self.begin_data_rw_tx()?;
-        let mut ids = Vec::with_capacity(prepared.len());
-        let mut inserted = 0i64;
-        let mut new_ids = std::collections::HashSet::new();
-        for (doc_id, payload, row_blob, normalized_records) in prepared {
-            let row_key = Self::row_key(collection, &doc_id);
-            let legacy_key = Self::doc_key(collection, &doc_id);
-            let replacing = tx.get(&row_key).map_err(CassieError::from)?.is_some()
-                || tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
-            Self::delete_normalized_vector_keys_for_document(&mut tx, collection, &doc_id)?;
-            tx.put(row_key, row_blob, None).map_err(CassieError::from)?;
-            Self::write_document_hash_to_tx(&mut tx, collection, &doc_id, &row_schema, &payload)?;
-            if tx.get(&legacy_key).map_err(CassieError::from)?.is_some() {
-                tx.delete(legacy_key).map_err(CassieError::from)?;
-            }
-            Self::write_normalized_vector_records(&mut tx, &normalized_records)?;
-            if !replacing && new_ids.insert(doc_id.clone()) {
-                inserted += 1;
-            }
-            ids.push(doc_id);
-        }
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
-        self.rebuild_column_batches_for_collection(collection)?;
-        self.refresh_ivfflat_indexes_for_collection(collection)?;
-        self.refresh_projection_hashes_after_write(collection, inserted)?;
-        Ok(ids)
+        let report = self.apply_document_write_batch(collection, ops)?;
+        Ok(report.ids)
     }
 
     pub fn get_document(
@@ -154,36 +83,205 @@ impl Midge {
 
     pub fn delete_document(&self, collection: &str, id: &str) -> Result<bool, CassieError> {
         let _row_schema = self.row_schema(collection)?;
+        let report = self.apply_document_write_batch(
+            collection,
+            vec![DocumentWriteOp::Delete { id: id.to_string() }],
+        )?;
+        Ok(report.row_delta < 0)
+    }
 
-        let key = Self::row_key(collection, id);
-        let legacy_key = Self::doc_key(collection, id);
+    pub(crate) fn put_document_with_stats(
+        &self,
+        collection: &str,
+        id: Option<String>,
+        payload: serde_json::Value,
+    ) -> Result<(String, crate::runtime::ProjectionWriteStats), CassieError> {
+        let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+        let report = self.apply_document_write_batch(
+            collection,
+            vec![DocumentWriteOp::Put {
+                id: doc_id.clone(),
+                payload,
+            }],
+        )?;
+        Ok((doc_id, report.stats))
+    }
+
+    pub(crate) fn delete_document_with_stats(
+        &self,
+        collection: &str,
+        id: &str,
+    ) -> Result<(bool, crate::runtime::ProjectionWriteStats), CassieError> {
+        let report = self.apply_document_write_batch(
+            collection,
+            vec![DocumentWriteOp::Delete { id: id.to_string() }],
+        )?;
+        Ok((report.row_delta < 0, report.stats))
+    }
+
+    pub(crate) fn apply_document_write_batch(
+        &self,
+        collection: &str,
+        operations: Vec<DocumentWriteOp>,
+    ) -> Result<DocumentWriteBatchReport, CassieError> {
+        if operations.is_empty() {
+            return Ok(DocumentWriteBatchReport::default());
+        }
+
+        let schema = self
+            .collection_schema(collection)
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+        let row_schema = self.row_schema(collection)?;
+        let vector_indexes = self
+            .list_vector_indexes()?
+            .into_iter()
+            .filter(|index| index.collection == collection)
+            .collect::<Vec<_>>();
+
+        #[derive(Debug)]
+        struct PreparedWrite {
+            id: String,
+            row_blob: Option<Vec<u8>>,
+            payload: Option<serde_json::Value>,
+            normalized_records: Vec<crate::embeddings::NormalizedVectorRecord>,
+        }
+
+        let mut prepared = Vec::with_capacity(operations.len());
+        for operation in operations {
+            match operation {
+                DocumentWriteOp::Put { id, payload } => {
+                    Self::validate_document(&schema, &payload)?;
+                    let row_blob = encode_row(&row_schema, &payload)?;
+                    let normalized_records = vector_indexes
+                        .iter()
+                        .map(|index| {
+                            Self::normalized_vector_record_from_value(
+                                collection,
+                                &index.field,
+                                &id,
+                                index.metadata.dimensions,
+                                &index.metadata.metric,
+                                payload.get(&index.field),
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<_>>();
+
+                    prepared.push(PreparedWrite {
+                        id,
+                        row_blob: Some(row_blob),
+                        payload: Some(payload),
+                        normalized_records,
+                    });
+                }
+                DocumentWriteOp::Delete { id } => {
+                    prepared.push(PreparedWrite {
+                        id,
+                        row_blob: None,
+                        payload: None,
+                        normalized_records: Vec::new(),
+                    });
+                }
+            }
+        }
+
         let mut tx = self.begin_data_rw_tx()?;
-        let row_exists = tx.get(&key).map_err(CassieError::from)?.is_some();
-        let legacy_exists = tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
-        if row_exists {
-            tx.delete(key).map_err(CassieError::from)?;
-        }
-        if legacy_exists {
-            tx.delete(legacy_key).map_err(CassieError::from)?;
-        }
-        if row_exists || legacy_exists {
-            Self::delete_document_hash_to_tx(&mut tx, collection, id)?;
-        }
-        let normalized_exists =
-            Self::delete_normalized_vector_keys_for_document(&mut tx, collection, id)?;
-        if row_exists || legacy_exists || normalized_exists {
-            tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
-            self.rebuild_column_batches_for_collection(collection)?;
-            self.refresh_ivfflat_indexes_for_collection(collection)?;
-            self.refresh_projection_hashes_after_write(
-                collection,
-                if row_exists || legacy_exists { -1 } else { 0 },
-            )?;
-            return Ok(true);
+        let mut report = DocumentWriteBatchReport::default();
+
+        for prepared in prepared {
+            let row_key = Self::row_key(collection, &prepared.id);
+            let legacy_key = Self::doc_key(collection, &prepared.id);
+
+            if let Some(row_blob) = prepared.row_blob {
+                let payload = prepared
+                    .payload
+                    .expect("prepared put operation must include payload");
+                let row_exists = tx.get(&row_key).map_err(CassieError::from)?.is_some();
+                let legacy_exists = tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
+                let replacing = row_exists || legacy_exists;
+
+                let normalized_deleted = Self::delete_normalized_vector_keys_for_document(
+                    &mut tx,
+                    collection,
+                    &prepared.id,
+                )?;
+                report.stats.index_deletes = report
+                    .stats
+                    .index_deletes
+                    .saturating_add(u64::try_from(normalized_deleted).unwrap_or(0));
+
+                tx.put(row_key, row_blob, None).map_err(CassieError::from)?;
+                Self::write_document_hash_to_tx(
+                    &mut tx,
+                    collection,
+                    &prepared.id,
+                    &row_schema,
+                    &payload,
+                )?;
+                if tx.get(&legacy_key).map_err(CassieError::from)?.is_some() {
+                    tx.delete(legacy_key).map_err(CassieError::from)?;
+                }
+                Self::write_normalized_vector_records(&mut tx, &prepared.normalized_records)?;
+
+                report.ids.push(prepared.id.clone());
+                report.stats.row_puts = report.stats.row_puts.saturating_add(1);
+                report.stats.index_puts = report
+                    .stats
+                    .index_puts
+                    .saturating_add(u64::try_from(prepared.normalized_records.len()).unwrap_or(0));
+                report.stats.metadata_puts = report.stats.metadata_puts.saturating_add(1);
+                if !replacing {
+                    report.row_delta = report.row_delta.saturating_add(1);
+                }
+            } else {
+                let row_exists = tx.get(&row_key).map_err(CassieError::from)?.is_some();
+                let legacy_exists = tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
+
+                if row_exists {
+                    tx.delete(row_key).map_err(CassieError::from)?;
+                }
+                if legacy_exists {
+                    tx.delete(legacy_key).map_err(CassieError::from)?;
+                }
+                if row_exists || legacy_exists {
+                    Self::delete_document_hash_to_tx(&mut tx, collection, &prepared.id)?;
+                    report.stats.metadata_deletes = report.stats.metadata_deletes.saturating_add(1);
+                    report.stats.row_deletes = report.stats.row_deletes.saturating_add(1);
+                    report.row_delta = report.row_delta.saturating_sub(1);
+                }
+
+                let normalized_deleted = Self::delete_normalized_vector_keys_for_document(
+                    &mut tx,
+                    collection,
+                    &prepared.id,
+                )?;
+                report.stats.index_deletes = report
+                    .stats
+                    .index_deletes
+                    .saturating_add(u64::try_from(normalized_deleted).unwrap_or(0));
+            }
         }
 
-        tx.rollback().map_err(CassieError::from)?;
-        Ok(false)
+        let changed = report.stats.row_puts > 0
+            || report.stats.row_deletes > 0
+            || report.stats.index_puts > 0
+            || report.stats.index_deletes > 0
+            || report.stats.metadata_puts > 0
+            || report.stats.metadata_deletes > 0;
+        if !changed {
+            tx.rollback().map_err(CassieError::from)?;
+            return Ok(report);
+        }
+
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
+
+        let _ = self.rebuild_column_batches_for_collection(collection)?;
+        self.refresh_ivfflat_indexes_for_collection(collection)?;
+        self.refresh_projection_hashes_after_write(collection, report.row_delta)?;
+        Ok(report)
     }
 
     pub fn scan_documents_batched(

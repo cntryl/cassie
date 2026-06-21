@@ -471,7 +471,7 @@ Phase 05 counters to expose for contracts and diagnostics:
 - `index_puts` (exact): index entry inserts/updates.
 - `index_deletes` (exact): index entry removals.
 - `metadata_puts` (exact): metadata writes and checkpoint updates.
-- `metadata_deletes` (planned): metadata deletions where command explicitly removes metadata state.
+- `metadata_deletes` (exact): metadata deletions where command explicitly removes metadata state.
 - `duplicate_checks` (exact): replay duplicate or idempotency lookups.
 - `duplicates_skipped` (exact): replay events skipped due to duplicate detection.
 - `batch_flushes` (exact): explicit storage or batching flush boundaries.

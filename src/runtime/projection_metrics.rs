@@ -1,6 +1,120 @@
 use super::*;
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ProjectionWriteStats {
+    pub row_puts: u64,
+    pub row_deletes: u64,
+    pub index_puts: u64,
+    pub index_deletes: u64,
+    pub metadata_puts: u64,
+    pub metadata_deletes: u64,
+    pub duplicate_checks: u64,
+    pub batch_flushes: u64,
+    pub rebuild_target_puts: u64,
+    pub activation_metadata_writes: u64,
+}
+
 impl RuntimeState {
+    pub fn record_projection_write_batch(
+        &self,
+        projection: impl Into<String>,
+        stats: &ProjectionWriteStats,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.projections.last_projection = projection.into();
+        metrics.projections.write_row_puts = metrics
+            .projections
+            .write_row_puts
+            .saturating_add(stats.row_puts);
+        metrics.projections.write_row_deletes = metrics
+            .projections
+            .write_row_deletes
+            .saturating_add(stats.row_deletes);
+        metrics.projections.write_index_puts = metrics
+            .projections
+            .write_index_puts
+            .saturating_add(stats.index_puts);
+        metrics.projections.write_index_deletes = metrics
+            .projections
+            .write_index_deletes
+            .saturating_add(stats.index_deletes);
+        metrics.projections.write_metadata_puts = metrics
+            .projections
+            .write_metadata_puts
+            .saturating_add(stats.metadata_puts);
+        metrics.projections.write_metadata_deletes = metrics
+            .projections
+            .write_metadata_deletes
+            .saturating_add(stats.metadata_deletes);
+        metrics.projections.write_duplicate_checks = metrics
+            .projections
+            .write_duplicate_checks
+            .saturating_add(stats.duplicate_checks);
+        metrics.projections.write_batch_flushes = metrics
+            .projections
+            .write_batch_flushes
+            .saturating_add(stats.batch_flushes);
+    }
+
+    pub fn record_projection_index_writes(
+        &self,
+        projection: impl Into<String>,
+        puts: u64,
+        deletes: u64,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.projections.last_projection = projection.into();
+        metrics.projections.write_index_puts =
+            metrics.projections.write_index_puts.saturating_add(puts);
+        metrics.projections.write_index_deletes = metrics
+            .projections
+            .write_index_deletes
+            .saturating_add(deletes);
+    }
+
+    pub fn record_projection_metadata_writes(
+        &self,
+        projection: impl Into<String>,
+        puts: u64,
+        deletes: u64,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.projections.last_projection = projection.into();
+        metrics.projections.write_metadata_puts =
+            metrics.projections.write_metadata_puts.saturating_add(puts);
+        metrics.projections.write_metadata_deletes = metrics
+            .projections
+            .write_metadata_deletes
+            .saturating_add(deletes);
+    }
+
+    pub fn record_projection_rebuild_writes(
+        &self,
+        projection: impl Into<String>,
+        target_puts: u64,
+        flushes: u64,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.projections.last_projection = projection.into();
+        metrics.projections.write_rebuild_target_puts = metrics
+            .projections
+            .write_rebuild_target_puts
+            .saturating_add(target_puts);
+        metrics.projections.write_batch_flushes = metrics
+            .projections
+            .write_batch_flushes
+            .saturating_add(flushes);
+    }
+
+    pub fn record_projection_activation_write(&self, projection: impl Into<String>) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.projections.last_projection = projection.into();
+        metrics.projections.write_activation_metadata_writes = metrics
+            .projections
+            .write_activation_metadata_writes
+            .saturating_add(1);
+    }
+
     pub fn record_projection_replay(
         &self,
         projection: impl Into<String>,

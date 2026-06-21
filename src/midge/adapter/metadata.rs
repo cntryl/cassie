@@ -463,7 +463,7 @@ impl Midge {
         tx: &mut cntryl_midge::Transaction,
         collection: &str,
         id: &str,
-    ) -> Result<bool, CassieError> {
+    ) -> Result<usize, CassieError> {
         let prefix = Self::normalized_vector_collection_prefix(collection);
         let prefix_text =
             std::str::from_utf8(&prefix).map_err(|error| CassieError::Parse(error.to_string()))?;
@@ -487,12 +487,12 @@ impl Midge {
             }
         }
 
-        let had_keys = !keys.is_empty();
+        let deleted_keys = keys.len();
         for key in keys {
             tx.delete(key).map_err(CassieError::from)?;
         }
 
-        Ok(had_keys)
+        Ok(deleted_keys)
     }
 
     pub fn rebuild_normalized_vectors_for_index(

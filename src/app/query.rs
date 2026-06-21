@@ -1,4 +1,5 @@
 use super::*;
+use crate::midge::adapter::DocumentWriteOp;
 
 const PLAN_CACHE_COST_MODEL_VERSION: u32 = 1;
 
@@ -641,34 +642,56 @@ impl Cassie {
                 }
                 let mut changed_collections = Vec::new();
                 for (collection, writes) in session.transaction_writes() {
-                    changed_collections.push(collection.clone());
+                    let mut write_ops = Vec::new();
                     for (id, change) in writes {
-                        let result = match change {
-                            TransactionRowChange::Upsert(payload) => self
-                                .midge
-                                .put_document(&collection, Some(id), payload)
-                                .map(|_| ()),
-                            TransactionRowChange::Delete => {
-                                self.midge.delete_document(&collection, &id).map(|_| ())
+                        write_ops.push(match change {
+                            TransactionRowChange::Upsert(payload) => {
+                                DocumentWriteOp::Put { id, payload }
                             }
-                        };
-                        if let Err(error) = result {
+                            TransactionRowChange::Delete => DocumentWriteOp::Delete { id },
+                        });
+                    }
+
+                    if write_ops.is_empty() {
+                        continue;
+                    }
+
+                    let report = self
+                        .midge
+                        .apply_document_write_batch(&collection, write_ops)
+                        .map_err(|error| {
                             session.mark_transaction_failed();
-                            return Err(error);
-                        }
-                        self.refresh_cardinality_stats(&collection)?;
-                        self.refresh_projection_metadata(&collection)?;
+                            CassieError::from(error)
+                        })?;
+                    self.runtime
+                        .record_projection_write_batch(collection.to_string(), &report.stats);
+                    if report.stats.row_puts > 0
+                        || report.stats.row_deletes > 0
+                        || report.stats.index_puts > 0
+                        || report.stats.index_deletes > 0
+                        || report.stats.metadata_puts > 0
+                        || report.stats.metadata_deletes > 0
+                        || report.stats.batch_flushes > 0
+                    {
+                        changed_collections.push(collection.clone());
                     }
                 }
-                let controls = self.runtime.query_controls(std::time::Instant::now());
-                for collection in changed_collections {
-                    crate::executor::refresh_rollups_for_source_external(
-                        self,
-                        &collection,
-                        &controls,
-                    )
-                    .map_err(|error| CassieError::Execution(format!("{error:?}")))?;
+
+                changed_collections.sort();
+                changed_collections.dedup();
+
+                if !changed_collections.is_empty() {
+                    let controls = self.runtime.query_controls(std::time::Instant::now());
+                    for collection in changed_collections {
+                        crate::executor::refresh_rollups_for_source_external(
+                            self,
+                            &collection,
+                            &controls,
+                        )
+                        .map_err(|error| CassieError::Execution(format!("{error:?}")))?;
+                    }
                 }
+
                 session.commit_transaction();
                 "COMMIT"
             }

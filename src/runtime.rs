@@ -51,6 +51,8 @@ pub struct ExecutionResultCacheKey {
     pub mode: ExecutionMode,
 }
 
+#[path = "runtime/column_batch_metrics.rs"]
+mod column_batch_metrics;
 #[path = "runtime/controls.rs"]
 mod controls;
 #[path = "runtime/feedback.rs"]
@@ -659,30 +661,6 @@ impl RuntimeState {
     pub fn record_covering_index_fallback(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.covering_indexes.fallback_scans += 1;
-    }
-
-    pub fn record_column_batch_scan(
-        &self,
-        rows: usize,
-        compressed_bytes: usize,
-        uncompressed_bytes: usize,
-    ) {
-        let mut metrics = self.metrics.lock().expect("runtime metrics");
-        metrics.column_batches.scans += 1;
-        metrics.column_batches.row_fetches_avoided += rows as u64;
-        metrics.column_batches.compressed_bytes_total += compressed_bytes as u64;
-        metrics.column_batches.uncompressed_bytes_total += uncompressed_bytes as u64;
-    }
-
-    pub fn record_column_batch_fallback(&self) {
-        let mut metrics = self.metrics.lock().expect("runtime metrics");
-        metrics.column_batches.fallback_scans += 1;
-    }
-
-    pub fn record_column_batch_decode_fallback(&self) {
-        let mut metrics = self.metrics.lock().expect("runtime metrics");
-        metrics.column_batches.decode_fallbacks += 1;
-        metrics.column_batches.fallback_scans += 1;
     }
 
     pub fn record_aggregate_acceleration(&self, accelerated_segments: usize) {

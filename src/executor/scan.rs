@@ -1,8 +1,8 @@
 use crate::app::{Cassie, CassieSession};
 use crate::catalog::{CollectionSchema, IndexKind};
 use crate::executor::batch::{Batch, BatchRow, DEFAULT_BATCH_SIZE};
-use crate::midge::adapter::DocumentRef;
 use crate::midge::adapter::RowFilter;
+use crate::midge::adapter::{ColumnBatchScanFilter, DocumentRef};
 use crate::types::{DataType, Value, Vector};
 use std::collections::HashSet;
 use std::time::Duration;
@@ -47,6 +47,7 @@ pub(crate) fn scan_projected_filtered(
     fields: &[String],
     limit: Option<usize>,
     document_filter: Option<&ProjectedDocumentFilter>,
+    column_filter: Option<&ColumnBatchScanFilter>,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
     scan_projected_filtered_with_timings(
         cassie,
@@ -55,6 +56,7 @@ pub(crate) fn scan_projected_filtered(
         fields,
         limit,
         document_filter,
+        column_filter,
     )
     .map(|(batches, _)| batches)
 }
@@ -66,17 +68,19 @@ pub(crate) fn scan_projected_filtered_with_timings(
     fields: &[String],
     limit: Option<usize>,
     document_filter: Option<&ProjectedDocumentFilter>,
+    column_filter: Option<&ColumnBatchScanFilter>,
 ) -> Result<(Vec<Batch>, ScanTimings), crate::executor::QueryError> {
     let storage_filter = document_filter.and_then(row_filter_from_projected_filter);
-    if session
-        .map(|session| session.collection_changes(collection).is_empty())
-        .unwrap_or(true)
-    {
+    let has_session_changes = session
+        .map(|session| !session.collection_changes(collection).is_empty())
+        .unwrap_or(false);
+    if !has_session_changes {
         match cassie.midge.scan_column_batch_projected_rows(
             collection,
             DEFAULT_BATCH_SIZE,
             fields,
             storage_filter.as_ref(),
+            column_filter,
             limit,
         ) {
             Ok(Some(outcome)) => {
@@ -100,6 +104,8 @@ pub(crate) fn scan_projected_filtered_with_timings(
                     rows,
                     outcome.compressed_bytes,
                     outcome.uncompressed_bytes,
+                    outcome.skipped_segments,
+                    outcome.decoded_columns,
                 );
                 return Ok((batches, timings));
             }
@@ -108,7 +114,7 @@ pub(crate) fn scan_projected_filtered_with_timings(
             }
             Ok(None) => {}
             Err(error) => {
-                cassie.runtime.record_column_batch_fallback();
+                cassie.runtime.record_column_batch_fallback("error");
                 cassie.runtime.record_storage_access("data", false, false);
                 return Err(crate::executor::QueryError::General(error.to_string()));
             }
@@ -142,6 +148,12 @@ pub(crate) fn scan_projected_filtered_with_timings(
         document_filter,
         schema.as_ref(),
     );
+    if has_session_changes && has_covering_column_index(cassie, collection, fields) {
+        let rows = batches.iter().map(Vec::len).sum::<usize>();
+        cassie
+            .runtime
+            .record_column_batch_row_blob_fallback(rows, "session-changes");
+    }
     timings.scan += materialize_started.elapsed();
 
     Ok((batches, timings))
@@ -453,6 +465,7 @@ mod tests {
             None,
             collection,
             &["title".to_string()],
+            None,
             None,
             None,
         )

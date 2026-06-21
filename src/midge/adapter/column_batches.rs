@@ -174,6 +174,7 @@ impl Midge {
         batch_size: usize,
         fields: &[String],
         filter: Option<&RowFilter>,
+        segment_filter: Option<&ColumnBatchScanFilter>,
         limit: Option<usize>,
     ) -> Result<Option<ColumnBatchScanOutcome>, CassieError> {
         let started = Instant::now();
@@ -210,8 +211,14 @@ impl Midge {
         let mut current = Vec::with_capacity(batch_size);
         let mut compressed_bytes = 0usize;
         let mut uncompressed_bytes = 0usize;
+        let mut skipped_segments = 0usize;
+        let mut decoded_columns = 0usize;
         let data_tx = self.begin_data_readonly_tx()?;
         for segment in &metadata.segments {
+            if !column_batch_segment_may_match(segment, segment_filter) {
+                skipped_segments += 1;
+                continue;
+            }
             let Some(raw) = data_tx
                 .get(&Self::column_batch_segment_key(
                     collection,
@@ -246,6 +253,7 @@ impl Midge {
             let Some(rows) = decode_column_batch_payload(&payload, segment.row_count)? else {
                 return Ok(None);
             };
+            decoded_columns = decoded_columns.saturating_add(wanted.len());
             for row in rows {
                 if emitted >= limit {
                     break;
@@ -281,6 +289,8 @@ impl Midge {
             index_name: index.name,
             compressed_bytes,
             uncompressed_bytes,
+            skipped_segments,
+            decoded_columns,
         }))
     }
 
@@ -577,6 +587,109 @@ fn compare_json_values(left: &serde_json::Value, right: &serde_json::Value) -> s
         (serde_json::Value::Bool(left), serde_json::Value::Bool(right)) => left.cmp(right),
         _ => left.to_string().cmp(&right.to_string()),
     }
+}
+
+fn column_batch_segment_may_match(
+    segment: &ColumnBatchSegmentMeta,
+    filter: Option<&ColumnBatchScanFilter>,
+) -> bool {
+    let Some(filter) = filter else {
+        return true;
+    };
+    filter
+        .predicates
+        .iter()
+        .all(|predicate| segment_may_match_predicate(segment, predicate))
+}
+
+fn segment_may_match_predicate(
+    segment: &ColumnBatchSegmentMeta,
+    predicate: &ColumnBatchScanPredicate,
+) -> bool {
+    let Some(summary) = segment
+        .summaries
+        .iter()
+        .find(|(field, _)| field.eq_ignore_ascii_case(&predicate.field))
+        .map(|(_, summary)| summary)
+    else {
+        return true;
+    };
+
+    match predicate.op {
+        ColumnBatchScanOp::IsNull => summary.non_null_count < segment.row_count,
+        ColumnBatchScanOp::IsNotNull => summary.non_null_count > 0,
+        ColumnBatchScanOp::Eq => {
+            let Some(value) = predicate.value.as_ref() else {
+                return true;
+            };
+            segment_range_may_contain(summary, value, value)
+        }
+        ColumnBatchScanOp::Lt => predicate
+            .value
+            .as_ref()
+            .and_then(|value| {
+                summary
+                    .min
+                    .as_ref()
+                    .map(|min| compare_json_values(min, value).is_lt())
+            })
+            .unwrap_or(true),
+        ColumnBatchScanOp::Lte => predicate
+            .value
+            .as_ref()
+            .and_then(|value| {
+                summary
+                    .min
+                    .as_ref()
+                    .map(|min| !compare_json_values(min, value).is_gt())
+            })
+            .unwrap_or(true),
+        ColumnBatchScanOp::Gt => predicate
+            .value
+            .as_ref()
+            .and_then(|value| {
+                summary
+                    .max
+                    .as_ref()
+                    .map(|max| compare_json_values(max, value).is_gt())
+            })
+            .unwrap_or(true),
+        ColumnBatchScanOp::Gte => predicate
+            .value
+            .as_ref()
+            .and_then(|value| {
+                summary
+                    .max
+                    .as_ref()
+                    .map(|max| !compare_json_values(max, value).is_lt())
+            })
+            .unwrap_or(true),
+    }
+}
+
+fn segment_range_may_contain(
+    summary: &ColumnBatchFieldSummary,
+    low: &serde_json::Value,
+    high: &serde_json::Value,
+) -> bool {
+    if summary.non_null_count == 0 {
+        return false;
+    }
+    if summary
+        .max
+        .as_ref()
+        .is_some_and(|max| compare_json_values(max, low).is_lt())
+    {
+        return false;
+    }
+    if summary
+        .min
+        .as_ref()
+        .is_some_and(|min| compare_json_values(min, high).is_gt())
+    {
+        return false;
+    }
+    true
 }
 
 fn column_batch_row_matches(row: &ColumnBatchRow, filter: Option<&RowFilter>) -> bool {

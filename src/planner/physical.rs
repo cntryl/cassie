@@ -710,7 +710,6 @@ fn projected_scan_fields(plan: &LogicalPlan) -> Option<Vec<String>> {
         || !plan.group_by.is_empty()
         || plan.having.is_some()
         || plan.set.is_some()
-        || !plan.order.is_empty()
     {
         return None;
     }
@@ -735,13 +734,31 @@ fn projected_scan_fields(plan: &LogicalPlan) -> Option<Vec<String>> {
         Some(filter) => projected_filter_columns(filter)?,
         None => Vec::new(),
     };
+    let order_columns = projected_order_columns(plan)?;
 
     let mut fields = Vec::new();
-    for column in projection_columns.into_iter().chain(filter_columns) {
+    for column in projection_columns
+        .into_iter()
+        .chain(filter_columns)
+        .chain(order_columns)
+    {
         if is_row_id_column(&column) || fields.iter().any(|field: &String| field == &column) {
             continue;
         }
         fields.push(column);
+    }
+    Some(fields)
+}
+
+fn projected_order_columns(plan: &LogicalPlan) -> Option<Vec<String>> {
+    let mut fields = Vec::new();
+    for order in &plan.order {
+        let Expr::Column(column) = &order.expr else {
+            return None;
+        };
+        if !fields.iter().any(|field: &String| field == column) {
+            fields.push(column.clone());
+        }
     }
     Some(fields)
 }

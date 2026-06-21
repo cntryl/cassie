@@ -53,7 +53,7 @@ Expression	CREATE INDEX ON table (lower(email))
 Full-text	inverted index
 Vector	brute force, HNSW, IVFFlat
 Hybrid	text candidate + vector rerank metadata
-Column-store	USING column indexes / uncompressed and dictionary-RLE column batches
+Column-store	USING column indexes / compressed column batches, covered scan acceleration, segment pruning
 Time-series	time-bucket index
 Merkle	integrity index
 
@@ -92,4 +92,4 @@ Pgwire results	row description, data row, command complete, error response, read
 Pgwire compatibility	prepared statements, portals, text/binary formats, catalog introspection
 HTTP	SQL query, search query, vector query, hybrid query, document APIs, admin APIs
 Observability	EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, index used, column-batch index used, aggregate acceleration, rows scanned
-Metrics	latency, throughput, errors, cache hit rate, projection lag, column-batch scans/fallbacks/byte totals, aggregate acceleration counters
+Metrics	latency, throughput, errors, cache hit rate, projection lag, column-batch scans/fallbacks/byte totals/skipped segments/decoded columns, aggregate acceleration counters

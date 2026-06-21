@@ -127,6 +127,10 @@ pub struct ColumnBatchSnapshot {
     pub decode_fallbacks: u64,
     pub compressed_bytes_total: u64,
     pub uncompressed_bytes_total: u64,
+    pub skipped_segments: u64,
+    pub decoded_columns: u64,
+    pub row_blob_fetches: u64,
+    pub last_fallback_reason: String,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

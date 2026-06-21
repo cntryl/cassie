@@ -328,3 +328,294 @@ fn should_fallback_to_row_blobs_for_corrupt_column_segment() {
 
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_prune_column_batch_segments_for_range_filter() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("column_batch_range_pruning");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE column_batch_range_pruning (label TEXT, score INT)",
+                vec![],
+            )
+            .unwrap();
+        for score in 0..6 {
+            cassie
+                .execute_sql(
+                    &session,
+                    &format!(
+                        "INSERT INTO column_batch_range_pruning (label, score) VALUES ('row{score}', {score})"
+                    ),
+                    vec![],
+                )
+                .unwrap();
+        }
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_column_batch_range_pruning ON column_batch_range_pruning USING column (label, score) WITH (segment_size = 2)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT label FROM column_batch_range_pruning WHERE score >= 4 ORDER BY label",
+                vec![],
+            )
+            .unwrap();
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT label FROM column_batch_range_pruning WHERE score >= 4 ORDER BY label",
+                vec![],
+            )
+            .unwrap();
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("row4".to_string())],
+                vec![Value::String("row5".to_string())],
+            ]
+        );
+        let Value::String(plan) = &explain.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("column_batch_index=idx_column_batch_range_pruning"));
+        assert_eq!(metrics["column_batches"]["scans"], 1);
+        assert!(metrics["column_batches"]["skipped_segments"].as_u64().unwrap() > 0);
+        assert!(metrics["column_batches"]["decoded_columns"].as_u64().unwrap() < 6);
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_preserve_sparse_nulls_during_column_batch_scan_pruning() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("column_batch_sparse_null_pruning");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE column_batch_sparse_null_pruning (title TEXT, category TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO column_batch_sparse_null_pruning (title) VALUES ('alpha')",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO column_batch_sparse_null_pruning (title, category) VALUES ('beta', 'kept')",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_column_batch_sparse_null_pruning ON column_batch_sparse_null_pruning USING column (title, category) WITH (segment_size = 1)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT title, category FROM column_batch_sparse_null_pruning WHERE category IS NULL",
+                vec![],
+            )
+            .unwrap();
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![vec![Value::String("alpha".to_string()), Value::Null]]
+        );
+        assert_eq!(metrics["column_batches"]["scans"], 1);
+        assert_eq!(metrics["column_batches"]["skipped_segments"], 1);
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_rebuild_column_batch_scan_metadata_after_update_delete() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("column_batch_scan_rebuild");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE column_batch_scan_rebuild (title TEXT, score INT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO column_batch_scan_rebuild (title, score) VALUES ('alpha', 1)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO column_batch_scan_rebuild (title, score) VALUES ('beta', 2)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_column_batch_scan_rebuild ON column_batch_scan_rebuild USING column (title, score) WITH (segment_size = 1)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "UPDATE column_batch_scan_rebuild SET score = 10 WHERE title = 'alpha'",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "DELETE FROM column_batch_scan_rebuild WHERE title = 'beta'",
+                vec![],
+            )
+            .unwrap();
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM column_batch_scan_rebuild WHERE score >= 10",
+                vec![],
+            )
+            .unwrap();
+        let metadata = cassie
+            .midge
+            .get_column_batch_metadata("column_batch_scan_rebuild", "idx_column_batch_scan_rebuild")
+            .unwrap()
+            .expect("column batch metadata should exist");
+
+        // Assert
+        assert_eq!(result.rows, vec![vec![Value::String("alpha".to_string())]]);
+        assert_eq!(metadata.segments.len(), 1);
+        assert_eq!(metadata.segments[0].summaries["score"].non_null_count, 1);
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_fallback_to_row_blobs_for_active_session_changes() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("column_batch_session_fallback");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE column_batch_session_fallback (title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO column_batch_session_fallback (title) VALUES ('alpha')",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_column_batch_session_fallback ON column_batch_session_fallback USING column (title) WITH (segment_size = 1)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO column_batch_session_fallback (title) VALUES ('beta')",
+                vec![],
+            )
+            .unwrap();
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM column_batch_session_fallback ORDER BY title",
+                vec![],
+            )
+            .unwrap();
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("alpha".to_string())],
+                vec![Value::String("beta".to_string())],
+            ]
+        );
+        assert_eq!(metrics["column_batches"]["scans"], 0);
+        assert_eq!(metrics["column_batches"]["row_blob_fetches"], 2);
+        assert_eq!(
+            metrics["column_batches"]["last_fallback_reason"],
+            "session-changes"
+        );
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}

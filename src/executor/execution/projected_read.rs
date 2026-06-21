@@ -254,6 +254,7 @@ pub(super) fn execute_projected_filtered_read(
         .filter
         .as_ref()
         .and_then(projected_scan_pushdown_filter);
+    let column_filter = plan.filter.as_ref().and_then(column_batch_scan_filter);
     let mut batches = scan::scan_projected_filtered(
         cassie,
         session,
@@ -261,6 +262,7 @@ pub(super) fn execute_projected_filtered_read(
         &spec.scan_fields,
         spec.scan_limit,
         pushdown_filter.as_ref(),
+        column_filter.as_ref(),
     )?;
     ensure_temp_budget(controls, &batches)?;
 
@@ -344,6 +346,7 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
         .filter
         .as_ref()
         .and_then(projected_scan_pushdown_filter);
+    let column_filter = plan.filter.as_ref().and_then(column_batch_scan_filter);
     let (mut batches, scan_timings) = scan::scan_projected_filtered_with_timings(
         cassie,
         session,
@@ -351,6 +354,7 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
         &spec.scan_fields,
         spec.scan_limit,
         pushdown_filter.as_ref(),
+        column_filter.as_ref(),
     )?;
     breakdown.row_decode += scan_timings.row_decode;
     let measured_scan = scan_timings.scan.saturating_add(scan_timings.row_decode);
@@ -580,6 +584,138 @@ fn projected_pushdown_literal(expr: &Expr) -> Option<Value> {
         Expr::StringLiteral(value) => Some(Value::String(value.clone())),
         Expr::BoolLiteral(value) => Some(Value::Bool(*value)),
         Expr::Null => Some(Value::Null),
+        _ => None,
+    }
+}
+
+fn column_batch_scan_filter(expr: &Expr) -> Option<crate::midge::adapter::ColumnBatchScanFilter> {
+    let mut predicates = Vec::new();
+    collect_column_batch_predicates(expr, &mut predicates)?;
+    (!predicates.is_empty()).then_some(crate::midge::adapter::ColumnBatchScanFilter { predicates })
+}
+
+fn collect_column_batch_predicates(
+    expr: &Expr,
+    predicates: &mut Vec<crate::midge::adapter::ColumnBatchScanPredicate>,
+) -> Option<()> {
+    match expr {
+        Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } => {
+            collect_column_batch_predicates(left, predicates)?;
+            collect_column_batch_predicates(right, predicates)
+        }
+        Expr::Binary { left, op, right } => {
+            let (field, op, value) = column_batch_binary_predicate(left, op.clone(), right)?;
+            predicates.push(crate::midge::adapter::ColumnBatchScanPredicate {
+                field,
+                op,
+                value: Some(value),
+            });
+            Some(())
+        }
+        Expr::Between {
+            expr,
+            low,
+            high,
+            negated: false,
+        } => {
+            let Expr::Column(field) = expr.as_ref() else {
+                return None;
+            };
+            if is_row_id_column(field) {
+                return None;
+            }
+            predicates.push(crate::midge::adapter::ColumnBatchScanPredicate {
+                field: field.clone(),
+                op: crate::midge::adapter::ColumnBatchScanOp::Gte,
+                value: Some(column_batch_literal(low)?),
+            });
+            predicates.push(crate::midge::adapter::ColumnBatchScanPredicate {
+                field: field.clone(),
+                op: crate::midge::adapter::ColumnBatchScanOp::Lte,
+                value: Some(column_batch_literal(high)?),
+            });
+            Some(())
+        }
+        Expr::IsNull { expr, negated } => {
+            let Expr::Column(field) = expr.as_ref() else {
+                return None;
+            };
+            if is_row_id_column(field) {
+                return None;
+            }
+            predicates.push(crate::midge::adapter::ColumnBatchScanPredicate {
+                field: field.clone(),
+                op: if *negated {
+                    crate::midge::adapter::ColumnBatchScanOp::IsNotNull
+                } else {
+                    crate::midge::adapter::ColumnBatchScanOp::IsNull
+                },
+                value: None,
+            });
+            Some(())
+        }
+        _ => None,
+    }
+}
+
+fn column_batch_binary_predicate(
+    left: &Expr,
+    op: BinaryOp,
+    right: &Expr,
+) -> Option<(
+    String,
+    crate::midge::adapter::ColumnBatchScanOp,
+    serde_json::Value,
+)> {
+    match (left, right) {
+        (Expr::Column(field), literal) if !is_row_id_column(field) => Some((
+            field.clone(),
+            column_batch_scan_op(op)?,
+            column_batch_literal(literal)?,
+        )),
+        (literal, Expr::Column(field)) if !is_row_id_column(field) => Some((
+            field.clone(),
+            reverse_column_batch_scan_op(op)?,
+            column_batch_literal(literal)?,
+        )),
+        _ => None,
+    }
+}
+
+fn column_batch_scan_op(op: BinaryOp) -> Option<crate::midge::adapter::ColumnBatchScanOp> {
+    match op {
+        BinaryOp::Eq => Some(crate::midge::adapter::ColumnBatchScanOp::Eq),
+        BinaryOp::Lt => Some(crate::midge::adapter::ColumnBatchScanOp::Lt),
+        BinaryOp::Lte => Some(crate::midge::adapter::ColumnBatchScanOp::Lte),
+        BinaryOp::Gt => Some(crate::midge::adapter::ColumnBatchScanOp::Gt),
+        BinaryOp::Gte => Some(crate::midge::adapter::ColumnBatchScanOp::Gte),
+        _ => None,
+    }
+}
+
+fn reverse_column_batch_scan_op(op: BinaryOp) -> Option<crate::midge::adapter::ColumnBatchScanOp> {
+    match op {
+        BinaryOp::Eq => Some(crate::midge::adapter::ColumnBatchScanOp::Eq),
+        BinaryOp::Lt => Some(crate::midge::adapter::ColumnBatchScanOp::Gt),
+        BinaryOp::Lte => Some(crate::midge::adapter::ColumnBatchScanOp::Gte),
+        BinaryOp::Gt => Some(crate::midge::adapter::ColumnBatchScanOp::Lt),
+        BinaryOp::Gte => Some(crate::midge::adapter::ColumnBatchScanOp::Lte),
+        _ => None,
+    }
+}
+
+fn column_batch_literal(expr: &Expr) -> Option<serde_json::Value> {
+    match expr {
+        Expr::StringLiteral(value) => Some(serde_json::Value::String(value.clone())),
+        Expr::BoolLiteral(value) => Some(serde_json::Value::Bool(*value)),
+        Expr::NumberLiteral(value) => {
+            serde_json::Number::from_f64(*value).map(serde_json::Value::Number)
+        }
+        Expr::Null => Some(serde_json::Value::Null),
         _ => None,
     }
 }

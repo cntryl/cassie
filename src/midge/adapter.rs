@@ -160,6 +160,29 @@ pub struct RowFilter {
     pub value: serde_json::Value,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ColumnBatchScanFilter {
+    pub predicates: Vec<ColumnBatchScanPredicate>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ColumnBatchScanPredicate {
+    pub field: String,
+    pub op: ColumnBatchScanOp,
+    pub value: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColumnBatchScanOp {
+    Eq,
+    Lt,
+    Lte,
+    Gt,
+    Gte,
+    IsNull,
+    IsNotNull,
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MidgeScanTimings {
     pub scan: Duration,
@@ -173,6 +196,8 @@ pub struct ColumnBatchScanOutcome {
     pub index_name: String,
     pub compressed_bytes: usize,
     pub uncompressed_bytes: usize,
+    pub skipped_segments: usize,
+    pub decoded_columns: usize,
 }
 
 #[path = "adapter/column_batches.rs"]

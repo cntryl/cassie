@@ -254,7 +254,7 @@ Physical shape:
 
 ```text
 __cassie__/column-batch/v1/{collection}/{index}/metadata
-  -> fields, schema epoch, segment size, row-id ranges, encoding version, codec metadata
+  -> fields, schema epoch, segment size, row-id ranges, encoding version, codec metadata, segment summaries
 
 __cassie__/column-batch/v1/{collection}/{index}/segment/{segment_id}
   -> uncompressed or dictionary/RLE JSON column-batch payload
@@ -273,11 +273,12 @@ Rules:
 - Row blob remains the source of truth.
 - Column indexes are rebuilt from row blobs.
 - Segment build picks dictionary/RLE only when it is smaller than uncompressed payloads.
-- Column indexes accelerate covered projected scans when available.
+- Column indexes accelerate covered projected scans when projected, filtered, and ordered fields are covered.
+- Segment summaries prune covered equality, range, `IS NULL`, and `IS NOT NULL` scan predicates before decoding.
 - Segment summaries accelerate unfiltered, non-grouped `count`, `sum`, `avg`, `min`, and `max` when all referenced fields are covered.
 - Query execution must fall back to row scans for correctness.
 - `EXPLAIN` reports `column_batch_index=<name>` for eligible covered scans and `aggregate_acceleration=true` for eligible summary aggregates.
-- Runtime metrics expose `column_batches.scans`, `row_fetches_avoided`, `fallback_scans`, `decode_fallbacks`, compressed/uncompressed byte totals, and aggregate-acceleration segment/fallback counters.
+- Runtime metrics expose `column_batches.scans`, `row_fetches_avoided`, `fallback_scans`, `decode_fallbacks`, skipped segments, decoded columns, row-blob fallback fetches, compressed/uncompressed byte totals, last fallback reason, and aggregate-acceleration segment/fallback counters.
 
 ## P3 Scope
 

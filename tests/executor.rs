@@ -3600,3 +3600,79 @@ fn should_reject_recursive_procedure_calls() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_project_complex_values_through_filtered_ordered_scan() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("zero_copy_projected_complex_values");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE zero_copy_projected_complex_values (title TEXT, score INT, payload JSON, embedding VECTOR(2))",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                "zero_copy_projected_complex_values",
+                Some("doc-1".to_string()),
+                serde_json::json!({
+                    "title": "alpha",
+                    "score": 2,
+                    "payload": {"nested": ["a", "b"]},
+                    "embedding": [1.0, 2.0],
+                }),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                "zero_copy_projected_complex_values",
+                Some("doc-2".to_string()),
+                serde_json::json!({
+                    "title": "alpha",
+                    "score": 1,
+                    "embedding": [3.0, 4.0],
+                }),
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT payload, embedding FROM zero_copy_projected_complex_values WHERE title = 'alpha' ORDER BY score ASC",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0][0], Value::Null);
+        assert_eq!(
+            result.rows[0][1],
+            Value::Vector(cassie::types::Vector::new(vec![3.0, 4.0]))
+        );
+        assert_eq!(
+            result.rows[1][0],
+            Value::Json(serde_json::json!({"nested": ["a", "b"]}))
+        );
+        assert_eq!(
+            result.rows[1][1],
+            Value::Vector(cassie::types::Vector::new(vec![1.0, 2.0]))
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

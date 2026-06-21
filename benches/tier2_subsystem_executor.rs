@@ -23,6 +23,10 @@ fn bench_executor(c: &mut Criterion) {
             "SELECT id, title FROM bench_documents WHERE title = 'title-1'",
         ),
         (
+            "large_ordered_scan_executor",
+            "SELECT id FROM bench_documents ORDER BY title ASC LIMIT 25 OFFSET 9000",
+        ),
+        (
             "indexed_filter_executor",
             "SELECT id FROM bench_documents WHERE score = 1",
         ),

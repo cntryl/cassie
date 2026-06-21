@@ -2872,6 +2872,7 @@ impl Cassie {
             "feedback": snapshot.feedback,
             "adaptive_candidates": snapshot.adaptive_candidates,
             "covering_indexes": snapshot.covering_indexes,
+            "parallel_scans": snapshot.parallel_scans,
         })
     }
 

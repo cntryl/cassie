@@ -1,6 +1,7 @@
 use crate::app::{Cassie, CassieSession};
 use crate::catalog::CollectionSchema;
 use crate::executor::batch::{Batch, BatchRow, DEFAULT_BATCH_SIZE};
+use crate::midge::adapter::DocumentRef;
 use crate::midge::adapter::RowFilter;
 use crate::types::{DataType, Value, Vector};
 use std::collections::HashSet;
@@ -32,41 +33,11 @@ pub(crate) fn scan(
     cassie.runtime.record_storage_access("data", false, true);
     let schema = cassie.catalog.get_schema(collection);
 
-    Ok(document_batches
-        .into_iter()
-        .map(|documents| {
-            documents
-                .into_iter()
-                .map(|document| {
-                    let mut row = Vec::new();
-                    row.push(("id".to_string(), Value::String(document.id)));
-                    if let Some(obj) = document.payload.as_object() {
-                        if let Some(schema) = schema.as_ref() {
-                            let mut seen = HashSet::new();
-                            for field in &schema.fields {
-                                let value = obj
-                                    .get(&field.name)
-                                    .map(|value| json_to_typed_value(value, &field.data_type))
-                                    .unwrap_or(Value::Null);
-                                row.push((field.name.clone(), value));
-                                seen.insert(field.name.clone());
-                            }
-                            for (k, v) in obj.iter() {
-                                if !seen.contains(k) {
-                                    row.push((k.clone(), json_to_value(v)));
-                                }
-                            }
-                        } else {
-                            for (k, v) in obj.iter() {
-                                row.push((k.clone(), json_to_value(v)));
-                            }
-                        }
-                    }
-                    BatchRow::new(row)
-                })
-                .collect::<Batch>()
-        })
-        .collect())
+    Ok(document_batches_to_rows(
+        cassie,
+        document_batches,
+        schema.as_ref(),
+    ))
 }
 
 pub(crate) fn scan_projected_filtered(
@@ -96,6 +67,7 @@ pub(crate) fn scan_projected_filtered(
     let schema = cassie.catalog.get_schema(collection);
 
     Ok(projected_document_batches_to_rows(
+        cassie,
         document_batches,
         fields,
         document_filter,
@@ -134,6 +106,7 @@ pub(crate) fn scan_projected_filtered_with_timings(
     let materialize_started = std::time::Instant::now();
     let schema = cassie.catalog.get_schema(collection);
     let batches = projected_document_batches_to_rows(
+        cassie,
         document_batches,
         fields,
         document_filter,
@@ -164,43 +137,150 @@ fn value_to_json(value: &Value) -> Option<serde_json::Value> {
     }
 }
 
+fn document_batches_to_rows(
+    cassie: &Cassie,
+    document_batches: Vec<Vec<DocumentRef>>,
+    schema: Option<&CollectionSchema>,
+) -> Vec<Batch> {
+    let worker_limit = cassie.runtime.limits().parallel_scan_workers.max(1);
+    if worker_limit == 1 || document_batches.len() < 2 {
+        cassie.runtime.record_parallel_scan_fallback();
+        return document_batches
+            .into_iter()
+            .map(|documents| document_batch_to_rows(documents, schema))
+            .collect();
+    }
+
+    let workers = worker_limit.min(document_batches.len());
+    let mut indexed = std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(document_batches.len());
+        for (index, documents) in document_batches.into_iter().enumerate() {
+            handles.push(scope.spawn(move || (index, document_batch_to_rows(documents, schema))));
+        }
+        handles
+            .into_iter()
+            .map(|handle| handle.join().expect("parallel scan worker"))
+            .collect::<Vec<_>>()
+    });
+    indexed.sort_by_key(|(index, _)| *index);
+    let rows = indexed.iter().map(|(_, batch)| batch.len()).sum::<usize>();
+    cassie
+        .runtime
+        .record_parallel_scan(workers, indexed.len(), rows);
+    indexed.into_iter().map(|(_, batch)| batch).collect()
+}
+
+fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&CollectionSchema>) -> Batch {
+    documents
+        .into_iter()
+        .map(|document| {
+            let mut row = Vec::new();
+            row.push(("id".to_string(), Value::String(document.id)));
+            if let Some(obj) = document.payload.as_object() {
+                if let Some(schema) = schema.as_ref() {
+                    let mut seen = HashSet::new();
+                    for field in &schema.fields {
+                        let value = obj
+                            .get(&field.name)
+                            .map(|value| json_to_typed_value(value, &field.data_type))
+                            .unwrap_or(Value::Null);
+                        row.push((field.name.clone(), value));
+                        seen.insert(field.name.clone());
+                    }
+                    for (k, v) in obj.iter() {
+                        if !seen.contains(k) {
+                            row.push((k.clone(), json_to_value(v)));
+                        }
+                    }
+                } else {
+                    for (k, v) in obj.iter() {
+                        row.push((k.clone(), json_to_value(v)));
+                    }
+                }
+            }
+            BatchRow::new(row)
+        })
+        .collect::<Batch>()
+}
+
 fn projected_document_batches_to_rows(
-    document_batches: Vec<Vec<crate::midge::adapter::DocumentRef>>,
+    cassie: &Cassie,
+    document_batches: Vec<Vec<DocumentRef>>,
     fields: &[String],
     document_filter: Option<&ProjectedDocumentFilter>,
     schema: Option<&CollectionSchema>,
 ) -> Vec<Batch> {
-    document_batches
+    let worker_limit = cassie.runtime.limits().parallel_scan_workers.max(1);
+    if worker_limit == 1 || document_batches.len() < 2 {
+        cassie.runtime.record_parallel_scan_fallback();
+        return document_batches
+            .into_iter()
+            .filter_map(|documents| {
+                let rows =
+                    projected_document_batch_to_rows(documents, fields, document_filter, schema);
+                (!rows.is_empty()).then_some(rows)
+            })
+            .collect();
+    }
+
+    let workers = worker_limit.min(document_batches.len());
+    let mut indexed = std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(document_batches.len());
+        for (index, documents) in document_batches.into_iter().enumerate() {
+            handles.push(scope.spawn(move || {
+                (
+                    index,
+                    projected_document_batch_to_rows(documents, fields, document_filter, schema),
+                )
+            }));
+        }
+        handles
+            .into_iter()
+            .map(|handle| handle.join().expect("parallel projected scan worker"))
+            .collect::<Vec<_>>()
+    });
+    indexed.sort_by_key(|(index, _)| *index);
+    let rows = indexed.iter().map(|(_, batch)| batch.len()).sum::<usize>();
+    cassie
+        .runtime
+        .record_parallel_scan(workers, indexed.len(), rows);
+    indexed
         .into_iter()
-        .filter_map(|documents| {
-            let rows = documents
-                .into_iter()
-                .filter(|document| {
-                    document_filter
-                        .map(|filter| projected_document_matches(&document.payload, filter))
-                        .unwrap_or(true)
-                })
-                .map(|document| {
-                    let mut row = Vec::with_capacity(fields.len() + 1);
-                    row.push(("id".to_string(), Value::String(document.id)));
-                    let object = document.payload.as_object();
-                    for field in fields {
-                        let value = object
-                            .and_then(|object| projected_field_value(object, field))
-                            .map(|value| {
-                                field_data_type(schema, field)
-                                    .map(|data_type| json_to_typed_value(value, data_type))
-                                    .unwrap_or_else(|| json_to_value(value))
-                            })
-                            .unwrap_or(Value::Null);
-                        row.push((field.clone(), value));
-                    }
-                    BatchRow::from_projected_values(row)
-                })
-                .collect::<Batch>();
-            (!rows.is_empty()).then_some(rows)
-        })
+        .filter_map(|(_, batch)| (!batch.is_empty()).then_some(batch))
         .collect()
+}
+
+fn projected_document_batch_to_rows(
+    documents: Vec<DocumentRef>,
+    fields: &[String],
+    document_filter: Option<&ProjectedDocumentFilter>,
+    schema: Option<&CollectionSchema>,
+) -> Batch {
+    documents
+        .into_iter()
+        .filter(|document| {
+            document_filter
+                .map(|filter| projected_document_matches(&document.payload, filter))
+                .unwrap_or(true)
+        })
+        .map(|document| {
+            let mut row = Vec::with_capacity(fields.len() + 1);
+            row.push(("id".to_string(), Value::String(document.id)));
+            let object = document.payload.as_object();
+            for field in fields {
+                let value = object
+                    .and_then(|object| projected_field_value(object, field))
+                    .map(|value| {
+                        field_data_type(schema, field)
+                            .map(|data_type| json_to_typed_value(value, data_type))
+                            .unwrap_or_else(|| json_to_value(value))
+                    })
+                    .unwrap_or(Value::Null);
+                row.push((field.clone(), value));
+            }
+            BatchRow::from_projected_values(row)
+        })
+        .collect::<Batch>()
 }
 
 fn field_data_type<'a>(schema: Option<&'a CollectionSchema>, field: &str) -> Option<&'a DataType> {

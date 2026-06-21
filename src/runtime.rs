@@ -289,6 +289,15 @@ pub struct CoveringIndexSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct ParallelScanSnapshot {
+    pub scans: u64,
+    pub fallback_scans: u64,
+    pub workers: u64,
+    pub shards: u64,
+    pub rows: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct StorageFamilySnapshot {
     pub reads: u64,
     pub writes: u64,
@@ -320,6 +329,7 @@ pub struct RuntimeMetricsSnapshot {
     pub feedback: FeedbackSnapshot,
     pub adaptive_candidates: AdaptiveCandidateSnapshot,
     pub covering_indexes: CoveringIndexSnapshot,
+    pub parallel_scans: ParallelScanSnapshot,
 }
 
 #[derive(Debug, Default)]
@@ -338,6 +348,7 @@ struct RuntimeMetricsState {
     feedback: FeedbackSnapshot,
     adaptive_candidates: AdaptiveCandidateSnapshot,
     covering_indexes: CoveringIndexSnapshot,
+    parallel_scans: ParallelScanSnapshot,
 }
 
 #[derive(Debug, Clone)]
@@ -894,6 +905,19 @@ impl RuntimeState {
         metrics.covering_indexes.fallback_scans += 1;
     }
 
+    pub fn record_parallel_scan(&self, workers: usize, shards: usize, rows: usize) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.parallel_scans.scans += 1;
+        metrics.parallel_scans.workers += workers as u64;
+        metrics.parallel_scans.shards += shards as u64;
+        metrics.parallel_scans.rows += rows as u64;
+    }
+
+    pub fn record_parallel_scan_fallback(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.parallel_scans.fallback_scans += 1;
+    }
+
     pub fn record_plan_cache_invalidation(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.plan_cache.invalidations += 1;
@@ -1123,6 +1147,7 @@ impl RuntimeState {
             feedback: metrics.feedback.clone(),
             adaptive_candidates: metrics.adaptive_candidates.clone(),
             covering_indexes: metrics.covering_indexes.clone(),
+            parallel_scans: metrics.parallel_scans.clone(),
         };
         snapshot.runtime.uptime_seconds = uptime_seconds;
         snapshot.runtime.running_queries = metrics.runtime.running_queries;

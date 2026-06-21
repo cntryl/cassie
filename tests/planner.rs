@@ -183,6 +183,32 @@ fn should_build_physical_operators_in_execution_order() {
 }
 
 #[test]
+fn should_keep_scan_operator_for_parallel_scan_candidates() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_parallel_scan");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement("SELECT title FROM planner_parallel_scan")
+            .expect("parse should succeed");
+        let bound = binder::bind(parsed, &catalog).expect("bind should succeed");
+        let logical = logical::plan(&bound).expect("logical plan");
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert_eq!(physical_plan.operators.len(), 2);
+        assert!(matches!(physical_plan.operators[0], Operator::Scan));
+        assert!(matches!(physical_plan.operators[1], Operator::Project));
+    });
+}
+
+#[test]
 fn should_mark_literal_equality_filter_as_pushed_down() {
     // Arrange
     let catalog = Catalog::new();

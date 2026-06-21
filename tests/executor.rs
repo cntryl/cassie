@@ -1897,6 +1897,146 @@ fn should_execute_query_across_multiple_batches_without_truncation() {
 }
 
 #[test]
+fn should_merge_parallel_scan_batches_deterministically() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("parallel_scan_merge");
+    let mut config = CassieRuntimeConfig::from_env();
+    config.limits.parallel_scan_workers = 4;
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let collection = "exec_parallel_scan_merge";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "id".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
+        for index in 0..1100 {
+            cassie
+                .midge
+                .put_document(
+                    collection,
+                    Some(format!("doc-{index:04}")),
+                    serde_json::json!({
+                        "id": format!("doc-{index:04}"),
+                        "title": format!("title-{index:04}"),
+                    }),
+                )
+                .unwrap();
+        }
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(&session, "SELECT * FROM exec_parallel_scan_merge", vec![])
+            .expect("parallel scan query should execute");
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1100);
+        assert!(metrics["parallel_scans"]["scans"].as_u64().unwrap_or(0) > 0);
+        assert!(metrics["parallel_scans"]["workers"].as_u64().unwrap_or(0) >= 2);
+        assert_eq!(metrics["parallel_scans"]["rows"].as_u64(), Some(1100));
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_fallback_parallel_scan_when_worker_limit_is_one() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("parallel_scan_single_worker");
+    let mut config = CassieRuntimeConfig::from_env();
+    config.limits.parallel_scan_workers = 1;
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let collection = "exec_parallel_scan_single_worker";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM exec_parallel_scan_single_worker",
+                vec![],
+            )
+            .expect("single-worker query should execute");
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(result.rows, vec![vec![Value::String("alpha".to_string())]]);
+        assert_eq!(metrics["parallel_scans"]["scans"].as_u64(), Some(0));
+        assert!(
+            metrics["parallel_scans"]["fallback_scans"]
+                .as_u64()
+                .unwrap_or(0)
+                > 0
+        );
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_preserve_filtered_projection_across_multiple_batches() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

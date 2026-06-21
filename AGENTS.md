@@ -116,10 +116,25 @@ GitVersion `ContinuousDeployment` mode, next version `0.2.0`. Branch naming conv
 - Keep PostgreSQL wire protocol as the primary query interface.
 - Keep REST secondary and administrative.
 
-## Workflow
+## Agentic Workflow
 
-1. Write a failing test (TDD, `should_` prefix, `// Arrange / Act / Assert`).
-2. Make smallest code change to pass.
-3. Refactor without broadening test scope.
-4. `cargo build && cargo test --locked && cargo fmt --all -- --check`
-5. `cntryl-tools validate-tests -f <path>` on touched test files.
+Agents must work from the issue backlog, not from ad hoc architectural judgment.
+The prioritized source of truth is `issues/phase-00/issue-01.md`.
+
+Required loop:
+
+1. Pick the first open issue in priority order from `issues/phase-00/issue-01.md`.
+2. Confirm every dependency named by the issue is complete or already implemented.
+3. Follow the issue's `Implementation Plan` exactly unless repo reality makes a step impossible.
+4. Write the failing test first using `should_` names and `// Arrange / Act / Assert`.
+5. Make the smallest code change that satisfies the failing test and issue requirements.
+6. Refactor only inside the issue scope and without broadening test coverage opportunistically.
+7. Update docs, diagnostics, benchmarks, or roadmap references required by the issue.
+8. Run validation in the required order: `cargo build` -> `cargo test --locked` -> `cargo fmt --all -- --check` -> `cntryl-tools validate-tests -f <path>` for touched test files.
+9. Confirm every acceptance criterion and close-out step in the issue is complete.
+10. Delete the issue file only after implementation, validation, documentation, and close-out checks are complete.
+11. Commit the completed slice with only the files required for that issue.
+
+Do not start implementation from a later phase while an earlier required phase issue is still open unless the later issue explicitly names that dependency as complete or unnecessary.
+Do not reinterpret an issue as a suggestion; if the plan is wrong, update the issue first so implementation remains mechanical.
+Stop and ask for direction when an issue requires a persistent format decision, storage-layout migration, public API change, or cross-phase dependency that is not already specified.

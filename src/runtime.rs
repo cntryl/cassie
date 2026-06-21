@@ -307,6 +307,17 @@ pub struct ParallelScoringSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct ParallelAggregationSnapshot {
+    pub aggregations: u64,
+    pub fallback_aggregations: u64,
+    pub workers: u64,
+    pub partitions: u64,
+    pub rows: u64,
+    pub groups: u64,
+    pub last_fallback_reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct StorageFamilySnapshot {
     pub reads: u64,
     pub writes: u64,
@@ -340,6 +351,7 @@ pub struct RuntimeMetricsSnapshot {
     pub covering_indexes: CoveringIndexSnapshot,
     pub parallel_scans: ParallelScanSnapshot,
     pub parallel_scoring: ParallelScoringSnapshot,
+    pub parallel_aggregation: ParallelAggregationSnapshot,
 }
 
 #[derive(Debug, Default)]
@@ -360,6 +372,7 @@ struct RuntimeMetricsState {
     covering_indexes: CoveringIndexSnapshot,
     parallel_scans: ParallelScanSnapshot,
     parallel_scoring: ParallelScoringSnapshot,
+    parallel_aggregation: ParallelAggregationSnapshot,
 }
 
 #[derive(Debug, Clone)]
@@ -942,6 +955,27 @@ impl RuntimeState {
         metrics.parallel_scoring.fallback_scorings += 1;
     }
 
+    pub fn record_parallel_aggregation(
+        &self,
+        workers: usize,
+        partitions: usize,
+        rows: usize,
+        groups: usize,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.parallel_aggregation.aggregations += 1;
+        metrics.parallel_aggregation.workers += workers as u64;
+        metrics.parallel_aggregation.partitions += partitions as u64;
+        metrics.parallel_aggregation.rows += rows as u64;
+        metrics.parallel_aggregation.groups += groups as u64;
+    }
+
+    pub fn record_parallel_aggregation_fallback(&self, reason: impl Into<String>) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.parallel_aggregation.fallback_aggregations += 1;
+        metrics.parallel_aggregation.last_fallback_reason = reason.into();
+    }
+
     pub fn record_plan_cache_invalidation(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.plan_cache.invalidations += 1;
@@ -1173,6 +1207,7 @@ impl RuntimeState {
             covering_indexes: metrics.covering_indexes.clone(),
             parallel_scans: metrics.parallel_scans.clone(),
             parallel_scoring: metrics.parallel_scoring.clone(),
+            parallel_aggregation: metrics.parallel_aggregation.clone(),
         };
         snapshot.runtime.uptime_seconds = uptime_seconds;
         snapshot.runtime.running_queries = metrics.runtime.running_queries;
@@ -1431,6 +1466,7 @@ mod tests {
             top_k: false,
             top_k_limit: None,
             join_strategy: None,
+            parallel_aggregate_candidate: false,
             logical: LogicalPlan {
                 command: None,
                 source: QuerySource::Collection("bench_documents".to_string()),

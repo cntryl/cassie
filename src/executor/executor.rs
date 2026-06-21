@@ -1,6 +1,7 @@
 use std::cmp::Ordering as CmpOrdering;
 use std::collections::{BTreeMap, BinaryHeap, HashMap, HashSet};
 use std::sync::Arc;
+use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::app::{Cassie, CassieSession};
@@ -4542,44 +4543,77 @@ struct AggregateSpec {
 }
 
 fn aggregate_query_batches(
+    cassie: &Cassie,
     batches: Vec<Batch>,
     plan: &LogicalPlan,
     params: &[Value],
     search_context: Option<&filter::SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
     session: Option<&CassieSession>,
+    controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, QueryError> {
     let rows = batch::flatten_batches(batches);
     let specs = aggregate_specs(plan);
-    let mut groups = BTreeMap::<String, (Vec<(String, Value)>, Vec<BatchRow>)>::new();
-
-    for row in rows {
-        let group_values = plan
-            .group_by
-            .iter()
-            .map(|expr| {
-                let name = group_expr_name(expr);
-                let value = filter::evaluate_expr_value(
-                    &row,
-                    expr,
+    let worker_limit = cassie.runtime.limits().parallel_aggregation_workers.max(1);
+    let eligibility = parallel_aggregation_eligibility(plan, &specs, user_functions);
+    if worker_limit > 1 && rows.len() >= batch::DEFAULT_BATCH_SIZE {
+        if let Ok(()) = eligibility {
+            let workers = worker_limit.min(rows.len().div_ceil(batch::DEFAULT_BATCH_SIZE).max(1));
+            if workers > 1 {
+                return aggregate_query_batches_parallel(
+                    cassie,
+                    rows,
+                    plan,
+                    &specs,
                     params,
                     search_context,
                     user_functions,
                     session,
-                    None,
-                )?;
-                Ok((name, value))
-            })
-            .collect::<Result<Vec<_>, QueryError>>()?;
-        let signature = if group_values.is_empty() {
-            "__all__".to_string()
-        } else {
-            group_values
-                .iter()
-                .map(|(_, value)| value_sort_key(value))
-                .collect::<Vec<_>>()
-                .join("|")
-        };
+                    controls,
+                    workers,
+                );
+            }
+        }
+    }
+
+    let fallback_reason = if worker_limit == 1 {
+        "worker-limit-one".to_string()
+    } else if rows.len() < batch::DEFAULT_BATCH_SIZE {
+        "small-input".to_string()
+    } else {
+        eligibility
+            .err()
+            .unwrap_or_else(|| "single-partition".to_string())
+    };
+    cassie
+        .runtime
+        .record_parallel_aggregation_fallback(fallback_reason);
+    aggregate_query_batches_serial(
+        rows,
+        plan,
+        &specs,
+        params,
+        search_context,
+        user_functions,
+        session,
+    )
+}
+
+fn aggregate_query_batches_serial(
+    rows: Vec<BatchRow>,
+    plan: &LogicalPlan,
+    specs: &[AggregateSpec],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+) -> Result<Vec<Batch>, QueryError> {
+    let mut groups = BTreeMap::<String, (Vec<(String, Value)>, Vec<BatchRow>)>::new();
+
+    for row in rows {
+        let group_values =
+            aggregate_group_values(&row, plan, params, search_context, user_functions, session)?;
+        let signature = aggregate_group_signature(&group_values);
         groups
             .entry(signature)
             .or_insert_with(|| (group_values, Vec::new()))
@@ -4594,7 +4628,7 @@ fn aggregate_query_batches(
     let mut out = Vec::with_capacity(groups.len());
     for (_signature, (group_values, group_rows)) in groups {
         let mut values = group_values;
-        for spec in &specs {
+        for spec in specs {
             let value = evaluate_aggregate(
                 &spec.function,
                 &group_rows,
@@ -4611,6 +4645,515 @@ fn aggregate_query_batches(
     }
 
     Ok(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn aggregate_query_batches_parallel(
+    cassie: &Cassie,
+    rows: Vec<BatchRow>,
+    plan: &LogicalPlan,
+    specs: &[AggregateSpec],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+    controls: &QueryExecutionControls,
+    workers: usize,
+) -> Result<Vec<Batch>, QueryError> {
+    let chunk_size = rows.len().div_ceil(workers).max(1);
+    let mut partials = thread::scope(|scope| {
+        rows.chunks(chunk_size)
+            .map(|chunk| {
+                scope.spawn(move || {
+                    let mut groups = BTreeMap::<String, PartialAggregateGroup>::new();
+                    for row in chunk {
+                        check_timeout(controls)?;
+                        let group_values = aggregate_group_values(
+                            row,
+                            plan,
+                            params,
+                            search_context,
+                            user_functions,
+                            session,
+                        )?;
+                        let signature = aggregate_group_signature(&group_values);
+                        let group = groups
+                            .entry(signature)
+                            .or_insert_with(|| PartialAggregateGroup::new(group_values, specs));
+                        group.update(
+                            row,
+                            specs,
+                            params,
+                            search_context,
+                            user_functions,
+                            session,
+                        )?;
+                    }
+                    Ok::<_, QueryError>(groups)
+                })
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|handle| {
+                handle.join().map_err(|_| {
+                    QueryError::General("parallel aggregation worker panicked".into())
+                })?
+            })
+            .collect::<Result<Vec<_>, QueryError>>()
+    })?;
+
+    let partitions = partials.len();
+    let input_rows = rows.len();
+    let mut merged = BTreeMap::<String, PartialAggregateGroup>::new();
+    for partial in partials.drain(..) {
+        for (signature, group) in partial {
+            merged
+                .entry(signature)
+                .and_modify(|existing| existing.merge(&group))
+                .or_insert(group);
+        }
+    }
+
+    if merged.is_empty() && plan.group_by.is_empty() {
+        merged.insert(
+            "__all__".to_string(),
+            PartialAggregateGroup::new(Vec::new(), specs),
+        );
+    }
+
+    let group_count = merged.len();
+    let mut out = Vec::with_capacity(group_count);
+    for (_signature, group) in merged {
+        let mut values = group.group_values;
+        for (spec, accumulator) in specs.iter().zip(group.accumulators) {
+            let value = accumulator.finish();
+            for name in &spec.output_names {
+                values.push((name.clone(), value.clone()));
+            }
+        }
+        out.push(BatchRow::new(values));
+    }
+
+    cassie
+        .runtime
+        .record_parallel_aggregation(workers, partitions, input_rows, group_count);
+    Ok(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE))
+}
+
+#[derive(Clone)]
+struct PartialAggregateGroup {
+    group_values: Vec<(String, Value)>,
+    accumulators: Vec<AggregateAccumulator>,
+}
+
+impl PartialAggregateGroup {
+    fn new(group_values: Vec<(String, Value)>, specs: &[AggregateSpec]) -> Self {
+        Self {
+            group_values,
+            accumulators: specs
+                .iter()
+                .map(|spec| AggregateAccumulator::new(&spec.function))
+                .collect(),
+        }
+    }
+
+    fn update(
+        &mut self,
+        row: &BatchRow,
+        specs: &[AggregateSpec],
+        params: &[Value],
+        search_context: Option<&filter::SearchContext>,
+        user_functions: &HashMap<String, FunctionMeta>,
+        session: Option<&CassieSession>,
+    ) -> Result<(), QueryError> {
+        for (accumulator, spec) in self.accumulators.iter_mut().zip(specs) {
+            accumulator.update(
+                &spec.function,
+                row,
+                params,
+                search_context,
+                user_functions,
+                session,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn merge(&mut self, other: &Self) {
+        for (left, right) in self.accumulators.iter_mut().zip(&other.accumulators) {
+            left.merge(right);
+        }
+    }
+}
+
+#[derive(Clone)]
+enum AggregateAccumulator {
+    Count { count: i64 },
+    Sum { sum: f64, all_int: bool, seen: bool },
+    Avg { sum: f64, count: f64 },
+    MinMax { selected: Option<Value>, max: bool },
+}
+
+impl AggregateAccumulator {
+    fn new(function: &FunctionCall) -> Self {
+        match function.name.to_ascii_lowercase().as_str() {
+            "count" => Self::Count { count: 0 },
+            "sum" => Self::Sum {
+                sum: 0.0,
+                all_int: true,
+                seen: false,
+            },
+            "avg" => Self::Avg {
+                sum: 0.0,
+                count: 0.0,
+            },
+            "max" => Self::MinMax {
+                selected: None,
+                max: true,
+            },
+            _ => Self::MinMax {
+                selected: None,
+                max: false,
+            },
+        }
+    }
+
+    fn update(
+        &mut self,
+        function: &FunctionCall,
+        row: &BatchRow,
+        params: &[Value],
+        search_context: Option<&filter::SearchContext>,
+        user_functions: &HashMap<String, FunctionMeta>,
+        session: Option<&CassieSession>,
+    ) -> Result<(), QueryError> {
+        match self {
+            Self::Count { count } => {
+                if matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*") {
+                    *count += 1;
+                    return Ok(());
+                }
+                let Some(expr) = function.args.first() else {
+                    return Ok(());
+                };
+                let value = filter::evaluate_expr_value(
+                    row,
+                    expr,
+                    params,
+                    search_context,
+                    user_functions,
+                    session,
+                    None,
+                )?;
+                if !matches!(value, Value::Null) {
+                    *count += 1;
+                }
+            }
+            Self::Sum { sum, all_int, seen } => {
+                let Some(expr) = function.args.first() else {
+                    return Ok(());
+                };
+                match filter::evaluate_expr_value(
+                    row,
+                    expr,
+                    params,
+                    search_context,
+                    user_functions,
+                    session,
+                    None,
+                )? {
+                    Value::Int64(value) => {
+                        *sum += value as f64;
+                        *seen = true;
+                    }
+                    Value::Float64(value) => {
+                        *sum += value;
+                        *all_int = false;
+                        *seen = true;
+                    }
+                    Value::Null => {}
+                    _ => *all_int = false,
+                }
+            }
+            Self::Avg { sum, count } => {
+                let Some(expr) = function.args.first() else {
+                    return Ok(());
+                };
+                match filter::evaluate_expr_value(
+                    row,
+                    expr,
+                    params,
+                    search_context,
+                    user_functions,
+                    session,
+                    None,
+                )? {
+                    Value::Int64(value) => {
+                        *sum += value as f64;
+                        *count += 1.0;
+                    }
+                    Value::Float64(value) => {
+                        *sum += value;
+                        *count += 1.0;
+                    }
+                    _ => {}
+                }
+            }
+            Self::MinMax { selected, max } => {
+                let Some(expr) = function.args.first() else {
+                    return Ok(());
+                };
+                let value = filter::evaluate_expr_value(
+                    row,
+                    expr,
+                    params,
+                    search_context,
+                    user_functions,
+                    session,
+                    None,
+                )?;
+                if matches!(value, Value::Null) {
+                    return Ok(());
+                }
+                let replace = selected
+                    .as_ref()
+                    .map(|current| {
+                        let current_key = value_sort_key(current);
+                        let value_key = value_sort_key(&value);
+                        if *max {
+                            value_key > current_key
+                        } else {
+                            value_key < current_key
+                        }
+                    })
+                    .unwrap_or(true);
+                if replace {
+                    *selected = Some(value);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn merge(&mut self, other: &Self) {
+        match (self, other) {
+            (Self::Count { count }, Self::Count { count: other }) => *count += other,
+            (
+                Self::Sum { sum, all_int, seen },
+                Self::Sum {
+                    sum: other_sum,
+                    all_int: other_all_int,
+                    seen: other_seen,
+                },
+            ) => {
+                *sum += other_sum;
+                *all_int = *all_int && *other_all_int;
+                *seen = *seen || *other_seen;
+            }
+            (
+                Self::Avg { sum, count },
+                Self::Avg {
+                    sum: other_sum,
+                    count: other_count,
+                },
+            ) => {
+                *sum += other_sum;
+                *count += other_count;
+            }
+            (
+                Self::MinMax { selected, max },
+                Self::MinMax {
+                    selected: other,
+                    max: _,
+                },
+            ) => {
+                if let Some(value) = other {
+                    let replace = selected
+                        .as_ref()
+                        .map(|current| {
+                            let current_key = value_sort_key(current);
+                            let value_key = value_sort_key(value);
+                            if *max {
+                                value_key > current_key
+                            } else {
+                                value_key < current_key
+                            }
+                        })
+                        .unwrap_or(true);
+                    if replace {
+                        *selected = Some(value.clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn finish(self) -> Value {
+        match self {
+            Self::Count { count } => Value::Int64(count),
+            Self::Sum { sum, all_int, seen } => {
+                if !seen {
+                    Value::Null
+                } else if all_int {
+                    Value::Int64(sum as i64)
+                } else {
+                    Value::Float64(sum)
+                }
+            }
+            Self::Avg { sum, count } => {
+                if count == 0.0 {
+                    Value::Null
+                } else {
+                    Value::Float64(sum / count)
+                }
+            }
+            Self::MinMax { selected, .. } => selected.unwrap_or(Value::Null),
+        }
+    }
+}
+
+fn aggregate_group_values(
+    row: &BatchRow,
+    plan: &LogicalPlan,
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+) -> Result<Vec<(String, Value)>, QueryError> {
+    plan.group_by
+        .iter()
+        .map(|expr| {
+            let name = group_expr_name(expr);
+            let value = filter::evaluate_expr_value(
+                row,
+                expr,
+                params,
+                search_context,
+                user_functions,
+                session,
+                None,
+            )?;
+            Ok((name, value))
+        })
+        .collect::<Result<Vec<_>, QueryError>>()
+}
+
+fn aggregate_group_signature(group_values: &[(String, Value)]) -> String {
+    if group_values.is_empty() {
+        "__all__".to_string()
+    } else {
+        group_values
+            .iter()
+            .map(|(_, value)| value_sort_key(value))
+            .collect::<Vec<_>>()
+            .join("|")
+    }
+}
+
+fn parallel_aggregation_eligibility(
+    plan: &LogicalPlan,
+    specs: &[AggregateSpec],
+    user_functions: &HashMap<String, FunctionMeta>,
+) -> Result<(), String> {
+    if plan.distinct || !plan.distinct_on.is_empty() {
+        return Err("distinct".to_string());
+    }
+    if plan.set.is_some() {
+        return Err("set-operation".to_string());
+    }
+    if plan
+        .projection
+        .iter()
+        .any(|item| matches!(item, SelectItem::WindowFunction { .. }))
+    {
+        return Err("window-function".to_string());
+    }
+    if specs.iter().any(|spec| {
+        !matches!(
+            spec.function.name.to_ascii_lowercase().as_str(),
+            "count" | "sum" | "avg" | "min" | "max"
+        )
+    }) {
+        return Err("unsupported-aggregate".to_string());
+    }
+    if plan
+        .group_by
+        .iter()
+        .chain(plan.having.iter())
+        .chain(plan.order.iter().map(|order| &order.expr))
+        .any(|expr| !expr_supports_parallel_aggregation(expr, user_functions))
+        || specs.iter().any(|spec| {
+            spec.function
+                .args
+                .iter()
+                .any(|expr| !expr_supports_parallel_aggregation(expr, user_functions))
+        })
+    {
+        return Err("unsupported-expression".to_string());
+    }
+    Ok(())
+}
+
+fn expr_supports_parallel_aggregation(
+    expr: &Expr,
+    user_functions: &HashMap<String, FunctionMeta>,
+) -> bool {
+    match expr {
+        Expr::Function(function) => {
+            let name = function.name.to_ascii_lowercase();
+            if user_functions.contains_key(&name) {
+                return false;
+            }
+            if matches!(
+                name.as_str(),
+                "search"
+                    | "search_score"
+                    | "snippet"
+                    | "vector_distance"
+                    | "vector_score"
+                    | "hybrid_score"
+            ) {
+                return false;
+            }
+            if crate::sql::functions::is_aggregate_function(&function.name)
+                && !matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max")
+            {
+                return false;
+            }
+            function
+                .args
+                .iter()
+                .all(|expr| expr_supports_parallel_aggregation(expr, user_functions))
+        }
+        Expr::Binary { left, right, .. } => {
+            expr_supports_parallel_aggregation(left, user_functions)
+                && expr_supports_parallel_aggregation(right, user_functions)
+        }
+        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => {
+            expr_supports_parallel_aggregation(expr, user_functions)
+        }
+        Expr::InList { expr, values, .. } => {
+            expr_supports_parallel_aggregation(expr, user_functions)
+                && values
+                    .iter()
+                    .all(|value| expr_supports_parallel_aggregation(value, user_functions))
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            expr_supports_parallel_aggregation(expr, user_functions)
+                && expr_supports_parallel_aggregation(low, user_functions)
+                && expr_supports_parallel_aggregation(high, user_functions)
+        }
+        Expr::Exists(_) => false,
+        Expr::Column(_)
+        | Expr::Param(_)
+        | Expr::Null
+        | Expr::BoolLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::StringLiteral(_) => true,
+    }
 }
 
 fn aggregate_specs(plan: &LogicalPlan) -> Vec<AggregateSpec> {
@@ -5549,12 +6092,14 @@ fn execute_source_query_with_outer_row(
 
     if plan_uses_aggregate(plan) {
         batches = aggregate_query_batches(
+            cassie,
             batches,
             plan,
             params,
             search_context.as_ref(),
             user_functions,
             session,
+            controls,
         )?;
         ensure_temp_budget(controls, &batches)?;
         if let Some(having) = &plan.having {

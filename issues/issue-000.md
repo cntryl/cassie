@@ -27,7 +27,6 @@ Maintain a live coverage index that links every active roadmap concept to its im
 
 ## Coverage
 
-- [Issue 108: Parallel Aggregation](issue-108.md) - V3 - Advanced Query Features / Execution
 - [Issue 111: Column Batches](issue-111.md) - V4 - Analytical Overlay / Column Store Indexes
 - [Issue 112: Compressed Column Segments](issue-112.md) - V4 - Analytical Overlay / Column Store Indexes
 - [Issue 113: Aggregate Acceleration](issue-113.md) - V4 - Analytical Overlay / Column Store Indexes

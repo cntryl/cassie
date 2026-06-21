@@ -69,7 +69,7 @@ pub async fn context(label: &str, dataset_rows: usize) -> Result<BenchContext, C
     dir.push(format!("cassie-bench-{label}-{}", Uuid::new_v4()));
 
     let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
-    cassie.startup().await?;
+    cassie.startup()?;
     let session = cassie.create_session("benchmark", None);
     let ctx = BenchContext {
         cassie,
@@ -87,7 +87,7 @@ pub async fn empty_context(label: &str) -> Result<BenchContext, CassieError> {
     dir.push(format!("cassie-bench-{label}-{}", Uuid::new_v4()));
 
     let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
-    cassie.startup().await?;
+    cassie.startup()?;
     let session = cassie.create_session("benchmark", None);
     Ok(BenchContext {
         cassie,
@@ -117,7 +117,7 @@ pub async fn context_with_mock_tei_embeddings(
     dir.push(format!("cassie-bench-{label}-{}", Uuid::new_v4()));
 
     let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir, config)?);
-    cassie.startup().await?;
+    cassie.startup()?;
     let session = cassie.create_session("benchmark", None);
     let ctx = BenchContext {
         cassie,
@@ -130,10 +130,7 @@ pub async fn context_with_mock_tei_embeddings(
         "CREATE INDEX {}_embedding_idx ON {} USING vector (embedding) WITH (source_field = body, metric = cosine)",
         ctx.collection, ctx.collection
     );
-    let _ = ctx
-        .cassie
-        .execute_sql(&ctx.session, &statement, vec![])
-        .await?;
+    let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
     Ok(ctx)
 }
 
@@ -198,7 +195,7 @@ impl Drop for MockTeiEmbeddingServer {
 }
 
 async fn prepare_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(), CassieError> {
-    if ctx.cassie.catalog.exists(&ctx.collection).await {
+    if ctx.cassie.catalog.exists(&ctx.collection) {
         return Ok(());
     }
 
@@ -240,16 +237,14 @@ async fn prepare_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(
     ctx.cassie
         .midge
         .create_collection(&ctx.collection, schema.clone())?;
-    ctx.cassie
-        .register_collection(
-            &ctx.collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        )
-        .await;
+    ctx.cassie.register_collection(
+        &ctx.collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
 
     let statements = [
         format!(
@@ -267,10 +262,7 @@ async fn prepare_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(
     ];
 
     for statement in statements {
-        let _ = ctx
-            .cassie
-            .execute_sql(&ctx.session, &statement, vec![])
-            .await?;
+        let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
     }
 
     for index in 0..dataset_rows.min(1024) {
@@ -531,9 +523,7 @@ pub fn sql_parsing() -> usize {
 pub async fn sql_binding(ctx: &BenchContext) -> usize {
     let parsed =
         parse_statement("SELECT id, title FROM bench_documents WHERE score >= 10").expect("parse");
-    let bound = binder::bind(parsed, &ctx.cassie.catalog)
-        .await
-        .expect("bind");
+    let bound = binder::bind(parsed, &ctx.cassie.catalog).expect("bind");
     std::hint::black_box(bound);
     1
 }
@@ -541,9 +531,7 @@ pub async fn sql_binding(ctx: &BenchContext) -> usize {
 pub async fn logical_planning(ctx: &BenchContext) -> usize {
     let parsed =
         parse_statement("SELECT id, title FROM bench_documents WHERE score >= 10").expect("parse");
-    let bound = binder::bind(parsed, &ctx.cassie.catalog)
-        .await
-        .expect("bind");
+    let bound = binder::bind(parsed, &ctx.cassie.catalog).expect("bind");
     let plan = logical::plan(&bound).expect("logical plan");
     std::hint::black_box(plan);
     1
@@ -552,9 +540,7 @@ pub async fn logical_planning(ctx: &BenchContext) -> usize {
 pub async fn physical_planning(ctx: &BenchContext) -> usize {
     let parsed =
         parse_statement("SELECT id, title FROM bench_documents WHERE score >= 10").expect("parse");
-    let bound = binder::bind(parsed, &ctx.cassie.catalog)
-        .await
-        .expect("bind");
+    let bound = binder::bind(parsed, &ctx.cassie.catalog).expect("bind");
     let logical = logical::plan(&bound).expect("logical plan");
     let physical = physical::build(logical);
     std::hint::black_box(physical);
@@ -567,7 +553,6 @@ pub async fn plan_cache_hit(ctx: &BenchContext) -> usize {
     let result = ctx
         .cassie
         .execute_sql(&ctx.session, sql, params)
-        .await
         .expect("plan cache hit");
     std::hint::black_box(result.rows.len())
 }
@@ -579,7 +564,6 @@ pub async fn plan_cache_miss(ctx: &BenchContext, nonce: usize) -> usize {
     let result = ctx
         .cassie
         .execute_sql(&ctx.session, &sql, vec![])
-        .await
         .expect("plan cache miss");
     std::hint::black_box(result.rows.len())
 }
@@ -588,7 +572,6 @@ pub async fn execute_sql(ctx: &BenchContext, sql: &str) -> usize {
     let result = ctx
         .cassie
         .execute_sql(&ctx.session, sql, vec![])
-        .await
         .expect("execute sql");
     std::hint::black_box(result.rows.len())
 }
@@ -599,14 +582,12 @@ pub async fn simple_10k_query_breakdown(ctx: &BenchContext) -> QueryBreakdownMic
 
     ctx.cassie
         .execute_sql(&ctx.session, sql, params.clone())
-        .await
         .expect("warm plan cache");
 
     let total_started = Instant::now();
     let total_result = ctx
         .cassie
         .execute_sql(&ctx.session, sql, params.clone())
-        .await
         .expect("timed total query");
     let total_query_us = micros(total_started.elapsed());
 
@@ -615,9 +596,7 @@ pub async fn simple_10k_query_breakdown(ctx: &BenchContext) -> QueryBreakdownMic
     let parse_us = micros(parse_started.elapsed());
 
     let bind_started = Instant::now();
-    let bound = binder::bind(parsed.clone(), &ctx.cassie.catalog)
-        .await
-        .expect("bind statement");
+    let bound = binder::bind(parsed.clone(), &ctx.cassie.catalog).expect("bind statement");
     let bind_us = micros(bind_started.elapsed());
 
     let plan_started = Instant::now();
@@ -638,7 +617,6 @@ pub async fn simple_10k_query_breakdown(ctx: &BenchContext) -> QueryBreakdownMic
     let execute_started = Instant::now();
     let execute_output =
         cassie::executor::run_with_execution_breakdown(ctx.cassie.as_ref(), physical, params)
-            .await
             .expect("execute physical plan");
     let execute_us = micros(execute_started.elapsed());
 
@@ -674,8 +652,7 @@ fn micros(duration: Duration) -> u64 {
 
 pub async fn pgwire_simple_query(ctx: &BenchContext, sql: &str) -> usize {
     let messages =
-        cassie::pgwire::handlers::query::run_simple_query(&ctx.cassie, &ctx.session, sql, vec![])
-            .await;
+        cassie::pgwire::handlers::query::run_simple_query(&ctx.cassie, &ctx.session, sql, vec![]);
     std::hint::black_box(messages.len())
 }
 
@@ -710,8 +687,7 @@ pub async fn pgwire_connection_churn(ctx: &BenchContext) -> usize {
         &session,
         "SELECT id FROM bench_documents WHERE score = 1 LIMIT 20",
         vec![],
-    )
-    .await;
+    );
     std::hint::black_box(messages.len())
 }
 
@@ -733,9 +709,7 @@ pub async fn pgwire_concurrent_connections(ctx: &BenchContext, concurrency: usiz
                 "SELECT id FROM bench_documents WHERE score >= {} LIMIT 20",
                 index % 16
             );
-            cassie::pgwire::handlers::query::run_simple_query(&cassie, &session, &sql, vec![])
-                .await
-                .len()
+            cassie::pgwire::handlers::query::run_simple_query(&cassie, &session, &sql, vec![]).len()
         });
     }
 
@@ -754,16 +728,13 @@ pub async fn http_vector_search(ctx: &BenchContext) -> usize {
         "limit": 10,
     });
     let result = search::vector_search(&ctx.cassie, &ctx.collection, body.to_string().as_bytes())
-        .await
         .expect("vector search");
     let rows = result["rows"].as_array().expect("vector search rows");
     std::hint::black_box(rows.len())
 }
 
 pub async fn http_document_get(ctx: &BenchContext) -> usize {
-    let loaded = documents::get(&ctx.cassie, &ctx.collection, "doc-1")
-        .await
-        .expect("get document");
+    let loaded = documents::get(&ctx.cassie, &ctx.collection, "doc-1").expect("get document");
     std::hint::black_box(loaded);
     1
 }
@@ -775,9 +746,7 @@ pub async fn http_concurrent_document_gets(ctx: &BenchContext, concurrency: usiz
         let collection = ctx.collection.clone();
         tasks.spawn(async move {
             let id = format!("doc-{}", index % 128);
-            documents::get(&cassie, &collection, &id)
-                .await
-                .expect("get document");
+            documents::get(&cassie, &collection, &id).expect("get document");
             1usize
         });
     }
@@ -797,7 +766,6 @@ pub async fn http_large_result_json(ctx: &BenchContext) -> usize {
             "SELECT id, title, body, score FROM bench_documents ORDER BY id LIMIT 512",
             vec![],
         )
-        .await
         .expect("large result query");
     let encoded = serde_json::to_vec(&result).expect("json encode result");
     std::hint::black_box(encoded.len())
@@ -842,7 +810,6 @@ pub async fn protocol_comparison_http(ctx: &BenchContext) -> usize {
             "SELECT id, title FROM bench_documents WHERE title = 'title-1' LIMIT 20",
             vec![],
         )
-        .await
         .expect("http comparison query");
     let encoded = serde_json::to_vec(&result).expect("json encode comparison");
     std::hint::black_box(encoded.len())
@@ -857,12 +824,9 @@ pub async fn http_document_create_get(ctx: &BenchContext) -> usize {
         "embedding": [1.0, 0.0, 0.0],
     });
     let created = documents::create(&ctx.cassie, &ctx.collection, payload.to_string().as_bytes())
-        .await
         .expect("create document");
     let id = created["id"].as_str().expect("created id");
-    let loaded = documents::get(&ctx.cassie, &ctx.collection, id)
-        .await
-        .expect("get document");
+    let loaded = documents::get(&ctx.cassie, &ctx.collection, id).expect("get document");
     std::hint::black_box(loaded);
     1
 }
@@ -888,12 +852,9 @@ pub async fn timed_http_document_create_get_batch(
     for _ in 0..batch_size {
         let created =
             documents::create(&ctx.cassie, &ctx.collection, payload.to_string().as_bytes())
-                .await
                 .expect("create document");
         let id = created["id"].as_str().expect("created id").to_string();
-        let loaded = documents::get(&ctx.cassie, &ctx.collection, &id)
-            .await
-            .expect("get document");
+        let loaded = documents::get(&ctx.cassie, &ctx.collection, &id).expect("get document");
         std::hint::black_box(loaded);
         ids.push(id);
     }
@@ -918,7 +879,6 @@ pub async fn ingest_document(ctx: &BenchContext) -> usize {
     let id = ctx
         .cassie
         .ingest_document(&ctx.collection, payload)
-        .await
         .expect("ingest document");
     std::hint::black_box(id);
     1
@@ -946,7 +906,6 @@ pub async fn concurrent_queries(ctx: &BenchContext, concurrency: usize) -> usize
             );
             cassie
                 .execute_sql(&session, &sql, vec![])
-                .await
                 .expect("concurrent query")
                 .rows
                 .len()
@@ -978,14 +937,12 @@ pub async fn index_rebuild_ddl(ctx: &BenchContext, nonce: usize) -> usize {
     let created = ctx
         .cassie
         .execute_sql(&ctx.session, &create, vec![])
-        .await
         .expect("create index")
         .command
         .len();
     let dropped = ctx
         .cassie
         .execute_sql(&ctx.session, &drop, vec![])
-        .await
         .expect("drop index")
         .command
         .len();
@@ -1027,7 +984,6 @@ pub async fn timed_ingest_document_batch(ctx: &BenchContext, batch_size: usize) 
         let id = ctx
             .cassie
             .ingest_document(&ctx.collection, payload.clone())
-            .await
             .expect("ingest document");
         std::hint::black_box(&id);
         ids.push(id);

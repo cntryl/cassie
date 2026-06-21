@@ -635,6 +635,66 @@ fn should_build_physical_operators_for_aggregate_distinct_set() {
 }
 
 #[test]
+fn should_mark_simple_aggregate_as_parallel_candidate() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_parallel_aggregate");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title, COUNT(*) AS total FROM planner_parallel_aggregate GROUP BY title",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert!(physical_plan
+            .operators
+            .iter()
+            .any(|operator| matches!(operator, Operator::Aggregate)));
+        assert!(physical_plan.parallel_aggregate_candidate);
+    });
+}
+
+#[test]
+fn should_keep_distinct_aggregate_on_serial_candidate_path() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_serial_distinct_aggregate");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT DISTINCT title, COUNT(*) AS total FROM planner_serial_distinct_aggregate GROUP BY title",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert!(physical_plan
+            .operators
+            .iter()
+            .any(|operator| matches!(operator, Operator::Aggregate)));
+        assert!(!physical_plan.parallel_aggregate_candidate);
+    });
+}
+
+#[test]
 fn should_build_physical_operators_for_hybrid_search() {
     // Arrange
     let catalog = Catalog::new();

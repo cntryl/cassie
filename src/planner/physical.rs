@@ -36,6 +36,7 @@ pub struct PhysicalPlan {
     pub top_k: bool,
     pub top_k_limit: Option<usize>,
     pub join_strategy: Option<String>,
+    pub parallel_aggregate_candidate: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -71,6 +72,7 @@ pub fn build_with_indexes(
             top_k: false,
             top_k_limit: None,
             join_strategy: None,
+            parallel_aggregate_candidate: false,
         };
     }
 
@@ -85,6 +87,7 @@ pub fn build_with_indexes(
     let top_k_limit = top_k_limit(&plan);
     let top_k = top_k_limit.is_some();
     let join_strategy = join_strategy(&plan);
+    let parallel_aggregate_candidate = plan_supports_parallel_aggregation(&plan);
     let estimates = PlanEstimates::from_plan(&plan, selected_index.as_deref(), cardinality_stats);
     let mut operators = vec![Operator::Scan];
     if source_contains_join(&plan.source) {
@@ -133,6 +136,7 @@ pub fn build_with_indexes(
         top_k,
         top_k_limit,
         join_strategy,
+        parallel_aggregate_candidate,
     }
 }
 
@@ -826,6 +830,131 @@ fn plan_uses_aggregate(plan: &LogicalPlan) -> bool {
             | SelectItem::Expr { .. }
             | SelectItem::WindowFunction { .. } => false,
         })
+}
+
+fn plan_supports_parallel_aggregation(plan: &LogicalPlan) -> bool {
+    plan_uses_aggregate(plan)
+        && !plan.distinct
+        && plan.distinct_on.is_empty()
+        && plan.set.is_none()
+        && !plan
+            .projection
+            .iter()
+            .any(|item| matches!(item, SelectItem::WindowFunction { .. }))
+        && aggregate_functions_supported(plan)
+        && plan_expressions(plan).all(expr_supports_parallel_aggregation)
+}
+
+fn aggregate_functions_supported(plan: &LogicalPlan) -> bool {
+    plan.projection
+        .iter()
+        .filter_map(|item| match item {
+            SelectItem::Function { function, .. } => Some(function),
+            _ => None,
+        })
+        .chain(plan.having.iter().flat_map(aggregate_functions_in_expr))
+        .chain(
+            plan.order
+                .iter()
+                .flat_map(|order| aggregate_functions_in_expr(&order.expr)),
+        )
+        .all(|function| {
+            matches!(
+                function.name.to_ascii_lowercase().as_str(),
+                "count" | "sum" | "avg" | "min" | "max"
+            )
+        })
+}
+
+fn aggregate_functions_in_expr(expr: &Expr) -> Vec<&FunctionCall> {
+    match expr {
+        Expr::Function(function) => {
+            let mut functions = function
+                .args
+                .iter()
+                .flat_map(aggregate_functions_in_expr)
+                .collect::<Vec<_>>();
+            if crate::sql::functions::is_aggregate_function(&function.name) {
+                functions.push(function);
+            }
+            functions
+        }
+        Expr::Binary { left, right, .. } => {
+            let mut functions = aggregate_functions_in_expr(left);
+            functions.extend(aggregate_functions_in_expr(right));
+            functions
+        }
+        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => {
+            aggregate_functions_in_expr(expr)
+        }
+        Expr::InList { expr, values, .. } => {
+            let mut functions = aggregate_functions_in_expr(expr);
+            for value in values {
+                functions.extend(aggregate_functions_in_expr(value));
+            }
+            functions
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            let mut functions = aggregate_functions_in_expr(expr);
+            functions.extend(aggregate_functions_in_expr(low));
+            functions.extend(aggregate_functions_in_expr(high));
+            functions
+        }
+        Expr::Exists(_)
+        | Expr::Column(_)
+        | Expr::Param(_)
+        | Expr::Null
+        | Expr::BoolLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::StringLiteral(_) => Vec::new(),
+    }
+}
+
+fn expr_supports_parallel_aggregation(expr: &Expr) -> bool {
+    match expr {
+        Expr::Function(function) => {
+            if crate::sql::functions::is_aggregate_function(&function.name) {
+                matches!(
+                    function.name.to_ascii_lowercase().as_str(),
+                    "count" | "sum" | "avg" | "min" | "max"
+                ) && function.args.iter().all(expr_supports_parallel_aggregation)
+            } else {
+                !function_uses_fulltext(function)
+                    && !function_uses_vector(function)
+                    && !matches!(
+                        function.name.to_ascii_lowercase().as_str(),
+                        "hybrid_score" | "vector_score"
+                    )
+                    && function.args.iter().all(expr_supports_parallel_aggregation)
+            }
+        }
+        Expr::Binary { left, right, .. } => {
+            expr_supports_parallel_aggregation(left) && expr_supports_parallel_aggregation(right)
+        }
+        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => {
+            expr_supports_parallel_aggregation(expr)
+        }
+        Expr::InList { expr, values, .. } => {
+            expr_supports_parallel_aggregation(expr)
+                && values.iter().all(expr_supports_parallel_aggregation)
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            expr_supports_parallel_aggregation(expr)
+                && expr_supports_parallel_aggregation(low)
+                && expr_supports_parallel_aggregation(high)
+        }
+        Expr::Exists(_) => false,
+        Expr::Column(_)
+        | Expr::Param(_)
+        | Expr::Null
+        | Expr::BoolLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::StringLiteral(_) => true,
+    }
 }
 
 fn plan_uses_fulltext(plan: &LogicalPlan) -> bool {

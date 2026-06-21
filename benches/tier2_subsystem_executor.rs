@@ -8,6 +8,7 @@ mod criterion_config;
 mod workloads;
 
 fn bench_executor(c: &mut Criterion) {
+    std::env::set_var("CASSIE_PARALLEL_AGGREGATION_WORKERS", "4");
     let runtime = workloads::runtime();
     let ctx = runtime
         .block_on(workloads::context("tier2-executor", 10_000))
@@ -37,6 +38,10 @@ fn bench_executor(c: &mut Criterion) {
         (
             "parallel_scoring_fulltext_executor",
             "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 25",
+        ),
+        (
+            "parallel_aggregation_grouped_executor",
+            "SELECT status, COUNT(*) AS total, SUM(score) AS sum_score, AVG(score) AS avg_score FROM bench_documents GROUP BY status ORDER BY status",
         ),
         (
             "vector_bruteforce_executor",

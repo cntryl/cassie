@@ -1342,6 +1342,7 @@ impl Cassie {
             .map(|limit| limit.to_string())
             .unwrap_or_else(|| "none".to_string());
         let join_strategy = physical.join_strategy.as_deref().unwrap_or("none");
+        let aggregate_parallel = physical.parallel_aggregate_candidate;
         let candidate_budget = physical.top_k_limit.map(|top_needed| {
             let limits = self.runtime.limits();
             let feedback_budget = self
@@ -1358,7 +1359,7 @@ impl Cassie {
             .unwrap_or_else(|| "none".to_string());
         let estimates = &physical.estimates;
         let mut plan = format!(
-            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} covered_index={} prefilter={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
+            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} covered_index={} prefilter={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} aggregate_parallel={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
@@ -1378,6 +1379,7 @@ impl Cassie {
             top_k_limit,
             candidate_budget,
             join_strategy,
+            aggregate_parallel,
             estimates.scan_rows,
             estimates.index_rows,
             estimates.join_rows,
@@ -1455,6 +1457,22 @@ impl Cassie {
                         .result_count_total
                         .saturating_sub(before.hybrid.result_count_total),
                 );
+            let parallel_aggregations_delta = after
+                .parallel_aggregation
+                .aggregations
+                .saturating_sub(before.parallel_aggregation.aggregations);
+            let parallel_aggregation_fallback_delta = after
+                .parallel_aggregation
+                .fallback_aggregations
+                .saturating_sub(before.parallel_aggregation.fallback_aggregations);
+            let parallel_aggregation_workers_delta = after
+                .parallel_aggregation
+                .workers
+                .saturating_sub(before.parallel_aggregation.workers);
+            let parallel_aggregation_groups_delta = after
+                .parallel_aggregation
+                .groups
+                .saturating_sub(before.parallel_aggregation.groups);
             self.record_feedback_for_keys(
                 feedback_keys,
                 RuntimeFeedbackObservation {
@@ -1491,7 +1509,7 @@ impl Cassie {
                     .join("|")
             };
             plan.push_str(&format!(
-                " analyze=true actual_rows={} actual_ms={} operator_actuals={} diagnostics=plan_cache_hits_delta:{},plan_cache_misses_delta:{},storage_reads_delta:{},storage_writes_delta:{},temp_writes_delta:{},candidate_count_delta:{},result_count_delta:{}",
+                " analyze=true actual_rows={} actual_ms={} operator_actuals={} diagnostics=plan_cache_hits_delta:{},plan_cache_misses_delta:{},storage_reads_delta:{},storage_writes_delta:{},temp_writes_delta:{},candidate_count_delta:{},result_count_delta:{},parallel_aggregations_delta:{},parallel_aggregation_fallback_delta:{},parallel_aggregation_workers_delta:{},parallel_aggregation_groups_delta:{}",
                 result.rows.len(),
                 elapsed_ms,
                 actual_operators,
@@ -1501,7 +1519,11 @@ impl Cassie {
                 storage_writes_delta,
                 temp_writes_delta,
                 candidate_count_delta,
-                result_count_delta
+                result_count_delta,
+                parallel_aggregations_delta,
+                parallel_aggregation_fallback_delta,
+                parallel_aggregation_workers_delta,
+                parallel_aggregation_groups_delta
             ));
         }
 
@@ -2874,6 +2896,7 @@ impl Cassie {
             "covering_indexes": snapshot.covering_indexes,
             "parallel_scans": snapshot.parallel_scans,
             "parallel_scoring": snapshot.parallel_scoring,
+            "parallel_aggregation": snapshot.parallel_aggregation,
         })
     }
 

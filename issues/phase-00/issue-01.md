@@ -43,6 +43,15 @@ Phase 04, phase 05, phase 06, and phase 07 are the current intentional rebaselin
 
 ## Coverage
 
+### Active Execution Gate
+
+This rebaseline keeps the engine-safe implementation order mechanical:
+
+1. `phase-04/issue-01` through `phase-04/issue-07` (boundary contract + diagnostics + read-shape gates)
+2. `phase-05/issue-01` through `phase-05/issue-06` (write contracts and optimization gates)
+3. `phase-06/issue-01` through `phase-06/issue-05` (read implementation gates)
+4. `phase-07` issues only after the phase-04/05/06 gate is closed.
+
 ### P0 Now
 
 - No open P0 coverage items.

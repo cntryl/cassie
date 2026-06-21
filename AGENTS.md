@@ -121,6 +121,13 @@ GitVersion `ContinuousDeployment` mode, next version `0.2.0`. Branch naming conv
 Agents must work from the issue backlog, not from ad hoc architectural judgment.
 The prioritized source of truth is `issues/phase-00/issue-01.md`.
 
+For the current rebaseline, work phases stay in this execution gate:
+
+1. Resolve phase-04 issues in listed order from `issue-01` through `issue-07`.
+2. Resolve phase-05 issues in listed order (`issue-01` through `issue-06`).
+3. Resolve phase-06 issues in listed order (`issue-01` through `issue-05`).
+4. Move to phase-07 only after phase-04/05/06 gates are complete.
+
 Required loop:
 
 1. Pick the first open issue in priority order from `issues/phase-00/issue-01.md`.

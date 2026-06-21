@@ -7,7 +7,7 @@ use parking_lot::RwLock;
 use crate::catalog::{
     normalize_role_name, CollectionCardinalityStats, CollectionMeta, CollectionSchema,
     FieldConstraint, FieldMeta, FunctionMeta, IndexKind, IndexMeta, NamespaceMeta, ProcedureMeta,
-    ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
+    ProjectionKind, ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
@@ -121,6 +121,48 @@ impl Catalog {
 
     pub fn get_projection_metadata(&self, collection: &str) -> Option<ProjectionMeta> {
         self.projections.read().get(collection).cloned()
+    }
+
+    pub fn list_projection_metadata(&self) -> Vec<ProjectionMeta> {
+        let mut out = self
+            .projections
+            .read()
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        out.sort_by_key(|projection| projection.collection.to_ascii_lowercase());
+        out
+    }
+
+    pub fn get_materialized_projection(&self, name: &str) -> Option<ProjectionMeta> {
+        self.projections
+            .read()
+            .get(name)
+            .filter(|metadata| metadata.kind == ProjectionKind::Materialized)
+            .cloned()
+    }
+
+    pub fn is_materialized_projection(&self, name: &str) -> bool {
+        self.get_materialized_projection(name).is_some()
+    }
+
+    pub fn materialized_projection_for_output(&self, output: &str) -> Option<ProjectionMeta> {
+        self.projections
+            .read()
+            .values()
+            .find(|projection| {
+                projection.kind == ProjectionKind::Materialized
+                    && projection
+                        .versions
+                        .iter()
+                        .any(|version| version.output_collection == output)
+            })
+            .cloned()
+    }
+
+    pub fn unregister_projection_metadata(&self, collection: &str) {
+        self.projections.write().remove(collection);
+        self.bump_version();
     }
 
     pub fn register_namespace(&self, name: &str, description: Option<String>) {
@@ -530,6 +572,9 @@ impl Catalog {
         let mut projections = self.projections.write();
         if let Some(mut projection) = projections.remove(current_name) {
             projection.collection = next_name.to_string();
+            if projection.projection_id == current_name {
+                projection.projection_id = next_name.to_string();
+            }
             projections.insert(next_name.to_string(), projection);
         }
 
@@ -682,7 +727,11 @@ impl Catalog {
             return true;
         }
 
-        self.views.read().contains_key(name)
+        if self.views.read().contains_key(name) {
+            return true;
+        }
+
+        self.is_materialized_projection(name)
     }
 
     pub fn get_field_boost(&self, collection: &str, field: &str) -> Option<f32> {

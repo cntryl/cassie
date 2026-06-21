@@ -22,12 +22,12 @@ Goal: make projection construction, replay, rebuilds, freshness, and activation 
 | Feature Area | Status | Compatibility |
 | --- | --- | --- |
 | Projection metadata, schema version, offset, lag, rebuild state | Implemented | Experimental Cassie-specific |
-| Projection source checkpoints and replay metadata | Planned | Cassie-specific |
-| Idempotent replay ingestion | Planned | Cassie-specific |
-| Materialized projections | Planned | Cassie-specific |
-| Projection versioning | Planned | Cassie-specific |
-| Verified projection swaps | Planned | Cassie-specific |
-| Projection operations catalog views and metrics | Planned | Cassie-specific |
+| Projection source checkpoints and replay metadata | Implemented | Experimental Cassie-specific |
+| Idempotent replay ingestion | Implemented | Experimental Cassie-specific internal API |
+| Materialized projections | Implemented | Experimental Cassie-specific |
+| Projection versioning | Implemented | Experimental Cassie-specific |
+| Projection active-version swaps | Implemented | Experimental Cassie-specific |
+| Projection operations catalog views and metrics | Implemented | Experimental Cassie-specific |
 
 ## Verification & Integrity
 
@@ -132,7 +132,7 @@ Goal: support practical PostgreSQL client interoperability for read-model access
 
 ## Remaining Roadmap Themes
 
-- Promote projection lifecycle, replay safety, versioning, verified swaps, and operations visibility into the near-term delivery path.
+- Add verification gates for projection swaps once row hashes and rebuild verification are available.
 - Add performance targets for replay ingestion, projection rebuilds, verification, swaps, and lag catch-up.
 - Prioritize query patterns required by real read models over feature parity with any general-purpose database.
 - Tighten PostgreSQL compatibility documentation for already-implemented SQL features through the read-model access lens.

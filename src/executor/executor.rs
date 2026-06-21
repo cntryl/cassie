@@ -328,6 +328,8 @@ pub(crate) fn rollup_rewrite_name_for_plan(cassie: &Cassie, plan: &LogicalPlan) 
 mod dml;
 #[path = "execution/dml_command.rs"]
 mod dml_command;
+#[path = "execution/materialized_projection.rs"]
+mod materialized_projection;
 #[path = "execution/retention.rs"]
 mod retention;
 #[path = "execution/rollups.rs"]
@@ -385,7 +387,7 @@ fn execute_plan_with_outer_row(
         cte_context.insert(cte.name.to_ascii_lowercase(), rows);
     }
 
-    if outer_row.is_none() {
+    if outer_row.is_none() && !source_reads_materialized_projection(cassie, &plan.source) {
         if let Some(rows) =
             scored::execute_vector_distance_top_k(cassie, session, user_functions, params, plan)?
         {
@@ -430,6 +432,20 @@ fn execute_plan_with_outer_row(
         controls,
         outer_row,
     )
+}
+
+fn source_reads_materialized_projection(cassie: &Cassie, source: &QuerySource) -> bool {
+    match source {
+        QuerySource::Collection(name) => cassie.catalog.is_materialized_projection(name),
+        QuerySource::Subquery { select, .. } => {
+            source_reads_materialized_projection(cassie, &select.source)
+        }
+        QuerySource::Join { left, right, .. } => {
+            source_reads_materialized_projection(cassie, left)
+                || source_reads_materialized_projection(cassie, right)
+        }
+        QuerySource::Cte(_) | QuerySource::SingleRow => false,
+    }
 }
 
 fn execute_plan_with_execution_breakdown(

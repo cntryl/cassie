@@ -15,7 +15,10 @@ pub use cardinality::{
     vector_index_cardinality_key, CollectionCardinalityStats, IndexCardinalityStats,
 };
 pub use collections::{
-    is_reserved_namespace, CollectionMeta, NamespaceMeta, ProjectionMeta, ProjectionRebuildState,
+    is_reserved_namespace, materialized_output_collection, CollectionMeta,
+    MaterializedProjectionMeta, MaterializedProjectionState, NamespaceMeta, ProjectionFreshness,
+    ProjectionKind, ProjectionMeta, ProjectionRebuildState, ProjectionSwapMeta,
+    ProjectionVersionMeta, ProjectionVersionState,
 };
 pub use constraints::{
     generated_constraint_name, ConstraintCheck, ConstraintOperator, FieldConstraint,

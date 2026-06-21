@@ -63,6 +63,7 @@ pub(super) fn execute_command(
             }
         }
         LogicalCommand::Insert(statement) => {
+            super::materialized_projection::reject_write(cassie, &statement.table)?;
             let result = super::dml::execute_insert(
                 cassie,
                 session,
@@ -84,9 +85,14 @@ pub(super) fn execute_command(
             } else {
                 super::rollups::mark_source_rollups_stale(cassie, &statement.table)?;
             }
+            super::materialized_projection::mark_source_projections_stale(
+                cassie,
+                &statement.table,
+            )?;
             Ok(result)
         }
         LogicalCommand::Update(statement) => {
+            super::materialized_projection::reject_write(cassie, &statement.table)?;
             let result = super::dml::execute_update(
                 cassie,
                 session,
@@ -108,9 +114,14 @@ pub(super) fn execute_command(
             } else {
                 super::rollups::mark_source_rollups_stale(cassie, &statement.table)?;
             }
+            super::materialized_projection::mark_source_projections_stale(
+                cassie,
+                &statement.table,
+            )?;
             Ok(result)
         }
         LogicalCommand::Delete(statement) => {
+            super::materialized_projection::reject_write(cassie, &statement.table)?;
             let result = super::dml::execute_delete(
                 cassie,
                 session,
@@ -132,6 +143,10 @@ pub(super) fn execute_command(
             } else {
                 super::rollups::mark_source_rollups_stale(cassie, &statement.table)?;
             }
+            super::materialized_projection::mark_source_projections_stale(
+                cassie,
+                &statement.table,
+            )?;
             Ok(result)
         }
         LogicalCommand::CreateRollup(statement) => {
@@ -145,6 +160,49 @@ pub(super) fn execute_command(
         LogicalCommand::DropRollup(statement) => {
             invalidate_plan_cache = true;
             super::rollups::drop_rollup(cassie, &statement.name, statement.if_exists)
+        }
+        LogicalCommand::CreateMaterializedProjection(statement) => {
+            invalidate_plan_cache = true;
+            super::materialized_projection::create_materialized_projection(
+                cassie,
+                statement,
+                user_functions,
+                controls,
+            )
+        }
+        LogicalCommand::RefreshMaterializedProjection(statement) => {
+            invalidate_plan_cache = true;
+            super::materialized_projection::refresh_materialized_projection(
+                cassie,
+                &statement.name,
+                user_functions,
+                controls,
+            )
+        }
+        LogicalCommand::DropMaterializedProjection(statement) => {
+            invalidate_plan_cache = true;
+            super::materialized_projection::drop_materialized_projection(
+                cassie,
+                &statement.name,
+                statement.if_exists,
+            )
+        }
+        LogicalCommand::AlterMaterializedProjection(statement) => {
+            invalidate_plan_cache = true;
+            super::materialized_projection::alter_materialized_projection(
+                cassie,
+                statement,
+                user_functions,
+                controls,
+            )
+        }
+        LogicalCommand::DropMaterializedProjectionVersion(statement) => {
+            invalidate_plan_cache = true;
+            super::materialized_projection::drop_materialized_projection_version(
+                cassie,
+                &statement.name,
+                &statement.version_id,
+            )
         }
         LogicalCommand::CreateRetentionPolicy(statement) => {
             invalidate_plan_cache = true;

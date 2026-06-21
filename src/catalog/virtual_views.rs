@@ -58,6 +58,38 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             int("lag_rows"),
             text("bucket_expr"),
         ],
+        "pg_catalog.pg_projection_checkpoints" => vec![
+            text("projection_id"),
+            text("collection"),
+            text("kind"),
+            text("source_identity"),
+            text("source_checkpoint"),
+            int("source_position"),
+            text("last_applied_event_id"),
+            text("replay_batch_id"),
+            int("lag"),
+            text("freshness"),
+            text("last_error"),
+        ],
+        "pg_catalog.pg_materialized_projections" => vec![
+            text("projection_name"),
+            text("state"),
+            text("active_version"),
+            text("output_collection"),
+            text("source_collections"),
+            int("schema_epoch"),
+            text("last_error"),
+        ],
+        "pg_catalog.pg_projection_versions" => vec![
+            text("projection_name"),
+            text("version_id"),
+            text("output_collection"),
+            text("state"),
+            int("created_ms"),
+            int("activated_ms"),
+            int("retired_ms"),
+            text("last_error"),
+        ],
         "pg_catalog.pg_retention_policies" => vec![
             text("policy_name"),
             text("collection"),
@@ -122,6 +154,87 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                     int_value("lag_rows", rollup.refresh_cursor.lag_rows as i64),
                     string("bucket_expr", rollup.bucket_expr),
                 ]
+            })
+            .collect(),
+        "pg_catalog.pg_projection_checkpoints" => catalog
+            .list_projection_metadata()
+            .into_iter()
+            .map(|projection| {
+                vec![
+                    string("projection_id", projection.projection_id().to_string()),
+                    string("collection", projection.collection),
+                    string("kind", projection.kind.as_str()),
+                    string(
+                        "source_identity",
+                        projection.source_identity.unwrap_or_default(),
+                    ),
+                    string(
+                        "source_checkpoint",
+                        projection.source_checkpoint.unwrap_or_default(),
+                    ),
+                    int_value(
+                        "source_position",
+                        projection.source_position.unwrap_or_default() as i64,
+                    ),
+                    string(
+                        "last_applied_event_id",
+                        projection.last_applied_event_id.unwrap_or_default(),
+                    ),
+                    string(
+                        "replay_batch_id",
+                        projection.replay_batch_id.unwrap_or_default(),
+                    ),
+                    int_value("lag", projection.lag as i64),
+                    string("freshness", projection.freshness.as_str()),
+                    string("last_error", projection.last_error.unwrap_or_default()),
+                ]
+            })
+            .collect(),
+        "pg_catalog.pg_materialized_projections" => catalog
+            .list_projection_metadata()
+            .into_iter()
+            .filter_map(|projection| {
+                let materialized = projection.materialized.clone()?;
+                let active_version = projection.active_version.clone().unwrap_or_default();
+                let output_collection = projection
+                    .active_output_collection()
+                    .unwrap_or(&materialized.output_collection)
+                    .to_string();
+                let last_error = projection.last_error.clone().unwrap_or_default();
+                Some(vec![
+                    string("projection_name", projection.collection),
+                    string("state", materialized.state.as_str()),
+                    string("active_version", active_version),
+                    string("output_collection", output_collection),
+                    string(
+                        "source_collections",
+                        materialized.source_collections.join(","),
+                    ),
+                    int_value("schema_epoch", materialized.schema_epoch as i64),
+                    string("last_error", last_error),
+                ])
+            })
+            .collect(),
+        "pg_catalog.pg_projection_versions" => catalog
+            .list_projection_metadata()
+            .into_iter()
+            .flat_map(|projection| {
+                let projection_name = projection.collection.clone();
+                projection.versions.into_iter().map(move |version| {
+                    vec![
+                        string("projection_name", projection_name.clone()),
+                        string("version_id", version.version_id),
+                        string("output_collection", version.output_collection),
+                        string("state", version.state.as_str()),
+                        int_value("created_ms", version.created_ms as i64),
+                        int_value(
+                            "activated_ms",
+                            version.activated_ms.unwrap_or_default() as i64,
+                        ),
+                        int_value("retired_ms", version.retired_ms.unwrap_or_default() as i64),
+                        string("last_error", version.last_error.unwrap_or_default()),
+                    ]
+                })
             })
             .collect(),
         "pg_catalog.pg_retention_policies" => catalog

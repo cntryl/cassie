@@ -51,8 +51,8 @@ Status terms:
 | pgvector syntax | `<=>`, `<->`, `<#>`, vector(n) | Stable/Experimental | pgvector-style, not full extension parity |
 | Hybrid | hybrid_score(text_score, vector_score) | Stable | Cassie-specific |
 | Embeddings | provider, model, dimensions, metric validation | Experimental | Cassie-specific |
-| Projections | projection metadata, schema version, offset, lag, rebuild state | Experimental | Cassie-specific |
-| Projection lifecycle | source checkpoints, replay metadata, idempotent replay, materialized projections, versioning, verified swaps, operations views | Planned | Cassie-specific |
+| Projections | projection metadata, source checkpoints, freshness, replay batch diagnostics, schema version, offset, lag, rebuild state | Experimental | Cassie-specific |
+| Projection lifecycle | internal idempotent replay ingestion, materialized projections, versioned builds, active-version swaps, operations views | Experimental | Cassie-specific |
 | Time series | time_bucket fixed windows, exact-match materialized rollups over deterministic aggregates, explicit retention policies, range queries | Experimental | Cassie-specific deterministic semantics |
 | Verification | row hash, range hash, projection root, rebuild verification, integrity verification, diff | Planned | Cassie-specific |
 
@@ -112,8 +112,8 @@ Status terms:
 | Pgwire compatibility | prepared statements, portals, text/binary formats, catalog introspection | Stable/Experimental | PostgreSQL-compatible subset |
 | HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin APIs | Stable/Experimental | Cassie REST API |
 | Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, index used, column-batch index used, aggregate acceleration, rollup rewrite selected, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
-| Projection operations | active version, source checkpoint, lag, freshness, rebuild state, verification state, last replay batch, last error, fallback counters | Planned | Cassie-specific |
-| Metrics | latency, throughput, errors, cache hit rate, projection lag, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
+| Projection operations | active version, source checkpoint, lag, freshness, rebuild state, last replay batch, last error, version state | Experimental | Cassie-specific |
+| Metrics | latency, throughput, errors, cache hit rate, projection replay/build/swap/stale counters, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
 
 ## Compatibility Notes
 

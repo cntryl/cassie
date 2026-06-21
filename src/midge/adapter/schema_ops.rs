@@ -671,6 +671,9 @@ impl Midge {
                         "invalid projection metadata for '{current_name}': {error}"
                     ))
                 })?;
+            if metadata.projection_id == current_name {
+                metadata.projection_id = next_name.to_string();
+            }
             metadata.collection = next_name.to_string();
             schema_tx
                 .delete(current_projection_key)

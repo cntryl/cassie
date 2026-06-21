@@ -50,6 +50,7 @@ const RETENTION_PREFIX: &str = "__cassie__/retention/v1/";
 const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
 const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
 const PROJECTION_KEY_PREFIX: &str = "__cassie__/projection/";
+const PROJECTION_EVENT_PREFIX: &str = "__cassie__/projection-event/v1/";
 const CARDINALITY_KEY_PREFIX: &str = "__cassie__/cardinality/v1/";
 const NORMALIZED_VECTOR_PREFIX: &str = "__cassie__/normalized-vector/";
 const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
@@ -208,6 +209,8 @@ mod column_batches;
 mod documents;
 #[path = "adapter/metadata.rs"]
 mod metadata;
+#[path = "adapter/projections.rs"]
+mod projections;
 #[path = "adapter/schema_ops.rs"]
 mod schema_ops;
 
@@ -366,6 +369,18 @@ impl Midge {
 
     fn projection_key(collection: &str) -> Vec<u8> {
         format!("{PROJECTION_KEY_PREFIX}{collection}").into_bytes()
+    }
+
+    fn projection_prefix() -> Vec<u8> {
+        PROJECTION_KEY_PREFIX.as_bytes().to_vec()
+    }
+
+    fn projection_event_key(projection: &str, source_identity: &str, event_id: &str) -> Vec<u8> {
+        format!("{PROJECTION_EVENT_PREFIX}{projection}/{source_identity}/{event_id}").into_bytes()
+    }
+
+    fn projection_event_prefix(projection: &str) -> Vec<u8> {
+        format!("{PROJECTION_EVENT_PREFIX}{projection}/").into_bytes()
     }
 
     fn schema_collection_prefix() -> Vec<u8> {

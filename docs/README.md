@@ -27,6 +27,7 @@ Most of the core query engine is implemented and tested. The main documentation 
 Current supported areas include:
 
 - Core SQL reads and projection-state mutation workflows.
+- Projection checkpoints, replay diagnostics, materialized projections, versioned builds, and active-version swaps.
 - Table, schema, constraint, view, procedure, and catalog metadata.
 - Scalar, composite, partial, expression, covering, full-text, vector, hybrid, and column-batch indexing surfaces.
 - Full-text search, vector search, hybrid scoring, and embedding-provider integration.

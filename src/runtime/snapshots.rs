@@ -181,6 +181,20 @@ pub struct RollupSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct ProjectionSnapshot {
+    pub replay_batches: u64,
+    pub replay_events_applied: u64,
+    pub replay_duplicates_skipped: u64,
+    pub replay_errors: u64,
+    pub materialized_builds: u64,
+    pub materialized_refreshes: u64,
+    pub version_swaps: u64,
+    pub stale_marks: u64,
+    pub last_projection: String,
+    pub last_error: String,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct RetentionSnapshot {
     pub enforcements: u64,
     pub deleted_rows: u64,
@@ -228,5 +242,6 @@ pub struct RuntimeMetricsSnapshot {
     pub parallel_scoring: ParallelScoringSnapshot,
     pub parallel_aggregation: ParallelAggregationSnapshot,
     pub rollups: RollupSnapshot,
+    pub projections: ProjectionSnapshot,
     pub retention: RetentionSnapshot,
 }

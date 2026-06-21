@@ -32,6 +32,13 @@ Supported:
 - CREATE TABLE, ALTER TABLE, DROP TABLE, CREATE SCHEMA, DROP SCHEMA, CREATE INDEX, DROP INDEX, CREATE VIEW, DROP VIEW, CREATE PROCEDURE, and CALL.
 - CAST(x AS type) and PostgreSQL-style x::type casts.
 
+Cassie-specific read-model commands:
+
+- CREATE MATERIALIZED PROJECTION, REFRESH MATERIALIZED PROJECTION, DROP MATERIALIZED PROJECTION.
+- ALTER MATERIALIZED PROJECTION BUILD VERSION.
+- ALTER MATERIALIZED PROJECTION ACTIVATE VERSION.
+- DROP MATERIALIZED PROJECTION VERSION.
+
 Unsupported or not yet guaranteed:
 
 - Full PostgreSQL grammar parity.
@@ -42,6 +49,7 @@ Unsupported or not yet guaranteed:
 Intentional differences:
 
 - Cassie stores tables as Midge-backed collections and row blobs.
+- Cassie materialized projections are read-only projection outputs with Cassie-specific lifecycle and versioning commands.
 - Cassie treats DML and transactions as projection-state mutation and operational correction tools, not a general OLTP workload contract.
 - Cassie planner and executor may choose index, full-text, vector, hybrid, column-batch, or aggregate-acceleration paths that PostgreSQL does not have.
 - Some catalog rows are compatibility shims over Cassie metadata.

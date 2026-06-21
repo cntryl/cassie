@@ -193,6 +193,26 @@ fn bind_statement(
                 }),
             })
         }
+        QueryStatement::CreateMaterializedProjection(statement) => Ok(ParsedStatement {
+            raw_sql,
+            statement: QueryStatement::CreateMaterializedProjection(statement),
+        }),
+        QueryStatement::RefreshMaterializedProjection(statement) => Ok(ParsedStatement {
+            raw_sql,
+            statement: QueryStatement::RefreshMaterializedProjection(statement),
+        }),
+        QueryStatement::DropMaterializedProjection(statement) => Ok(ParsedStatement {
+            raw_sql,
+            statement: QueryStatement::DropMaterializedProjection(statement),
+        }),
+        QueryStatement::AlterMaterializedProjection(statement) => Ok(ParsedStatement {
+            raw_sql,
+            statement: QueryStatement::AlterMaterializedProjection(statement),
+        }),
+        QueryStatement::DropMaterializedProjectionVersion(statement) => Ok(ParsedStatement {
+            raw_sql,
+            statement: QueryStatement::DropMaterializedProjectionVersion(statement),
+        }),
         QueryStatement::CreateRetentionPolicy(statement) => {
             let statement = bind_create_retention_policy(statement, catalog)?;
             Ok(ParsedStatement {

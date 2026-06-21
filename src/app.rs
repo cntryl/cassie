@@ -436,6 +436,8 @@ mod lifecycle;
 mod query;
 #[path = "app/registry.rs"]
 mod registry;
+#[path = "app/replay.rs"]
+mod replay;
 #[path = "app/roles.rs"]
 mod roles;
 #[path = "app/vector_helpers.rs"]
@@ -451,6 +453,8 @@ fn current_time_millis() -> u64 {
 }
 
 impl Cassie {}
+
+pub use replay::{ProjectionReplayBatch, ProjectionReplayEvent, ProjectionReplayReport};
 
 impl From<QueryError> for CassieError {
     fn from(value: QueryError) -> Self {

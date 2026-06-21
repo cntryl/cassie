@@ -294,7 +294,7 @@ impl Midge {
         }))
     }
 
-    pub(super) fn delete_keys_with_prefix(
+    pub(crate) fn delete_keys_with_prefix(
         tx: &mut cntryl_midge::Transaction,
         prefix: Vec<u8>,
     ) -> Result<(), CassieError> {

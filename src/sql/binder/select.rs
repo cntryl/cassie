@@ -257,6 +257,20 @@ pub(super) fn source_fields(
                     name,
                     fields.into_iter().map(|(field, _)| field),
                 ))
+            } else if let Some(projection) = catalog.get_materialized_projection(name) {
+                let materialized = projection.materialized.ok_or_else(|| {
+                    CassieError::Planner(format!(
+                        "materialized projection '{name}' is missing output schema"
+                    ))
+                })?;
+                Ok(qualified_fields(
+                    name,
+                    materialized
+                        .output_schema
+                        .fields
+                        .into_iter()
+                        .map(|field| field.name.to_ascii_lowercase()),
+                ))
             } else {
                 let schema = catalog
                     .get_schema(name)

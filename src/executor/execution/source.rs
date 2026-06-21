@@ -59,6 +59,35 @@ pub(super) fn execute_query_source<'a>(
                 return Ok((batches, text_fields));
             }
 
+            if let Some(projection) = env.cassie.catalog.get_materialized_projection(name) {
+                let output_collection = projection
+                    .active_output_collection()
+                    .ok_or_else(|| {
+                        QueryError::General(format!(
+                            "materialized projection '{name}' has no active version"
+                        ))
+                    })?
+                    .to_string();
+                let mut batches = scan::scan(env.cassie, env.session, &output_collection)?;
+                if qualify {
+                    batches = qualify_batches(batches, name);
+                }
+                ensure_temp_budget(env.controls, &batches)?;
+                let text_fields = projection
+                    .materialized
+                    .map(|materialized| {
+                        materialized
+                            .output_schema
+                            .fields
+                            .into_iter()
+                            .filter(|field| field.data_type == DataType::Text)
+                            .map(|field| field.name)
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                return Ok((batches, text_fields));
+            }
+
             let mut batches = scan::scan(env.cassie, env.session, name)?;
             if qualify {
                 batches = qualify_batches(batches, name);

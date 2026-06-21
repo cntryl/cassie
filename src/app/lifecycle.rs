@@ -81,6 +81,17 @@ impl Cassie {
             }
         }
 
+        let projection_metadata = self.midge.list_projection_metadata().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list projection metadata: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for metadata in projection_metadata {
+            if metadata.kind == crate::catalog::ProjectionKind::Materialized {
+                self.catalog.register_projection_metadata(metadata);
+            }
+        }
+
         let indexes = self.midge.list_vector_indexes().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list vector indexes: {error}"))

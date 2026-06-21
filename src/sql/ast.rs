@@ -119,6 +119,11 @@ pub enum QueryStatement {
     CreateRollup(CreateRollupStatement),
     RefreshRollup(RefreshRollupStatement),
     DropRollup(DropRollupStatement),
+    CreateMaterializedProjection(CreateMaterializedProjectionStatement),
+    RefreshMaterializedProjection(RefreshMaterializedProjectionStatement),
+    DropMaterializedProjection(DropMaterializedProjectionStatement),
+    AlterMaterializedProjection(AlterMaterializedProjectionStatement),
+    DropMaterializedProjectionVersion(DropMaterializedProjectionVersionStatement),
     CreateRetentionPolicy(CreateRetentionPolicyStatement),
     AlterRetentionPolicy(AlterRetentionPolicyStatement),
     DropRetentionPolicy(DropRetentionPolicyStatement),
@@ -247,6 +252,45 @@ pub struct RefreshRollupStatement {
 pub struct DropRollupStatement {
     pub name: String,
     pub if_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateMaterializedProjectionStatement {
+    pub name: String,
+    pub if_not_exists: bool,
+    pub query: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefreshMaterializedProjectionStatement {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DropMaterializedProjectionStatement {
+    pub name: String,
+    pub if_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlterMaterializedProjectionStatement {
+    pub name: String,
+    pub operation: AlterMaterializedProjectionOperation,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AlterMaterializedProjectionOperation {
+    BuildVersion,
+    ActivateVersion {
+        version_id: String,
+        unsafe_override: bool,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DropMaterializedProjectionVersionStatement {
+    pub name: String,
+    pub version_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

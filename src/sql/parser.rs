@@ -2,16 +2,18 @@ use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, Index
 use crate::sql::ast::{
     AlterRetentionPolicyStatement, AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement,
     AlterTableOperation, AlterTableStatement, BinaryOp, CallProcedureStatement,
-    CommonTableExpression, CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
+    CommonTableExpression, CreateFunctionStatement, CreateIndexStatement,
+    CreateMaterializedProjectionStatement, CreateProcedureStatement,
     CreateRetentionPolicyStatement, CreateRoleStatement, CreateRollupStatement,
     CreateSchemaStatement, CreateTableStatement, CreateViewStatement, CteQuery,
-    DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
-    DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement, DropSchemaStatement,
-    DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement, ExplainStatement, Expr,
-    FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr,
-    ParsedStatement, QuerySource, QueryStatement, RefreshRollupStatement, SelectItem, SelectSet,
-    SelectStatement, SetOperator, SetStatement, ShowStatement, SortDirection, TransactionAction,
-    TransactionIsolation, TransactionStatement, Volatility, WindowFunctionCall,
+    DropFunctionStatement, DropIndexStatement, DropMaterializedProjectionStatement,
+    DropProcedureStatement, DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement,
+    DropSchemaStatement, DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement,
+    ExplainStatement, Expr, FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind,
+    NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement, RefreshRollupStatement,
+    SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement, ShowStatement,
+    SortDirection, TransactionAction, TransactionIsolation, TransactionStatement, Volatility,
+    WindowFunctionCall,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -26,6 +28,8 @@ mod clauses;
 mod dml;
 #[path = "parser/expr.rs"]
 mod expr;
+#[path = "parser/materialized_projection.rs"]
+mod materialized_projection;
 #[path = "parser/query.rs"]
 mod query;
 #[path = "parser/retention.rs"]
@@ -40,6 +44,7 @@ mod statements;
 use clauses::*;
 use dml::*;
 pub(crate) use expr::parse_expression;
+use materialized_projection::*;
 use query::*;
 use retention::*;
 use rollups::*;
@@ -147,8 +152,26 @@ fn parse_view_or_index_statement(
 ) -> Result<Option<ParsedStatement>, SqlError> {
     if starts_statement(lower, "create view") {
         Ok(Some(parse_create_view_statement(trimmed)?))
+    } else if starts_statement(lower, "create materialized projection") {
+        Ok(Some(parse_create_materialized_projection_statement(
+            trimmed,
+        )?))
     } else if starts_statement(lower, "drop view") {
         Ok(Some(parse_drop_view_statement(trimmed)?))
+    } else if starts_statement(lower, "refresh materialized projection") {
+        Ok(Some(parse_refresh_materialized_projection_statement(
+            trimmed,
+        )?))
+    } else if starts_statement(lower, "drop materialized projection version") {
+        Ok(Some(parse_drop_materialized_projection_version_statement(
+            trimmed,
+        )?))
+    } else if starts_statement(lower, "drop materialized projection") {
+        Ok(Some(parse_drop_materialized_projection_statement(trimmed)?))
+    } else if starts_statement(lower, "alter materialized projection") {
+        Ok(Some(parse_alter_materialized_projection_statement(
+            trimmed,
+        )?))
     } else if starts_statement(lower, "alter view") {
         Err(SqlError(
             "ALTER VIEW is not supported in this version".into(),

@@ -44,11 +44,7 @@ Do not create additional local issue files until the current active set is compl
 
 ### P0 Now
 
-- [Phase 01 Issue 01: Projection Source Checkpoints](../phase-01/issue-01.md) - Read-Model Core / Projection Lifecycle
-- [Phase 01 Issue 02: Idempotent Replay Ingestion](../phase-01/issue-02.md) - Read-Model Core / Projection Lifecycle
-- [Phase 01 Issue 03: Materialized Projections](../phase-01/issue-03.md) - Read-Model Core / Projection Lifecycle
-- [Phase 01 Issue 04: Projection Versioning](../phase-01/issue-04.md) - Read-Model Core / Projection Lifecycle
-- [Phase 01 Issue 05: Projection Swaps](../phase-01/issue-05.md) - Read-Model Core / Projection Lifecycle
+- No open P0 coverage items.
 
 ### P1 Next
 

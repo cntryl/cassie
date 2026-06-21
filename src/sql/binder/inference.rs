@@ -147,6 +147,15 @@ pub(super) fn relation_output_schema(catalog: &Catalog, name: &str) -> Result<Sc
         return Ok(view.schema);
     }
 
+    if let Some(projection) = catalog.get_materialized_projection(name) {
+        let materialized = projection.materialized.ok_or_else(|| {
+            CassieError::Planner(format!(
+                "materialized projection '{name}' is missing output schema"
+            ))
+        })?;
+        return Ok(materialized.output_schema);
+    }
+
     let schema = catalog
         .get_schema(name)
         .ok_or_else(|| CassieError::CollectionNotFound(name.to_string()))?;

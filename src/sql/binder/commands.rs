@@ -15,6 +15,10 @@ pub(super) fn bind_insert(
             "relation '{table}' is read-only"
         )));
     }
+    if catalog.is_materialized_projection(&table) {
+        statement.table = table;
+        return Ok(statement);
+    }
     if !catalog.exists(&table) {
         return Err(CassieError::CollectionNotFound(table));
     }
@@ -156,6 +160,10 @@ pub(super) fn bind_update(
             "relation '{table}' is read-only"
         )));
     }
+    if catalog.is_materialized_projection(&table) {
+        statement.table = table;
+        return Ok(statement);
+    }
     if !catalog.exists(&table) {
         return Err(CassieError::CollectionNotFound(table));
     }
@@ -211,6 +219,10 @@ pub(super) fn bind_delete(
         return Err(CassieError::Unsupported(format!(
             "relation '{table}' is read-only"
         )));
+    }
+    if catalog.is_materialized_projection(&table) {
+        statement.table = table;
+        return Ok(statement);
     }
     if !catalog.exists(&table) {
         return Err(CassieError::CollectionNotFound(table));

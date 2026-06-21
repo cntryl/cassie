@@ -61,6 +61,8 @@ mod feedback;
 mod fulltext;
 #[path = "runtime/helpers.rs"]
 mod helpers;
+#[path = "runtime/projection_metrics.rs"]
+mod projection_metrics;
 #[path = "runtime/query_cache.rs"]
 pub(crate) mod query_cache;
 #[path = "runtime/retention_metrics.rs"]
@@ -112,6 +114,7 @@ struct RuntimeMetricsState {
     parallel_scoring: ParallelScoringSnapshot,
     parallel_aggregation: ParallelAggregationSnapshot,
     rollups: RollupSnapshot,
+    projections: ProjectionSnapshot,
     retention: RetentionSnapshot,
 }
 
@@ -962,6 +965,7 @@ impl RuntimeState {
             parallel_scoring: metrics.parallel_scoring.clone(),
             parallel_aggregation: metrics.parallel_aggregation.clone(),
             rollups: metrics.rollups.clone(),
+            projections: metrics.projections.clone(),
             retention: metrics.retention.clone(),
         };
         snapshot.runtime.uptime_seconds = uptime_seconds;

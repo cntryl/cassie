@@ -1,7 +1,7 @@
 #![allow(unused_imports, dead_code)]
 use cassie::app::Cassie;
-use cassie::catalog::ProjectionRebuildState;
 use cassie::catalog::{IndexKind, IndexMeta};
+use cassie::catalog::{ProjectionFreshness, ProjectionRebuildState};
 use cassie::midge::adapter::{RowDecode, StorageFamily, StorageLayout};
 use cassie::types::{DataType, FieldSchema, Schema};
 use cntryl_midge::TransactionMode;
@@ -273,6 +273,131 @@ fn should_hydrate_projection_metadata_during_startup() {
         assert_eq!(metadata.collection, "hydrated_projection_metadata");
         assert_eq!(metadata.schema_version, 1);
         assert_eq!(metadata.rebuild_state, ProjectionRebuildState::Idle);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_hydrate_legacy_projection_metadata_with_unknown_freshness() {
+    // Arrange
+    let path = data_dir("projection_metadata_legacy");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.midge.ensure_families_ready().unwrap();
+        let collection = "legacy_projection_metadata";
+        cassie
+            .midge
+            .create_collection(
+                collection,
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "title".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .unwrap();
+        let legacy = serde_json::json!({
+            "collection": collection,
+            "schema_version": 1,
+            "offset": 9,
+            "lag": 2,
+            "rebuild_state": "idle"
+        });
+        let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
+        tx.put(
+            format!("__cassie__/projection/{collection}").into_bytes(),
+            legacy.to_string().into_bytes(),
+            None,
+        )
+        .unwrap();
+        tx.commit(cntryl_midge::WriteOptions::sync()).unwrap();
+
+        // Act
+        let metadata = cassie
+            .midge
+            .projection_metadata(collection)
+            .unwrap()
+            .expect("legacy projection metadata");
+
+        // Assert
+        assert_eq!(metadata.collection, collection);
+        assert_eq!(metadata.offset, 9);
+        assert_eq!(metadata.lag, 2);
+        assert_eq!(metadata.freshness, ProjectionFreshness::Unknown);
+        assert!(metadata.source_identity.is_none());
+        assert!(metadata.last_error.is_none());
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_cleanup_projection_checkpoint_metadata_on_rename_drop() {
+    // Arrange
+    let path = data_dir("projection_checkpoint_cleanup");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.midge.ensure_families_ready().unwrap();
+        let current = "projection_checkpoint_cleanup";
+        let next = "projection_checkpoint_cleanup_next";
+        cassie
+            .midge
+            .create_collection(
+                current,
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "title".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .unwrap();
+        let mut metadata = cassie
+            .midge
+            .projection_metadata(current)
+            .unwrap()
+            .expect("projection metadata");
+        metadata.source_identity = Some("orders-stream".to_string());
+        metadata.source_checkpoint = Some("checkpoint-7".to_string());
+        metadata.last_applied_event_id = Some("event-7".to_string());
+        metadata.replay_batch_id = Some("batch-7".to_string());
+        metadata.freshness = ProjectionFreshness::Fresh;
+        cassie.midge.put_projection_metadata(metadata).unwrap();
+
+        // Act
+        cassie.midge.rename_collection(current, next).unwrap();
+        let renamed = cassie
+            .midge
+            .projection_metadata(next)
+            .unwrap()
+            .expect("renamed metadata");
+        let old = cassie.midge.projection_metadata(current).unwrap();
+        cassie.midge.drop_collection(next).unwrap();
+        let dropped = cassie.midge.projection_metadata(next).unwrap();
+
+        // Assert
+        assert_eq!(renamed.collection, next);
+        assert_eq!(renamed.source_identity.as_deref(), Some("orders-stream"));
+        assert_eq!(renamed.source_checkpoint.as_deref(), Some("checkpoint-7"));
+        assert_eq!(renamed.last_applied_event_id.as_deref(), Some("event-7"));
+        assert_eq!(renamed.replay_batch_id.as_deref(), Some("batch-7"));
+        assert_eq!(renamed.freshness, ProjectionFreshness::Fresh);
+        assert!(old.is_none());
+        assert!(dropped.is_none());
 
         let _ = std::fs::remove_dir_all(path);
     });

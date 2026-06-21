@@ -75,11 +75,9 @@ Recommendation:
 
 Evidence:
 
-- `issues/phase-01/issue-03.md` covers materialized projections.
-- `issues/phase-01/issue-04.md` covers projection versioning.
-- `issues/phase-01/issue-05.md` covers projection swaps.
-- All three are `Status: Open` and `Priority: P3`.
-- `docs/feature-support.md` marks projection metadata as experimental, but materialized projection lifecycle remains issue-backed rather than product-core.
+- Phase 01 now implements materialized projections, projection versioning, and active-version swaps as experimental Cassie-specific lifecycle features.
+- `docs/feature-support.md` and `docs/product-roadmap.md` mark the projection lifecycle surface as implemented and experimental.
+- Verification gates for safe swaps still depend on phase 02 row hash and rebuild verification work.
 
 Impact:
 
@@ -87,9 +85,8 @@ Fast rebuilds and replay safety require building a new projection version withou
 
 Recommendation:
 
-- Raise issues 119, 120, and 121 to P0 or P1.
-- Define the minimal v1 lifecycle: create/build, active version routing, failed build isolation, verified swap, rollback-capable retired version, cleanup.
-- Tie version state to query planning, cache invalidation, catalog diagnostics, metrics, and pgwire-visible errors.
+- Keep the implemented v1 lifecycle experimental until phase 02 verification can gate safe activation.
+- Tie verification state into active-version swaps, cache invalidation, catalog diagnostics, metrics, and pgwire-visible errors.
 
 ### 4. Rebuild Verification And Merkle Work Are Core, Not V5 Advanced Work
 

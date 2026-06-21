@@ -323,21 +323,27 @@ pub enum CassieError {
     #[error("collection not found: {0}")]
     CollectionNotFound(String),
 
-    #[error("null value in column '{column}' of relation '{table}' violates not-null constraint")]
+    #[error(
+        "field '{column}' cannot be null (null value in column '{column}' of relation '{table}' violates not-null constraint)"
+    )]
     NotNullViolation {
         table: String,
         column: String,
         constraint: Option<String>,
     },
 
-    #[error("duplicate key value violates unique constraint '{constraint}'")]
+    #[error(
+        "unique constraint failed for '{column}' (duplicate key value violates unique constraint '{constraint}')"
+    )]
     UniqueViolation {
         table: String,
         column: String,
         constraint: String,
     },
 
-    #[error("new row for relation '{table}' violates check constraint '{constraint}'")]
+    #[error(
+        "check constraint failed for '{column}' field (new row for relation '{table}' violates check constraint '{constraint}')"
+    )]
     CheckViolation {
         table: String,
         column: String,

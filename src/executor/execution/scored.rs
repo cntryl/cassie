@@ -1,307 +1,15 @@
-use super::projected_read::{is_row_id_column, json_to_query_value};
 use super::*;
 
-pub(super) fn execute_vector_distance_top_k(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    params: &[Value],
-    plan: &LogicalPlan,
-) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(spec) = vector_distance_top_k_spec(plan) else {
-        return Ok(None);
-    };
+#[path = "scored/fulltext_read.rs"]
+mod fulltext_read;
+#[path = "scored/vector_topk.rs"]
+mod vector_topk;
 
-    let schema = cassie.catalog.get_schema(&spec.collection).ok_or_else(|| {
-        QueryError::General(format!("collection '{}' not found", spec.collection))
-    })?;
-    let mut candidates = batch::flatten_batches(scan::scan(cassie, session, &spec.collection)?);
-    if let Some(filter_expr) = &plan.filter {
-        if vector_prefilter_supported(filter_expr, &schema) {
-            let before = candidates.len();
-            candidates = filter::filter_rows(
-                candidates,
-                filter_expr,
-                params,
-                None,
-                user_functions,
-                session,
-            )?;
-            cassie
-                .runtime
-                .record_vector_prefilter_usage(before, candidates.len(), None);
-        } else {
-            return Ok(None);
-        }
-    }
-    let top_needed = spec.limit.saturating_add(spec.offset).max(1);
-    let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
-    let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
-
-    let final_candidate_count = candidates.len();
-    for candidate in candidates {
-        let vector = candidate
-            .get(&spec.vector_field)
-            .and_then(value_to_vector)
-            .unwrap_or_default();
-        let score = if vector.len() == spec.query.len() && !vector.is_empty() {
-            crate::vector::l2_distance(&vector, &spec.query)
-        } else {
-            f64::INFINITY
-        };
-        let candidate = SqlVectorCandidate {
-            sort_value: match spec.direction {
-                SortDirection::Asc => score,
-                SortDirection::Desc => -score,
-            },
-            score,
-            id: candidate
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string(),
-        };
-        if top.len() < top_needed {
-            top.push(candidate);
-        } else if let Some(worst) = top.peek() {
-            if candidate.is_better_than(worst) {
-                top.pop();
-                top.push(candidate);
-            }
-        }
-    }
-
-    let mut ranked = top.into_vec();
-    ranked.sort_by(compare_sql_vector_candidates);
-    let rows: Vec<BatchRow> = ranked
-        .into_iter()
-        .skip(spec.offset)
-        .take(spec.limit)
-        .map(|candidate| {
-            BatchRow::new(vec![
-                (spec.id_column.clone(), Value::String(candidate.id)),
-                (spec.score_column.clone(), Value::Float64(candidate.score)),
-            ])
-        })
-        .collect();
-    record_adaptive_candidate_decision(cassie, adaptive, final_candidate_count, rows.len());
-    Ok(Some(rows))
-}
-
-struct AdaptiveCandidateDecision {
-    initial_budget: usize,
-    feedback_budget: Option<usize>,
-}
-
-fn adaptive_candidate_decision(
-    cassie: &Cassie,
-    collection: &str,
-    top_needed: usize,
-) -> Result<AdaptiveCandidateDecision, QueryError> {
-    let limits = cassie.runtime.limits();
-    let max_budget = limits.adaptive_candidate_max.max(1);
-    if top_needed > max_budget {
-        cassie.runtime.record_adaptive_candidate_limit_error();
-        return Err(QueryError::General(format!(
-            "top-k candidate requirement {top_needed} exceeds adaptive candidate max {max_budget}"
-        )));
-    }
-
-    let min_budget = limits.adaptive_candidate_min.max(1).min(max_budget);
-    let feedback_budget = cassie
-        .runtime
-        .feedback_candidate_budget(collection)
-        .map(|budget| budget.min(max_budget));
-    let initial_budget = top_needed
-        .max(min_budget)
-        .max(feedback_budget.unwrap_or_default())
-        .min(max_budget);
-
-    Ok(AdaptiveCandidateDecision {
-        initial_budget,
-        feedback_budget,
-    })
-}
-
-fn record_adaptive_candidate_decision(
-    cassie: &Cassie,
-    decision: AdaptiveCandidateDecision,
-    final_candidate_count: usize,
-    result_count: usize,
-) {
-    let expansions = if final_candidate_count > decision.initial_budget {
-        final_candidate_count
-            .saturating_sub(decision.initial_budget)
-            .saturating_add(decision.initial_budget - 1)
-            / decision.initial_budget
-    } else {
-        0
-    };
-    let exhausted = result_count < decision.initial_budget.min(final_candidate_count);
-    cassie.runtime.record_adaptive_candidate_decision(
-        decision.initial_budget,
-        decision.feedback_budget,
-        expansions,
-        final_candidate_count,
-        exhausted,
-    );
-}
-
-struct VectorDistanceTopKSpec {
-    collection: String,
-    vector_field: String,
-    query: Vec<f32>,
-    id_column: String,
-    score_column: String,
-    direction: SortDirection,
-    limit: usize,
-    offset: usize,
-}
-
-fn vector_distance_top_k_spec(plan: &LogicalPlan) -> Option<VectorDistanceTopKSpec> {
-    if plan.command.is_some()
-        || !plan.ctes.is_empty()
-        || plan.distinct
-        || !plan.distinct_on.is_empty()
-        || !plan.group_by.is_empty()
-        || plan.having.is_some()
-        || plan.set.is_some()
-        || plan.order.len() != 1
-        || plan.projection.len() != 2
-    {
-        return None;
-    }
-
-    let QuerySource::Collection(collection) = &plan.source else {
-        return None;
-    };
-    let limit = usize::try_from(plan.limit?).ok()?.max(1);
-    let offset = plan
-        .offset
-        .and_then(|offset| usize::try_from(offset).ok())
-        .unwrap_or(0);
-
-    let (id_column, function, score_column) =
-        vector_distance_projection(plan.projection.as_slice())?;
-    if !order_matches_vector_distance_score(&plan.order[0], function, &score_column) {
-        return None;
-    }
-
-    let (vector_field, query) = vector_distance_args(function)?;
-    Some(VectorDistanceTopKSpec {
-        collection: collection.clone(),
-        vector_field,
-        query,
-        id_column,
-        score_column,
-        direction: plan.order[0].direction.clone(),
-        limit,
-        offset,
-    })
-}
-
-fn vector_distance_projection(
-    projection: &[SelectItem],
-) -> Option<(String, &FunctionCall, String)> {
-    let SelectItem::Column { name, alias: _ } = &projection[0] else {
-        return None;
-    };
-    if !name.eq_ignore_ascii_case("id") && !name.eq_ignore_ascii_case("_id") {
-        return None;
-    }
-    let SelectItem::Function { function, alias } = &projection[1] else {
-        return None;
-    };
-    if !function.name.eq_ignore_ascii_case("vector_distance") {
-        return None;
-    }
-    Some((
-        alias.clone().unwrap_or_else(|| name.clone()),
-        function,
-        alias.clone().unwrap_or_else(|| function.name.clone()),
-    ))
-}
-
-fn order_matches_vector_distance_score(
-    order: &crate::sql::ast::OrderExpr,
-    function: &FunctionCall,
-    score_column: &str,
-) -> bool {
-    match &order.expr {
-        Expr::Column(column) => column.eq_ignore_ascii_case(score_column),
-        Expr::Function(order_function) => {
-            order_function.name.eq_ignore_ascii_case("vector_distance")
-                && vector_distance_args(order_function) == vector_distance_args(function)
-        }
-        _ => false,
-    }
-}
-
-fn vector_distance_args(function: &FunctionCall) -> Option<(String, Vec<f32>)> {
-    if function.args.len() != 2 {
-        return None;
-    }
-    let Expr::Column(vector_field) = &function.args[0] else {
-        return None;
-    };
-    let Expr::StringLiteral(query) = &function.args[1] else {
-        return None;
-    };
-    Some((vector_field.clone(), parse_vector_literal(query)?))
-}
-
-pub(super) fn parse_vector_literal(value: &str) -> Option<Vec<f32>> {
-    let values = serde_json::from_str::<Vec<f32>>(value).ok()?;
-    if values.is_empty() {
-        return None;
-    }
-    Some(values)
-}
-
-fn vector_from_json(value: &serde_json::Value) -> Option<Vec<f32>> {
-    let values = value.as_array()?;
-    let mut out = Vec::with_capacity(values.len());
-    for value in values {
-        out.push(value.as_f64()? as f32);
-    }
-    Some(out)
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct SqlVectorCandidate {
-    sort_value: f64,
-    score: f64,
-    id: String,
-}
-
-impl SqlVectorCandidate {
-    fn is_better_than(&self, other: &Self) -> bool {
-        compare_sql_vector_candidates(self, other) == CmpOrdering::Less
-    }
-}
-
-impl Eq for SqlVectorCandidate {}
-
-impl PartialOrd for SqlVectorCandidate {
-    fn partial_cmp(&self, other: &Self) -> Option<CmpOrdering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for SqlVectorCandidate {
-    fn cmp(&self, other: &Self) -> CmpOrdering {
-        compare_sql_vector_candidates(self, other)
-    }
-}
-
-fn compare_sql_vector_candidates(
-    left: &SqlVectorCandidate,
-    right: &SqlVectorCandidate,
-) -> CmpOrdering {
-    left.sort_value
-        .total_cmp(&right.sort_value)
-        .then_with(|| left.id.cmp(&right.id))
-}
+use fulltext_read::execute_fulltext_filtered_read;
+use vector_topk::{
+    adaptive_candidate_decision, record_adaptive_candidate_decision, vector_from_json,
+};
+pub(super) use vector_topk::{execute_vector_distance_top_k, parse_vector_literal};
 
 pub(super) fn execute_scored_search_top_k(
     cassie: &Cassie,
@@ -333,12 +41,6 @@ struct TokenizedFulltextDocument {
     text_stats: filter::SearchTermStats,
 }
 
-struct TokenizedFulltextReadDocument {
-    id: String,
-    payload: serde_json::Value,
-    text_stats: filter::SearchTermStats,
-}
-
 struct TokenizedHybridDocument {
     id: String,
     text_stats: filter::SearchTermStats,
@@ -352,20 +54,6 @@ trait PostingListDocument {
 }
 
 impl PostingListDocument for TokenizedFulltextDocument {
-    fn doc_id(&self) -> &str {
-        &self.id
-    }
-
-    fn term_stats(&self) -> &filter::SearchTermStats {
-        &self.text_stats
-    }
-
-    fn term_counts(&self) -> &HashMap<String, usize> {
-        self.text_stats.term_counts()
-    }
-}
-
-impl PostingListDocument for TokenizedFulltextReadDocument {
     fn doc_id(&self) -> &str {
         &self.id
     }
@@ -741,99 +429,6 @@ fn execute_hybrid_top_k(
     Ok(Some(rows))
 }
 
-fn execute_fulltext_filtered_read(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    spec: FulltextFilteredReadSpec,
-) -> Result<Vec<BatchRow>, QueryError> {
-    let started_at = Instant::now();
-    let scan_fields = fulltext_filtered_scan_fields(&spec);
-    let document_batches = cassie
-        .scan_projected_documents_batched_for_session(
-            session,
-            &spec.collection,
-            batch::DEFAULT_BATCH_SIZE,
-            &scan_fields,
-            None,
-        )
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    let search_index_options = search_context_for_fields(
-        cassie,
-        &spec.collection,
-        std::slice::from_ref(&spec.text_field),
-    )?;
-    let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
-    let search_documents = document_batches
-        .into_iter()
-        .flat_map(|documents| documents.into_iter())
-        .map(|document| TokenizedFulltextReadDocument {
-            id: document.id,
-            text_stats: json_search_term_stats(
-                json_projected_value(&document.payload, &spec.text_field),
-                &analyzer,
-            ),
-            payload: document.payload,
-        })
-        .collect::<Vec<_>>();
-    let search_context = cached_search_context(
-        cassie,
-        &spec.collection,
-        &spec.text_field,
-        &search_documents,
-        &search_index_options.field_boost,
-        &search_index_options.field_k1,
-        &search_index_options.field_b,
-        &search_index_options.field_analyzer,
-    )?;
-    let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
-    let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
-
-    let mut skipped = 0usize;
-    let mut rows = Vec::new();
-    for document in &search_documents {
-        if !candidate_ids.contains(document.id.as_str()) {
-            continue;
-        }
-        let score = search_context.score_term_stats(
-            Some(&spec.text_field),
-            &document.text_stats,
-            &query_terms,
-        );
-        if score == 0.0 {
-            continue;
-        }
-        if skipped < spec.offset {
-            skipped += 1;
-            continue;
-        }
-        if let Some(limit) = spec.limit {
-            if rows.len() >= limit {
-                break;
-            }
-        }
-
-        let mut entries = Vec::with_capacity(spec.columns.len().saturating_add(1));
-        for column in &spec.columns {
-            let value = if is_row_id_column(&column.name) {
-                Value::String(document.id.clone())
-            } else {
-                json_projected_value(&document.payload, &column.name)
-                    .map(json_to_query_value)
-                    .unwrap_or(Value::Null)
-            };
-            entries.push((column.output_name.clone(), value));
-        }
-        entries.push((spec.score_column.clone(), Value::Float64(score)));
-        rows.push(BatchRow::new(entries));
-    }
-
-    let candidate_count = candidate_ids.len();
-    cassie
-        .runtime
-        .record_search_execution(started_at.elapsed(), candidate_count, rows.len());
-    Ok(rows)
-}
-
 fn search_context_for_fields(
     cassie: &Cassie,
     collection: &str,
@@ -1020,21 +615,6 @@ fn fulltext_filtered_projection(
         function,
         score_alias.clone().unwrap_or_else(|| function.name.clone()),
     ))
-}
-
-fn fulltext_filtered_scan_fields(spec: &FulltextFilteredReadSpec) -> Vec<String> {
-    let mut fields = vec![spec.text_field.clone()];
-    for column in &spec.columns {
-        if is_row_id_column(&column.name)
-            || fields
-                .iter()
-                .any(|field| field.eq_ignore_ascii_case(&column.name))
-        {
-            continue;
-        }
-        fields.push(column.name.clone());
-    }
-    fields
 }
 
 fn hybrid_top_k_spec(plan: &LogicalPlan) -> Option<HybridTopKSpec> {
@@ -1320,17 +900,6 @@ fn contains_vector_field(expr: &Expr, schema: &CollectionSchema) -> bool {
         | Expr::Null
         | Expr::Param(_) => false,
     }
-}
-
-fn json_projected_value<'a>(
-    payload: &'a serde_json::Value,
-    field: &str,
-) -> Option<&'a serde_json::Value> {
-    payload
-        .as_object()?
-        .iter()
-        .find(|(name, _)| name.eq_ignore_ascii_case(field))
-        .map(|(_, value)| value)
 }
 
 #[derive(Debug, Clone, PartialEq)]

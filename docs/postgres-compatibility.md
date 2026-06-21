@@ -1,6 +1,8 @@
 # PostgreSQL Compatibility
 
-Cassie uses PostgreSQL wire protocol as the primary query interface and intentionally supports a PostgreSQL-like SQL surface. Compatibility means practical client interoperability for supported behavior, not full PostgreSQL server equivalence.
+Cassie uses PostgreSQL wire protocol as the primary query interface and intentionally supports a PostgreSQL-like SQL surface. Compatibility means practical client interoperability for read-model projections, not full PostgreSQL server equivalence.
+
+Cassie does not seek PostgreSQL feature parity for its own sake. PostgreSQL-like behavior is prioritized when it helps users build, query, inspect, analyze, report on, or operate read models through existing tools and applications.
 
 ## Compatibility Guarantees
 
@@ -12,6 +14,8 @@ Cassie uses PostgreSQL wire protocol as the primary query interface and intentio
 | Cassie-specific | The feature intentionally exposes Cassie behavior and has no PostgreSQL-equivalent guarantee. |
 
 ## Supported PostgreSQL-Like SQL
+
+The supported SQL surface exists so applications, ORMs, reporting tools, and operators can query and maintain projection state through familiar workflows.
 
 Supported:
 
@@ -38,6 +42,7 @@ Unsupported or not yet guaranteed:
 Intentional differences:
 
 - Cassie stores tables as Midge-backed collections and row blobs.
+- Cassie treats DML and transactions as projection-state mutation and operational correction tools, not a general OLTP workload contract.
 - Cassie planner and executor may choose index, full-text, vector, hybrid, column-batch, or aggregate-acceleration paths that PostgreSQL does not have.
 - Some catalog rows are compatibility shims over Cassie metadata.
 
@@ -77,19 +82,20 @@ Unsupported or not yet guaranteed:
 - Complete `information_schema` parity.
 - All ORM-specific introspection probes.
 
-The compatibility matrix should grow around real clients:
+The compatibility matrix should grow around real read-model client workflows:
 
-- psql
-- sqlx
-- diesel
-- prisma
-- SQLAlchemy
-- common migration tools
+- psql query, describe, and operational inspection flows.
+- sqlx prepared-query and catalog-probe flows.
+- diesel schema/query flows for supported projection tables.
+- prisma introspection and read/query flows where compatible.
+- SQLAlchemy reflection and query flows.
+- Common migration tools for supported schema and projection metadata operations.
 
 ## Cassie-Specific SQL and APIs
 
 These features are intentionally Cassie-specific:
 
+- Projection source checkpoints, replay metadata, freshness, versioning, swaps, and verification diagnostics.
 - `search(field, query)`, `search_score(field, query)`, and `snippet(field, query)`.
 - `vector_score`, `vector_distance`, `cosine_distance`, `dot_product`, and `l2_distance`.
 - pgvector-style operators implemented by Cassie, including `<=>`, `<->`, and `<#>`.

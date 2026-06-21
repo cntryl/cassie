@@ -1,6 +1,10 @@
 # Product Roadmap
 
-Cassie's roadmap is organized by feature area rather than by missing work only. Implemented areas remain on the roadmap until their compatibility notes, ownership, definition of done, and production-readiness guarantees are explicit.
+Cassie's roadmap is organized around its role as a high-performance read-model database for event-sourced systems. PostgreSQL-compatible SQL and pgwire access exist to make projections easy to query from familiar tools; they are not a commitment to full OLTP PostgreSQL parity.
+
+Implemented areas remain on the roadmap until their compatibility notes, ownership, definition of done, and production-readiness guarantees are explicit.
+
+Feature priority is determined by read-model need. If users need a capability to build, operate, analyze, search, report on, or serve projections, it is in scope regardless of whether the capability resembles OLTP, OLAP, search, vector retrieval, or time-series database work.
 
 ## Status Model
 
@@ -11,9 +15,36 @@ Cassie's roadmap is organized by feature area rather than by missing work only. 
 | Planned | Feature area is accepted on the roadmap but not fully implemented. |
 | Production-ready | Implemented, tested, documented, benchmarked where performance-sensitive, and compatibility boundaries are explicit. |
 
+## Projection Lifecycle & Replay Safety
+
+Goal: make projection construction, replay, rebuilds, freshness, and activation deterministic and observable.
+
+| Feature Area | Status | Compatibility |
+| --- | --- | --- |
+| Projection metadata, schema version, offset, lag, rebuild state | Implemented | Experimental Cassie-specific |
+| Projection source checkpoints and replay metadata | Planned | Cassie-specific |
+| Idempotent replay ingestion | Planned | Cassie-specific |
+| Materialized projections | Planned | Cassie-specific |
+| Projection versioning | Planned | Cassie-specific |
+| Verified projection swaps | Planned | Cassie-specific |
+| Projection operations catalog views and metrics | Planned | Cassie-specific |
+
+## Verification & Integrity
+
+Goal: prove rebuilt read models and derived state are internally consistent before they are trusted operationally.
+
+| Feature Area | Status | Compatibility |
+| --- | --- | --- |
+| Row hashes | Planned | Cassie-specific |
+| Range hashes | Planned | Cassie-specific |
+| Projection Merkle roots | Planned | Cassie-specific |
+| Rebuild verification | Planned | Cassie-specific |
+| Projection integrity verification | Planned | Cassie-specific |
+| Projection diffing and multi-instance consistency checks | Planned | Cassie-specific |
+
 ## SQL Foundation
 
-Goal: provide the core PostgreSQL-like query surface expected by application code and ORMs.
+Goal: provide the core PostgreSQL-like query surface expected by application code, reporting tools, and ORMs that query read-model projections.
 
 | Feature Area | Status | Compatibility |
 | --- | --- | --- |
@@ -25,8 +56,8 @@ Goal: provide the core PostgreSQL-like query surface expected by application cod
 | CTEs and recursive CTEs | Implemented | Stable |
 | Set operations | Implemented | Stable |
 | Window functions | Implemented | Stable with documented frame limits |
-| DML and RETURNING | Implemented | Stable |
-| Transactions and savepoints | Implemented | Stable with Cassie/Midge durability notes |
+| DML and RETURNING | Implemented | Stable for projection-state mutation paths |
+| Transactions and savepoints | Implemented | Stable with Cassie/Midge durability notes for projection workflows |
 
 ## Schema & Catalog
 
@@ -87,7 +118,7 @@ Goal: provide analytical read acceleration and operational visibility while keep
 
 ## Postgres Compatibility
 
-Goal: support practical PostgreSQL client interoperability without claiming full PostgreSQL server equivalence.
+Goal: support practical PostgreSQL client interoperability for read-model access without claiming full PostgreSQL server equivalence.
 
 | Feature Area | Status | Compatibility |
 | --- | --- | --- |
@@ -101,8 +132,11 @@ Goal: support practical PostgreSQL client interoperability without claiming full
 
 ## Remaining Roadmap Themes
 
-- Tighten PostgreSQL compatibility documentation for already-implemented SQL features.
-- Expand client compatibility probes for psql, sqlx, diesel, prisma, and SQLAlchemy.
+- Promote projection lifecycle, replay safety, versioning, verified swaps, and operations visibility into the near-term delivery path.
+- Add performance targets for replay ingestion, projection rebuilds, verification, swaps, and lag catch-up.
+- Prioritize query patterns required by real read models over feature parity with any general-purpose database.
+- Tighten PostgreSQL compatibility documentation for already-implemented SQL features through the read-model access lens.
+- Expand client compatibility probes for psql, sqlx, diesel, prisma, and SQLAlchemy read-model workflows.
 - Promote experimental catalog, procedure, rollup, HNSW, and embedding surfaces as their compatibility guarantees settle.
 - Add performance evidence for production-ready claims on planner, index, search, vector, and analytics paths.
 - Continue splitting large legacy modules before adding broad feature work in those areas.

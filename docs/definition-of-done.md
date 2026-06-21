@@ -28,6 +28,7 @@ Feature work is not done when code compiles. A Cassie feature is done when imple
 - User-visible SQL, API, EXPLAIN, metrics, catalog, or protocol behavior is documented.
 - The feature has an owner or owning subsystem.
 - The feature does not rely on hidden local configuration outside documented `CASSIE_*` variables.
+- Read-model features document freshness, replay, rebuild, verification, and fallback behavior where applicable.
 
 ## Required for Production-Ready
 
@@ -37,6 +38,7 @@ Feature work is not done when code compiles. A Cassie feature is done when imple
 - Fallback behavior is deterministic and observable.
 - Restart, hydration, rebuild, rename/drop, and cleanup behavior is tested when the feature persists metadata.
 - Pgwire-visible behavior has SQLSTATE coverage for common failure paths.
+- Projection lifecycle features have evidence for idempotent replay, failed-build isolation, swap safety, and operator diagnostics where applicable.
 
 ## Validation Order
 

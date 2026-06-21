@@ -1,6 +1,8 @@
 # Feature Support
 
-This matrix records Cassie's supported feature surface. It covers implemented behavior as well as experimental and planned areas that need compatibility or production-readiness work.
+This matrix records Cassie's supported feature surface as an event-sourced read-model database. It covers implemented behavior as well as experimental and planned areas that need compatibility or production-readiness work.
+
+Scope is determined by read-model usefulness, not database taxonomy. Relational, analytical, search, vector, and time-series capabilities belong here when they are needed to serve real projection workloads.
 
 Status terms:
 
@@ -50,8 +52,9 @@ Status terms:
 | Hybrid | hybrid_score(text_score, vector_score) | Stable | Cassie-specific |
 | Embeddings | provider, model, dimensions, metric validation | Experimental | Cassie-specific |
 | Projections | projection metadata, schema version, offset, lag, rebuild state | Experimental | Cassie-specific |
+| Projection lifecycle | source checkpoints, replay metadata, idempotent replay, materialized projections, versioning, verified swaps, operations views | Planned | Cassie-specific |
 | Time series | time_bucket fixed windows, exact-match materialized rollups over deterministic aggregates, explicit retention policies, range queries | Experimental | Cassie-specific deterministic semantics |
-| Merkle | row hash, range hash, projection root, diff | Planned | Cassie-specific |
+| Verification | row hash, range hash, projection root, rebuild verification, integrity verification, diff | Planned | Cassie-specific |
 
 ## Index Support
 
@@ -109,6 +112,7 @@ Status terms:
 | Pgwire compatibility | prepared statements, portals, text/binary formats, catalog introspection | Stable/Experimental | PostgreSQL-compatible subset |
 | HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin APIs | Stable/Experimental | Cassie REST API |
 | Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, index used, column-batch index used, aggregate acceleration, rollup rewrite selected, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
+| Projection operations | active version, source checkpoint, lag, freshness, rebuild state, verification state, last replay batch, last error, fallback counters | Planned | Cassie-specific |
 | Metrics | latency, throughput, errors, cache hit rate, projection lag, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
 
 ## Compatibility Notes

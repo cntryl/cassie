@@ -51,60 +51,26 @@ pub struct ExecutionResultCacheKey {
     pub mode: ExecutionMode,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct RuntimeFeedbackKey {
-    pub sql_fingerprint: u64,
-    pub schema_epoch: u64,
-    pub database: Option<String>,
-    pub collection: String,
-    pub operator: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct RuntimeFeedbackRecord {
-    pub executions: u64,
-    pub rows_in_total: u64,
-    pub rows_out_total: u64,
-    pub elapsed_ms_total: u64,
-    pub storage_reads_total: u64,
-    pub storage_writes_total: u64,
-    pub temp_writes_total: u64,
-    pub candidate_count_total: u64,
-    pub result_count_total: u64,
-    pub errors_total: u64,
-    pub last_error_class: Option<String>,
-    pub first_seen_ms: u64,
-    pub last_seen_ms: u64,
-}
-
 #[path = "runtime/controls.rs"]
 mod controls;
+#[path = "runtime/feedback.rs"]
+mod feedback;
 #[path = "runtime/fulltext.rs"]
 mod fulltext;
 #[path = "runtime/helpers.rs"]
 mod helpers;
+#[path = "runtime/query_cache.rs"]
+pub(crate) mod query_cache;
 #[path = "runtime/snapshots.rs"]
 mod snapshots;
 
 pub use controls::QueryExecutionControls;
+pub use feedback::{RuntimeFeedbackKey, RuntimeFeedbackObservation, RuntimeFeedbackRecord};
 pub use fulltext::{FulltextIndexOptions, FulltextIndexOptionsCacheKey};
 pub(crate) use helpers::stable_fingerprint;
 use helpers::*;
 pub use helpers::{error_class, hash_params, parameter_shape, sql_fingerprint};
 pub use snapshots::*;
-
-#[derive(Debug, Clone, Default)]
-pub struct RuntimeFeedbackObservation {
-    pub rows_in: u64,
-    pub rows_out: u64,
-    pub elapsed_ms: u64,
-    pub storage_reads: u64,
-    pub storage_writes: u64,
-    pub temp_writes: u64,
-    pub candidate_count: u64,
-    pub result_count: u64,
-    pub error_class: Option<String>,
-}
 
 #[derive(Debug, Default)]
 struct ExecutionResultCacheState {

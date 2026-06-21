@@ -7,7 +7,6 @@ pub mod hybrid;
 pub mod midge;
 pub mod pgwire;
 pub mod planner;
-pub mod query_cache;
 pub mod rest;
 pub mod runtime;
 pub mod search;

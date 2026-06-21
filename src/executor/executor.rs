@@ -15,7 +15,7 @@ use crate::executor::{aggregate, filter, projection, scan, sort};
 use crate::midge::adapter::RowDecode;
 use crate::planner::logical::{LogicalCommand, LogicalPlan};
 use crate::planner::physical::PhysicalPlan;
-use crate::query_cache;
+use crate::runtime::query_cache;
 use crate::runtime::{FulltextIndexOptions, FulltextIndexOptionsCacheKey, QueryExecutionControls};
 use crate::search::analyzer::AnalyzerConfig;
 use crate::sql::ast::{

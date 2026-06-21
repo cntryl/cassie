@@ -38,9 +38,8 @@ use crate::executor::{
     QueryResult,
 };
 use crate::midge::adapter::{DocumentRef, Midge, MidgeScanTimings, RowDecode, RowFilter};
-use crate::query_cache;
 use crate::runtime::{
-    ExecutionMode, PlanCacheKey, QueryExecutionControls, RuntimeFeedbackKey,
+    query_cache, ExecutionMode, PlanCacheKey, QueryExecutionControls, RuntimeFeedbackKey,
     RuntimeFeedbackObservation, RuntimeState,
 };
 use crate::sql::ast::{

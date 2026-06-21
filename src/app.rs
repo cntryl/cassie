@@ -1317,6 +1317,7 @@ impl Cassie {
             .unwrap_or_else(|| "none".to_string());
         let index_aware = physical.selected_index.is_some();
         let index = physical.selected_index.as_deref().unwrap_or("none");
+        let covered_index = physical.covered_index;
         let prefilter = match physical.logical.filter.as_ref() {
             None => "none".to_string(),
             Some(filter) => {
@@ -1357,7 +1358,7 @@ impl Cassie {
             .unwrap_or_else(|| "none".to_string());
         let estimates = &physical.estimates;
         let mut plan = format!(
-            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} prefilter={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
+            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} covered_index={} prefilter={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
@@ -1371,6 +1372,7 @@ impl Cassie {
             scan_limit,
             index_aware,
             index,
+            covered_index,
             prefilter,
             physical.top_k,
             top_k_limit,
@@ -2831,6 +2833,7 @@ impl Cassie {
             "cardinality": snapshot.cardinality,
             "feedback": snapshot.feedback,
             "adaptive_candidates": snapshot.adaptive_candidates,
+            "covering_indexes": snapshot.covering_indexes,
         })
     }
 

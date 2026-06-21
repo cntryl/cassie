@@ -3487,6 +3487,19 @@ fn execute_projected_filtered_read(
         }
     }
 
+    if !plan.order.is_empty() {
+        batches = sort::sort_batches(
+            batches,
+            &plan.order,
+            &plan.projection,
+            params,
+            None,
+            user_functions,
+            session,
+        )?;
+        ensure_temp_budget(controls, &batches)?;
+    }
+
     batches = projection::project_batches(
         batches,
         &plan.projection,
@@ -3506,7 +3519,14 @@ fn execute_projected_filtered_read(
         batches = batch::slice_batches(batches, 0, Some(limit));
     }
 
-    Ok(Some(batch::flatten_batches(batches)))
+    let rows = batch::flatten_batches(batches);
+    if covering_index_for_plan(cassie, plan).is_some() {
+        cassie.runtime.record_covering_index_scan(rows.len());
+    } else if selected_scalar_index_for_plan(cassie, plan).is_some() {
+        cassie.runtime.record_covering_index_fallback();
+    }
+
+    Ok(Some(rows))
 }
 
 fn execute_projected_filtered_read_with_breakdown(
@@ -3564,6 +3584,21 @@ fn execute_projected_filtered_read_with_breakdown(
         }
     }
 
+    if !plan.order.is_empty() {
+        let sort_started = Instant::now();
+        batches = sort::sort_batches(
+            batches,
+            &plan.order,
+            &plan.projection,
+            params,
+            None,
+            user_functions,
+            session,
+        )?;
+        ensure_temp_budget(controls, &batches)?;
+        breakdown.sort += sort_started.elapsed();
+    }
+
     let projection_started = Instant::now();
     batches = projection::project_batches(
         batches,
@@ -3588,6 +3623,12 @@ fn execute_projected_filtered_read_with_breakdown(
     let rows = batch::flatten_batches(batches);
     breakdown.result_build += result_started.elapsed();
 
+    if covering_index_for_plan(cassie, plan).is_some() {
+        cassie.runtime.record_covering_index_scan(rows.len());
+    } else if selected_scalar_index_for_plan(cassie, plan).is_some() {
+        cassie.runtime.record_covering_index_fallback();
+    }
+
     Ok(Some((rows, breakdown)))
 }
 
@@ -3605,7 +3646,6 @@ fn projected_filtered_read_spec(plan: &LogicalPlan) -> Option<ProjectedFilteredR
         || !plan.group_by.is_empty()
         || plan.having.is_some()
         || plan.set.is_some()
-        || !plan.order.is_empty()
     {
         return None;
     }
@@ -3628,9 +3668,14 @@ fn projected_filtered_read_spec(plan: &LogicalPlan) -> Option<ProjectedFilteredR
     if projection_columns.is_empty() {
         return None;
     }
+    let order_columns = projected_order_columns(plan)?;
 
     let mut scan_fields = Vec::new();
-    for column in projection_columns.into_iter().chain(filter_columns) {
+    for column in projection_columns
+        .into_iter()
+        .chain(filter_columns)
+        .chain(order_columns)
+    {
         if is_row_id_column(&column) || scan_fields.contains(&column) {
             continue;
         }
@@ -3648,6 +3693,53 @@ fn projected_filtered_read_spec(plan: &LogicalPlan) -> Option<ProjectedFilteredR
         scan_fields,
         scan_limit,
     })
+}
+
+fn projected_order_columns(plan: &LogicalPlan) -> Option<Vec<String>> {
+    let mut fields = Vec::new();
+    for order in &plan.order {
+        let Expr::Column(column) = &order.expr else {
+            return None;
+        };
+        if !fields.iter().any(|field: &String| field == column) {
+            fields.push(column.clone());
+        }
+    }
+    Some(fields)
+}
+
+fn covering_index_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Option<catalog::IndexMeta> {
+    let QuerySource::Collection(collection) = &plan.source else {
+        return None;
+    };
+    let indexes = cassie.catalog.list_indexes(collection);
+    let physical = crate::planner::physical::build_with_indexes(
+        plan.clone(),
+        indexes.clone(),
+        &Default::default(),
+    );
+    let selected = physical.selected_index?;
+    physical
+        .covered_index
+        .then(|| indexes.into_iter().find(|index| index.name == selected))
+        .flatten()
+}
+
+fn selected_scalar_index_for_plan(
+    cassie: &Cassie,
+    plan: &LogicalPlan,
+) -> Option<catalog::IndexMeta> {
+    let QuerySource::Collection(collection) = &plan.source else {
+        return None;
+    };
+    let indexes = cassie.catalog.list_indexes(collection);
+    let physical = crate::planner::physical::build_with_indexes(
+        plan.clone(),
+        indexes.clone(),
+        &Default::default(),
+    );
+    let selected = physical.selected_index?;
+    indexes.into_iter().find(|index| index.name == selected)
 }
 
 fn projected_scan_limit(limit: Option<i64>, offset: Option<i64>) -> Option<usize> {

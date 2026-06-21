@@ -280,6 +280,13 @@ pub struct AdaptiveCandidateSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct CoveringIndexSnapshot {
+    pub scans: u64,
+    pub row_fetches_avoided: u64,
+    pub fallback_scans: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct StorageFamilySnapshot {
     pub reads: u64,
     pub writes: u64,
@@ -310,6 +317,7 @@ pub struct RuntimeMetricsSnapshot {
     pub cardinality: CardinalitySnapshot,
     pub feedback: FeedbackSnapshot,
     pub adaptive_candidates: AdaptiveCandidateSnapshot,
+    pub covering_indexes: CoveringIndexSnapshot,
 }
 
 #[derive(Debug, Default)]
@@ -327,6 +335,7 @@ struct RuntimeMetricsState {
     cardinality: CardinalitySnapshot,
     feedback: FeedbackSnapshot,
     adaptive_candidates: AdaptiveCandidateSnapshot,
+    covering_indexes: CoveringIndexSnapshot,
 }
 
 #[derive(Debug, Clone)]
@@ -872,6 +881,17 @@ impl RuntimeState {
         metrics.adaptive_candidates.limit_errors_total += 1;
     }
 
+    pub fn record_covering_index_scan(&self, rows: usize) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.covering_indexes.scans += 1;
+        metrics.covering_indexes.row_fetches_avoided += rows as u64;
+    }
+
+    pub fn record_covering_index_fallback(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.covering_indexes.fallback_scans += 1;
+    }
+
     pub fn record_plan_cache_invalidation(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.plan_cache.invalidations += 1;
@@ -1100,6 +1120,7 @@ impl RuntimeState {
             cardinality: metrics.cardinality.clone(),
             feedback: metrics.feedback.clone(),
             adaptive_candidates: metrics.adaptive_candidates.clone(),
+            covering_indexes: metrics.covering_indexes.clone(),
         };
         snapshot.runtime.uptime_seconds = uptime_seconds;
         snapshot.runtime.running_queries = metrics.runtime.running_queries;
@@ -1349,10 +1370,12 @@ mod tests {
         PhysicalPlan {
             collection: "bench_documents".to_string(),
             operators: vec![Operator::Scan, Operator::Filter, Operator::Project],
+            estimates: Default::default(),
             predicate_pushdown: false,
             projected_scan_fields: Vec::new(),
             scan_limit: None,
             selected_index: None,
+            covered_index: false,
             top_k: false,
             top_k_limit: None,
             join_strategy: None,

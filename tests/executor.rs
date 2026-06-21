@@ -2960,10 +2960,12 @@ fn should_fail_unknown_function_during_execution() {
         let physical = PhysicalPlan {
             collection: logical.collection.clone(),
             operators: vec![cassie::planner::physical::Operator::Project],
+            estimates: Default::default(),
             predicate_pushdown: false,
             projected_scan_fields: Vec::new(),
             scan_limit: None,
             selected_index: None,
+            covered_index: false,
             top_k: false,
             top_k_limit: None,
             join_strategy: None,

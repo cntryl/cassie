@@ -32,6 +32,7 @@ pub struct PhysicalPlan {
     pub projected_scan_fields: Vec<String>,
     pub scan_limit: Option<usize>,
     pub selected_index: Option<String>,
+    pub covered_index: bool,
     pub top_k: bool,
     pub top_k_limit: Option<usize>,
     pub join_strategy: Option<String>,
@@ -66,6 +67,7 @@ pub fn build_with_indexes(
             projected_scan_fields: Vec::new(),
             scan_limit: None,
             selected_index: None,
+            covered_index: false,
             top_k: false,
             top_k_limit: None,
             join_strategy: None,
@@ -76,6 +78,10 @@ pub fn build_with_indexes(
     let projected_scan_fields = projected_scan_fields(&plan).unwrap_or_default();
     let scan_limit = scan_limit(&plan, &projected_scan_fields);
     let selected_index = selected_index(&plan, indexes.as_slice());
+    let covered_index = selected_index
+        .as_deref()
+        .and_then(|name| indexes.iter().find(|index| index.name == name))
+        .is_some_and(|index| plan_is_covered_by_index(&plan, index));
     let top_k_limit = top_k_limit(&plan);
     let top_k = top_k_limit.is_some();
     let join_strategy = join_strategy(&plan);
@@ -123,6 +129,7 @@ pub fn build_with_indexes(
         projected_scan_fields,
         scan_limit,
         selected_index,
+        covered_index,
         top_k,
         top_k_limit,
         join_strategy,
@@ -370,6 +377,120 @@ fn selected_index(plan: &LogicalPlan, indexes: &[IndexMeta]) -> Option<String> {
         })
         .max_by_key(|index| index.normalized_fields().len())
         .map(|index| index.name.clone())
+}
+
+fn plan_is_covered_by_index(plan: &LogicalPlan, index: &IndexMeta) -> bool {
+    if plan.command.is_some()
+        || !plan.ctes.is_empty()
+        || plan.distinct
+        || !plan.distinct_on.is_empty()
+        || !plan.group_by.is_empty()
+        || plan.having.is_some()
+        || plan.set.is_some()
+        || source_contains_join(&plan.source)
+    {
+        return false;
+    }
+
+    if plan
+        .filter
+        .as_ref()
+        .is_some_and(|filter| !filter_supports_covering_index(filter))
+    {
+        return false;
+    }
+
+    let covered_fields = index
+        .normalized_fields()
+        .into_iter()
+        .map(|field| field.to_ascii_lowercase())
+        .collect::<BTreeSet<_>>();
+    let mut needed_fields = BTreeSet::new();
+
+    for item in &plan.projection {
+        match item {
+            SelectItem::Column { name, .. } if is_row_id_column(name) => {}
+            SelectItem::Column { name, .. } => {
+                needed_fields.insert(name.to_ascii_lowercase());
+            }
+            _ => return false,
+        }
+    }
+    for expr in plan_expressions(plan) {
+        collect_expr_column_refs(expr, &mut needed_fields);
+    }
+
+    needed_fields
+        .into_iter()
+        .all(|field| covered_fields.contains(&field))
+}
+
+fn filter_supports_covering_index(expr: &Expr) -> bool {
+    match expr {
+        Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } => filter_supports_covering_index(left) && filter_supports_covering_index(right),
+        Expr::Binary {
+            left,
+            op: BinaryOp::Eq,
+            right,
+        } => matches!(
+            (left.as_ref(), right.as_ref()),
+            (Expr::Column(_), Expr::StringLiteral(_))
+                | (Expr::StringLiteral(_), Expr::Column(_))
+                | (Expr::Column(_), Expr::NumberLiteral(_))
+                | (Expr::NumberLiteral(_), Expr::Column(_))
+                | (Expr::Column(_), Expr::BoolLiteral(_))
+                | (Expr::BoolLiteral(_), Expr::Column(_))
+                | (Expr::Column(_), Expr::Null)
+                | (Expr::Null, Expr::Column(_))
+                | (Expr::Column(_), Expr::Param(_))
+                | (Expr::Param(_), Expr::Column(_))
+        ),
+        _ => false,
+    }
+}
+
+fn collect_expr_column_refs(expr: &Expr, fields: &mut BTreeSet<String>) {
+    match expr {
+        Expr::Column(name) if is_row_id_column(name) => {}
+        Expr::Column(name) => {
+            fields.insert(name.to_ascii_lowercase());
+        }
+        Expr::Binary { left, right, .. } => {
+            collect_expr_column_refs(left, fields);
+            collect_expr_column_refs(right, fields);
+        }
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            collect_expr_column_refs(expr, fields);
+        }
+        Expr::InList { expr, values, .. } => {
+            collect_expr_column_refs(expr, fields);
+            for value in values {
+                collect_expr_column_refs(value, fields);
+            }
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            collect_expr_column_refs(expr, fields);
+            collect_expr_column_refs(low, fields);
+            collect_expr_column_refs(high, fields);
+        }
+        Expr::Function(function) => {
+            for arg in &function.args {
+                collect_expr_column_refs(arg, fields);
+            }
+        }
+        Expr::Exists(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null
+        | Expr::Param(_) => {}
+    }
 }
 
 fn equality_filter_fields(expr: &Expr) -> BTreeSet<String> {

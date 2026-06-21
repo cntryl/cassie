@@ -1,5 +1,5 @@
 use cassie::app::CassieError;
-use cassie::catalog::Catalog;
+use cassie::catalog::{Catalog, IndexKind, IndexMeta};
 use cassie::planner::{logical, optimizer, physical, physical::Operator};
 use cassie::sql::ast::{
     BinaryOp, Expr, InsertSource, JoinKind, ParsedStatement, QuerySource, QueryStatement,
@@ -8,6 +8,7 @@ use cassie::sql::ast::{
 use cassie::sql::binder::BoundStatement;
 use cassie::sql::{binder, parser};
 use cassie::types::{DataType, FieldSchema};
+use std::collections::BTreeMap;
 
 fn register_test_collection(catalog: &Catalog, name: &str) {
     let schema = vec![
@@ -36,6 +37,22 @@ fn register_test_collection(catalog: &Catalog, name: &str) {
                 .map(|field| (field.name, field.data_type))
                 .collect(),
         );
+    });
+}
+
+fn register_scalar_index(catalog: &Catalog, collection: &str, name: &str, fields: Vec<&str>) {
+    let fields = fields
+        .into_iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    catalog.register_index(IndexMeta {
+        collection: collection.to_string(),
+        name: name.to_string(),
+        field: fields.first().cloned().unwrap_or_default(),
+        fields,
+        kind: IndexKind::Scalar,
+        unique: false,
+        options: BTreeMap::new(),
     });
 }
 
@@ -382,7 +399,7 @@ fn should_fallback_to_conservative_cardinality_estimates_when_stats_missing() {
 }
 
 #[test]
-fn should_use_hydrated_cardinality_estimates_for_index_and_scan_plans() {
+fn should_use_hydrated_cardinality_estimates_for_index_plans() {
     // Arrange
     let catalog = Catalog::new();
     register_test_collection(&catalog, "planner_cardinality_hydrated");
@@ -619,6 +636,86 @@ fn should_build_physical_operators_for_hybrid_search() {
             .operators
             .iter()
             .any(|operator| matches!(operator, Operator::VectorSearch)));
+    });
+}
+
+#[test]
+fn should_mark_scalar_index_plan_as_covered() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_covering_index");
+    register_scalar_index(
+        &catalog,
+        "planner_covering_index",
+        "planner_covering_title_idx",
+        vec!["title"],
+    );
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_covering_index WHERE title = 'alpha' ORDER BY title",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build_with_indexes(
+            logical,
+            catalog.list_indexes("planner_covering_index"),
+            &Default::default(),
+        );
+
+        // Assert
+        assert_eq!(
+            physical_plan.selected_index.as_deref(),
+            Some("planner_covering_title_idx")
+        );
+        assert!(physical_plan.covered_index);
+    });
+}
+
+#[test]
+fn should_leave_noncovered_scalar_index_plan_uncovered() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_covering_fallback");
+    register_scalar_index(
+        &catalog,
+        "planner_covering_fallback",
+        "planner_covering_fallback_title_idx",
+        vec!["title"],
+    );
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT body FROM planner_covering_fallback WHERE title = 'alpha'",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build_with_indexes(
+            logical,
+            catalog.list_indexes("planner_covering_fallback"),
+            &Default::default(),
+        );
+
+        // Assert
+        assert_eq!(
+            physical_plan.selected_index.as_deref(),
+            Some("planner_covering_fallback_title_idx")
+        );
+        assert!(!physical_plan.covered_index);
     });
 }
 

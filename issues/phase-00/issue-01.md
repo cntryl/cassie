@@ -62,19 +62,7 @@ This rebaseline keeps the engine-safe implementation order mechanical:
 
 ### P2 Follow-Up
 
-- [Phase 03 Issue 01: Time-Series Indexes](../phase-03/issue-01.md) - Read-Model Analytics / Time Series
-- [Phase 03 Issue 02: Cost-Informed Planning](../phase-03/issue-02.md) - Read-Model Performance / Planner Intelligence
-- [Phase 03 Issue 03: Index Performance Feedback](../phase-03/issue-03.md) - Read-Model Performance / Planner Intelligence
-- [Phase 03 Issue 04: IVFFlat Indexes](../phase-03/issue-04.md) - Read-Model Retrieval / Vector
-- [Phase 03 Issue 05: Projection Diffing](../phase-03/issue-05.md) - Read-Model Verification / Diffing
-- [Phase 03 Issue 06: Column-Native Execution Paths](../phase-03/issue-06.md) - Read-Model Performance / Column Execution
-- [Phase 03 Issue 07: Hybrid Row/Column Planning](../phase-03/issue-07.md) - Read-Model Performance / Hybrid Planning
-- [Phase 03 Issue 08: Advanced Parallel Execution](../phase-03/issue-08.md) - Read-Model Performance / Execution
-- [Phase 03 Issue 09: Vectorized Aggregation](../phase-03/issue-09.md) - Read-Model Performance / Execution
-- [Phase 03 Issue 10: Advanced Cardinality Estimation](../phase-03/issue-10.md) - Read-Model Performance / Query Intelligence
-- [Phase 03 Issue 11: Projection Comparison](../phase-03/issue-11.md) - Read-Model Verification / Distributed Read Models
-- [Phase 03 Issue 12: Analytical Projections](../phase-03/issue-12.md) - Read-Model Analytics / Advanced Analytics
-- [Phase 03 Issue 13: Large-Scale Aggregations](../phase-03/issue-13.md) - Read-Model Analytics / Advanced Analytics
+- Phase 03 implementation is complete and closed. Issues 01–13 were completed and removed from active follow-up after validation and close-out.
 - [Phase 04 Issue 01: Runtime Boundary Contracts](../phase-04/issue-01.md) - Runtime Boundary Discipline / Contracts
 - [Phase 04 Issue 02: Auth And Embedding Blocking Discipline](../phase-04/issue-02.md) - Runtime Boundary Discipline / Auth and Embeddings
 - [Phase 04 Issue 03: Pgwire Blocking Boundary](../phase-04/issue-03.md) - Runtime Boundary Discipline / Pgwire

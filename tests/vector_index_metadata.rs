@@ -428,6 +428,7 @@ fn should_reload_generic_index_registry_after_restart() {
             field: "title".to_string(),
             fields: vec!["title".to_string()],
             include_fields: Vec::new(),
+            predicate: None,
             kind: IndexKind::Scalar,
             unique: true,
             options: BTreeMap::from_iter(vec![("case_sensitive".to_string(), "true".to_string())]),
@@ -500,6 +501,7 @@ fn should_persist_fulltext_index_metadata_after_restart() {
             field: "body".to_string(),
             fields: vec!["body".to_string()],
             include_fields: Vec::new(),
+            predicate: None,
             kind: IndexKind::FullText,
             unique: false,
             options: BTreeMap::from_iter(vec![

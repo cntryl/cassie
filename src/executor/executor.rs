@@ -65,6 +65,7 @@ fn primary_key_indexes(
             field: constraint.field.clone(),
             fields: vec![constraint.field.clone()],
             include_fields: Vec::new(),
+            predicate: None,
             kind: catalog::IndexKind::Scalar,
             unique: true,
             options: BTreeMap::new(),
@@ -733,6 +734,10 @@ fn execute_command(
                 field: statement.fields.first().cloned().unwrap_or_default(),
                 fields: statement.fields.clone(),
                 include_fields: statement.include_fields.clone(),
+                predicate: statement
+                    .predicate
+                    .as_ref()
+                    .and_then(|predicate| serde_json::to_string(predicate).ok()),
                 kind: statement.kind.clone(),
                 unique: statement.unique,
                 options: statement.options.clone(),

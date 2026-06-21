@@ -196,6 +196,7 @@ pub struct CreateIndexStatement {
     pub table: String,
     pub fields: Vec<String>,
     pub include_fields: Vec<String>,
+    pub predicate: Option<Expr>,
     pub if_not_exists: bool,
     pub unique: bool,
     pub kind: IndexKind,

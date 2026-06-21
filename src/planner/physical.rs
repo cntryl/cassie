@@ -369,6 +369,7 @@ fn selected_index(plan: &LogicalPlan, indexes: &[IndexMeta]) -> Option<String> {
     indexes
         .iter()
         .filter(|index| index.collection == *collection && index.kind == IndexKind::Scalar)
+        .filter(|index| partial_index_matches_query(plan.filter.as_ref(), index.predicate.as_ref()))
         .filter(|index| {
             index
                 .normalized_fields()
@@ -377,6 +378,21 @@ fn selected_index(plan: &LogicalPlan, indexes: &[IndexMeta]) -> Option<String> {
         })
         .max_by_key(|index| index.normalized_fields().len())
         .map(|index| index.name.clone())
+}
+
+fn partial_index_matches_query(
+    query_filter: Option<&Expr>,
+    index_predicate: Option<&String>,
+) -> bool {
+    match index_predicate {
+        None => true,
+        Some(predicate) => {
+            query_filter
+                .and_then(|filter| serde_json::to_string(filter).ok())
+                .as_ref()
+                == Some(predicate)
+        }
+    }
 }
 
 fn plan_is_covered_by_index(plan: &LogicalPlan, index: &IndexMeta) -> bool {

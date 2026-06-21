@@ -701,6 +701,7 @@ fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement, SqlError> 
     let (kind, remainder) = parse_index_kind(remainder)?;
     let (fields, remainder) = parse_index_fields(remainder)?;
     let (include_fields, remainder) = parse_index_include_fields(remainder)?;
+    let (predicate, remainder) = parse_index_predicate(remainder)?;
     let (options, remainder) = parse_index_options(remainder)?;
 
     if !remainder.is_empty() {
@@ -720,6 +721,7 @@ fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement, SqlError> 
             table: table.to_string(),
             fields,
             include_fields,
+            predicate,
             if_not_exists,
             unique,
             kind,
@@ -2328,6 +2330,20 @@ fn parse_index_include_fields(raw: &str) -> Result<(Vec<String>, &str), SqlError
     }
 
     Ok((fields, body[close + 1..].trim_start()))
+}
+
+fn parse_index_predicate(raw: &str) -> Result<(Option<Expr>, &str), SqlError> {
+    let raw = raw.trim();
+    if raw.is_empty() || !starts_with_keyword(raw, "where") {
+        return Ok((None, raw));
+    }
+    let predicate = raw["where".len()..].trim();
+    if predicate.is_empty() {
+        return Err(SqlError(
+            "CREATE INDEX WHERE requires predicate".to_string(),
+        ));
+    }
+    Ok((Some(parse_expression(predicate)?), ""))
 }
 
 fn parse_index_options(

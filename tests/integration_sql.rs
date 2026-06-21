@@ -2955,6 +2955,78 @@ fn should_maintain_include_values_after_update_delete() {
 }
 
 #[test]
+fn should_hydrate_partial_index_metadata_after_restart() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("partial_index_restart");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE sql_partial_index_restart (title TEXT, status TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE INDEX sql_partial_index_restart_title_idx ON sql_partial_index_restart USING btree (title) WHERE title = 'alpha'",
+                    vec![],
+                )
+                .unwrap();
+        }
+
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().unwrap();
+        let session = restarted.create_session("tester", None);
+
+        // Act
+        let index = restarted
+            .catalog
+            .get_index(
+                "sql_partial_index_restart",
+                "sql_partial_index_restart_title_idx",
+            )
+            .expect("partial index should hydrate");
+        let selected = restarted
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM sql_partial_index_restart WHERE title = 'alpha'",
+                vec![],
+            )
+            .unwrap();
+        let fallback = restarted
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM sql_partial_index_restart WHERE title = 'beta'",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert!(index.predicate.is_some());
+        let Value::String(selected_plan) = &selected.rows[0][0] else {
+            panic!("expected selected plan text");
+        };
+        assert!(selected_plan.contains("index=sql_partial_index_restart_title_idx"));
+        let Value::String(fallback_plan) = &fallback.rows[0][0] else {
+            panic!("expected fallback plan text");
+        };
+        assert!(fallback_plan.contains("index=none"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_explain_vector_prefilter_for_indexed_equality_filter() {
     // Arrange
     with_fallback();

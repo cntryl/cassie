@@ -18,6 +18,8 @@ pub struct IndexMeta {
     pub fields: Vec<String>,
     #[serde(default)]
     pub include_fields: Vec<String>,
+    #[serde(default)]
+    pub predicate: Option<String>,
     pub kind: IndexKind,
     pub unique: bool,
     pub options: std::collections::BTreeMap<String, String>,

@@ -161,6 +161,8 @@ Required behaviors:
 
 Partial indexes should reduce index size for filtered read-model views.
 
+Current V3 support persists and hydrates scalar partial-index predicates and selects them only when the query predicate has the same normalized expression representation. Broader implication checks remain a roadmap item.
+
 Example:
 
 ```sql

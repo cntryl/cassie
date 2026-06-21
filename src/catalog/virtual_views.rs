@@ -476,6 +476,11 @@ fn pg_indexes(catalog: &Catalog) -> Vec<VirtualRow> {
                     } else {
                         format!(" INCLUDE ({})", index.include_fields.join(", "))
                     };
+                    let predicate = index
+                        .predicate
+                        .as_ref()
+                        .map(|predicate| format!(" WHERE {predicate}"))
+                        .unwrap_or_default();
                     format!(
                         "CREATE {}INDEX {} ON {} ({})",
                         if index.unique { "UNIQUE " } else { "" },
@@ -483,6 +488,7 @@ fn pg_indexes(catalog: &Catalog) -> Vec<VirtualRow> {
                         index.collection,
                         index.normalized_fields().join(", ")
                     ) + &include
+                        + &predicate
                 }),
             ]
         })

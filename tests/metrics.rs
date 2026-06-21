@@ -330,6 +330,7 @@ fn should_expose_cardinality_metrics_with_explain_plan_estimates() {
                 field: "title".to_string(),
                 fields: vec!["title".to_string()],
                 include_fields: Vec::new(),
+                predicate: None,
                 kind: IndexKind::Scalar,
                 unique: false,
                 options: Default::default(),

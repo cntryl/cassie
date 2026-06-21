@@ -51,6 +51,7 @@ fn register_scalar_index(catalog: &Catalog, collection: &str, name: &str, fields
         field: fields.first().cloned().unwrap_or_default(),
         fields,
         include_fields: Vec::new(),
+        predicate: None,
         kind: IndexKind::Scalar,
         unique: false,
         options: BTreeMap::new(),
@@ -280,6 +281,7 @@ fn should_select_scalar_index_for_equality_filter() {
             field: "title".to_string(),
             fields: vec!["title".to_string()],
             include_fields: Vec::new(),
+            predicate: None,
             kind: cassie::catalog::IndexKind::Scalar,
             unique: false,
             options: Default::default(),
@@ -422,6 +424,7 @@ fn should_use_hydrated_cardinality_estimates_for_index_plans() {
         field: "title".to_string(),
         fields: vec!["title".to_string()],
         include_fields: Vec::new(),
+        predicate: None,
         kind: cassie::catalog::IndexKind::Scalar,
         unique: false,
         options: Default::default(),
@@ -733,6 +736,7 @@ fn should_mark_include_column_plan_as_covered() {
         field: "title".to_string(),
         fields: vec!["title".to_string()],
         include_fields: vec!["body".to_string()],
+        predicate: None,
         kind: IndexKind::Scalar,
         unique: false,
         options: BTreeMap::new(),
@@ -763,6 +767,100 @@ fn should_mark_include_column_plan_as_covered() {
             Some("planner_include_covering_title_idx")
         );
         assert!(physical_plan.covered_index);
+    });
+}
+
+#[test]
+fn should_select_partial_index_for_exact_predicate() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_partial_index");
+    let predicate =
+        parser::parse_statement("SELECT title FROM planner_partial_index WHERE title = 'alpha'")
+            .and_then(|parsed| match parsed.statement {
+                cassie::sql::ast::QueryStatement::Select(select) => {
+                    Ok(select.filter.expect("filter"))
+                }
+                _ => unreachable!(),
+            })
+            .unwrap();
+    catalog.register_index(IndexMeta {
+        collection: "planner_partial_index".to_string(),
+        name: "planner_partial_index_title_idx".to_string(),
+        field: "title".to_string(),
+        fields: vec!["title".to_string()],
+        include_fields: Vec::new(),
+        predicate: Some(serde_json::to_string(&predicate).unwrap()),
+        kind: IndexKind::Scalar,
+        unique: false,
+        options: BTreeMap::new(),
+    });
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_partial_index WHERE title = 'alpha'",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build_with_indexes(
+            logical,
+            catalog.list_indexes("planner_partial_index"),
+            &Default::default(),
+        );
+
+        // Assert
+        assert_eq!(
+            physical_plan.selected_index.as_deref(),
+            Some("planner_partial_index_title_idx")
+        );
+    });
+}
+
+#[test]
+fn should_skip_partial_index_for_unsafe_predicate() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_partial_fallback");
+    catalog.register_index(IndexMeta {
+        collection: "planner_partial_fallback".to_string(),
+        name: "planner_partial_fallback_title_idx".to_string(),
+        field: "title".to_string(),
+        fields: vec!["title".to_string()],
+        include_fields: Vec::new(),
+        predicate: Some("{\"Column\":\"status\"}".to_string()),
+        kind: IndexKind::Scalar,
+        unique: false,
+        options: BTreeMap::new(),
+    });
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_partial_fallback WHERE title = 'alpha'",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build_with_indexes(
+            logical,
+            catalog.list_indexes("planner_partial_fallback"),
+            &Default::default(),
+        );
+
+        // Assert
+        assert!(physical_plan.selected_index.is_none());
     });
 }
 
@@ -1367,6 +1465,7 @@ fn should_plan_drop_index_as_command() {
             field: "title".to_string(),
             fields: vec!["title".to_string()],
             include_fields: Vec::new(),
+            predicate: None,
             kind: cassie::catalog::IndexKind::Scalar,
             unique: false,
             options: std::collections::BTreeMap::new(),

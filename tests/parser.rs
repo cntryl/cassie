@@ -1979,6 +1979,23 @@ fn should_parse_create_index_include_columns() {
 }
 
 #[test]
+fn should_parse_create_partial_index_statement() {
+    // Arrange
+    let sql = "CREATE INDEX idx_docs_active ON docs USING btree (title) WHERE status = 'active'";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateIndex(statement) = parsed.statement else {
+        panic!("expected create index statement");
+    };
+    assert_eq!(statement.name, "idx_docs_active");
+    assert_eq!(statement.fields, vec!["title".to_string()]);
+    assert!(statement.predicate.is_some());
+}
+
+#[test]
 fn should_reject_duplicate_include_columns() {
     // Arrange
     let cassie =
@@ -2448,6 +2465,7 @@ fn should_reject_duplicate_fulltext_index_on_same_field() {
                 field: "body".to_string(),
                 fields: vec!["body".to_string()],
                 include_fields: Vec::new(),
+                predicate: None,
                 kind: IndexKind::FullText,
                 unique: false,
                 options: BTreeMap::from_iter(vec![

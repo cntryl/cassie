@@ -1285,6 +1285,7 @@ fn should_reject_non_finite_fulltext_index_options_during_search_score() {
                 field: "body".to_string(),
                 fields: vec!["body".to_string()],
                 include_fields: Vec::new(),
+                predicate: None,
                 kind: IndexKind::FullText,
                 unique: false,
                 options: BTreeMap::from_iter(vec![
@@ -1374,6 +1375,7 @@ fn should_reject_duplicate_fulltext_indexes_during_search_score() {
                 field: "body".to_string(),
                 fields: vec!["body".to_string()],
                 include_fields: Vec::new(),
+                predicate: None,
                 kind: IndexKind::FullText,
                 unique: false,
                 options: BTreeMap::from_iter(vec![
@@ -1392,6 +1394,7 @@ fn should_reject_duplicate_fulltext_indexes_during_search_score() {
                 field: "body".to_string(),
                 fields: vec!["body".to_string()],
                 include_fields: Vec::new(),
+                predicate: None,
                 kind: IndexKind::FullText,
                 unique: false,
                 options: BTreeMap::from_iter(vec![
@@ -1477,6 +1480,7 @@ fn should_allow_plain_select_with_non_finite_fulltext_metadata() {
                 field: "body".to_string(),
                 fields: vec!["body".to_string()],
                 include_fields: Vec::new(),
+                predicate: None,
                 kind: IndexKind::FullText,
                 unique: false,
                 options: BTreeMap::from_iter(vec![

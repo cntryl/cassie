@@ -37,7 +37,7 @@ pgvector syntax	<=>, <->, <#>, vector(n)
 Hybrid	hybrid_score(text_score, vector_score)
 Embeddings	provider, model, dimensions, metric validation
 Projections	projection metadata, schema version, offset, lag, rebuild state
-Time-series	bucket, rollup, retention, range queries
+Time-series	time_bucket fixed windows, rollup, retention, range queries
 Merkle	row hash, range hash, projection root, diff
 
 Index inventory

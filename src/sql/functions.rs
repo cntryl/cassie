@@ -22,6 +22,7 @@ pub enum FunctionId {
     Concat,
     Coalesce,
     Abs,
+    TimeBucket,
 }
 
 #[derive(Debug, Clone)]
@@ -183,6 +184,11 @@ pub fn registry() -> Vec<ScalarFunction> {
             id: FunctionId::Abs,
             name: "abs",
             arity: FunctionArity::Exact(1),
+        },
+        ScalarFunction {
+            id: FunctionId::TimeBucket,
+            name: "time_bucket",
+            arity: FunctionArity::Range { min: 2, max: 3 },
         },
     ]
 }

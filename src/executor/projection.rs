@@ -46,16 +46,28 @@ where
                         .unwrap_or(Value::Null);
                     projected.push((key.clone(), value));
                 }
-                ProjectionOp::ScalarFunction { key, expr } => {
-                    let value = filter::evaluate_expr_value(
-                        &row,
-                        expr,
-                        params,
-                        search_context,
-                        user_functions,
-                        session,
-                        None,
-                    )?;
+                ProjectionOp::ScalarFunction {
+                    key,
+                    expr,
+                    precomputed_key,
+                } => {
+                    let value = precomputed_key
+                        .as_ref()
+                        .and_then(|precomputed_key| row.get(precomputed_key))
+                        .or_else(|| row.get(key))
+                        .cloned()
+                        .map(Ok)
+                        .unwrap_or_else(|| {
+                            filter::evaluate_expr_value(
+                                &row,
+                                expr,
+                                params,
+                                search_context,
+                                user_functions,
+                                session,
+                                None,
+                            )
+                        })?;
                     projected.push((key.clone(), value));
                 }
                 ProjectionOp::WindowFunction { key } => {
@@ -92,12 +104,16 @@ fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {
                     ProjectionOp::ScalarFunction {
                         key,
                         expr: Expr::Function(function.clone()),
+                        precomputed_key: Some(projection_expr_key(&Expr::Function(
+                            function.clone(),
+                        ))),
                     }
                 }
             }
             SelectItem::Expr { expr, alias } => ProjectionOp::ScalarFunction {
                 key: alias.as_deref().unwrap_or("expr").to_string(),
                 expr: expr.clone(),
+                precomputed_key: Some(projection_expr_key(expr)),
             },
             SelectItem::WindowFunction { function, alias } => ProjectionOp::WindowFunction {
                 key: alias
@@ -198,10 +214,87 @@ fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {
 
 enum ProjectionOp {
     Wildcard,
-    Column { source: String, key: String },
-    AggregateFunction { key: String, function_name: String },
-    ScalarFunction { key: String, expr: Expr },
-    WindowFunction { key: String },
+    Column {
+        source: String,
+        key: String,
+    },
+    AggregateFunction {
+        key: String,
+        function_name: String,
+    },
+    ScalarFunction {
+        key: String,
+        expr: Expr,
+        precomputed_key: Option<String>,
+    },
+    WindowFunction {
+        key: String,
+    },
+}
+
+fn projection_expr_key(expr: &Expr) -> String {
+    match expr {
+        Expr::Column(name) => name.clone(),
+        Expr::Param(index) => format!("${}", index + 1),
+        Expr::Null => "null".to_string(),
+        Expr::BoolLiteral(value) => value.to_string(),
+        Expr::NumberLiteral(value) => value.to_string(),
+        Expr::StringLiteral(value) => format!("'{value}'"),
+        Expr::Function(function) => format!(
+            "{}({})",
+            function.name.to_ascii_lowercase(),
+            function
+                .args
+                .iter()
+                .map(projection_expr_key)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        Expr::Binary { left, op, right } => {
+            format!(
+                "{}{:?}{}",
+                projection_expr_key(left),
+                op,
+                projection_expr_key(right)
+            )
+        }
+        Expr::IsNull { expr, negated } => {
+            format!(
+                "{} is{} null",
+                projection_expr_key(expr),
+                if *negated { " not" } else { "" }
+            )
+        }
+        Expr::InList {
+            expr,
+            values,
+            negated,
+        } => format!(
+            "{}{} in ({})",
+            projection_expr_key(expr),
+            if *negated { " not" } else { "" },
+            values
+                .iter()
+                .map(projection_expr_key)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        Expr::Between {
+            expr,
+            low,
+            high,
+            negated,
+        } => format!(
+            "{}{} between {} and {}",
+            projection_expr_key(expr),
+            if *negated { " not" } else { "" },
+            projection_expr_key(low),
+            projection_expr_key(high)
+        ),
+        Expr::Not { expr } => format!("not {}", projection_expr_key(expr)),
+        Expr::Cast { expr, data_type } => format!("{}::{data_type:?}", projection_expr_key(expr)),
+        Expr::Exists(_) => "exists".to_string(),
+    }
 }
 
 impl ProjectionOp {

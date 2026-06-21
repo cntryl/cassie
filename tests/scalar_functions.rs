@@ -589,3 +589,286 @@ fn should_execute_user_defined_functions_after_builtin_expansion() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_bucket_timestamps_into_fixed_windows() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let path = data_dir("time_bucket_fixed_windows");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE time_bucket_fixed_windows (event_at TIMESTAMP)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO time_bucket_fixed_windows (event_at) VALUES ('2024-01-01T00:00:00Z')",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO time_bucket_fixed_windows (event_at) VALUES ('2024-01-01T00:14:59Z')",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO time_bucket_fixed_windows (event_at) VALUES ('2024-01-01T00:15:00Z')",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT time_bucket('15 minutes', event_at) AS bucket FROM time_bucket_fixed_windows ORDER BY event_at",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("2024-01-01T00:00:00Z".to_string())],
+                vec![Value::String("2024-01-01T00:00:00Z".to_string())],
+                vec![Value::String("2024-01-01T00:15:00Z".to_string())],
+            ]
+        );
+        assert_eq!(result.columns[0].data_type, "timestamp");
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_bucket_timestamps_with_custom_origin() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let path = data_dir("time_bucket_origin");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE scalar_time_bucket_origin (id INT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO scalar_time_bucket_origin (id) VALUES (1)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT time_bucket('1 hour', '1969-12-31T23:30:00Z'), time_bucket('15 minutes', '2024-01-01T00:19:00Z', '2024-01-01T00:05:00Z') FROM scalar_time_bucket_origin",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert!(result.rows.len() == 1);
+        assert_eq!(
+            result.rows[0],
+            vec![
+                Value::String("1969-12-31T23:00:00Z".to_string()),
+                Value::String("2024-01-01T00:05:00Z".to_string()),
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_validate_time_bucket_nulls_errors() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let path = data_dir("time_bucket_errors");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE scalar_time_bucket_errors (event_at TIMESTAMP)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO scalar_time_bucket_errors (event_at) VALUES (NULL)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let null_result = cassie
+            .execute_sql(
+                &session,
+                "SELECT time_bucket('15 minutes', event_at) FROM scalar_time_bucket_errors",
+                vec![],
+            )
+            .unwrap();
+        let zero_width = cassie.execute_sql(
+            &session,
+            "SELECT time_bucket('0 seconds', '2024-01-01T00:00:00Z') FROM scalar_time_bucket_errors",
+            vec![],
+        );
+        let month_width = cassie.execute_sql(
+            &session,
+            "SELECT time_bucket('1 month', '2024-01-01T00:00:00Z') FROM scalar_time_bucket_errors",
+            vec![],
+        );
+        let bad_type = cassie.execute_sql(
+            &session,
+            "SELECT time_bucket(15, '2024-01-01T00:00:00Z') FROM scalar_time_bucket_errors",
+            vec![],
+        );
+
+        // Assert
+        assert_eq!(null_result.rows, vec![vec![Value::Null]]);
+        assert!(zero_width.unwrap_err().to_string().contains("positive"));
+        assert!(month_width.unwrap_err().to_string().contains("calendar"));
+        assert!(bad_type.unwrap_err().to_string().contains("duration string"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_apply_time_bucket_grouping_having_ordering() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let path = data_dir("time_bucket_grouping");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE scalar_time_bucket_grouping (event_at TIMESTAMP)",
+                vec![],
+            )
+            .unwrap();
+        for event_at in [
+            "2024-01-01T00:01:00Z",
+            "2024-01-01T00:14:00Z",
+            "2024-01-01T00:16:00Z",
+        ] {
+            cassie
+                .execute_sql(
+                    &session,
+                    &format!(
+                        "INSERT INTO scalar_time_bucket_grouping (event_at) VALUES ('{event_at}')"
+                    ),
+                    vec![],
+                )
+                .unwrap();
+        }
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT time_bucket('15 minutes', event_at) AS bucket, count(*) FROM scalar_time_bucket_grouping GROUP BY time_bucket('15 minutes', event_at) HAVING count(*) > 1 ORDER BY bucket",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![vec![
+                Value::String("2024-01-01T00:00:00Z".to_string()),
+                Value::Int64(2),
+            ]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_execute_time_bucket_through_pgwire() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("time_bucket_pgwire").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        client
+            .simple_query("CREATE TABLE scalar_time_bucket_pgwire (event_at TIMESTAMP)")
+            .await
+            .unwrap();
+        client
+            .simple_query(
+                "INSERT INTO scalar_time_bucket_pgwire (event_at) VALUES ('2024-01-01T00:29:00Z')",
+            )
+            .await
+            .unwrap();
+        let messages = client
+            .simple_query(
+                "SELECT time_bucket('15 minutes', event_at) FROM scalar_time_bucket_pgwire",
+            )
+            .await
+            .unwrap();
+
+        // Assert
+        let row = messages
+            .iter()
+            .find_map(|message| match message {
+                SimpleQueryMessage::Row(row) => Some(row),
+                _ => None,
+            })
+            .expect("time_bucket row");
+        assert_eq!(row.get(0), Some("2024-01-01T00:15:00Z"));
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

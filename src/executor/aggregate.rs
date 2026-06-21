@@ -80,6 +80,7 @@ fn function_return_type(
         | "dot_product" | "hybrid_score" => Some(DataType::Float),
         "snippet" | "version" | "current_schema" | "current_database" | "current_user"
         | "session_user" | "current_role" => Some(DataType::Text),
+        "time_bucket" => Some(DataType::Timestamp),
         "cast" => Some(DataType::Text),
         _ => None,
     }

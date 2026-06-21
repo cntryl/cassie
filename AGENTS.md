@@ -30,6 +30,21 @@ cargo fmt --all -- --check
 | `tests/` | Integration tests (one file per subsystem) |
 | `benches/` | Tiered benchmarks: tier1 (micro), tier2 (subsystem), tier3 (system), tier4 (integration) |
 
+## File Organization
+
+Small, well-organized files are a core architecture requirement. Future feature work must keep modules focused so changes stay surgical.
+
+- Put new code in the smallest domain-specific module that fits the behavior.
+- Do not add substantial feature work to files over 1,500 lines unless the same change extracts code out of that file.
+- Treat 2,000 lines as a hard review threshold for source files: if a file crosses it, include a written reason and a split plan.
+- Keep tests grouped by subsystem. Do not add new broad coverage to catch-all integration files when a subsystem-specific test file exists.
+- Prefer refactors that reduce oversized files before adding more behavior to them.
+- Use this audit when planning large work:
+
+```sh
+find src tests benches -type f -name '*.rs' -print0 | xargs -0 wc -l | sort -nr | head -40
+```
+
 ## Testing
 
 - All integration tests live in `tests/`. Module tests live near the code they cover.
@@ -37,8 +52,9 @@ cargo fmt --all -- --check
 - Many tests need `CASSIE_MIDGE_ALLOW_FALLBACK=1` for in-memory storage fallback.
 
 ```sh
-# specific integration test
-cargo test --locked --test integration_sql -- --nocapture
+# specific split integration tests
+cargo test --locked --test integration_sql_query -- --nocapture
+cargo test --locked --test executor_parallel -- --nocapture
 
 # single unit test
 cargo test --locked should_reuse_cached_plan_arc

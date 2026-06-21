@@ -1,0 +1,61 @@
+#![allow(unused_imports, dead_code)]
+use cassie::app::Cassie;
+use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
+use cassie::embeddings::{openai::OpenAiConfig, DEFAULT_EMBEDDING_MODEL};
+use cassie::midge::adapter::StorageFamily;
+use cntryl_midge::{TransactionMode, WriteOptions};
+use uuid::Uuid;
+
+pub fn with_fallback() {
+    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+}
+
+pub fn data_dir(label: &str) -> String {
+    let mut dir = std::env::temp_dir();
+    dir.push(format!("cassie-sql-{}-{}", label, Uuid::new_v4()));
+    dir.to_string_lossy().to_string()
+}
+
+pub fn openai_runtime_for_vectors() -> CassieRuntimeConfig {
+    let mut config = CassieRuntimeConfig::from_env();
+    config.embeddings = EmbeddingsRuntimeConfig::OpenAI(OpenAiRuntimeConfig {
+        config: OpenAiConfig {
+            api_key: "vector-tests".to_string(),
+            model: DEFAULT_EMBEDDING_MODEL.to_string(),
+        },
+        timeout_seconds: 1,
+        max_batch_size: 1,
+        max_retries: 1,
+        base_url: Some("http://127.0.0.1:1".to_string()),
+    });
+    config
+}
+
+pub fn put_legacy_document(
+    cassie: &Cassie,
+    collection: &str,
+    id: &str,
+    payload: serde_json::Value,
+) {
+    let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
+    tx.put(
+        format!("doc:{collection}:{id}").into_bytes(),
+        payload.to_string().into_bytes(),
+        None,
+    )
+    .unwrap();
+    tx.commit(WriteOptions::sync()).unwrap();
+}
+
+pub fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str) {
+    let prefix = format!("__cassie__/normalized-vector/{collection}/{field}/");
+    let entries = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, prefix.as_bytes())
+        .unwrap();
+    let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
+    for (key, _value) in entries {
+        tx.delete(key).unwrap();
+    }
+    tx.commit(WriteOptions::sync()).unwrap();
+}

@@ -38,7 +38,7 @@ Verify that a local projection's rows, indexes, materialized state, and Merkle m
 
 - Confirm every requirement and acceptance criterion above is implemented and covered by tests.
 - Keep source, test, and benchmark files under 1,000 lines; split focused modules/tests before adding large blocks.
-- Keep new code in the owning subsystem shown in `AGENTS.md` and `docs/module_organization.md`; do not introduce a second storage abstraction.
+- Keep new code in the owning subsystem shown in `AGENTS.md` and `docs/module-organization.md`; do not introduce a second storage abstraction.
 - Update docs/catalog/EXPLAIN/metrics references when user-visible behavior changes.
 - Run the validation commands below in order, including `cargo build --locked` before tests.
 - Run `cntryl-tools validate-tests -f <path>` for every touched test file.

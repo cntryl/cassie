@@ -11,12 +11,12 @@ This directory is the product-facing source of truth for what Cassie supports, w
 - [PostgreSQL Compatibility](postgres-compatibility.md): compatibility guarantees, supported client surfaces, and intentional differences.
 - [Definition of Done](definition-of-done.md): completion standards for implemented, experimental, and production-ready features.
 - [Feature Ownership](feature-ownership.md): owning subsystems and default review boundaries for feature areas.
-- [Module Organization](module_organization.md): code organization rules and large-file constraints.
-- [Index and Constraint Roadmap](index_constraint_roadmap.md): detailed index and constraint planning notes.
+- [Indexes and Constraints](indexes-and-constraints.md): index, constraint, and analytical overlay behavior.
+- [Module Organization](module-organization.md): code organization rules and large-file constraints.
 
 ## Product Posture
 
-Most of the V1 through V3 query engine is implemented and tested. The main documentation job is no longer listing missing implementation work; it is making the implemented surface understandable, navigable, and explicit about compatibility guarantees.
+Most of the core query engine is implemented and tested. The main documentation job is no longer listing missing implementation work; it is making the implemented surface understandable, navigable, and explicit about compatibility guarantees.
 
 Current supported areas include:
 
@@ -43,4 +43,5 @@ When feature behavior changes, update the relevant docs in the same change:
 - User-visible SQL or API behavior: update [Feature Support](feature-support.md).
 - PostgreSQL/client compatibility behavior: update [PostgreSQL Compatibility](postgres-compatibility.md).
 - Completion or support-level changes: update [Product Roadmap](product-roadmap.md) and [Definition of Done](definition-of-done.md).
-- New subsystem ownership or file-layout decisions: update [Feature Ownership](feature-ownership.md) and [Module Organization](module_organization.md).
+- Index, constraint, or analytical overlay behavior: update [Indexes and Constraints](indexes-and-constraints.md).
+- New subsystem ownership or file-layout decisions: update [Feature Ownership](feature-ownership.md) and [Module Organization](module-organization.md).

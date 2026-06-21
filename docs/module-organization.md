@@ -19,7 +19,7 @@ Cassie keeps module boundaries small so feature work can be reviewed and tested 
 - `dml_command.rs`: SQL command and DDL execution.
 - `dml.rs`: insert, update, and delete row mutations.
 - `source.rs`: sources, joins, CTEs, set operations, distinct, and slicing.
-- `scored.rs`: fulltext, hybrid, and vector top-k paths.
+- `scored.rs`: full-text, hybrid, and vector top-k paths.
 - `projected_read.rs` and `scan.rs`: projected scans, covering indexes, pushdown reads, and column-batch read routing.
 - `plan_inspection.rs`: query and expression feature detection.
 

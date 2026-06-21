@@ -7,7 +7,7 @@ Priority: P0
 
 ## Goal
 
-Track one open issue for every active, uncompleted concept in `docs/milestones.md`.
+Track one open issue for every active, uncompleted concept in `docs/product-roadmap.md`.
 
 ## Requirements
 

@@ -1943,8 +1943,10 @@ fn execute_vector_distance_top_k(
         }
     }
     let top_needed = spec.limit.saturating_add(spec.offset).max(1);
+    let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
     let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
 
+    let final_candidate_count = candidates.len();
     for candidate in candidates {
         let vector = candidate
             .get(&spec.vector_field)
@@ -1979,7 +1981,7 @@ fn execute_vector_distance_top_k(
 
     let mut ranked = top.into_vec();
     ranked.sort_by(compare_sql_vector_candidates);
-    let rows = ranked
+    let rows: Vec<BatchRow> = ranked
         .into_iter()
         .skip(spec.offset)
         .take(spec.limit)
@@ -1990,7 +1992,67 @@ fn execute_vector_distance_top_k(
             ])
         })
         .collect();
+    record_adaptive_candidate_decision(cassie, adaptive, final_candidate_count, rows.len());
     Ok(Some(rows))
+}
+
+struct AdaptiveCandidateDecision {
+    initial_budget: usize,
+    feedback_budget: Option<usize>,
+}
+
+fn adaptive_candidate_decision(
+    cassie: &Cassie,
+    collection: &str,
+    top_needed: usize,
+) -> Result<AdaptiveCandidateDecision, QueryError> {
+    let limits = cassie.runtime.limits();
+    let max_budget = limits.adaptive_candidate_max.max(1);
+    if top_needed > max_budget {
+        cassie.runtime.record_adaptive_candidate_limit_error();
+        return Err(QueryError::General(format!(
+            "top-k candidate requirement {top_needed} exceeds adaptive candidate max {max_budget}"
+        )));
+    }
+
+    let min_budget = limits.adaptive_candidate_min.max(1).min(max_budget);
+    let feedback_budget = cassie
+        .runtime
+        .feedback_candidate_budget(collection)
+        .map(|budget| budget.min(max_budget));
+    let initial_budget = top_needed
+        .max(min_budget)
+        .max(feedback_budget.unwrap_or_default())
+        .min(max_budget);
+
+    Ok(AdaptiveCandidateDecision {
+        initial_budget,
+        feedback_budget,
+    })
+}
+
+fn record_adaptive_candidate_decision(
+    cassie: &Cassie,
+    decision: AdaptiveCandidateDecision,
+    final_candidate_count: usize,
+    result_count: usize,
+) {
+    let expansions = if final_candidate_count > decision.initial_budget {
+        final_candidate_count
+            .saturating_sub(decision.initial_budget)
+            .saturating_add(decision.initial_budget - 1)
+            / decision.initial_budget
+    } else {
+        0
+    };
+    let exhausted = result_count < decision.initial_budget.min(final_candidate_count);
+    cassie.runtime.record_adaptive_candidate_decision(
+        decision.initial_budget,
+        decision.feedback_budget,
+        expansions,
+        final_candidate_count,
+        exhausted,
+    );
 }
 
 struct VectorDistanceTopKSpec {
@@ -2305,6 +2367,7 @@ fn execute_fulltext_top_k(
     spec: FulltextTopKSpec,
 ) -> Result<Vec<BatchRow>, QueryError> {
     let started_at = Instant::now();
+    let adaptive = adaptive_candidate_decision(cassie, &spec.collection, spec.top_needed())?;
     let documents = cassie
         .midge
         .scan_rows_for_rebuild(
@@ -2376,6 +2439,7 @@ fn execute_fulltext_top_k(
     cassie
         .runtime
         .record_search_execution(started_at.elapsed(), candidate_count, rows.len());
+    record_adaptive_candidate_decision(cassie, adaptive, candidate_count, rows.len());
     Ok(rows)
 }
 
@@ -2387,6 +2451,7 @@ fn execute_hybrid_top_k(
     spec: HybridTopKSpec,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let started_at = Instant::now();
+    let adaptive = adaptive_candidate_decision(cassie, &spec.collection, spec.top_needed())?;
     let schema = cassie.catalog.get_schema(&spec.collection).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", spec.collection))
     })?;
@@ -2483,6 +2548,7 @@ fn execute_hybrid_top_k(
     cassie
         .runtime
         .record_hybrid_execution(started_at.elapsed(), text_candidate_count, rows.len());
+    record_adaptive_candidate_decision(cassie, adaptive, text_candidate_count, rows.len());
     Ok(Some(rows))
 }
 

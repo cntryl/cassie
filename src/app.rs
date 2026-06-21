@@ -1341,9 +1341,23 @@ impl Cassie {
             .map(|limit| limit.to_string())
             .unwrap_or_else(|| "none".to_string());
         let join_strategy = physical.join_strategy.as_deref().unwrap_or("none");
+        let candidate_budget = physical.top_k_limit.map(|top_needed| {
+            let limits = self.runtime.limits();
+            let feedback_budget = self
+                .runtime
+                .feedback_candidate_budget(&physical.collection)
+                .unwrap_or_default();
+            top_needed
+                .max(limits.adaptive_candidate_min)
+                .max(feedback_budget)
+                .min(limits.adaptive_candidate_max)
+        });
+        let candidate_budget = candidate_budget
+            .map(|budget| budget.to_string())
+            .unwrap_or_else(|| "none".to_string());
         let estimates = &physical.estimates;
         let mut plan = format!(
-            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} prefilter={} top_k={} top_k_limit={} join_strategy={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
+            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} prefilter={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
@@ -1360,6 +1374,7 @@ impl Cassie {
             prefilter,
             physical.top_k,
             top_k_limit,
+            candidate_budget,
             join_strategy,
             estimates.scan_rows,
             estimates.index_rows,
@@ -2815,6 +2830,7 @@ impl Cassie {
             "query_cache": snapshot.query_cache,
             "cardinality": snapshot.cardinality,
             "feedback": snapshot.feedback,
+            "adaptive_candidates": snapshot.adaptive_candidates,
         })
     }
 

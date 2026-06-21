@@ -269,6 +269,17 @@ pub struct FeedbackSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct AdaptiveCandidateSnapshot {
+    pub decisions: u64,
+    pub initial_budget_total: u64,
+    pub feedback_budget_total: u64,
+    pub expansions_total: u64,
+    pub final_candidate_count_total: u64,
+    pub exhausted_total: u64,
+    pub limit_errors_total: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct StorageFamilySnapshot {
     pub reads: u64,
     pub writes: u64,
@@ -298,6 +309,7 @@ pub struct RuntimeMetricsSnapshot {
     pub query_cache: QueryCacheSnapshot,
     pub cardinality: CardinalitySnapshot,
     pub feedback: FeedbackSnapshot,
+    pub adaptive_candidates: AdaptiveCandidateSnapshot,
 }
 
 #[derive(Debug, Default)]
@@ -314,6 +326,7 @@ struct RuntimeMetricsState {
     query_cache: QueryCacheSnapshot,
     cardinality: CardinalitySnapshot,
     feedback: FeedbackSnapshot,
+    adaptive_candidates: AdaptiveCandidateSnapshot,
 }
 
 #[derive(Debug, Clone)]
@@ -808,6 +821,57 @@ impl RuntimeState {
         self.record_feedback_eviction(evictions);
     }
 
+    pub fn feedback_candidate_budget(&self, collection: &str) -> Option<usize> {
+        let now_ms = current_time_millis();
+        let mut feedback = self.feedback.lock().expect("runtime feedback");
+        let evictions =
+            prune_feedback_by_age(&mut feedback, now_ms, self.limits.feedback_ttl_seconds);
+        let budget = feedback
+            .entries
+            .iter()
+            .filter(|(key, record)| {
+                key.collection.eq_ignore_ascii_case(collection)
+                    && record.executions > 0
+                    && record.candidate_count_total > 0
+            })
+            .map(|(_, record)| {
+                record
+                    .candidate_count_total
+                    .saturating_add(record.executions - 1)
+                    / record.executions
+            })
+            .max()
+            .and_then(|value| usize::try_from(value).ok());
+        drop(feedback);
+        self.record_feedback_eviction(evictions);
+        budget
+    }
+
+    pub fn record_adaptive_candidate_decision(
+        &self,
+        initial_budget: usize,
+        feedback_budget: Option<usize>,
+        expansions: usize,
+        final_candidate_count: usize,
+        exhausted: bool,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.adaptive_candidates.decisions += 1;
+        metrics.adaptive_candidates.initial_budget_total += initial_budget as u64;
+        metrics.adaptive_candidates.feedback_budget_total +=
+            feedback_budget.unwrap_or_default() as u64;
+        metrics.adaptive_candidates.expansions_total += expansions as u64;
+        metrics.adaptive_candidates.final_candidate_count_total += final_candidate_count as u64;
+        if exhausted {
+            metrics.adaptive_candidates.exhausted_total += 1;
+        }
+    }
+
+    pub fn record_adaptive_candidate_limit_error(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.adaptive_candidates.limit_errors_total += 1;
+    }
+
     pub fn record_plan_cache_invalidation(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.plan_cache.invalidations += 1;
@@ -1035,6 +1099,7 @@ impl RuntimeState {
             query_cache: metrics.query_cache.clone(),
             cardinality: metrics.cardinality.clone(),
             feedback: metrics.feedback.clone(),
+            adaptive_candidates: metrics.adaptive_candidates.clone(),
         };
         snapshot.runtime.uptime_seconds = uptime_seconds;
         snapshot.runtime.running_queries = metrics.runtime.running_queries;

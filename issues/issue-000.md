@@ -27,7 +27,6 @@ Maintain a live coverage index that links every active roadmap concept to its im
 
 ## Coverage
 
-- [Issue 083: Adaptive Candidate Sizing](issue-083.md) - V2 - Query Performance / Adaptive
 - [Issue 084: Covering Indexes](issue-084.md) - V2 - Query Performance / Indexes
 - [Issue 085: INCLUDE Columns](issue-085.md) - V2 - Query Performance / Indexes
 - [Issue 086: Zero-Copy Value Access](issue-086.md) - V2 - Query Performance / Execution

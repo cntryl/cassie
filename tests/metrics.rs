@@ -85,6 +85,42 @@ fn register_feedback_collection(cassie: &Cassie, collection: &str) {
         .unwrap();
 }
 
+fn adaptive_candidate_config(min: usize, max: usize) -> cassie::config::CassieRuntimeConfig {
+    let mut config = cassie::config::CassieRuntimeConfig::from_env();
+    config.limits.adaptive_candidate_min = min;
+    config.limits.adaptive_candidate_max = max;
+    config
+}
+
+fn register_adaptive_candidate_collection(cassie: &Cassie, collection: &str) {
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "body".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .unwrap();
+    cassie.register_collection(collection, schema);
+    for (id, body) in [
+        ("doc-1", "alpha shared"),
+        ("doc-2", "alpha shared"),
+        ("doc-3", "alpha shared"),
+    ] {
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some(id.to_string()),
+                serde_json::json!({"body": body}),
+            )
+            .unwrap();
+    }
+}
+
 fn describe_statement_frame(statement_name: &str) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.push(b'S');
@@ -1016,6 +1052,251 @@ fn should_record_search_operator_candidates_after_posting_list_filtering() {
                 - before_results,
             1
         );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_record_adaptive_candidate_expansion() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("adaptive_candidate_expansion");
+    let config = adaptive_candidate_config(1, 100);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let collection = "metrics_adaptive_candidate_expansion";
+        register_adaptive_candidate_collection(&cassie, collection);
+        let session = cassie.create_session("tester", None);
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM metrics_adaptive_candidate_expansion ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(
+            after["adaptive_candidates"]["decisions"]
+                .as_u64()
+                .unwrap_or_default()
+                - before["adaptive_candidates"]["decisions"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            1
+        );
+        assert_eq!(
+            after["adaptive_candidates"]["initial_budget_total"]
+                .as_u64()
+                .unwrap_or_default()
+                - before["adaptive_candidates"]["initial_budget_total"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            1
+        );
+        assert_eq!(
+            after["adaptive_candidates"]["final_candidate_count_total"]
+                .as_u64()
+                .unwrap_or_default()
+                - before["adaptive_candidates"]["final_candidate_count_total"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            3
+        );
+        assert!(
+            after["adaptive_candidates"]["expansions_total"]
+                .as_u64()
+                .unwrap_or_default()
+                > before["adaptive_candidates"]["expansions_total"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            "candidate work beyond the initial budget should be counted"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_adaptive_candidate_cap_overflow() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("adaptive_candidate_cap");
+    let config = adaptive_candidate_config(1, 1);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let collection = "metrics_adaptive_candidate_cap";
+        register_adaptive_candidate_collection(&cassie, collection);
+        let session = cassie.create_session("tester", None);
+        let before = cassie.metrics();
+
+        // Act
+        let error = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM metrics_adaptive_candidate_cap ORDER BY score DESC LIMIT 2",
+                vec![],
+            )
+            .expect_err("query should exceed adaptive candidate cap");
+        let after = cassie.metrics();
+
+        // Assert
+        assert!(
+            error
+                .to_string()
+                .contains("adaptive candidate max"),
+            "error should name the adaptive candidate cap: {error}"
+        );
+        assert_eq!(
+            after["adaptive_candidates"]["limit_errors_total"]
+                .as_u64()
+                .unwrap_or_default()
+                - before["adaptive_candidates"]["limit_errors_total"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            1
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_use_runtime_feedback_for_candidate_budget() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("adaptive_candidate_feedback");
+    let config = adaptive_candidate_config(1, 100);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let collection = "metrics_adaptive_candidate_feedback";
+        register_adaptive_candidate_collection(&cassie, collection);
+        let session = cassie.create_session("tester", None);
+        let sql = "SELECT id, search_score(body, 'alpha') AS score FROM metrics_adaptive_candidate_feedback ORDER BY score DESC LIMIT 1";
+        let wider_sql = "SELECT id, search_score(body, 'alpha') AS score FROM metrics_adaptive_candidate_feedback ORDER BY score DESC LIMIT 2";
+
+        cassie.execute_sql(&session, sql, vec![]).unwrap();
+        let seeded = cassie.metrics();
+
+        // Act
+        cassie.execute_sql(&session, wider_sql, vec![]).unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            after["adaptive_candidates"]["initial_budget_total"]
+                .as_u64()
+                .unwrap_or_default()
+                - seeded["adaptive_candidates"]["initial_budget_total"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            3
+        );
+        assert_eq!(
+            after["adaptive_candidates"]["feedback_budget_total"]
+                .as_u64()
+                .unwrap_or_default()
+                - seeded["adaptive_candidates"]["feedback_budget_total"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            3
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_report_adaptive_candidate_budget_in_explain() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("adaptive_candidate_explain");
+    let config = adaptive_candidate_config(2, 100);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let collection = "metrics_adaptive_candidate_explain";
+        register_adaptive_candidate_collection(&cassie, collection);
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT id, search_score(body, 'alpha') AS score FROM metrics_adaptive_candidate_explain ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        let plan = result.rows[0][0].as_str().unwrap_or_default();
+        assert!(
+            plan.contains("candidate_budget=2"),
+            "explain should include adaptive candidate budget: {plan}"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_preserve_candidate_tie_order() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("adaptive_candidate_ties");
+    let config = adaptive_candidate_config(1, 100);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let collection = "metrics_adaptive_candidate_ties";
+        register_adaptive_candidate_collection(&cassie, collection);
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM metrics_adaptive_candidate_ties ORDER BY score DESC LIMIT 3",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        let ids = result
+            .rows
+            .iter()
+            .map(|row| row[0].as_str().unwrap_or_default().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, vec!["doc-1", "doc-2", "doc-3"]);
 
         let _ = std::fs::remove_dir_all(path);
     });

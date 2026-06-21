@@ -75,9 +75,9 @@ Recommendation:
 
 Evidence:
 
-- `issues/issue-004.md` covers materialized projections.
-- `issues/issue-005.md` covers projection versioning.
-- `issues/issue-006.md` covers projection swaps.
+- `issues/phase-01/issue-03.md` covers materialized projections.
+- `issues/phase-01/issue-04.md` covers projection versioning.
+- `issues/phase-01/issue-05.md` covers projection swaps.
 - All three are `Status: Open` and `Priority: P3`.
 - `docs/feature-support.md` marks projection metadata as experimental, but materialized projection lifecycle remains issue-backed rather than product-core.
 
@@ -95,12 +95,12 @@ Recommendation:
 
 Evidence:
 
-- `issues/issue-007.md` covers row hashes.
-- `issues/issue-008.md` covers range hashes.
-- `issues/issue-009.md` covers projection Merkle roots.
-- `issues/issue-019.md` covers projection diffing.
-- `issues/issue-010.md` covers rebuild verification.
-- `issues/issue-012.md` covers projection integrity verification.
+- `issues/phase-02/issue-01.md` covers row hashes.
+- `issues/phase-02/issue-02.md` covers range hashes.
+- `issues/phase-02/issue-03.md` covers projection Merkle roots.
+- `issues/phase-03/issue-05.md` covers projection diffing.
+- `issues/phase-02/issue-04.md` covers rebuild verification.
+- `issues/phase-02/issue-06.md` covers projection integrity verification.
 - These are open and currently framed under V5 Verification & Advanced Execution, mostly with `Priority: P3`.
 
 Impact:
@@ -159,7 +159,7 @@ Recommendation:
 Evidence:
 
 - Search, vector, hybrid, column-batch, rollup, and aggregate acceleration exist individually.
-- `issues/issue-014.md` covers mixed search/vector/analytical execution with exact final results, stale fallback, stage diagnostics, and metrics.
+- `issues/phase-02/issue-08.md` covers mixed search/vector/analytical execution with exact final results, stale fallback, stage diagnostics, and metrics.
 - That issue is open and `Priority: P3`.
 
 Impact:

@@ -196,8 +196,14 @@ fn run_with_execution_breakdown_controls(
 
     if let Some(command) = plan.logical.command.as_ref() {
         let started = Instant::now();
-        let result =
-            dml::execute_command(cassie, None, command, &params, &user_functions, controls)?;
+        let result = dml_command::execute_command(
+            cassie,
+            None,
+            command,
+            &params,
+            &user_functions,
+            controls,
+        )?;
         let breakdown = ExecutionBreakdownDurations {
             result_build: started.elapsed(),
             ..Default::default()
@@ -267,7 +273,14 @@ pub(crate) fn run_with_session_controls(
         };
 
     if let Some(command) = plan.logical.command.as_ref() {
-        return dml::execute_command(cassie, session, command, &params, &user_functions, controls);
+        return dml_command::execute_command(
+            cassie,
+            session,
+            command,
+            &params,
+            &user_functions,
+            controls,
+        );
     }
 
     let mut cte_context: CteContext = HashMap::new();
@@ -306,6 +319,8 @@ pub(crate) fn run_with_session_controls(
 
 #[path = "execution/dml.rs"]
 mod dml;
+#[path = "execution/dml_command.rs"]
+mod dml_command;
 
 fn execute_plan(
     cassie: &Cassie,
@@ -1079,6 +1094,8 @@ fn project_rows_to_schema(
 
 #[path = "execution/aggregate_exec.rs"]
 mod aggregate_exec;
+#[path = "execution/window_exec.rs"]
+mod window_exec;
 
 fn distinct_batches(batches: Vec<Batch>) -> Vec<Batch> {
     let mut rows = BTreeMap::<String, BatchRow>::new();
@@ -1412,7 +1429,7 @@ fn execute_source_query_with_outer_row(
         }
     }
 
-    batches = aggregate_exec::apply_window_functions(
+    batches = window_exec::apply_window_functions(
         batches,
         &plan.projection,
         params,

@@ -35,8 +35,8 @@ cargo fmt --all -- --check
 Small, well-organized files are a core architecture requirement. Future feature work must keep modules focused so changes stay surgical.
 
 - Put new code in the smallest domain-specific module that fits the behavior.
-- Do not add substantial feature work to files over 1,500 lines unless the same change extracts code out of that file.
-- Treat 2,000 lines as a hard review threshold for source files: if a file crosses it, include a written reason and a split plan.
+- Keep source and test files under 1,000 lines. If a legacy file is already over that limit, feature work in that area must extract a focused module or test file before adding behavior.
+- Do not add substantial feature work to files over 1,000 lines unless the same change extracts code out of that file.
 - Keep tests grouped by subsystem. Do not add new broad coverage to catch-all integration files when a subsystem-specific test file exists.
 - Prefer refactors that reduce oversized files before adding more behavior to them.
 - Use this audit when planning large work:

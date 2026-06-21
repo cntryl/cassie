@@ -1,0 +1,158 @@
+#![allow(unused_imports, dead_code)]
+use cassie::app::Cassie;
+use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
+use cassie::embeddings::{
+    openai::OpenAiConfig, DistanceMetric, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
+    DEFAULT_EMBEDDING_MODEL,
+};
+use cassie::midge::adapter::StorageFamily;
+use cassie::types::{DataType, FieldSchema, Schema, Value, Vector};
+use cntryl_midge::{TransactionMode, WriteOptions};
+
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
+
+#[test]
+fn should_explain_hash_join_strategy_for_inner_equi_join() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("explain_hash_join");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_hash_join_users (user_key TEXT, name TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_hash_join_orders (order_user_key TEXT, total INT)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT sql_hash_join_users.name, sql_hash_join_orders.total FROM sql_hash_join_users JOIN sql_hash_join_orders ON sql_hash_join_users.user_key = sql_hash_join_orders.order_user_key",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        let Value::String(plan) = &result.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("join_strategy=hash"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_explain_semi_join_strategy_for_exists_predicate() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("explain_semi_join");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_semi_join_outer (title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_semi_join_inner (title TEXT)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM sql_semi_join_outer WHERE EXISTS (SELECT title FROM sql_semi_join_inner)",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        let Value::String(plan) = &result.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("join_strategy=semi"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_explain_anti_join_strategy_for_not_exists_predicate() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("explain_anti_join");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_anti_join_outer (title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_anti_join_inner (title TEXT)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM sql_anti_join_outer WHERE NOT EXISTS (SELECT title FROM sql_anti_join_inner)",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        let Value::String(plan) = &result.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("join_strategy=anti"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

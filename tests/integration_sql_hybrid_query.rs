@@ -1,0 +1,254 @@
+#![allow(unused_imports, dead_code)]
+use cassie::app::Cassie;
+use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
+use cassie::embeddings::{
+    openai::OpenAiConfig, DistanceMetric, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
+    DEFAULT_EMBEDDING_MODEL,
+};
+use cassie::midge::adapter::StorageFamily;
+use cassie::types::{DataType, FieldSchema, Schema, Value, Vector};
+use cntryl_midge::{TransactionMode, WriteOptions};
+
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
+
+#[test]
+fn should_order_hybrid_top_k_by_score_with_limit() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hybrid_top_k_limit");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_hybrid_top_k_limit";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "embedding".to_string(),
+                    data_type: DataType::Vector(2),
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            );        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"body": "red", "embedding": [10.0, 0.0]}),
+            )
+
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"body": "red", "embedding": [1.0, 0.0]}),
+            )
+
+            .unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_top_k_limit ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+
+.unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
+        assert!(matches!(result.rows[0][1], Value::Float64(value) if value > 0.0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_generate_hybrid_candidates_from_text_matches() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hybrid_text_candidates");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_hybrid_text_candidates";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "embedding".to_string(),
+                    data_type: DataType::Vector(2),
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            );
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("text_match".to_string()),
+                serde_json::json!({"body": "red", "embedding": [100.0, 0.0]}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("vector_only".to_string()),
+                serde_json::json!({"body": "blue", "embedding": [1.0, 0.0]}),
+            )
+            .unwrap();
+        let before = cassie.metrics();
+        let before_candidates = before["hybrid"]["candidate_count_total"]
+            .as_u64()
+            .unwrap_or_default();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_text_candidates ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][0], Value::String("text_match".to_string()));
+        assert_eq!(
+            after["hybrid"]["candidate_count_total"]
+                .as_u64()
+                .unwrap_or_default()
+                - before_candidates,
+            1
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_hybrid_text_candidate_without_vector() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hybrid_missing_vector");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_hybrid_missing_vector";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "embedding".to_string(),
+                    data_type: DataType::Vector(2),
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie
+            .register_collection(
+                collection,
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| (field.name.clone(), field.data_type.clone()))
+                    .collect(),
+            );
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("text_without_vector".to_string()),
+                serde_json::json!({"body": "red"}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("ignored_non_match".to_string()),
+                serde_json::json!({"body": "blue"}),
+            )
+            .unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_missing_vector ORDER BY score DESC LIMIT 1",
+                vec![],
+            );
+
+        // Assert
+        let error = result.expect_err("text candidate should require a vector");
+        assert!(error.to_string().contains("vector_score expects vector"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

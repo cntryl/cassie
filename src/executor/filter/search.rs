@@ -18,7 +18,7 @@ pub(crate) struct SearchTermStats {
     term_counts: HashMap<String, usize>,
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 #[derive(Debug, Clone, Default)]
 pub(crate) struct SingleFieldSearchContext {
     pub(super) total_documents: usize,
@@ -30,7 +30,7 @@ pub(crate) struct SingleFieldSearchContext {
 }
 
 impl SearchTermStats {
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn from_text(source: Option<&str>) -> Self {
         Self::from_text_with_analyzer(source, &AnalyzerConfig::default())
     }
@@ -52,7 +52,7 @@ impl SearchTermStats {
     }
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 impl SingleFieldSearchContext {
     pub(crate) fn from_term_stats<'a, I>(
         field: &str,
@@ -210,7 +210,6 @@ impl SearchContext {
         self.total_documents
     }
 
-    #[allow(dead_code)]
     pub(crate) fn from_term_stats<'a, I>(
         field: &str,
         documents: I,
@@ -388,7 +387,7 @@ pub(super) fn token_counts(tokens: &[String]) -> HashMap<String, usize> {
     out
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 pub(crate) fn prepare_query_terms(query: &str) -> Vec<String> {
     prepare_query_terms_with_analyzer(query, &AnalyzerConfig::default())
 }

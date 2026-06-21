@@ -748,12 +748,3 @@ pub fn vector_from_json(value: &serde_json::Value) -> Option<Vector> {
     }
     Some(Vector::new(nums))
 }
-
-#[allow(dead_code)]
-pub fn field_schema(name: &str, data_type: DataType) -> FieldSchema {
-    FieldSchema {
-        name: name.to_string(),
-        data_type,
-        nullable: true,
-    }
-}

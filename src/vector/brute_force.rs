@@ -1,5 +1,3 @@
-use crate::types::Value;
-
 pub fn top_k(
     query: Vec<f32>,
     candidates: Vec<(String, Vec<f32>)>,
@@ -14,17 +12,6 @@ pub fn top_k(
     scored.sort_by(|a, b| a.1.total_cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
     scored.truncate(k);
     scored
-}
-
-#[allow(dead_code)]
-pub fn extract_vectors(rows: &Vec<(String, Value)>) -> Vec<(String, Vec<f32>)> {
-    let mut out = Vec::new();
-    for (id, val) in rows {
-        if let Value::Vector(v) = val {
-            out.push((id.clone(), v.values.clone()));
-        }
-    }
-    out
 }
 
 #[cfg(test)]

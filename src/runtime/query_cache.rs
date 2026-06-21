@@ -11,7 +11,6 @@ use crate::planner::physical::PhysicalPlan;
 use crate::runtime::{stable_fingerprint, PlanCacheKey, RuntimeState};
 
 const PLAN_ENTRY_PREFIX: &str = "__cassie__/cf2/plan/entry/";
-#[allow(dead_code)]
 const FULLTEXT_STATS_PREFIX: &str = "__cassie__/cf2/stats/fulltext/";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,7 +26,6 @@ pub(crate) enum NonDurablePlanOutcome {
     Transient,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct FulltextStatsRecord {
     collection: String,
@@ -39,7 +37,6 @@ struct FulltextStatsRecord {
     context: SearchContext,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct FulltextStatsKey<'a> {
     collection: &'a str,
@@ -47,11 +44,6 @@ struct FulltextStatsKey<'a> {
     analyzer_key: &'a str,
     schema_epoch: u64,
     data_epoch: u64,
-}
-
-#[allow(dead_code)]
-pub(crate) fn plan_entry_prefix() -> &'static [u8] {
-    PLAN_ENTRY_PREFIX.as_bytes()
 }
 
 fn current_time_millis() -> u64 {
@@ -69,7 +61,6 @@ fn plan_entry_key(key: &PlanCacheKey) -> Result<Vec<u8>, CassieError> {
     Ok(format!("{PLAN_ENTRY_PREFIX}{:016x}", fingerprint(key)).into_bytes())
 }
 
-#[allow(dead_code)]
 fn fulltext_stats_key(
     collection: &str,
     field: &str,
@@ -196,7 +187,6 @@ pub(crate) fn observe_non_durable_plan_usage(
     })
 }
 
-#[allow(dead_code)]
 pub(crate) fn lookup_fulltext_stats(
     midge: &Midge,
     runtime: &RuntimeState,
@@ -250,7 +240,6 @@ pub(crate) fn lookup_fulltext_stats(
     Ok(Some(record.context))
 }
 
-#[allow(dead_code)]
 pub(crate) fn store_fulltext_stats(
     midge: &Midge,
     runtime: &RuntimeState,

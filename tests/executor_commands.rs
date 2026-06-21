@@ -246,6 +246,7 @@ fn should_fail_unknown_function_during_execution() {
             top_k_limit: None,
             join_strategy: None,
             parallel_aggregate_candidate: false,
+            aggregate_acceleration: false,
             logical,
         };
 

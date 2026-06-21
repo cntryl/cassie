@@ -54,6 +54,7 @@ impl Midge {
                     values: column_values(&document.payload, fields.as_slice()),
                 })
                 .collect::<Vec<_>>();
+            let summaries = column_batch_summaries(rows.as_slice(), fields.as_slice());
             let value_count = rows.len().saturating_mul(fields.len());
             let (payload, codec) = encode_column_batch_payload(rows, fields.as_slice())?;
             segments.push(ColumnBatchSegmentMeta {
@@ -72,6 +73,7 @@ impl Midge {
                     null_bitmap_encoding: "inline-json-null".to_string(),
                     checksum: Some(codec.checksum),
                 },
+                summaries,
             });
             payloads.push((segment_id, payload));
         }
@@ -498,6 +500,83 @@ fn column_values(
             (field.clone(), value)
         })
         .collect()
+}
+
+fn column_batch_summaries(
+    rows: &[ColumnBatchRow],
+    fields: &[String],
+) -> BTreeMap<String, ColumnBatchFieldSummary> {
+    fields
+        .iter()
+        .map(|field| (field.clone(), column_batch_field_summary(rows, field)))
+        .collect()
+}
+
+fn column_batch_field_summary(rows: &[ColumnBatchRow], field: &str) -> ColumnBatchFieldSummary {
+    let mut non_null_count = 0usize;
+    let mut min: Option<serde_json::Value> = None;
+    let mut max: Option<serde_json::Value> = None;
+    let mut sum = 0.0f64;
+    let mut has_sum = false;
+    let mut all_int = true;
+    let mut distinct = BTreeSet::new();
+
+    for row in rows {
+        let value = row
+            .values
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case(field))
+            .map(|(_, value)| value)
+            .unwrap_or(&serde_json::Value::Null);
+        if value.is_null() {
+            continue;
+        }
+        non_null_count += 1;
+        distinct.insert(value.to_string());
+        if min
+            .as_ref()
+            .is_none_or(|current| compare_json_values(value, current).is_lt())
+        {
+            min = Some(value.clone());
+        }
+        if max
+            .as_ref()
+            .is_none_or(|current| compare_json_values(value, current).is_gt())
+        {
+            max = Some(value.clone());
+        }
+        if let Some(number) = value.as_i64() {
+            sum += number as f64;
+            has_sum = true;
+        } else if let Some(number) = value.as_f64() {
+            sum += number;
+            has_sum = true;
+            all_int = false;
+        } else {
+            all_int = false;
+        }
+    }
+
+    ColumnBatchFieldSummary {
+        non_null_count,
+        min,
+        max,
+        sum: has_sum.then_some(sum),
+        all_int,
+        distinct_hint: Some(distinct.len()),
+    }
+}
+
+fn compare_json_values(left: &serde_json::Value, right: &serde_json::Value) -> std::cmp::Ordering {
+    match (left, right) {
+        (serde_json::Value::Number(left), serde_json::Value::Number(right)) => left
+            .as_f64()
+            .partial_cmp(&right.as_f64())
+            .unwrap_or(std::cmp::Ordering::Equal),
+        (serde_json::Value::String(left), serde_json::Value::String(right)) => left.cmp(right),
+        (serde_json::Value::Bool(left), serde_json::Value::Bool(right)) => left.cmp(right),
+        _ => left.to_string().cmp(&right.to_string()),
+    }
 }
 
 fn column_batch_row_matches(row: &ColumnBatchRow, filter: Option<&RowFilter>) -> bool {

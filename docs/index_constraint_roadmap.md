@@ -274,9 +274,10 @@ Rules:
 - Column indexes are rebuilt from row blobs.
 - Segment build picks dictionary/RLE only when it is smaller than uncompressed payloads.
 - Column indexes accelerate covered projected scans when available.
+- Segment summaries accelerate unfiltered, non-grouped `count`, `sum`, `avg`, `min`, and `max` when all referenced fields are covered.
 - Query execution must fall back to row scans for correctness.
-- `EXPLAIN` reports `column_batch_index=<name>` for eligible covered scans.
-- Runtime metrics expose `column_batches.scans`, `row_fetches_avoided`, `fallback_scans`, `decode_fallbacks`, and compressed/uncompressed byte totals.
+- `EXPLAIN` reports `column_batch_index=<name>` for eligible covered scans and `aggregate_acceleration=true` for eligible summary aggregates.
+- Runtime metrics expose `column_batches.scans`, `row_fetches_avoided`, `fallback_scans`, `decode_fallbacks`, compressed/uncompressed byte totals, and aggregate-acceleration segment/fallback counters.
 
 ## P3 Scope
 

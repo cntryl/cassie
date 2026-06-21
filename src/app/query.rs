@@ -708,6 +708,7 @@ impl Cassie {
             .unwrap_or_else(|| "none".to_string());
         let join_strategy = physical.join_strategy.as_deref().unwrap_or("none");
         let aggregate_parallel = physical.parallel_aggregate_candidate;
+        let aggregate_acceleration = physical.aggregate_acceleration;
         let candidate_budget = physical.top_k_limit.map(|top_needed| {
             let limits = self.runtime.limits();
             let feedback_budget = self
@@ -724,7 +725,7 @@ impl Cassie {
             .unwrap_or_else(|| "none".to_string());
         let estimates = &physical.estimates;
         let mut plan = format!(
-            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} covered_index={} column_batch_index={} prefilter={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} aggregate_parallel={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
+            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} covered_index={} column_batch_index={} prefilter={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} aggregate_parallel={} aggregate_acceleration={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
@@ -746,6 +747,7 @@ impl Cassie {
             candidate_budget,
             join_strategy,
             aggregate_parallel,
+            aggregate_acceleration,
             estimates.scan_rows,
             estimates.index_rows,
             estimates.join_rows,

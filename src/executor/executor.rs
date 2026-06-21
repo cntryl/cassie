@@ -746,6 +746,8 @@ pub(crate) use fulltext_options::load_fulltext_index_options;
 #[path = "execution/plan_inspection.rs"]
 mod plan_inspection;
 pub(crate) use plan_inspection::plan_needs_user_functions;
+#[path = "execution/aggregate_accel.rs"]
+mod aggregate_accel;
 #[path = "execution/aggregate_exec.rs"]
 mod aggregate_exec;
 #[path = "execution/window_exec.rs"]

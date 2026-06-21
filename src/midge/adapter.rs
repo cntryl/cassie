@@ -10,9 +10,10 @@ use uuid::Uuid;
 use crate::app::CassieError;
 use crate::catalog::{
     payload_contains_index_membership, payload_contains_vector_membership,
-    CollectionCardinalityStats, ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchMetadata,
-    ColumnBatchPayload, ColumnBatchRow, ColumnBatchSegmentMeta, ColumnBatchValueRun,
-    FieldConstraint, IndexKind, IndexMeta, NamespaceMeta, ProjectionMeta, RoleMeta,
+    CollectionCardinalityStats, ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchFieldSummary,
+    ColumnBatchMetadata, ColumnBatchPayload, ColumnBatchRow, ColumnBatchSegmentMeta,
+    ColumnBatchValueRun, FieldConstraint, IndexKind, IndexMeta, NamespaceMeta, ProjectionMeta,
+    RoleMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord};
 use crate::midge::row_blob::{

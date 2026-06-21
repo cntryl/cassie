@@ -130,6 +130,14 @@ pub struct ColumnBatchSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct AggregateAccelerationSnapshot {
+    pub scans: u64,
+    pub accelerated_segments: u64,
+    pub decoded_fallback_segments: u64,
+    pub row_blob_fallbacks: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct ParallelScanSnapshot {
     pub scans: u64,
     pub fallback_scans: u64,
@@ -191,6 +199,7 @@ pub struct RuntimeMetricsSnapshot {
     pub adaptive_candidates: AdaptiveCandidateSnapshot,
     pub covering_indexes: CoveringIndexSnapshot,
     pub column_batches: ColumnBatchSnapshot,
+    pub aggregate_acceleration: AggregateAccelerationSnapshot,
     pub parallel_scans: ParallelScanSnapshot,
     pub parallel_scoring: ParallelScoringSnapshot,
     pub parallel_aggregation: ParallelAggregationSnapshot,

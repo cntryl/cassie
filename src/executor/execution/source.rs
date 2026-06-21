@@ -576,6 +576,10 @@ pub(super) fn execute_source_query_with_outer_row(
 ) -> Result<Vec<BatchRow>, QueryError> {
     check_timeout(controls)?;
     let started_at = Instant::now();
+    if let Some(rows) = aggregate_accel::try_execute_column_batch_aggregate(cassie, session, plan)?
+    {
+        return Ok(rows);
+    }
     let env = SourceExecutionEnv {
         cassie,
         session,

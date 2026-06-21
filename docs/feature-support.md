@@ -91,5 +91,5 @@ PostgreSQL wire	startup, auth, simple query, extended query, parse, bind, descri
 Pgwire results	row description, data row, command complete, error response, ready for query
 Pgwire compatibility	prepared statements, portals, text/binary formats, catalog introspection
 HTTP	SQL query, search query, vector query, hybrid query, document APIs, admin APIs
-Observability	EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, index used, column-batch index used, rows scanned
-Metrics	latency, throughput, errors, cache hit rate, projection lag, column-batch scans/fallbacks/byte totals
+Observability	EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, index used, column-batch index used, aggregate acceleration, rows scanned
+Metrics	latency, throughput, errors, cache hit rate, projection lag, column-batch scans/fallbacks/byte totals, aggregate acceleration counters

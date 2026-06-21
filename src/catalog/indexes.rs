@@ -28,7 +28,7 @@ pub struct IndexMeta {
     pub options: std::collections::BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ColumnBatchMetadata {
     pub collection: String,
     pub index_name: String,
@@ -38,7 +38,7 @@ pub struct ColumnBatchMetadata {
     pub segments: Vec<ColumnBatchSegmentMeta>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ColumnBatchSegmentMeta {
     pub segment_id: u64,
     pub row_id_start: Option<String>,
@@ -47,6 +47,18 @@ pub struct ColumnBatchSegmentMeta {
     pub null_bitmap_available: bool,
     pub encoding_version: u32,
     pub codec: ColumnBatchCodecMeta,
+    #[serde(default)]
+    pub summaries: std::collections::BTreeMap<String, ColumnBatchFieldSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ColumnBatchFieldSummary {
+    pub non_null_count: usize,
+    pub min: Option<serde_json::Value>,
+    pub max: Option<serde_json::Value>,
+    pub sum: Option<f64>,
+    pub all_int: bool,
+    pub distinct_hint: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

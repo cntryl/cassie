@@ -6,11 +6,14 @@ use crate::sql::ast::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+#[path = "physical/aggregate_accel.rs"]
+mod aggregate_accel;
 #[path = "physical/column_batches.rs"]
 mod column_batches;
 #[path = "physical/feature_flags.rs"]
 mod feature_flags;
 
+use aggregate_accel::plan_supports_aggregate_acceleration;
 use column_batches::column_batch_index;
 use feature_flags::{
     function_uses_fulltext, function_uses_vector, plan_expressions, plan_uses_fulltext,
@@ -49,6 +52,7 @@ pub struct PhysicalPlan {
     pub top_k_limit: Option<usize>,
     pub join_strategy: Option<String>,
     pub parallel_aggregate_candidate: bool,
+    pub aggregate_acceleration: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -86,6 +90,7 @@ pub fn build_with_indexes(
             top_k_limit: None,
             join_strategy: None,
             parallel_aggregate_candidate: false,
+            aggregate_acceleration: false,
         };
     }
 
@@ -102,6 +107,7 @@ pub fn build_with_indexes(
     let top_k = top_k_limit.is_some();
     let join_strategy = join_strategy(&plan);
     let parallel_aggregate_candidate = plan_supports_parallel_aggregation(&plan);
+    let aggregate_acceleration = plan_supports_aggregate_acceleration(&plan, indexes.as_slice());
     let estimates = PlanEstimates::from_plan(&plan, selected_index.as_deref(), cardinality_stats);
     let mut operators = vec![Operator::Scan];
     if source_contains_join(&plan.source) {
@@ -152,6 +158,7 @@ pub fn build_with_indexes(
         top_k_limit,
         join_strategy,
         parallel_aggregate_candidate,
+        aggregate_acceleration,
     }
 }
 

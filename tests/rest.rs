@@ -109,7 +109,7 @@ fn should_reject_missing_document_lookup_through_rest() {
         let missing = documents::get(&cassie, collection, "missing-id");
         // Assert
         assert!(missing.is_err(), "missing document should fail");
-        let error = format!("{:?}", missing.unwrap_err());
+        let error = missing.unwrap_err().to_string();
         assert!(
             error.contains("document not found"),
             "unexpected error: {error}"
@@ -194,7 +194,7 @@ fn should_reject_rest_ingest_when_not_null_constraint_is_violated() {
             missing.is_err(),
             "missing required field should be rejected"
         );
-        let error = format!("{:?}", missing.unwrap_err());
+        let error = missing.unwrap_err().to_string();
         assert!(
             error.contains("cannot be null"),
             "unexpected error: {error}"
@@ -246,7 +246,7 @@ fn should_reject_rest_ingest_when_unique_constraint_is_violated() {
 
         // Assert
         assert!(duplicate.is_err(), "duplicate unique field should be rejected");
-        let error = format!("{:?}", duplicate.unwrap_err());
+        let error = duplicate.unwrap_err().to_string();
         assert!(
             error.contains("unique constraint failed"),
             "unexpected error: {error}"
@@ -289,7 +289,7 @@ fn should_reject_rest_ingest_when_check_constraint_is_violated() {
 
         // Assert
         assert!(invalid.is_err(), "check constraint failure should be rejected");
-        let error = format!("{:?}", invalid.unwrap_err());
+        let error = invalid.unwrap_err().to_string();
         assert!(
             error.contains("check constraint failed"),
             "unexpected error: {error}"

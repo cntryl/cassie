@@ -9,7 +9,7 @@ Priority: P0
 
 Track one open issue for every active, uncompleted concept in `docs/milestones.md`.
 
-## Requirement
+## Requirements
 
 Maintain a live coverage index that links every active roadmap concept to its implementation issue and removes concepts once their issue files are completed and deleted.
 
@@ -74,10 +74,13 @@ Maintain a live coverage index that links every active roadmap concept to its im
 
 - Run link and status checks with repository search commands rather than cargo tests.
 - Confirm the index contains no references to deleted issue files and no completed implementation issues.
+- Confirm every linked implementation issue keeps current validation commands and close-out steps.
 
-## Closeout Steps
+## Close-Out Steps
 
 - Confirm every remaining linked issue file exists.
 - Confirm no linked issue has `Status: Completed`.
+- Confirm every linked implementation issue has `## Requirements`, `## Acceptance Criteria`, `## Close-Out Steps`, and `## Validation`.
 - Run `rg '^Status: Completed' issues` and verify it returns no active implementation issues.
 - Run `rg 'issue-[0-9]+\.md' issues/issue-000.md` and spot-check that each link resolves.
+- Run `rg 'cargo test --test (parser|planner|integration_sql|metrics|executor)\b|tests/(parser|planner|integration_sql|metrics|executor)\.rs' issues` and verify it returns no stale validation commands.

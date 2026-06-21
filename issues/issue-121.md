@@ -5,7 +5,7 @@ Area: Materialization
 Status: Open
 Priority: P3
 
-## Requirement
+## Requirements
 
 Atomically promote a built materialized projection version to active while preserving rollback and cleanup behavior.
 
@@ -34,15 +34,22 @@ Atomically promote a built materialized projection version to active while prese
 - Add `should_` tests with `// Arrange / Act / Assert` covering successful swap, invalid target version rejection, failure rollback, cache invalidation, restart hydration, and retired-version cleanup.
 - Include integration and catalog tests.
 
-## Closeout Steps
+## Close-Out Steps
 
-- Run the validation commands below.
-- Run `cargo build --locked`.
-- Run `cargo fmt --all -- --check`.
-- Document swap and rollback operational semantics.
+- Confirm every requirement and acceptance criterion above is implemented and covered by tests.
+- Keep source, test, and benchmark files under 1,000 lines; split focused modules/tests before adding large blocks.
+- Keep new code in the owning subsystem shown in `AGENTS.md` and `docs/module_organization.md`; do not introduce a second storage abstraction.
+- Update docs/catalog/EXPLAIN/metrics references when user-visible behavior changes.
+- Run the validation commands below in order, including `cargo build --locked` before tests.
+- Run `cntryl-tools validate-tests -f <path>` for every touched test file.
+- Delete this issue file only after implementation, validation, documentation, and close-out checks are complete.
 
 ## Validation
 
-- `cargo test --test integration_sql --quiet`
-- `cargo test --test catalog_introspection --quiet`
-- `cntryl-tools validate-tests -f tests/integration_sql.rs`
+- `cargo build --locked`
+- `cargo test --locked --test parser_cte_schema --test planner_commands --test planner_logical`
+- `cargo test --locked --test integration_sql_catalog --test integration_sql_projection --test views`
+- `cargo test --locked --test catalog_introspection --test midge_metadata_stats`
+- `cargo test --locked`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f <each touched test file>`

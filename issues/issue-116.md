@@ -5,7 +5,7 @@ Area: Time Series
 Status: Open
 Priority: P3
 
-## Requirement
+## Requirements
 
 Support materialized time-series rollups over bucketed source data for common aggregate queries.
 
@@ -34,15 +34,22 @@ Support materialized time-series rollups over bucketed source data for common ag
 - Add `should_` tests with `// Arrange / Act / Assert` covering rollup creation, initial build, incremental refresh, update/delete movement, restart hydration, query rewrite, stale fallback, and drop cleanup.
 - Include integration and catalog introspection tests.
 
-## Closeout Steps
+## Close-Out Steps
 
-- Run the validation commands below.
-- Run `cargo build --locked`.
-- Run `cargo fmt --all -- --check`.
-- Document rollup SQL/admin syntax and freshness semantics.
+- Confirm every requirement and acceptance criterion above is implemented and covered by tests.
+- Keep source, test, and benchmark files under 1,000 lines; split focused modules/tests before adding large blocks.
+- Keep new code in the owning subsystem shown in `AGENTS.md` and `docs/module_organization.md`; do not introduce a second storage abstraction.
+- Update docs/catalog/EXPLAIN/metrics references when user-visible behavior changes.
+- Run the validation commands below in order, including `cargo build --locked` before tests.
+- Run `cntryl-tools validate-tests -f <path>` for every touched test file.
+- Delete this issue file only after implementation, validation, documentation, and close-out checks are complete.
 
 ## Validation
 
-- `cargo test --test scalar_functions --quiet`
-- `cargo test --test integration_sql --quiet`
-- `cntryl-tools validate-tests -f tests/scalar_functions.rs`
+- `cargo build --locked`
+- `cargo test --locked --test scalar_functions --test parser_expressions --test parser_core`
+- `cargo test --locked --test integration_sql_aggregates --test integration_sql_ordering --test integration_sql_predicates`
+- `cargo test --locked --test catalog_introspection --test metrics_runtime`
+- `cargo test --locked`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f <each touched test file>`

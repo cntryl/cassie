@@ -5,7 +5,7 @@ Area: Advanced Analytics
 Status: Open
 Priority: P3
 
-## Requirement
+## Requirements
 
 Plan and execute queries that combine full-text search, vector scoring, metadata filters, and analytical aggregation/projection paths with exact final results.
 
@@ -34,19 +34,23 @@ Plan and execute queries that combine full-text search, vector scoring, metadata
 - Add `should_` tests with `// Arrange / Act / Assert` covering text+vector+filter top-k, hybrid score with aggregation, analytical projection routing, stale fallback, exact baseline comparison, candidate expansion, deterministic tie order, and EXPLAIN/metrics diagnostics.
 - Include planner, integration, and metrics tests.
 
-## Closeout Steps
+## Close-Out Steps
 
-- Run the validation commands below.
-- Validate any additional touched test file before closing.
-- Run `cargo build --locked`.
-- Run `cargo fmt --all -- --check`.
-- Add benchmark evidence for representative mixed workloads.
+- Confirm every requirement and acceptance criterion above is implemented and covered by tests.
+- Keep source, test, and benchmark files under 1,000 lines; split focused modules/tests before adding large blocks.
+- Keep new code in the owning subsystem shown in `AGENTS.md` and `docs/module_organization.md`; do not introduce a second storage abstraction.
+- Update docs/catalog/EXPLAIN/metrics references when user-visible behavior changes.
+- Run the validation commands below in order, including `cargo build --locked` before tests.
+- Run `cntryl-tools validate-tests -f <path>` for every touched test file.
+- Delete this issue file only after implementation, validation, documentation, and close-out checks are complete.
 
 ## Validation
 
-- `cargo test --test planner --quiet`
-- `cargo test --test integration_sql --quiet`
-- `cargo test --test metrics --quiet`
-- `cntryl-tools validate-tests -f tests/planner.rs`
-- `cntryl-tools validate-tests -f tests/integration_sql.rs`
-- `cntryl-tools validate-tests -f tests/metrics.rs`
+- `cargo build --locked`
+- `cargo test --locked --test planner_aggregates_sets --test planner_physical --test planner_estimates`
+- `cargo test --locked --test integration_sql_aggregates --test integration_sql_fulltext_query --test integration_sql_hybrid_query`
+- `cargo test --locked --test integration_sql_vector_indexes --test integration_sql_vector_query --test metrics_search --test metrics_adaptive`
+- `cargo test --locked --test executor_parallel --test executor_vector_scoring --test rest_embeddings`
+- `cargo test --locked`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f <each touched test file>`

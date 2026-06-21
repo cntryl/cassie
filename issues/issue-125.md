@@ -5,7 +5,7 @@ Area: Vector
 Status: Open
 Priority: P3
 
-## Requirement
+## Requirements
 
 Support IVFFlat vector indexes as an optional approximate candidate-generation path with exact re-ranking before results are returned.
 
@@ -34,15 +34,22 @@ Support IVFFlat vector indexes as an optional approximate candidate-generation p
 - Add `should_` tests with `// Arrange / Act / Assert` covering create/options, training/build, query selection, exact re-ranking, stale-write behavior, restart hydration, rebuild, invalid options, and fallback.
 - Include vector metadata and SQL integration tests.
 
-## Closeout Steps
+## Close-Out Steps
 
-- Run the validation commands below.
-- Run `cargo build --locked`.
-- Run `cargo fmt --all -- --check`.
-- Add benchmark evidence for IVFFlat build/query tradeoffs.
+- Confirm every requirement and acceptance criterion above is implemented and covered by tests.
+- Keep source, test, and benchmark files under 1,000 lines; split focused modules/tests before adding large blocks.
+- Keep new code in the owning subsystem shown in `AGENTS.md` and `docs/module_organization.md`; do not introduce a second storage abstraction.
+- Update docs/catalog/EXPLAIN/metrics references when user-visible behavior changes.
+- Run the validation commands below in order, including `cargo build --locked` before tests.
+- Run `cntryl-tools validate-tests -f <path>` for every touched test file.
+- Delete this issue file only after implementation, validation, documentation, and close-out checks are complete.
 
 ## Validation
 
-- `cargo test --test integration_sql --quiet`
-- `cargo test --test vector_index_metadata --quiet`
-- `cntryl-tools validate-tests -f tests/integration_sql.rs`
+- `cargo build --locked`
+- `cargo test --locked --test parser_indexes --test planner_indexes --test planner_physical`
+- `cargo test --locked --test vector_index_metadata --test integration_sql_vector_indexes --test integration_sql_vector_query`
+- `cargo test --locked --test executor_vector_scoring --test rest_embeddings --test search_vector`
+- `cargo test --locked`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f <each touched test file>`

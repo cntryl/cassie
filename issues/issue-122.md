@@ -5,7 +5,7 @@ Area: Adaptive Planning
 Status: Open
 Priority: P3
 
-## Requirement
+## Requirements
 
 Use statistics and runtime feedback to choose lower-cost physical plans while preserving deterministic fallback and query results.
 
@@ -34,15 +34,22 @@ Use statistics and runtime feedback to choose lower-cost physical plans while pr
 - Add `should_` tests with `// Arrange / Act / Assert` covering cost preference among scan/index/join/top-k alternatives, missing stats fallback, stale stats invalidation, deterministic repeated planning, and EXPLAIN cost output.
 - Include planner and metrics tests.
 
-## Closeout Steps
+## Close-Out Steps
 
-- Run the validation commands below.
-- Run `cargo build --locked`.
-- Run `cargo fmt --all -- --check`.
-- Document cost inputs and conservative defaults.
+- Confirm every requirement and acceptance criterion above is implemented and covered by tests.
+- Keep source, test, and benchmark files under 1,000 lines; split focused modules/tests before adding large blocks.
+- Keep new code in the owning subsystem shown in `AGENTS.md` and `docs/module_organization.md`; do not introduce a second storage abstraction.
+- Update docs/catalog/EXPLAIN/metrics references when user-visible behavior changes.
+- Run the validation commands below in order, including `cargo build --locked` before tests.
+- Run `cntryl-tools validate-tests -f <path>` for every touched test file.
+- Delete this issue file only after implementation, validation, documentation, and close-out checks are complete.
 
 ## Validation
 
-- `cargo test --test planner --quiet`
-- `cargo test --test metrics --quiet`
-- `cntryl-tools validate-tests -f tests/planner.rs`
+- `cargo build --locked`
+- `cargo test --locked --test planner_estimates --test planner_indexes --test planner_physical`
+- `cargo test --locked --test metrics_feedback --test metrics_runtime --test metrics_search --test metrics_plan_pgwire`
+- `cargo test --locked --test plan_cache --test integration_sql_ordering --test integration_sql_projection`
+- `cargo test --locked`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f <each touched test file>`

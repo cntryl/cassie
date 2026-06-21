@@ -5,7 +5,7 @@ Area: Distributed Read Models
 Status: Open
 Priority: P3
 
-## Requirement
+## Requirements
 
 Compare verification manifests from multiple Cassie instances to detect read-model divergence without performing replication or repair.
 
@@ -34,19 +34,22 @@ Compare verification manifests from multiple Cassie instances to detect read-mod
 - Add `should_` tests with `// Arrange / Act / Assert` covering manifest export, equal comparison, divergent comparison, stale manifest, incompatible schema/hash metadata, privacy/no row values, report persistence, and metrics.
 - Include integration tests for admin/export/import paths.
 
-## Closeout Steps
+## Close-Out Steps
 
-- Run the validation commands below.
-- Validate any additional touched test file before closing.
-- Run `cargo build --locked`.
-- Run `cargo fmt --all -- --check`.
-- Document manifest format, auth requirements, and non-repair semantics.
+- Confirm every requirement and acceptance criterion above is implemented and covered by tests.
+- Keep source, test, and benchmark files under 1,000 lines; split focused modules/tests before adding large blocks.
+- Keep new code in the owning subsystem shown in `AGENTS.md` and `docs/module_organization.md`; do not introduce a second storage abstraction.
+- Update docs/catalog/EXPLAIN/metrics references when user-visible behavior changes.
+- Run the validation commands below in order, including `cargo build --locked` before tests.
+- Run `cntryl-tools validate-tests -f <path>` for every touched test file.
+- Delete this issue file only after implementation, validation, documentation, and close-out checks are complete.
 
 ## Validation
 
-- `cargo test --test planner --quiet`
-- `cargo test --test integration_sql --quiet`
-- `cargo test --test metrics --quiet`
-- `cntryl-tools validate-tests -f tests/planner.rs`
-- `cntryl-tools validate-tests -f tests/integration_sql.rs`
-- `cntryl-tools validate-tests -f tests/metrics.rs`
+- `cargo build --locked`
+- `cargo test --locked --test integration_sql_catalog --test views --test catalog_introspection`
+- `cargo test --locked --test midge_metadata_stats --test midge_namespace_hydration`
+- `cargo test --locked --test metrics_runtime --test metrics_feedback`
+- `cargo test --locked`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f <each touched test file>`

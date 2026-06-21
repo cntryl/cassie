@@ -5,7 +5,7 @@ Area: Merkle Overlay
 Status: Open
 Priority: P3
 
-## Requirement
+## Requirements
 
 Build deterministic range hashes over ordered row hashes so large projections can be compared without reading every row.
 
@@ -34,15 +34,22 @@ Build deterministic range hashes over ordered row hashes so large projections ca
 - Add `should_` tests with `// Arrange / Act / Assert` covering range creation, row update propagation, delete propagation, empty ranges, restart hydration, rebuild repair, and deterministic fanout behavior.
 - Include integration tests that compare range hashes before and after controlled data changes.
 
-## Closeout Steps
+## Close-Out Steps
 
-- Run the validation commands below.
-- Validate any additional touched test file before closing.
-- Run `cargo build --locked`.
-- Run `cargo fmt --all -- --check`.
-- Document range boundaries, fanout, and storage key shape.
+- Confirm every requirement and acceptance criterion above is implemented and covered by tests.
+- Keep source, test, and benchmark files under 1,000 lines; split focused modules/tests before adding large blocks.
+- Keep new code in the owning subsystem shown in `AGENTS.md` and `docs/module_organization.md`; do not introduce a second storage abstraction.
+- Update docs/catalog/EXPLAIN/metrics references when user-visible behavior changes.
+- Run the validation commands below in order, including `cargo build --locked` before tests.
+- Run `cntryl-tools validate-tests -f <path>` for every touched test file.
+- Delete this issue file only after implementation, validation, documentation, and close-out checks are complete.
 
 ## Validation
 
-- `cargo test --test integration_sql --quiet`
-- `cntryl-tools validate-tests -f tests/integration_sql.rs`
+- `cargo build --locked`
+- `cargo test --locked --test integration_sql_catalog --test integration_sql_projection --test views`
+- `cargo test --locked --test midge_metadata_stats --test midge_namespace_hydration --test midge_row_blob_layout`
+- `cargo test --locked --test metrics_runtime --test vector_index_metadata`
+- `cargo test --locked`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f <each touched test file>`

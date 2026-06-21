@@ -5,7 +5,7 @@ Area: Time Series
 Status: Open
 Priority: P3
 
-## Requirement
+## Requirements
 
 Add deterministic time bucket scalar functions for grouping timestamps into fixed-width windows.
 
@@ -34,15 +34,22 @@ Add deterministic time bucket scalar functions for grouping timestamps into fixe
 - Add `should_` tests with `// Arrange / Act / Assert` covering fixed windows, custom origin, boundary timestamps, nulls, invalid widths, GROUP BY/HAVING, and pgwire/SQL execution.
 - Include scalar function and integration tests.
 
-## Closeout Steps
+## Close-Out Steps
 
-- Run the validation commands below.
-- Run `cargo build --locked`.
-- Run `cargo fmt --all -- --check`.
-- Document supported duration literals and timezone assumptions.
+- Confirm every requirement and acceptance criterion above is implemented and covered by tests.
+- Keep source, test, and benchmark files under 1,000 lines; split focused modules/tests before adding large blocks.
+- Keep new code in the owning subsystem shown in `AGENTS.md` and `docs/module_organization.md`; do not introduce a second storage abstraction.
+- Update docs/catalog/EXPLAIN/metrics references when user-visible behavior changes.
+- Run the validation commands below in order, including `cargo build --locked` before tests.
+- Run `cntryl-tools validate-tests -f <path>` for every touched test file.
+- Delete this issue file only after implementation, validation, documentation, and close-out checks are complete.
 
 ## Validation
 
-- `cargo test --test scalar_functions --quiet`
-- `cargo test --test integration_sql --quiet`
-- `cntryl-tools validate-tests -f tests/scalar_functions.rs`
+- `cargo build --locked`
+- `cargo test --locked --test scalar_functions --test parser_expressions --test parser_core`
+- `cargo test --locked --test integration_sql_aggregates --test integration_sql_ordering --test integration_sql_predicates`
+- `cargo test --locked --test catalog_introspection --test metrics_runtime`
+- `cargo test --locked`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f <each touched test file>`

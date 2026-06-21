@@ -27,11 +27,6 @@ Maintain a live coverage index that links every active roadmap concept to its im
 
 ## Coverage
 
-- [Issue 111: Column Batches](issue-111.md) - V4 - Analytical Overlay / Column Store Indexes
-- [Issue 112: Compressed Column Segments](issue-112.md) - V4 - Analytical Overlay / Column Store Indexes
-- [Issue 113: Aggregate Acceleration](issue-113.md) - V4 - Analytical Overlay / Column Store Indexes
-- [Issue 114: Scan Acceleration](issue-114.md) - V4 - Analytical Overlay / Column Store Indexes
-- [Issue 115: Bucket Functions](issue-115.md) - V4 - Analytical Overlay / Time Series
 - [Issue 116: Rollups](issue-116.md) - V4 - Analytical Overlay / Time Series
 - [Issue 117: Retention Policies](issue-117.md) - V4 - Analytical Overlay / Time Series
 - [Issue 118: Time-Series Indexes](issue-118.md) - V4 - Analytical Overlay / Time Series

@@ -28,6 +28,7 @@ pub struct CassieRuntimeLimits {
     pub adaptive_candidate_min: usize,
     pub adaptive_candidate_max: usize,
     pub parallel_scan_workers: usize,
+    pub parallel_scoring_workers: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -102,6 +103,7 @@ impl Default for CassieRuntimeLimits {
             adaptive_candidate_min: 16,
             adaptive_candidate_max: 100_000,
             parallel_scan_workers: 1,
+            parallel_scoring_workers: 1,
         }
     }
 }
@@ -192,6 +194,10 @@ impl CassieRuntimeConfig {
             parallel_scan_workers: parse_usize(
                 "CASSIE_PARALLEL_SCAN_WORKERS",
                 config.limits.parallel_scan_workers,
+            ),
+            parallel_scoring_workers: parse_usize(
+                "CASSIE_PARALLEL_SCORING_WORKERS",
+                config.limits.parallel_scoring_workers,
             ),
         };
 

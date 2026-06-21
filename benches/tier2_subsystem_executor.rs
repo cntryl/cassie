@@ -35,6 +35,10 @@ fn bench_executor(c: &mut Criterion) {
             "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha')",
         ),
         (
+            "parallel_scoring_fulltext_executor",
+            "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 25",
+        ),
+        (
             "vector_bruteforce_executor",
             "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM bench_documents ORDER BY distance ASC LIMIT 10",
         ),

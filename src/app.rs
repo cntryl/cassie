@@ -2873,6 +2873,7 @@ impl Cassie {
             "adaptive_candidates": snapshot.adaptive_candidates,
             "covering_indexes": snapshot.covering_indexes,
             "parallel_scans": snapshot.parallel_scans,
+            "parallel_scoring": snapshot.parallel_scoring,
         })
     }
 

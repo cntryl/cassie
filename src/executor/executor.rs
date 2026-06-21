@@ -2285,6 +2285,7 @@ fn execute_scored_search_top_k(
     Ok(None)
 }
 
+#[derive(Clone)]
 struct TokenizedFulltextDocument {
     id: String,
     text_stats: filter::SearchTermStats,
@@ -2463,29 +2464,16 @@ fn execute_fulltext_top_k(
     } else {
         None
     };
-    let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
-
-    for document in &search_documents {
-        if let Some(candidate_ids) = candidate_ids.as_ref() {
-            if !candidate_ids.contains(document.id.as_str()) {
-                continue;
-            }
-        }
-        let score = search_context.score_term_stats(
-            Some(&spec.text_field),
-            &document.text_stats,
-            &query_terms,
-        );
-        if spec.require_match && score == 0.0 {
-            continue;
-        }
-        let candidate = ScoredSearchCandidate {
-            sort_value: -score,
-            score,
-            id: document.id.clone(),
-        };
-        push_top_k(&mut top, spec.top_needed(), candidate);
-    }
+    let top = score_fulltext_top_k_candidates(
+        cassie,
+        &search_documents,
+        candidate_ids.as_ref(),
+        &search_context,
+        &spec.text_field,
+        &query_terms,
+        spec.require_match,
+        spec.top_needed(),
+    );
 
     let rows = scored_candidates_to_rows(
         top,
@@ -2502,6 +2490,102 @@ fn execute_fulltext_top_k(
         .record_search_execution(started_at.elapsed(), candidate_count, rows.len());
     record_adaptive_candidate_decision(cassie, adaptive, candidate_count, rows.len());
     Ok(rows)
+}
+
+fn score_fulltext_top_k_candidates(
+    cassie: &Cassie,
+    documents: &[TokenizedFulltextDocument],
+    candidate_ids: Option<&HashSet<String>>,
+    search_context: &filter::SearchContext,
+    text_field: &str,
+    query_terms: &[String],
+    require_match: bool,
+    top_needed: usize,
+) -> BinaryHeap<ScoredSearchCandidate> {
+    let worker_limit = cassie.runtime.limits().parallel_scoring_workers.max(1);
+    if worker_limit == 1 || documents.len() < batch::DEFAULT_BATCH_SIZE {
+        cassie.runtime.record_parallel_scoring_fallback();
+        return score_fulltext_partition(
+            documents,
+            candidate_ids,
+            search_context,
+            text_field,
+            query_terms,
+            require_match,
+            top_needed,
+        );
+    }
+
+    let workers = worker_limit.min(documents.len().div_ceil(batch::DEFAULT_BATCH_SIZE).max(1));
+    let chunk_size = documents.len().div_ceil(workers).max(1);
+    let partials = std::thread::scope(|scope| {
+        let mut handles = Vec::new();
+        for chunk in documents.chunks(chunk_size) {
+            handles.push(scope.spawn(move || {
+                score_fulltext_partition(
+                    chunk,
+                    candidate_ids,
+                    search_context,
+                    text_field,
+                    query_terms,
+                    require_match,
+                    top_needed,
+                )
+            }));
+        }
+        handles
+            .into_iter()
+            .map(|handle| handle.join().expect("parallel scoring worker"))
+            .collect::<Vec<_>>()
+    });
+
+    let partitions = partials.len();
+    let mut merged = BinaryHeap::with_capacity(top_needed.saturating_add(1));
+    let mut rows = 0usize;
+    for partial in partials {
+        for candidate in partial.into_vec() {
+            rows += 1;
+            push_top_k(&mut merged, top_needed, candidate);
+        }
+    }
+    cassie
+        .runtime
+        .record_parallel_scoring(workers, partitions, rows);
+    merged
+}
+
+fn score_fulltext_partition(
+    documents: &[TokenizedFulltextDocument],
+    candidate_ids: Option<&HashSet<String>>,
+    search_context: &filter::SearchContext,
+    text_field: &str,
+    query_terms: &[String],
+    require_match: bool,
+    top_needed: usize,
+) -> BinaryHeap<ScoredSearchCandidate> {
+    let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
+    for document in documents {
+        if let Some(candidate_ids) = candidate_ids {
+            if !candidate_ids.contains(document.id.as_str()) {
+                continue;
+            }
+        }
+        let score =
+            search_context.score_term_stats(Some(text_field), &document.text_stats, query_terms);
+        if require_match && score == 0.0 {
+            continue;
+        }
+        push_top_k(
+            &mut top,
+            top_needed,
+            ScoredSearchCandidate {
+                sort_value: -score,
+                score,
+                id: document.id.clone(),
+            },
+        );
+    }
+    top
 }
 
 fn execute_hybrid_top_k(

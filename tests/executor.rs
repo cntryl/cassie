@@ -1276,6 +1276,116 @@ fn should_apply_fulltext_analyzer_stop_words_during_search_score() {
 }
 
 #[test]
+fn should_score_fulltext_candidates_with_parallel_workers() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("parallel_scoring_fulltext");
+    let mut config = CassieRuntimeConfig::from_env();
+    config.limits.parallel_scoring_workers = 4;
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE exec_parallel_scoring_fulltext (id TEXT, body TEXT)",
+                vec![],
+            )
+            .unwrap();
+        for index in 0..1100 {
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO exec_parallel_scoring_fulltext (id, body) VALUES ($1, 'alpha beta')",
+                    vec![Value::String(format!("doc-{index:04}"))],
+                )
+                .unwrap();
+        }
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM exec_parallel_scoring_fulltext WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 3",
+                vec![],
+            )
+            .expect("parallel scoring query should execute");
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(result.rows.len(), 3);
+        assert!(metrics["parallel_scoring"]["scorings"]
+            .as_u64()
+            .unwrap_or(0)
+            > 0);
+        assert!(metrics["parallel_scoring"]["workers"]
+            .as_u64()
+            .unwrap_or(0)
+            >= 2);
+        assert!(metrics["parallel_scoring"]["rows"].as_u64().unwrap_or(0) > 0);
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_fallback_parallel_scoring_when_worker_limit_is_one() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("parallel_scoring_fallback");
+    let mut config = CassieRuntimeConfig::from_env();
+    config.limits.parallel_scoring_workers = 1;
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE exec_parallel_scoring_fallback (id TEXT, body TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO exec_parallel_scoring_fallback (id, body) VALUES ('doc-1', 'alpha')",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, 'alpha') AS score FROM exec_parallel_scoring_fallback WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1",
+                vec![],
+            )
+            .expect("fallback scoring query should execute");
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(metrics["parallel_scoring"]["scorings"].as_u64(), Some(0));
+        assert!(metrics["parallel_scoring"]["fallback_scorings"]
+            .as_u64()
+            .unwrap_or(0)
+            > 0);
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_reject_unknown_fulltext_analyzer() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

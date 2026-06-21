@@ -298,6 +298,15 @@ pub struct ParallelScanSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct ParallelScoringSnapshot {
+    pub scorings: u64,
+    pub fallback_scorings: u64,
+    pub workers: u64,
+    pub partitions: u64,
+    pub rows: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct StorageFamilySnapshot {
     pub reads: u64,
     pub writes: u64,
@@ -330,6 +339,7 @@ pub struct RuntimeMetricsSnapshot {
     pub adaptive_candidates: AdaptiveCandidateSnapshot,
     pub covering_indexes: CoveringIndexSnapshot,
     pub parallel_scans: ParallelScanSnapshot,
+    pub parallel_scoring: ParallelScoringSnapshot,
 }
 
 #[derive(Debug, Default)]
@@ -349,6 +359,7 @@ struct RuntimeMetricsState {
     adaptive_candidates: AdaptiveCandidateSnapshot,
     covering_indexes: CoveringIndexSnapshot,
     parallel_scans: ParallelScanSnapshot,
+    parallel_scoring: ParallelScoringSnapshot,
 }
 
 #[derive(Debug, Clone)]
@@ -918,6 +929,19 @@ impl RuntimeState {
         metrics.parallel_scans.fallback_scans += 1;
     }
 
+    pub fn record_parallel_scoring(&self, workers: usize, partitions: usize, rows: usize) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.parallel_scoring.scorings += 1;
+        metrics.parallel_scoring.workers += workers as u64;
+        metrics.parallel_scoring.partitions += partitions as u64;
+        metrics.parallel_scoring.rows += rows as u64;
+    }
+
+    pub fn record_parallel_scoring_fallback(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.parallel_scoring.fallback_scorings += 1;
+    }
+
     pub fn record_plan_cache_invalidation(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.plan_cache.invalidations += 1;
@@ -1148,6 +1172,7 @@ impl RuntimeState {
             adaptive_candidates: metrics.adaptive_candidates.clone(),
             covering_indexes: metrics.covering_indexes.clone(),
             parallel_scans: metrics.parallel_scans.clone(),
+            parallel_scoring: metrics.parallel_scoring.clone(),
         };
         snapshot.runtime.uptime_seconds = uptime_seconds;
         snapshot.runtime.running_queries = metrics.runtime.running_queries;

@@ -323,6 +323,36 @@ pub enum CassieError {
     #[error("collection not found: {0}")]
     CollectionNotFound(String),
 
+    #[error("null value in column '{column}' of relation '{table}' violates not-null constraint")]
+    NotNullViolation {
+        table: String,
+        column: String,
+        constraint: Option<String>,
+    },
+
+    #[error("duplicate key value violates unique constraint '{constraint}'")]
+    UniqueViolation {
+        table: String,
+        column: String,
+        constraint: String,
+    },
+
+    #[error("new row for relation '{table}' violates check constraint '{constraint}'")]
+    CheckViolation {
+        table: String,
+        column: String,
+        constraint: String,
+    },
+
+    #[error("insert or update on table '{table}' violates foreign key constraint '{constraint}'")]
+    ForeignKeyViolation {
+        table: String,
+        column: String,
+        constraint: String,
+        referenced_table: String,
+        referenced_column: String,
+    },
+
     #[error("parse error: {0}")]
     Parse(String),
 
@@ -418,7 +448,10 @@ impl Cassie {}
 
 impl From<QueryError> for CassieError {
     fn from(value: QueryError) -> Self {
-        CassieError::Execution(format!("{value:?}"))
+        match value {
+            QueryError::General(message) => CassieError::Execution(message),
+            QueryError::Cassie(error) => error,
+        }
     }
 }
 

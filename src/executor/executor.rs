@@ -129,9 +129,13 @@ fn duration_micros(duration: Duration) -> u64 {
     duration.as_micros().try_into().unwrap_or(u64::MAX)
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum QueryError {
+    #[error("{0}")]
     General(String),
+
+    #[error(transparent)]
+    Cassie(#[from] crate::app::CassieError),
 }
 
 type CteRows = Vec<Vec<(String, Value)>>;

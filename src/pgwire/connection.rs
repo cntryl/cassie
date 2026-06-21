@@ -118,11 +118,14 @@ impl SessionState {
 
 #[path = "connection/codecs.rs"]
 mod codecs;
+#[path = "connection/errors.rs"]
+mod errors;
 #[path = "connection/readers.rs"]
 mod readers;
 #[path = "connection/writers.rs"]
 mod writers;
 
+use errors::{PgWireError, PgWireSeverity};
 use readers::*;
 use writers::*;
 
@@ -160,8 +163,11 @@ pub async fn run_connection(
 
                     if let Err(error) = validate_startup_parameters(&parameters) {
                         runtime.record_pgwire_protocol_error();
-                        let _ =
-                            write_error_response(&mut write_half, "FATAL", "08P01", &error).await;
+                        let _ = write_error_response(
+                            &mut write_half,
+                            &PgWireError::fatal_protocol(error),
+                        )
+                        .await;
                         continue;
                     }
 
@@ -205,9 +211,7 @@ pub async fn run_connection(
                     runtime.record_pgwire_protocol_error();
                     let _ = write_error_response(
                         &mut write_half,
-                        "FATAL",
-                        "08P01",
-                        "invalid startup packet",
+                        &PgWireError::fatal_protocol("invalid startup packet"),
                     )
                     .await;
                 }
@@ -243,9 +247,7 @@ pub async fn run_connection(
                                 runtime.record_pgwire_protocol_error();
                                 if write_error_response(
                                     &mut write_half,
-                                    "FATAL",
-                                    "28000",
-                                    "authentication failed",
+                                    &PgWireError::auth_failed("authentication failed"),
                                 )
                                 .await
                                 .is_err()
@@ -255,15 +257,9 @@ pub async fn run_connection(
                             }
                             Err(error) => {
                                 runtime.record_pgwire_protocol_error();
-                                if write_error_response(
-                                    &mut write_half,
-                                    "FATAL",
-                                    "XX000",
-                                    &error.to_string(),
-                                )
-                                .await
-                                .is_err()
-                                {
+                                let pg_error =
+                                    PgWireError::from_cassie_error(PgWireSeverity::Fatal, &error);
+                                if write_error_response(&mut write_half, &pg_error).await.is_err() {
                                     break;
                                 }
                             }
@@ -276,9 +272,9 @@ pub async fn run_connection(
                         runtime.record_pgwire_protocol_error();
                         let _ = write_error_response(
                             &mut write_half,
-                            "FATAL",
-                            "08P01",
-                            &format!("invalid password message: {error}"),
+                            &PgWireError::fatal_protocol(format!(
+                                "invalid password message: {error}"
+                            )),
                         )
                         .await;
                     }
@@ -299,9 +295,7 @@ pub async fn run_connection(
                     runtime.record_pgwire_protocol_error();
                     let _ = write_error_response(
                         &mut write_half,
-                        "ERROR",
-                        "28000",
-                        &WireError::NotAuthenticated.to_string(),
+                        &PgWireError::auth_required(WireError::NotAuthenticated.to_string()),
                     )
                     .await;
                     continue;
@@ -354,9 +348,7 @@ pub async fn run_connection(
                         runtime.record_pgwire_protocol_error();
                         let _ = write_error_response(
                             &mut write_half,
-                            "ERROR",
-                            "28000",
-                            &WireError::NotAuthenticated.to_string(),
+                            &PgWireError::auth_required(WireError::NotAuthenticated.to_string()),
                         )
                         .await;
                         continue;
@@ -369,9 +361,9 @@ pub async fn run_connection(
                             runtime.record_pgwire_protocol_error();
                             let _ = write_error_response(
                                 &mut write_half,
-                                "ERROR",
-                                "08P01",
-                                &format!("invalid simple query message: {error}"),
+                                &PgWireError::protocol(format!(
+                                    "invalid simple query message: {error}"
+                                )),
                             )
                             .await;
                             let _ = write_ready_for_query(&mut write_half, session).await;
@@ -390,15 +382,8 @@ pub async fn run_connection(
                         }
                         Err(error) => {
                             runtime.record_pgwire_protocol_error();
-                            if write_error_response(
-                                &mut write_half,
-                                "ERROR",
-                                simple_query_error_code(&error),
-                                &error.to_string(),
-                            )
-                            .await
-                            .is_err()
-                            {
+                            let pg_error = cassie_pg_error(&error);
+                            if write_error_response(&mut write_half, &pg_error).await.is_err() {
                                 break;
                             }
                         }
@@ -420,9 +405,9 @@ pub async fn run_connection(
                         runtime.record_pgwire_protocol_error();
                         let _ = write_error_response(
                             &mut write_half,
-                            "ERROR",
-                            "08P01",
-                            &format!("invalid extended query message: {error}"),
+                            &PgWireError::protocol(format!(
+                                "invalid extended query message: {error}"
+                            )),
                         )
                         .await;
                         continue;
@@ -443,9 +428,7 @@ pub async fn run_connection(
                         awaiting_sync = true;
                         if write_error_response(
                             &mut write_half,
-                            "ERROR",
-                            "0A000",
-                            "COPY protocol messages are not supported",
+                            &PgWireError::unsupported("COPY protocol messages are not supported"),
                         )
                         .await
                         .is_err()
@@ -459,9 +442,9 @@ pub async fn run_connection(
                         awaiting_sync = true;
                         if write_error_response(
                             &mut write_half,
-                            "ERROR",
-                            "0A000",
-                            "function call protocol messages are not supported",
+                            &PgWireError::unsupported(
+                                "function call protocol messages are not supported",
+                            ),
                         )
                         .await
                         .is_err()
@@ -479,15 +462,8 @@ pub async fn run_connection(
                             if let Some(error) = crate::app::unsupported_sql_error(&query) {
                                 runtime.record_pgwire_protocol_error();
                                 awaiting_sync = true;
-                                if write_error_response(
-                                    &mut write_half,
-                                    "ERROR",
-                                    simple_query_error_code(&error),
-                                    &error.to_string(),
-                                )
-                                .await
-                                .is_err()
-                                {
+                                let pg_error = cassie_pg_error(&error);
+                                if write_error_response(&mut write_half, &pg_error).await.is_err() {
                                     break;
                                 }
                                 continue;
@@ -529,9 +505,11 @@ pub async fn run_connection(
                                     awaiting_sync = true;
                                     if write_error_response(
                                         &mut write_half,
-                                        "ERROR",
-                                        "42601",
-                                        &error.0,
+                                        &PgWireError::new(
+                                            PgWireSeverity::Error,
+                                            "42601",
+                                            error.0,
+                                        ),
                                     )
                                     .await
                                     .is_err()
@@ -553,9 +531,7 @@ pub async fn run_connection(
                                 awaiting_sync = true;
                                 if write_error_response(
                                     &mut write_half,
-                                    "ERROR",
-                                    "26000",
-                                    &format!("statement '{}' is not prepared", statement_name),
+                                    &PgWireError::invalid_statement(&statement_name),
                                 )
                                 .await
                                 .is_err()
@@ -569,14 +545,12 @@ pub async fn run_connection(
                                 awaiting_sync = true;
                                 if write_error_response(
                                     &mut write_half,
-                                    "ERROR",
-                                    "08P01",
-                                    &format!(
+                                    &PgWireError::protocol(format!(
                                         "bind message supplies {} parameters, but prepared statement '{}' requires {}",
                                         params.len(),
                                         statement_name,
                                         prepared.parameter_count
-                                    ),
+                                    )),
                                 )
                                 .await
                                 .is_err()
@@ -615,9 +589,7 @@ pub async fn run_connection(
                                         awaiting_sync = true;
                                         if write_error_response(
                                             &mut write_half,
-                                            "ERROR",
-                                            "26000",
-                                            &format!("statement '{}' is not prepared", name),
+                                            &PgWireError::invalid_statement(&name),
                                         )
                                         .await
                                         .is_err()
@@ -636,9 +608,7 @@ pub async fn run_connection(
                                                 awaiting_sync = true;
                                                 if write_error_response(
                                                     &mut write_half,
-                                                    "ERROR",
-                                                    "26000",
-                                                    &format!("portal '{}' is not bound", name),
+                                                    &PgWireError::invalid_portal(&name),
                                                 )
                                                 .await
                                                 .is_err()
@@ -654,9 +624,7 @@ pub async fn run_connection(
                                         awaiting_sync = true;
                                         if write_error_response(
                                             &mut write_half,
-                                            "ERROR",
-                                            "26000",
-                                            &format!("portal '{}' is not bound", name),
+                                            &PgWireError::invalid_portal(&name),
                                         )
                                         .await
                                         .is_err()
@@ -699,14 +667,8 @@ pub async fn run_connection(
                                 Err(error) => {
                                     runtime.record_pgwire_protocol_error();
                                     awaiting_sync = true;
-                                    if write_error_response(
-                                        &mut write_half,
-                                        "ERROR",
-                                        simple_query_error_code(&error),
-                                        &error.to_string(),
-                                    )
-                                    .await
-                                    .is_err()
+                                    let pg_error = cassie_pg_error(&error);
+                                    if write_error_response(&mut write_half, &pg_error).await.is_err()
                                     {
                                         break;
                                     }
@@ -721,9 +683,7 @@ pub async fn run_connection(
                                 awaiting_sync = true;
                                 if write_error_response(
                                     &mut write_half,
-                                    "ERROR",
-                                    "26000",
-                                    &format!("portal '{}' is not bound", portal_name),
+                                    &PgWireError::invalid_portal(&portal_name),
                                 )
                                 .await
                                 .is_err()
@@ -737,12 +697,7 @@ pub async fn run_connection(
                                 awaiting_sync = true;
                                 if write_error_response(
                                     &mut write_half,
-                                    "ERROR",
-                                    "26000",
-                                    &format!(
-                                        "statement '{}' is not prepared",
-                                        portal.statement_name
-                                    ),
+                                    &PgWireError::invalid_statement(&portal.statement_name),
                                 )
                                 .await
                                 .is_err()
@@ -788,14 +743,8 @@ pub async fn run_connection(
                                 Err(error) => {
                                     runtime.record_pgwire_protocol_error();
                                     awaiting_sync = true;
-                                    if write_error_response(
-                                        &mut write_half,
-                                        "ERROR",
-                                        simple_query_error_code(&error),
-                                        &error.to_string(),
-                                    )
-                                    .await
-                                    .is_err()
+                                    let pg_error = cassie_pg_error(&error);
+                                    if write_error_response(&mut write_half, &pg_error).await.is_err()
                                     {
                                         break;
                                     }
@@ -850,9 +799,10 @@ pub async fn run_connection(
                             awaiting_sync = true;
                             if write_error_response(
                                 &mut write_half,
-                                "ERROR",
-                                "08P01",
-                                &format!("unsupported message: {}", char::from(tag)),
+                                &PgWireError::protocol(format!(
+                                    "unsupported message: {}",
+                                    char::from(tag)
+                                )),
                             )
                             .await
                             .is_err()
@@ -870,6 +820,10 @@ pub async fn run_connection(
             }
         }
     }
+}
+
+fn cassie_pg_error(error: &CassieError) -> PgWireError {
+    PgWireError::from_cassie_error(PgWireSeverity::Error, error)
 }
 
 fn validate_startup_parameters(parameters: &HashMap<String, String>) -> Result<(), String> {

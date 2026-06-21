@@ -450,10 +450,27 @@ fn should_recover_ready_after_simple_query_error() {
         // Assert
         assert_eq!(error.0, b'E', "query failure should return an error frame");
         assert_eq!(ready.0, b'Z', "query failure should still return ready-for-query");
-        assert!(
-            parse_error_fields(&error.1)
+        let error_fields = parse_error_fields(&error.1);
+        assert_eq!(
+            error_fields
                 .iter()
-                .any(|(field, value)| *field == 'M' && value.contains("missing_simple_query_table")),
+                .find(|(field, _)| *field == 'C')
+                .map(|(_, value)| value.as_str()),
+            Some("42P01"),
+            "missing table should use undefined table SQLSTATE"
+        );
+        assert_eq!(
+            error_fields
+                .iter()
+                .find(|(field, _)| *field == 't')
+                .map(|(_, value)| value.as_str()),
+            Some("missing_simple_query_table"),
+            "missing table should include table metadata"
+        );
+        assert!(
+            error_fields.iter().any(|(field, value)| {
+                *field == 'M' && value.contains("missing_simple_query_table")
+            }),
             "error response should mention the missing table"
         );
         assert_eq!(ready.1, vec![b'I']);

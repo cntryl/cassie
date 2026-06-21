@@ -95,6 +95,12 @@ fn map_error(error: crate::app::CassieError) -> (StatusCode, String) {
         crate::app::CassieError::CollectionNotFound(_) => {
             (StatusCode::NOT_FOUND, error.to_string())
         }
+        crate::app::CassieError::NotNullViolation { .. }
+        | crate::app::CassieError::UniqueViolation { .. }
+        | crate::app::CassieError::CheckViolation { .. }
+        | crate::app::CassieError::ForeignKeyViolation { .. } => {
+            (StatusCode::CONFLICT, error.to_string())
+        }
         crate::app::CassieError::NotFound(_) => (StatusCode::NOT_FOUND, error.to_string()),
         crate::app::CassieError::Parse(_) | crate::app::CassieError::InvalidVector(_) => {
             (StatusCode::BAD_REQUEST, error.to_string())

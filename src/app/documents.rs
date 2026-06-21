@@ -79,7 +79,7 @@ impl Cassie {
             exclude_id,
         )?;
         self.validate_unique_indexes_for_session(session, collection, &payload, exclude_id)?;
-        self.validate_foreign_keys_for_session(session, &payload, &constraints)?;
+        self.validate_foreign_keys_for_session(session, collection, &payload, &constraints)?;
 
         Ok(payload)
     }
@@ -606,10 +606,26 @@ impl Cassie {
             if (constraint.not_null || constraint.primary_key)
                 && (existing.is_none() || existing.is_some_and(|value| value.is_null()))
             {
-                return Err(CassieError::InvalidVector(format!(
-                    "field '{}' cannot be null",
-                    constraint.field
-                )));
+                let constraint_name = if constraint.primary_key {
+                    Some(crate::catalog::generated_constraint_name(
+                        collection,
+                        &constraint.field,
+                        "PRIMARY KEY",
+                    ))
+                } else if constraint.not_null {
+                    Some(crate::catalog::generated_constraint_name(
+                        collection,
+                        &constraint.field,
+                        "NOT NULL",
+                    ))
+                } else {
+                    None
+                };
+                return Err(CassieError::NotNullViolation {
+                    table: collection.to_string(),
+                    column: constraint.field.clone(),
+                    constraint: constraint_name,
+                });
             }
 
             if let Some(check) = &constraint.check {
@@ -617,10 +633,15 @@ impl Cassie {
                     continue;
                 };
                 if !self.satisfies_check_constraint(value, check) {
-                    return Err(CassieError::InvalidVector(format!(
-                        "check constraint failed for '{}' field",
-                        check.field
-                    )));
+                    return Err(CassieError::CheckViolation {
+                        table: collection.to_string(),
+                        column: check.field.clone(),
+                        constraint: crate::catalog::generated_constraint_name(
+                            collection,
+                            &check.field,
+                            "CHECK",
+                        ),
+                    });
                 }
             }
         }
@@ -727,10 +748,20 @@ impl Cassie {
                 value,
                 exclude_id,
             )? {
-                return Err(CassieError::InvalidVector(format!(
-                    "unique constraint failed for '{}'",
-                    constraint.field
-                )));
+                let kind = if constraint.primary_key {
+                    "PRIMARY KEY"
+                } else {
+                    "UNIQUE"
+                };
+                return Err(CassieError::UniqueViolation {
+                    table: collection.to_string(),
+                    column: constraint.field.clone(),
+                    constraint: crate::catalog::generated_constraint_name(
+                        collection,
+                        &constraint.field,
+                        kind,
+                    ),
+                });
             }
         }
 
@@ -740,6 +771,7 @@ impl Cassie {
     fn validate_foreign_keys_for_session(
         &self,
         session: Option<&CassieSession>,
+        collection: &str,
         payload: &serde_json::Value,
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
@@ -766,10 +798,17 @@ impl Cassie {
                 .find_document_id_by_fields(session, table, &[(field, value)], None)?
                 .is_none()
             {
-                return Err(CassieError::InvalidVector(format!(
-                    "foreign key constraint '{}' references missing '{}.{}'",
-                    constraint.field, table, field
-                )));
+                return Err(CassieError::ForeignKeyViolation {
+                    table: collection.to_string(),
+                    column: constraint.field.clone(),
+                    constraint: crate::catalog::generated_constraint_name(
+                        collection,
+                        &constraint.field,
+                        "FOREIGN KEY",
+                    ),
+                    referenced_table: table.to_string(),
+                    referenced_column: field.to_string(),
+                });
             }
         }
 

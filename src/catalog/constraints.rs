@@ -37,3 +37,12 @@ pub struct FieldConstraint {
     #[serde(default)]
     pub references_field: Option<String>,
 }
+
+pub fn generated_constraint_name(collection: &str, field: &str, kind: &str) -> String {
+    format!(
+        "{}_{}_{}",
+        collection,
+        field,
+        kind.to_ascii_lowercase().replace(' ', "_")
+    )
+}

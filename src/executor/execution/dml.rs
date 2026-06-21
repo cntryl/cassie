@@ -47,7 +47,7 @@ pub(super) fn execute_insert(
                 } => {
                     let current = cassie
                         .get_document_for_session(session, &statement.table, &conflict_id)
-                        .map_err(|error| QueryError::General(error.to_string()))?
+                        .map_err(QueryError::from)?
                         .ok_or_else(|| {
                             QueryError::General(format!(
                                 "conflicting row '{conflict_id}' was not found in '{}'",
@@ -109,7 +109,7 @@ pub(super) fn execute_insert(
                             true,
                             Some(&conflict_id),
                         )
-                        .map_err(|error| QueryError::General(error.to_string()))?;
+                        .map_err(QueryError::from)?;
                     cassie
                         .put_prepared_document_for_session(
                             session,
@@ -117,7 +117,7 @@ pub(super) fn execute_insert(
                             conflict_id.clone(),
                             prepared,
                         )
-                        .map_err(|error| QueryError::General(error.to_string()))?;
+                        .map_err(QueryError::from)?;
                     conflict_id
                 }
             },
@@ -128,14 +128,14 @@ pub(super) fn execute_insert(
             }
             (_, None) => cassie
                 .write_document_for_session(session, &statement.table, None, payload, true, None)
-                .map_err(|error| QueryError::General(error.to_string()))?,
+                .map_err(QueryError::from)?,
         };
         affected_count += 1;
 
         if !statement.returning.is_empty() {
             let document = cassie
                 .get_document_for_session(session, &statement.table, &row_id)
-                .map_err(|error| QueryError::General(error.to_string()))?
+                .map_err(QueryError::from)?
                 .ok_or_else(|| {
                     QueryError::General(format!(
                         "affected row '{row_id}' was not found in '{}'",
@@ -210,7 +210,7 @@ fn find_insert_conflict_row_id(
             .collect::<Result<Vec<_>, _>>()?;
         return cassie
             .find_document_id_by_fields(session, &statement.table, &values, None)
-            .map_err(|error| QueryError::General(error.to_string()));
+            .map_err(QueryError::from);
     }
 
     for constraint in cassie.catalog.get_constraints(&statement.table) {
@@ -230,7 +230,7 @@ fn find_insert_conflict_row_id(
                 &[(&constraint.field, value)],
                 None,
             )
-            .map_err(|error| QueryError::General(error.to_string()))?
+            .map_err(QueryError::from)?
         {
             return Ok(Some(id));
         }
@@ -262,7 +262,7 @@ fn find_insert_conflict_row_id(
         }
         if let Some(id) = cassie
             .find_document_id_by_fields(session, &statement.table, &values, None)
-            .map_err(|error| QueryError::General(error.to_string()))?
+            .map_err(QueryError::from)?
         {
             return Ok(Some(id));
         }
@@ -641,7 +641,7 @@ fn assert_no_referencing_rows(
                 parent_value,
                 None,
             )
-            .map_err(|error| QueryError::General(error.to_string()))?
+            .map_err(QueryError::from)?
         {
             return Err(QueryError::General(format!(
                 "foreign key constraint '{}' on '{}' still references '{}.{}'",
@@ -687,7 +687,7 @@ fn assert_referenced_values_unchanged(
                 old_value,
                 None,
             )
-            .map_err(|error| QueryError::General(error.to_string()))?
+            .map_err(QueryError::from)?
         {
             return Err(QueryError::General(format!(
                 "foreign key constraint '{}' on '{}' still references '{}.{}'",
@@ -726,7 +726,7 @@ pub(super) fn execute_update(
         let row_id = row_id_from_batch_row(row)?;
         let current = cassie
             .get_document_for_session(session, &statement.table, &row_id)
-            .map_err(|error| QueryError::General(error.to_string()))?
+            .map_err(QueryError::from)?
             .ok_or_else(|| {
                 QueryError::General(format!(
                     "row '{row_id}' was not found in '{}'",
@@ -762,7 +762,7 @@ pub(super) fn execute_update(
                 true,
                 Some(&row_id),
             )
-            .map_err(|error| QueryError::General(error.to_string()))?;
+            .map_err(QueryError::from)?;
         assert_referenced_values_unchanged(
             cassie,
             session,
@@ -777,12 +777,12 @@ pub(super) fn execute_update(
     for (row_id, payload) in prepared_rows {
         cassie
             .put_prepared_document_for_session(session, &statement.table, row_id.clone(), payload)
-            .map_err(|error| QueryError::General(error.to_string()))?;
+            .map_err(QueryError::from)?;
 
         if !statement.returning.is_empty() {
             let document = cassie
                 .get_document_for_session(session, &statement.table, &row_id)
-                .map_err(|error| QueryError::General(error.to_string()))?
+                .map_err(QueryError::from)?
                 .ok_or_else(|| {
                     QueryError::General(format!(
                         "updated row '{row_id}' was not found in '{}'",
@@ -867,7 +867,7 @@ pub(super) fn execute_delete(
         let row_id = row_id_from_batch_row(row)?;
         let current = cassie
             .get_document_for_session(session, &statement.table, &row_id)
-            .map_err(|error| QueryError::General(error.to_string()))?
+            .map_err(QueryError::from)?
             .ok_or_else(|| {
                 QueryError::General(format!(
                     "row '{row_id}' was not found in '{}'",
@@ -888,7 +888,7 @@ pub(super) fn execute_delete(
     for row_id in &delete_ids {
         cassie
             .delete_document_for_session(session, &statement.table, row_id)
-            .map_err(|error| QueryError::General(error.to_string()))?;
+            .map_err(QueryError::from)?;
     }
 
     let deleted_count = delete_ids.len();

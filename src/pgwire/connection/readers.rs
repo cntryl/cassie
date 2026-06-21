@@ -331,26 +331,6 @@ pub(super) fn read_frontend_i32(payload: &[u8], cursor: &mut usize) -> Result<i3
     Ok(i32::from_be_bytes(bytes))
 }
 
-pub(super) fn simple_query_error_code(error: &crate::app::CassieError) -> &'static str {
-    match error {
-        crate::app::CassieError::Parse(_) => "42601",
-        crate::app::CassieError::Unauthorized => "28000",
-        crate::app::CassieError::CollectionNotFound(_) | crate::app::CassieError::NotFound(_) => {
-            "42P01"
-        }
-        crate::app::CassieError::Unsupported(_) => "0A000",
-        crate::app::CassieError::InvalidVector(_)
-        | crate::app::CassieError::InvalidEmbedding(_) => "22000",
-        crate::app::CassieError::EmbeddingUnavailable(_) => "58030",
-        crate::app::CassieError::Storage(_)
-        | crate::app::CassieError::StorageBootstrap(_)
-        | crate::app::CassieError::StorageMissingFamily(_)
-        | crate::app::CassieError::StorageRetryable(_)
-        | crate::app::CassieError::Planner(_)
-        | crate::app::CassieError::Execution(_) => "XX000",
-    }
-}
-
 pub(super) async fn read_startup_frame(
     reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
 ) -> Result<StartupFrame, HandshakeError> {

@@ -390,7 +390,7 @@ fn information_schema_key_column_usage(catalog: &Catalog) -> Vec<VirtualRow> {
                     string("column_name", &constraint.field),
                     string(
                         "constraint_name",
-                        constraint_name(
+                        crate::catalog::generated_constraint_name(
                             &collection.name,
                             &constraint.field,
                             if constraint.primary_key {
@@ -564,7 +564,7 @@ fn table_constraint_row(collection: &str, field: &str, constraint_type: &str) ->
         string("table_name", collection),
         string(
             "constraint_name",
-            constraint_name(collection, field, constraint_type),
+            crate::catalog::generated_constraint_name(collection, field, constraint_type),
         ),
         string("constraint_type", constraint_type),
     ]
@@ -574,20 +574,11 @@ fn pg_constraint_row(collection: &str, field: &str, constraint_type: &str) -> Vi
     vec![
         string(
             "conname",
-            constraint_name(collection, field, constraint_type),
+            crate::catalog::generated_constraint_name(collection, field, constraint_type),
         ),
         string("conrelid", collection),
         string("contype", constraint_type),
     ]
-}
-
-fn constraint_name(collection: &str, field: &str, kind: &str) -> String {
-    format!(
-        "{}_{}_{}",
-        collection,
-        field,
-        kind.to_ascii_lowercase().replace(' ', "_")
-    )
 }
 
 fn data_type_name(data_type: &DataType) -> String {

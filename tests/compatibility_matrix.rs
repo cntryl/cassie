@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
-use tokio_postgres::{NoTls, SimpleQueryMessage};
+use tokio_postgres::{error::DbError, NoTls, SimpleQueryMessage};
 use uuid::Uuid;
 
 fn with_fallback() {
@@ -80,6 +80,12 @@ impl CompatibilityServer {
         let _ = self.server.await;
         let _ = std::fs::remove_dir_all(self.data_dir);
     }
+}
+
+fn db_error(error: &tokio_postgres::Error) -> &DbError {
+    error
+        .as_db_error()
+        .expect("tokio-postgres should return a database error")
 }
 
 #[test]
@@ -374,7 +380,142 @@ fn should_enforce_foreign_keys_with_tokio_postgres() {
             .await;
 
         // Assert
-        assert!(missing_parent.is_err(), "missing parent should be rejected");
+        let missing_parent = missing_parent.expect_err("missing parent should be rejected");
+        let db_error = db_error(&missing_parent);
+        assert_eq!(db_error.code().code(), "23503");
+        assert_eq!(db_error.table(), Some("compat_fk_children"));
+        assert_eq!(db_error.column(), Some("parent_id"));
+        assert_eq!(
+            db_error.constraint(),
+            Some("compat_fk_children_parent_id_foreign_key")
+        );
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_report_missing_relation_metadata_with_tokio_postgres() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("missing_relation").await;
+        let (client, connection) = tokio::time::timeout(Duration::from_secs(5), server.connect())
+            .await
+            .expect("connect should complete within the timeout");
+
+        // Act
+        let error = client
+            .query_one("SELECT * FROM compat_missing_relation", &[])
+            .await
+            .expect_err("missing relation should be rejected");
+
+        // Assert
+        let db_error = db_error(&error);
+        assert_eq!(db_error.code().code(), "42P01");
+        assert_eq!(db_error.table(), Some("compat_missing_relation"));
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_report_unique_violation_metadata_with_tokio_postgres() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("constraint_metadata").await;
+        let (client, connection) = tokio::time::timeout(Duration::from_secs(5), server.connect())
+            .await
+            .expect("connect should complete within the timeout");
+
+        client
+            .batch_execute(
+                "CREATE TABLE compat_constraint_metadata (id INT PRIMARY KEY, email TEXT NOT NULL UNIQUE)",
+            )
+            .await
+            .expect("table creation should succeed");
+        client
+            .execute(
+                "INSERT INTO compat_constraint_metadata (id, email) VALUES ($1, $2)",
+                &[&1_i32, &"alpha@example.com"],
+            )
+            .await
+            .expect("seed insert should succeed");
+
+        // Act
+        let duplicate = client
+            .execute(
+                "INSERT INTO compat_constraint_metadata (id, email) VALUES ($1, $2)",
+                &[&2_i32, &"alpha@example.com"],
+            )
+            .await
+            .expect_err("duplicate unique value should be rejected");
+
+        // Assert
+        let duplicate = db_error(&duplicate);
+        assert_eq!(duplicate.code().code(), "23505");
+        assert_eq!(duplicate.table(), Some("compat_constraint_metadata"));
+        assert_eq!(duplicate.column(), Some("email"));
+        assert_eq!(
+            duplicate.constraint(),
+            Some("compat_constraint_metadata_email_unique")
+        );
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_report_not_null_violation_metadata_with_tokio_postgres() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("not_null_metadata").await;
+        let (client, connection) = tokio::time::timeout(Duration::from_secs(5), server.connect())
+            .await
+            .expect("connect should complete within the timeout");
+
+        client
+            .batch_execute(
+                "CREATE TABLE compat_not_null_metadata (id INT PRIMARY KEY, email TEXT NOT NULL UNIQUE)",
+            )
+            .await
+            .expect("table creation should succeed");
+
+        // Act
+        let missing_not_null = client
+            .execute(
+                "INSERT INTO compat_not_null_metadata (id, email) VALUES ($1, $2)",
+                &[&3_i32, &Option::<String>::None],
+            )
+            .await
+            .expect_err("null email should be rejected");
+
+        // Assert
+        let missing_not_null = db_error(&missing_not_null);
+        assert_eq!(missing_not_null.code().code(), "23502");
+        assert_eq!(missing_not_null.table(), Some("compat_not_null_metadata"));
+        assert_eq!(missing_not_null.column(), Some("email"));
+        assert_eq!(
+            missing_not_null.constraint(),
+            Some("compat_not_null_metadata_email_not_null")
+        );
 
         drop(client);
         server.shutdown(connection).await;
@@ -446,7 +587,9 @@ fn should_recover_after_a_syntax_error_with_tokio_postgres() {
             .expect("connection should recover after a syntax error");
 
         // Assert
-        assert!(first.is_err());
+        let first = first.expect_err("syntax error should be rejected");
+        let db_error = db_error(&first);
+        assert_eq!(db_error.code().code(), "42601");
         let version: String = second.try_get(0).expect("version column");
         assert_eq!(version, env!("CARGO_PKG_VERSION"));
 

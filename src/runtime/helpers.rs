@@ -48,6 +48,10 @@ pub fn sql_fingerprint(statement: &crate::sql::ast::ParsedStatement) -> u64 {
 pub fn error_class(error: &CassieError) -> &'static str {
     match error {
         CassieError::CollectionNotFound(_) => "collection_not_found",
+        CassieError::NotNullViolation { .. } => "not_null_violation",
+        CassieError::UniqueViolation { .. } => "unique_violation",
+        CassieError::CheckViolation { .. } => "check_violation",
+        CassieError::ForeignKeyViolation { .. } => "foreign_key_violation",
         CassieError::Parse(_) => "parse",
         CassieError::Planner(_) => "planner",
         CassieError::Execution(_) => "execution",

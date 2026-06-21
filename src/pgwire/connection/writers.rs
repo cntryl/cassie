@@ -1,4 +1,5 @@
 use super::codecs::*;
+use super::errors::PgWireError;
 use super::*;
 
 pub(super) async fn write_auth_ok(write_half: &mut (impl AsyncWrite + Unpin)) -> io::Result<()> {
@@ -33,20 +34,24 @@ pub(super) async fn write_ssl_not_supported(
 
 pub(super) async fn write_error_response(
     write_half: &mut (impl AsyncWrite + Unpin),
-    severity: &str,
-    code: &str,
-    message: &str,
+    error: &PgWireError,
 ) -> io::Result<()> {
     let mut payload = Vec::new();
     payload.extend_from_slice(b"S");
-    payload.extend_from_slice(severity.as_bytes());
+    payload.extend_from_slice(error.severity.as_str().as_bytes());
     payload.push(0);
     payload.extend_from_slice(b"C");
-    payload.extend_from_slice(code.as_bytes());
+    payload.extend_from_slice(error.code.as_bytes());
     payload.push(0);
     payload.extend_from_slice(b"M");
-    payload.extend_from_slice(message.as_bytes());
+    payload.extend_from_slice(error.message.as_bytes());
     payload.push(0);
+    append_error_field(&mut payload, b'D', error.detail.as_deref());
+    append_error_field(&mut payload, b'H', error.hint.as_deref());
+    append_error_field(&mut payload, b's', error.schema.as_deref());
+    append_error_field(&mut payload, b't', error.table.as_deref());
+    append_error_field(&mut payload, b'c', error.column.as_deref());
+    append_error_field(&mut payload, b'n', error.constraint.as_deref());
     payload.push(0);
 
     let mut frame = vec![b'E'];
@@ -60,6 +65,15 @@ pub(super) async fn write_error_response(
     write_half.write_all(&frame).await?;
     write_half.flush().await?;
     Ok(())
+}
+
+fn append_error_field(payload: &mut Vec<u8>, tag: u8, value: Option<&str>) {
+    let Some(value) = value else {
+        return;
+    };
+    payload.push(tag);
+    payload.extend_from_slice(value.as_bytes());
+    payload.push(0);
 }
 
 pub(super) async fn write_simple_query_result(

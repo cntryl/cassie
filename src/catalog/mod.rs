@@ -16,7 +16,9 @@ pub use cardinality::{
 pub use collections::{
     is_reserved_namespace, CollectionMeta, NamespaceMeta, ProjectionMeta, ProjectionRebuildState,
 };
-pub use constraints::{ConstraintCheck, ConstraintOperator, FieldConstraint};
+pub use constraints::{
+    generated_constraint_name, ConstraintCheck, ConstraintOperator, FieldConstraint,
+};
 pub use indexes::{
     ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchFieldSummary, ColumnBatchMetadata,
     ColumnBatchPayload, ColumnBatchRow, ColumnBatchSegmentMeta, ColumnBatchValueRun, IndexKind,

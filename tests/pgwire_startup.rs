@@ -81,6 +81,36 @@ async fn read_wire_frame(
     (tag, len, payload)
 }
 
+fn read_cstring(payload: &[u8], cursor: &mut usize) -> String {
+    let tail = payload
+        .get(*cursor..)
+        .expect("cursor should be inside payload");
+    let end = tail
+        .iter()
+        .position(|byte| *byte == 0)
+        .expect("cstring should be null terminated");
+    let value = std::str::from_utf8(&tail[..end]).expect("cstring should be utf-8");
+    *cursor += end + 1;
+    value.to_string()
+}
+
+fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
+    let mut cursor = 0usize;
+    let mut fields = Vec::new();
+
+    while cursor < payload.len() {
+        let field_type = payload[cursor];
+        cursor += 1;
+        if field_type == 0 {
+            break;
+        }
+        let value = read_cstring(payload, &mut cursor);
+        fields.push((char::from(field_type), value));
+    }
+
+    fields
+}
+
 #[test]
 fn should_support_binary_startup_without_password() {
     // Arrange
@@ -242,9 +272,22 @@ fn should_error_when_password_does_not_match_for_cleartext_auth() {
             error_tag, b'E',
             "auth failure should be returned as an error frame"
         );
-        assert!(
-            String::from_utf8_lossy(&error_payload).contains("28000"),
+        let error_fields = parse_error_fields(&error_payload);
+        assert_eq!(
+            error_fields
+                .iter()
+                .find(|(field, _)| *field == 'C')
+                .map(|(_, value)| value.as_str()),
+            Some("28000"),
             "error response should include SQL state"
+        );
+        assert_eq!(
+            error_fields
+                .iter()
+                .find(|(field, _)| *field == 'S')
+                .map(|(_, value)| value.as_str()),
+            Some("FATAL"),
+            "auth failure should be a fatal error"
         );
 
         drop(socket);

@@ -137,6 +137,354 @@ Phase 05 write work should fail the contract when Cassie hides Midge locality be
 For write-side patterns, SQL, REST, replay, and rebuild commands are interfaces.
 They are not the required execution model.
 
+## Write Pattern Contracts
+
+Write patterns must be explicit, measurable, and tied to read-side expectations.
+
+### Write Pattern: Single projection mutation
+
+### Purpose
+Serve interactive CRUD and admin mutations against a projection table with predictable row/index side effects.
+
+### Shape
+`INSERT`, `UPDATE`, and `DELETE` against a projection collection plus projection-maintained indexes.
+
+### Data assumptions
+- Rows/events: small interactive batches, commonly 1 row
+- Batch size: 1
+- Indexes maintained: collection PK/unique and projection-local secondary indexes
+- Read access shape served: `Primary lookup`, `Secondary lookup`
+- Freshness/checkpoint behavior: immediate
+- Idempotency requirement: idempotent behavior only where SQL/app layer enforces it
+
+### Performance target
+- p50/p95/p99 latency: measured per deployment profile
+- Throughput: stable under concurrent small write bursts
+- Max memory per query: bounded to working set for the mutated row
+- Write amplification budget: no additional full scans, no unnecessary secondary maintenance
+- Cold-cache behavior: predictable first-write penalty
+- Warm-cache behavior: bounded per-row write cost
+
+### Required write strategy
+- direct row write on source collection keys
+- update only directly affected index entries
+- metadata updates are bounded to the touched row set
+
+### Required read-shape compatibility
+- preserve primary and secondary lookup key locality for reads on row identity and tenant-scoped identifiers
+
+### Forbidden write strategy
+- per-row catalog reload for each mutation
+- rewriting unchanged index values
+- full collection scans to recompute derived state
+
+### Validation
+- Benchmarks: focused mutation fixture in `tier2_subsystem_ingest`
+- Assertions: contract-level row/index/metadata write counters once exposed in phase 05 issue 06
+
+### Interactive or bulk?
+Interactive mutation.
+
+### Write Pattern: Replay batch ingestion
+
+### Purpose
+Apply event-driven projection updates efficiently while preserving checkpoint integrity.
+
+### Shape
+`replay_projection_batch` and replay command inputs.
+
+### Data assumptions
+- Rows/events: ordered replay events
+- Batch size: medium-to-large bounded batches
+- Indexes maintained: collection and index-local secondary structures
+- Read access shape served: `Primary lookup`, `Secondary lookup`
+- Freshness/checkpoint behavior: checkpoint advances only after successful batch write boundary
+- Idempotency requirement: must skip already-applied events
+
+### Performance target
+- Throughput: bounded by storage write throughput and index maintenance parallelism
+- Write amplification budget: grouped writes within batch boundaries
+- Max memory per batch: bounded by configured replay batch queue
+- Cold-cache behavior: higher first-batch latency acceptable
+- Warm-cache behavior: near-linear with batch size and checkpoints
+
+### Required write strategy
+- group duplicate checks and mutation writes before checkpoint updates
+- apply grouped row/index writes before checkpoint commit
+
+### Required read-shape compatibility
+- preserve ordered replay locality for replayed range and ordered-page reads
+
+### Forbidden write strategy
+- per-event global flushes
+- synchronous dependency on synchronous reads outside the replay path
+
+### Validation
+- Benchmarks: `projection_lag_catchup` and `projection_write_path` in `tier2_subsystem_ingest`
+- Assertions: checkpoint progression and bounded duplicate check overhead
+
+### Interactive or bulk?
+Bulk replay path.
+
+### Write Pattern: Duplicate replay skip
+
+### Purpose
+Avoid write amplification when replay events are redelivered.
+
+### Shape
+Replay input with repeated event IDs, sequence pairs, or checkpoint values.
+
+### Data assumptions
+- Rows/events: duplicate delivery windows under active retries
+- Batch size: mixed with normal replay
+- Indexes maintained: source projection indexes and checkpoint metadata
+- Read access shape served: `Primary lookup`
+- Freshness/checkpoint behavior: no mutation when duplicate detected
+- Idempotency requirement: explicit
+
+### Performance target
+- p50/p95/p99 latency: skip decision must be O(1) to O(log n) on checkpoint/index lookup
+- Throughput: no degradation from duplicate flood
+- Max memory per query: bounded by checkpoint/index lookup set
+- Write amplification budget: zero row/index writes for skipped events
+
+### Required write strategy
+- detect duplicates before row/index mutation
+- emit duplicate skip counters before moving cursor
+
+### Required read-shape compatibility
+- preserve duplicate-index and checkpoint read locality required by both single and replayed lookups
+
+### Forbidden write strategy
+- re-writing data for duplicate events
+- appending duplicate audit rows outside replay telemetry contract
+
+### Validation
+- Benchmarks: `projection_duplicate_replay` in `tier2_subsystem_ingest`
+- Assertions: duplicate check counters and no duplicate side-effect writes
+
+### Interactive or bulk?
+Replay guard, applied in both interactive replay and bulk replay.
+
+### Write Pattern: Indexed mutation
+
+### Purpose
+Support high-frequency reads on indexed projections while minimizing index churn.
+
+### Shape
+Any indexed column mutation path in insert/update/delete flows.
+
+### Data assumptions
+- Rows/events: interactive or batch updates to indexed fields
+- Batch size: 1 to many
+- Indexes maintained: scalar, full-text, vector, or hybrid candidate indexes as defined by schema
+- Read access shape served: `Secondary lookup`, `Filtered page`, `Ordered page`, `Hybrid search`, `Vector search`
+- Freshness/checkpoint behavior: immediate metadata and index state
+- Idempotency requirement: depends on upstream mutation semantics
+
+### Performance target
+- p50/p95/p99 latency: bounded by index delta write path size
+- Throughput: stable under mixed update and lookup load
+- Write amplification budget: avoid full index rebuild for single key updates
+
+### Required write strategy
+- update or delete only affected index entries for touched keys
+- keep key encoding and grouping aligned with read pattern requirements in phase 04 issue 07
+
+### Required read-shape compatibility
+- maintain index localities used by required filtered and ordered reads
+
+### Forbidden write strategy
+- full index backfill for single-row mutations
+- reorder/overwrite entire index blocks outside changed key range
+
+### Validation
+- Benchmarks: index update-focused ingest benchmark in `tier2_subsystem_ingest`
+- Assertions: index write counters stay bounded for single-key updates
+
+### Interactive or bulk?
+Interactive and small batch mutation path.
+
+### Write Pattern: Projection refresh / build
+
+### Purpose
+Rebuild materialized projection target from source events or source-of-truth reads.
+
+### Shape
+Projection materialized refresh and projection rebuild commands.
+
+### Data assumptions
+- Rows/events: full projection target rewrite windows
+- Batch size: large ordered source ranges
+- Indexes maintained: projection-local read-path indexes
+- Read access shape served: `Projection replay`, `Projection rebuild`, `Join-like reads`
+- Freshness/checkpoint behavior: old target remains readable until swap
+- Idempotency requirement: explicit on command retries
+
+### Performance target
+- Throughput: high write throughput with bounded metadata overhead
+- Max memory per batch: bounded by target table scan buffers
+- Write amplification budget: no active-version active-target rewrite
+- Cold-cache behavior: full rebuild warm-up expected
+
+### Required write strategy
+- write into inactive rebuild target
+- validate, checkpoint, and swap only after full consistency checks
+
+### Required read-shape compatibility
+- preserve projection-local ordering/grouping expected by rebuilt read paths
+
+### Forbidden write strategy
+- in-place overwrite of active projection while rebuilding
+- broad checkpoint mutation before rebuild completeness
+
+### Validation
+- Benchmarks: `projection_refresh` and `projection_rebuild_query` in `tier3_system_rebuild`
+- Assertions: swap phase separated from rebuild throughput
+
+### Interactive or bulk?
+Bulk rebuild path.
+
+### Write Pattern: Projection verification-adjacent rebuild
+
+### Purpose
+Support verification and comparison workflows that refresh only changed structures.
+
+### Shape
+Projection verification command paths and mismatch-ledger repair steps.
+
+### Data assumptions
+- Rows/events: verification and repair batches
+- Batch size: bounded by verification window
+- Indexes maintained: projection metadata and content hashes
+- Read access shape served: `Primary lookup`, `Projection replay`
+- Freshness/checkpoint behavior: verified version remains authoritative
+- Idempotency requirement: repair actions must be safe if repeated
+
+### Performance target
+- Throughput: stable under long-running verification scans
+- Write amplification budget: metadata-only updates where no mismatch is detected
+- Max memory per verification batch: bounded
+
+### Required write strategy
+- preserve hash and verification key layouts
+- write minimal metadata updates for verified consistency states
+
+### Required read-shape compatibility
+- keep projection identity and hash-index layouts stable for read verification
+
+### Forbidden write strategy
+- rewriting source rows during verification
+- eager backfill outside mismatch scope
+
+### Validation
+- Benchmarks: projection verify-oriented profiles in `tier3_system_rebuild`
+- Assertions: verification metadata write counters and mismatch repair scope
+
+### Interactive or bulk?
+Offline verification with bounded metadata writes.
+
+### Write Pattern: Version swap-adjacent writes
+
+### Purpose
+Move projection versions from inactive to active state without rewriting user data.
+
+### Shape
+`projection_version` activation and metadata updates.
+
+### Data assumptions
+- Rows/events: one swap request per projection version
+- Batch size: O(1) command set
+- Indexes maintained: projection version lookup and activation map
+- Read access shape served: `Projection rebuild`
+- Freshness/checkpoint behavior: atomic activation semantics
+- Idempotency requirement: repeated swap attempts are no-ops or safe failures
+
+### Performance target
+- p50/p95/p99 latency: low and bounded by metadata writes
+- Write amplification budget: metadata-only updates
+- Max memory per swap: O(1)
+
+### Required write strategy
+- bounded metadata writes for version, epoch, and activation marker
+- keep active/read-only projection targets stable during swap
+
+### Required read-shape compatibility
+- preserve active-version-locality assumptions for replay and query routing
+
+### Forbidden write strategy
+- active target rewrite during swap
+- unrelated projection data mutation during activation
+
+### Validation
+- Benchmarks: `projection_swap` in `tier3_system_rebuild`
+- Assertions: activation writes only, no unrelated row/index churn
+
+### Interactive or bulk?
+Controlled control-plane path.
+
+### Write Pattern: Index rebuild DDL
+
+### Purpose
+Rebuild or backfill indexes from stable source data without impacting active readers.
+
+### Shape
+`CREATE INDEX`, `DROP INDEX`, and index backfill/rebuild command flows.
+
+### Data assumptions
+- Rows/events: source projection data for rebuild
+- Batch size: source-order stream
+- Indexes maintained: scalar/full-text/vector/hybrid index families
+- Read access shape served: relevant read contracts in `Primary lookup`, `Secondary lookup`, `Filtered page`, `Full-text search`, `Vector search`, `Hybrid search`
+- Freshness/checkpoint behavior: index build has explicit build phase and ready state
+- Idempotency requirement: repeatable backfill and drop/recreate behavior
+
+### Performance target
+- Throughput: proportional to source scan and index append rate
+- Max memory per chunk: bounded by streaming rebuild windows
+- Write amplification budget: avoid repeated full rewrites when key range unchanged
+
+### Required write strategy
+- stream from source order into new index target
+- build and publish index atomically when consistent
+
+### Required read-shape compatibility
+- preserve ordering and grouping required by index-backed reads
+
+### Forbidden write strategy
+- index mutation in place during active read path migration
+- non-deterministic key derivation across rebuild runs
+
+### Validation
+- Benchmarks: `index_rebuild_ddl` in `tier3_system_rebuild`
+- Assertions: backfill progress, target size, and final consistency checks
+
+### Interactive or bulk?
+Bulk/admin path with controlled publication boundary.
+
+## Write Amplification Vocabulary
+
+Phase 05 counters to expose for contracts and diagnostics:
+
+- `row_puts` (exact): row insert/update operations on source projection/collection storage.
+- `row_deletes` (exact): row delete operations.
+- `index_puts` (exact): index entry inserts/updates.
+- `index_deletes` (exact): index entry removals.
+- `metadata_puts` (exact): metadata writes and checkpoint updates.
+- `metadata_deletes` (planned): metadata deletions where command explicitly removes metadata state.
+- `duplicate_checks` (exact): replay duplicate or idempotency lookups.
+- `duplicates_skipped` (exact): replay events skipped due to duplicate detection.
+- `batch_flushes` (exact): explicit storage or batching flush boundaries.
+- `rebuild_target_puts` (exact): inactive target writes during projection/index rebuild.
+- `activation_metadata_writes` (exact): swap and activation marker updates.
+
+Derived ratios:
+
+- `storage_writes_per_replay_event = (row_puts + row_deletes + index_puts + index_deletes) / replay_events_applied`.
+- `index_writes_per_row_mutation = (index_puts + index_deletes) / max(row_puts + row_deletes, 1)`.
+- `metadata_writes_per_replay_batch = metadata_puts / replay_batches`.
+- `activation_writes_per_swap = (metadata_puts + activation_metadata_writes) / max(swaps, 1)`.
+
 ## Requirement Template
 
 Use this template when adding or revising a supported query pattern.

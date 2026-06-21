@@ -642,6 +642,7 @@ impl Cassie {
                             return Err(error);
                         }
                         self.refresh_cardinality_stats(&collection)?;
+                        self.refresh_projection_metadata(&collection)?;
                     }
                 }
                 let controls = self.runtime.query_controls(std::time::Instant::now());
@@ -755,9 +756,46 @@ impl Cassie {
         let candidate_budget = candidate_budget
             .map(|budget| budget.to_string())
             .unwrap_or_else(|| "none".to_string());
+        let mixed_uses_fulltext = physical
+            .operators
+            .iter()
+            .any(|operator| matches!(operator, crate::planner::physical::Operator::FullTextSearch));
+        let mixed_uses_vector = physical
+            .operators
+            .iter()
+            .any(|operator| matches!(operator, crate::planner::physical::Operator::VectorSearch));
+        let mixed_uses_aggregate = physical
+            .operators
+            .iter()
+            .any(|operator| matches!(operator, crate::planner::physical::Operator::Aggregate));
+        let mixed_execution = (mixed_uses_fulltext && mixed_uses_vector)
+            || ((mixed_uses_fulltext || mixed_uses_vector) && mixed_uses_aggregate);
+        let mixed_stages = mixed_execution_stages(
+            mixed_uses_fulltext,
+            mixed_uses_vector,
+            mixed_uses_aggregate,
+            physical.logical.filter.is_some(),
+            !physical.logical.order.is_empty(),
+            physical.logical.offset.is_some(),
+            physical.logical.limit.is_some(),
+        );
+        let mixed_fallback = if mixed_execution {
+            "source_row_exact_baseline"
+        } else {
+            "none"
+        };
+        let projection_freshness = self
+            .catalog
+            .get_materialized_projection(&physical.collection)
+            .or_else(|| {
+                self.catalog
+                    .materialized_projection_for_output(&physical.collection)
+            })
+            .map(|projection| projection.freshness.as_str().to_string())
+            .unwrap_or_else(|| "unavailable".to_string());
         let estimates = &physical.estimates;
         let mut plan = format!(
-            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} covered_index={} column_batch_index={} prefilter={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
+            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} covered_index={} column_batch_index={} prefilter={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
@@ -781,6 +819,10 @@ impl Cassie {
             aggregate_parallel,
             aggregate_acceleration,
             rollup_rewrite,
+            mixed_execution,
+            mixed_stages,
+            mixed_fallback,
+            projection_freshness,
             estimates.scan_rows,
             estimates.index_rows,
             estimates.join_rows,
@@ -933,5 +975,43 @@ impl Cassie {
             rows: vec![vec![Value::String(plan)]],
             command: "EXPLAIN".to_string(),
         })
+    }
+}
+
+fn mixed_execution_stages(
+    uses_fulltext: bool,
+    uses_vector: bool,
+    uses_aggregate: bool,
+    has_filter: bool,
+    has_order: bool,
+    has_offset: bool,
+    has_limit: bool,
+) -> String {
+    let mut stages = Vec::new();
+    if uses_fulltext || uses_vector {
+        stages.push("candidate_generation");
+    }
+    if has_filter {
+        stages.push("metadata_prefilter");
+    }
+    if uses_fulltext || uses_vector {
+        stages.push("exact_scoring");
+    }
+    if uses_aggregate {
+        stages.push("analytical_grouping");
+    }
+    if has_order {
+        stages.push("ordering");
+    }
+    if has_offset {
+        stages.push("offset");
+    }
+    if has_limit {
+        stages.push("limit");
+    }
+    if stages.is_empty() {
+        "none".to_string()
+    } else {
+        stages.join(">")
     }
 }

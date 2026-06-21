@@ -35,11 +35,11 @@ Goal: prove rebuilt read models and derived state are internally consistent befo
 
 | Feature Area | Status | Compatibility |
 | --- | --- | --- |
-| Row hashes | Planned | Cassie-specific |
-| Range hashes | Planned | Cassie-specific |
-| Projection Merkle roots | Planned | Cassie-specific |
-| Rebuild verification | Planned | Cassie-specific |
-| Projection integrity verification | Planned | Cassie-specific |
+| Row hashes | Implemented | Experimental Cassie-specific |
+| Range hashes | Implemented | Experimental Cassie-specific |
+| Projection Merkle roots | Implemented | Experimental Cassie-specific |
+| Rebuild verification | Implemented | Experimental Cassie-specific |
+| Integrity verification | Implemented | Experimental Cassie-specific |
 | Projection diffing and multi-instance consistency checks | Planned | Cassie-specific |
 
 ## SQL Foundation
@@ -116,6 +116,36 @@ Goal: provide analytical read acceleration and operational visibility while keep
 | Time-series indexes | Planned | Experimental |
 | EXPLAIN, EXPLAIN ANALYZE, metrics | Implemented | Experimental output format |
 
+## Write Optimization
+
+Goal: compile write-side read-model workflows into Midge-efficient write paths without weakening deterministic replay, freshness, verification, or projection lifecycle semantics.
+
+Phase 05 treats SQL, REST, replay, and rebuild commands as write interfaces, not as a requirement to use the same per-row mutation path for every workload.
+Supported write patterns must define required and forbidden write-path behavior, write amplification budgets, and benchmark or diagnostic evidence.
+
+| Feature Area | Status | Compatibility |
+| --- | --- | --- |
+| Write-path performance contracts | Planned | Cassie-specific internal/perf contract |
+| Replay and ingest batching | Planned | Cassie-specific internal |
+| Duplicate replay skip without row/index rewrites | Planned | Cassie-specific internal |
+| Index maintenance batching and delta coalescing | Planned | Cassie-specific internal |
+| Write-locality key/layout optimization | Planned | Cassie-specific internal |
+| Bulk rebuild/ingest fast paths | Planned | Cassie-specific internal |
+| Write amplification diagnostics and budgets | Planned | Experimental metrics/admin diagnostics |
+
+## Read Optimization
+
+Goal: compile supported read-model query patterns into Midge-native access paths and make those access paths explicit, testable, and benchmarked.
+
+| Feature Area | Status | Compatibility |
+| --- | --- | --- |
+| Read-path performance contracts | Implemented/Planned by depth | Experimental documentation plus benchmark enforcement |
+| Access-path assertions and EXPLAIN guarantees | Planned | Experimental |
+| Predicate/order/limit pushdown to storage-native scans | Planned | Experimental |
+| Keyset pagination and bounded continuation scans | Planned | Experimental |
+| Top-K, early-stop, and bounded candidate execution | Planned | Experimental |
+| Projection-shaped read layouts for latency-sensitive patterns | Planned | Cassie-specific |
+
 ## Postgres Compatibility
 
 Goal: support practical PostgreSQL client interoperability for read-model access without claiming full PostgreSQL server equivalence.
@@ -132,9 +162,11 @@ Goal: support practical PostgreSQL client interoperability for read-model access
 
 ## Remaining Roadmap Themes
 
-- Add verification gates for projection swaps once row hashes and rebuild verification are available.
-- Add performance targets for replay ingestion, projection rebuilds, verification, swaps, and lag catch-up.
+- Harden verification gates and repair workflows beyond local read-only integrity reports.
+- Promote performance targets for replay ingestion, projection rebuilds, verification, swaps, and lag catch-up from baseline benchmarks to measured thresholds.
 - Prioritize query patterns required by real read models over feature parity with any general-purpose database.
+- Build phase 05 around write-side performance contracts, replay/ingest batching, locality, and write-amplification control.
+- Build phase 06 around read-side performance contracts, Midge-native access paths, access-path assertions, and projection-shaped reads.
 - Tighten PostgreSQL compatibility documentation for already-implemented SQL features through the read-model access lens.
 - Expand client compatibility probes for psql, sqlx, diesel, prisma, and SQLAlchemy read-model workflows.
 - Promote experimental catalog, procedure, rollup, HNSW, and embedding surfaces as their compatibility guarantees settle.

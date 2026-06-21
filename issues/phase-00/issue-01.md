@@ -14,6 +14,7 @@ Track one open issue for every active, uncompleted concept in `docs/product-road
 Maintain a live coverage index that links every active roadmap concept to its implementation issue and removes concepts once their issue files are completed and deleted.
 Keep the coverage index ordered by execution priority so autopilot can work from top to bottom without re-triage.
 Do not create additional local issue files until the current active set is completed, deleted, or intentionally rebaselined.
+Phase 05 and phase 06 are the current intentional rebaseline for optimization work.
 
 ## Functional Scope
 
@@ -29,7 +30,7 @@ Do not create additional local issue files until the current active set is compl
 
 - Do not track detailed implementation requirements in this index; those belong in the individual issue files.
 - Do not keep broken links to deleted completed issue files.
-- Do not add new local issue files while any `phase-01` through `phase-04` issue remains open.
+- Do not add new local issue files while any `phase-01` through `phase-04` issue remains open, unless the backlog is intentionally rebaselined as it is for phase 05 and phase 06 optimization work.
 
 ## Priority Policy
 
@@ -48,14 +49,7 @@ Do not create additional local issue files until the current active set is compl
 
 ### P1 Next
 
-- [Phase 02 Issue 01: Row Hashes](../phase-02/issue-01.md) - Read-Model Core / Verification
-- [Phase 02 Issue 02: Range Hashes](../phase-02/issue-02.md) - Read-Model Core / Verification
-- [Phase 02 Issue 03: Projection Merkle Roots](../phase-02/issue-03.md) - Read-Model Core / Verification
-- [Phase 02 Issue 04: Rebuild Verification](../phase-02/issue-04.md) - Read-Model Core / Verification
-- [Phase 02 Issue 05: Projection Operations Views](../phase-02/issue-05.md) - Read-Model Core / Operations
-- [Phase 02 Issue 06: Projection Integrity Verification](../phase-02/issue-06.md) - Read-Model Core / Verification
-- [Phase 02 Issue 07: Projection Rebuild Performance Targets](../phase-02/issue-07.md) - Read-Model Core / Benchmarks
-- [Phase 02 Issue 08: Mixed Search / Vector / Analytical Execution](../phase-02/issue-08.md) - Read-Model Retrieval / Mixed Execution
+- No open P1 coverage items.
 
 ### P2 Follow-Up
 
@@ -72,6 +66,18 @@ Do not create additional local issue files until the current active set is compl
 - [Phase 03 Issue 11: Projection Comparison](../phase-03/issue-11.md) - Read-Model Verification / Distributed Read Models
 - [Phase 03 Issue 12: Analytical Projections](../phase-03/issue-12.md) - Read-Model Analytics / Advanced Analytics
 - [Phase 03 Issue 13: Large-Scale Aggregations](../phase-03/issue-13.md) - Read-Model Analytics / Advanced Analytics
+- [Phase 05 Issue 01: Write Performance Contracts](../phase-05/issue-01.md) - Read-Model Write Optimization / Contracts
+- [Phase 05 Issue 02: Replay And Ingest Batching](../phase-05/issue-02.md) - Read-Model Write Optimization / Write Path and Duplicate Replay Skip
+- [Phase 05 Issue 03: Index Maintenance Batching](../phase-05/issue-03.md) - Read-Model Write Optimization / Indexes
+- [Phase 05 Issue 04: Write-Locality Key Layout](../phase-05/issue-04.md) - Read-Model Write Optimization / Storage Layout
+- [Phase 05 Issue 05: Bulk Rebuild Fast Paths](../phase-05/issue-05.md) - Read-Model Write Optimization / Rebuild
+- [Phase 05 Issue 06: Write Amplification Diagnostics](../phase-05/issue-06.md) - Read-Model Write Optimization / Diagnostics
+- [Phase 06 Issue 01: Read Access-Path Contracts](../phase-06/issue-01.md) - Read-Model Read Optimization / Contracts
+- [Phase 06 Issue 02: Predicate Order Limit Pushdown](../phase-06/issue-02.md) - Read-Model Read Optimization / Planner
+- [Phase 06 Issue 03: Keyset Pagination](../phase-06/issue-03.md) - Read-Model Read Optimization / Executor
+- [Phase 06 Issue 04: Top-K And Early Stop Execution](../phase-06/issue-04.md) - Read-Model Read Optimization / Executor
+- [Phase 06 Issue 05: Projection-Shaped Read Layouts](../phase-06/issue-05.md) - Read-Model Read Optimization / Projections
+- [Phase 06 Issue 06: Access-Path Assertions And Diagnostics](../phase-06/issue-06.md) - Read-Model Read Optimization / Observability
 
 ### P3 Parked
 

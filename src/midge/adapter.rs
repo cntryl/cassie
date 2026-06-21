@@ -51,6 +51,9 @@ const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
 const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
 const PROJECTION_KEY_PREFIX: &str = "__cassie__/projection/";
 const PROJECTION_EVENT_PREFIX: &str = "__cassie__/projection-event/v1/";
+const ROW_HASH_PREFIX: &str = "__cassie__/row-hash/v1/";
+const RANGE_HASH_PREFIX: &str = "__cassie__/range-hash/v1/";
+const ROOT_HASH_PREFIX: &str = "__cassie__/root-hash/v1/";
 const CARDINALITY_KEY_PREFIX: &str = "__cassie__/cardinality/v1/";
 const NORMALIZED_VECTOR_PREFIX: &str = "__cassie__/normalized-vector/";
 const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
@@ -213,6 +216,12 @@ mod metadata;
 mod projections;
 #[path = "adapter/schema_ops.rs"]
 mod schema_ops;
+#[path = "adapter/verification.rs"]
+mod verification;
+
+pub use verification::{
+    IntegrityCheckReport, RangeHashRecord, RootHashRecord, RowHashRecord, StoredHashState,
+};
 
 impl Midge {
     pub fn new() -> Result<Self, CassieError> {
@@ -381,6 +390,26 @@ impl Midge {
 
     fn projection_event_prefix(projection: &str) -> Vec<u8> {
         format!("{PROJECTION_EVENT_PREFIX}{projection}/").into_bytes()
+    }
+
+    fn row_hash_key(collection: &str, row_id: &str) -> Vec<u8> {
+        format!("{ROW_HASH_PREFIX}{collection}/{row_id}").into_bytes()
+    }
+
+    fn row_hash_prefix(collection: &str) -> Vec<u8> {
+        format!("{ROW_HASH_PREFIX}{collection}/").into_bytes()
+    }
+
+    fn range_hash_key(collection: &str, range_id: u64) -> Vec<u8> {
+        format!("{RANGE_HASH_PREFIX}{collection}/{range_id:020}").into_bytes()
+    }
+
+    fn range_hash_prefix(collection: &str) -> Vec<u8> {
+        format!("{RANGE_HASH_PREFIX}{collection}/").into_bytes()
+    }
+
+    fn root_hash_key(collection: &str) -> Vec<u8> {
+        format!("{ROOT_HASH_PREFIX}{collection}").into_bytes()
     }
 
     fn schema_collection_prefix() -> Vec<u8> {

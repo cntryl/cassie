@@ -144,7 +144,7 @@ impl RowSchema {
         true
     }
 
-    fn active_fields_by_id(&self) -> Vec<&RowFieldMeta> {
+    pub(crate) fn active_fields_by_id(&self) -> Vec<&RowFieldMeta> {
         self.fields.iter().filter(|field| !field.retired).collect()
     }
 

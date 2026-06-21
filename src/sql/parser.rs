@@ -12,8 +12,8 @@ use crate::sql::ast::{
     ExplainStatement, Expr, FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind,
     NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement, RefreshRollupStatement,
     SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement, ShowStatement,
-    SortDirection, TransactionAction, TransactionIsolation, TransactionStatement, Volatility,
-    WindowFunctionCall,
+    SortDirection, TransactionAction, TransactionIsolation, TransactionStatement,
+    VerifyProjectionStatement, Volatility, WindowFunctionCall,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -172,6 +172,8 @@ fn parse_view_or_index_statement(
         Ok(Some(parse_alter_materialized_projection_statement(
             trimmed,
         )?))
+    } else if starts_statement(lower, "verify projection") {
+        Ok(Some(parse_verify_projection_statement(trimmed)?))
     } else if starts_statement(lower, "alter view") {
         Err(SqlError(
             "ALTER VIEW is not supported in this version".into(),

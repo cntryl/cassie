@@ -34,6 +34,10 @@ pub(super) fn mark_source_projections_stale(
         }
         materialized.state = catalog::MaterializedProjectionState::Stale;
         projection.freshness = catalog::ProjectionFreshness::Stale;
+        projection.hashes.rows.state = catalog::ProjectionVerificationState::Stale;
+        projection.hashes.ranges.state = catalog::ProjectionVerificationState::Stale;
+        projection.hashes.root.state = catalog::ProjectionVerificationState::Stale;
+        projection.verification.state = catalog::ProjectionVerificationState::Pending;
         projection.lag = projection.lag.saturating_add(1);
         cassie
             .runtime
@@ -197,6 +201,143 @@ pub(super) fn drop_materialized_projection_version(
     Ok(empty_command("DROP MATERIALIZED PROJECTION VERSION"))
 }
 
+pub(super) fn verify_projection(
+    cassie: &Cassie,
+    statement: &crate::sql::ast::VerifyProjectionStatement,
+) -> Result<QueryResult, QueryError> {
+    let target = resolve_verification_target(cassie, statement)?;
+    let (metadata, hashes, indexes) = verification_mode_components(statement.mode);
+    let report = cassie
+        .midge
+        .verify_projection_integrity(&target.output_collection, hashes, indexes, metadata)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let completed_ms = Some(now_ms());
+    let persisted = catalog::ProjectionIntegrityReportMeta {
+        state: report.state.clone(),
+        target: Some(target.output_collection.clone()),
+        version_id: target.version_id.clone(),
+        mode: statement.mode.as_str().to_string(),
+        checked_components: report.checked_components.clone(),
+        skipped_components: report.skipped_components.clone(),
+        mismatch_count: report.mismatch_count,
+        missing_count: report.missing_count,
+        stale_count: report.stale_count,
+        repairable: report.repairable,
+        elapsed_ms: report.elapsed_ms,
+        completed_ms,
+        last_error: report.last_error.clone(),
+    };
+    let mut projection = cassie
+        .catalog
+        .get_projection_metadata(&target.metadata_key)
+        .or_else(|| {
+            cassie
+                .catalog
+                .get_materialized_projection(&target.metadata_key)
+        })
+        .unwrap_or_else(|| catalog::ProjectionMeta::new(&target.metadata_key, 1));
+    projection.integrity = persisted;
+    persist_projection_metadata(cassie, projection)?;
+    cassie.runtime.record_projection_integrity_verification(
+        target.metadata_key.clone(),
+        report.state != catalog::ProjectionVerificationState::Verified,
+    );
+
+    Ok(QueryResult {
+        columns: vec![
+            ColumnMeta::text("state"),
+            ColumnMeta::text("target_collection"),
+            ColumnMeta::text("mode"),
+            ColumnMeta::from_data_type("mismatch_count", DataType::BigInt),
+            ColumnMeta::from_data_type("missing_count", DataType::BigInt),
+            ColumnMeta::from_data_type("stale_count", DataType::BigInt),
+            ColumnMeta::from_data_type("repairable", DataType::Boolean),
+            ColumnMeta::text("checked_components"),
+            ColumnMeta::text("skipped_components"),
+            ColumnMeta::text("last_error"),
+        ],
+        rows: vec![vec![
+            Value::String(report.state.as_str().to_string()),
+            Value::String(target.output_collection),
+            Value::String(statement.mode.as_str().to_string()),
+            Value::Int64(report.mismatch_count as i64),
+            Value::Int64(report.missing_count as i64),
+            Value::Int64(report.stale_count as i64),
+            Value::Bool(report.repairable),
+            Value::String(report.checked_components.join(",")),
+            Value::String(report.skipped_components.join(",")),
+            Value::String(report.last_error.unwrap_or_default()),
+        ]],
+        command: "VERIFY PROJECTION".to_string(),
+    })
+}
+
+struct VerificationTarget {
+    metadata_key: String,
+    output_collection: String,
+    version_id: Option<String>,
+}
+
+fn resolve_verification_target(
+    cassie: &Cassie,
+    statement: &crate::sql::ast::VerifyProjectionStatement,
+) -> Result<VerificationTarget, QueryError> {
+    if let Some(projection) = cassie.catalog.get_materialized_projection(&statement.name) {
+        let version_id = statement
+            .version_id
+            .clone()
+            .or_else(|| projection.active_version.clone());
+        let output_collection = if let Some(version_id) = version_id.as_ref() {
+            projection
+                .versions
+                .iter()
+                .find(|version| &version.version_id == version_id)
+                .map(|version| version.output_collection.clone())
+                .ok_or_else(|| {
+                    QueryError::General(format!("projection version '{version_id}' does not exist"))
+                })?
+        } else {
+            projection
+                .materialized
+                .as_ref()
+                .map(|materialized| materialized.output_collection.clone())
+                .ok_or_else(|| {
+                    QueryError::General(format!(
+                        "materialized projection '{}' is missing output collection",
+                        statement.name
+                    ))
+                })?
+        };
+        return Ok(VerificationTarget {
+            metadata_key: projection.collection,
+            output_collection,
+            version_id,
+        });
+    }
+    if !cassie.catalog.exists(&statement.name) {
+        return Err(QueryError::General(format!(
+            "projection or collection '{}' does not exist",
+            statement.name
+        )));
+    }
+    Ok(VerificationTarget {
+        metadata_key: statement.name.clone(),
+        output_collection: statement.name.clone(),
+        version_id: statement.version_id.clone(),
+    })
+}
+
+fn verification_mode_components(
+    mode: crate::sql::ast::ProjectionVerificationMode,
+) -> (bool, bool, bool) {
+    match mode {
+        crate::sql::ast::ProjectionVerificationMode::MetadataOnly => (true, false, false),
+        crate::sql::ast::ProjectionVerificationMode::HashesOnly => (false, true, false),
+        crate::sql::ast::ProjectionVerificationMode::IndexesOnly => (false, false, true),
+        crate::sql::ast::ProjectionVerificationMode::Full => (true, true, true),
+    }
+}
+
 fn build_projection_version(
     cassie: &Cassie,
     name: &str,
@@ -227,6 +368,7 @@ fn build_projection_version(
         activated_ms: None,
         retired_ms: None,
         last_error: None,
+        verification: catalog::ProjectionRebuildVerificationMeta::default(),
     });
     persist_projection_metadata(cassie, metadata.clone())?;
 
@@ -279,6 +421,30 @@ fn activate_projection_version(
     ) {
         return Err(QueryError::General(format!(
             "projection version '{version_id}' is not built"
+        )));
+    }
+    let target_verification = metadata.versions[target_index].verification.state.clone();
+    if !unsafe_override
+        && !matches!(
+            target_verification,
+            catalog::ProjectionVerificationState::Verified
+                | catalog::ProjectionVerificationState::Skipped
+                | catalog::ProjectionVerificationState::Unknown
+        )
+    {
+        metadata.swap = catalog::ProjectionSwapMeta {
+            target_version_id: Some(version_id.to_string()),
+            previous_version_id: metadata.active_version.clone(),
+            swapped_at_ms: None,
+            unsafe_override: false,
+            last_error: Some(format!(
+                "projection version '{version_id}' verification state is {}",
+                target_verification.as_str()
+            )),
+        };
+        persist_projection_metadata(cassie, metadata)?;
+        return Err(QueryError::General(format!(
+            "projection version '{version_id}' is not verified"
         )));
     }
 
@@ -359,9 +525,19 @@ fn build_specific_version(
         controls,
     )?;
     replace_output_rows(cassie, &output_collection, &build.schema, rows)?;
+    let root = cassie
+        .midge
+        .rebuild_projection_hashes(&output_collection)
+        .map_err(|error| QueryError::General(error.to_string()))?;
     cassie
         .runtime
         .record_materialized_projection_build(metadata.collection.clone());
+    let verification = verify_rebuilt_output(
+        &metadata.collection,
+        version_id,
+        materialized.definition_fingerprint,
+        &root,
+    );
 
     if let Some(version) = metadata
         .versions
@@ -370,6 +546,7 @@ fn build_specific_version(
     {
         version.state = catalog::ProjectionVersionState::Built;
         version.last_error = None;
+        version.verification = verification.clone();
     }
     if let Some(materialized) = metadata.materialized.as_mut() {
         materialized.output_schema = build.schema;
@@ -378,9 +555,51 @@ fn build_specific_version(
     }
     metadata.rebuild_state = catalog::ProjectionRebuildState::Idle;
     metadata.freshness = catalog::ProjectionFreshness::Fresh;
+    metadata.hashes = cassie
+        .midge
+        .projection_hash_summary(&output_collection)
+        .map_err(|error| QueryError::General(error.to_string()))?
+        .unwrap_or_default();
+    metadata.hashes.root.projection_version_id = Some(version_id.to_string());
+    metadata.verification = verification;
     metadata.last_error = None;
     metadata.lag = 0;
+    cassie.runtime.record_projection_rebuild_verification(
+        metadata.collection.clone(),
+        metadata.verification.state != catalog::ProjectionVerificationState::Verified,
+    );
     Ok(())
+}
+
+fn verify_rebuilt_output(
+    projection: &str,
+    version_id: &str,
+    definition_fingerprint: u64,
+    root: &crate::midge::adapter::RootHashRecord,
+) -> catalog::ProjectionRebuildVerificationMeta {
+    let completed_ms = Some(now_ms());
+    let mut metadata = catalog::ProjectionRebuildVerificationMeta {
+        state: catalog::ProjectionVerificationState::Verified,
+        started_ms: completed_ms,
+        completed_ms,
+        mismatch_count: 0,
+        unverifiable_ranges: 0,
+        failure_reason: None,
+    };
+    if root.algorithm != "cassie-fnv128" || root.digest_length != 16 {
+        metadata.state = catalog::ProjectionVerificationState::Incompatible;
+        metadata.failure_reason = Some("incompatible projection root hash metadata".to_string());
+    } else if root.state == crate::midge::adapter::StoredHashState::Incomplete
+        || root.state == crate::midge::adapter::StoredHashState::Stale
+    {
+        metadata.state = catalog::ProjectionVerificationState::Failed;
+        metadata.unverifiable_ranges = root.range_count;
+        metadata.failure_reason = Some("projection root hash is not current".to_string());
+    } else if definition_fingerprint == 0 || projection.is_empty() || version_id.is_empty() {
+        metadata.state = catalog::ProjectionVerificationState::Unverifiable;
+        metadata.failure_reason = Some("projection target identity is incomplete".to_string());
+    }
+    metadata
 }
 
 fn activate_built_version(metadata: &mut catalog::ProjectionMeta, version_id: &str) {
@@ -403,6 +622,7 @@ fn set_projection_building(
 ) -> Result<(), QueryError> {
     metadata.freshness = catalog::ProjectionFreshness::Rebuilding;
     metadata.rebuild_state = catalog::ProjectionRebuildState::Rebuilding;
+    metadata.verification.state = catalog::ProjectionVerificationState::Pending;
     if let Some(materialized) = metadata.materialized.as_mut() {
         materialized.state = catalog::MaterializedProjectionState::Building;
     }

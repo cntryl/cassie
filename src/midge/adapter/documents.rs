@@ -38,16 +38,20 @@ impl Midge {
             .flatten()
             .collect::<Vec<_>>();
         let mut tx = self.begin_data_rw_tx()?;
-        Self::delete_normalized_vector_keys_for_document(&mut tx, collection, &doc_id)?;
-        tx.put(Self::row_key(collection, &doc_id), row_blob, None)
-            .map_err(CassieError::from)?;
+        let row_key = Self::row_key(collection, &doc_id);
         let legacy_key = Self::doc_key(collection, &doc_id);
+        let replacing = tx.get(&row_key).map_err(CassieError::from)?.is_some()
+            || tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
+        Self::delete_normalized_vector_keys_for_document(&mut tx, collection, &doc_id)?;
+        tx.put(row_key, row_blob, None).map_err(CassieError::from)?;
+        Self::write_document_hash_to_tx(&mut tx, collection, &doc_id, &row_schema, &payload)?;
         if tx.get(&legacy_key).map_err(CassieError::from)?.is_some() {
             tx.delete(legacy_key).map_err(CassieError::from)?;
         }
         Self::write_normalized_vector_records(&mut tx, &normalized_records)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         self.rebuild_column_batches_for_collection(collection)?;
+        self.refresh_projection_hashes_after_write(collection, if replacing { 0 } else { 1 })?;
         Ok(doc_id)
     }
 
@@ -94,11 +98,18 @@ impl Midge {
         if legacy_exists {
             tx.delete(legacy_key).map_err(CassieError::from)?;
         }
+        if row_exists || legacy_exists {
+            Self::delete_document_hash_to_tx(&mut tx, collection, id)?;
+        }
         let normalized_exists =
             Self::delete_normalized_vector_keys_for_document(&mut tx, collection, id)?;
         if row_exists || legacy_exists || normalized_exists {
             tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
             self.rebuild_column_batches_for_collection(collection)?;
+            self.refresh_projection_hashes_after_write(
+                collection,
+                if row_exists || legacy_exists { -1 } else { 0 },
+            )?;
             return Ok(true);
         }
 

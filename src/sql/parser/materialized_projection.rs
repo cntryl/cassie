@@ -181,3 +181,63 @@ pub(super) fn parse_drop_materialized_projection_version_statement(
         ),
     })
 }
+
+pub(super) fn parse_verify_projection_statement(
+    trimmed: &str,
+) -> Result<ParsedStatement, SqlError> {
+    let prefix = "VERIFY PROJECTION";
+    let rest = trimmed[prefix.len()..].trim().trim_end_matches(';').trim();
+    let tokens = rest.split_whitespace().collect::<Vec<_>>();
+    if tokens.is_empty() {
+        return Err(SqlError("VERIFY PROJECTION requires a name".into()));
+    }
+    let name = tokens[0].to_ascii_lowercase();
+    let mut version_id = None;
+    let mut mode = crate::sql::ast::ProjectionVerificationMode::Full;
+    let mut index = 1;
+    while index < tokens.len() {
+        match tokens[index].to_ascii_lowercase().as_str() {
+            "version" => {
+                let Some(value) = tokens.get(index + 1) else {
+                    return Err(SqlError(
+                        "VERIFY PROJECTION VERSION requires a version id".into(),
+                    ));
+                };
+                version_id = Some((*value).to_string());
+                index += 2;
+            }
+            "mode" => {
+                let Some(value) = tokens.get(index + 1) else {
+                    return Err(SqlError("VERIFY PROJECTION MODE requires a value".into()));
+                };
+                mode = parse_projection_verification_mode(value)?;
+                index += 2;
+            }
+            _ => {
+                return Err(SqlError("unsupported VERIFY PROJECTION option".to_string()));
+            }
+        }
+    }
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::VerifyProjection(VerifyProjectionStatement {
+            name,
+            version_id,
+            mode,
+        }),
+    })
+}
+
+fn parse_projection_verification_mode(
+    raw: &str,
+) -> Result<crate::sql::ast::ProjectionVerificationMode, SqlError> {
+    match raw.to_ascii_lowercase().replace('-', "_").as_str() {
+        "metadata_only" => Ok(crate::sql::ast::ProjectionVerificationMode::MetadataOnly),
+        "hashes_only" => Ok(crate::sql::ast::ProjectionVerificationMode::HashesOnly),
+        "indexes_only" => Ok(crate::sql::ast::ProjectionVerificationMode::IndexesOnly),
+        "full" => Ok(crate::sql::ast::ProjectionVerificationMode::Full),
+        _ => Err(SqlError(format!(
+            "unsupported VERIFY PROJECTION mode '{raw}'"
+        ))),
+    }
+}

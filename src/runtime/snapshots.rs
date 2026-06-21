@@ -190,8 +190,19 @@ pub struct ProjectionSnapshot {
     pub materialized_refreshes: u64,
     pub version_swaps: u64,
     pub stale_marks: u64,
+    pub row_hash_updates: u64,
+    pub range_hash_updates: u64,
+    pub root_hash_updates: u64,
+    pub rebuild_verifications: u64,
+    pub rebuild_verification_failures: u64,
+    pub integrity_verifications: u64,
+    pub integrity_verification_failures: u64,
+    pub mixed_execution_fallbacks: u64,
+    pub mixed_execution_optimized: u64,
     pub last_projection: String,
     pub last_error: String,
+    pub last_state: String,
+    pub last_fallback_reason: String,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

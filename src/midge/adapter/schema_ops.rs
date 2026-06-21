@@ -269,6 +269,8 @@ impl Midge {
             Self::doc_prefix(name),
             Self::normalized_vector_collection_prefix(name),
             Self::column_batch_collection_prefix(name),
+            Self::row_hash_prefix(name),
+            Self::range_hash_prefix(name),
         ] {
             let mut documents = data_tx
                 .scan(&Query::new().prefix(data_prefix.into()))
@@ -281,6 +283,9 @@ impl Midge {
         for key in document_keys {
             data_tx.delete(key).map_err(CassieError::from)?;
         }
+        data_tx
+            .delete(Self::root_hash_key(name))
+            .map_err(CassieError::from)?;
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
@@ -339,6 +344,7 @@ impl Midge {
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
         self.rebuild_column_batches_for_collection(collection)?;
+        self.rebuild_projection_hashes(collection)?;
         Ok(())
     }
 
@@ -422,6 +428,7 @@ impl Midge {
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
         self.rebuild_column_batches_for_collection(collection)?;
+        self.rebuild_projection_hashes(collection)?;
         Ok(())
     }
 
@@ -609,6 +616,7 @@ impl Midge {
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
         self.rebuild_column_batches_for_collection(collection)?;
+        self.rebuild_projection_hashes(collection)?;
         Ok(())
     }
 
@@ -838,6 +846,14 @@ impl Midge {
                 Self::column_batch_collection_prefix(current_name),
                 Self::column_batch_collection_prefix(next_name),
             ),
+            (
+                Self::row_hash_prefix(current_name),
+                Self::row_hash_prefix(next_name),
+            ),
+            (
+                Self::range_hash_prefix(current_name),
+                Self::range_hash_prefix(next_name),
+            ),
         ] {
             let mut documents = data_tx
                 .scan(&Query::new().prefix(current_prefix.clone().into()))
@@ -881,9 +897,21 @@ impl Midge {
                 }
             }
         }
+        if let Some(root) = data_tx
+            .get(&Self::root_hash_key(current_name))
+            .map_err(CassieError::from)?
+        {
+            data_tx
+                .delete(Self::root_hash_key(current_name))
+                .map_err(CassieError::from)?;
+            data_tx
+                .put(Self::root_hash_key(next_name), root.to_vec(), None)
+                .map_err(CassieError::from)?;
+        }
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
+        self.rebuild_projection_hashes(next_name)?;
 
         Ok(())
     }

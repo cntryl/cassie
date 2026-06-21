@@ -17,7 +17,9 @@ pub use cardinality::{
 pub use collections::{
     is_reserved_namespace, materialized_output_collection, CollectionMeta,
     MaterializedProjectionMeta, MaterializedProjectionState, NamespaceMeta, ProjectionFreshness,
-    ProjectionKind, ProjectionMeta, ProjectionRebuildState, ProjectionSwapMeta,
+    ProjectionHashAlgorithmMeta, ProjectionHashCoverageMeta, ProjectionHashMeta,
+    ProjectionIntegrityReportMeta, ProjectionKind, ProjectionMeta, ProjectionRebuildState,
+    ProjectionRebuildVerificationMeta, ProjectionSwapMeta, ProjectionVerificationState,
     ProjectionVersionMeta, ProjectionVersionState,
 };
 pub use constraints::{

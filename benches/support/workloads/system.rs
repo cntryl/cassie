@@ -9,7 +9,9 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use cassie::app::{Cassie, CassieError, CassieSession};
+use cassie::app::{
+    Cassie, CassieError, CassieSession, ProjectionReplayBatch, ProjectionReplayEvent,
+};
 use cassie::catalog::{CollectionSchema, FieldMeta};
 use cassie::config::{
     CassieRuntimeConfig, EmbeddingsRuntimeConfig, SelfHostedEmbeddingRuntimeConfig,
@@ -167,6 +169,134 @@ pub async fn projection_rebuild_query(ctx: &BenchContext) -> usize {
         "SELECT title, body, score, status FROM bench_documents ORDER BY id LIMIT 512",
     )
     .await
+}
+
+pub async fn projection_refresh_workflow(ctx: &BenchContext) -> usize {
+    let _ = ctx.cassie.execute_sql(
+        &ctx.session,
+        "CREATE MATERIALIZED PROJECTION IF NOT EXISTS bench_projection AS SELECT title, score, status FROM bench_documents",
+        vec![],
+    );
+    ctx.cassie
+        .execute_sql(
+            &ctx.session,
+            "REFRESH MATERIALIZED PROJECTION bench_projection",
+            vec![],
+        )
+        .expect("refresh projection")
+        .command
+        .len()
+}
+
+pub async fn projection_rebuild_verification(ctx: &BenchContext) -> usize {
+    let _ = projection_refresh_workflow(ctx).await;
+    ctx.cassie
+        .execute_sql(
+            &ctx.session,
+            "VERIFY PROJECTION bench_projection MODE full",
+            vec![],
+        )
+        .expect("verify projection")
+        .rows
+        .len()
+}
+
+pub async fn projection_version_swap(ctx: &BenchContext, _nonce: usize) -> usize {
+    let _ = projection_refresh_workflow(ctx).await;
+    ctx.cassie
+        .execute_sql(
+            &ctx.session,
+            "ALTER MATERIALIZED PROJECTION bench_projection BUILD VERSION",
+            vec![],
+        )
+        .expect("build projection version");
+    let version_id = ctx
+        .cassie
+        .catalog
+        .get_materialized_projection("bench_projection")
+        .and_then(|metadata| {
+            metadata
+                .versions
+                .last()
+                .map(|version| version.version_id.clone())
+        })
+        .unwrap_or_else(|| "v1".to_string());
+    let sql =
+        format!("ALTER MATERIALIZED PROJECTION bench_projection ACTIVATE VERSION {version_id}");
+    ctx.cassie
+        .execute_sql(&ctx.session, &sql, vec![])
+        .expect("activate projection version")
+        .command
+        .len()
+}
+
+pub async fn projection_duplicate_replay(ctx: &BenchContext) -> usize {
+    let batch = ProjectionReplayBatch {
+        projection: ctx.collection.clone(),
+        source_identity: "bench-stream".to_string(),
+        batch_id: "bench-duplicate-batch".to_string(),
+        lag: 0,
+        events: vec![ProjectionReplayEvent {
+            event_id: "bench-duplicate-event".to_string(),
+            checkpoint: "bench-duplicate-checkpoint".to_string(),
+            position: Some(1),
+            document_id: "bench-duplicate-doc".to_string(),
+            payload: Some(json!({
+                "id": "bench-duplicate-doc",
+                "title": "duplicate-title",
+                "body": "alpha beta",
+                "score": 1,
+                "status": "approved",
+                "embedding": [1.0, 0.0, 0.0],
+            })),
+        }],
+    };
+    let first = ctx
+        .cassie
+        .replay_projection_batch(batch.clone())
+        .expect("first projection replay");
+    let second = ctx
+        .cassie
+        .replay_projection_batch(batch)
+        .expect("duplicate projection replay");
+    std::hint::black_box(
+        usize::try_from(first.applied_event_count + second.skipped_duplicate_count)
+            .expect("benchmark replay count fits usize"),
+    )
+}
+
+pub async fn projection_lag_catchup(ctx: &BenchContext) -> usize {
+    let events = (0..64)
+        .map(|index| ProjectionReplayEvent {
+            event_id: format!("bench-catchup-event-{index}"),
+            checkpoint: format!("bench-catchup-checkpoint-{index}"),
+            position: Some(index),
+            document_id: format!("bench-catchup-doc-{index}"),
+            payload: Some(json!({
+                "id": format!("bench-catchup-doc-{index}"),
+                "title": format!("catchup-title-{index}"),
+                "body": "alpha beta gamma",
+                "score": index as i64,
+                "status": "approved",
+                "embedding": [1.0, 0.0, 0.0],
+            })),
+        })
+        .collect();
+    let batch = ProjectionReplayBatch {
+        projection: ctx.collection.clone(),
+        source_identity: "bench-catchup-stream".to_string(),
+        batch_id: "bench-catchup-batch".to_string(),
+        lag: 0,
+        events,
+    };
+    let result = ctx
+        .cassie
+        .replay_projection_batch(batch)
+        .expect("projection lag catchup replay");
+    std::hint::black_box(
+        usize::try_from(result.applied_event_count + result.skipped_duplicate_count)
+            .expect("benchmark replay count fits usize"),
+    )
 }
 
 pub async fn index_rebuild_ddl(ctx: &BenchContext, nonce: usize) -> usize {

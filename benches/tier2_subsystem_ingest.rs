@@ -24,6 +24,12 @@ fn bench_ingest(c: &mut Criterion) {
             elapsed
         })
     });
+    group.bench_function("projection_duplicate_replay", |b| {
+        b.iter(|| runtime.block_on(workloads::projection_duplicate_replay(&ctx)))
+    });
+    group.bench_function("projection_lag_catchup", |b| {
+        b.iter(|| runtime.block_on(workloads::projection_lag_catchup(&ctx)))
+    });
 
     group.finish();
 }

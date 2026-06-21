@@ -52,9 +52,9 @@ Status terms:
 | Hybrid | hybrid_score(text_score, vector_score) | Stable | Cassie-specific |
 | Embeddings | provider, model, dimensions, metric validation | Experimental | Cassie-specific |
 | Projections | projection metadata, source checkpoints, freshness, replay batch diagnostics, schema version, offset, lag, rebuild state | Experimental | Cassie-specific |
-| Projection lifecycle | internal idempotent replay ingestion, materialized projections, versioned builds, active-version swaps, operations views | Experimental | Cassie-specific |
+| Projection lifecycle | internal idempotent replay ingestion, materialized projections, versioned builds, verification-aware active-version swaps, operations views | Experimental | Cassie-specific |
 | Time series | time_bucket fixed windows, exact-match materialized rollups over deterministic aggregates, explicit retention policies, range queries | Experimental | Cassie-specific deterministic semantics |
-| Verification | row hash, range hash, projection root, rebuild verification, integrity verification, diff | Planned | Cassie-specific |
+| Verification | deterministic row hashes, range hashes, projection roots, rebuild verification metadata, `VERIFY PROJECTION`, local integrity reports | Experimental | Cassie-specific |
 
 ## Index Support
 
@@ -111,9 +111,17 @@ Status terms:
 | Pgwire results | row description, data row, command complete, error response, ready for query | Stable | PostgreSQL-compatible subset |
 | Pgwire compatibility | prepared statements, portals, text/binary formats, catalog introspection | Stable/Experimental | PostgreSQL-compatible subset |
 | HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin APIs | Stable/Experimental | Cassie REST API |
-| Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, index used, column-batch index used, aggregate acceleration, rollup rewrite selected, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
-| Projection operations | active version, source checkpoint, lag, freshness, rebuild state, last replay batch, last error, version state | Experimental | Cassie-specific |
-| Metrics | latency, throughput, errors, cache hit rate, projection replay/build/swap/stale counters, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
+| Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, index used, column-batch index used, aggregate acceleration, rollup rewrite selected, mixed execution stages, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
+| Projection operations | active version, source checkpoint, lag, freshness, rebuild state, verification state, root state, last replay batch, last error, version state | Experimental | Cassie-specific |
+| Metrics | latency, throughput, errors, cache hit rate, projection replay/build/swap/stale/hash/verification/integrity/mixed-fallback counters, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
+
+## Projection Verification Surfaces
+
+- `VERIFY PROJECTION <name> [VERSION <version_id>] [MODE metadata_only|hashes_only|indexes_only|full]` runs a read-only local integrity check and persists the latest report.
+- `pg_catalog.pg_projection_hashes` exposes row/range/root hash state, algorithm metadata, coverage counts, and root digest.
+- `pg_catalog.pg_projection_operations` exposes freshness, rebuild, active-version, verification, and root state.
+- `pg_catalog.pg_projection_integrity_reports` exposes the latest local integrity report.
+- EXPLAIN includes `mixed_execution`, `mixed_stages`, `exact_baseline`, and `projection_freshness` diagnostics for mixed search/vector/analytical plans.
 
 ## Compatibility Notes
 

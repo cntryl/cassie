@@ -21,6 +21,16 @@ pub enum ProjectionRebuildState {
     Failed,
 }
 
+impl ProjectionRebuildState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Idle => "idle",
+            Self::Rebuilding => "rebuilding",
+            Self::Failed => "failed",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectionFreshness {
@@ -29,6 +39,131 @@ pub enum ProjectionFreshness {
     Stale,
     Rebuilding,
     Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectionVerificationState {
+    Unknown,
+    Current,
+    Stale,
+    Missing,
+    Incomplete,
+    Incompatible,
+    Empty,
+    Pending,
+    Running,
+    Verified,
+    Failed,
+    Unverifiable,
+    Skipped,
+}
+
+impl Default for ProjectionVerificationState {
+    fn default() -> Self {
+        Self::Unknown
+    }
+}
+
+impl ProjectionVerificationState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::Current => "current",
+            Self::Stale => "stale",
+            Self::Missing => "missing",
+            Self::Incomplete => "incomplete",
+            Self::Incompatible => "incompatible",
+            Self::Empty => "empty",
+            Self::Pending => "pending",
+            Self::Running => "running",
+            Self::Verified => "verified",
+            Self::Failed => "failed",
+            Self::Unverifiable => "unverifiable",
+            Self::Skipped => "skipped",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectionHashAlgorithmMeta {
+    pub algorithm: String,
+    pub digest_length: u16,
+    pub canonical_encoder_version: u16,
+    pub hash_version: u16,
+}
+
+impl Default for ProjectionHashAlgorithmMeta {
+    fn default() -> Self {
+        Self {
+            algorithm: "cassie-fnv128".to_string(),
+            digest_length: 16,
+            canonical_encoder_version: 1,
+            hash_version: 1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProjectionHashCoverageMeta {
+    pub state: ProjectionVerificationState,
+    pub row_count: u64,
+    pub range_count: u64,
+    pub source_checkpoint: Option<String>,
+    pub projection_version_id: Option<String>,
+    pub last_computed_ms: Option<u64>,
+    pub digest: Option<String>,
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectionHashMeta {
+    #[serde(default)]
+    pub algorithm: ProjectionHashAlgorithmMeta,
+    #[serde(default)]
+    pub rows: ProjectionHashCoverageMeta,
+    #[serde(default)]
+    pub ranges: ProjectionHashCoverageMeta,
+    #[serde(default)]
+    pub root: ProjectionHashCoverageMeta,
+}
+
+impl Default for ProjectionHashMeta {
+    fn default() -> Self {
+        Self {
+            algorithm: ProjectionHashAlgorithmMeta::default(),
+            rows: ProjectionHashCoverageMeta::default(),
+            ranges: ProjectionHashCoverageMeta::default(),
+            root: ProjectionHashCoverageMeta::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProjectionRebuildVerificationMeta {
+    pub state: ProjectionVerificationState,
+    pub started_ms: Option<u64>,
+    pub completed_ms: Option<u64>,
+    pub mismatch_count: u64,
+    pub unverifiable_ranges: u64,
+    pub failure_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProjectionIntegrityReportMeta {
+    pub state: ProjectionVerificationState,
+    pub target: Option<String>,
+    pub version_id: Option<String>,
+    pub mode: String,
+    pub checked_components: Vec<String>,
+    pub skipped_components: Vec<String>,
+    pub mismatch_count: u64,
+    pub missing_count: u64,
+    pub stale_count: u64,
+    pub repairable: bool,
+    pub elapsed_ms: u64,
+    pub completed_ms: Option<u64>,
+    pub last_error: Option<String>,
 }
 
 impl Default for ProjectionFreshness {
@@ -138,6 +273,8 @@ pub struct ProjectionVersionMeta {
     pub activated_ms: Option<u64>,
     pub retired_ms: Option<u64>,
     pub last_error: Option<String>,
+    #[serde(default)]
+    pub verification: ProjectionRebuildVerificationMeta,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -186,6 +323,12 @@ pub struct ProjectionMeta {
     pub active_version: Option<String>,
     #[serde(default)]
     pub swap: ProjectionSwapMeta,
+    #[serde(default)]
+    pub hashes: ProjectionHashMeta,
+    #[serde(default)]
+    pub verification: ProjectionRebuildVerificationMeta,
+    #[serde(default)]
+    pub integrity: ProjectionIntegrityReportMeta,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -227,6 +370,9 @@ impl ProjectionMeta {
             versions: Vec::new(),
             active_version: None,
             swap: ProjectionSwapMeta::default(),
+            hashes: ProjectionHashMeta::default(),
+            verification: ProjectionRebuildVerificationMeta::default(),
+            integrity: ProjectionIntegrityReportMeta::default(),
         }
     }
 
@@ -282,9 +428,13 @@ impl ProjectionMeta {
                 activated_ms: None,
                 retired_ms: None,
                 last_error: None,
+                verification: ProjectionRebuildVerificationMeta::default(),
             }],
             active_version: None,
             swap: ProjectionSwapMeta::default(),
+            hashes: ProjectionHashMeta::default(),
+            verification: ProjectionRebuildVerificationMeta::default(),
+            integrity: ProjectionIntegrityReportMeta::default(),
         }
     }
 

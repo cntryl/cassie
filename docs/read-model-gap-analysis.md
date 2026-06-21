@@ -77,7 +77,7 @@ Evidence:
 
 - Phase 01 now implements materialized projections, projection versioning, and active-version swaps as experimental Cassie-specific lifecycle features.
 - `docs/feature-support.md` and `docs/product-roadmap.md` mark the projection lifecycle surface as implemented and experimental.
-- Verification gates for safe swaps still depend on phase 02 row hash and rebuild verification work.
+- Phase 02 adds deterministic hash metadata, rebuild verification, integrity reports, and verification-aware activation gates.
 
 Impact:
 
@@ -85,20 +85,16 @@ Fast rebuilds and replay safety require building a new projection version withou
 
 Recommendation:
 
-- Keep the implemented v1 lifecycle experimental until phase 02 verification can gate safe activation.
-- Tie verification state into active-version swaps, cache invalidation, catalog diagnostics, metrics, and pgwire-visible errors.
+- Keep the implemented v1 lifecycle experimental while verification, repair, and diff workflows harden.
+- Continue tying verification state into active-version swaps, cache invalidation, catalog diagnostics, metrics, and pgwire-visible errors.
 
 ### 4. Rebuild Verification And Merkle Work Are Core, Not V5 Advanced Work
 
 Evidence:
 
-- `issues/phase-02/issue-01.md` covers row hashes.
-- `issues/phase-02/issue-02.md` covers range hashes.
-- `issues/phase-02/issue-03.md` covers projection Merkle roots.
-- `issues/phase-03/issue-05.md` covers projection diffing.
-- `issues/phase-02/issue-04.md` covers rebuild verification.
-- `issues/phase-02/issue-06.md` covers projection integrity verification.
-- These are open and currently framed under V5 Verification & Advanced Execution, mostly with `Priority: P3`.
+- Phase 02 now implements deterministic row hashes, range hashes, projection roots, rebuild verification metadata, and local integrity reports.
+- `docs/feature-support.md` and `docs/product-roadmap.md` mark the local verification surfaces as implemented experimental capabilities.
+- `issues/phase-03/issue-05.md` covers the remaining projection diffing work.
 
 Impact:
 
@@ -106,10 +102,9 @@ Without row-level and projection-level verification, Cassie cannot confidently a
 
 Recommendation:
 
-- Promote row hashes, projection roots, and rebuild verification to the core read-model roadmap.
-- Make hash availability optional for query correctness, but required for "verified rebuild" and "safe swap" status.
-- Sequence the work as row hash -> range/root hash -> rebuild verification -> projection diff -> integrity verification.
-- Add operational diagnostics before distributed comparison or repair workflows.
+- Keep hash availability optional for query correctness, but required for "verified rebuild" and "safe swap" status.
+- Build projection diffing and distributed comparison on top of the implemented local hash ladder.
+- Add repair workflows only after diagnostics are precise enough to identify row, range, root, and index mismatches.
 
 ## P1 Gaps
 
@@ -156,8 +151,8 @@ Recommendation:
 Evidence:
 
 - Search, vector, hybrid, column-batch, rollup, and aggregate acceleration exist individually.
-- `issues/phase-02/issue-08.md` covers mixed search/vector/analytical execution with exact final results, stale fallback, stage diagnostics, and metrics.
-- That issue is open and `Priority: P3`.
+- Phase 02 adds mixed execution diagnostics with stage visibility, exact-baseline signaling, freshness state, and fallback metrics.
+- The remaining work is to expand plan-shape coverage and enforce access-path contracts at larger scales.
 
 Impact:
 
@@ -165,9 +160,8 @@ Event-sourced read models often power dashboards, operational search, and AI ret
 
 Recommendation:
 
-- Raise mixed retrieval/analytics planning to P1.
-- Define exactness rules for candidate generation, scalar filtering, vector/text scoring, grouping, ordering, offset, and limit.
-- Require EXPLAIN and metrics to identify candidate counts, exact scoring rows, aggregate groups, selected accelerators, freshness, and fallback reasons.
+- Keep exactness rules explicit for candidate generation, scalar filtering, vector/text scoring, grouping, ordering, offset, and limit.
+- Expand EXPLAIN and metrics to identify candidate counts, exact scoring rows, aggregate groups, selected accelerators, freshness, and fallback reasons for every supported mixed shape.
 
 ### 8. Operational Transparency Needs A Projection-Centric View
 

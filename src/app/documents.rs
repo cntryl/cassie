@@ -48,6 +48,7 @@ impl Cassie {
 
         let row_id = self.midge.put_document(collection, id, payload)?;
         self.refresh_cardinality_stats(collection)?;
+        self.refresh_projection_metadata(collection)?;
         Ok(row_id)
     }
 
@@ -100,6 +101,7 @@ impl Cassie {
 
         let row_id = self.midge.put_document(collection, Some(id), payload)?;
         self.refresh_cardinality_stats(collection)?;
+        self.refresh_projection_metadata(collection)?;
         Ok(row_id)
     }
 
@@ -122,6 +124,7 @@ impl Cassie {
         let removed = self.midge.delete_document(collection, id)?;
         if removed {
             self.refresh_cardinality_stats(collection)?;
+            self.refresh_projection_metadata(collection)?;
         }
         Ok(removed)
     }
@@ -983,6 +986,13 @@ impl Cassie {
             );
         }
 
+        Ok(())
+    }
+
+    pub(crate) fn refresh_projection_metadata(&self, collection: &str) -> Result<(), CassieError> {
+        if let Some(metadata) = self.midge.projection_metadata(collection)? {
+            self.catalog.register_projection_metadata(metadata);
+        }
         Ok(())
     }
 }

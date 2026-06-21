@@ -9,6 +9,7 @@ This directory is the product-facing source of truth for what Cassie supports, w
 - [Feature Support](feature-support.md): supported SQL, catalog, index, search, vector, analytics, protocol, and API surfaces.
 - [Product Roadmap](product-roadmap.md): feature-area milestones and remaining roadmap themes.
 - [Read-Model Gap Analysis](read-model-gap-analysis.md): strategic gaps against Cassie's event-sourced read-model mission.
+- [Performance Contracts](performance-contracts.md): read-model query-pattern contracts, execution expectations, and benchmark ownership.
 - [Read-Model Autopilot Plan](read-model-autopilot-plan.md): ordered execution path for closing the read-model gaps.
 - [PostgreSQL Compatibility](postgres-compatibility.md): compatibility guarantees, supported client surfaces, and intentional differences.
 - [Definition of Done](definition-of-done.md): completion standards for implemented, experimental, and production-ready features.

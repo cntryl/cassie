@@ -180,6 +180,67 @@ fn should_generate_hybrid_candidates_from_text_matches() {
 }
 
 #[test]
+fn should_explain_mixed_text_vector_execution_stages() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hybrid_explain_mixed_stages");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_hybrid_explain_mixed_stages";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "embedding".to_string(),
+                    data_type: DataType::Vector(2),
+                    nullable: true,
+                },
+            ],
+        };
+        cassie.midge.create_collection(collection, schema.clone()).unwrap();
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_explain_mixed_stages ORDER BY score DESC LIMIT 5",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        let Value::String(plan) = &result.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("mixed_execution=true"));
+        assert!(plan.contains("mixed_stages=candidate_generation>exact_scoring>ordering"));
+        assert!(plan.contains(">limit"));
+        assert!(plan.contains("exact_baseline=source_row_exact_baseline"));
+        assert!(plan.contains("projection_freshness=unavailable"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_reject_hybrid_text_candidate_without_vector() {
     // Arrange
     with_fallback();

@@ -204,6 +204,9 @@ pub(super) fn execute_command(
                 &statement.version_id,
             )
         }
+        LogicalCommand::VerifyProjection(statement) => {
+            super::materialized_projection::verify_projection(cassie, statement)
+        }
         LogicalCommand::CreateRetentionPolicy(statement) => {
             invalidate_plan_cache = true;
             super::retention::create_retention_policy(cassie, statement)

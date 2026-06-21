@@ -21,6 +21,18 @@ fn bench_rebuild(c: &mut Criterion) {
     group.bench_function(BenchmarkId::new("projection_rebuild_query", "10k"), |b| {
         b.iter(|| runtime.block_on(workloads::projection_rebuild_query(&ctx)))
     });
+    group.bench_function(BenchmarkId::new("projection_refresh", "10k"), |b| {
+        b.iter(|| runtime.block_on(workloads::projection_refresh_workflow(&ctx)))
+    });
+    group.bench_function(BenchmarkId::new("projection_verify", "10k"), |b| {
+        b.iter(|| runtime.block_on(workloads::projection_rebuild_verification(&ctx)))
+    });
+    group.bench_function(BenchmarkId::new("projection_swap", "10k"), |b| {
+        b.iter(|| {
+            index_nonce = index_nonce.wrapping_add(1);
+            runtime.block_on(workloads::projection_version_swap(&ctx, index_nonce))
+        })
+    });
     group.bench_function(BenchmarkId::new("index_rebuild_ddl", "10k"), |b| {
         b.iter(|| {
             index_nonce = index_nonce.wrapping_add(1);

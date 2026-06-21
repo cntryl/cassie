@@ -387,20 +387,36 @@ fn execute_plan_with_outer_row(
         cte_context.insert(cte.name.to_ascii_lowercase(), rows);
     }
 
+    let mixed_execution = mixed_execution_summary(plan);
     if outer_row.is_none() && !source_reads_materialized_projection(cassie, &plan.source) {
         if let Some(rows) =
             scored::execute_vector_distance_top_k(cassie, session, user_functions, params, plan)?
         {
+            if mixed_execution.is_some() {
+                cassie
+                    .runtime
+                    .record_mixed_execution_optimized(plan.collection.clone());
+            }
             return Ok(rows);
         }
 
         if let Some(rows) =
             scored::execute_scored_search_top_k(cassie, session, user_functions, params, plan)?
         {
+            if mixed_execution.is_some() {
+                cassie
+                    .runtime
+                    .record_mixed_execution_optimized(plan.collection.clone());
+            }
             return Ok(rows);
         }
 
         if let Some(rows) = projected_read::execute_ordered_column_top_k(cassie, plan)? {
+            if mixed_execution.is_some() {
+                cassie
+                    .runtime
+                    .record_mixed_execution_optimized(plan.collection.clone());
+            }
             return Ok(rows);
         }
 
@@ -412,16 +428,31 @@ fn execute_plan_with_outer_row(
             params,
             controls,
         )? {
+            if mixed_execution.is_some() {
+                cassie
+                    .runtime
+                    .record_mixed_execution_optimized(plan.collection.clone());
+            }
             return Ok(rows);
         }
 
         if let Some(rows) =
             rollups::try_execute_rollup_query(cassie, plan, params, user_functions, controls)?
         {
+            if mixed_execution.is_some() {
+                cassie
+                    .runtime
+                    .record_mixed_execution_optimized(plan.collection.clone());
+            }
             return Ok(rows);
         }
     }
 
+    if let Some(reason) = mixed_execution {
+        cassie
+            .runtime
+            .record_mixed_execution_fallback(plan.collection.clone(), reason);
+    }
     source::execute_source_query_with_outer_row(
         cassie,
         session,
@@ -431,6 +462,56 @@ fn execute_plan_with_outer_row(
         params,
         controls,
         outer_row,
+    )
+}
+
+fn mixed_execution_summary(plan: &LogicalPlan) -> Option<String> {
+    let uses_fulltext = !plan_inspection::fulltext_query_fields(plan).is_empty();
+    let uses_vector = plan_inspection::plan_uses_vector_operator(plan)
+        || plan_inspection::plan_uses_function(plan, "vector_score")
+        || plan_inspection::plan_uses_function(plan, "vector_distance");
+    let uses_hybrid = plan_inspection::plan_uses_function(plan, "hybrid_score");
+    let uses_aggregate = !plan.group_by.is_empty()
+        || plan.having.is_some()
+        || plan.projection.iter().any(select_item_is_aggregate);
+    let mixed = (uses_fulltext && uses_vector)
+        || (uses_hybrid && uses_aggregate)
+        || ((uses_fulltext || uses_vector || uses_hybrid) && uses_aggregate);
+    mixed.then(|| {
+        let mut stages = Vec::new();
+        if uses_fulltext || uses_vector || uses_hybrid {
+            stages.push("candidate_generation");
+        }
+        if plan.filter.is_some() {
+            stages.push("metadata_prefilter");
+        }
+        if uses_fulltext || uses_vector || uses_hybrid {
+            stages.push("exact_scoring");
+        }
+        if uses_aggregate {
+            stages.push("analytical_grouping");
+        }
+        if !plan.order.is_empty() {
+            stages.push("ordering");
+        }
+        if plan.offset.is_some() {
+            stages.push("offset");
+        }
+        if plan.limit.is_some() {
+            stages.push("limit");
+        }
+        format!("source_row_exact_baseline;stages={}", stages.join(">"))
+    })
+}
+
+fn select_item_is_aggregate(item: &SelectItem) -> bool {
+    matches!(
+        item,
+        SelectItem::Function { function, .. }
+            if matches!(
+                function.name.to_ascii_lowercase().as_str(),
+                "count" | "sum" | "avg" | "min" | "max"
+            )
     )
 }
 

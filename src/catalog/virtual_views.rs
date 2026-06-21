@@ -90,6 +90,45 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             int("retired_ms"),
             text("last_error"),
         ],
+        "pg_catalog.pg_projection_operations" => vec![
+            text("projection_name"),
+            text("kind"),
+            text("active_version"),
+            int("lag"),
+            text("freshness"),
+            text("rebuild_state"),
+            text("verification_state"),
+            text("root_state"),
+            text("last_error"),
+        ],
+        "pg_catalog.pg_projection_hashes" => vec![
+            text("projection_name"),
+            text("algorithm"),
+            int("digest_length"),
+            int("canonical_encoder_version"),
+            int("hash_version"),
+            text("row_state"),
+            int("row_count"),
+            text("range_state"),
+            int("range_count"),
+            text("root_state"),
+            text("root_digest"),
+        ],
+        "pg_catalog.pg_projection_integrity_reports" => vec![
+            text("projection_name"),
+            text("state"),
+            text("target"),
+            text("version_id"),
+            text("mode"),
+            int("mismatch_count"),
+            int("missing_count"),
+            int("stale_count"),
+            bool("repairable"),
+            int("elapsed_ms"),
+            text("checked_components"),
+            text("skipped_components"),
+            text("last_error"),
+        ],
         "pg_catalog.pg_retention_policies" => vec![
             text("policy_name"),
             text("collection"),
@@ -235,6 +274,90 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                         string("last_error", version.last_error.unwrap_or_default()),
                     ]
                 })
+            })
+            .collect(),
+        "pg_catalog.pg_projection_operations" => catalog
+            .list_projection_metadata()
+            .into_iter()
+            .map(|projection| {
+                vec![
+                    string("projection_name", projection.collection),
+                    string("kind", projection.kind.as_str()),
+                    string(
+                        "active_version",
+                        projection.active_version.unwrap_or_default(),
+                    ),
+                    int_value("lag", projection.lag as i64),
+                    string("freshness", projection.freshness.as_str()),
+                    string("rebuild_state", projection.rebuild_state.as_str()),
+                    string("verification_state", projection.verification.state.as_str()),
+                    string("root_state", projection.hashes.root.state.as_str()),
+                    string("last_error", projection.last_error.unwrap_or_default()),
+                ]
+            })
+            .collect(),
+        "pg_catalog.pg_projection_hashes" => catalog
+            .list_projection_metadata()
+            .into_iter()
+            .map(|projection| {
+                vec![
+                    string("projection_name", projection.collection),
+                    string("algorithm", projection.hashes.algorithm.algorithm),
+                    int_value(
+                        "digest_length",
+                        projection.hashes.algorithm.digest_length as i64,
+                    ),
+                    int_value(
+                        "canonical_encoder_version",
+                        projection.hashes.algorithm.canonical_encoder_version as i64,
+                    ),
+                    int_value(
+                        "hash_version",
+                        projection.hashes.algorithm.hash_version as i64,
+                    ),
+                    string("row_state", projection.hashes.rows.state.as_str()),
+                    int_value("row_count", projection.hashes.rows.row_count as i64),
+                    string("range_state", projection.hashes.ranges.state.as_str()),
+                    int_value("range_count", projection.hashes.ranges.range_count as i64),
+                    string("root_state", projection.hashes.root.state.as_str()),
+                    string(
+                        "root_digest",
+                        projection.hashes.root.digest.unwrap_or_default(),
+                    ),
+                ]
+            })
+            .collect(),
+        "pg_catalog.pg_projection_integrity_reports" => catalog
+            .list_projection_metadata()
+            .into_iter()
+            .map(|projection| {
+                vec![
+                    string("projection_name", projection.collection),
+                    string("state", projection.integrity.state.as_str()),
+                    string("target", projection.integrity.target.unwrap_or_default()),
+                    string(
+                        "version_id",
+                        projection.integrity.version_id.unwrap_or_default(),
+                    ),
+                    string("mode", projection.integrity.mode),
+                    int_value("mismatch_count", projection.integrity.mismatch_count as i64),
+                    int_value("missing_count", projection.integrity.missing_count as i64),
+                    int_value("stale_count", projection.integrity.stale_count as i64),
+                    bool_value("repairable", projection.integrity.repairable),
+                    int_value("elapsed_ms", projection.integrity.elapsed_ms as i64),
+                    string(
+                        "checked_components",
+                        projection.integrity.checked_components.join(","),
+                    ),
+                    string(
+                        "skipped_components",
+                        projection.integrity.skipped_components.join(","),
+                    ),
+                    string(
+                        "last_error",
+                        projection.integrity.last_error.unwrap_or_default(),
+                    ),
+                ]
             })
             .collect(),
         "pg_catalog.pg_retention_policies" => catalog

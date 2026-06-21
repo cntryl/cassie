@@ -128,6 +128,7 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         QueryStatement::DropMaterializedProjection(_) => 0,
         QueryStatement::AlterMaterializedProjection(_) => 0,
         QueryStatement::DropMaterializedProjectionVersion(_) => 0,
+        QueryStatement::VerifyProjection(_) => 0,
         QueryStatement::CreateRetentionPolicy(_) => 0,
         QueryStatement::AlterRetentionPolicy(_) => 0,
         QueryStatement::DropRetentionPolicy(_) => 0,

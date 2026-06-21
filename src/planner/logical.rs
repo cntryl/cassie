@@ -10,6 +10,7 @@ use crate::sql::{
         DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement, Expr,
         InsertStatement, OrderExpr, QuerySource, QueryStatement, RefreshRollupStatement,
         SelectItem, SelectStatement, SetStatement, ShowStatement, UpdateStatement,
+        VerifyProjectionStatement,
     },
     binder::BoundStatement,
 };
@@ -60,6 +61,7 @@ pub enum LogicalCommand {
     DropMaterializedProjection(DropMaterializedProjectionStatement),
     AlterMaterializedProjection(crate::sql::ast::AlterMaterializedProjectionStatement),
     DropMaterializedProjectionVersion(crate::sql::ast::DropMaterializedProjectionVersionStatement),
+    VerifyProjection(VerifyProjectionStatement),
     CreateRetentionPolicy(crate::sql::ast::CreateRetentionPolicyStatement),
     AlterRetentionPolicy(AlterRetentionPolicyStatement),
     DropRetentionPolicy(DropRetentionPolicyStatement),
@@ -208,6 +210,11 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
             &statement.name,
             "DROP MATERIALIZED PROJECTION VERSION requires a name",
             LogicalCommand::DropMaterializedProjectionVersion(statement.clone()),
+        ),
+        QueryStatement::VerifyProjection(statement) => plan_named_command(
+            &statement.name,
+            "VERIFY PROJECTION requires a name",
+            LogicalCommand::VerifyProjection(statement.clone()),
         ),
         QueryStatement::CreateRetentionPolicy(statement) => plan_named_command(
             &statement.name,

@@ -124,6 +124,7 @@ pub enum QueryStatement {
     DropMaterializedProjection(DropMaterializedProjectionStatement),
     AlterMaterializedProjection(AlterMaterializedProjectionStatement),
     DropMaterializedProjectionVersion(DropMaterializedProjectionVersionStatement),
+    VerifyProjection(VerifyProjectionStatement),
     CreateRetentionPolicy(CreateRetentionPolicyStatement),
     AlterRetentionPolicy(AlterRetentionPolicyStatement),
     DropRetentionPolicy(DropRetentionPolicyStatement),
@@ -291,6 +292,32 @@ pub enum AlterMaterializedProjectionOperation {
 pub struct DropMaterializedProjectionVersionStatement {
     pub name: String,
     pub version_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerifyProjectionStatement {
+    pub name: String,
+    pub version_id: Option<String>,
+    pub mode: ProjectionVerificationMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProjectionVerificationMode {
+    MetadataOnly,
+    HashesOnly,
+    IndexesOnly,
+    Full,
+}
+
+impl ProjectionVerificationMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::MetadataOnly => "metadata_only",
+            Self::HashesOnly => "hashes_only",
+            Self::IndexesOnly => "indexes_only",
+            Self::Full => "full",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

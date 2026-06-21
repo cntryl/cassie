@@ -27,7 +27,6 @@ Maintain a live coverage index that links every active roadmap concept to its im
 
 ## Coverage
 
-- [Issue 088: Allocation Reduction](issue-088.md) - V2 - Query Performance / Execution
 - [Issue 101: Partial Indexes](issue-101.md) - V3 - Advanced Query Features / Indexes
 - [Issue 102: Expression Indexes](issue-102.md) - V3 - Advanced Query Features / Indexes
 - [Issue 103: Advanced Analyzers](issue-103.md) - V3 - Advanced Query Features / Search

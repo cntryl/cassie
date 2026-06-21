@@ -104,6 +104,7 @@ pub(crate) const DEFAULT_BATCH_SIZE: usize = 1024;
 pub(crate) type Batch = Vec<BatchRow>;
 
 static BATCH_BUFFERS_BUILT: AtomicU64 = AtomicU64::new(0);
+static ROW_TIE_KEYS_BUILT: AtomicU64 = AtomicU64::new(0);
 
 pub(crate) fn chunk_rows(rows: Vec<BatchRow>, batch_size: usize) -> Vec<Batch> {
     let batch_size = batch_size.max(1);
@@ -176,33 +177,45 @@ pub(crate) fn slice_batches(
 }
 
 pub(crate) fn row_tie_key(row: &impl RowAccess) -> String {
-    row.entries()
-        .iter()
-        .map(|(_, value)| value_to_key(value))
-        .collect::<Vec<_>>()
-        .join("|")
+    ROW_TIE_KEYS_BUILT.fetch_add(1, Ordering::Relaxed);
+    let entries = row.entries();
+    let mut out = String::new();
+    for (index, (_, value)) in entries.iter().enumerate() {
+        if index > 0 {
+            out.push('|');
+        }
+        push_value_key(&mut out, value);
+    }
+    out
 }
 
-fn value_to_key(value: &Value) -> String {
+fn push_value_key(out: &mut String, value: &Value) {
     match value {
-        Value::Null => String::from("<null>"),
-        Value::Bool(v) => v.to_string(),
-        Value::Int64(v) => v.to_string(),
-        Value::Float64(v) => v.to_string(),
-        Value::String(v) => v.clone(),
-        Value::Vector(v) => v
-            .values
-            .iter()
-            .map(|value| value.to_string())
-            .collect::<Vec<_>>()
-            .join(","),
-        Value::Json(v) => v.to_string(),
+        Value::Null => out.push_str("<null>"),
+        Value::Bool(v) => out.push_str(if *v { "true" } else { "false" }),
+        Value::Int64(v) => out.push_str(&v.to_string()),
+        Value::Float64(v) => out.push_str(&v.to_string()),
+        Value::String(v) => out.push_str(v),
+        Value::Vector(v) => {
+            for (index, value) in v.values.iter().enumerate() {
+                if index > 0 {
+                    out.push(',');
+                }
+                out.push_str(&value.to_string());
+            }
+        }
+        Value::Json(v) => out.push_str(&v.to_string()),
     }
 }
 
 #[cfg(test)]
 pub(crate) fn batch_buffers_built_for_tests() -> u64 {
     BATCH_BUFFERS_BUILT.load(Ordering::Relaxed)
+}
+
+#[cfg(test)]
+pub(crate) fn row_tie_keys_built_for_tests() -> u64 {
+    ROW_TIE_KEYS_BUILT.load(Ordering::Relaxed)
 }
 
 #[cfg(test)]
@@ -268,6 +281,28 @@ mod tests {
             Some(&Value::String("gamma".to_string()))
         );
         assert!(after >= before + 2);
+    }
+
+    #[test]
+    fn should_build_row_tie_key_without_temporary_key_vector() {
+        // Arrange
+        let before = row_tie_keys_built_for_tests();
+        let row = BatchRow::new(vec![
+            ("title".to_string(), Value::String("alpha".to_string())),
+            ("score".to_string(), Value::Int64(7)),
+            (
+                "embedding".to_string(),
+                Value::Vector(crate::types::Vector::new(vec![1.0, 2.0])),
+            ),
+        ]);
+
+        // Act
+        let key = row_tie_key(&row);
+        let after = row_tie_keys_built_for_tests();
+
+        // Assert
+        assert_eq!(key, "alpha|7|1,2");
+        assert!(after > before);
     }
 
     #[test]

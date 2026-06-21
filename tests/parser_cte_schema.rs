@@ -306,6 +306,27 @@ fn should_parse_create_table_field_constraints() {
 }
 
 #[test]
+fn should_parse_create_table_foreign_key_constraint() {
+    // Arrange
+    let sql = "CREATE TABLE orders (customer_id INT REFERENCES customers(id))";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateTable(statement) = parsed.statement else {
+        panic!("expected create table statement");
+    };
+    let constraints = &statement.fields[0].constraints;
+    assert_eq!(constraints.len(), 1);
+    assert_eq!(
+        constraints[0].references_table.as_deref(),
+        Some("customers")
+    );
+    assert_eq!(constraints[0].references_field.as_deref(), Some("id"));
+}
+
+#[test]
 fn should_reject_create_table_constraints_without_parentheses() {
     // Arrange
     let sql = "CREATE TABLE broken (id INT CHECK score >= 0)";

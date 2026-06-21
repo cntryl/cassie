@@ -1,4 +1,6 @@
-Cassie Roadmap
+# Cassie Roadmap
+
+This file preserves the version-oriented roadmap. For the current product-facing roadmap by feature area, see [Product Roadmap](product-roadmap.md).
 
 V1 — Projection Query Engine
 

@@ -32,4 +32,8 @@ pub struct FieldConstraint {
     pub default_value: Option<serde_json::Value>,
     #[serde(default)]
     pub check: Option<ConstraintCheck>,
+    #[serde(default)]
+    pub references_table: Option<String>,
+    #[serde(default)]
+    pub references_field: Option<String>,
 }

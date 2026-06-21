@@ -88,6 +88,38 @@ impl Midge {
         Ok(())
     }
 
+    pub fn put_rollup(&self, metadata: RollupMeta) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let value =
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(Self::rollup_key(&metadata.name), value, None)
+            .map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub fn list_rollups(&self) -> Result<Vec<RollupMeta>, CassieError> {
+        let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::rollup_prefix())?;
+        let mut out = Vec::with_capacity(entries.len());
+        for (_key, raw_value) in entries {
+            let Ok(record) = serde_json::from_slice(&raw_value) else {
+                continue;
+            };
+            out.push(record);
+        }
+        Ok(out)
+    }
+
+    pub fn delete_rollup(&self, name: &str) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.delete(Self::rollup_key(name))
+            .map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
     pub fn delete_vector_index(&self, collection: &str, field: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::vector_index_key(collection, field))

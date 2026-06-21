@@ -251,7 +251,7 @@ pub(crate) fn evaluate_expr_value<R: RowAccess + ?Sized>(
             params,
             search_context,
             user_functions,
-            None,
+            local_args,
             session,
         )?
         .to_value()),

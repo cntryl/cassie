@@ -91,15 +91,49 @@ fn should_parse_insert_select_source() {
 }
 
 #[test]
-fn should_reject_insert_on_conflict() {
+fn should_parse_insert_on_conflict_do_nothing() {
     // Arrange
     let sql = "INSERT INTO docs VALUES (1) ON CONFLICT DO NOTHING";
 
     // Act
-    let parsed = parse_statement(sql);
+    let parsed = parse_statement(sql).expect("parse should succeed");
 
     // Assert
-    assert!(parsed.is_err());
+    let QueryStatement::Insert(statement) = parsed.statement else {
+        panic!("expected insert statement");
+    };
+    let on_conflict = statement.on_conflict.expect("missing on conflict");
+    assert!(on_conflict.target_fields.is_empty());
+    assert!(matches!(
+        on_conflict.action,
+        cassie::sql::ast::InsertConflictAction::DoNothing
+    ));
+}
+
+#[test]
+fn should_parse_insert_on_conflict_do_update() {
+    // Arrange
+    let sql = "INSERT INTO docs (id, title) VALUES (1, 'alpha') ON CONFLICT (id) DO UPDATE SET title = excluded.title WHERE docs.id = 1";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Insert(statement) = parsed.statement else {
+        panic!("expected insert statement");
+    };
+    let on_conflict = statement.on_conflict.expect("missing on conflict");
+    assert_eq!(on_conflict.target_fields, vec!["id".to_string()]);
+    let cassie::sql::ast::InsertConflictAction::DoUpdate {
+        assignments,
+        filter,
+    } = on_conflict.action
+    else {
+        panic!("expected do update action");
+    };
+    assert_eq!(assignments.len(), 1);
+    assert_eq!(assignments[0].0, "title");
+    assert!(filter.is_some());
 }
 
 #[test]

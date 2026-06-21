@@ -63,13 +63,88 @@ pub(super) fn execute_command(
             }
         }
         LogicalCommand::Insert(statement) => {
-            super::dml::execute_insert(cassie, session, statement, params, user_functions, controls)
+            let result = super::dml::execute_insert(
+                cassie,
+                session,
+                statement,
+                params,
+                user_functions,
+                controls,
+            )?;
+            if session
+                .map(|session| !session.is_transaction_active())
+                .unwrap_or(true)
+            {
+                super::rollups::refresh_rollups_for_source(
+                    cassie,
+                    &statement.table,
+                    user_functions,
+                    controls,
+                )?;
+            } else {
+                super::rollups::mark_source_rollups_stale(cassie, &statement.table)?;
+            }
+            Ok(result)
         }
         LogicalCommand::Update(statement) => {
-            super::dml::execute_update(cassie, session, statement, params, user_functions, controls)
+            let result = super::dml::execute_update(
+                cassie,
+                session,
+                statement,
+                params,
+                user_functions,
+                controls,
+            )?;
+            if session
+                .map(|session| !session.is_transaction_active())
+                .unwrap_or(true)
+            {
+                super::rollups::refresh_rollups_for_source(
+                    cassie,
+                    &statement.table,
+                    user_functions,
+                    controls,
+                )?;
+            } else {
+                super::rollups::mark_source_rollups_stale(cassie, &statement.table)?;
+            }
+            Ok(result)
         }
         LogicalCommand::Delete(statement) => {
-            super::dml::execute_delete(cassie, session, statement, params, user_functions, controls)
+            let result = super::dml::execute_delete(
+                cassie,
+                session,
+                statement,
+                params,
+                user_functions,
+                controls,
+            )?;
+            if session
+                .map(|session| !session.is_transaction_active())
+                .unwrap_or(true)
+            {
+                super::rollups::refresh_rollups_for_source(
+                    cassie,
+                    &statement.table,
+                    user_functions,
+                    controls,
+                )?;
+            } else {
+                super::rollups::mark_source_rollups_stale(cassie, &statement.table)?;
+            }
+            Ok(result)
+        }
+        LogicalCommand::CreateRollup(statement) => {
+            invalidate_plan_cache = true;
+            super::rollups::create_rollup(cassie, statement, user_functions, controls)
+        }
+        LogicalCommand::RefreshRollup(statement) => {
+            invalidate_plan_cache = true;
+            super::rollups::refresh_rollup(cassie, &statement.name, user_functions, controls)
+        }
+        LogicalCommand::DropRollup(statement) => {
+            invalidate_plan_cache = true;
+            super::rollups::drop_rollup(cassie, &statement.name, statement.if_exists)
         }
         LogicalCommand::CreateTable(statement) => {
             if statement.if_not_exists

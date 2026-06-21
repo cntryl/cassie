@@ -521,3 +521,244 @@ fn should_reject_update_when_check_constraint_fails() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_insert_on_conflict_do_update() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("on_conflict_do_update");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE on_conflict_do_update (id INT PRIMARY KEY, title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO on_conflict_do_update (id, title) VALUES (1, 'alpha')",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO on_conflict_do_update (id, title) VALUES (1, 'beta') ON CONFLICT (id) DO UPDATE SET title = excluded.title RETURNING title",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.command, "INSERT 0 1");
+        assert_eq!(result.rows, vec![vec![Value::String("beta".to_string())]]);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_insert_on_conflict_do_nothing() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("on_conflict_do_nothing");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE on_conflict_do_nothing (id INT PRIMARY KEY, title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO on_conflict_do_nothing (id, title) VALUES (1, 'alpha')",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO on_conflict_do_nothing (id, title) VALUES (1, 'beta') ON CONFLICT DO NOTHING",
+                vec![],
+            )
+            .unwrap();
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM on_conflict_do_nothing ORDER BY title",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.command, "INSERT 0 0");
+        assert_eq!(rows.rows, vec![vec![Value::String("alpha".to_string())]]);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_insert_when_foreign_key_parent_is_missing() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("foreign_key_missing_parent");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE fk_parents (id INT PRIMARY KEY, title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE fk_children (parent_id INT REFERENCES fk_parents(id), title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO fk_parents (id, title) VALUES (1, 'alpha')",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO fk_children (parent_id, title) VALUES (1, 'child')",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let missing_parent = cassie.execute_sql(
+            &session,
+            "INSERT INTO fk_children (parent_id, title) VALUES (2, 'missing')",
+            vec![],
+        );
+
+        // Assert
+        assert!(missing_parent.is_err());
+        assert!(missing_parent
+            .unwrap_err()
+            .to_string()
+            .contains("foreign key constraint"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_parent_mutation_when_foreign_key_children_exist() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("foreign_key_referenced_parent");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE fk_parents (id INT PRIMARY KEY, title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE fk_children (parent_id INT REFERENCES fk_parents(id), title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO fk_parents (id, title) VALUES (1, 'alpha')",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO fk_children (parent_id, title) VALUES (1, 'child')",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let delete_parent = cassie.execute_sql(
+            &session,
+            "DELETE FROM fk_parents WHERE title = 'alpha'",
+            vec![],
+        );
+        let update_parent = cassie.execute_sql(
+            &session,
+            "UPDATE fk_parents SET id = 2 WHERE title = 'alpha'",
+            vec![],
+        );
+        let constraints = cassie
+            .execute_sql(
+                &session,
+                "SELECT constraint_type FROM information_schema.table_constraints WHERE table_name = 'fk_children' ORDER BY constraint_type",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert!(delete_parent.is_err());
+        assert!(delete_parent
+            .unwrap_err()
+            .to_string()
+            .contains("foreign key constraint"));
+        assert!(update_parent.is_err());
+        assert!(update_parent
+            .unwrap_err()
+            .to_string()
+            .contains("foreign key constraint"));
+        assert!(constraints.rows.iter().any(|row| {
+            row == &vec![Value::String("FOREIGN KEY".to_string())]
+        }));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

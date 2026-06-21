@@ -7,7 +7,7 @@ use parking_lot::RwLock;
 use crate::catalog::{
     normalize_role_name, CollectionCardinalityStats, CollectionMeta, CollectionSchema,
     FieldConstraint, FieldMeta, FunctionMeta, IndexKind, IndexMeta, NamespaceMeta, ProcedureMeta,
-    ProjectionMeta, RoleMeta, ViewMeta,
+    ProjectionMeta, RoleMeta, RollupMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
@@ -24,6 +24,7 @@ pub struct Catalog {
     pub procedures: Arc<RwLock<HashMap<String, ProcedureMeta>>>,
     pub views: Arc<RwLock<HashMap<String, ViewMeta>>>,
     pub roles: Arc<RwLock<HashMap<String, RoleMeta>>>,
+    pub rollups: Arc<RwLock<HashMap<String, RollupMeta>>>,
     pub vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
     pub cardinality: Arc<RwLock<HashMap<String, CollectionCardinalityStats>>>,
     version: Arc<AtomicU64>,
@@ -42,6 +43,7 @@ impl Catalog {
             procedures: Arc::new(RwLock::new(HashMap::new())),
             views: Arc::new(RwLock::new(HashMap::new())),
             roles: Arc::new(RwLock::new(HashMap::new())),
+            rollups: Arc::new(RwLock::new(HashMap::new())),
             vector_indexes: Arc::new(RwLock::new(HashMap::new())),
             cardinality: Arc::new(RwLock::new(HashMap::new())),
             version: Arc::new(AtomicU64::new(0)),
@@ -240,6 +242,40 @@ impl Catalog {
         out
     }
 
+    pub fn register_rollup(&self, metadata: RollupMeta) {
+        self.rollups
+            .write()
+            .insert(metadata.name.to_ascii_lowercase(), metadata);
+        self.bump_version();
+    }
+
+    pub fn unregister_rollup(&self, name: &str) {
+        self.rollups.write().remove(&name.to_ascii_lowercase());
+        self.bump_version();
+    }
+
+    pub fn get_rollup(&self, name: &str) -> Option<RollupMeta> {
+        self.rollups.read().get(&name.to_ascii_lowercase()).cloned()
+    }
+
+    pub fn list_rollups(&self) -> Vec<RollupMeta> {
+        let mut out = self.rollups.read().values().cloned().collect::<Vec<_>>();
+        out.sort_by_key(|rollup| rollup.name.to_ascii_lowercase());
+        out
+    }
+
+    pub fn list_rollups_for_source(&self, source_collection: &str) -> Vec<RollupMeta> {
+        let mut out = self
+            .rollups
+            .read()
+            .values()
+            .filter(|rollup| rollup.source_collection == source_collection)
+            .cloned()
+            .collect::<Vec<_>>();
+        out.sort_by_key(|rollup| rollup.name.to_ascii_lowercase());
+        out
+    }
+
     pub fn namespace_exists(&self, namespace: &str) -> bool {
         self.namespaces.read().contains_key(namespace)
     }
@@ -254,6 +290,7 @@ impl Catalog {
         self.procedures.write().clear();
         self.views.write().clear();
         self.roles.write().clear();
+        self.rollups.write().clear();
         self.indexes.write().clear();
         self.vector_indexes.write().clear();
         self.cardinality.write().clear();
@@ -272,6 +309,9 @@ impl Catalog {
             .write()
             .retain(|_, record| record.collection != collection);
         self.cardinality.write().remove(collection);
+        self.rollups
+            .write()
+            .retain(|_, rollup| rollup.source_collection != collection);
         self.bump_version();
     }
 
@@ -384,6 +424,16 @@ impl Catalog {
             .map(|view| view_schema_to_collection_schema(&view.name, &view.schema))
     }
 
+    pub fn field_type(&self, collection: &str, field: &str) -> Option<DataType> {
+        self.get_schema(collection).and_then(|schema| {
+            schema
+                .fields
+                .into_iter()
+                .find(|entry| entry.name.eq_ignore_ascii_case(field))
+                .map(|entry| entry.data_type)
+        })
+    }
+
     pub fn add_collection_field(&self, collection: &str, name: String, data_type: DataType) {
         let mut schemas = self.schemas.write();
         let Some(schema) = schemas.get_mut(collection) else {
@@ -483,6 +533,13 @@ impl Catalog {
         let mut cardinality = self.cardinality.write();
         if let Some(stats) = cardinality.remove(current_name) {
             cardinality.insert(next_name.to_string(), stats);
+        }
+
+        let mut rollups = self.rollups.write();
+        for rollup in rollups.values_mut() {
+            if rollup.source_collection == current_name {
+                rollup.source_collection = next_name.to_string();
+            }
         }
         self.bump_version();
     }
@@ -726,6 +783,7 @@ impl Catalog {
             || constraint.not_null
             || constraint.default_value.is_some()
             || constraint.check.is_some()
+            || constraint.references_table.is_some()
     }
 
     fn bump_version(&self) {

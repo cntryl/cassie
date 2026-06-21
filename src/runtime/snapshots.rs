@@ -171,6 +171,16 @@ pub struct ParallelAggregationSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct RollupSnapshot {
+    pub refreshes: u64,
+    pub rewrite_hits: u64,
+    pub fallback_scans: u64,
+    pub stale_fallbacks: u64,
+    pub last_rollup: String,
+    pub last_fallback_reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct StorageFamilySnapshot {
     pub reads: u64,
     pub writes: u64,
@@ -207,4 +217,5 @@ pub struct RuntimeMetricsSnapshot {
     pub parallel_scans: ParallelScanSnapshot,
     pub parallel_scoring: ParallelScoringSnapshot,
     pub parallel_aggregation: ParallelAggregationSnapshot,
+    pub rollups: RollupSnapshot,
 }

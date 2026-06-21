@@ -78,3 +78,63 @@ fn build_ollama_provider(
     })?;
     Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
 }
+
+impl Cassie {
+    pub(crate) fn validate_embedding_compatibility(
+        &self,
+        index: &VectorIndexRecord,
+        requested_metric: Option<&DistanceMetric>,
+    ) -> Result<(), CassieError> {
+        if self.embedding_provider.provider_name() != index.metadata.provider {
+            return Err(CassieError::InvalidEmbedding(format!(
+                "embedding provider mismatch: index requires '{}', active is '{}'",
+                index.metadata.provider,
+                self.embedding_provider.provider_name()
+            )));
+        }
+
+        if self.embedding_provider.model_name() != index.metadata.model {
+            return Err(CassieError::InvalidEmbedding(format!(
+                "embedding model mismatch: index requires '{}', active is '{}'",
+                index.metadata.model,
+                self.embedding_provider.model_name()
+            )));
+        }
+
+        if self.embedding_provider.dimensions() != index.metadata.dimensions {
+            return Err(CassieError::InvalidEmbedding(format!(
+                "embedding dimension mismatch: index requires {}, active provider has {}",
+                index.metadata.dimensions,
+                self.embedding_provider.dimensions()
+            )));
+        }
+
+        if let Some(metric) = requested_metric {
+            if *metric != index.metadata.metric {
+                return Err(CassieError::InvalidEmbedding(format!(
+                    "embedding metric mismatch: index requires '{}', request requested '{}'",
+                    index.metadata.metric.as_str(),
+                    metric.as_str()
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn validate_embedding_payload(
+        &self,
+        index: &VectorIndexRecord,
+        embedding: &Embedding,
+    ) -> Result<(), CassieError> {
+        if embedding.values.len() != index.metadata.dimensions {
+            return Err(CassieError::InvalidEmbedding(format!(
+                "embedding dimension mismatch: index requires {} and got {}",
+                index.metadata.dimensions,
+                embedding.values.len()
+            )));
+        }
+
+        Ok(())
+    }
+}

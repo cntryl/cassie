@@ -3,13 +3,14 @@ use crate::sql::ast::{
     AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation,
     AlterTableStatement, BinaryOp, CallProcedureStatement, CommonTableExpression,
     CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement, CreateRoleStatement,
-    CreateSchemaStatement, CreateTableStatement, CreateViewStatement, CteQuery,
-    DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropRoleStatement,
-    DropSchemaStatement, DropTableStatement, DropViewStatement, ExplainStatement, Expr,
-    FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr,
-    ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement,
-    SetOperator, SetStatement, ShowStatement, SortDirection, TransactionAction,
-    TransactionIsolation, TransactionStatement, Volatility, WindowFunctionCall,
+    CreateRollupStatement, CreateSchemaStatement, CreateTableStatement, CreateViewStatement,
+    CteQuery, DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropRoleStatement,
+    DropRollupStatement, DropSchemaStatement, DropTableStatement, DropViewStatement,
+    ExplainStatement, Expr, FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind,
+    NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement, RefreshRollupStatement,
+    SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement, ShowStatement,
+    SortDirection, TransactionAction, TransactionIsolation, TransactionStatement, Volatility,
+    WindowFunctionCall,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -26,6 +27,8 @@ mod dml;
 mod expr;
 #[path = "parser/query.rs"]
 mod query;
+#[path = "parser/rollups.rs"]
+mod rollups;
 #[path = "parser/schema.rs"]
 mod schema;
 #[path = "parser/statements.rs"]
@@ -35,6 +38,7 @@ use clauses::*;
 use dml::*;
 pub(crate) use expr::parse_expression;
 use query::*;
+use rollups::*;
 use schema::*;
 use statements::*;
 
@@ -145,6 +149,12 @@ fn parse_view_or_index_statement(
         Err(SqlError(
             "ALTER VIEW is not supported in this version".into(),
         ))
+    } else if starts_statement(lower, "create rollup") {
+        Ok(Some(parse_create_rollup_statement(trimmed)?))
+    } else if starts_statement(lower, "refresh rollup") {
+        Ok(Some(parse_refresh_rollup_statement(trimmed)?))
+    } else if starts_statement(lower, "drop rollup") {
+        Ok(Some(parse_drop_rollup_statement(trimmed)?))
     } else if starts_statement(lower, "create unique index")
         || starts_statement(lower, "create index")
     {

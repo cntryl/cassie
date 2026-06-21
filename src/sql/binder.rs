@@ -149,6 +149,50 @@ fn bind_statement(
                 statement: QueryStatement::DropIndex(statement),
             })
         }
+        QueryStatement::CreateRollup(statement) => {
+            let statement = bind_create_rollup(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::CreateRollup(statement),
+            })
+        }
+        QueryStatement::RefreshRollup(statement) => {
+            let name = statement.name.trim().to_string();
+            if name.is_empty() {
+                return Err(CassieError::Planner(
+                    "REFRESH ROLLUP requires a name".into(),
+                ));
+            }
+            if catalog.get_rollup(&name).is_none() {
+                return Err(CassieError::Planner(format!(
+                    "rollup '{name}' does not exist"
+                )));
+            }
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::RefreshRollup(crate::sql::ast::RefreshRollupStatement {
+                    name,
+                }),
+            })
+        }
+        QueryStatement::DropRollup(statement) => {
+            let name = statement.name.trim().to_string();
+            if name.is_empty() {
+                return Err(CassieError::Planner("DROP ROLLUP requires a name".into()));
+            }
+            if !statement.if_exists && catalog.get_rollup(&name).is_none() {
+                return Err(CassieError::Planner(format!(
+                    "rollup '{name}' does not exist"
+                )));
+            }
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::DropRollup(crate::sql::ast::DropRollupStatement {
+                    name,
+                    if_exists: statement.if_exists,
+                }),
+            })
+        }
         QueryStatement::CreateSchema(statement) => {
             let schema = statement.schema.trim().to_string();
             if schema.is_empty() {

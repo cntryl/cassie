@@ -156,7 +156,7 @@ pub(super) async fn read_frontend_message(
                     .get(cursor..end)
                     .ok_or_else(|| HandshakeError::Invalid("invalid bind payload".to_string()))?;
 
-                let _format_code = match format_codes.as_slice() {
+                let format_code = match format_codes.as_slice() {
                     [] => 0,
                     [single] => *single,
                     codes if codes.len() == parameter_count => codes[index],
@@ -167,10 +167,14 @@ pub(super) async fn read_frontend_message(
                     }
                 };
 
-                let text = str::from_utf8(value).map_err(|_| {
-                    HandshakeError::Invalid("invalid UTF-8 in bind parameter".to_string())
-                })?;
-                params.push(query::parse_bind_param(text));
+                if format_code == 1 {
+                    params.push(parse_binary_bind_param(value)?);
+                } else {
+                    let text = str::from_utf8(value).map_err(|_| {
+                        HandshakeError::Invalid("invalid UTF-8 in bind parameter".to_string())
+                    })?;
+                    params.push(query::parse_bind_param(text));
+                }
                 cursor = end;
             }
 
@@ -474,6 +478,36 @@ pub(super) fn parse_startup_payload(
     }
 
     Ok(parameters)
+}
+
+fn parse_binary_bind_param(value: &[u8]) -> Result<Value, HandshakeError> {
+    if let Ok(text) = str::from_utf8(value) {
+        if text.chars().all(|character| !character.is_control()) {
+            return Ok(query::parse_bind_param(text));
+        }
+    }
+
+    match value.len() {
+        2 => Ok(Value::Int64(i16::from_be_bytes(
+            value
+                .try_into()
+                .map_err(|_| HandshakeError::Invalid("invalid int2 bind parameter".to_string()))?,
+        ) as i64)),
+        4 => Ok(Value::Int64(i32::from_be_bytes(
+            value
+                .try_into()
+                .map_err(|_| HandshakeError::Invalid("invalid int4 bind parameter".to_string()))?,
+        ) as i64)),
+        8 => Ok(Value::Int64(i64::from_be_bytes(value.try_into().map_err(
+            |_| HandshakeError::Invalid("invalid int8 bind parameter".to_string()),
+        )?))),
+        _ => {
+            let text = str::from_utf8(value).map_err(|_| {
+                HandshakeError::Invalid("unsupported binary bind parameter".to_string())
+            })?;
+            Ok(query::parse_bind_param(text))
+        }
+    }
 }
 
 pub(super) fn read_null_terminated(

@@ -285,6 +285,103 @@ fn should_create_call_procedure_with_tokio_postgres() {
 }
 
 #[test]
+fn should_run_on_conflict_upsert_with_tokio_postgres() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("on_conflict_upsert").await;
+        let (client, connection) = tokio::time::timeout(Duration::from_secs(5), server.connect())
+            .await
+            .expect("connect should complete within the timeout");
+
+        // Act
+        client
+            .batch_execute("CREATE TABLE compat_upsert_items (id INT PRIMARY KEY, title TEXT)")
+            .await
+            .expect("table creation should succeed");
+        client
+            .execute(
+                "INSERT INTO compat_upsert_items (id, title) VALUES ($1, $2)",
+                &[&1_i32, &"alpha"],
+            )
+            .await
+            .expect("initial insert should succeed");
+        let updated = client
+            .query_one(
+                "INSERT INTO compat_upsert_items (id, title) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET title = excluded.title RETURNING title",
+                &[&1_i32, &"beta"],
+            )
+            .await
+            .expect("upsert should succeed");
+
+        // Assert
+        let title: String = updated.try_get(0).expect("title column");
+        assert_eq!(title, "beta");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_enforce_foreign_keys_with_tokio_postgres() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("foreign_keys").await;
+        let (client, connection) = tokio::time::timeout(Duration::from_secs(5), server.connect())
+            .await
+            .expect("connect should complete within the timeout");
+
+        // Act
+        client
+            .batch_execute("CREATE TABLE compat_fk_parents (id INT PRIMARY KEY, title TEXT)")
+            .await
+            .expect("parent table creation should succeed");
+        client
+            .batch_execute(
+                "CREATE TABLE compat_fk_children (parent_id INT REFERENCES compat_fk_parents(id), title TEXT)",
+            )
+            .await
+            .expect("child table creation should succeed");
+        client
+            .execute(
+                "INSERT INTO compat_fk_parents (id, title) VALUES ($1, $2)",
+                &[&1_i32, &"alpha"],
+            )
+            .await
+            .expect("parent insert should succeed");
+        client
+            .execute(
+                "INSERT INTO compat_fk_children (parent_id, title) VALUES ($1, $2)",
+                &[&1_i32, &"child"],
+            )
+            .await
+            .expect("child insert should succeed");
+        let missing_parent = client
+            .execute(
+                "INSERT INTO compat_fk_children (parent_id, title) VALUES ($1, $2)",
+                &[&2_i32, &"missing"],
+            )
+            .await;
+
+        // Assert
+        assert!(missing_parent.is_err(), "missing parent should be rejected");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_run_recursive_cte_with_tokio_postgres() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

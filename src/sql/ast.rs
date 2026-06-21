@@ -116,6 +116,9 @@ pub enum QueryStatement {
     DropRole(DropRoleStatement),
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
+    CreateRollup(CreateRollupStatement),
+    RefreshRollup(RefreshRollupStatement),
+    DropRollup(DropRollupStatement),
     CreateFunction(CreateFunctionStatement),
     DropFunction(DropFunctionStatement),
     CreateProcedure(CreateProcedureStatement),
@@ -161,10 +164,26 @@ pub enum InsertSource {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InsertConflictClause {
+    pub target_fields: Vec<String>,
+    pub action: InsertConflictAction,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum InsertConflictAction {
+    DoNothing,
+    DoUpdate {
+        assignments: Vec<(String, Expr)>,
+        filter: Option<Expr>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InsertStatement {
     pub table: String,
     pub columns: Vec<String>,
     pub source: InsertSource,
+    pub on_conflict: Option<InsertConflictClause>,
     pub returning: Vec<SelectItem>,
 }
 
@@ -202,6 +221,28 @@ pub struct CreateIndexStatement {
     pub unique: bool,
     pub kind: IndexKind,
     pub options: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateRollupStatement {
+    pub name: String,
+    pub source: String,
+    pub bucket: FunctionCall,
+    pub group_by: Vec<Expr>,
+    pub aggregates: Vec<SelectItem>,
+    pub filter: Option<Expr>,
+    pub if_not_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefreshRollupStatement {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DropRollupStatement {
+    pub name: String,
+    pub if_exists: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

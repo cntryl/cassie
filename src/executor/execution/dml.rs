@@ -29,20 +29,108 @@ pub(super) fn execute_insert(
         }
     }
 
-    let inserted_count = source_rows.len();
+    let mut affected_count = 0usize;
     let mut returning_rows = Vec::new();
     for source_row in source_rows {
         let payload = payload_from_insert_row(&target_fields, &source_row);
-        let row_id = cassie
-            .write_document_for_session(
-                session,
-                &statement.table,
-                None,
-                serde_json::Value::Object(payload),
-                true,
-                None,
-            )
-            .map_err(|error| QueryError::General(error.to_string()))?;
+        let payload = serde_json::Value::Object(payload);
+        let maybe_conflict_id = find_insert_conflict_row_id(cassie, session, statement, &payload)?;
+
+        let row_id = match (statement.on_conflict.as_ref(), maybe_conflict_id) {
+            (Some(on_conflict), Some(conflict_id)) => match &on_conflict.action {
+                crate::sql::ast::InsertConflictAction::DoNothing => {
+                    continue;
+                }
+                crate::sql::ast::InsertConflictAction::DoUpdate {
+                    assignments,
+                    filter,
+                } => {
+                    let current = cassie
+                        .get_document_for_session(session, &statement.table, &conflict_id)
+                        .map_err(|error| QueryError::General(error.to_string()))?
+                        .ok_or_else(|| {
+                            QueryError::General(format!(
+                                "conflicting row '{conflict_id}' was not found in '{}'",
+                                statement.table
+                            ))
+                        })?;
+                    let existing_row =
+                        inserted_row_to_batch_row(&conflict_id, &schema, &current.payload);
+                    let excluded_args = excluded_local_args(&payload);
+
+                    if let Some(filter) = filter {
+                        let matches = filter::eval_scalar(
+                            &existing_row,
+                            filter,
+                            params,
+                            None,
+                            user_functions,
+                            Some(&excluded_args),
+                            session,
+                        )?
+                        .as_bool();
+                        if !matches {
+                            continue;
+                        }
+                    }
+
+                    let mut merged_payload =
+                        current.payload.as_object().cloned().ok_or_else(|| {
+                            QueryError::General("stored row payload must be object".to_string())
+                        })?;
+                    for (field, expr) in assignments {
+                        let value = match expr {
+                            Expr::Column(name) => excluded_args
+                                .get(&name.to_ascii_lowercase())
+                                .cloned()
+                                .or_else(|| existing_row.get(name).cloned())
+                                .unwrap_or(Value::Null),
+                            _ => filter::evaluate_expr_value(
+                                &existing_row,
+                                expr,
+                                params,
+                                None,
+                                user_functions,
+                                session,
+                                Some(&excluded_args),
+                            )?,
+                        };
+                        merged_payload.insert(
+                            field.clone(),
+                            update_assignment_to_json(field, &value, &schema),
+                        );
+                    }
+
+                    let prepared = cassie
+                        .prepare_document_write_for_session(
+                            session,
+                            &statement.table,
+                            serde_json::Value::Object(merged_payload),
+                            true,
+                            Some(&conflict_id),
+                        )
+                        .map_err(|error| QueryError::General(error.to_string()))?;
+                    cassie
+                        .put_prepared_document_for_session(
+                            session,
+                            &statement.table,
+                            conflict_id.clone(),
+                            prepared,
+                        )
+                        .map_err(|error| QueryError::General(error.to_string()))?;
+                    conflict_id
+                }
+            },
+            (_, Some(_)) => {
+                return Err(QueryError::General(
+                    "INSERT conflict detected without ON CONFLICT clause".to_string(),
+                ));
+            }
+            (_, None) => cassie
+                .write_document_for_session(session, &statement.table, None, payload, true, None)
+                .map_err(|error| QueryError::General(error.to_string()))?,
+        };
+        affected_count += 1;
 
         if !statement.returning.is_empty() {
             let document = cassie
@@ -50,7 +138,7 @@ pub(super) fn execute_insert(
                 .map_err(|error| QueryError::General(error.to_string()))?
                 .ok_or_else(|| {
                     QueryError::General(format!(
-                        "inserted row '{row_id}' was not found in '{}'",
+                        "affected row '{row_id}' was not found in '{}'",
                         statement.table
                     ))
                 })?;
@@ -67,7 +155,7 @@ pub(super) fn execute_insert(
         return Ok(QueryResult {
             columns: Vec::new(),
             rows: Vec::new(),
-            command: format!("INSERT 0 {inserted_count}"),
+            command: format!("INSERT 0 {affected_count}"),
         });
     }
 
@@ -87,8 +175,114 @@ pub(super) fn execute_insert(
     Ok(QueryResult {
         columns,
         rows: projected.into_iter().map(BatchRow::into_values).collect(),
-        command: format!("INSERT 0 {inserted_count}"),
+        command: format!("INSERT 0 {affected_count}"),
     })
+}
+
+fn find_insert_conflict_row_id(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    statement: &crate::sql::ast::InsertStatement,
+    payload: &serde_json::Value,
+) -> Result<Option<String>, QueryError> {
+    let Some(on_conflict) = statement.on_conflict.as_ref() else {
+        return Ok(None);
+    };
+    let object = payload
+        .as_object()
+        .ok_or_else(|| QueryError::General("document payload must be an object".to_string()))?;
+
+    if !on_conflict.target_fields.is_empty() {
+        let values = on_conflict
+            .target_fields
+            .iter()
+            .map(|field| {
+                object
+                    .get(field)
+                    .map(|value| (field.as_str(), value))
+                    .ok_or_else(|| {
+                        QueryError::General(format!(
+                            "ON CONFLICT target column '{}' is missing from inserted row",
+                            field
+                        ))
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        return cassie
+            .find_document_id_by_fields(session, &statement.table, &values, None)
+            .map_err(|error| QueryError::General(error.to_string()));
+    }
+
+    for constraint in cassie.catalog.get_constraints(&statement.table) {
+        if !(constraint.primary_key || constraint.unique) {
+            continue;
+        }
+        let Some(value) = object.get(&constraint.field) else {
+            continue;
+        };
+        if value.is_null() {
+            continue;
+        }
+        if let Some(id) = cassie
+            .find_document_id_by_fields(
+                session,
+                &statement.table,
+                &[(&constraint.field, value)],
+                None,
+            )
+            .map_err(|error| QueryError::General(error.to_string()))?
+        {
+            return Ok(Some(id));
+        }
+    }
+
+    for index in cassie.catalog.list_indexes(&statement.table) {
+        if !index.unique || index.kind != crate::catalog::IndexKind::Scalar {
+            continue;
+        }
+        let fields = index.normalized_fields();
+        if fields.is_empty() {
+            continue;
+        }
+        let mut values = Vec::with_capacity(fields.len());
+        let mut complete = true;
+        for field in &fields {
+            let Some(value) = object.get(field) else {
+                complete = false;
+                break;
+            };
+            if value.is_null() {
+                complete = false;
+                break;
+            }
+            values.push((field.as_str(), value));
+        }
+        if !complete {
+            continue;
+        }
+        if let Some(id) = cassie
+            .find_document_id_by_fields(session, &statement.table, &values, None)
+            .map_err(|error| QueryError::General(error.to_string()))?
+        {
+            return Ok(Some(id));
+        }
+    }
+
+    Ok(None)
+}
+
+fn excluded_local_args(payload: &serde_json::Value) -> HashMap<String, Value> {
+    let mut out = HashMap::new();
+    let Some(object) = payload.as_object() else {
+        return out;
+    };
+    for (field, value) in object {
+        out.insert(
+            format!("excluded.{}", field.to_ascii_lowercase()),
+            json_to_value(value),
+        );
+    }
+    out
 }
 
 fn insert_source_rows(
@@ -400,6 +594,111 @@ fn json_to_value(value: &serde_json::Value) -> Value {
     Value::Json(value.clone())
 }
 
+fn referencing_constraints(
+    cassie: &Cassie,
+    referenced_table: &str,
+) -> Vec<(String, crate::catalog::FieldConstraint)> {
+    let mut out = Vec::new();
+    for collection in cassie.catalog.list_collections() {
+        for constraint in cassie.catalog.get_constraints(&collection.name) {
+            if constraint
+                .references_table
+                .as_deref()
+                .is_some_and(|table| table.eq_ignore_ascii_case(referenced_table))
+            {
+                out.push((collection.name.clone(), constraint));
+            }
+        }
+    }
+    out
+}
+
+fn assert_no_referencing_rows(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    payload: &serde_json::Value,
+) -> Result<(), QueryError> {
+    let Some(object) = payload.as_object() else {
+        return Ok(());
+    };
+
+    for (child_table, constraint) in referencing_constraints(cassie, table) {
+        let Some(reference_field) = constraint.references_field.as_deref() else {
+            continue;
+        };
+        let Some(parent_value) = object.get(reference_field) else {
+            continue;
+        };
+        if parent_value.is_null() {
+            continue;
+        }
+        if cassie
+            .value_exists_for_collection_field(
+                session,
+                &child_table,
+                &constraint.field,
+                parent_value,
+                None,
+            )
+            .map_err(|error| QueryError::General(error.to_string()))?
+        {
+            return Err(QueryError::General(format!(
+                "foreign key constraint '{}' on '{}' still references '{}.{}'",
+                constraint.field, child_table, table, reference_field
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+fn assert_referenced_values_unchanged(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    before: &serde_json::Value,
+    after: &serde_json::Value,
+) -> Result<(), QueryError> {
+    let (Some(before), Some(after)) = (before.as_object(), after.as_object()) else {
+        return Ok(());
+    };
+
+    for (child_table, constraint) in referencing_constraints(cassie, table) {
+        let Some(reference_field) = constraint.references_field.as_deref() else {
+            continue;
+        };
+        let old_value = before.get(reference_field);
+        let new_value = after.get(reference_field);
+        if old_value == new_value {
+            continue;
+        }
+        let Some(old_value) = old_value else {
+            continue;
+        };
+        if old_value.is_null() {
+            continue;
+        }
+        if cassie
+            .value_exists_for_collection_field(
+                session,
+                &child_table,
+                &constraint.field,
+                old_value,
+                None,
+            )
+            .map_err(|error| QueryError::General(error.to_string()))?
+        {
+            return Err(QueryError::General(format!(
+                "foreign key constraint '{}' on '{}' still references '{}.{}'",
+                constraint.field, child_table, table, reference_field
+            )));
+        }
+    }
+
+    Ok(())
+}
+
 pub(super) fn execute_update(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -464,6 +763,13 @@ pub(super) fn execute_update(
                 Some(&row_id),
             )
             .map_err(|error| QueryError::General(error.to_string()))?;
+        assert_referenced_values_unchanged(
+            cassie,
+            session,
+            &statement.table,
+            &current.payload,
+            &payload,
+        )?;
         prepared_rows.push((row_id, payload));
     }
 
@@ -559,16 +865,17 @@ pub(super) fn execute_delete(
     let mut returning_rows = Vec::new();
     for row in &matched_rows {
         let row_id = row_id_from_batch_row(row)?;
+        let current = cassie
+            .get_document_for_session(session, &statement.table, &row_id)
+            .map_err(|error| QueryError::General(error.to_string()))?
+            .ok_or_else(|| {
+                QueryError::General(format!(
+                    "row '{row_id}' was not found in '{}'",
+                    statement.table
+                ))
+            })?;
+        assert_no_referencing_rows(cassie, session, &statement.table, &current.payload)?;
         if !statement.returning.is_empty() {
-            let current = cassie
-                .get_document_for_session(session, &statement.table, &row_id)
-                .map_err(|error| QueryError::General(error.to_string()))?
-                .ok_or_else(|| {
-                    QueryError::General(format!(
-                        "row '{row_id}' was not found in '{}'",
-                        statement.table
-                    ))
-                })?;
             returning_rows.push(inserted_row_to_batch_row(
                 &row_id,
                 &schema,

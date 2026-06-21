@@ -307,10 +307,25 @@ pub(crate) fn run_with_session_controls(
     })
 }
 
+pub(crate) fn refresh_rollups_for_source_external(
+    cassie: &Cassie,
+    source: &str,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
+    let user_functions = HashMap::new();
+    rollups::refresh_rollups_for_source(cassie, source, &user_functions, controls)
+}
+
+pub(crate) fn rollup_rewrite_name_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Option<String> {
+    rollups::rewrite_name_for_plan(cassie, plan)
+}
+
 #[path = "execution/dml.rs"]
 mod dml;
 #[path = "execution/dml_command.rs"]
 mod dml_command;
+#[path = "execution/rollups.rs"]
+mod rollups;
 
 fn execute_plan(
     cassie: &Cassie,
@@ -389,6 +404,12 @@ fn execute_plan_with_outer_row(
             params,
             controls,
         )? {
+            return Ok(rows);
+        }
+
+        if let Some(rows) =
+            rollups::try_execute_rollup_query(cassie, plan, params, user_functions, controls)?
+        {
             return Ok(rows);
         }
     }

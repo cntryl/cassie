@@ -1,95 +1,118 @@
-SQL/query feature inventory
+# Feature Support
 
-Category	Items
-Query	SELECT, FROM, WHERE
-Projection	*, explicit columns, aliases, expressions, scalar functions
-Filtering	=, !=, <>, <, <=, >, >=, AND, OR, NOT
-Nulls	IS NULL, IS NOT NULL
-Lists	IN, NOT IN
-Ranges	BETWEEN, NOT BETWEEN
-Ordering	ORDER BY, ASC, DESC, NULLS FIRST, NULLS LAST, aliases
-Pagination	LIMIT, OFFSET
-Deduplication	DISTINCT, DISTINCT ON
-Aggregates	count, sum, avg, min, max
-Grouping	GROUP BY, HAVING
-Joins	INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL OUTER JOIN, CROSS JOIN
-Semi/anti joins	EXISTS, NOT EXISTS
-Lateral	LATERAL, CROSS APPLY, OUTER APPLY
-Subqueries	scalar subqueries, FROM (...), WHERE (...), correlated subqueries
-CTEs	WITH, WITH RECURSIVE
-Set operations	UNION, UNION ALL, INTERSECT, EXCEPT
-Window functions	row_number, rank, dense_rank, lag, lead, first_value, last_value, frames
-DML	INSERT, UPDATE, DELETE, RETURNING
-DDL	CREATE TABLE, ALTER TABLE, DROP TABLE, CREATE SCHEMA, DROP SCHEMA, CREATE INDEX, DROP INDEX
-Transactions	BEGIN, COMMIT, ROLLBACK, savepoints
-Views	CREATE VIEW, DROP VIEW, nested views
-Functions	scalar functions, user-defined functions
-Procedures	CREATE PROCEDURE, CALL
-Types	text, bool, integers, floats, decimal, timestamp, uuid, json, arrays, vector
-Casts	CAST(x AS type), x::type
+This matrix records Cassie's supported feature surface. It covers implemented behavior as well as experimental and planned areas that need compatibility or production-readiness work.
 
-Cassie-specific query features
+Status terms:
 
-Category	Items
-Full-text	search(field, query), search_score(field, query), snippet(field, query)
-Vector	vector_score, vector_distance, cosine_distance, dot_product, l2_distance
-pgvector syntax	<=>, <->, <#>, vector(n)
-Hybrid	hybrid_score(text_score, vector_score)
-Embeddings	provider, model, dimensions, metric validation
-Projections	projection metadata, schema version, offset, lag, rebuild state
-Time-series	time_bucket fixed windows, rollup, retention, range queries
-Merkle	row hash, range hash, projection root, diff
+- `Stable`: implemented, tested, documented, and intended to remain compatible within the same major line.
+- `Experimental`: implemented or partially implemented, but compatibility or output shape may still change.
+- `Planned`: accepted roadmap area without a production guarantee.
+- `Cassie-specific`: intentionally exposes Cassie behavior rather than PostgreSQL parity.
 
-Index inventory
+## SQL Query Features
 
-Category	Items
-Primary	primary key index
-Secondary	single-column index
-Composite	multi-column index
-Unique	unique index / unique constraint
-Covering	INCLUDE (...)
-Partial	CREATE INDEX ... WHERE ...
-Expression	CREATE INDEX ON table (lower(email))
-Full-text	inverted index
-Vector	brute force, HNSW, IVFFlat
-Hybrid	text candidate + vector rerank metadata
-Column-store	USING column indexes / compressed column batches, covered scan acceleration, segment pruning
-Time-series	time-bucket index
-Merkle	integrity index
+| Category | Supported Items | Status | Compatibility |
+| --- | --- | --- | --- |
+| Query | SELECT, FROM, WHERE | Stable | PostgreSQL-like |
+| Projection | `*`, explicit columns, aliases, expressions, scalar functions | Stable | PostgreSQL-like |
+| Filtering | `=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`, AND, OR, NOT | Stable | PostgreSQL-like |
+| Nulls | IS NULL, IS NOT NULL | Stable | PostgreSQL-like |
+| Lists | IN, NOT IN | Stable | PostgreSQL-like |
+| Ranges | BETWEEN, NOT BETWEEN | Stable | PostgreSQL-like |
+| Ordering | ORDER BY, ASC, DESC, NULLS FIRST, NULLS LAST, aliases | Stable | PostgreSQL-like |
+| Pagination | LIMIT, OFFSET | Stable | PostgreSQL-like |
+| Deduplication | DISTINCT, DISTINCT ON | Stable | PostgreSQL-like |
+| Aggregates | count, sum, avg, min, max | Stable | PostgreSQL-like |
+| Grouping | GROUP BY, HAVING | Stable | PostgreSQL-like |
+| Joins | INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL OUTER JOIN, CROSS JOIN | Stable | PostgreSQL-like |
+| Semi/anti joins | EXISTS, NOT EXISTS | Stable | PostgreSQL-like |
+| Lateral | LATERAL, CROSS APPLY, OUTER APPLY | Stable | PostgreSQL-like with Cassie syntax support |
+| Subqueries | scalar subqueries, FROM subqueries, predicate subqueries, correlated subqueries | Stable | PostgreSQL-like |
+| CTEs | WITH, WITH RECURSIVE | Stable | PostgreSQL-like |
+| Set operations | UNION, UNION ALL, INTERSECT, EXCEPT | Stable | PostgreSQL-like |
+| Window functions | row_number, rank, dense_rank, lag, lead, first_value, last_value, supported frames | Stable | PostgreSQL-like with documented frame limits |
+| DML | INSERT, UPDATE, DELETE, RETURNING | Stable | PostgreSQL-like |
+| DDL | CREATE TABLE, ALTER TABLE, DROP TABLE, CREATE SCHEMA, DROP SCHEMA, CREATE INDEX, DROP INDEX, CREATE ROLLUP, REFRESH ROLLUP, DROP ROLLUP | Stable/Experimental by object type | PostgreSQL-like plus Cassie-specific rollups |
+| Transactions | BEGIN, COMMIT, ROLLBACK, savepoints | Stable | PostgreSQL-like with Cassie/Midge durability notes |
+| Views | CREATE VIEW, DROP VIEW, nested views | Stable | PostgreSQL-like read-only view behavior |
+| Functions | scalar functions, user-defined functions | Stable/Experimental | PostgreSQL-like where documented |
+| Procedures | CREATE PROCEDURE, CALL | Experimental | PostgreSQL-like syntax, Cassie execution semantics |
+| Types | text, bool, integers, floats, decimal, timestamp, uuid, json, arrays, vector | Stable/Experimental | PostgreSQL-like plus Cassie vector |
+| Casts | CAST(x AS type), x::type | Stable | PostgreSQL-like |
 
-Constraint inventory
+## Cassie-Specific Query Features
 
-Category	Items
-Identity	PRIMARY KEY
-Nullability	NOT NULL
-Uniqueness	UNIQUE
-Validation	CHECK
-Defaults	DEFAULT
-References	FOREIGN KEY
-Generated	generated columns
+| Category | Supported Items | Status | Compatibility |
+| --- | --- | --- | --- |
+| Full-text | search(field, query), search_score(field, query), snippet(field, query) | Stable | Cassie-specific |
+| Vector | vector_score, vector_distance, cosine_distance, dot_product, l2_distance | Stable | Cassie-specific |
+| pgvector syntax | `<=>`, `<->`, `<#>`, vector(n) | Stable/Experimental | pgvector-style, not full extension parity |
+| Hybrid | hybrid_score(text_score, vector_score) | Stable | Cassie-specific |
+| Embeddings | provider, model, dimensions, metric validation | Experimental | Cassie-specific |
+| Projections | projection metadata, schema version, offset, lag, rebuild state | Experimental | Cassie-specific |
+| Time series | time_bucket fixed windows, exact-match materialized rollups over deterministic aggregates, retention, range queries | Experimental | Cassie-specific deterministic semantics |
+| Merkle | row hash, range hash, projection root, diff | Planned | Cassie-specific |
 
-Planner/executor inventory
+## Index Support
 
-Category	Items
-Frontend	lexer, parser, AST
-Binding	name resolution, type resolution, function resolution, parameter binding
-Plans	logical plan, physical plan
-Optimization	predicate pushdown, projection pruning, limit pushdown, index selection
-Sorting	full sort, partial sort, top-k
-Joins	nested-loop, hash join, merge join, semi join, anti join
-Aggregation	hash aggregate, sort aggregate
-Distinct	hash distinct, sort distinct
-Execution	row executor, batch/vectorized executor
-Caching	plan cache, function cache, prepared statement cache
-Adaptive	runtime stats, cardinality feedback, adaptive candidate sizing
-Parallel	parallel scan, parallel scoring, parallel aggregation
+| Category | Supported Items | Status | Compatibility |
+| --- | --- | --- | --- |
+| Primary | primary key index | Stable | PostgreSQL-like |
+| Secondary | single-column index | Stable | PostgreSQL-like |
+| Composite | multi-column index | Stable | PostgreSQL-like |
+| Unique | unique index / unique constraint | Stable | PostgreSQL-like |
+| Covering | INCLUDE (...) | Stable | PostgreSQL-like syntax with Cassie planner behavior |
+| Partial | CREATE INDEX ... WHERE ... | Experimental | PostgreSQL-like syntax; limited predicate implication |
+| Expression | CREATE INDEX ON table (lower(email)) | Experimental | PostgreSQL-like syntax; Cassie expression equivalence |
+| Full-text | inverted index | Stable | Cassie-specific |
+| Vector | brute force, HNSW, IVFFlat | Stable/Experimental | Cassie-specific with pgvector-style operators |
+| Hybrid | text candidate plus vector rerank metadata | Stable | Cassie-specific |
+| Column-store | USING column indexes, compressed column batches, covered scan acceleration, segment pruning | Stable | Cassie-specific |
+| Time-series | time-bucket index | Planned | Cassie-specific |
+| Merkle | integrity index | Planned | Cassie-specific |
 
-Protocol/API inventory
+## Constraint Support
 
-Category	Items
-PostgreSQL wire	startup, auth, simple query, extended query, parse, bind, describe, execute, sync, close
-Pgwire results	row description, data row, command complete, error response, ready for query
-Pgwire compatibility	prepared statements, portals, text/binary formats, catalog introspection
-HTTP	SQL query, search query, vector query, hybrid query, document APIs, admin APIs
-Observability	EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, index used, column-batch index used, aggregate acceleration, rows scanned
-Metrics	latency, throughput, errors, cache hit rate, projection lag, column-batch scans/fallbacks/byte totals/skipped segments/decoded columns, aggregate acceleration counters
+| Category | Supported Items | Status | Compatibility |
+| --- | --- | --- | --- |
+| Identity | PRIMARY KEY | Stable | PostgreSQL-like |
+| Nullability | NOT NULL | Stable | PostgreSQL-like |
+| Uniqueness | UNIQUE | Stable | PostgreSQL-like |
+| Validation | CHECK | Stable | PostgreSQL-like |
+| Defaults | DEFAULT | Stable | PostgreSQL-like |
+| References | FOREIGN KEY | Stable/Experimental | PostgreSQL-like with documented limits |
+| Generated | generated columns | Stable/Experimental | PostgreSQL-like with documented limits |
+
+## Planner and Executor Support
+
+| Category | Supported Items | Status | Compatibility |
+| --- | --- | --- | --- |
+| Frontend | lexer, parser, AST | Stable | Internal |
+| Binding | name resolution, type resolution, function resolution, parameter binding | Stable | Internal |
+| Plans | logical plan, physical plan | Stable | Internal |
+| Optimization | predicate pushdown, projection pruning, limit pushdown, index selection | Stable | Semantics-preserving |
+| Sorting | full sort, partial sort, top-k | Stable | Semantics-preserving |
+| Joins | nested-loop, hash join, merge join, semi join, anti join | Stable/Experimental | Semantics-preserving |
+| Aggregation | hash aggregate, sort aggregate | Stable | Semantics-preserving |
+| Distinct | hash distinct, sort distinct | Stable | Semantics-preserving |
+| Execution | row executor, batch/vectorized executor | Stable/Experimental | Internal |
+| Caching | plan cache, function cache, prepared statement cache | Stable/Experimental | Internal |
+| Adaptive | runtime stats, cardinality feedback, adaptive candidate sizing | Experimental | Internal |
+| Parallel | parallel scan, parallel scoring, parallel aggregation | Experimental | Semantics-preserving |
+
+## Protocol and API Support
+
+| Category | Supported Items | Status | Compatibility |
+| --- | --- | --- | --- |
+| PostgreSQL wire | startup, auth, simple query, extended query, parse, bind, describe, execute, sync, close | Stable | PostgreSQL-compatible subset |
+| Pgwire results | row description, data row, command complete, error response, ready for query | Stable | PostgreSQL-compatible subset |
+| Pgwire compatibility | prepared statements, portals, text/binary formats, catalog introspection | Stable/Experimental | PostgreSQL-compatible subset |
+| HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin APIs | Stable/Experimental | Cassie REST API |
+| Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, index used, column-batch index used, aggregate acceleration, rollup rewrite selected, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
+| Metrics | latency, throughput, errors, cache hit rate, projection lag, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
+
+## Compatibility Notes
+
+- See [PostgreSQL Compatibility](postgres-compatibility.md) for supported, unsupported, and intentionally different PostgreSQL behavior.
+- See [Product Roadmap](product-roadmap.md) for milestone grouping and remaining roadmap themes.
+- See [Definition of Done](definition-of-done.md) for how a feature moves from implemented to stable or production-ready.

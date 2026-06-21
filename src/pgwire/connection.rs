@@ -498,7 +498,11 @@ pub async fn run_connection(
                                     let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
                                     let parameter_count = crate::sql::parameter_count(&parsed);
                                     let parameter_types =
-                                        crate::sql::parameter_type_oids(&parsed, &parameter_types);
+                                        crate::sql::parameter_type_oids_with_catalog(
+                                            &parsed,
+                                            &parameter_types,
+                                            &cassie.catalog,
+                                        );
                                     let existed = state.prepared.insert(
                                         name.clone(),
                                         PreparedStatement {

@@ -245,7 +245,26 @@ impl Cassie {
         };
         let collection_schema = self.catalog.get_schema(&physical.logical.collection);
 
-        if physical.logical.command.is_some() {
+        if let Some(command) = physical.logical.command.as_ref() {
+            let returning = match command {
+                crate::planner::logical::LogicalCommand::Insert(statement) => {
+                    Some(statement.returning.as_slice())
+                }
+                crate::planner::logical::LogicalCommand::Update(statement) => {
+                    Some(statement.returning.as_slice())
+                }
+                crate::planner::logical::LogicalCommand::Delete(statement) => {
+                    Some(statement.returning.as_slice())
+                }
+                _ => None,
+            };
+            if let Some(returning) = returning {
+                return Ok(crate::executor::columns_from_projection(
+                    returning,
+                    collection_schema.as_ref(),
+                    &user_functions,
+                ));
+            }
             return Ok(Vec::new());
         }
 
@@ -605,7 +624,9 @@ impl Cassie {
                         "transaction is failed; rollback required".to_string(),
                     ));
                 }
+                let mut changed_collections = Vec::new();
                 for (collection, writes) in session.transaction_writes() {
+                    changed_collections.push(collection.clone());
                     for (id, change) in writes {
                         let result = match change {
                             TransactionRowChange::Upsert(payload) => self
@@ -622,6 +643,15 @@ impl Cassie {
                         }
                         self.refresh_cardinality_stats(&collection)?;
                     }
+                }
+                let controls = self.runtime.query_controls(std::time::Instant::now());
+                for collection in changed_collections {
+                    crate::executor::refresh_rollups_for_source_external(
+                        self,
+                        &collection,
+                        &controls,
+                    )
+                    .map_err(|error| CassieError::Execution(format!("{error:?}")))?;
                 }
                 session.commit_transaction();
                 "COMMIT"
@@ -709,6 +739,8 @@ impl Cassie {
         let join_strategy = physical.join_strategy.as_deref().unwrap_or("none");
         let aggregate_parallel = physical.parallel_aggregate_candidate;
         let aggregate_acceleration = physical.aggregate_acceleration;
+        let rollup_rewrite = crate::executor::rollup_rewrite_name_for_plan(self, &physical.logical)
+            .unwrap_or_else(|| "none".to_string());
         let candidate_budget = physical.top_k_limit.map(|top_needed| {
             let limits = self.runtime.limits();
             let feedback_budget = self
@@ -725,7 +757,7 @@ impl Cassie {
             .unwrap_or_else(|| "none".to_string());
         let estimates = &physical.estimates;
         let mut plan = format!(
-            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} covered_index={} column_batch_index={} prefilter={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} aggregate_parallel={} aggregate_acceleration={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
+            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} covered_index={} column_batch_index={} prefilter={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
             physical.collection,
             if operators.is_empty() {
                 "Command".to_string()
@@ -748,6 +780,7 @@ impl Cassie {
             join_strategy,
             aggregate_parallel,
             aggregate_acceleration,
+            rollup_rewrite,
             estimates.scan_rows,
             estimates.index_rows,
             estimates.join_rows,

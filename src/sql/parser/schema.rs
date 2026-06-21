@@ -539,6 +539,8 @@ pub(super) fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlEr
         primary_key: false,
         default_value: None,
         check: None,
+        references_table: None,
+        references_field: None,
     };
 
     let mut saw_constraint = false;
@@ -597,9 +599,13 @@ pub(super) fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlEr
                 break;
             }
             "references" => {
-                return Err(SqlError(
-                    "foreign key constraints are not supported at this stage".to_string(),
-                ));
+                saw_constraint = true;
+                let reference = parts.next().ok_or_else(|| {
+                    SqlError("REFERENCES requires target table and column".into())
+                })?;
+                let (table, field) = parse_references_target(&reference)?;
+                constraint.references_table = Some(table);
+                constraint.references_field = Some(field);
             }
             other => {
                 return Err(SqlError(format!("unsupported constraint '{other}'")));
@@ -620,6 +626,29 @@ pub(super) fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlEr
         data_type,
         constraints: vec![constraint],
     })
+}
+
+fn parse_references_target(raw: &str) -> Result<(String, String), SqlError> {
+    let raw = raw.trim();
+    let open = raw
+        .find('(')
+        .ok_or_else(|| SqlError("REFERENCES requires target column list".into()))?;
+    let close = find_matching_paren(raw, open)
+        .ok_or_else(|| SqlError("REFERENCES requires closing ')'".into()))?;
+    let table = raw[..open].trim();
+    if table.is_empty() {
+        return Err(SqlError("REFERENCES requires target table".into()));
+    }
+    let field = raw[open + 1..close].trim();
+    if field.is_empty() {
+        return Err(SqlError("REFERENCES requires target column".into()));
+    }
+    if field.split(',').count() != 1 {
+        return Err(SqlError(
+            "REFERENCES supports exactly one target column".into(),
+        ));
+    }
+    Ok((table.to_string(), field.to_string()))
 }
 
 pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlError> {

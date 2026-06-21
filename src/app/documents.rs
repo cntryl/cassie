@@ -79,6 +79,7 @@ impl Cassie {
             exclude_id,
         )?;
         self.validate_unique_indexes_for_session(session, collection, &payload, exclude_id)?;
+        self.validate_foreign_keys_for_session(session, &payload, &constraints)?;
 
         Ok(payload)
     }
@@ -736,6 +737,45 @@ impl Cassie {
         Ok(())
     }
 
+    fn validate_foreign_keys_for_session(
+        &self,
+        session: Option<&CassieSession>,
+        payload: &serde_json::Value,
+        constraints: &[FieldConstraint],
+    ) -> Result<(), CassieError> {
+        let object = payload.as_object().ok_or_else(|| {
+            CassieError::InvalidVector("document payload must be a JSON object".to_string())
+        })?;
+
+        for constraint in constraints {
+            let (Some(table), Some(field)) = (
+                constraint.references_table.as_deref(),
+                constraint.references_field.as_deref(),
+            ) else {
+                continue;
+            };
+
+            let Some(value) = object.get(&constraint.field) else {
+                continue;
+            };
+            if value.is_null() {
+                continue;
+            }
+
+            if self
+                .find_document_id_by_fields(session, table, &[(field, value)], None)?
+                .is_none()
+            {
+                return Err(CassieError::InvalidVector(format!(
+                    "foreign key constraint '{}' references missing '{}.{}'",
+                    constraint.field, table, field
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
     fn validate_unique_indexes_for_session(
         &self,
         session: Option<&CassieSession>,
@@ -781,7 +821,7 @@ impl Cassie {
         Ok(())
     }
 
-    fn value_exists_for_collection_field(
+    pub(crate) fn value_exists_for_collection_field(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -806,7 +846,7 @@ impl Cassie {
         Ok(false)
     }
 
-    fn values_exist_for_collection_fields(
+    pub(crate) fn values_exist_for_collection_fields(
         &self,
         session: Option<&CassieSession>,
         collection: &str,
@@ -831,6 +871,33 @@ impl Cassie {
         }
 
         Ok(false)
+    }
+
+    pub(crate) fn find_document_id_by_fields(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        values: &[(&str, &serde_json::Value)],
+        exclude_id: Option<&str>,
+    ) -> Result<Option<String>, CassieError> {
+        for document in self
+            .scan_documents_batched_for_session(session, collection, 1024)?
+            .into_iter()
+            .flatten()
+        {
+            if exclude_id.is_some_and(|id| document.id == id) {
+                continue;
+            }
+
+            if values
+                .iter()
+                .all(|(field, value)| document.payload.get(*field) == Some(*value))
+            {
+                return Ok(Some(document.id));
+            }
+        }
+
+        Ok(None)
     }
 
     fn apply_vector_indexes(
@@ -875,64 +942,6 @@ impl Cassie {
                         .collect(),
                 ),
             );
-        }
-
-        Ok(())
-    }
-
-    pub(crate) fn validate_embedding_compatibility(
-        &self,
-        index: &VectorIndexRecord,
-        requested_metric: Option<&DistanceMetric>,
-    ) -> Result<(), CassieError> {
-        if self.embedding_provider.provider_name() != index.metadata.provider {
-            return Err(CassieError::InvalidEmbedding(format!(
-                "embedding provider mismatch: index requires '{}', active is '{}'",
-                index.metadata.provider,
-                self.embedding_provider.provider_name()
-            )));
-        }
-
-        if self.embedding_provider.model_name() != index.metadata.model {
-            return Err(CassieError::InvalidEmbedding(format!(
-                "embedding model mismatch: index requires '{}', active is '{}'",
-                index.metadata.model,
-                self.embedding_provider.model_name()
-            )));
-        }
-
-        if self.embedding_provider.dimensions() != index.metadata.dimensions {
-            return Err(CassieError::InvalidEmbedding(format!(
-                "embedding dimension mismatch: index requires {}, active provider has {}",
-                index.metadata.dimensions,
-                self.embedding_provider.dimensions()
-            )));
-        }
-
-        if let Some(metric) = requested_metric {
-            if *metric != index.metadata.metric {
-                return Err(CassieError::InvalidEmbedding(format!(
-                    "embedding metric mismatch: index requires '{}', request requested '{}'",
-                    index.metadata.metric.as_str(),
-                    metric.as_str()
-                )));
-            }
-        }
-
-        Ok(())
-    }
-
-    pub(crate) fn validate_embedding_payload(
-        &self,
-        index: &VectorIndexRecord,
-        embedding: &Embedding,
-    ) -> Result<(), CassieError> {
-        if embedding.values.len() != index.metadata.dimensions {
-            return Err(CassieError::InvalidEmbedding(format!(
-                "embedding dimension mismatch: index requires {} and got {}",
-                index.metadata.dimensions,
-                embedding.values.len()
-            )));
         }
 
         Ok(())

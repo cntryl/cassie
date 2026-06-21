@@ -131,6 +131,15 @@ impl Cassie {
             self.catalog.register_view(metadata);
         }
 
+        let rollups = self.midge.list_rollups().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list rollups: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for metadata in rollups {
+            self.catalog.register_rollup(metadata);
+        }
+
         self.hydrate_roles()?;
         self.runtime.record_catalog_hydration(started_at.elapsed());
         Ok(())

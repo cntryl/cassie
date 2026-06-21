@@ -8,14 +8,9 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
         return Err(SqlError("INSERT requires INTO clause".into()));
     }
 
-    if find_top_level_keyword(&trimmed.to_lowercase(), 0, "on conflict").is_some() {
-        return Err(SqlError(
-            "INSERT ON CONFLICT is not supported in this version".into(),
-        ));
-    }
-
     let remainder = trimmed[11..].trim();
     let (statement_source, returning) = split_statement_and_returning(remainder)?;
+    let (statement_source, on_conflict) = split_insert_on_conflict(statement_source)?;
     if statement_source.trim().is_empty() {
         return Err(SqlError("INSERT requires VALUES or SELECT source".into()));
     }
@@ -58,6 +53,7 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
                 table,
                 columns,
                 source: InsertSource::Values(values),
+                on_conflict,
                 returning,
             }),
         });
@@ -76,6 +72,7 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
                 table,
                 columns,
                 source: InsertSource::Select(Box::new(select)),
+                on_conflict,
                 returning: Vec::new(),
             }),
         });
@@ -92,8 +89,93 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
             table,
             columns,
             source: InsertSource::Select(Box::new(select)),
+            on_conflict,
             returning,
         }),
+    })
+}
+
+fn split_insert_on_conflict(
+    raw: &str,
+) -> Result<(&str, Option<crate::sql::ast::InsertConflictClause>), SqlError> {
+    let Some(pos) = find_top_level_keyword(raw, 0, "on conflict") else {
+        return Ok((raw, None));
+    };
+    let statement = raw[..pos].trim();
+    let clause = raw[pos..].trim();
+    Ok((statement, Some(parse_on_conflict_clause(clause)?)))
+}
+
+fn parse_on_conflict_clause(raw: &str) -> Result<crate::sql::ast::InsertConflictClause, SqlError> {
+    let lower = raw.to_ascii_lowercase();
+    if !lower.starts_with("on conflict") {
+        return Err(SqlError("invalid ON CONFLICT clause".into()));
+    }
+    let remainder = raw["on conflict".len()..].trim();
+    let do_pos = find_top_level_keyword(remainder, 0, "do")
+        .ok_or_else(|| SqlError("ON CONFLICT requires DO clause".into()))?;
+    let target_raw = remainder[..do_pos].trim();
+    let action_raw = remainder[do_pos + 2..].trim();
+
+    let target_fields = if target_raw.is_empty() {
+        Vec::new()
+    } else {
+        let fields = strip_parentheses(target_raw)
+            .ok_or_else(|| SqlError("ON CONFLICT target must be parenthesized".into()))?;
+        split_csv(fields)
+            .into_iter()
+            .map(|field| {
+                let field = field.trim();
+                if field.is_empty() {
+                    Err(SqlError("ON CONFLICT target field cannot be empty".into()))
+                } else {
+                    Ok(field.to_string())
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?
+    };
+
+    let action = parse_on_conflict_action(action_raw)?;
+    Ok(crate::sql::ast::InsertConflictClause {
+        target_fields,
+        action,
+    })
+}
+
+fn parse_on_conflict_action(raw: &str) -> Result<crate::sql::ast::InsertConflictAction, SqlError> {
+    let lower = raw.to_ascii_lowercase();
+    if lower == "nothing" {
+        return Ok(crate::sql::ast::InsertConflictAction::DoNothing);
+    }
+    if !lower.starts_with("update set") {
+        return Err(SqlError(
+            "ON CONFLICT supports DO NOTHING or DO UPDATE SET".into(),
+        ));
+    }
+
+    let after_set = raw["update set".len()..].trim();
+    let (assignments_raw, trailing) = split_trailing_update_clauses(after_set)?;
+    let assignments = parse_assignment_list(assignments_raw)?;
+    if assignments.is_empty() {
+        return Err(SqlError(
+            "ON CONFLICT DO UPDATE SET requires at least one assignment".into(),
+        ));
+    }
+    let filter = if trailing.trim().is_empty() {
+        None
+    } else {
+        let (filter, returning) = parse_filter_and_returning(trailing)?;
+        if !returning.is_empty() {
+            return Err(SqlError(
+                "ON CONFLICT DO UPDATE cannot contain RETURNING inside clause".into(),
+            ));
+        }
+        filter
+    };
+
+    Ok(crate::sql::ast::InsertConflictAction::DoUpdate {
+        assignments,
+        filter,
     })
 }
 

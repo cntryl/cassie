@@ -50,6 +50,14 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
         ],
         "pg_catalog.pg_constraint" => vec![text("conname"), text("conrelid"), text("contype")],
         "pg_catalog.pg_roles" => vec![text("rolname"), bool("rolcanlogin"), bool("rolsuper")],
+        "pg_catalog.pg_rollups" => vec![
+            text("rollup_name"),
+            text("source_collection"),
+            text("output_collection"),
+            text("state"),
+            int("lag_rows"),
+            text("bucket_expr"),
+        ],
         "pg_catalog.pg_type" => vec![
             int("oid"),
             text("typname"),
@@ -87,6 +95,20 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                     ("rolname".to_string(), Value::String(role.name)),
                     ("rolcanlogin".to_string(), Value::Bool(role.can_login)),
                     ("rolsuper".to_string(), Value::Bool(role.is_admin)),
+                ]
+            })
+            .collect(),
+        "pg_catalog.pg_rollups" => catalog
+            .list_rollups()
+            .into_iter()
+            .map(|rollup| {
+                vec![
+                    string("rollup_name", rollup.name),
+                    string("source_collection", rollup.source_collection),
+                    string("output_collection", rollup.output_collection),
+                    string("state", rollup.state.as_str()),
+                    int_value("lag_rows", rollup.refresh_cursor.lag_rows as i64),
+                    string("bucket_expr", rollup.bucket_expr),
                 ]
             })
             .collect(),
@@ -343,6 +365,13 @@ fn information_schema_table_constraints(catalog: &Catalog) -> Vec<VirtualRow> {
                     "CHECK",
                 ));
             }
+            if constraint.references_table.is_some() && constraint.references_field.is_some() {
+                rows.push(table_constraint_row(
+                    &collection.name,
+                    &constraint.field,
+                    "FOREIGN KEY",
+                ));
+            }
         }
     }
     rows.sort_by_key(row_sort_key);
@@ -353,7 +382,8 @@ fn information_schema_key_column_usage(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
     for collection in catalog.list_collections() {
         for constraint in catalog.get_constraints(&collection.name) {
-            if constraint.primary_key || constraint.unique {
+            if constraint.primary_key || constraint.unique || constraint.references_table.is_some()
+            {
                 rows.push(vec![
                     string("table_schema", "public"),
                     string("table_name", &collection.name),
@@ -365,6 +395,8 @@ fn information_schema_key_column_usage(catalog: &Catalog) -> Vec<VirtualRow> {
                             &constraint.field,
                             if constraint.primary_key {
                                 "primary_key"
+                            } else if constraint.references_table.is_some() {
+                                "foreign_key"
                             } else {
                                 "unique"
                             },
@@ -516,6 +548,9 @@ fn pg_constraint(catalog: &Catalog) -> Vec<VirtualRow> {
             }
             if constraint.not_null {
                 rows.push(pg_constraint_row(&collection.name, &constraint.field, "n"));
+            }
+            if constraint.references_table.is_some() && constraint.references_field.is_some() {
+                rows.push(pg_constraint_row(&collection.name, &constraint.field, "f"));
             }
         }
     }

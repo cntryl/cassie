@@ -32,6 +32,74 @@ pub fn parameter_type_oids(statement: &ParsedStatement, provided: &[i32]) -> Vec
     oids
 }
 
+pub fn parameter_type_oids_with_catalog(
+    statement: &ParsedStatement,
+    provided: &[i32],
+    catalog: &crate::catalog::Catalog,
+) -> Vec<i32> {
+    let mut oids = parameter_type_oids(statement, provided);
+    infer_parameter_type_oids_query(&statement.statement, catalog, &mut oids);
+    oids
+}
+
+fn infer_parameter_type_oids_query(
+    statement: &QueryStatement,
+    catalog: &crate::catalog::Catalog,
+    oids: &mut [i32],
+) {
+    match statement {
+        QueryStatement::Insert(statement) => {
+            infer_insert_parameter_type_oids(statement, catalog, oids)
+        }
+        QueryStatement::Explain(statement) => {
+            infer_parameter_type_oids_query(&statement.statement.statement, catalog, oids);
+        }
+        _ => {}
+    }
+}
+
+fn infer_insert_parameter_type_oids(
+    statement: &ast::InsertStatement,
+    catalog: &crate::catalog::Catalog,
+    oids: &mut [i32],
+) {
+    if oids.len() <= 1 {
+        return;
+    }
+    let ast::InsertSource::Values(rows) = &statement.source else {
+        return;
+    };
+    let Some(schema) = catalog.get_schema(&statement.table) else {
+        return;
+    };
+    let fields = if statement.columns.is_empty() {
+        schema.fields
+    } else {
+        statement
+            .columns
+            .iter()
+            .filter_map(|column| {
+                schema
+                    .fields
+                    .iter()
+                    .find(|field| field.name.eq_ignore_ascii_case(column))
+                    .cloned()
+            })
+            .collect::<Vec<_>>()
+    };
+    for row in rows {
+        for (expr, field) in row.iter().zip(fields.iter()) {
+            if let ast::Expr::Param(index) = expr {
+                if let Some(oid) = oids.get_mut(*index) {
+                    if *oid == UNKNOWN_PARAMETER_TYPE_OID {
+                        *oid = field.data_type.type_oid() as i32;
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn parameter_count_query(statement: &QueryStatement) -> usize {
     match statement {
         QueryStatement::Explain(statement) => parameter_count(&statement.statement),
@@ -52,6 +120,9 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         QueryStatement::DropRole(_) => 0,
         QueryStatement::CreateIndex(_) => 0,
         QueryStatement::DropIndex(_) => 0,
+        QueryStatement::CreateRollup(_) => 0,
+        QueryStatement::RefreshRollup(_) => 0,
+        QueryStatement::DropRollup(_) => 0,
         QueryStatement::CreateFunction(_) => 0,
         QueryStatement::DropFunction(_) => 0,
         QueryStatement::CreateProcedure(_) => 0,
@@ -152,6 +223,20 @@ fn parameter_count_insert(statement: &ast::InsertStatement) -> usize {
     }
     if let ast::InsertSource::Select(select) = &statement.source {
         count = count.max(parameter_count_select(select));
+    }
+    if let Some(on_conflict) = &statement.on_conflict {
+        if let ast::InsertConflictAction::DoUpdate {
+            assignments,
+            filter,
+        } = &on_conflict.action
+        {
+            for (_, expr) in assignments {
+                count = count.max(parameter_count_expr(expr));
+            }
+            if let Some(filter) = filter {
+                count = count.max(parameter_count_expr(filter));
+            }
+        }
     }
     for item in &statement.returning {
         count = count.max(parameter_count_select_item(item));

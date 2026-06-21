@@ -13,7 +13,7 @@ use crate::catalog::{
     CollectionCardinalityStats, ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchFieldSummary,
     ColumnBatchMetadata, ColumnBatchPayload, ColumnBatchRow, ColumnBatchSegmentMeta,
     ColumnBatchValueRun, FieldConstraint, IndexKind, IndexMeta, NamespaceMeta, ProjectionMeta,
-    RoleMeta,
+    RoleMeta, RollupMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord};
 use crate::midge::row_blob::{
@@ -45,6 +45,7 @@ const FUNCTION_PREFIX: &str = "__cassie__/function/";
 const PROCEDURE_PREFIX: &str = "__cassie__/procedure/";
 const VIEW_PREFIX: &str = "__cassie__/view/";
 const ROLE_PREFIX: &str = "__cassie__/role/";
+const ROLLUP_PREFIX: &str = "__cassie__/rollup/v1/";
 const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
 const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
 const PROJECTION_KEY_PREFIX: &str = "__cassie__/projection/";
@@ -396,6 +397,14 @@ impl Midge {
 
     fn index_key(collection: &str, name: &str) -> Vec<u8> {
         format!("{INDEX_PREFIX}{collection}/{name}").into_bytes()
+    }
+
+    fn rollup_prefix() -> Vec<u8> {
+        ROLLUP_PREFIX.as_bytes().to_vec()
+    }
+
+    fn rollup_key(name: &str) -> Vec<u8> {
+        format!("{ROLLUP_PREFIX}{}", name.trim().to_ascii_lowercase()).into_bytes()
     }
 
     fn index_prefix() -> Vec<u8> {

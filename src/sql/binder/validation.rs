@@ -60,7 +60,10 @@ pub(super) fn parsed_statement_contains_parameters(statement: &ParsedStatement) 
         | QueryStatement::DropFunction(_)
         | QueryStatement::CreateProcedure(_)
         | QueryStatement::DropProcedure(_)
-        | QueryStatement::CallProcedure(_) => false,
+        | QueryStatement::CallProcedure(_)
+        | QueryStatement::CreateRollup(_)
+        | QueryStatement::RefreshRollup(_)
+        | QueryStatement::DropRollup(_) => false,
     }
 }
 

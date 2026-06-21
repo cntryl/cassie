@@ -3,15 +3,15 @@ use super::*;
 
 type SourceExecution<'a> = Result<(Vec<Batch>, Vec<String>), QueryError>;
 
-struct SourceExecutionEnv<'a> {
-    cassie: &'a Cassie,
-    session: Option<&'a CassieSession>,
-    user_functions: &'a HashMap<String, FunctionMeta>,
-    params: &'a [Value],
-    controls: &'a QueryExecutionControls,
+pub(super) struct SourceExecutionEnv<'a> {
+    pub(super) cassie: &'a Cassie,
+    pub(super) session: Option<&'a CassieSession>,
+    pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
+    pub(super) params: &'a [Value],
+    pub(super) controls: &'a QueryExecutionControls,
 }
 
-fn execute_query_source<'a>(
+pub(super) fn execute_query_source<'a>(
     env: &'a SourceExecutionEnv<'a>,
     source: &'a QuerySource,
     cte_context: &'a mut CteContext,
@@ -445,7 +445,11 @@ fn apply_set_operation(
     }
 }
 
-fn slice_rows(rows: Vec<BatchRow>, offset: Option<i64>, limit: Option<i64>) -> Vec<BatchRow> {
+pub(super) fn slice_rows(
+    rows: Vec<BatchRow>,
+    offset: Option<i64>,
+    limit: Option<i64>,
+) -> Vec<BatchRow> {
     let offset = offset
         .and_then(|value| usize::try_from(value.max(0)).ok())
         .unwrap_or(0);

@@ -19,5 +19,6 @@
 .env.*
 
 .cassie/
+.staging/
 inventory.md
 *.log

@@ -5,6 +5,7 @@ pub mod indexes;
 pub mod metadata;
 pub mod programs;
 pub mod roles;
+pub mod rollups;
 pub mod schemas;
 pub mod virtual_views;
 
@@ -24,4 +25,7 @@ pub use indexes::{
 pub use metadata::Catalog;
 pub use programs::{FunctionArgMeta, FunctionMeta, ProcedureMeta, ViewMeta, Volatility};
 pub use roles::{normalize_role_name, RoleMeta};
+pub use rollups::{
+    output_collection_name, RollupAggregateMeta, RollupMeta, RollupRefreshCursor, RollupState,
+};
 pub use schemas::{CollectionSchema, FieldMeta};

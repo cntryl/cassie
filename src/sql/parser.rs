@@ -700,6 +700,7 @@ fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement, SqlError> 
     let (table, remainder) = parse_index_target(remainder)?;
     let (kind, remainder) = parse_index_kind(remainder)?;
     let (fields, remainder) = parse_index_fields(remainder)?;
+    let (include_fields, remainder) = parse_index_include_fields(remainder)?;
     let (options, remainder) = parse_index_options(remainder)?;
 
     if !remainder.is_empty() {
@@ -718,6 +719,7 @@ fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement, SqlError> 
             name: name.to_string(),
             table: table.to_string(),
             fields,
+            include_fields,
             if_not_exists,
             unique,
             kind,
@@ -2286,6 +2288,46 @@ fn parse_index_fields(raw: &str) -> Result<(Vec<String>, &str), SqlError> {
     }
 
     Ok((fields, before))
+}
+
+fn parse_index_include_fields(raw: &str) -> Result<(Vec<String>, &str), SqlError> {
+    let raw = raw.trim();
+    if raw.is_empty() || !starts_with_keyword(raw, "include") {
+        return Ok((Vec::new(), raw));
+    }
+
+    let body = raw["include".len()..].trim_start();
+    if !body.starts_with('(') {
+        return Err(SqlError(
+            "INCLUDE requires field list in parentheses".to_string(),
+        ));
+    }
+    let close = body
+        .find(')')
+        .ok_or_else(|| SqlError("INCLUDE field list missing closing ')'".to_string()))?;
+    let field_spec = &body[1..close];
+    if field_spec.trim().is_empty() {
+        return Err(SqlError("INCLUDE field cannot be empty".to_string()));
+    }
+
+    let mut fields = Vec::new();
+    for field in split_csv(field_spec) {
+        let field = field.trim();
+        if field.is_empty() {
+            return Err(SqlError("INCLUDE field cannot be empty".to_string()));
+        }
+        if field
+            .chars()
+            .any(|character| character.is_whitespace() || matches!(character, '(' | ')' | ';'))
+        {
+            return Err(SqlError(
+                "expression INCLUDE definitions are not supported".to_string(),
+            ));
+        }
+        fields.push(field.to_string());
+    }
+
+    Ok((fields, body[close + 1..].trim_start()))
 }
 
 fn parse_index_options(

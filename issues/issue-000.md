@@ -27,7 +27,6 @@ Maintain a live coverage index that links every active roadmap concept to its im
 
 ## Coverage
 
-- [Issue 085: INCLUDE Columns](issue-085.md) - V2 - Query Performance / Indexes
 - [Issue 086: Zero-Copy Value Access](issue-086.md) - V2 - Query Performance / Execution
 - [Issue 087: Buffer Reuse](issue-087.md) - V2 - Query Performance / Execution
 - [Issue 088: Allocation Reduction](issue-088.md) - V2 - Query Performance / Execution

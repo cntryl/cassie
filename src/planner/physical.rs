@@ -403,6 +403,7 @@ fn plan_is_covered_by_index(plan: &LogicalPlan, index: &IndexMeta) -> bool {
     let covered_fields = index
         .normalized_fields()
         .into_iter()
+        .chain(index.normalized_include_fields())
         .map(|field| field.to_ascii_lowercase())
         .collect::<BTreeSet<_>>();
     let mut needed_fields = BTreeSet::new();

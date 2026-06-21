@@ -470,16 +470,20 @@ fn pg_indexes(catalog: &Catalog) -> Vec<VirtualRow> {
                 string("schemaname", "public"),
                 string("tablename", &index.collection),
                 string("indexname", &index.name),
-                string(
-                    "indexdef",
+                string("indexdef", {
+                    let include = if index.include_fields.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" INCLUDE ({})", index.include_fields.join(", "))
+                    };
                     format!(
                         "CREATE {}INDEX {} ON {} ({})",
                         if index.unique { "UNIQUE " } else { "" },
                         index.name,
                         index.collection,
                         index.normalized_fields().join(", ")
-                    ),
-                ),
+                    ) + &include
+                }),
             ]
         })
         .collect()

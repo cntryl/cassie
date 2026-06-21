@@ -124,6 +124,8 @@ Non-goals for P1:
 
 Covering indexes are the highest-value P1 optimization because they can bypass row blob fetches for common projection queries.
 
+Current V2 support parses, binds, persists, hydrates, and introspects scalar `INCLUDE` columns. Covered-query planning treats scalar index keys plus included columns as available projection fields; the versioned physical index-payload key/value shape below remains the target shape for deeper storage-level acceleration.
+
 Example:
 
 ```sql
@@ -262,4 +264,3 @@ The P0/P1 index work should move these targets:
 | Upsert with index maintenance | `<750 us` | `<500 us` |
 | Delete with index maintenance | `<750 us` | `<500 us` |
 | Index rebuild 10k | `<8 ms` | `<5 ms` |
-

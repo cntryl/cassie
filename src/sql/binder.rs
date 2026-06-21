@@ -619,11 +619,47 @@ fn bind_create_index(
         ));
     }
 
+    let include_fields = statement
+        .include_fields
+        .iter()
+        .map(|field| field.trim().to_string())
+        .filter(|field| !field.is_empty())
+        .collect::<Vec<_>>();
+    if !include_fields.is_empty() && !matches!(statement.kind, crate::catalog::IndexKind::Scalar) {
+        return Err(CassieError::Planner(
+            "INCLUDE columns are only supported for scalar indexes".into(),
+        ));
+    }
+
     for field in &fields {
         let exists = schema.fields.iter().any(|entry| entry.name == *field);
         if !exists {
             return Err(CassieError::Planner(format!(
                 "index field '{field}' does not exist on collection '{table}'"
+            )));
+        }
+    }
+    let mut seen_include_fields = std::collections::BTreeSet::new();
+    let key_fields = fields
+        .iter()
+        .map(|field| field.to_ascii_lowercase())
+        .collect::<std::collections::BTreeSet<_>>();
+    for field in &include_fields {
+        let normalized = field.to_ascii_lowercase();
+        if !seen_include_fields.insert(normalized.clone()) {
+            return Err(CassieError::Planner(format!(
+                "INCLUDE field '{field}' is duplicated"
+            )));
+        }
+        if key_fields.contains(&normalized) {
+            return Err(CassieError::Planner(format!(
+                "INCLUDE field '{field}' duplicates an index key field"
+            )));
+        }
+        let exists = schema.fields.iter().any(|entry| entry.name == *field);
+        if !exists {
+            return Err(CassieError::Planner(format!(
+                "INCLUDE field '{field}' does not exist on collection '{table}'"
             )));
         }
     }
@@ -782,6 +818,7 @@ fn bind_create_index(
     statement.table = table;
     statement.name = name;
     statement.fields = fields;
+    statement.include_fields = include_fields;
     Ok(statement)
 }
 

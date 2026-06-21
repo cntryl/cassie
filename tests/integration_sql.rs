@@ -2757,6 +2757,204 @@ fn should_preserve_covering_scalar_index_order_after_restart() {
 }
 
 #[test]
+fn should_persist_include_index_metadata_after_restart() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("include_metadata_restart");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE sql_include_metadata_restart (email TEXT, title TEXT, body TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE INDEX sql_include_metadata_restart_email_idx ON sql_include_metadata_restart USING btree (email) INCLUDE (title, body)",
+                    vec![],
+                )
+                .unwrap();
+        }
+
+        // Act
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().unwrap();
+        let index = restarted
+            .catalog
+            .get_index(
+                "sql_include_metadata_restart",
+                "sql_include_metadata_restart_email_idx",
+            )
+            .expect("index should hydrate");
+        let session = restarted.create_session("tester", None);
+        let introspection = restarted
+            .execute_sql(
+                &session,
+                "SELECT indexdef FROM pg_catalog.pg_indexes WHERE tablename = 'sql_include_metadata_restart'",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            index.include_fields,
+            vec!["title".to_string(), "body".to_string()]
+        );
+        let Value::String(indexdef) = &introspection.rows[0][0] else {
+            panic!("expected textual index definition");
+        };
+        assert!(indexdef.contains("INCLUDE (title, body)"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_use_include_columns_for_covered_projection() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("include_covered_projection");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_include_covered_projection (email TEXT, title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO sql_include_covered_projection (email, title) VALUES ('a@example.com', 'alpha')",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX sql_include_covered_projection_email_idx ON sql_include_covered_projection USING btree (email) INCLUDE (title)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM sql_include_covered_projection WHERE email = 'a@example.com'",
+                vec![],
+            )
+            .unwrap();
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM sql_include_covered_projection WHERE email = 'a@example.com'",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows, vec![vec![Value::String("alpha".to_string())]]);
+        let Value::String(plan) = &explain.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("covered_index=true"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_maintain_include_values_after_update_delete() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("include_update_delete");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_include_update_delete (email TEXT, title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX sql_include_update_delete_email_idx ON sql_include_update_delete USING btree (email) INCLUDE (title)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO sql_include_update_delete (email, title) VALUES ('a@example.com', 'alpha')",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "UPDATE sql_include_update_delete SET title = 'bravo' WHERE email = 'a@example.com'",
+                vec![],
+            )
+            .unwrap();
+        let updated = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM sql_include_update_delete WHERE email = 'a@example.com'",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "DELETE FROM sql_include_update_delete WHERE email = 'a@example.com'",
+                vec![],
+            )
+            .unwrap();
+        let deleted = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM sql_include_update_delete WHERE email = 'a@example.com'",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(updated.rows, vec![vec![Value::String("bravo".to_string())]]);
+        assert!(deleted.rows.is_empty());
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_explain_vector_prefilter_for_indexed_equality_filter() {
     // Arrange
     with_fallback();

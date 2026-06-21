@@ -50,6 +50,7 @@ fn register_scalar_index(catalog: &Catalog, collection: &str, name: &str, fields
         name: name.to_string(),
         field: fields.first().cloned().unwrap_or_default(),
         fields,
+        include_fields: Vec::new(),
         kind: IndexKind::Scalar,
         unique: false,
         options: BTreeMap::new(),
@@ -278,6 +279,7 @@ fn should_select_scalar_index_for_equality_filter() {
             name: "planner_index_aware_title_idx".to_string(),
             field: "title".to_string(),
             fields: vec!["title".to_string()],
+            include_fields: Vec::new(),
             kind: cassie::catalog::IndexKind::Scalar,
             unique: false,
             options: Default::default(),
@@ -419,6 +421,7 @@ fn should_use_hydrated_cardinality_estimates_for_index_plans() {
         name: "planner_cardinality_hydrated_title_idx".to_string(),
         field: "title".to_string(),
         fields: vec!["title".to_string()],
+        include_fields: Vec::new(),
         kind: cassie::catalog::IndexKind::Scalar,
         unique: false,
         options: Default::default(),
@@ -716,6 +719,50 @@ fn should_leave_noncovered_scalar_index_plan_uncovered() {
             Some("planner_covering_fallback_title_idx")
         );
         assert!(!physical_plan.covered_index);
+    });
+}
+
+#[test]
+fn should_mark_include_column_plan_as_covered() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_include_covering");
+    catalog.register_index(IndexMeta {
+        collection: "planner_include_covering".to_string(),
+        name: "planner_include_covering_title_idx".to_string(),
+        field: "title".to_string(),
+        fields: vec!["title".to_string()],
+        include_fields: vec!["body".to_string()],
+        kind: IndexKind::Scalar,
+        unique: false,
+        options: BTreeMap::new(),
+    });
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT body FROM planner_include_covering WHERE title = 'alpha'",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build_with_indexes(
+            logical,
+            catalog.list_indexes("planner_include_covering"),
+            &Default::default(),
+        );
+
+        // Assert
+        assert_eq!(
+            physical_plan.selected_index.as_deref(),
+            Some("planner_include_covering_title_idx")
+        );
+        assert!(physical_plan.covered_index);
     });
 }
 
@@ -1319,6 +1366,7 @@ fn should_plan_drop_index_as_command() {
             name: "planner_idx_title".to_string(),
             field: "title".to_string(),
             fields: vec!["title".to_string()],
+            include_fields: Vec::new(),
             kind: cassie::catalog::IndexKind::Scalar,
             unique: false,
             options: std::collections::BTreeMap::new(),

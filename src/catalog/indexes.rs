@@ -16,6 +16,8 @@ pub struct IndexMeta {
     pub field: String,
     #[serde(default)]
     pub fields: Vec<String>,
+    #[serde(default)]
+    pub include_fields: Vec<String>,
     pub kind: IndexKind,
     pub unique: bool,
     pub options: std::collections::BTreeMap<String, String>,
@@ -28,6 +30,10 @@ impl IndexMeta {
         } else {
             self.fields.clone()
         }
+    }
+
+    pub fn normalized_include_fields(&self) -> Vec<String> {
+        self.include_fields.clone()
     }
 
     pub fn primary_field(&self) -> String {

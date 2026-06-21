@@ -375,6 +375,7 @@ fn should_restore_cardinality_stats_after_restart() {
                 name: "idx_title".to_string(),
                 field: "title".to_string(),
                 fields: vec!["title".to_string()],
+                include_fields: Vec::new(),
                 kind: IndexKind::Scalar,
                 unique: false,
                 options: Default::default(),

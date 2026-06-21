@@ -1958,6 +1958,181 @@ fn should_parse_composite_create_index_statement() {
 }
 
 #[test]
+fn should_parse_create_index_include_columns() {
+    // Arrange
+    let sql = "CREATE INDEX idx_docs_title_include ON docs USING btree (title) INCLUDE (body, score) WITH (fillfactor = 90)";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateIndex(statement) = parsed.statement else {
+        panic!("expected create index statement");
+    };
+    assert_eq!(statement.name, "idx_docs_title_include");
+    assert_eq!(statement.fields, vec!["title".to_string()]);
+    assert_eq!(
+        statement.include_fields,
+        vec!["body".to_string(), "score".to_string()]
+    );
+    assert_eq!(statement.options.get("fillfactor"), Some(&"90".to_string()));
+}
+
+#[test]
+fn should_reject_duplicate_include_columns() {
+    // Arrange
+    let cassie =
+        Cassie::new_with_data_dir(format!("/tmp/cassie-include-duplicate-{}", Uuid::new_v4()))
+            .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie.register_collection(
+            "include_duplicate_docs".to_string(),
+            Schema {
+                fields: vec![
+                    FieldSchema {
+                        name: "title".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    },
+                    FieldSchema {
+                        name: "body".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    },
+                ],
+            },
+        );
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_include_duplicate ON include_duplicate_docs USING btree (title) INCLUDE (body, body)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_reject_include_key_overlap() {
+    // Arrange
+    let cassie =
+        Cassie::new_with_data_dir(format!("/tmp/cassie-include-overlap-{}", Uuid::new_v4()))
+            .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie.register_collection(
+            "include_overlap_docs".to_string(),
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            },
+        );
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_include_overlap ON include_overlap_docs USING btree (title) INCLUDE (title)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_reject_unknown_include_column() {
+    // Arrange
+    let cassie =
+        Cassie::new_with_data_dir(format!("/tmp/cassie-include-unknown-{}", Uuid::new_v4()))
+            .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie.register_collection(
+            "include_unknown_docs".to_string(),
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            },
+        );
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_include_unknown ON include_unknown_docs USING btree (title) INCLUDE (body)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
+fn should_reject_fulltext_include_columns() {
+    // Arrange
+    let cassie =
+        Cassie::new_with_data_dir(format!("/tmp/cassie-include-fulltext-{}", Uuid::new_v4()))
+            .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie.register_collection(
+            "include_fulltext_docs".to_string(),
+            Schema {
+                fields: vec![
+                    FieldSchema {
+                        name: "title".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    },
+                    FieldSchema {
+                        name: "body".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    },
+                ],
+            },
+        );
+
+        // Act
+        let parsed = parse_statement(
+            "CREATE INDEX idx_include_fulltext ON include_fulltext_docs USING fulltext (body) INCLUDE (title)",
+        )
+        .expect("parse should succeed");
+        let bound = cassie::sql::binder::bind(parsed, &cassie.catalog);
+
+        // Assert
+        assert!(bound.is_err());
+    });
+}
+
+#[test]
 fn should_reject_composite_vector_create_index_statement() {
     // Arrange
     let sql = "CREATE INDEX idx_docs_embedding ON docs USING vector (embedding, source)";
@@ -2272,6 +2447,7 @@ fn should_reject_duplicate_fulltext_index_on_same_field() {
                 name: "idx_ft_docs_duplicate_primary".to_string(),
                 field: "body".to_string(),
                 fields: vec!["body".to_string()],
+                include_fields: Vec::new(),
                 kind: IndexKind::FullText,
                 unique: false,
                 options: BTreeMap::from_iter(vec![

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 
 use crate::types::Value;
@@ -102,15 +103,29 @@ pub(crate) const DEFAULT_BATCH_SIZE: usize = 1024;
 
 pub(crate) type Batch = Vec<BatchRow>;
 
+static BATCH_BUFFERS_BUILT: AtomicU64 = AtomicU64::new(0);
+
 pub(crate) fn chunk_rows(rows: Vec<BatchRow>, batch_size: usize) -> Vec<Batch> {
     let batch_size = batch_size.max(1);
     if rows.is_empty() {
         return Vec::new();
     }
 
-    rows.chunks(batch_size)
-        .map(|chunk| chunk.to_vec())
-        .collect()
+    let mut batches = Vec::with_capacity(rows.len().div_ceil(batch_size));
+    let mut current = Vec::with_capacity(batch_size);
+    for row in rows {
+        current.push(row);
+        if current.len() == batch_size {
+            BATCH_BUFFERS_BUILT.fetch_add(1, Ordering::Relaxed);
+            batches.push(current);
+            current = Vec::with_capacity(batch_size);
+        }
+    }
+    if !current.is_empty() {
+        BATCH_BUFFERS_BUILT.fetch_add(1, Ordering::Relaxed);
+        batches.push(current);
+    }
+    batches
 }
 
 pub(crate) fn flatten_batches(batches: Vec<Batch>) -> Vec<BatchRow> {
@@ -186,6 +201,11 @@ fn value_to_key(value: &Value) -> String {
 }
 
 #[cfg(test)]
+pub(crate) fn batch_buffers_built_for_tests() -> u64 {
+    BATCH_BUFFERS_BUILT.load(Ordering::Relaxed)
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -208,6 +228,46 @@ mod tests {
         assert_eq!(batches[0].len(), 2);
         assert_eq!(batches[1].len(), 2);
         assert_eq!(batches[2].len(), 1);
+    }
+
+    #[test]
+    fn should_move_rows_into_batch_buffers_without_stale_values() {
+        // Arrange
+        let before = batch_buffers_built_for_tests();
+        let rows = vec![
+            BatchRow::new(vec![(
+                "title".to_string(),
+                Value::String("alpha".to_string()),
+            )]),
+            BatchRow::new(vec![(
+                "title".to_string(),
+                Value::String("beta".to_string()),
+            )]),
+            BatchRow::new(vec![(
+                "title".to_string(),
+                Value::String("gamma".to_string()),
+            )]),
+        ];
+
+        // Act
+        let batches = chunk_rows(rows, 2);
+        let after = batch_buffers_built_for_tests();
+
+        // Assert
+        assert_eq!(batches.len(), 2);
+        assert_eq!(
+            batches[0][0].get("title"),
+            Some(&Value::String("alpha".to_string()))
+        );
+        assert_eq!(
+            batches[0][1].get("title"),
+            Some(&Value::String("beta".to_string()))
+        );
+        assert_eq!(
+            batches[1][0].get("title"),
+            Some(&Value::String("gamma".to_string()))
+        );
+        assert!(after >= before + 2);
     }
 
     #[test]

@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "schema_index_options.rs"]
+mod schema_index_options;
+
 pub(super) fn bind_create_table(
     mut statement: crate::sql::ast::CreateTableStatement,
     catalog: &Catalog,
@@ -265,116 +268,14 @@ pub(super) fn bind_create_index(
     }
 
     if statement.kind == crate::catalog::IndexKind::Vector {
-        let field = &fields[0];
-        let field_entry = schema
-            .fields
-            .iter()
-            .find(|entry| entry.name == *field)
-            .ok_or_else(|| {
-                CassieError::Planner(format!(
-                    "index field '{field}' does not exist on collection '{table}'"
-                ))
-            })?;
-
-        if let Some(existing_vector) = catalog.get_vector_index(&table, field) {
-            let existing_index = catalog
-                .get_index(&table, &name)
-                .filter(|metadata| metadata.field == existing_vector.field)
-                .filter(|metadata| metadata.kind == crate::catalog::IndexKind::Vector);
-
-            if existing_index.is_none() {
-                return Err(CassieError::Planner(format!(
-                    "vector index on field '{}' already exists on collection '{}'",
-                    existing_vector.field, table
-                )));
-            }
-        }
-
-        if !matches!(field_entry.data_type, DataType::Vector(_)) {
-            return Err(CassieError::Planner(format!(
-                "vector index '{name}' requires vector field '{field}'"
-            )));
-        }
-
-        let source_field = statement
-            .options
-            .get("source_field")
-            .map(std::string::String::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| {
-                CassieError::Planner("CREATE INDEX USING vector requires source_field".into())
-            })?;
-
-        let source_entry = schema
-            .fields
-            .iter()
-            .find(|entry| entry.name == source_field)
-            .ok_or_else(|| {
-                CassieError::Planner(format!(
-                    "source field '{source_field}' does not exist on collection '{table}'"
-                ))
-            })?;
-
-        if !matches!(source_entry.data_type, DataType::Text | DataType::Json) {
-            return Err(CassieError::Planner(format!(
-                "source field '{source_field}' must be text/json for vector index"
-            )));
-        }
-
-        let metric = parse_vector_metric(statement.options.get("metric").map(String::as_str))?;
-        statement
-            .options
-            .insert("metric".to_string(), metric.as_str().to_string());
-        let index_type = statement
-            .options
-            .get("index_type")
-            .map(String::as_str)
-            .unwrap_or("bruteforce")
-            .trim()
-            .to_ascii_lowercase();
-        if !matches!(index_type.as_str(), "bruteforce" | "hnsw") {
-            return Err(CassieError::Planner(format!(
-                "unsupported vector index_type '{index_type}'"
-            )));
-        }
-        statement
-            .options
-            .insert("index_type".to_string(), index_type.clone());
-        if index_type == "hnsw" {
-            let m = parse_vector_index_usize_option(statement.options.get("m"), "m", 16, 2, 128)?;
-            let ef_construction = parse_vector_index_usize_option(
-                statement.options.get("ef_construction"),
-                "ef_construction",
-                64,
-                m,
-                4096,
-            )?;
-            let ef_search = parse_vector_index_usize_option(
-                statement.options.get("ef_search"),
-                "ef_search",
-                40,
-                1,
-                4096,
-            )?;
-            statement.options.insert("m".to_string(), m.to_string());
-            statement
-                .options
-                .insert("ef_construction".to_string(), ef_construction.to_string());
-            statement
-                .options
-                .insert("ef_search".to_string(), ef_search.to_string());
-        }
-        for key in statement.options.keys() {
-            if !matches!(
-                key.as_str(),
-                "source_field" | "metric" | "index_type" | "m" | "ef_construction" | "ef_search"
-            ) {
-                return Err(CassieError::Planner(format!(
-                    "unsupported vector index option '{key}' for '{name}' on collection '{table}'"
-                )));
-            }
-        }
+        schema_index_options::bind_vector_index_options(
+            &mut statement,
+            catalog,
+            &schema,
+            &table,
+            &name,
+            fields.as_slice(),
+        )?;
     }
 
     if statement.kind == crate::catalog::IndexKind::FullText {
@@ -541,6 +442,18 @@ pub(super) fn bind_create_index(
             .insert("segment_size".to_string(), segment_size.to_string());
     }
 
+    if statement.kind == crate::catalog::IndexKind::TimeSeries {
+        schema_index_options::bind_time_series_index_options(
+            &mut statement,
+            &schema,
+            &table,
+            &name,
+            fields.as_slice(),
+            expressions.as_slice(),
+            include_fields.as_slice(),
+        )?;
+    }
+
     if !statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
         return Err(CassieError::Planner(format!(
             "index '{name}' already exists on collection '{table}'"
@@ -641,15 +554,6 @@ pub(super) fn validate_index_expression(
     }
 }
 
-pub(super) fn parse_vector_metric(raw_metric: Option<&str>) -> Result<DistanceMetric, CassieError> {
-    let metric = raw_metric.unwrap_or("cosine");
-    metric.parse().map_err(|_| {
-        CassieError::Planner(format!(
-            "unsupported vector metric '{metric}' (expected cosine, l2, or dot)"
-        ))
-    })
-}
-
 pub(super) fn parse_column_index_segment_size(
     value: Option<&String>,
 ) -> Result<usize, CassieError> {
@@ -664,28 +568,6 @@ pub(super) fn parse_column_index_segment_size(
         return Err(CassieError::Planner(
             "column index option 'segment_size' must be in [1, 1000000]".into(),
         ));
-    }
-    Ok(parsed)
-}
-
-pub(super) fn parse_vector_index_usize_option(
-    value: Option<&String>,
-    key: &str,
-    default: usize,
-    min: usize,
-    max: usize,
-) -> Result<usize, CassieError> {
-    let value = value.map(String::as_str).unwrap_or("").trim();
-    if value.is_empty() {
-        return Ok(default);
-    }
-    let parsed = value
-        .parse::<usize>()
-        .map_err(|_| CassieError::Planner(format!("invalid vector index option '{key}'")))?;
-    if !(min..=max).contains(&parsed) {
-        return Err(CassieError::Planner(format!(
-            "vector index option '{key}' must be in [{min}, {max}]"
-        )));
     }
     Ok(parsed)
 }

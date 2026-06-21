@@ -611,10 +611,10 @@ fn binary_scalar(left: &ScalarValue, op: &BinaryOp, right: &ScalarValue) -> Scal
         BinaryOp::Or => ScalarValue::Bool(left.as_bool() || right.as_bool()),
         BinaryOp::Eq => ScalarValue::Bool(eq_value(left, right)),
         BinaryOp::NotEq => ScalarValue::Bool(!eq_value(left, right)),
-        BinaryOp::Lt => ScalarValue::Bool(number_cmp(left, right, |l, r| l < r)),
-        BinaryOp::Lte => ScalarValue::Bool(number_cmp(left, right, |l, r| l <= r)),
-        BinaryOp::Gt => ScalarValue::Bool(number_cmp(left, right, |l, r| l > r)),
-        BinaryOp::Gte => ScalarValue::Bool(number_cmp(left, right, |l, r| l >= r)),
+        BinaryOp::Lt => ScalarValue::Bool(ordered_cmp(left, right, |ordering| ordering.is_lt())),
+        BinaryOp::Lte => ScalarValue::Bool(ordered_cmp(left, right, |ordering| !ordering.is_gt())),
+        BinaryOp::Gt => ScalarValue::Bool(ordered_cmp(left, right, |ordering| ordering.is_gt())),
+        BinaryOp::Gte => ScalarValue::Bool(ordered_cmp(left, right, |ordering| !ordering.is_lt())),
         BinaryOp::Like => ScalarValue::Bool(like_match(left.as_str(), right.as_str())),
         BinaryOp::Add => ScalarValue::Float(binary_math(left, right, |a, b| a + b)),
         BinaryOp::Sub => ScalarValue::Float(binary_math(left, right, |a, b| a - b)),
@@ -669,6 +669,21 @@ fn like_match(value: Option<&str>, pattern: Option<&str>) -> bool {
 
 fn number_cmp(left: &ScalarValue, right: &ScalarValue, cmp: impl Fn(f64, f64) -> bool) -> bool {
     cmp(left.to_f64().unwrap_or(0.0), right.to_f64().unwrap_or(0.0))
+}
+
+fn ordered_cmp(
+    left: &ScalarValue,
+    right: &ScalarValue,
+    cmp: impl Fn(std::cmp::Ordering) -> bool,
+) -> bool {
+    match (left.to_f64(), right.to_f64()) {
+        (Some(left), Some(right)) => left.partial_cmp(&right).map(&cmp).unwrap_or(false),
+        _ => left
+            .as_str()
+            .zip(right.as_str())
+            .map(|(left, right)| cmp(left.cmp(right)))
+            .unwrap_or(false),
+    }
 }
 
 fn binary_math(left: &ScalarValue, right: &ScalarValue, op: impl Fn(f64, f64) -> f64) -> f64 {

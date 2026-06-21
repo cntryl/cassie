@@ -20,6 +20,7 @@ Cassie keeps row blobs as the source of truth and uses indexes, constraints, and
 | Expression indexes | Experimental | Deterministic expression matching |
 | Full-text indexes | Stable | Cassie inverted index and BM25 support |
 | Vector indexes | Stable/Experimental | Brute force, HNSW, and IVFFlat surfaces by support level |
+| Time-series indexes | Experimental | Timestamp range planning metadata with row-scan correctness fallback |
 | Column-batch indexes | Stable | Covered scans, segment pruning, aggregate acceleration |
 | Retention policies | Experimental | Explicit timestamp-based cleanup with catalog and metrics diagnostics |
 
@@ -140,15 +141,39 @@ WITH (source_field = body, metric = l2, index_type = hnsw, m = 16, ef_constructi
 
 Supported option families:
 
-- `index_type = bruteforce|hnsw`
+- `index_type = bruteforce|hnsw|ivfflat`
 - `metric = cosine|l2|dot`
 - HNSW tuning options such as `m`, `ef_construction`, and `ef_search`.
+- IVFFlat metadata options such as `lists`, `probes`, `training_sample_size`, and `training_seed`.
 
 Guarantees:
 
 - Candidate paths must verify exact score or distance ordering before returning results when required by the selected algorithm.
 - Metric and dimension mismatches must produce deterministic errors or fallback behavior.
 - EXPLAIN and metrics should expose index use and fallback reasons where relevant.
+
+Current IVFFlat support:
+
+- Cassie persists and hydrates IVFFlat metadata/options plus deterministic training state.
+- IVFFlat top-k queries over compatible L2 vector-distance shapes probe trained lists, then fetch row vectors and re-rank exactly before returning SQL-visible rows.
+- Document writes and deletes refresh IVFFlat training state for affected collections. IVFFlat remains experimental; unsupported shapes fall back to the exact row/vector path.
+
+## Time-Series Indexes
+
+Time-series indexes declare a timestamp field for range-oriented planning.
+
+```sql
+CREATE INDEX idx_events_created_at
+ON events USING time_series (created_at)
+WITH (bucket_width = '1 hour', partition_by = tenant_id);
+```
+
+Current guarantee:
+
+- Parser, binder, catalog metadata, restart hydration, and EXPLAIN planner selection are supported for timestamp range predicates.
+- EXPLAIN includes selected bucket width, partition fields, and range-filter diagnostics for selected time-series indexes.
+- The indexed field must be a timestamp, and unsupported unique, partial, expression, or INCLUDE forms are rejected.
+- Query correctness still falls back to row blobs; persisted bucket membership and bucket-native scans remain planned work.
 
 ## Column-Batch Indexes
 

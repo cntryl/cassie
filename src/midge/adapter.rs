@@ -12,8 +12,9 @@ use crate::catalog::{
     payload_contains_index_membership, payload_contains_vector_membership,
     CollectionCardinalityStats, ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchFieldSummary,
     ColumnBatchMetadata, ColumnBatchPayload, ColumnBatchRow, ColumnBatchSegmentMeta,
-    ColumnBatchValueRun, FieldConstraint, IndexKind, IndexMeta, NamespaceMeta, ProjectionMeta,
-    RetentionPolicyMeta, RoleMeta, RollupMeta,
+    ColumnBatchValueRun, FieldCardinalityStats, FieldConstraint, FieldHeavyHitter,
+    FieldHistogramBucket, IndexKind, IndexMeta, NamespaceMeta, ProjectionMeta, RetentionPolicyMeta,
+    RoleMeta, RollupMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord};
 use crate::midge::row_blob::{
@@ -50,6 +51,7 @@ const RETENTION_PREFIX: &str = "__cassie__/retention/v1/";
 const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
 const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
 const PROJECTION_KEY_PREFIX: &str = "__cassie__/projection/";
+const PROJECTION_COMPARISON_REPORT_PREFIX: &str = "__cassie__/projection-comparison-report/v1/";
 const PROJECTION_EVENT_PREFIX: &str = "__cassie__/projection-event/v1/";
 const ROW_HASH_PREFIX: &str = "__cassie__/row-hash/v1/";
 const RANGE_HASH_PREFIX: &str = "__cassie__/range-hash/v1/";
@@ -206,6 +208,8 @@ pub struct ColumnBatchScanOutcome {
     pub decoded_columns: usize,
 }
 
+#[path = "adapter/cardinality_stats.rs"]
+mod cardinality_stats;
 #[path = "adapter/column_batches.rs"]
 mod column_batches;
 #[path = "adapter/documents.rs"]
@@ -382,6 +386,14 @@ impl Midge {
 
     fn projection_prefix() -> Vec<u8> {
         PROJECTION_KEY_PREFIX.as_bytes().to_vec()
+    }
+
+    fn projection_comparison_report_key(report_id: &str) -> Vec<u8> {
+        format!("{PROJECTION_COMPARISON_REPORT_PREFIX}{report_id}").into_bytes()
+    }
+
+    fn projection_comparison_report_prefix() -> Vec<u8> {
+        PROJECTION_COMPARISON_REPORT_PREFIX.as_bytes().to_vec()
     }
 
     fn projection_event_key(projection: &str, source_identity: &str, event_id: &str) -> Vec<u8> {

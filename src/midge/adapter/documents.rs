@@ -51,8 +51,76 @@ impl Midge {
         Self::write_normalized_vector_records(&mut tx, &normalized_records)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         self.rebuild_column_batches_for_collection(collection)?;
+        self.refresh_ivfflat_indexes_for_collection(collection)?;
         self.refresh_projection_hashes_after_write(collection, if replacing { 0 } else { 1 })?;
         Ok(doc_id)
+    }
+
+    pub fn put_documents(
+        &self,
+        collection: &str,
+        documents: Vec<(Option<String>, serde_json::Value)>,
+    ) -> Result<Vec<String>, CassieError> {
+        let schema = self
+            .collection_schema(collection)
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+        let row_schema = self.row_schema(collection)?;
+        let vector_indexes = self
+            .list_vector_indexes()?
+            .into_iter()
+            .filter(|index| index.collection == collection)
+            .collect::<Vec<_>>();
+
+        let mut prepared = Vec::with_capacity(documents.len());
+        for (id, payload) in documents {
+            Self::validate_document(&schema, &payload)?;
+            let row_blob = encode_row(&row_schema, &payload)?;
+            let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+            let normalized_records = vector_indexes
+                .iter()
+                .map(|index| {
+                    Self::normalized_vector_record_from_value(
+                        collection,
+                        &index.field,
+                        &doc_id,
+                        index.metadata.dimensions,
+                        &index.metadata.metric,
+                        payload.get(&index.field),
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+            prepared.push((doc_id, payload, row_blob, normalized_records));
+        }
+
+        let mut tx = self.begin_data_rw_tx()?;
+        let mut ids = Vec::with_capacity(prepared.len());
+        let mut inserted = 0i64;
+        let mut new_ids = std::collections::HashSet::new();
+        for (doc_id, payload, row_blob, normalized_records) in prepared {
+            let row_key = Self::row_key(collection, &doc_id);
+            let legacy_key = Self::doc_key(collection, &doc_id);
+            let replacing = tx.get(&row_key).map_err(CassieError::from)?.is_some()
+                || tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
+            Self::delete_normalized_vector_keys_for_document(&mut tx, collection, &doc_id)?;
+            tx.put(row_key, row_blob, None).map_err(CassieError::from)?;
+            Self::write_document_hash_to_tx(&mut tx, collection, &doc_id, &row_schema, &payload)?;
+            if tx.get(&legacy_key).map_err(CassieError::from)?.is_some() {
+                tx.delete(legacy_key).map_err(CassieError::from)?;
+            }
+            Self::write_normalized_vector_records(&mut tx, &normalized_records)?;
+            if !replacing && new_ids.insert(doc_id.clone()) {
+                inserted += 1;
+            }
+            ids.push(doc_id);
+        }
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        self.rebuild_column_batches_for_collection(collection)?;
+        self.refresh_ivfflat_indexes_for_collection(collection)?;
+        self.refresh_projection_hashes_after_write(collection, inserted)?;
+        Ok(ids)
     }
 
     pub fn get_document(
@@ -106,6 +174,7 @@ impl Midge {
         if row_exists || legacy_exists || normalized_exists {
             tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
             self.rebuild_column_batches_for_collection(collection)?;
+            self.refresh_ivfflat_indexes_for_collection(collection)?;
             self.refresh_projection_hashes_after_write(
                 collection,
                 if row_exists || legacy_exists { -1 } else { 0 },

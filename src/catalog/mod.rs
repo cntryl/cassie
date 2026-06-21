@@ -12,15 +12,16 @@ pub mod virtual_views;
 
 pub use cardinality::{
     index_cardinality_key, payload_contains_index_membership, payload_contains_vector_membership,
-    vector_index_cardinality_key, CollectionCardinalityStats, IndexCardinalityStats,
+    vector_index_cardinality_key, CollectionCardinalityStats, FieldCardinalityStats,
+    FieldHeavyHitter, FieldHistogramBucket, IndexCardinalityStats,
 };
 pub use collections::{
     is_reserved_namespace, materialized_output_collection, CollectionMeta,
-    MaterializedProjectionMeta, MaterializedProjectionState, NamespaceMeta, ProjectionFreshness,
-    ProjectionHashAlgorithmMeta, ProjectionHashCoverageMeta, ProjectionHashMeta,
-    ProjectionIntegrityReportMeta, ProjectionKind, ProjectionMeta, ProjectionRebuildState,
-    ProjectionRebuildVerificationMeta, ProjectionSwapMeta, ProjectionVerificationState,
-    ProjectionVersionMeta, ProjectionVersionState,
+    MaterializedProjectionMeta, MaterializedProjectionState, NamespaceMeta,
+    ProjectionComparisonReportMeta, ProjectionFreshness, ProjectionHashAlgorithmMeta,
+    ProjectionHashCoverageMeta, ProjectionHashMeta, ProjectionIntegrityReportMeta, ProjectionKind,
+    ProjectionMeta, ProjectionRebuildState, ProjectionRebuildVerificationMeta, ProjectionSwapMeta,
+    ProjectionVerificationState, ProjectionVersionMeta, ProjectionVersionState,
 };
 pub use constraints::{
     generated_constraint_name, ConstraintCheck, ConstraintOperator, FieldConstraint,

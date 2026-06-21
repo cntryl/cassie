@@ -125,6 +125,8 @@ pub enum QueryStatement {
     AlterMaterializedProjection(AlterMaterializedProjectionStatement),
     DropMaterializedProjectionVersion(DropMaterializedProjectionVersionStatement),
     VerifyProjection(VerifyProjectionStatement),
+    DiffProjection(DiffProjectionStatement),
+    CompareProjection(CompareProjectionStatement),
     CreateRetentionPolicy(CreateRetentionPolicyStatement),
     AlterRetentionPolicy(AlterRetentionPolicyStatement),
     DropRetentionPolicy(DropRetentionPolicyStatement),
@@ -259,6 +261,7 @@ pub struct DropRollupStatement {
 pub struct CreateMaterializedProjectionStatement {
     pub name: String,
     pub if_not_exists: bool,
+    pub options: BTreeMap<String, String>,
     pub query: String,
 }
 
@@ -299,6 +302,26 @@ pub struct VerifyProjectionStatement {
     pub name: String,
     pub version_id: Option<String>,
     pub mode: ProjectionVerificationMode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectionDiffTarget {
+    pub name: String,
+    pub version_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiffProjectionStatement {
+    pub left: ProjectionDiffTarget,
+    pub right: ProjectionDiffTarget,
+    pub limit: Option<usize>,
+    pub after: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompareProjectionStatement {
+    pub target: ProjectionDiffTarget,
+    pub manifest: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

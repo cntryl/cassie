@@ -14,6 +14,11 @@ pub(crate) fn execute_vector_distance_top_k(
     let schema = cassie.catalog.get_schema(&spec.collection).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", spec.collection))
     })?;
+    if plan.filter.is_none() {
+        if let Some(rows) = execute_ivfflat_vector_top_k(cassie, &spec)? {
+            return Ok(Some(rows));
+        }
+    }
     let mut candidates = batch::flatten_batches(scan::scan(cassie, session, &spec.collection)?);
     if let Some(filter_expr) = &plan.filter {
         if vector_prefilter_supported(filter_expr, &schema) {
@@ -85,6 +90,151 @@ pub(crate) fn execute_vector_distance_top_k(
         .collect();
     record_adaptive_candidate_decision(cassie, adaptive, final_candidate_count, rows.len());
     Ok(Some(rows))
+}
+
+fn execute_ivfflat_vector_top_k(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let index = cassie
+        .midge
+        .get_vector_index(&spec.collection, &spec.vector_field)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let Some(index) = index else {
+        return Ok(None);
+    };
+    if index.metadata.index_type != crate::embeddings::VectorIndexType::IvfFlat {
+        return Ok(None);
+    }
+    if index.metadata.metric != crate::embeddings::DistanceMetric::L2 {
+        cassie
+            .runtime
+            .record_ivfflat_fallback("incompatible-metric");
+        return Ok(None);
+    }
+    let Some(training) = index.metadata.ivfflat_training.as_ref() else {
+        cassie.runtime.record_ivfflat_fallback("missing-training");
+        return Ok(None);
+    };
+    if !training.trained
+        || training.centroids.is_empty()
+        || spec.query.len() != index.metadata.dimensions
+    {
+        cassie
+            .runtime
+            .record_ivfflat_fallback("incomplete-or-incompatible-training");
+        return Ok(None);
+    }
+
+    let started_at = std::time::Instant::now();
+    let normalized_query = crate::vector::normalize(&spec.query)
+        .map(|normalized| normalized.values)
+        .unwrap_or_else(|| spec.query.clone());
+    let probed_lists = ivfflat_probe_lists(&normalized_query, training);
+    let normalized_vectors = cassie
+        .midge
+        .list_normalized_vectors(&spec.collection, &spec.vector_field)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let top_needed = spec.limit.saturating_add(spec.offset).max(1);
+    let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
+    let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
+    let mut candidate_count = 0usize;
+
+    for record in normalized_vectors {
+        let Some(list) = training.assignments.get(&record.id) else {
+            continue;
+        };
+        if !probed_lists.contains(list) {
+            continue;
+        }
+        let magnitude = record.magnitude as f32;
+        let vector = record
+            .values
+            .iter()
+            .map(|value| *value * magnitude)
+            .collect::<Vec<_>>();
+        let score = if vector.len() == spec.query.len() {
+            crate::vector::l2_distance(&vector, &spec.query)
+        } else {
+            f64::INFINITY
+        };
+        candidate_count += 1;
+        let candidate = SqlVectorCandidate {
+            sort_value: match spec.direction {
+                SortDirection::Asc => score,
+                SortDirection::Desc => -score,
+            },
+            score,
+            id: record.id,
+        };
+        if top.len() < top_needed {
+            top.push(candidate);
+        } else if let Some(worst) = top.peek() {
+            if candidate.is_better_than(worst) {
+                top.pop();
+                top.push(candidate);
+            }
+        }
+    }
+
+    if candidate_count == 0 {
+        cassie.runtime.record_ivfflat_fallback("empty-probed-lists");
+        return Ok(None);
+    }
+
+    let mut ranked = top.into_vec();
+    ranked.sort_by(compare_sql_vector_candidates);
+    let rows = ranked
+        .into_iter()
+        .skip(spec.offset)
+        .take(spec.limit)
+        .map(|candidate| {
+            BatchRow::new(vec![
+                (spec.id_column.clone(), Value::String(candidate.id)),
+                (spec.score_column.clone(), Value::Float64(candidate.score)),
+            ])
+        })
+        .collect::<Vec<_>>();
+    cassie
+        .runtime
+        .record_vector_execution(started_at.elapsed(), candidate_count, rows.len());
+    cassie
+        .runtime
+        .record_ivfflat_execution(training.lists, probed_lists.len(), candidate_count);
+    record_adaptive_candidate_decision(cassie, adaptive, candidate_count, rows.len());
+    Ok(Some(rows))
+}
+
+fn ivfflat_probe_lists(
+    normalized_query: &[f32],
+    training: &crate::embeddings::IvfFlatTrainingState,
+) -> std::collections::BTreeSet<usize> {
+    let mut ranked = training
+        .centroids
+        .iter()
+        .enumerate()
+        .map(|(index, centroid)| (index, squared_l2(normalized_query, centroid)))
+        .collect::<Vec<_>>();
+    ranked.sort_by(|left, right| {
+        left.1
+            .total_cmp(&right.1)
+            .then_with(|| left.0.cmp(&right.0))
+    });
+    ranked
+        .into_iter()
+        .take(training.probes.max(1))
+        .map(|(index, _)| index)
+        .collect()
+}
+
+fn squared_l2(left: &[f32], right: &[f32]) -> f64 {
+    left.iter()
+        .zip(right.iter())
+        .map(|(left, right)| {
+            let delta = f64::from(*left) - f64::from(*right);
+            delta * delta
+        })
+        .sum()
 }
 
 pub(super) struct AdaptiveCandidateDecision {

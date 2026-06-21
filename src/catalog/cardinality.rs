@@ -11,11 +11,46 @@ pub struct IndexCardinalityStats {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct FieldCardinalityStats {
+    pub non_null_count: u64,
+    pub null_count: u64,
+    pub missing_count: u64,
+    pub distinct_count: u64,
+    pub min_value: Option<String>,
+    pub max_value: Option<String>,
+    #[serde(default)]
+    pub sample_count: u64,
+    #[serde(default)]
+    pub histogram_buckets: Vec<FieldHistogramBucket>,
+    #[serde(default)]
+    pub heavy_hitters: Vec<FieldHeavyHitter>,
+    #[serde(default)]
+    pub confidence: u8,
+    #[serde(default)]
+    pub stale_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct FieldHistogramBucket {
+    pub lower: String,
+    pub upper: String,
+    pub count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct FieldHeavyHitter {
+    pub value: String,
+    pub count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct CollectionCardinalityStats {
     pub row_count: u64,
     pub hydrated: bool,
     #[serde(default)]
     pub indexes: BTreeMap<String, IndexCardinalityStats>,
+    #[serde(default)]
+    pub fields: BTreeMap<String, FieldCardinalityStats>,
 }
 
 impl CollectionCardinalityStats {
@@ -26,6 +61,7 @@ impl CollectionCardinalityStats {
             IndexKind::Vector => "vector",
             IndexKind::Hybrid => "hybrid",
             IndexKind::Column => "column",
+            IndexKind::TimeSeries => "time_series",
         };
         format!("{kind}:{name}")
     }
@@ -46,6 +82,10 @@ impl CollectionCardinalityStats {
         Self::index_key(&IndexKind::Hybrid, name)
     }
 
+    pub fn time_series_index_key(name: &str) -> String {
+        Self::index_key(&IndexKind::TimeSeries, name)
+    }
+
     pub fn set_index_cardinality(&mut self, key: String, cardinality: u64) {
         self.indexes
             .insert(key, IndexCardinalityStats { cardinality });
@@ -53,6 +93,14 @@ impl CollectionCardinalityStats {
 
     pub fn index_cardinality(&self, key: &str) -> Option<u64> {
         self.indexes.get(key).map(|stats| stats.cardinality)
+    }
+
+    pub fn set_field_stats(&mut self, field: String, stats: FieldCardinalityStats) {
+        self.fields.insert(field, stats);
+    }
+
+    pub fn field_stats(&self, field: &str) -> Option<&FieldCardinalityStats> {
+        self.fields.get(field)
     }
 }
 
@@ -71,7 +119,7 @@ pub fn payload_contains_index_membership(payload: &serde_json::Value, index: &In
     }
 
     match index.kind {
-        IndexKind::Scalar | IndexKind::Hybrid | IndexKind::Column => fields
+        IndexKind::Scalar | IndexKind::Hybrid | IndexKind::Column | IndexKind::TimeSeries => fields
             .iter()
             .all(|field| payload.get(field).is_some_and(|value| !value.is_null())),
         IndexKind::FullText => fields

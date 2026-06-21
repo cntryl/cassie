@@ -97,6 +97,8 @@ fn should_persist_vector_index_metadata() {
                 metric: DistanceMetric::Cosine,
                 index_type: VectorIndexType::BruteForce,
                 hnsw: None,
+                ivfflat: None,
+                ivfflat_training: None,
             },
         };
 
@@ -172,6 +174,8 @@ fn should_persist_hnsw_vector_index_metadata() {
                     ef_construction: 96,
                     ef_search: 48,
                 }),
+                ivfflat: None,
+                ivfflat_training: None,
             },
         };
 
@@ -246,6 +250,8 @@ fn should_reload_registry_after_restart_simulation() {
                 metric: DistanceMetric::L2,
                 index_type: VectorIndexType::BruteForce,
                 hnsw: None,
+                ivfflat: None,
+                ivfflat_training: None,
             },
         };
 
@@ -335,6 +341,8 @@ fn should_rebuild_missing_normalized_sidecars_on_restart() {
                 metric: DistanceMetric::Cosine,
                 index_type: VectorIndexType::BruteForce,
                 hnsw: None,
+                ivfflat: None,
+                ivfflat_training: None,
             },
         };
         cassie.midge.put_vector_index(record.clone()).unwrap();
@@ -439,6 +447,8 @@ fn should_reject_normalized_sidecar_rebuild_when_index_dimensions_do_not_match_d
                 metric: DistanceMetric::Cosine,
                 index_type: VectorIndexType::BruteForce,
                 hnsw: None,
+                ivfflat: None,
+                ivfflat_training: None,
             },
         };
         cassie.midge.put_vector_index(record).unwrap();

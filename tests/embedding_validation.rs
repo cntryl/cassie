@@ -71,6 +71,8 @@ fn vector_index_record(
             metric,
             index_type: VectorIndexType::BruteForce,
             hnsw: None,
+            ivfflat: None,
+            ivfflat_training: None,
         },
     }
 }

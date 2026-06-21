@@ -58,6 +58,13 @@ pub struct ExecutionSnapshot {
     pub prefilter_filtered_candidate_count_total: u64,
     pub prefilter_fallback_count_total: u64,
     pub prefilter_fallback_reasons: BTreeMap<String, u64>,
+    pub ivfflat_executions: u64,
+    pub ivfflat_lists_total: u64,
+    pub ivfflat_probes_total: u64,
+    pub ivfflat_exact_reranks_total: u64,
+    pub ivfflat_fallbacks: u64,
+    pub last_index_kind: String,
+    pub last_fallback_reason: String,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -130,6 +137,17 @@ pub struct ColumnBatchSnapshot {
     pub skipped_segments: u64,
     pub decoded_columns: u64,
     pub row_blob_fetches: u64,
+    pub last_fallback_reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct TimeSeriesSnapshot {
+    pub scans: u64,
+    pub fallback_scans: u64,
+    pub rows: u64,
+    pub buckets_scanned: u64,
+    pub buckets_skipped: u64,
+    pub last_index: String,
     pub last_fallback_reason: String,
 }
 
@@ -248,6 +266,7 @@ pub struct RuntimeMetricsSnapshot {
     pub adaptive_candidates: AdaptiveCandidateSnapshot,
     pub covering_indexes: CoveringIndexSnapshot,
     pub column_batches: ColumnBatchSnapshot,
+    pub time_series: TimeSeriesSnapshot,
     pub aggregate_acceleration: AggregateAccelerationSnapshot,
     pub parallel_scans: ParallelScanSnapshot,
     pub parallel_scoring: ParallelScoringSnapshot,

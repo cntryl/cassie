@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -55,6 +56,10 @@ pub struct VectorIndexMetadata {
     pub index_type: VectorIndexType,
     #[serde(default)]
     pub hnsw: Option<HnswIndexOptions>,
+    #[serde(default)]
+    pub ivfflat: Option<IvfFlatIndexOptions>,
+    #[serde(default)]
+    pub ivfflat_training: Option<IvfFlatTrainingState>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -62,6 +67,7 @@ pub struct VectorIndexMetadata {
 pub enum VectorIndexType {
     BruteForce,
     Hnsw,
+    IvfFlat,
 }
 
 impl VectorIndexType {
@@ -69,6 +75,7 @@ impl VectorIndexType {
         match self {
             Self::BruteForce => "bruteforce",
             Self::Hnsw => "hnsw",
+            Self::IvfFlat => "ivfflat",
         }
     }
 }
@@ -94,6 +101,41 @@ impl Default for HnswIndexOptions {
             ef_search: 40,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IvfFlatIndexOptions {
+    pub version: u32,
+    pub lists: usize,
+    pub probes: usize,
+    pub training_sample_size: usize,
+    pub training_seed: u64,
+}
+
+impl Default for IvfFlatIndexOptions {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            lists: 64,
+            probes: 1,
+            training_sample_size: 2_560,
+            training_seed: 1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct IvfFlatTrainingState {
+    pub version: u32,
+    pub trained: bool,
+    pub row_count: usize,
+    pub lists: usize,
+    pub probes: usize,
+    pub training_seed: u64,
+    pub centroid_ids: Vec<String>,
+    pub centroids: Vec<Vec<f32>>,
+    pub assignments: BTreeMap<String, usize>,
+    pub list_sizes: Vec<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

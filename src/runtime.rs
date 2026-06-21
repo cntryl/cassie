@@ -25,6 +25,9 @@ pub enum ExecutionMode {
 pub struct PlanCacheKey {
     pub sql_fingerprint: u64,
     pub schema_epoch: u64,
+    pub data_epoch: u64,
+    pub index_feedback_epoch: u64,
+    pub cost_model_version: u32,
     pub parameter_shape: Vec<ParameterShape>,
     pub mode: ExecutionMode,
     pub database: Option<String>,
@@ -51,6 +54,8 @@ pub struct ExecutionResultCacheKey {
     pub mode: ExecutionMode,
 }
 
+#[path = "runtime/adaptive_metrics.rs"]
+mod adaptive_metrics;
 #[path = "runtime/column_batch_metrics.rs"]
 mod column_batch_metrics;
 #[path = "runtime/controls.rs"]
@@ -71,6 +76,10 @@ mod retention_metrics;
 mod rollup_metrics;
 #[path = "runtime/snapshots.rs"]
 mod snapshots;
+#[path = "runtime/time_series_metrics.rs"]
+mod time_series_metrics;
+#[path = "runtime/vector_metrics.rs"]
+mod vector_metrics;
 
 pub use controls::QueryExecutionControls;
 pub use feedback::{RuntimeFeedbackKey, RuntimeFeedbackObservation, RuntimeFeedbackRecord};
@@ -109,6 +118,7 @@ struct RuntimeMetricsState {
     adaptive_candidates: AdaptiveCandidateSnapshot,
     covering_indexes: CoveringIndexSnapshot,
     column_batches: ColumnBatchSnapshot,
+    time_series: TimeSeriesSnapshot,
     aggregate_acceleration: AggregateAccelerationSnapshot,
     parallel_scans: ParallelScanSnapshot,
     parallel_scoring: ParallelScoringSnapshot,
@@ -149,6 +159,7 @@ pub struct RuntimeState {
     started_at: Mutex<Option<Instant>>,
     schema_epoch: AtomicU64,
     data_epoch: AtomicU64,
+    index_feedback_epoch: AtomicU64,
 }
 
 pub struct RunningQueryGuard {
@@ -186,6 +197,7 @@ impl RuntimeState {
             started_at: Mutex::new(None),
             schema_epoch: AtomicU64::new(0),
             data_epoch: AtomicU64::new(0),
+            index_feedback_epoch: AtomicU64::new(0),
         }
     }
 
@@ -576,6 +588,7 @@ impl RuntimeState {
         key: RuntimeFeedbackKey,
         observation: RuntimeFeedbackObservation,
     ) {
+        let updates_index_feedback = key.operator.starts_with("Index:");
         let now_ms = current_time_millis();
         let max_entries = self.limits.feedback_entries.max(1);
         let mut feedback = self.feedback.lock().expect("runtime feedback");
@@ -606,6 +619,9 @@ impl RuntimeState {
         }
 
         drop(feedback);
+        if updates_index_feedback {
+            self.bump_index_feedback_epoch();
+        }
         self.record_feedback_write();
         self.record_feedback_eviction(evictions);
     }
@@ -634,31 +650,6 @@ impl RuntimeState {
         drop(feedback);
         self.record_feedback_eviction(evictions);
         budget
-    }
-
-    pub fn record_adaptive_candidate_decision(
-        &self,
-        initial_budget: usize,
-        feedback_budget: Option<usize>,
-        expansions: usize,
-        final_candidate_count: usize,
-        exhausted: bool,
-    ) {
-        let mut metrics = self.metrics.lock().expect("runtime metrics");
-        metrics.adaptive_candidates.decisions += 1;
-        metrics.adaptive_candidates.initial_budget_total += initial_budget as u64;
-        metrics.adaptive_candidates.feedback_budget_total +=
-            feedback_budget.unwrap_or_default() as u64;
-        metrics.adaptive_candidates.expansions_total += expansions as u64;
-        metrics.adaptive_candidates.final_candidate_count_total += final_candidate_count as u64;
-        if exhausted {
-            metrics.adaptive_candidates.exhausted_total += 1;
-        }
-    }
-
-    pub fn record_adaptive_candidate_limit_error(&self) {
-        let mut metrics = self.metrics.lock().expect("runtime metrics");
-        metrics.adaptive_candidates.limit_errors_total += 1;
     }
 
     pub fn record_covering_index_scan(&self, rows: usize) {
@@ -885,6 +876,18 @@ impl RuntimeState {
         self.invalidate_execution_result_cache();
     }
 
+    pub fn index_feedback_epoch(&self) -> u64 {
+        self.index_feedback_epoch.load(Ordering::SeqCst)
+    }
+
+    fn bump_index_feedback_epoch(&self) {
+        let epoch = self
+            .index_feedback_epoch
+            .fetch_add(1, Ordering::SeqCst)
+            .wrapping_add(1);
+        self.index_feedback_epoch.store(epoch, Ordering::SeqCst);
+    }
+
     fn execution_result_cache_touch(
         order: &mut VecDeque<ExecutionResultCacheKey>,
         key: &ExecutionResultCacheKey,
@@ -960,6 +963,7 @@ impl RuntimeState {
             adaptive_candidates: metrics.adaptive_candidates.clone(),
             covering_indexes: metrics.covering_indexes.clone(),
             column_batches: metrics.column_batches.clone(),
+            time_series: metrics.time_series.clone(),
             aggregate_acceleration: metrics.aggregate_acceleration.clone(),
             parallel_scans: metrics.parallel_scans.clone(),
             parallel_scoring: metrics.parallel_scoring.clone(),

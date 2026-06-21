@@ -362,7 +362,8 @@ fn should_expose_cardinality_metrics_with_explain_plan_estimates() {
 
         // Assert
         assert!(plan.contains("estimates=scan:2"), "plan={plan}");
-        assert!(plan.contains("index:2"), "plan={plan}");
+        assert!(plan.contains("index:1"), "plan={plan}");
+        assert!(plan.contains("cost_source=advanced_stats"), "plan={plan}");
         assert!(
             metrics["cardinality"]["reads"].as_u64().unwrap_or_default() >= 1,
             "cardinality reads should be tracked"

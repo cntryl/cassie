@@ -166,6 +166,22 @@ pub struct ProjectionIntegrityReportMeta {
     pub last_error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProjectionComparisonReportMeta {
+    pub report_id: String,
+    pub created_ms: u64,
+    pub target: String,
+    pub target_version_id: Option<String>,
+    pub state: String,
+    pub compatibility_status: String,
+    pub root_digest: Option<String>,
+    pub manifest_digest: Option<String>,
+    pub mismatch_count: u64,
+    pub unverifiable_count: u64,
+    pub diagnostic_sample: Vec<String>,
+    pub last_error: Option<String>,
+}
+
 impl Default for ProjectionFreshness {
     fn default() -> Self {
         Self::Unknown
@@ -252,6 +268,8 @@ impl ProjectionVersionState {
 pub struct MaterializedProjectionMeta {
     pub name: String,
     pub query: String,
+    #[serde(default)]
+    pub options: std::collections::BTreeMap<String, String>,
     pub output_collection: String,
     pub source_collections: Vec<String>,
     pub schema_epoch: u64,
@@ -381,6 +399,7 @@ impl ProjectionMeta {
         query: impl Into<String>,
         source_collections: Vec<String>,
         output_schema: crate::types::Schema,
+        options: std::collections::BTreeMap<String, String>,
         schema_epoch: u64,
         definition_fingerprint: u64,
         created_ms: u64,
@@ -409,6 +428,7 @@ impl ProjectionMeta {
             materialized: Some(MaterializedProjectionMeta {
                 name: name.clone(),
                 query,
+                options,
                 output_collection: output_collection.clone(),
                 source_collections,
                 schema_epoch,

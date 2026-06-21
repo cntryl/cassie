@@ -34,6 +34,7 @@ impl Cassie {
             "adaptive_candidates": snapshot.adaptive_candidates,
             "covering_indexes": snapshot.covering_indexes,
             "column_batches": snapshot.column_batches,
+            "time_series": snapshot.time_series,
             "aggregate_acceleration": snapshot.aggregate_acceleration,
             "parallel_scans": snapshot.parallel_scans,
             "parallel_scoring": snapshot.parallel_scoring,

@@ -121,6 +121,91 @@ fn should_restore_cardinality_stats_after_restart() {
 }
 
 #[test]
+fn should_rebuild_field_cardinality_stats() {
+    // Arrange
+    let path = data_dir("field_cardinality");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.midge.ensure_families_ready().unwrap();
+        let collection = "cf_layout_field_cardinality";
+        cassie
+            .midge
+            .create_collection(
+                collection,
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "title".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                        FieldSchema {
+                            name: "body".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                    ],
+                },
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha", "body": null}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-2".to_string()),
+                serde_json::json!({"title": "beta", "body": "two"}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-3".to_string()),
+                serde_json::json!({"body": "three"}),
+            )
+            .unwrap();
+
+        // Act
+        let stats = cassie
+            .midge
+            .rebuild_cardinality_stats_for_collection(collection)
+            .unwrap();
+
+        // Assert
+        let title = stats.fields.get("title").expect("title field stats");
+        assert_eq!(title.non_null_count, 2);
+        assert_eq!(title.missing_count, 1);
+        assert_eq!(title.distinct_count, 2);
+        assert_eq!(title.min_value.as_deref(), Some("\"alpha\""));
+        assert_eq!(title.max_value.as_deref(), Some("\"beta\""));
+        let body = stats.fields.get("body").expect("body field stats");
+        assert_eq!(body.non_null_count, 2);
+        assert_eq!(body.null_count, 1);
+        assert_eq!(body.distinct_count, 2);
+        assert_eq!(title.sample_count, 3);
+        assert_eq!(title.confidence, 66);
+        assert_eq!(title.histogram_buckets.len(), 2);
+        assert_eq!(title.heavy_hitters[0].value, "\"alpha\"");
+        assert_eq!(title.heavy_hitters[0].count, 1);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_move_cleanup_cardinality_stats_on_collection_rename_drop() {
     // Arrange
     let path = data_dir("cardinality_cleanup");

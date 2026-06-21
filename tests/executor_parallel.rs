@@ -17,6 +17,50 @@ use uuid::Uuid;
 mod support;
 use support::*;
 
+const PARALLEL_ROW_COUNT: usize = 1025;
+
+fn create_registered_collection(cassie: &Cassie, collection: &str, fields: &[(&str, DataType)]) {
+    let schema = Schema {
+        fields: fields
+            .iter()
+            .map(|(name, data_type)| FieldSchema {
+                name: (*name).to_string(),
+                data_type: data_type.clone(),
+                nullable: true,
+            })
+            .collect(),
+    };
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .unwrap();
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
+}
+
+fn put_documents(
+    cassie: &Cassie,
+    collection: &str,
+    documents: impl IntoIterator<Item = (String, serde_json::Value)>,
+) {
+    cassie
+        .midge
+        .put_documents(
+            collection,
+            documents
+                .into_iter()
+                .map(|(id, payload)| (Some(id), payload))
+                .collect(),
+        )
+        .unwrap();
+}
+
 #[test]
 fn should_score_fulltext_candidates_with_parallel_workers() {
     // Arrange
@@ -31,23 +75,26 @@ fn should_score_fulltext_candidates_with_parallel_workers() {
         .expect("runtime");
 
     runtime.block_on(async {
+        let collection = "exec_parallel_scoring_fulltext";
         let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE exec_parallel_scoring_fulltext (id TEXT, body TEXT)",
-                vec![],
-            )
-            .unwrap();
-        for index in 0..1100 {
-            cassie
-                .execute_sql(
-                    &session,
-                    "INSERT INTO exec_parallel_scoring_fulltext (id, body) VALUES ($1, 'alpha beta')",
-                    vec![Value::String(format!("doc-{index:04}"))],
+        create_registered_collection(
+            &cassie,
+            collection,
+            &[("id", DataType::Text), ("body", DataType::Text)],
+        );
+        put_documents(
+            &cassie,
+            collection,
+            (0..PARALLEL_ROW_COUNT).map(|index| {
+                (
+                    format!("doc-{index:04}"),
+                    serde_json::json!({
+                        "id": format!("doc-{index:04}"),
+                        "body": "alpha beta",
+                    }),
                 )
-                .unwrap();
-        }
+            }),
+        );
 
         // Act
         let result = cassie
@@ -168,19 +215,19 @@ fn should_merge_parallel_scan_batches_deterministically() {
                 .map(|field| (field.name.clone(), field.data_type.clone()))
                 .collect(),
         );
-        for index in 0..1100 {
-            cassie
-                .midge
-                .put_document(
-                    collection,
-                    Some(format!("doc-{index:04}")),
+        put_documents(
+            &cassie,
+            collection,
+            (0..PARALLEL_ROW_COUNT).map(|index| {
+                (
+                    format!("doc-{index:04}"),
                     serde_json::json!({
                         "id": format!("doc-{index:04}"),
                         "title": format!("title-{index:04}"),
                     }),
                 )
-                .unwrap();
-        }
+            }),
+        );
         let session = cassie.create_session("tester", None);
 
         // Act
@@ -190,10 +237,13 @@ fn should_merge_parallel_scan_batches_deterministically() {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows.len(), 1100);
+        assert_eq!(result.rows.len(), PARALLEL_ROW_COUNT);
         assert!(metrics["parallel_scans"]["scans"].as_u64().unwrap_or(0) > 0);
         assert!(metrics["parallel_scans"]["workers"].as_u64().unwrap_or(0) >= 2);
-        assert_eq!(metrics["parallel_scans"]["rows"].as_u64(), Some(1100));
+        assert_eq!(
+            metrics["parallel_scans"]["rows"].as_u64(),
+            Some(PARALLEL_ROW_COUNT as u64)
+        );
     });
 
     let _ = std::fs::remove_dir_all(path);
@@ -308,20 +358,20 @@ fn should_execute_grouped_aggregates_with_parallel_workers() {
                 .map(|field| (field.name.clone(), field.data_type.clone()))
                 .collect(),
         );
-        for index in 0..1100 {
-            let category = if index % 2 == 0 { "even" } else { "odd" };
-            cassie
-                .midge
-                .put_document(
-                    collection,
-                    Some(format!("doc-{index:04}")),
+        put_documents(
+            &cassie,
+            collection,
+            (0..PARALLEL_ROW_COUNT).map(|index| {
+                let category = if index % 2 == 0 { "even" } else { "odd" };
+                (
+                    format!("doc-{index:04}"),
                     serde_json::json!({
                         "category": category,
                         "score": 1,
                     }),
                 )
-                .unwrap();
-        }
+            }),
+        );
         let session = cassie.create_session("tester", None);
 
         // Act
@@ -340,13 +390,13 @@ fn should_execute_grouped_aggregates_with_parallel_workers() {
             vec![
                 vec![
                     Value::String("even".to_string()),
-                    Value::Int64(550),
-                    Value::Int64(550),
+                    Value::Int64(513),
+                    Value::Int64(513),
                 ],
                 vec![
                     Value::String("odd".to_string()),
-                    Value::Int64(550),
-                    Value::Int64(550),
+                    Value::Int64(512),
+                    Value::Int64(512),
                 ],
             ]
         );
@@ -358,7 +408,10 @@ fn should_execute_grouped_aggregates_with_parallel_workers() {
             .as_u64()
             .unwrap_or(0)
             >= 2);
-        assert_eq!(metrics["parallel_aggregation"]["rows"].as_u64(), Some(1100));
+        assert_eq!(
+            metrics["parallel_aggregation"]["rows"].as_u64(),
+            Some(PARALLEL_ROW_COUNT as u64)
+        );
         assert_eq!(metrics["parallel_aggregation"]["groups"].as_u64(), Some(2));
     });
 
@@ -379,33 +432,27 @@ fn should_execute_ungrouped_parallel_aggregates_with_nulls() {
         .expect("runtime");
 
     runtime.block_on(async {
+        let collection = "exec_parallel_aggregation_nulls";
         let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE exec_parallel_aggregation_nulls (score INT)",
-                vec![],
-            )
-            .unwrap();
-        for index in 0..1100 {
-            if index % 10 == 0 {
-                cassie
-                    .execute_sql(
-                        &session,
-                        "INSERT INTO exec_parallel_aggregation_nulls (score) VALUES (NULL)",
-                        vec![],
-                    )
-                    .unwrap();
-            } else {
-                cassie
-                    .execute_sql(
-                        &session,
-                        "INSERT INTO exec_parallel_aggregation_nulls (score) VALUES (1)",
-                        vec![],
-                    )
-                    .unwrap();
-            }
-        }
+        create_registered_collection(&cassie, collection, &[("score", DataType::Int)]);
+        put_documents(
+            &cassie,
+            collection,
+            (0..PARALLEL_ROW_COUNT).map(|index| {
+                let score = if index % 10 == 0 {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::json!(1)
+                };
+                (
+                    format!("doc-{index:04}"),
+                    serde_json::json!({ "score": score }),
+                )
+            }),
+        );
+        let non_null_rows = (0..PARALLEL_ROW_COUNT)
+            .filter(|index| index % 10 != 0)
+            .count() as i64;
 
         // Act
         let result = cassie
@@ -421,9 +468,9 @@ fn should_execute_ungrouped_parallel_aggregates_with_nulls() {
         assert_eq!(
             result.rows,
             vec![vec![
-                Value::Int64(1100),
-                Value::Int64(990),
-                Value::Int64(990),
+                Value::Int64(PARALLEL_ROW_COUNT as i64),
+                Value::Int64(non_null_rows),
+                Value::Int64(non_null_rows),
                 Value::Float64(1.0),
                 Value::Int64(1),
                 Value::Int64(1),
@@ -452,35 +499,38 @@ fn should_preserve_having_order_limit_offset_for_parallel_aggregation() {
         .expect("runtime");
 
     runtime.block_on(async {
+        let collection = "exec_parallel_aggregation_having";
         let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE exec_parallel_aggregation_having (category TEXT, score INT)",
-                vec![],
-            )
-            .unwrap();
-        for index in 0..1100 {
-            let category = match index % 4 {
-                0 => "a",
-                1 => "b",
-                2 => "c",
-                _ => "d",
-            };
-            cassie
-                .execute_sql(
-                    &session,
-                    "INSERT INTO exec_parallel_aggregation_having (category, score) VALUES ($1, 1)",
-                    vec![Value::String(category.to_string())],
+        create_registered_collection(
+            &cassie,
+            collection,
+            &[("category", DataType::Text), ("score", DataType::Int)],
+        );
+        put_documents(
+            &cassie,
+            collection,
+            (0..PARALLEL_ROW_COUNT).map(|index| {
+                let category = match index % 4 {
+                    0 => "a",
+                    1 => "b",
+                    2 => "c",
+                    _ => "d",
+                };
+                (
+                    format!("doc-{index:04}"),
+                    serde_json::json!({
+                        "category": category,
+                        "score": 1,
+                    }),
                 )
-                .unwrap();
-        }
+            }),
+        );
 
         // Act
         let result = cassie
             .execute_sql(
                 &session,
-                "SELECT category, COUNT(*) AS total FROM exec_parallel_aggregation_having GROUP BY category HAVING COUNT(*) >= 275 ORDER BY category LIMIT 2 OFFSET 1",
+                "SELECT category, COUNT(*) AS total FROM exec_parallel_aggregation_having GROUP BY category HAVING COUNT(*) >= 256 ORDER BY category LIMIT 2 OFFSET 1",
                 vec![],
             )
             .expect("parallel aggregate query should preserve downstream clauses");
@@ -489,8 +539,8 @@ fn should_preserve_having_order_limit_offset_for_parallel_aggregation() {
         assert_eq!(
             result.rows,
             vec![
-                vec![Value::String("b".to_string()), Value::Int64(275)],
-                vec![Value::String("c".to_string()), Value::Int64(275)],
+                vec![Value::String("b".to_string()), Value::Int64(256)],
+                vec![Value::String("c".to_string()), Value::Int64(256)],
             ]
         );
     });
@@ -512,24 +562,20 @@ fn should_fallback_parallel_aggregation_for_distinct() {
         .expect("runtime");
 
     runtime.block_on(async {
+        let collection = "exec_parallel_aggregation_distinct";
         let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE exec_parallel_aggregation_distinct (category TEXT)",
-                vec![],
-            )
-            .unwrap();
-        for index in 0..1100 {
-            let category = if index % 2 == 0 { "even" } else { "odd" };
-            cassie
-                .execute_sql(
-                    &session,
-                    "INSERT INTO exec_parallel_aggregation_distinct (category) VALUES ($1)",
-                    vec![Value::String(category.to_string())],
+        create_registered_collection(&cassie, collection, &[("category", DataType::Text)]);
+        put_documents(
+            &cassie,
+            collection,
+            (0..PARALLEL_ROW_COUNT).map(|index| {
+                let category = if index % 2 == 0 { "even" } else { "odd" };
+                (
+                    format!("doc-{index:04}"),
+                    serde_json::json!({ "category": category }),
                 )
-                .unwrap();
-        }
+            }),
+        );
 
         // Act
         let result = cassie
@@ -633,14 +679,9 @@ fn should_fallback_parallel_aggregation_for_user_defined_function() {
         .expect("runtime");
 
     runtime.block_on(async {
+        let collection = "exec_parallel_aggregation_udf";
         let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE exec_parallel_aggregation_udf (score INT)",
-                vec![],
-            )
-            .unwrap();
+        create_registered_collection(&cassie, collection, &[("score", DataType::Int)]);
         cassie
             .execute_sql(
                 &session,
@@ -648,15 +689,12 @@ fn should_fallback_parallel_aggregation_for_user_defined_function() {
                 vec![],
             )
             .unwrap();
-        for _ in 0..1100 {
-            cassie
-                .execute_sql(
-                    &session,
-                    "INSERT INTO exec_parallel_aggregation_udf (score) VALUES (1)",
-                    vec![],
-                )
-                .unwrap();
-        }
+        put_documents(
+            &cassie,
+            collection,
+            (0..PARALLEL_ROW_COUNT)
+                .map(|index| (format!("doc-{index:04}"), serde_json::json!({ "score": 1 }))),
+        );
 
         // Act
         let result = cassie
@@ -669,7 +707,10 @@ fn should_fallback_parallel_aggregation_for_user_defined_function() {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::Int64(1100)]]);
+        assert_eq!(
+            result.rows,
+            vec![vec![Value::Int64(PARALLEL_ROW_COUNT as i64)]]
+        );
         assert_eq!(
             metrics["parallel_aggregation"]["aggregations"].as_u64(),
             Some(0)

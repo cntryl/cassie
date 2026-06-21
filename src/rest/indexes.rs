@@ -111,6 +111,8 @@ fn vector_index_metadata(
         metric,
         index_type: VectorIndexType::BruteForce,
         hnsw: None,
+        ivfflat: None,
+        ivfflat_training: None,
     };
 
     if metadata.dimensions != vector_dimensions {

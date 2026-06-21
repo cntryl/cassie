@@ -330,10 +330,14 @@ mod dml;
 mod dml_command;
 #[path = "execution/materialized_projection.rs"]
 mod materialized_projection;
+#[path = "execution/projection_diff.rs"]
+mod projection_diff;
 #[path = "execution/retention.rs"]
 mod retention;
 #[path = "execution/rollups.rs"]
 mod rollups;
+#[path = "execution/vector_index_command.rs"]
+mod vector_index_command;
 
 fn execute_plan(
     cassie: &Cassie,
@@ -408,6 +412,18 @@ fn execute_plan_with_outer_row(
                     .runtime
                     .record_mixed_execution_optimized(plan.collection.clone());
             }
+            return Ok(rows);
+        }
+
+        if let Some(rows) = analytical_projection::try_execute_analytical_projection(
+            cassie,
+            session,
+            plan,
+            cte_context,
+            user_functions,
+            params,
+            controls,
+        )? {
             return Ok(rows);
         }
 
@@ -676,8 +692,12 @@ pub(crate) use source::{aggregate_signature, expr_key, group_expr_name, value_so
 mod scored;
 pub(crate) use scored::{vector_prefilter_fallback_reason, vector_prefilter_supported};
 
+#[path = "execution/analytical_projection.rs"]
+mod analytical_projection;
 #[path = "execution/projected_read.rs"]
 mod projected_read;
+#[path = "execution/time_series_read.rs"]
+mod time_series_read;
 
 fn compare_query_values(left: &Value, right: &Value) -> CmpOrdering {
     if let (Some(left), Some(right)) = (left.as_f64(), right.as_f64()) {

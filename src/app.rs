@@ -434,6 +434,8 @@ mod embeddings;
 mod lifecycle;
 #[path = "app/query.rs"]
 mod query;
+#[path = "app/query_explain.rs"]
+mod query_explain;
 #[path = "app/registry.rs"]
 mod registry;
 #[path = "app/replay.rs"]

@@ -3,7 +3,20 @@ use super::*;
 impl Midge {
     pub fn put_vector_index(
         &self,
-        metadata: crate::embeddings::VectorIndexRecord,
+        mut metadata: crate::embeddings::VectorIndexRecord,
+    ) -> Result<(), CassieError> {
+        self.write_vector_index_metadata(&metadata)?;
+        self.rebuild_normalized_vectors_for_index(&metadata)?;
+        if metadata.metadata.index_type == crate::embeddings::VectorIndexType::IvfFlat {
+            metadata.metadata.ivfflat_training = Some(self.rebuild_ivfflat_training(&metadata)?);
+            self.write_vector_index_metadata(&metadata)?;
+        }
+        Ok(())
+    }
+
+    fn write_vector_index_metadata(
+        &self,
+        metadata: &crate::embeddings::VectorIndexRecord,
     ) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::vector_index_key(&metadata.collection, &metadata.field);
@@ -13,7 +26,6 @@ impl Midge {
         tx.put(key, value, None).map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
-        self.rebuild_normalized_vectors_for_index(&metadata)?;
         Ok(())
     }
 
@@ -170,6 +182,44 @@ impl Midge {
         Ok(())
     }
 
+    pub fn put_projection_comparison_report(
+        &self,
+        report: crate::catalog::ProjectionComparisonReportMeta,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let value =
+            serde_json::to_vec(&report).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(
+            Self::projection_comparison_report_key(&report.report_id),
+            value,
+            None,
+        )
+        .map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub fn list_projection_comparison_reports(
+        &self,
+    ) -> Result<Vec<crate::catalog::ProjectionComparisonReportMeta>, CassieError> {
+        let entries = self.raw_scan_prefix(
+            StorageFamily::Schema,
+            &Self::projection_comparison_report_prefix(),
+        )?;
+        let mut out = Vec::with_capacity(entries.len());
+        for (_key, raw_value) in entries {
+            let Ok(report) = serde_json::from_slice(&raw_value) else {
+                continue;
+            };
+            out.push(report);
+        }
+        out.sort_by_key(|report: &crate::catalog::ProjectionComparisonReportMeta| {
+            report.report_id.clone()
+        });
+        Ok(out)
+    }
+
     pub fn save_constraints(
         &self,
         collection: &str,
@@ -271,6 +321,15 @@ impl Midge {
             hydrated: true,
             ..CollectionCardinalityStats::default()
         };
+
+        if let Some(schema) = self.collection_schema(collection) {
+            for field in schema.fields {
+                stats.set_field_stats(
+                    field.name.clone(),
+                    super::cardinality_stats::field_cardinality_stats(&documents, &field.name),
+                );
+            }
+        }
 
         for index in self.list_indexes()? {
             if index.collection != collection {
@@ -466,6 +525,91 @@ impl Midge {
         Self::write_normalized_vector_records(&mut tx, &records)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(records.len())
+    }
+
+    pub fn rebuild_ivfflat_training(
+        &self,
+        index: &VectorIndexRecord,
+    ) -> Result<crate::embeddings::IvfFlatTrainingState, CassieError> {
+        let options = index.metadata.ivfflat.clone().unwrap_or_default();
+        let records = self.list_normalized_vectors(&index.collection, &index.field)?;
+        let row_count = records.len();
+        let lists = options.lists.max(1).min(row_count.max(1));
+        let probes = options.probes.max(1).min(lists);
+
+        if records.is_empty() {
+            return Ok(crate::embeddings::IvfFlatTrainingState {
+                version: 1,
+                trained: false,
+                row_count,
+                lists,
+                probes,
+                training_seed: options.training_seed,
+                centroid_ids: Vec::new(),
+                centroids: Vec::new(),
+                assignments: Default::default(),
+                list_sizes: vec![0; lists],
+            });
+        }
+
+        let mut sample = records.clone();
+        sample.sort_by_key(|record| ivfflat_training_order(options.training_seed, &record.id));
+        sample.truncate(options.training_sample_size.min(sample.len()).max(lists));
+
+        let mut centroids = sample
+            .iter()
+            .take(lists)
+            .map(|record| record.values.clone())
+            .collect::<Vec<_>>();
+        while centroids.len() < lists {
+            centroids.push(records[centroids.len() % records.len()].values.clone());
+        }
+        let centroid_ids = sample
+            .iter()
+            .take(lists)
+            .map(|record| record.id.clone())
+            .collect::<Vec<_>>();
+
+        let mut assignments = std::collections::BTreeMap::new();
+        let mut list_sizes = vec![0usize; lists];
+        for record in &records {
+            let list = nearest_ivfflat_centroid(&record.values, &centroids);
+            assignments.insert(record.id.clone(), list);
+            if let Some(size) = list_sizes.get_mut(list) {
+                *size += 1;
+            }
+        }
+
+        Ok(crate::embeddings::IvfFlatTrainingState {
+            version: 1,
+            trained: true,
+            row_count,
+            lists,
+            probes,
+            training_seed: options.training_seed,
+            centroid_ids,
+            centroids,
+            assignments,
+            list_sizes,
+        })
+    }
+
+    pub fn refresh_ivfflat_indexes_for_collection(
+        &self,
+        collection: &str,
+    ) -> Result<usize, CassieError> {
+        let mut refreshed = 0usize;
+        for mut index in self.list_vector_indexes()? {
+            if index.collection != collection
+                || index.metadata.index_type != crate::embeddings::VectorIndexType::IvfFlat
+            {
+                continue;
+            }
+            index.metadata.ivfflat_training = Some(self.rebuild_ivfflat_training(&index)?);
+            self.write_vector_index_metadata(&index)?;
+            refreshed += 1;
+        }
+        Ok(refreshed)
     }
 
     pub fn list_normalized_vectors(
@@ -757,4 +901,36 @@ impl Midge {
         collections.dedup();
         collections
     }
+}
+
+fn ivfflat_training_order(seed: u64, id: &str) -> u64 {
+    let mut state = 0xcbf29ce484222325_u64 ^ seed;
+    for byte in id.as_bytes() {
+        state ^= u64::from(*byte);
+        state = state.wrapping_mul(0x100000001b3);
+    }
+    state
+}
+
+fn nearest_ivfflat_centroid(vector: &[f32], centroids: &[Vec<f32>]) -> usize {
+    centroids
+        .iter()
+        .enumerate()
+        .min_by(|(left_index, left), (right_index, right)| {
+            squared_l2(vector, left)
+                .total_cmp(&squared_l2(vector, right))
+                .then_with(|| left_index.cmp(right_index))
+        })
+        .map(|(index, _)| index)
+        .unwrap_or(0)
+}
+
+fn squared_l2(left: &[f32], right: &[f32]) -> f64 {
+    left.iter()
+        .zip(right.iter())
+        .map(|(left, right)| {
+            let delta = f64::from(*left) - f64::from(*right);
+            delta * delta
+        })
+        .sum()
 }

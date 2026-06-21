@@ -10,8 +10,12 @@ use std::collections::BTreeSet;
 mod aggregate_accel;
 #[path = "physical/column_batches.rs"]
 mod column_batches;
+#[path = "physical/cost.rs"]
+mod cost;
 #[path = "physical/feature_flags.rs"]
 mod feature_flags;
+#[path = "physical/time_series.rs"]
+mod time_series;
 
 use aggregate_accel::plan_supports_aggregate_acceleration;
 use column_batches::column_batch_index;
@@ -57,12 +61,18 @@ pub struct PhysicalPlan {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlanEstimates {
+    pub cost_model_version: u32,
     pub scan_rows: u64,
     pub index_rows: u64,
     pub join_rows: u64,
     pub search_rows: u64,
     pub vector_rows: u64,
     pub aggregate_rows: u64,
+    pub scan_cost: u64,
+    pub index_cost: u64,
+    pub selected_cost: u64,
+    pub cost_source: String,
+    pub rejected_alternatives: Vec<String>,
 }
 
 pub fn build(plan: LogicalPlan) -> PhysicalPlan {
@@ -97,7 +107,7 @@ pub fn build_with_indexes(
     let predicate_pushdown = plan_supports_predicate_pushdown(&plan);
     let projected_scan_fields = projected_scan_fields(&plan).unwrap_or_default();
     let scan_limit = scan_limit(&plan, &projected_scan_fields);
-    let selected_index = selected_index(&plan, indexes.as_slice());
+    let selected_index = selected_index(&plan, indexes.as_slice(), cardinality_stats);
     let covered_index = selected_index
         .as_deref()
         .and_then(|name| indexes.iter().find(|index| index.name == name))
@@ -159,134 +169,6 @@ pub fn build_with_indexes(
         join_strategy,
         parallel_aggregate_candidate,
         aggregate_acceleration,
-    }
-}
-
-impl PlanEstimates {
-    const DEFAULT_ROWS: u64 = 1_000;
-
-    fn from_plan(
-        plan: &LogicalPlan,
-        selected_index: Option<&str>,
-        cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
-    ) -> Self {
-        let scan_rows = estimated_source_rows(&plan.source, cardinality_stats);
-        let index_rows = selected_index
-            .and_then(|name| {
-                collection_stats(&plan.collection, cardinality_stats).and_then(|stats| {
-                    stats
-                        .index_cardinality(&CollectionCardinalityStats::scalar_index_key(name))
-                        .or_else(|| {
-                            stats.index_cardinality(
-                                &CollectionCardinalityStats::fulltext_index_key(name),
-                            )
-                        })
-                        .or_else(|| {
-                            stats.index_cardinality(&CollectionCardinalityStats::vector_index_key(
-                                name,
-                            ))
-                        })
-                        .or_else(|| {
-                            stats.index_cardinality(&CollectionCardinalityStats::hybrid_index_key(
-                                name,
-                            ))
-                        })
-                })
-            })
-            .unwrap_or(scan_rows);
-        let join_rows = join_rows(&plan.source, cardinality_stats);
-        let search_rows = if plan_uses_fulltext(plan) {
-            scan_rows.saturating_div(2).max(1)
-        } else {
-            0
-        };
-        let vector_rows = if plan_uses_vector(plan) {
-            scan_rows.saturating_div(2).max(1)
-        } else {
-            0
-        };
-        let aggregate_rows = if plan_uses_aggregate(plan) {
-            if plan.group_by.is_empty() {
-                1
-            } else {
-                scan_rows.saturating_div(2).max(1)
-            }
-        } else {
-            0
-        };
-
-        Self {
-            scan_rows,
-            index_rows,
-            join_rows,
-            search_rows,
-            vector_rows,
-            aggregate_rows,
-        }
-    }
-}
-
-fn collection_stats<'a>(
-    collection: &str,
-    cardinality_stats: &'a std::collections::HashMap<String, CollectionCardinalityStats>,
-) -> Option<&'a CollectionCardinalityStats> {
-    cardinality_stats
-        .get(collection)
-        .filter(|stats| stats.hydrated)
-}
-
-fn estimated_source_rows(
-    source: &QuerySource,
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
-) -> u64 {
-    match source {
-        QuerySource::Collection(collection) => collection_stats(collection, cardinality_stats)
-            .map(|stats| stats.row_count)
-            .unwrap_or(PlanEstimates::DEFAULT_ROWS),
-        QuerySource::Join {
-            left,
-            right,
-            kind,
-            on,
-        } => {
-            let left_rows = estimated_source_rows(left, cardinality_stats);
-            let right_rows = estimated_source_rows(right, cardinality_stats);
-            match kind {
-                JoinKind::Inner if is_equi_join_predicate(on) => left_rows.min(right_rows),
-                JoinKind::Cross => left_rows.saturating_mul(right_rows),
-                _ => left_rows.saturating_add(right_rows),
-            }
-        }
-        QuerySource::Subquery { select, .. } => select
-            .limit
-            .and_then(|limit| usize::try_from(limit.max(0)).ok())
-            .map(|limit| limit as u64)
-            .unwrap_or(PlanEstimates::DEFAULT_ROWS),
-        QuerySource::Cte(_) => PlanEstimates::DEFAULT_ROWS,
-        QuerySource::SingleRow => 1,
-    }
-}
-
-fn join_rows(
-    source: &QuerySource,
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
-) -> u64 {
-    match source {
-        QuerySource::Join {
-            left,
-            right,
-            kind,
-            on,
-        } => {
-            let left_rows = estimated_source_rows(left, cardinality_stats);
-            let right_rows = estimated_source_rows(right, cardinality_stats);
-            match kind {
-                JoinKind::Inner if is_equi_join_predicate(on) => left_rows.min(right_rows),
-                JoinKind::Cross => left_rows.saturating_mul(right_rows),
-                _ => left_rows.saturating_add(right_rows),
-            }
-        }
-        _ => 0,
     }
 }
 
@@ -366,7 +248,7 @@ fn expr_contains_not_exists_with_polarity(expr: &Expr, negated: bool) -> bool {
     }
 }
 
-fn is_equi_join_predicate(expr: &Expr) -> bool {
+pub(super) fn is_equi_join_predicate(expr: &Expr) -> bool {
     matches!(
         expr,
         Expr::Binary {
@@ -386,14 +268,18 @@ fn top_k_limit(plan: &LogicalPlan) -> Option<usize> {
     limit.checked_add(offset)
 }
 
-fn selected_index(plan: &LogicalPlan, indexes: &[IndexMeta]) -> Option<String> {
+fn selected_index(
+    plan: &LogicalPlan,
+    indexes: &[IndexMeta],
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+) -> Option<String> {
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
     };
     let filter = plan.filter.as_ref()?;
     let equality_fields = equality_filter_fields(filter);
     let equality_expressions = equality_filter_expressions(filter);
-    indexes
+    let scalar = indexes
         .iter()
         .filter(|index| index.collection == *collection && index.kind == IndexKind::Scalar)
         .filter(|index| partial_index_matches_query(plan.filter.as_ref(), index.predicate.as_ref()))
@@ -408,8 +294,37 @@ fn selected_index(plan: &LogicalPlan, indexes: &[IndexMeta]) -> Option<String> {
                 .all(|expression| equality_expressions.contains(expression));
             field_match && expression_match
         })
-        .max_by_key(|index| index.normalized_fields().len() + index.normalized_expressions().len())
-        .map(|index| index.name.clone())
+        .min_by(|left, right| {
+            index_estimate(collection, left, cardinality_stats)
+                .cmp(&index_estimate(collection, right, cardinality_stats))
+                .then_with(|| {
+                    let right_specificity =
+                        right.normalized_fields().len() + right.normalized_expressions().len();
+                    let left_specificity =
+                        left.normalized_fields().len() + left.normalized_expressions().len();
+                    right_specificity.cmp(&left_specificity)
+                })
+                .then_with(|| left.name.cmp(&right.name))
+        })
+        .map(|index| index.name.clone());
+    scalar.or_else(|| time_series::selected_time_series_index(collection, filter, indexes))
+}
+
+fn index_estimate(
+    collection: &str,
+    index: &IndexMeta,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+) -> u64 {
+    cardinality_stats
+        .get(collection)
+        .filter(|stats| stats.hydrated)
+        .and_then(|stats| {
+            stats.index_cardinality(&CollectionCardinalityStats::index_key(
+                &index.kind,
+                &index.name,
+            ))
+        })
+        .unwrap_or(u64::MAX)
 }
 
 fn partial_index_matches_query(

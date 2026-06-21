@@ -92,6 +92,18 @@ impl Cassie {
             }
         }
 
+        let comparison_reports =
+            self.midge
+                .list_projection_comparison_reports()
+                .map_err(|error| {
+                    self.runtime.record_storage_access("schema", false, false);
+                    CassieError::Storage(format!("list projection comparison reports: {error}"))
+                })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for report in comparison_reports {
+            self.catalog.register_projection_comparison_report(report);
+        }
+
         let indexes = self.midge.list_vector_indexes().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list vector indexes: {error}"))

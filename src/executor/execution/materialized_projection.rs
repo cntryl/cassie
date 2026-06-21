@@ -74,6 +74,7 @@ pub(super) fn create_materialized_projection(
         statement.query.clone(),
         build.source_collections,
         build.schema.clone(),
+        statement.options.clone(),
         cassie.catalog.version(),
         stable_projection_fingerprint(&statement.query),
         now_ms(),

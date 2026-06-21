@@ -406,6 +406,8 @@ fn should_rebuild_normalized_vector_sidecars_after_sql_writes() {
                 metric: DistanceMetric::Cosine,
                 index_type: VectorIndexType::BruteForce,
                 hnsw: None,
+                ivfflat: None,
+                ivfflat_training: None,
             },
         };
 

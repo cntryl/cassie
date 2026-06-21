@@ -129,6 +129,20 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             text("skipped_components"),
             text("last_error"),
         ],
+        "pg_catalog.pg_projection_comparison_reports" => vec![
+            text("report_id"),
+            text("target"),
+            text("target_version_id"),
+            text("state"),
+            text("compatibility_status"),
+            text("root_digest"),
+            text("manifest_digest"),
+            int("mismatch_count"),
+            int("unverifiable_count"),
+            text("diagnostic_sample"),
+            int("created_ms"),
+            text("last_error"),
+        ],
         "pg_catalog.pg_retention_policies" => vec![
             text("policy_name"),
             text("collection"),
@@ -357,6 +371,32 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                         "last_error",
                         projection.integrity.last_error.unwrap_or_default(),
                     ),
+                ]
+            })
+            .collect(),
+        "pg_catalog.pg_projection_comparison_reports" => catalog
+            .list_projection_comparison_reports()
+            .into_iter()
+            .map(|report| {
+                vec![
+                    string("report_id", report.report_id),
+                    string("target", report.target),
+                    string(
+                        "target_version_id",
+                        report.target_version_id.unwrap_or_default(),
+                    ),
+                    string("state", report.state),
+                    string("compatibility_status", report.compatibility_status),
+                    string("root_digest", report.root_digest.unwrap_or_default()),
+                    string(
+                        "manifest_digest",
+                        report.manifest_digest.unwrap_or_default(),
+                    ),
+                    int_value("mismatch_count", report.mismatch_count as i64),
+                    int_value("unverifiable_count", report.unverifiable_count as i64),
+                    string("diagnostic_sample", report.diagnostic_sample.join(",")),
+                    int_value("created_ms", report.created_ms as i64),
+                    string("last_error", report.last_error.unwrap_or_default()),
                 ]
             })
             .collect(),

@@ -8,6 +8,7 @@ pub enum IndexKind {
     Vector,
     Hybrid,
     Column,
+    TimeSeries,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

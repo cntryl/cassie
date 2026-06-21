@@ -271,6 +271,9 @@ mod tests {
         let key = PlanCacheKey {
             sql_fingerprint: 42,
             schema_epoch: 1,
+            data_epoch: 2,
+            index_feedback_epoch: 3,
+            cost_model_version: 1,
             parameter_shape: vec![ParameterShape::Int64],
             mode: ExecutionMode::SimpleQuery,
             database: Some("postgres".to_string()),

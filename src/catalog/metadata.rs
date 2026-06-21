@@ -7,7 +7,8 @@ use parking_lot::RwLock;
 use crate::catalog::{
     normalize_role_name, CollectionCardinalityStats, CollectionMeta, CollectionSchema,
     FieldConstraint, FieldMeta, FunctionMeta, IndexKind, IndexMeta, NamespaceMeta, ProcedureMeta,
-    ProjectionKind, ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
+    ProjectionComparisonReportMeta, ProjectionKind, ProjectionMeta, RetentionPolicyMeta, RoleMeta,
+    RollupMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
@@ -28,6 +29,7 @@ pub struct Catalog {
     pub retention_policies: Arc<RwLock<HashMap<String, RetentionPolicyMeta>>>,
     pub vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
     pub cardinality: Arc<RwLock<HashMap<String, CollectionCardinalityStats>>>,
+    pub projection_comparison_reports: Arc<RwLock<HashMap<String, ProjectionComparisonReportMeta>>>,
     version: Arc<AtomicU64>,
 }
 
@@ -48,6 +50,7 @@ impl Catalog {
             retention_policies: Arc::new(RwLock::new(HashMap::new())),
             vector_indexes: Arc::new(RwLock::new(HashMap::new())),
             cardinality: Arc::new(RwLock::new(HashMap::new())),
+            projection_comparison_reports: Arc::new(RwLock::new(HashMap::new())),
             version: Arc::new(AtomicU64::new(0)),
         }
     }
@@ -131,6 +134,24 @@ impl Catalog {
             .cloned()
             .collect::<Vec<_>>();
         out.sort_by_key(|projection| projection.collection.to_ascii_lowercase());
+        out
+    }
+
+    pub fn register_projection_comparison_report(&self, report: ProjectionComparisonReportMeta) {
+        self.projection_comparison_reports
+            .write()
+            .insert(report.report_id.clone(), report);
+        self.bump_version();
+    }
+
+    pub fn list_projection_comparison_reports(&self) -> Vec<ProjectionComparisonReportMeta> {
+        let mut out = self
+            .projection_comparison_reports
+            .read()
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        out.sort_by_key(|report| report.report_id.clone());
         out
     }
 
@@ -371,6 +392,7 @@ impl Catalog {
         self.indexes.write().clear();
         self.vector_indexes.write().clear();
         self.cardinality.write().clear();
+        self.projection_comparison_reports.write().clear();
         self.bump_version();
     }
 
@@ -392,6 +414,9 @@ impl Catalog {
         self.retention_policies
             .write()
             .retain(|_, policy| policy.collection != collection);
+        self.projection_comparison_reports
+            .write()
+            .retain(|_, report| report.target != collection);
         self.bump_version();
     }
 

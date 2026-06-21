@@ -174,6 +174,10 @@ fn parse_view_or_index_statement(
         )?))
     } else if starts_statement(lower, "verify projection") {
         Ok(Some(parse_verify_projection_statement(trimmed)?))
+    } else if starts_statement(lower, "diff projection") {
+        Ok(Some(parse_diff_projection_statement(trimmed)?))
+    } else if starts_statement(lower, "compare projection") {
+        Ok(Some(parse_compare_projection_statement(trimmed)?))
     } else if starts_statement(lower, "alter view") {
         Err(SqlError(
             "ALTER VIEW is not supported in this version".into(),

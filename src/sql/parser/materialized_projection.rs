@@ -16,7 +16,21 @@ pub(super) fn parse_create_materialized_projection_statement(
     let as_pos = lower
         .find(" as ")
         .ok_or_else(|| SqlError("CREATE MATERIALIZED PROJECTION requires AS clause".into()))?;
-    let name = rest[..as_pos].trim();
+    let name_part = rest[..as_pos].trim();
+    let lower_name_part = name_part.to_ascii_lowercase();
+    let (name, options) = if let Some(with_pos) = lower_name_part.find(" with ") {
+        let name = name_part[..with_pos].trim();
+        let options_raw = name_part[with_pos + 1..].trim();
+        let (options, remainder) = parse_index_options(options_raw)?;
+        if !remainder.is_empty() {
+            return Err(SqlError(
+                "unsupported CREATE MATERIALIZED PROJECTION options".into(),
+            ));
+        }
+        (name, options)
+    } else {
+        (name_part, Default::default())
+    };
     if name.is_empty() {
         return Err(SqlError(
             "CREATE MATERIALIZED PROJECTION requires a name".into(),
@@ -41,6 +55,7 @@ pub(super) fn parse_create_materialized_projection_statement(
             CreateMaterializedProjectionStatement {
                 name: name.to_ascii_lowercase(),
                 if_not_exists,
+                options,
                 query: query.to_string(),
             },
         ),
@@ -226,6 +241,122 @@ pub(super) fn parse_verify_projection_statement(
             mode,
         }),
     })
+}
+
+pub(super) fn parse_diff_projection_statement(trimmed: &str) -> Result<ParsedStatement, SqlError> {
+    let prefix = "DIFF PROJECTION";
+    let rest = trimmed[prefix.len()..].trim().trim_end_matches(';').trim();
+    let tokens = rest.split_whitespace().collect::<Vec<_>>();
+    if tokens.is_empty() {
+        return Err(SqlError("DIFF PROJECTION requires a left target".into()));
+    }
+    let mut index = 0;
+    let left = parse_projection_diff_target(tokens.as_slice(), &mut index, "DIFF PROJECTION")?;
+    if tokens
+        .get(index)
+        .is_none_or(|token| !token.eq_ignore_ascii_case("with"))
+    {
+        return Err(SqlError("DIFF PROJECTION requires WITH target".into()));
+    }
+    index += 1;
+    let right = parse_projection_diff_target(tokens.as_slice(), &mut index, "DIFF PROJECTION")?;
+    let mut limit = None;
+    let mut after = None;
+    while index < tokens.len() {
+        match tokens[index].to_ascii_lowercase().as_str() {
+            "limit" => {
+                let Some(value) = tokens.get(index + 1) else {
+                    return Err(SqlError("DIFF PROJECTION LIMIT requires a value".into()));
+                };
+                limit = Some(value.parse::<usize>().map_err(|_| {
+                    SqlError("DIFF PROJECTION LIMIT must be a positive integer".into())
+                })?);
+                index += 2;
+            }
+            "after" => {
+                let Some(value) = tokens.get(index + 1) else {
+                    return Err(SqlError("DIFF PROJECTION AFTER requires a cursor".into()));
+                };
+                after = Some((*value).to_string());
+                index += 2;
+            }
+            _ => return Err(SqlError("unsupported DIFF PROJECTION option".into())),
+        }
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::DiffProjection(crate::sql::ast::DiffProjectionStatement {
+            left,
+            right,
+            limit,
+            after,
+        }),
+    })
+}
+
+pub(super) fn parse_compare_projection_statement(
+    trimmed: &str,
+) -> Result<ParsedStatement, SqlError> {
+    let prefix = "COMPARE PROJECTION";
+    let rest = trimmed[prefix.len()..].trim().trim_end_matches(';').trim();
+    let lower = rest.to_ascii_lowercase();
+    let Some(with_pos) = lower.find(" with manifest ") else {
+        return Err(SqlError(
+            "COMPARE PROJECTION requires WITH MANIFEST '<json>'".into(),
+        ));
+    };
+    let mut target_tokens = rest[..with_pos].split_whitespace().collect::<Vec<_>>();
+    let mut index = 0;
+    let target =
+        parse_projection_diff_target(target_tokens.as_slice(), &mut index, "COMPARE PROJECTION")?;
+    if index != target_tokens.len() {
+        return Err(SqlError(
+            "unsupported COMPARE PROJECTION target option".into(),
+        ));
+    }
+    let manifest = rest[with_pos + " with manifest ".len()..].trim();
+    if manifest.is_empty() {
+        return Err(SqlError(
+            "COMPARE PROJECTION MANIFEST requires a value".into(),
+        ));
+    }
+    let manifest = manifest.trim_matches('\'').trim_matches('"').to_string();
+    target_tokens.clear();
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CompareProjection(crate::sql::ast::CompareProjectionStatement {
+            target,
+            manifest,
+        }),
+    })
+}
+
+fn parse_projection_diff_target(
+    tokens: &[&str],
+    index: &mut usize,
+    command: &str,
+) -> Result<crate::sql::ast::ProjectionDiffTarget, SqlError> {
+    let Some(name) = tokens.get(*index) else {
+        return Err(SqlError(format!("{command} requires a projection name")));
+    };
+    let mut target = crate::sql::ast::ProjectionDiffTarget {
+        name: name.to_ascii_lowercase(),
+        version_id: None,
+    };
+    *index += 1;
+    if tokens
+        .get(*index)
+        .is_some_and(|token| token.eq_ignore_ascii_case("version"))
+    {
+        let Some(version_id) = tokens.get(*index + 1) else {
+            return Err(SqlError(format!("{command} VERSION requires an id")));
+        };
+        target.version_id = Some((*version_id).to_string());
+        *index += 2;
+    }
+    Ok(target)
 }
 
 fn parse_projection_verification_mode(

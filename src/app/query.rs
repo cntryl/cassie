@@ -1,5 +1,7 @@
 use super::*;
 
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 1;
+
 impl Cassie {
     fn is_query_cacheable(statement: &QueryStatement) -> bool {
         matches!(statement, QueryStatement::Select(_))
@@ -15,6 +17,9 @@ impl Cassie {
         PlanCacheKey {
             sql_fingerprint,
             schema_epoch: self.runtime.schema_epoch(),
+            data_epoch: self.runtime.data_epoch(),
+            index_feedback_epoch: self.runtime.index_feedback_epoch(),
+            cost_model_version: PLAN_CACHE_COST_MODEL_VERSION,
             parameter_shape,
             mode,
             database,
@@ -29,7 +34,7 @@ impl Cassie {
     ) -> Vec<RuntimeFeedbackKey> {
         let schema_epoch = self.runtime.schema_epoch();
         let collection = physical.collection.clone();
-        physical
+        let mut keys = physical
             .operators
             .iter()
             .map(|operator| RuntimeFeedbackKey {
@@ -39,7 +44,17 @@ impl Cassie {
                 collection: collection.clone(),
                 operator: format!("{operator:?}"),
             })
-            .collect()
+            .collect::<Vec<_>>();
+        if let Some(index) = &physical.selected_index {
+            keys.push(RuntimeFeedbackKey {
+                sql_fingerprint,
+                schema_epoch,
+                database,
+                collection,
+                operator: format!("Index:{index}"),
+            });
+        }
+        keys
     }
 
     fn observe_feedback_lookup(&self, keys: &[RuntimeFeedbackKey]) {
@@ -693,143 +708,7 @@ impl Cassie {
         let sql_fingerprint = crate::runtime::sql_fingerprint(&statement);
         let before = analyze.then(|| self.runtime.snapshot());
         let physical = self.compile_physical_plan(statement, Some(controls))?;
-        let operators = physical
-            .operators
-            .iter()
-            .map(|operator| format!("{operator:?}"))
-            .collect::<Vec<_>>()
-            .join(">");
-        let projection_pruning = !physical.projected_scan_fields.is_empty();
-        let scan_fields = if projection_pruning {
-            physical.projected_scan_fields.join(",")
-        } else {
-            "all".to_string()
-        };
-        let limit_pushdown = physical.scan_limit.is_some();
-        let scan_limit = physical
-            .scan_limit
-            .map(|limit| limit.to_string())
-            .unwrap_or_else(|| "none".to_string());
-        let index_aware = physical.selected_index.is_some();
-        let index = physical.selected_index.as_deref().unwrap_or("none");
-        let covered_index = physical.covered_index;
-        let column_batch_index = physical.column_batch_index.as_deref().unwrap_or("none");
-        let prefilter = match physical.logical.filter.as_ref() {
-            None => "none".to_string(),
-            Some(filter) => {
-                if let Some(index) = physical.selected_index.as_deref() {
-                    format!("index={index}")
-                } else if let Some(schema) = self.catalog.get_schema(&physical.collection) {
-                    if vector_prefilter_supported(filter, &schema) {
-                        "row-scan".to_string()
-                    } else {
-                        format!(
-                            "fallback={}",
-                            vector_prefilter_fallback_reason(filter, &schema)
-                        )
-                    }
-                } else {
-                    "fallback=missing-schema".to_string()
-                }
-            }
-        };
-        let top_k_limit = physical
-            .top_k_limit
-            .map(|limit| limit.to_string())
-            .unwrap_or_else(|| "none".to_string());
-        let join_strategy = physical.join_strategy.as_deref().unwrap_or("none");
-        let aggregate_parallel = physical.parallel_aggregate_candidate;
-        let aggregate_acceleration = physical.aggregate_acceleration;
-        let rollup_rewrite = crate::executor::rollup_rewrite_name_for_plan(self, &physical.logical)
-            .unwrap_or_else(|| "none".to_string());
-        let candidate_budget = physical.top_k_limit.map(|top_needed| {
-            let limits = self.runtime.limits();
-            let feedback_budget = self
-                .runtime
-                .feedback_candidate_budget(&physical.collection)
-                .unwrap_or_default();
-            top_needed
-                .max(limits.adaptive_candidate_min)
-                .max(feedback_budget)
-                .min(limits.adaptive_candidate_max)
-        });
-        let candidate_budget = candidate_budget
-            .map(|budget| budget.to_string())
-            .unwrap_or_else(|| "none".to_string());
-        let mixed_uses_fulltext = physical
-            .operators
-            .iter()
-            .any(|operator| matches!(operator, crate::planner::physical::Operator::FullTextSearch));
-        let mixed_uses_vector = physical
-            .operators
-            .iter()
-            .any(|operator| matches!(operator, crate::planner::physical::Operator::VectorSearch));
-        let mixed_uses_aggregate = physical
-            .operators
-            .iter()
-            .any(|operator| matches!(operator, crate::planner::physical::Operator::Aggregate));
-        let mixed_execution = (mixed_uses_fulltext && mixed_uses_vector)
-            || ((mixed_uses_fulltext || mixed_uses_vector) && mixed_uses_aggregate);
-        let mixed_stages = mixed_execution_stages(
-            mixed_uses_fulltext,
-            mixed_uses_vector,
-            mixed_uses_aggregate,
-            physical.logical.filter.is_some(),
-            !physical.logical.order.is_empty(),
-            physical.logical.offset.is_some(),
-            physical.logical.limit.is_some(),
-        );
-        let mixed_fallback = if mixed_execution {
-            "source_row_exact_baseline"
-        } else {
-            "none"
-        };
-        let projection_freshness = self
-            .catalog
-            .get_materialized_projection(&physical.collection)
-            .or_else(|| {
-                self.catalog
-                    .materialized_projection_for_output(&physical.collection)
-            })
-            .map(|projection| projection.freshness.as_str().to_string())
-            .unwrap_or_else(|| "unavailable".to_string());
-        let estimates = &physical.estimates;
-        let mut plan = format!(
-            "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} covered_index={} column_batch_index={} prefilter={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
-            physical.collection,
-            if operators.is_empty() {
-                "Command".to_string()
-            } else {
-                operators
-            },
-            physical.predicate_pushdown,
-            projection_pruning,
-            scan_fields,
-            limit_pushdown,
-            scan_limit,
-            index_aware,
-            index,
-            covered_index,
-            column_batch_index,
-            prefilter,
-            physical.top_k,
-            top_k_limit,
-            candidate_budget,
-            join_strategy,
-            aggregate_parallel,
-            aggregate_acceleration,
-            rollup_rewrite,
-            mixed_execution,
-            mixed_stages,
-            mixed_fallback,
-            projection_freshness,
-            estimates.scan_rows,
-            estimates.index_rows,
-            estimates.join_rows,
-            estimates.search_rows,
-            estimates.vector_rows,
-            estimates.aggregate_rows
-        );
+        let mut plan = super::query_explain::plan_line(self, &physical);
 
         if analyze {
             let feedback_keys =
@@ -975,43 +854,5 @@ impl Cassie {
             rows: vec![vec![Value::String(plan)]],
             command: "EXPLAIN".to_string(),
         })
-    }
-}
-
-fn mixed_execution_stages(
-    uses_fulltext: bool,
-    uses_vector: bool,
-    uses_aggregate: bool,
-    has_filter: bool,
-    has_order: bool,
-    has_offset: bool,
-    has_limit: bool,
-) -> String {
-    let mut stages = Vec::new();
-    if uses_fulltext || uses_vector {
-        stages.push("candidate_generation");
-    }
-    if has_filter {
-        stages.push("metadata_prefilter");
-    }
-    if uses_fulltext || uses_vector {
-        stages.push("exact_scoring");
-    }
-    if uses_aggregate {
-        stages.push("analytical_grouping");
-    }
-    if has_order {
-        stages.push("ordering");
-    }
-    if has_offset {
-        stages.push("offset");
-    }
-    if has_limit {
-        stages.push("limit");
-    }
-    if stages.is_empty() {
-        "none".to_string()
-    } else {
-        stages.join(">")
     }
 }

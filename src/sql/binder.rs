@@ -217,6 +217,14 @@ fn bind_statement(
             raw_sql,
             statement: QueryStatement::VerifyProjection(statement),
         }),
+        QueryStatement::DiffProjection(statement) => Ok(ParsedStatement {
+            raw_sql,
+            statement: QueryStatement::DiffProjection(statement),
+        }),
+        QueryStatement::CompareProjection(statement) => Ok(ParsedStatement {
+            raw_sql,
+            statement: QueryStatement::CompareProjection(statement),
+        }),
         QueryStatement::CreateRetentionPolicy(statement) => {
             let statement = bind_create_retention_policy(statement, catalog)?;
             Ok(ParsedStatement {

@@ -52,9 +52,9 @@ Status terms:
 | Hybrid | hybrid_score(text_score, vector_score) | Stable | Cassie-specific |
 | Embeddings | provider, model, dimensions, metric validation | Experimental | Cassie-specific |
 | Projections | projection metadata, source checkpoints, freshness, replay batch diagnostics, schema version, offset, lag, rebuild state | Experimental | Cassie-specific |
-| Projection lifecycle | internal idempotent replay ingestion, materialized projections, versioned builds, verification-aware active-version swaps, operations views | Experimental | Cassie-specific |
+| Projection lifecycle | internal idempotent replay ingestion, materialized projections, analytical projection options, versioned builds, verification-aware active-version swaps, operations views | Experimental | Cassie-specific |
 | Time series | time_bucket fixed windows, exact-match materialized rollups over deterministic aggregates, explicit retention policies, range queries | Experimental | Cassie-specific deterministic semantics |
-| Verification | deterministic row hashes, range hashes, projection roots, rebuild verification metadata, `VERIFY PROJECTION`, local integrity reports | Experimental | Cassie-specific |
+| Verification | deterministic row hashes, range hashes, projection roots, rebuild verification metadata, `VERIFY PROJECTION`, `DIFF PROJECTION`, `COMPARE PROJECTION`, local integrity reports | Experimental | Cassie-specific |
 
 ## Index Support
 
@@ -71,7 +71,7 @@ Status terms:
 | Vector | brute force, HNSW, IVFFlat | Stable/Experimental | Cassie-specific with pgvector-style operators |
 | Hybrid | text candidate plus vector rerank metadata | Stable | Cassie-specific |
 | Column-store | USING column indexes, compressed column batches, covered scan acceleration, segment pruning | Stable | Cassie-specific |
-| Time-series | time-bucket index | Planned | Cassie-specific |
+| Time-series | timestamp range index metadata and planner selection | Experimental | Cassie-specific |
 | Merkle | integrity index | Planned | Cassie-specific |
 
 ## Constraint Support
@@ -111,17 +111,20 @@ Status terms:
 | Pgwire results | row description, data row, command complete, error response, ready for query | Stable | PostgreSQL-compatible subset |
 | Pgwire compatibility | prepared statements, portals, text/binary formats, catalog introspection | Stable/Experimental | PostgreSQL-compatible subset |
 | HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin APIs | Stable/Experimental | Cassie REST API |
-| Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, index used, column-batch index used, aggregate acceleration, rollup rewrite selected, mixed execution stages, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
+| Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, cost-model diagnostics, index used, index feedback marker, time-series index diagnostics, column-batch index used, aggregate acceleration, rollup rewrite selected, mixed execution stages, analytical projection markers, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
 | Projection operations | active version, source checkpoint, lag, freshness, rebuild state, verification state, root state, last replay batch, last error, version state | Experimental | Cassie-specific |
 | Metrics | latency, throughput, errors, cache hit rate, projection replay/build/swap/stale/hash/verification/integrity/mixed-fallback counters, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
 
 ## Projection Verification Surfaces
 
 - `VERIFY PROJECTION <name> [VERSION <version_id>] [MODE metadata_only|hashes_only|indexes_only|full]` runs a read-only local integrity check and persists the latest report.
+- `DIFF PROJECTION <left> [VERSION <version_id>] WITH <right> [VERSION <version_id>] [LIMIT n] [AFTER cursor]` returns deterministic local hash differences or an explicit unverifiable result.
+- `COMPARE PROJECTION <name> [VERSION <version_id>] WITH MANIFEST '<json>'` compares the current local root digest with an imported manifest digest.
 - `pg_catalog.pg_projection_hashes` exposes row/range/root hash state, algorithm metadata, coverage counts, and root digest.
 - `pg_catalog.pg_projection_operations` exposes freshness, rebuild, active-version, verification, and root state.
 - `pg_catalog.pg_projection_integrity_reports` exposes the latest local integrity report.
-- EXPLAIN includes `mixed_execution`, `mixed_stages`, `exact_baseline`, and `projection_freshness` diagnostics for mixed search/vector/analytical plans.
+- `pg_catalog.pg_projection_comparison_reports` exposes persisted local-vs-manifest comparison reports after restart hydration.
+- EXPLAIN includes `cost_model`, `selected_cost`, `rejected_alternatives`, `mixed_execution`, `mixed_stages`, `exact_baseline`, `analytical_projection`, and `projection_freshness` diagnostics for mixed search/vector/analytical plans.
 
 ## Compatibility Notes
 

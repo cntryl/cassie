@@ -38,13 +38,22 @@ fn startup_frame(user: &str, database: &str) -> Vec<u8> {
 }
 
 fn feedback_key(sql: &str, collection: &str, schema_epoch: u64) -> RuntimeFeedbackKey {
+    feedback_key_for_operator(sql, collection, schema_epoch, "Scan")
+}
+
+fn feedback_key_for_operator(
+    sql: &str,
+    collection: &str,
+    schema_epoch: u64,
+    operator: &str,
+) -> RuntimeFeedbackKey {
     let parsed = parser::parse_statement(sql).expect("parse feedback sql");
     RuntimeFeedbackKey {
         sql_fingerprint: cassie::runtime::sql_fingerprint(&parsed),
         schema_epoch,
         database: Some("postgres".to_string()),
         collection: collection.to_string(),
-        operator: "Scan".to_string(),
+        operator: operator.to_string(),
     }
 }
 
@@ -225,6 +234,73 @@ fn should_capture_runtime_feedback_for_normalized_select() {
             metrics["feedback"]["misses"].as_u64().unwrap_or_default() >= 1,
             "first feedback lookup should miss"
         );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_capture_runtime_feedback_for_selected_index() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("feedback_selected_index");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "metrics_feedback_selected_index";
+        let index_name = "metrics_feedback_selected_title_idx";
+        register_feedback_collection(&cassie, collection);
+        let index = IndexMeta {
+            collection: collection.to_string(),
+            name: index_name.to_string(),
+            field: "title".to_string(),
+            fields: vec!["title".to_string()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: false,
+            options: Default::default(),
+        };
+        cassie.midge.put_index(index.clone()).unwrap();
+        cassie.catalog.register_index(index);
+        let session = cassie.create_session("tester", None);
+        let sql = "SELECT body FROM metrics_feedback_selected_index WHERE title = $1";
+        let key = feedback_key_for_operator(sql, collection, 0, &format!("Index:{index_name}"));
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                sql,
+                vec![cassie::types::Value::String("alpha".to_string())],
+            )
+            .unwrap();
+        let explained = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT body FROM metrics_feedback_selected_index WHERE title = 'alpha'",
+                vec![],
+            )
+            .unwrap();
+        let record = cassie
+            .feedback_record_for_diagnostics(&key)
+            .expect("selected index feedback should be recorded");
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(record.executions, 1);
+        assert_eq!(record.rows_out_total, 1);
+        assert!(!key.operator.contains("alpha"));
+        let cassie::types::Value::String(plan) = &explained.rows[0][0] else {
+            panic!("expected explain string");
+        };
+        assert!(plan.contains("index_feedback=enabled"));
+        assert!(plan.contains(index_name));
 
         let _ = std::fs::remove_dir_all(path);
     });

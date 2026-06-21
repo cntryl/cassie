@@ -249,6 +249,16 @@ pub(super) fn execute_projected_filtered_read(
     {
         return Ok(None);
     }
+    if let Some(rows) = super::time_series_read::try_execute_time_series_read(
+        cassie,
+        session,
+        plan,
+        user_functions,
+        params,
+        controls,
+    )? {
+        return Ok(Some(rows));
+    }
 
     let pushdown_filter = plan
         .filter
@@ -337,6 +347,16 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
         || cassie.catalog.get_view(&spec.collection).is_some()
     {
         return Ok(None);
+    }
+    if let Some(rows) = super::time_series_read::try_execute_time_series_read(
+        cassie,
+        session,
+        plan,
+        user_functions,
+        params,
+        controls,
+    )? {
+        return Ok(Some((rows, ExecutionBreakdownDurations::default())));
     }
 
     let mut breakdown = ExecutionBreakdownDurations::default();

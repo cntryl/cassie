@@ -822,6 +822,12 @@ pub(super) fn parse_index_kind(raw: &str) -> Result<(IndexKind, &str), SqlError>
     if starts_with_keyword(remainder, "column") {
         return Ok((IndexKind::Column, remainder[6..].trim_start()));
     }
+    if starts_with_keyword(remainder, "time_series") {
+        return Ok((IndexKind::TimeSeries, remainder[11..].trim_start()));
+    }
+    if starts_with_keyword(remainder, "timeseries") {
+        return Ok((IndexKind::TimeSeries, remainder[10..].trim_start()));
+    }
 
     Err(SqlError("unsupported index method".to_string()))
 }

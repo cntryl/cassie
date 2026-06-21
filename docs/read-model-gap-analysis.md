@@ -94,7 +94,7 @@ Evidence:
 
 - Phase 02 now implements deterministic row hashes, range hashes, projection roots, rebuild verification metadata, and local integrity reports.
 - `docs/feature-support.md` and `docs/product-roadmap.md` mark the local verification surfaces as implemented experimental capabilities.
-- `issues/phase-03/issue-05.md` covers the remaining projection diffing work.
+- Phase 03 adds a local projection diff and manifest comparison baseline; broader distributed comparison, persisted reports, and repair workflows remain future work.
 
 Impact:
 
@@ -103,7 +103,7 @@ Without row-level and projection-level verification, Cassie cannot confidently a
 Recommendation:
 
 - Keep hash availability optional for query correctness, but required for "verified rebuild" and "safe swap" status.
-- Build projection diffing and distributed comparison on top of the implemented local hash ladder.
+- Build distributed comparison, persisted reports, and repair workflows on top of the implemented local hash ladder and Phase 03 diff/compare baseline.
 - Add repair workflows only after diagnostics are precise enough to identify row, range, root, and index mismatches.
 
 ## P1 Gaps

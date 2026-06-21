@@ -41,80 +41,158 @@ use statements::*;
 pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let lower = trimmed.to_lowercase();
-    if lower.starts_with("explain ") || lower == "explain" {
-        parse_explain_statement(trimmed)
-    } else if lower.starts_with("with ") || lower == "with" {
-        parse_with_statement(trimmed)
-    } else if lower.starts_with("insert ") || lower == "insert" {
-        parse_insert_statement(trimmed)
-    } else if lower.starts_with("update ") || lower == "update" {
-        parse_update_statement(trimmed)
-    } else if lower.starts_with("delete ") || lower == "delete" {
-        parse_delete_statement(trimmed)
-    } else if is_transaction_control_statement(&lower) {
-        parse_transaction_statement(trimmed)
-    } else if is_unsupported_transaction_control_statement(&lower) {
-        Err(SqlError("unsupported transaction control statement".into()))
-    } else if lower.starts_with("create role ") || lower == "create role" {
-        parse_create_role_statement(trimmed, false)
-    } else if lower.starts_with("create user ") || lower == "create user" {
-        parse_create_role_statement(trimmed, true)
-    } else if lower.starts_with("alter role ") || lower == "alter role" {
-        parse_alter_role_statement(trimmed, false)
-    } else if lower.starts_with("alter user ") || lower == "alter user" {
-        parse_alter_role_statement(trimmed, true)
-    } else if lower.starts_with("drop role ")
-        || lower == "drop role"
-        || lower.starts_with("drop user ")
-        || lower == "drop user"
-    {
-        parse_drop_role_statement(trimmed)
-    } else if let Some(message) = unsupported_privilege_statement(&lower) {
-        Err(SqlError(message.to_string()))
-    } else if lower.starts_with("create function ") || lower == "create function" {
-        parse_create_function_statement(trimmed)
-    } else if lower.starts_with("create procedure ") || lower == "create procedure" {
-        parse_create_procedure_statement(trimmed)
-    } else if lower.starts_with("create view ") || lower == "create view" {
-        parse_create_view_statement(trimmed)
+
+    if let Some(parsed) = parse_query_or_dml_statement(trimmed, &lower)? {
+        return Ok(parsed);
+    }
+    if let Some(parsed) = parse_access_control_statement(trimmed, &lower)? {
+        return Ok(parsed);
+    }
+    if let Some(parsed) = parse_routine_statement(trimmed, &lower)? {
+        return Ok(parsed);
+    }
+    if let Some(parsed) = parse_schema_statement(trimmed, &lower)? {
+        return Ok(parsed);
+    }
+    if let Some(parsed) = parse_session_statement(trimmed, &lower)? {
+        return Ok(parsed);
+    }
+
+    Err(SqlError("unsupported SQL statement".into()))
+}
+
+fn parse_query_or_dml_statement(
+    trimmed: &str,
+    lower: &str,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "explain") {
+        Ok(Some(parse_explain_statement(trimmed)?))
+    } else if starts_statement(lower, "with") {
+        Ok(Some(parse_with_statement(trimmed)?))
+    } else if starts_statement(lower, "insert") {
+        Ok(Some(parse_insert_statement(trimmed)?))
+    } else if starts_statement(lower, "update") {
+        Ok(Some(parse_update_statement(trimmed)?))
+    } else if starts_statement(lower, "delete") {
+        Ok(Some(parse_delete_statement(trimmed)?))
     } else if lower.starts_with("select ") {
-        parse_select_statement(trimmed, Vec::new(), false)
-    } else if lower.starts_with("create unique index ")
-        || lower.starts_with("create index ")
-        || lower == "create index"
-    {
-        parse_create_index_statement(trimmed)
-    } else if lower.starts_with("drop index ") || lower == "drop index" {
-        parse_drop_index_statement(trimmed)
-    } else if lower.starts_with("drop function ") || lower == "drop function" {
-        parse_drop_function_statement(trimmed)
-    } else if lower.starts_with("drop procedure ") || lower == "drop procedure" {
-        parse_drop_procedure_statement(trimmed)
-    } else if lower.starts_with("drop view ") || lower == "drop view" {
-        parse_drop_view_statement(trimmed)
+        Ok(Some(parse_select_statement(trimmed, Vec::new(), false)?))
+    } else if is_transaction_control_statement(lower) {
+        Ok(Some(parse_transaction_statement(trimmed)?))
+    } else if is_unsupported_transaction_control_statement(lower) {
+        Err(SqlError("unsupported transaction control statement".into()))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_access_control_statement(
+    trimmed: &str,
+    lower: &str,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "create role") {
+        Ok(Some(parse_create_role_statement(trimmed, false)?))
+    } else if starts_statement(lower, "create user") {
+        Ok(Some(parse_create_role_statement(trimmed, true)?))
+    } else if starts_statement(lower, "alter role") {
+        Ok(Some(parse_alter_role_statement(trimmed, false)?))
+    } else if starts_statement(lower, "alter user") {
+        Ok(Some(parse_alter_role_statement(trimmed, true)?))
+    } else if starts_statement(lower, "drop role") || starts_statement(lower, "drop user") {
+        Ok(Some(parse_drop_role_statement(trimmed)?))
+    } else if let Some(message) = unsupported_privilege_statement(lower) {
+        Err(SqlError(message.to_string()))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_routine_statement(
+    trimmed: &str,
+    lower: &str,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "create function") {
+        Ok(Some(parse_create_function_statement(trimmed)?))
+    } else if starts_statement(lower, "create procedure") {
+        Ok(Some(parse_create_procedure_statement(trimmed)?))
+    } else if starts_statement(lower, "drop function") {
+        Ok(Some(parse_drop_function_statement(trimmed)?))
+    } else if starts_statement(lower, "drop procedure") {
+        Ok(Some(parse_drop_procedure_statement(trimmed)?))
     } else if lower.starts_with("call ") {
-        parse_call_statement(trimmed)
-    } else if lower.starts_with("create table ") || lower == "create table" {
-        parse_create_table_statement(trimmed)
-    } else if lower.starts_with("drop table ") || lower == "drop table" {
-        parse_drop_table_statement(trimmed)
-    } else if lower.starts_with("drop schema ") || lower == "drop schema" {
-        parse_drop_schema_statement(trimmed)
-    } else if lower.starts_with("alter table ") || lower == "alter table" {
-        parse_alter_table_statement(trimmed)
-    } else if lower.starts_with("alter schema ") || lower == "alter schema" {
-        parse_alter_schema_statement(trimmed)
-    } else if lower.starts_with("alter view ") || lower == "alter view" {
+        Ok(Some(parse_call_statement(trimmed)?))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_schema_statement(trimmed: &str, lower: &str) -> Result<Option<ParsedStatement>, SqlError> {
+    if let Some(parsed) = parse_view_or_index_statement(trimmed, lower)? {
+        return Ok(Some(parsed));
+    }
+    parse_table_or_schema_statement(trimmed, lower)
+}
+
+fn parse_view_or_index_statement(
+    trimmed: &str,
+    lower: &str,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "create view") {
+        Ok(Some(parse_create_view_statement(trimmed)?))
+    } else if starts_statement(lower, "drop view") {
+        Ok(Some(parse_drop_view_statement(trimmed)?))
+    } else if starts_statement(lower, "alter view") {
         Err(SqlError(
             "ALTER VIEW is not supported in this version".into(),
         ))
-    } else if lower.starts_with("create schema ") || lower == "create schema" {
-        parse_create_schema_statement(trimmed)
-    } else if lower.starts_with("show ") || lower == "show" {
-        parse_show_statement(trimmed)
-    } else if lower.starts_with("set ") || lower == "set" {
-        parse_set_statement(trimmed)
+    } else if starts_statement(lower, "create unique index")
+        || starts_statement(lower, "create index")
+    {
+        Ok(Some(parse_create_index_statement(trimmed)?))
+    } else if starts_statement(lower, "drop index") {
+        Ok(Some(parse_drop_index_statement(trimmed)?))
     } else {
-        Err(SqlError("unsupported SQL statement".into()))
+        Ok(None)
     }
+}
+
+fn parse_table_or_schema_statement(
+    trimmed: &str,
+    lower: &str,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "create table") {
+        Ok(Some(parse_create_table_statement(trimmed)?))
+    } else if starts_statement(lower, "drop table") {
+        Ok(Some(parse_drop_table_statement(trimmed)?))
+    } else if starts_statement(lower, "alter table") {
+        Ok(Some(parse_alter_table_statement(trimmed)?))
+    } else if starts_statement(lower, "create schema") {
+        Ok(Some(parse_create_schema_statement(trimmed)?))
+    } else if starts_statement(lower, "drop schema") {
+        Ok(Some(parse_drop_schema_statement(trimmed)?))
+    } else if starts_statement(lower, "alter schema") {
+        Ok(Some(parse_alter_schema_statement(trimmed)?))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_session_statement(
+    trimmed: &str,
+    lower: &str,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "show") {
+        Ok(Some(parse_show_statement(trimmed)?))
+    } else if starts_statement(lower, "set") {
+        Ok(Some(parse_set_statement(trimmed)?))
+    } else {
+        Ok(None)
+    }
+}
+
+fn starts_statement(lower: &str, keyword: &str) -> bool {
+    lower == keyword
+        || lower
+            .strip_prefix(keyword)
+            .is_some_and(|remainder| remainder.starts_with(' '))
 }

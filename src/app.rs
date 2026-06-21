@@ -389,6 +389,8 @@ enum PlanCacheProvenance {
 
 #[path = "app/auth.rs"]
 mod auth;
+#[path = "app/diagnostics.rs"]
+mod diagnostics;
 #[path = "app/documents.rs"]
 mod documents;
 #[path = "app/embeddings.rs"]
@@ -397,6 +399,8 @@ mod embeddings;
 mod lifecycle;
 #[path = "app/query.rs"]
 mod query;
+#[path = "app/registry.rs"]
+mod registry;
 #[path = "app/roles.rs"]
 mod roles;
 #[path = "app/vector_helpers.rs"]

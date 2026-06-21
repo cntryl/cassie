@@ -2,35 +2,6 @@ use super::auth::{hash_password, verify_password};
 use super::*;
 
 impl Cassie {
-    pub fn register_collection(&self, name: impl Into<String>, schema: crate::types::Schema) {
-        let name = name.into();
-        self.catalog.register_collection(
-            &name,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
-        self.invalidate_plan_cache();
-    }
-
-    pub fn register_vector_index(&self, index: VectorIndexRecord) {
-        self.catalog.register_vector_index(index);
-        self.invalidate_plan_cache();
-    }
-
-    pub fn health(&self) -> serde_json::Value {
-        let ready = self.is_started();
-        let collections = self.midge.list_collections();
-        serde_json::json!({
-            "status": if ready { "ok" } else { "starting" },
-            "ready": ready,
-            "collections": collections.len(),
-            "version": env!("CARGO_PKG_VERSION")
-        })
-    }
-
     pub fn create_session(&self, user: &str, database: Option<String>) -> CassieSession {
         let database = database.or_else(|| Some(self.default_database.clone()));
         CassieSession::new(user.to_string(), database)
@@ -194,48 +165,6 @@ impl Cassie {
             .map_err(|error| CassieError::Storage(format!("delete role '{name}': {error}")))?;
         self.catalog.unregister_role(&normalized);
         self.bump_schema_epoch_and_invalidate_query_cache()?;
-        Ok(())
-    }
-
-    pub fn metrics(&self) -> serde_json::Value {
-        let snapshot = self.runtime.snapshot();
-        serde_json::json!({
-            "uptime_seconds": snapshot.runtime.uptime_seconds,
-            "running_queries": snapshot.runtime.running_queries,
-            "ready": self.is_started(),
-            "auth_user": &self.auth_user,
-            "runtime": snapshot.runtime,
-            "query": snapshot.query,
-            "rest": snapshot.rest,
-            "pgwire": snapshot.pgwire,
-            "search": snapshot.search,
-            "vector": snapshot.vector,
-            "hybrid": snapshot.hybrid,
-            "storage": snapshot.storage,
-            "plan_cache": snapshot.plan_cache,
-            "query_cache": snapshot.query_cache,
-            "cardinality": snapshot.cardinality,
-            "feedback": snapshot.feedback,
-            "adaptive_candidates": snapshot.adaptive_candidates,
-            "covering_indexes": snapshot.covering_indexes,
-            "parallel_scans": snapshot.parallel_scans,
-            "parallel_scoring": snapshot.parallel_scoring,
-            "parallel_aggregation": snapshot.parallel_aggregation,
-        })
-    }
-
-    pub(crate) fn invalidate_plan_cache(&self) {
-        self.runtime.invalidate_plan_cache();
-    }
-
-    pub(crate) fn bump_schema_epoch_and_invalidate_query_cache(&self) -> Result<(), CassieError> {
-        let schema_epoch = self
-            .midge
-            .bump_schema_epoch()
-            .map_err(|error| CassieError::Storage(format!("bump schema epoch: {error}")))?;
-        self.runtime.record_storage_access("schema", true, true);
-        self.runtime.set_schema_epoch(schema_epoch);
-        self.runtime.invalidate_plan_cache();
         Ok(())
     }
 }

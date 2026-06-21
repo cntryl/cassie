@@ -63,580 +63,244 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
         QueryStatement::Explain(_) => Err(CassieError::Planner(
             "EXPLAIN is handled before logical planning".to_string(),
         )),
-        QueryStatement::Select(select) => {
-            validate_logical_plan(select)?;
-            Ok(LogicalPlan {
-                command: None,
-                source: select.source.clone(),
-                collection: source_name(&select.source),
-                ctes: select.ctes.clone(),
-                distinct: select.distinct,
-                distinct_on: select.distinct_on.clone(),
-                projection: select.projection.clone(),
-                filter: select.filter.clone(),
-                group_by: select.group_by.clone(),
-                having: select.having.clone(),
-                order: select.order.clone(),
-                limit: select.limit,
-                offset: select.offset,
-                set: select.set.clone(),
-            })
-        }
-        QueryStatement::Show(statement) => Ok(LogicalPlan {
-            command: Some(LogicalCommand::Show(statement.clone())),
-            source: QuerySource::SingleRow,
-            collection: String::new(),
-            ctes: Vec::new(),
-            distinct: false,
-            distinct_on: Vec::new(),
-            projection: Vec::new(),
-            filter: None,
-            group_by: Vec::new(),
-            having: None,
-            order: Vec::new(),
-            limit: None,
-            offset: None,
-            set: None,
-        }),
-        QueryStatement::Set(statement) => Ok(LogicalPlan {
-            command: Some(LogicalCommand::Set(statement.clone())),
-            source: QuerySource::SingleRow,
-            collection: String::new(),
-            ctes: Vec::new(),
-            distinct: false,
-            distinct_on: Vec::new(),
-            projection: Vec::new(),
-            filter: None,
-            group_by: Vec::new(),
-            having: None,
-            order: Vec::new(),
-            limit: None,
-            offset: None,
-            set: None,
-        }),
-        QueryStatement::Insert(statement) => {
-            if statement.table.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "INSERT requires a target table".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::Insert(statement.clone())),
-                source: QuerySource::Collection(statement.table.clone()),
-                collection: statement.table.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::Update(statement) => {
-            if statement.table.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "UPDATE requires a target table".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::Update(statement.clone())),
-                source: QuerySource::Collection(statement.table.clone()),
-                collection: statement.table.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::Delete(statement) => {
-            if statement.table.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "DELETE requires a target table".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::Delete(statement.clone())),
-                source: QuerySource::Collection(statement.table.clone()),
-                collection: statement.table.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::CreateTable(statement) => {
-            if statement.table.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "CREATE TABLE requires a table name".into(),
-                ));
-            }
-            if statement.fields.is_empty() {
-                return Err(CassieError::Planner(
-                    "CREATE TABLE requires at least one column".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::CreateTable(statement.clone())),
-                source: QuerySource::Collection(statement.table.clone()),
-                collection: statement.table.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::DropTable(statement) => {
-            if statement.table.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "DROP TABLE requires a table name".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::DropTable(statement.clone())),
-                source: QuerySource::Collection(statement.table.clone()),
-                collection: statement.table.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::AlterTable(statement) => {
-            if statement.table.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "ALTER TABLE requires a table name".into(),
-                ));
-            }
-
-            validate_alter_command(statement)?;
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::AlterTable(statement.clone())),
-                source: QuerySource::Collection(statement.table.clone()),
-                collection: statement.table.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::CreateSchema(statement) => {
-            if statement.schema.trim().is_empty() {
-                return Err(CassieError::Planner("CREATE SCHEMA requires a name".into()));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::CreateSchema(statement.clone())),
-                source: QuerySource::Collection(statement.schema.clone()),
-                collection: statement.schema.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::DropSchema(statement) => {
-            if statement.schema.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "DROP SCHEMA requires a schema name".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::DropSchema(statement.clone())),
-                source: QuerySource::Collection(statement.schema.clone()),
-                collection: statement.schema.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::AlterSchema(statement) => {
-            if statement.schema.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "ALTER SCHEMA requires a schema name".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::AlterSchema(statement.clone())),
-                source: QuerySource::Collection(statement.schema.clone()),
-                collection: statement.schema.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::CreateView(statement) => {
-            if statement.name.trim().is_empty() {
-                return Err(CassieError::Planner("CREATE VIEW requires a name".into()));
-            }
-            if statement.query.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "CREATE VIEW requires a query body".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::CreateView(statement.clone())),
-                source: QuerySource::Collection(statement.name.clone()),
-                collection: statement.name.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::DropView(statement) => {
-            if statement.name.trim().is_empty() {
-                return Err(CassieError::Planner("DROP VIEW requires a name".into()));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::DropView(statement.clone())),
-                source: QuerySource::Collection(statement.name.clone()),
-                collection: statement.name.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::CreateRole(statement) => {
-            if statement.name.trim().is_empty() {
-                return Err(CassieError::Planner("CREATE ROLE requires a name".into()));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::CreateRole(statement.clone())),
-                source: QuerySource::Collection(statement.name.clone()),
-                collection: statement.name.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::AlterRole(statement) => {
-            if statement.name.trim().is_empty() {
-                return Err(CassieError::Planner("ALTER ROLE requires a name".into()));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::AlterRole(statement.clone())),
-                source: QuerySource::Collection(statement.name.clone()),
-                collection: statement.name.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::DropRole(statement) => {
-            if statement.name.trim().is_empty() {
-                return Err(CassieError::Planner("DROP ROLE requires a name".into()));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::DropRole(statement.clone())),
-                source: QuerySource::Collection(statement.name.clone()),
-                collection: statement.name.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::CreateFunction(statement) => {
-            if statement.name.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "CREATE FUNCTION requires a name".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::CreateFunction(statement.clone())),
-                source: QuerySource::Collection(statement.name.clone()),
-                collection: statement.name.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::DropFunction(statement) => {
-            if statement.name.trim().is_empty() {
-                return Err(CassieError::Planner("DROP FUNCTION requires a name".into()));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::DropFunction(statement.clone())),
-                source: QuerySource::Collection(statement.name.clone()),
-                collection: statement.name.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::CreateProcedure(statement) => {
-            if statement.name.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "CREATE PROCEDURE requires a name".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::CreateProcedure(statement.clone())),
-                source: QuerySource::Collection(statement.name.clone()),
-                collection: statement.name.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::DropProcedure(statement) => {
-            if statement.name.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "DROP PROCEDURE requires a name".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::DropProcedure(statement.clone())),
-                source: QuerySource::Collection(statement.name.clone()),
-                collection: statement.name.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::CallProcedure(statement) => {
-            if statement.name.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "CALL requires a procedure name".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::CallProcedure(statement.clone())),
-                source: QuerySource::Collection(statement.name.clone()),
-                collection: statement.name.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::CreateIndex(statement) => {
-            if statement.table.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "CREATE INDEX requires a collection name".into(),
-                ));
-            }
-            if statement.name.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "CREATE INDEX requires an index name".into(),
-                ));
-            }
-            if statement.fields.is_empty()
-                || statement.fields.iter().any(|field| field.trim().is_empty())
-            {
-                return Err(CassieError::Planner(
-                    "CREATE INDEX requires an indexed field".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::CreateIndex(statement.clone())),
-                source: QuerySource::Collection(statement.table.clone()),
-                collection: statement.table.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
-        QueryStatement::DropIndex(statement) => {
-            if statement.table.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "DROP INDEX requires a collection name".into(),
-                ));
-            }
-            if statement.name.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "DROP INDEX requires an index name".into(),
-                ));
-            }
-
-            Ok(LogicalPlan {
-                command: Some(LogicalCommand::DropIndex(statement.clone())),
-                source: QuerySource::Collection(statement.table.clone()),
-                collection: statement.table.clone(),
-                ctes: Vec::new(),
-                distinct: false,
-                distinct_on: Vec::new(),
-                projection: Vec::new(),
-                filter: None,
-                group_by: Vec::new(),
-                having: None,
-                order: Vec::new(),
-                limit: None,
-                offset: Some(0),
-                set: None,
-            })
-        }
+        QueryStatement::Select(select) => plan_select(select),
+        QueryStatement::Show(statement) => Ok(single_row_command_plan(LogicalCommand::Show(
+            statement.clone(),
+        ))),
+        QueryStatement::Set(statement) => Ok(single_row_command_plan(LogicalCommand::Set(
+            statement.clone(),
+        ))),
+        QueryStatement::Insert(statement) => plan_table_command(
+            &statement.table,
+            "INSERT requires a target table",
+            LogicalCommand::Insert(statement.clone()),
+        ),
+        QueryStatement::Update(statement) => plan_table_command(
+            &statement.table,
+            "UPDATE requires a target table",
+            LogicalCommand::Update(statement.clone()),
+        ),
+        QueryStatement::Delete(statement) => plan_table_command(
+            &statement.table,
+            "DELETE requires a target table",
+            LogicalCommand::Delete(statement.clone()),
+        ),
+        QueryStatement::CreateTable(statement) => plan_create_table(statement),
+        QueryStatement::DropTable(statement) => plan_table_command(
+            &statement.table,
+            "DROP TABLE requires a table name",
+            LogicalCommand::DropTable(statement.clone()),
+        ),
+        QueryStatement::AlterTable(statement) => plan_alter_table(statement),
+        QueryStatement::CreateSchema(statement) => plan_named_command(
+            &statement.schema,
+            "CREATE SCHEMA requires a name",
+            LogicalCommand::CreateSchema(statement.clone()),
+        ),
+        QueryStatement::DropSchema(statement) => plan_named_command(
+            &statement.schema,
+            "DROP SCHEMA requires a schema name",
+            LogicalCommand::DropSchema(statement.clone()),
+        ),
+        QueryStatement::AlterSchema(statement) => plan_named_command(
+            &statement.schema,
+            "ALTER SCHEMA requires a schema name",
+            LogicalCommand::AlterSchema(statement.clone()),
+        ),
+        QueryStatement::CreateView(statement) => plan_create_view(statement),
+        QueryStatement::DropView(statement) => plan_named_command(
+            &statement.name,
+            "DROP VIEW requires a name",
+            LogicalCommand::DropView(statement.clone()),
+        ),
+        QueryStatement::CreateRole(statement) => plan_named_command(
+            &statement.name,
+            "CREATE ROLE requires a name",
+            LogicalCommand::CreateRole(statement.clone()),
+        ),
+        QueryStatement::AlterRole(statement) => plan_named_command(
+            &statement.name,
+            "ALTER ROLE requires a name",
+            LogicalCommand::AlterRole(statement.clone()),
+        ),
+        QueryStatement::DropRole(statement) => plan_named_command(
+            &statement.name,
+            "DROP ROLE requires a name",
+            LogicalCommand::DropRole(statement.clone()),
+        ),
+        QueryStatement::CreateFunction(statement) => plan_named_command(
+            &statement.name,
+            "CREATE FUNCTION requires a name",
+            LogicalCommand::CreateFunction(statement.clone()),
+        ),
+        QueryStatement::DropFunction(statement) => plan_named_command(
+            &statement.name,
+            "DROP FUNCTION requires a name",
+            LogicalCommand::DropFunction(statement.clone()),
+        ),
+        QueryStatement::CreateProcedure(statement) => plan_named_command(
+            &statement.name,
+            "CREATE PROCEDURE requires a name",
+            LogicalCommand::CreateProcedure(statement.clone()),
+        ),
+        QueryStatement::DropProcedure(statement) => plan_named_command(
+            &statement.name,
+            "DROP PROCEDURE requires a name",
+            LogicalCommand::DropProcedure(statement.clone()),
+        ),
+        QueryStatement::CallProcedure(statement) => plan_named_command(
+            &statement.name,
+            "CALL requires a procedure name",
+            LogicalCommand::CallProcedure(statement.clone()),
+        ),
+        QueryStatement::CreateIndex(statement) => plan_create_index(statement),
+        QueryStatement::DropIndex(statement) => plan_drop_index(statement),
         QueryStatement::Transaction(_) => Err(CassieError::Planner(
             "transaction control statements are handled by the session runtime".into(),
         )),
     }
+}
+
+fn plan_select(select: &SelectStatement) -> Result<LogicalPlan, CassieError> {
+    validate_logical_plan(select)?;
+    Ok(LogicalPlan {
+        command: None,
+        source: select.source.clone(),
+        collection: source_name(&select.source),
+        ctes: select.ctes.clone(),
+        distinct: select.distinct,
+        distinct_on: select.distinct_on.clone(),
+        projection: select.projection.clone(),
+        filter: select.filter.clone(),
+        group_by: select.group_by.clone(),
+        having: select.having.clone(),
+        order: select.order.clone(),
+        limit: select.limit,
+        offset: select.offset,
+        set: select.set.clone(),
+    })
+}
+
+fn single_row_command_plan(command: LogicalCommand) -> LogicalPlan {
+    command_plan(command, QuerySource::SingleRow, String::new(), None)
+}
+
+fn plan_table_command(
+    table: &str,
+    missing_message: &'static str,
+    command: LogicalCommand,
+) -> Result<LogicalPlan, CassieError> {
+    require_name(table, missing_message)?;
+    Ok(command_plan(
+        command,
+        QuerySource::Collection(table.to_string()),
+        table.to_string(),
+        Some(0),
+    ))
+}
+
+fn plan_named_command(
+    name: &str,
+    missing_message: &'static str,
+    command: LogicalCommand,
+) -> Result<LogicalPlan, CassieError> {
+    require_name(name, missing_message)?;
+    Ok(command_plan(
+        command,
+        QuerySource::Collection(name.to_string()),
+        name.to_string(),
+        Some(0),
+    ))
+}
+
+fn plan_create_table(statement: &CreateTableStatement) -> Result<LogicalPlan, CassieError> {
+    require_name(&statement.table, "CREATE TABLE requires a table name")?;
+    if statement.fields.is_empty() {
+        return Err(CassieError::Planner(
+            "CREATE TABLE requires at least one column".into(),
+        ));
+    }
+    plan_table_command(
+        &statement.table,
+        "CREATE TABLE requires a table name",
+        LogicalCommand::CreateTable(statement.clone()),
+    )
+}
+
+fn plan_alter_table(statement: &AlterTableStatement) -> Result<LogicalPlan, CassieError> {
+    require_name(&statement.table, "ALTER TABLE requires a table name")?;
+    validate_alter_command(statement)?;
+    plan_table_command(
+        &statement.table,
+        "ALTER TABLE requires a table name",
+        LogicalCommand::AlterTable(statement.clone()),
+    )
+}
+
+fn plan_create_view(statement: &CreateViewStatement) -> Result<LogicalPlan, CassieError> {
+    require_name(&statement.name, "CREATE VIEW requires a name")?;
+    require_name(&statement.query, "CREATE VIEW requires a query body")?;
+    plan_named_command(
+        &statement.name,
+        "CREATE VIEW requires a name",
+        LogicalCommand::CreateView(statement.clone()),
+    )
+}
+
+fn plan_create_index(statement: &CreateIndexStatement) -> Result<LogicalPlan, CassieError> {
+    require_name(&statement.table, "CREATE INDEX requires a collection name")?;
+    require_name(&statement.name, "CREATE INDEX requires an index name")?;
+    if statement.fields.is_empty() || statement.fields.iter().any(|field| field.trim().is_empty()) {
+        return Err(CassieError::Planner(
+            "CREATE INDEX requires an indexed field".into(),
+        ));
+    }
+    plan_table_command(
+        &statement.table,
+        "CREATE INDEX requires a collection name",
+        LogicalCommand::CreateIndex(statement.clone()),
+    )
+}
+
+fn plan_drop_index(statement: &DropIndexStatement) -> Result<LogicalPlan, CassieError> {
+    require_name(&statement.table, "DROP INDEX requires a collection name")?;
+    require_name(&statement.name, "DROP INDEX requires an index name")?;
+    plan_table_command(
+        &statement.table,
+        "DROP INDEX requires a collection name",
+        LogicalCommand::DropIndex(statement.clone()),
+    )
+}
+
+fn command_plan(
+    command: LogicalCommand,
+    source: QuerySource,
+    collection: String,
+    offset: Option<i64>,
+) -> LogicalPlan {
+    LogicalPlan {
+        command: Some(command),
+        source,
+        collection,
+        ctes: Vec::new(),
+        distinct: false,
+        distinct_on: Vec::new(),
+        projection: Vec::new(),
+        filter: None,
+        group_by: Vec::new(),
+        having: None,
+        order: Vec::new(),
+        limit: None,
+        offset,
+        set: None,
+    }
+}
+
+fn require_name(value: &str, message: &'static str) -> Result<(), CassieError> {
+    if value.trim().is_empty() {
+        return Err(CassieError::Planner(message.into()));
+    }
+    Ok(())
 }
 
 fn source_name(source: &QuerySource) -> String {

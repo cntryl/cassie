@@ -1,5 +1,9 @@
 use cassie::app::Cassie;
-use cassie::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
+use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
+use cassie::embeddings::{
+    openai::OpenAiConfig, DistanceMetric, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
+    DEFAULT_EMBEDDING_MODEL,
+};
 use cassie::midge::adapter::StorageFamily;
 use cassie::types::{DataType, FieldSchema, Schema, Value, Vector};
 use cntryl_midge::{TransactionMode, WriteOptions};
@@ -13,6 +17,21 @@ fn data_dir(label: &str) -> String {
     let mut dir = std::env::temp_dir();
     dir.push(format!("cassie-sql-{}-{}", label, Uuid::new_v4()));
     dir.to_string_lossy().to_string()
+}
+
+fn openai_runtime_for_vectors() -> CassieRuntimeConfig {
+    let mut config = CassieRuntimeConfig::from_env();
+    config.embeddings = EmbeddingsRuntimeConfig::OpenAI(OpenAiRuntimeConfig {
+        config: OpenAiConfig {
+            api_key: "vector-tests".to_string(),
+            model: DEFAULT_EMBEDDING_MODEL.to_string(),
+        },
+        timeout_seconds: 1,
+        max_batch_size: 1,
+        max_retries: 1,
+        base_url: Some("http://127.0.0.1:1".to_string()),
+    });
+    config
 }
 
 fn put_legacy_document(cassie: &Cassie, collection: &str, id: &str, payload: serde_json::Value) {
@@ -5206,6 +5225,51 @@ fn should_reject_vector_index_when_embedding_dimensions_mismatch() {
 }
 
 #[test]
+fn should_hydrate_hnsw_vector_index_options_after_restart() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hnsw_vector_index_options");
+    {
+        let cassie =
+            Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_hnsw_vector_index_options (content TEXT, embedding VECTOR(1536))",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX sql_hnsw_vector_index_options_idx ON sql_hnsw_vector_index_options USING vector (embedding) WITH (source_field = content, metric = l2, index_type = hnsw, m = 12, ef_construction = 96, ef_search = 48)",
+                vec![],
+            )
+            .unwrap();
+    }
+
+    // Act
+    let restarted =
+        Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
+    restarted.startup().unwrap();
+    let index = restarted
+        .catalog
+        .get_vector_index("sql_hnsw_vector_index_options", "embedding")
+        .expect("hnsw vector index should hydrate");
+
+    // Assert
+    assert_eq!(index.metadata.index_type, VectorIndexType::Hnsw);
+    let hnsw = index.metadata.hnsw.expect("hnsw options");
+    assert_eq!(hnsw.m, 12);
+    assert_eq!(hnsw.ef_construction, 96);
+    assert_eq!(hnsw.ef_search, 48);
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_reject_insert_values_when_vector_dimensions_mismatch() {
     // Arrange
     with_fallback();
@@ -5296,6 +5360,8 @@ fn should_rebuild_normalized_vector_sidecars_after_sql_writes() {
                 model: "manual".to_string(),
                 dimensions: 3,
                 metric: DistanceMetric::Cosine,
+                index_type: VectorIndexType::BruteForce,
+                hnsw: None,
             },
         };
 

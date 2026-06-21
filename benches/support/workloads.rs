@@ -458,6 +458,24 @@ pub fn l2_distance() -> usize {
     1
 }
 
+pub fn hnsw_candidate_search() -> usize {
+    let candidates = (0..128)
+        .map(|index| {
+            (
+                format!("doc-{index}"),
+                vec![index as f32 / 128.0, 1.0 - (index as f32 / 128.0), 0.5],
+            )
+        })
+        .collect::<Vec<_>>();
+    let selected = cassie::vector::hnsw::search(
+        std::hint::black_box(&[0.25, 0.75, 0.5]),
+        candidates,
+        10,
+        cassie::vector::l2_distance,
+    );
+    std::hint::black_box(selected.len())
+}
+
 pub fn parameter_binding() -> usize {
     let parsed =
         parse_statement("SELECT * FROM bench WHERE id = $1 AND score = $2").expect("parse");

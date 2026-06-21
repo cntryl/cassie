@@ -51,6 +51,49 @@ pub struct VectorIndexMetadata {
     pub model: String,
     pub dimensions: usize,
     pub metric: DistanceMetric,
+    #[serde(default = "default_vector_index_type")]
+    pub index_type: VectorIndexType,
+    #[serde(default)]
+    pub hnsw: Option<HnswIndexOptions>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum VectorIndexType {
+    BruteForce,
+    Hnsw,
+}
+
+impl VectorIndexType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::BruteForce => "bruteforce",
+            Self::Hnsw => "hnsw",
+        }
+    }
+}
+
+fn default_vector_index_type() -> VectorIndexType {
+    VectorIndexType::BruteForce
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HnswIndexOptions {
+    pub version: u32,
+    pub m: usize,
+    pub ef_construction: usize,
+    pub ef_search: usize,
+}
+
+impl Default for HnswIndexOptions {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            m: 16,
+            ef_construction: 64,
+            ef_search: 40,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

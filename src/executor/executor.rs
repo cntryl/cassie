@@ -7,7 +7,9 @@ use crate::app::{Cassie, CassieSession};
 use crate::catalog;
 use crate::catalog::virtual_views;
 use crate::catalog::{CollectionSchema, FieldMeta, FunctionMeta, ProcedureMeta, Volatility};
-use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
+use crate::embeddings::{
+    DistanceMetric, HnswIndexOptions, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
+};
 use crate::executor::batch::{self, Batch, BatchRow, RowAccess};
 use crate::executor::{aggregate, filter, projection, scan, sort};
 use crate::midge::adapter::RowDecode;
@@ -1671,6 +1673,38 @@ fn vector_index_metadata(
         )));
     }
 
+    let index_type = match statement
+        .options
+        .get("index_type")
+        .map(String::as_str)
+        .unwrap_or("bruteforce")
+    {
+        "hnsw" => VectorIndexType::Hnsw,
+        _ => VectorIndexType::BruteForce,
+    };
+    let hnsw = if index_type == VectorIndexType::Hnsw {
+        Some(HnswIndexOptions {
+            version: 1,
+            m: statement
+                .options
+                .get("m")
+                .and_then(|value| value.parse().ok())
+                .unwrap_or(16),
+            ef_construction: statement
+                .options
+                .get("ef_construction")
+                .and_then(|value| value.parse().ok())
+                .unwrap_or(64),
+            ef_search: statement
+                .options
+                .get("ef_search")
+                .and_then(|value| value.parse().ok())
+                .unwrap_or(40),
+        })
+    } else {
+        None
+    };
+
     let metadata = VectorIndexMetadata {
         provider: cassie.embedding_provider.provider_name().to_string(),
         model: cassie.embedding_provider.model_name().to_string(),
@@ -1680,6 +1714,8 @@ fn vector_index_metadata(
             .get("metric")
             .and_then(|metric| metric.parse::<DistanceMetric>().ok())
             .unwrap_or(DistanceMetric::Cosine),
+        index_type,
+        hnsw,
     };
 
     Ok(VectorIndexRecord {

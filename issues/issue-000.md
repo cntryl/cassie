@@ -27,7 +27,6 @@ Maintain a live coverage index that links every active roadmap concept to its im
 
 ## Coverage
 
-- [Issue 105: HNSW Indexes](issue-105.md) - V3 - Advanced Query Features / Vector
 - [Issue 106: Parallel Scans](issue-106.md) - V3 - Advanced Query Features / Execution
 - [Issue 107: Parallel Scoring](issue-107.md) - V3 - Advanced Query Features / Execution
 - [Issue 108: Parallel Aggregation](issue-108.md) - V3 - Advanced Query Features / Execution

@@ -1,7 +1,7 @@
 use cassie::app::{Cassie, CassieError};
 use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
 use cassie::embeddings::{
-    openai::OpenAiConfig, DistanceMetric, VectorIndexMetadata, VectorIndexRecord,
+    openai::OpenAiConfig, DistanceMetric, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
     DEFAULT_EMBEDDING_MODEL,
 };
 use cassie::types::{DataType, FieldSchema, Schema};
@@ -69,6 +69,8 @@ fn vector_index_record(
             model: DEFAULT_EMBEDDING_MODEL.to_string(),
             dimensions,
             metric,
+            index_type: VectorIndexType::BruteForce,
+            hnsw: None,
         },
     }
 }

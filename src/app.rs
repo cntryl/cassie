@@ -31,7 +31,7 @@ use crate::embeddings::{
     tei::{TeiProvider, TeiProviderConfig},
     voyage::VoyageProvider,
     DistanceMetric, Embedding, EmbeddingError, EmbeddingProvider, NormalizedVectorRecord,
-    VectorIndexRecord,
+    VectorIndexRecord, VectorIndexType,
 };
 use crate::executor::{
     vector_prefilter_fallback_reason, vector_prefilter_supported, ColumnMeta, QueryError,
@@ -1540,6 +1540,7 @@ impl Cassie {
 
         let metric = metric.unwrap_or(index.metadata.metric.clone());
         self.execute_projected_vector_search(
+            &index,
             collection,
             vector_field,
             &embedding.values,
@@ -1551,6 +1552,7 @@ impl Cassie {
 
     fn execute_projected_vector_search(
         &self,
+        index: &VectorIndexRecord,
         collection: &str,
         vector_field: &str,
         query: &[f32],
@@ -1585,6 +1587,42 @@ impl Cassie {
         } else {
             None
         };
+
+        if index.metadata.index_type == VectorIndexType::Hnsw {
+            let metric_fn: fn(&[f32], &[f32]) -> f64 = match metric {
+                DistanceMetric::Cosine => crate::vector::cosine_distance,
+                DistanceMetric::Dot => crate::vector::dot_distance,
+                DistanceMetric::L2 => crate::vector::l2_distance,
+            };
+            let hnsw_candidates = candidates
+                .into_iter()
+                .filter_map(|candidate| {
+                    candidate
+                        .payload
+                        .get(vector_field)
+                        .and_then(vector_from_json)
+                        .map(|vector| (candidate.id, vector))
+                })
+                .collect::<Vec<_>>();
+            let selected =
+                crate::vector::hnsw::search(query, hnsw_candidates, top_needed, metric_fn)
+                    .into_iter()
+                    .skip(offset)
+                    .take(limit);
+            let mut rows = Vec::new();
+            for candidate in selected {
+                if let Some(document) = self.midge.get_document(collection, &candidate.id)? {
+                    rows.push(vector_search_row(&schema, document));
+                }
+            }
+            self.runtime
+                .record_vector_normalization_usage(0, rows.len());
+            return Ok(QueryResult {
+                columns: vector_search_columns(&schema),
+                rows,
+                command: "SELECT".to_string(),
+            });
+        }
 
         let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
         let mut normalized_candidate_count = 0usize;

@@ -742,6 +742,55 @@ fn bind_create_index(
         statement
             .options
             .insert("metric".to_string(), metric.as_str().to_string());
+        let index_type = statement
+            .options
+            .get("index_type")
+            .map(String::as_str)
+            .unwrap_or("bruteforce")
+            .trim()
+            .to_ascii_lowercase();
+        if !matches!(index_type.as_str(), "bruteforce" | "hnsw") {
+            return Err(CassieError::Planner(format!(
+                "unsupported vector index_type '{index_type}'"
+            )));
+        }
+        statement
+            .options
+            .insert("index_type".to_string(), index_type.clone());
+        if index_type == "hnsw" {
+            let m = parse_vector_index_usize_option(statement.options.get("m"), "m", 16, 2, 128)?;
+            let ef_construction = parse_vector_index_usize_option(
+                statement.options.get("ef_construction"),
+                "ef_construction",
+                64,
+                m,
+                4096,
+            )?;
+            let ef_search = parse_vector_index_usize_option(
+                statement.options.get("ef_search"),
+                "ef_search",
+                40,
+                1,
+                4096,
+            )?;
+            statement.options.insert("m".to_string(), m.to_string());
+            statement
+                .options
+                .insert("ef_construction".to_string(), ef_construction.to_string());
+            statement
+                .options
+                .insert("ef_search".to_string(), ef_search.to_string());
+        }
+        for key in statement.options.keys() {
+            if !matches!(
+                key.as_str(),
+                "source_field" | "metric" | "index_type" | "m" | "ef_construction" | "ef_search"
+            ) {
+                return Err(CassieError::Planner(format!(
+                    "unsupported vector index option '{key}' for '{name}' on collection '{table}'"
+                )));
+            }
+        }
     }
 
     if statement.kind == crate::catalog::IndexKind::FullText {
@@ -966,6 +1015,28 @@ fn parse_vector_metric(raw_metric: Option<&str>) -> Result<DistanceMetric, Cassi
             "unsupported vector metric '{metric}' (expected cosine, l2, or dot)"
         ))
     })
+}
+
+fn parse_vector_index_usize_option(
+    value: Option<&String>,
+    key: &str,
+    default: usize,
+    min: usize,
+    max: usize,
+) -> Result<usize, CassieError> {
+    let value = value.map(String::as_str).unwrap_or("").trim();
+    if value.is_empty() {
+        return Ok(default);
+    }
+    let parsed = value
+        .parse::<usize>()
+        .map_err(|_| CassieError::Planner(format!("invalid vector index option '{key}'")))?;
+    if !(min..=max).contains(&parsed) {
+        return Err(CassieError::Planner(format!(
+            "vector index option '{key}' must be in [{min}, {max}]"
+        )));
+    }
+    Ok(parsed)
 }
 
 fn parse_fulltext_index_float_option(

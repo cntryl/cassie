@@ -15,6 +15,9 @@ fn bench_search_vector(c: &mut Criterion) {
     group.bench_function("cosine_distance", |b| b.iter(workloads::cosine_distance));
     group.bench_function("dot_product", |b| b.iter(workloads::dot_product));
     group.bench_function("l2_distance", |b| b.iter(workloads::l2_distance));
+    group.bench_function("hnsw_candidate_search", |b| {
+        b.iter(workloads::hnsw_candidate_search)
+    });
 
     group.finish();
 }

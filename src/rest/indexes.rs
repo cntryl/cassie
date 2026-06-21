@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::app::Cassie;
 use crate::app::CassieError;
-use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
+use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord, VectorIndexType};
 use crate::types::DataType;
 use serde::Deserialize;
 use serde_json::Value;
@@ -76,6 +76,8 @@ pub fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Value, C
         model: cassie.embedding_provider.model_name().to_string(),
         dimensions: cassie.embedding_provider.dimensions(),
         metric,
+        index_type: VectorIndexType::BruteForce,
+        hnsw: None,
     };
 
     if metadata.dimensions != vector_dimensions {

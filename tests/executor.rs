@@ -3420,6 +3420,45 @@ fn should_execute_create_vector_index_command() {
 }
 
 #[test]
+fn should_reject_invalid_hnsw_vector_index_options() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ddl_vector_index_invalid_hnsw");
+    let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE idx_vector_bad_hnsw (content TEXT, embedding VECTOR(1536))",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let err = cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_vector_bad_hnsw_embedding ON idx_vector_bad_hnsw USING vector (embedding) WITH (source_field = content, index_type = hnsw, m = 1)",
+                vec![],
+            )
+            .expect_err("invalid hnsw options should fail");
+
+        // Assert
+        assert!(err
+            .to_string()
+            .contains("vector index option 'm' must be in [2, 128]"));
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_execute_drop_vector_index_command() {
     // Arrange
     with_fallback();

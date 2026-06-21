@@ -1,6 +1,8 @@
 use cassie::app::Cassie;
 use cassie::catalog::{IndexKind, IndexMeta};
-use cassie::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
+use cassie::embeddings::{
+    DistanceMetric, HnswIndexOptions, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
+};
 use cassie::midge::adapter::StorageFamily;
 use cassie::types::{DataType, FieldSchema, Schema};
 use cntryl_midge::{TransactionMode, WriteOptions};
@@ -93,11 +95,88 @@ fn should_persist_vector_index_metadata() {
                 model: "text-embedding-3-small".to_string(),
                 dimensions: 3,
                 metric: DistanceMetric::Cosine,
+                index_type: VectorIndexType::BruteForce,
+                hnsw: None,
             },
         };
 
         cassie.midge.put_vector_index(record.clone()).unwrap();
 
+        let loaded = cassie
+            .midge
+            .get_vector_index(collection, "embedding")
+            .unwrap()
+            .unwrap();
+
+        // Assert
+        assert_eq!(loaded, record);
+    });
+
+    let _ = std::fs::remove_dir_all(path_for_cleanup);
+}
+
+#[test]
+fn should_persist_hnsw_vector_index_metadata() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("persist_hnsw");
+    let path_for_cleanup = path.clone();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async move {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let collection = "hnsw_index_meta_docs";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "content".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "embedding".to_string(),
+                    data_type: DataType::Vector(3),
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
+        let record = VectorIndexRecord {
+            collection: collection.to_string(),
+            field: "embedding".to_string(),
+            source_field: "content".to_string(),
+            metadata: VectorIndexMetadata {
+                provider: "manual".to_string(),
+                model: "manual".to_string(),
+                dimensions: 3,
+                metric: DistanceMetric::L2,
+                index_type: VectorIndexType::Hnsw,
+                hnsw: Some(HnswIndexOptions {
+                    version: 1,
+                    m: 12,
+                    ef_construction: 96,
+                    ef_search: 48,
+                }),
+            },
+        };
+
+        // Act
+        cassie.midge.put_vector_index(record.clone()).unwrap();
         let loaded = cassie
             .midge
             .get_vector_index(collection, "embedding")
@@ -165,6 +244,8 @@ fn should_reload_registry_after_restart_simulation() {
                 model: "voyage-3-large".to_string(),
                 dimensions: 2,
                 metric: DistanceMetric::L2,
+                index_type: VectorIndexType::BruteForce,
+                hnsw: None,
             },
         };
 
@@ -252,6 +333,8 @@ fn should_rebuild_missing_normalized_sidecars_on_restart() {
                 model: "manual".to_string(),
                 dimensions: 3,
                 metric: DistanceMetric::Cosine,
+                index_type: VectorIndexType::BruteForce,
+                hnsw: None,
             },
         };
         cassie.midge.put_vector_index(record.clone()).unwrap();
@@ -354,6 +437,8 @@ fn should_reject_normalized_sidecar_rebuild_when_index_dimensions_do_not_match_d
                 model: "manual".to_string(),
                 dimensions: 4,
                 metric: DistanceMetric::Cosine,
+                index_type: VectorIndexType::BruteForce,
+                hnsw: None,
             },
         };
         cassie.midge.put_vector_index(record).unwrap();

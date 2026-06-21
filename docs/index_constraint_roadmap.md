@@ -219,6 +219,25 @@ full-text scoring metadata.
 
 ## P2/P3 Scope
 
+### HNSW Vector Indexes
+
+HNSW vector indexes are selected with vector index metadata:
+
+```sql
+CREATE INDEX ON documents USING vector (embedding)
+WITH (source_field = body, metric = l2, index_type = hnsw, m = 16, ef_construction = 64, ef_search = 40);
+```
+
+Supported options:
+
+- `index_type = bruteforce|hnsw`
+- `metric = cosine|l2|dot`
+- `m = 2..128`
+- `ef_construction = m..4096`
+- `ef_search = 1..4096`
+
+Current HNSW support persists and hydrates versioned HNSW options and routes HNSW searches through an exact candidate verifier so result ordering remains exact. Replacing the in-memory candidate generator with persisted graph traversal is an internal storage optimization.
+
 ### Column-Store Indexes
 
 Column-store indexes are optional analytical acceleration, not default storage.

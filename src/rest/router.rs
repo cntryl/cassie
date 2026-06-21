@@ -14,6 +14,7 @@ use hyper::{
 };
 use hyper_util::rt::TokioIo;
 use tokio::sync::Notify;
+use tokio::task;
 
 use crate::app::Cassie;
 use crate::catalog::RoleMeta;
@@ -153,7 +154,7 @@ pub async fn route_request(
     let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     let started_at = Instant::now();
     if !is_route_public(&method, segments.as_slice()) && !cassie.auth_password.is_empty() {
-        let role = match authenticate_rest_request(&cassie, request.headers()) {
+        let role = match authenticate_rest_request(cassie.clone(), request.headers()).await {
             Ok(role) => role,
             Err((status, message)) => {
                 cassie.runtime.record_rest_request(
@@ -205,47 +206,84 @@ pub async fn route_request(
             json_response(StatusCode::OK, &value)
         }
         (Method::GET, ["v1", "collections"]) => {
-            let value = crate::rest::collections::list(&cassie);
+            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
+                Ok(crate::rest::collections::list(&cassie))
+            })
+            .await
+            .map_err(|error| {
+                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+            })?;
             json_response(StatusCode::OK, &value)
         }
         (Method::POST, ["v1", "collections"]) => {
-            let value =
-                crate::rest::collections::create(&cassie, body.as_ref()).map_err(|error| {
-                    record_rest_error(&cassie, method.as_str(), &path, started_at, error)
-                })?;
+            let body = body.clone();
+            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
+                crate::rest::collections::create(&cassie, body.as_ref())
+            })
+            .await
+            .map_err(|error| {
+                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+            })?;
             json_response(StatusCode::OK, &value)
         }
         (Method::POST, ["v1", "collections", collection, "documents"]) => {
-            let value = crate::rest::documents::create(&cassie, collection, body.as_ref())
-                .map_err(|error| {
-                    record_rest_error(&cassie, method.as_str(), &path, started_at, error)
-                })?;
+            let collection = collection.to_string();
+            let body = body.clone();
+            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
+                crate::rest::documents::create(&cassie, &collection, body.as_ref())
+            })
+            .await
+            .map_err(|error| {
+                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+            })?;
             json_response(StatusCode::OK, &value)
         }
         (Method::POST, ["v1", "collections", collection, "indexes"]) => {
-            let value = crate::rest::indexes::create(&cassie, collection, body.as_ref()).map_err(
-                |error| record_rest_error(&cassie, method.as_str(), &path, started_at, error),
-            )?;
+            let collection = collection.to_string();
+            let body = body.clone();
+            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
+                crate::rest::indexes::create(&cassie, &collection, body.as_ref())
+            })
+            .await
+            .map_err(|error| {
+                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+            })?;
             json_response(StatusCode::OK, &value)
         }
         (Method::POST, ["v1", "collections", collection, "search"]) => {
-            let value = crate::rest::search::vector_search(&cassie, collection, body.as_ref())
-                .map_err(|error| {
-                    record_rest_error(&cassie, method.as_str(), &path, started_at, error)
-                })?;
+            let collection = collection.to_string();
+            let body = body.clone();
+            let value = run_rest_blocking(cassie.clone(), "rest_embedding_search", move |cassie| {
+                crate::rest::search::vector_search(&cassie, &collection, body.as_ref())
+            })
+            .await
+            .map_err(|error| {
+                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+            })?;
             json_response(StatusCode::OK, &value)
         }
         (Method::GET, ["v1", "collections", collection, "documents", id]) => {
-            let value = crate::rest::documents::get(&cassie, collection, id).map_err(|error| {
+            let collection = collection.to_string();
+            let id = id.to_string();
+            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
+                crate::rest::documents::get(&cassie, &collection, &id)
+            })
+            .await
+            .map_err(|error| {
                 record_rest_error(&cassie, method.as_str(), &path, started_at, error)
             })?;
             json_response(StatusCode::OK, &value)
         }
         (Method::DELETE, ["v1", "collections", collection, "documents", id]) => {
-            let value =
-                crate::rest::documents::delete(&cassie, collection, id).map_err(|error| {
-                    record_rest_error(&cassie, method.as_str(), &path, started_at, error)
-                })?;
+            let collection = collection.to_string();
+            let id = id.to_string();
+            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
+                crate::rest::documents::delete(&cassie, &collection, &id)
+            })
+            .await
+            .map_err(|error| {
+                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+            })?;
             json_response(StatusCode::OK, &value)
         }
         _ => {
@@ -272,6 +310,40 @@ pub async fn route_request(
     Ok(response)
 }
 
+async fn run_rest_blocking<T>(
+    cassie: Arc<Cassie>,
+    operation_name: &'static str,
+    operation: impl FnOnce(Arc<Cassie>) -> Result<T, crate::app::CassieError> + Send + 'static,
+) -> Result<T, crate::app::CassieError>
+where
+    T: Send + 'static,
+{
+    let runtime = cassie.runtime.clone();
+    let started_at = Instant::now();
+    runtime.record_rest_boundary_started(operation_name);
+
+    let result = task::spawn_blocking(move || operation(cassie)).await;
+
+    match result {
+        Ok(result) => match result {
+            Ok(value) => {
+                runtime.record_rest_boundary_completed(operation_name, started_at.elapsed());
+                Ok(value)
+            }
+            Err(error) => {
+                runtime.record_rest_boundary_error(operation_name, started_at.elapsed());
+                Err(error)
+            }
+        },
+        Err(error) => {
+            runtime.record_rest_boundary_join_failed(operation_name, started_at.elapsed());
+            Err(crate::app::CassieError::StorageRetryable(format!(
+                "rest blocking boundary '{operation_name}' failed: {error}"
+            )))
+        }
+    }
+}
+
 fn is_route_public(method: &Method, segments: &[&str]) -> bool {
     matches!(
         (method, segments),
@@ -279,35 +351,41 @@ fn is_route_public(method: &Method, segments: &[&str]) -> bool {
     )
 }
 
-fn authenticate_rest_request(
-    cassie: &Arc<Cassie>,
+async fn authenticate_rest_request(
+    cassie: Arc<Cassie>,
     headers: &hyper::HeaderMap,
 ) -> Result<RoleMeta, (StatusCode, String)> {
-    let Some((user, password)) = parse_rest_credentials(cassie, headers) else {
+    let Some((user, password)) = parse_rest_credentials(&cassie, headers) else {
         return Err((StatusCode::UNAUTHORIZED, "unauthorized".to_string()));
     };
 
-    let session = cassie
-        .authenticate_role(&user, password.as_deref(), None)
-        .map_err(|error| match error {
-            crate::app::CassieError::Unauthorized => {
-                (StatusCode::UNAUTHORIZED, "unauthorized".to_string())
-            }
-            other => (
-                StatusCode::SERVICE_UNAVAILABLE,
-                format!("authentication unavailable: {other}"),
-            ),
-        })?;
+    let role = run_rest_blocking(cassie.clone(), "rest_auth", move |cassie| {
+        let session = cassie.authenticate_role(&user, password.as_deref(), None)?;
+        let Some(role) = cassie.lookup_role(&session.user).map_err(|error| {
+            crate::app::CassieError::StorageRetryable(format!(
+                "lookup role '{}': {error}",
+                session.user
+            ))
+        })?
+        else {
+            return Err(crate::app::CassieError::StorageRetryable(format!(
+                "role '{}' disappeared during authentication",
+                session.user
+            )));
+        };
 
-    let Some(role) = cassie
-        .lookup_role(&session.user)
-        .map_err(|error| (StatusCode::SERVICE_UNAVAILABLE, error.to_string()))?
-    else {
-        return Err((
+        Ok(role)
+    })
+    .await
+    .map_err(|error| match error {
+        crate::app::CassieError::Unauthorized => {
+            (StatusCode::UNAUTHORIZED, "unauthorized".to_string())
+        }
+        other => (
             StatusCode::SERVICE_UNAVAILABLE,
-            format!("role '{}' disappeared during authentication", session.user),
-        ));
-    };
+            format!("authentication unavailable: {other}"),
+        ),
+    })?;
 
     Ok(role)
 }

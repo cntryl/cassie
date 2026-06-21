@@ -25,10 +25,14 @@ impl RuntimeState {
     }
 
     pub fn record_column_batch_decode_fallback(&self) {
+        self.record_column_batch_decode_fallback_with_reason("decode");
+    }
+
+    pub fn record_column_batch_decode_fallback_with_reason(&self, reason: &str) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.column_batches.decode_fallbacks += 1;
         metrics.column_batches.fallback_scans += 1;
-        metrics.column_batches.last_fallback_reason = "decode".to_string();
+        metrics.column_batches.last_fallback_reason = reason.to_string();
     }
 
     pub fn record_column_batch_row_blob_fallback(&self, rows: usize, reason: &str) {

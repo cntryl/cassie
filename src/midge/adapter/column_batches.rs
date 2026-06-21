@@ -176,18 +176,24 @@ impl Midge {
         filter: Option<&RowFilter>,
         segment_filter: Option<&ColumnBatchScanFilter>,
         limit: Option<usize>,
-    ) -> Result<Option<ColumnBatchScanOutcome>, CassieError> {
+    ) -> Result<ColumnBatchScanDecision, CassieError> {
         let started = Instant::now();
         let Some(index) = self.covering_column_index(collection, fields)? else {
-            return Ok(None);
+            return Ok(ColumnBatchScanDecision::Fallback(
+                ColumnBatchScanFallbackReason::NoCoveringIndex,
+            ));
         };
         let Some(metadata) = self.get_column_batch_metadata(collection, &index.name)? else {
-            return Ok(None);
+            return Ok(ColumnBatchScanDecision::Fallback(
+                ColumnBatchScanFallbackReason::MissingMetadata,
+            ));
         };
         if metadata.fields.len() != index.normalized_fields().len()
             || metadata.segment_size != column_index_segment_size(&index)?
         {
-            return Ok(None);
+            return Ok(ColumnBatchScanDecision::Fallback(
+                ColumnBatchScanFallbackReason::SegmentSizeMismatch,
+            ));
         }
 
         let wanted = fields
@@ -201,7 +207,9 @@ impl Midge {
             .map(|field| field.to_ascii_lowercase())
             .collect::<BTreeSet<_>>();
         if !wanted.is_subset(&available) {
-            return Ok(None);
+            return Ok(ColumnBatchScanDecision::Fallback(
+                ColumnBatchScanFallbackReason::FieldCoverageMismatch,
+            ));
         }
 
         let mut emitted = 0usize;
@@ -227,7 +235,9 @@ impl Midge {
                 ))
                 .map_err(CassieError::from)?
             else {
-                return Ok(None);
+                return Ok(ColumnBatchScanDecision::Fallback(
+                    ColumnBatchScanFallbackReason::SegmentMissing,
+                ));
             };
             compressed_bytes = compressed_bytes.saturating_add(segment.codec.compressed_len);
             uncompressed_bytes = uncompressed_bytes.saturating_add(segment.codec.uncompressed_len);
@@ -237,21 +247,31 @@ impl Midge {
                 .as_ref()
                 .is_some_and(|checksum| checksum != &checksum_hex(&raw))
             {
-                return Ok(None);
+                return Ok(ColumnBatchScanDecision::Fallback(
+                    ColumnBatchScanFallbackReason::SegmentChecksumMismatch,
+                ));
             }
             let Ok(payload) = serde_json::from_slice::<ColumnBatchPayload>(&raw) else {
-                return Ok(None);
+                return Ok(ColumnBatchScanDecision::Fallback(
+                    ColumnBatchScanFallbackReason::InvalidPayload,
+                ));
             };
             if payload.encoding_version != COLUMN_BATCH_ENCODING_VERSION {
-                return Ok(None);
+                return Ok(ColumnBatchScanDecision::Fallback(
+                    ColumnBatchScanFallbackReason::InvalidEncodingVersion,
+                ));
             }
             if payload.codec_name != segment.codec.codec_name
                 || payload.codec_version != segment.codec.codec_version
             {
-                return Ok(None);
+                return Ok(ColumnBatchScanDecision::Fallback(
+                    ColumnBatchScanFallbackReason::SegmentCodecMismatch,
+                ));
             }
             let Some(rows) = decode_column_batch_payload(&payload, segment.row_count)? else {
-                return Ok(None);
+                return Ok(ColumnBatchScanDecision::Fallback(
+                    ColumnBatchScanFallbackReason::SegmentDecodeFailed,
+                ));
             };
             decoded_columns = decoded_columns.saturating_add(wanted.len());
             for row in rows {
@@ -280,7 +300,7 @@ impl Midge {
             batches.push(current);
         }
 
-        Ok(Some(ColumnBatchScanOutcome {
+        Ok(ColumnBatchScanDecision::Hit(ColumnBatchScanOutcome {
             batches,
             timings: MidgeScanTimings {
                 scan: started.elapsed(),

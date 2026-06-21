@@ -355,6 +355,76 @@ impl RuntimeState {
             .or_insert(0) += 1;
     }
 
+    pub fn record_pgwire_boundary_started(&self, operation: &str) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        increment_boundary_counter(&mut metrics.pgwire.blocking_started_total, operation);
+    }
+
+    pub fn record_pgwire_boundary_completed(&self, operation: &str, elapsed: Duration) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        increment_boundary_counter(&mut metrics.pgwire.blocking_completed_total, operation);
+        increment_boundary_latency(
+            &mut metrics.pgwire.blocking_elapsed_ms_total,
+            operation,
+            elapsed,
+        );
+    }
+
+    pub fn record_pgwire_boundary_error(&self, operation: &str, elapsed: Duration) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        increment_boundary_counter(&mut metrics.pgwire.blocking_error_total, operation);
+        increment_boundary_latency(
+            &mut metrics.pgwire.blocking_elapsed_ms_total,
+            operation,
+            elapsed,
+        );
+    }
+
+    pub fn record_pgwire_boundary_join_failed(&self, operation: &str, elapsed: Duration) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        increment_boundary_counter(&mut metrics.pgwire.blocking_join_failed_total, operation);
+        increment_boundary_latency(
+            &mut metrics.pgwire.blocking_elapsed_ms_total,
+            operation,
+            elapsed,
+        );
+    }
+
+    pub fn record_rest_boundary_started(&self, operation: &str) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        increment_boundary_counter(&mut metrics.rest.blocking_started_total, operation);
+    }
+
+    pub fn record_rest_boundary_completed(&self, operation: &str, elapsed: Duration) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        increment_boundary_counter(&mut metrics.rest.blocking_completed_total, operation);
+        increment_boundary_latency(
+            &mut metrics.rest.blocking_elapsed_ms_total,
+            operation,
+            elapsed,
+        );
+    }
+
+    pub fn record_rest_boundary_error(&self, operation: &str, elapsed: Duration) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        increment_boundary_counter(&mut metrics.rest.blocking_error_total, operation);
+        increment_boundary_latency(
+            &mut metrics.rest.blocking_elapsed_ms_total,
+            operation,
+            elapsed,
+        );
+    }
+
+    pub fn record_rest_boundary_join_failed(&self, operation: &str, elapsed: Duration) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        increment_boundary_counter(&mut metrics.rest.blocking_join_failed_total, operation);
+        increment_boundary_latency(
+            &mut metrics.rest.blocking_elapsed_ms_total,
+            operation,
+            elapsed,
+        );
+    }
+
     pub fn record_search_execution(&self, elapsed: Duration, candidates: usize, results: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.search.count += 1;
@@ -988,6 +1058,15 @@ impl RuntimeState {
             .entries
             .len()
     }
+}
+
+fn increment_boundary_counter(map: &mut BTreeMap<String, u64>, operation: &str) {
+    *map.entry(operation.to_ascii_lowercase()).or_insert(0) += 1;
+}
+
+fn increment_boundary_latency(map: &mut BTreeMap<String, u64>, operation: &str, elapsed: Duration) {
+    let bucket = map.entry(operation.to_ascii_lowercase()).or_insert(0);
+    *bucket = bucket.saturating_add(duration_ms(elapsed));
 }
 
 use std::hash::Hasher;

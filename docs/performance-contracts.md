@@ -90,6 +90,36 @@ Phase 04 runtime-boundary work should fail the contract when Cassie hides synchr
 For runtime-boundary patterns, pgwire and REST are async interfaces.
 They are not a requirement to make the engine itself async.
 
+## Runtime-Boundary Contract (Phase 04)
+
+Required terms:
+
+- async transport task: task that owns socket I/O or HTTP body collection.
+- synchronous engine call: planner/executor/catalog/auth/provider logic that executes on dedicated worker threads.
+- blocking boundary: an explicit `spawn_blocking` transition between async and synchronous ownership.
+- blocking pool: bounded scheduler-backed worker execution used for blocking boundaries.
+- boundary timeout: cancellation and shutdown behavior for in-flight blocking work.
+- degraded boundary: boundary path that returns `SERVICE_UNAVAILABLE` or error when blocking work cannot run.
+- direct-blocking violation: any direct call to sync engine/auth/storage/embedding logic from an async transport loop.
+
+Current boundary ownership:
+
+| Sync entrypoint | Async owner | Sync owner | Blocking owner | Required boundary name | Forbidden direct behavior |
+| --- | --- | --- | --- | --- | --- |
+| pgwire listener accept | `src/pgwire/server.rs` | transport parse/write only | socket tasks | `run` / `run_with_shutdown` | blocking IO work in accept loop |
+| pgwire startup + protocol | `src/pgwire/connection.rs` | `run_connection` | query auth/parse/execute modules | `pgwire_auth`, `pgwire_simple_query`, `pgwire_describe`, `pgwire_execute` | inline `authenticate_role`, `execute_sql`, `describe_parsed_statement`, `execute_preparsed_statement_with_mode` |
+| REST listener accept | `src/rest/router.rs` | `run_with_shutdown`, `route` | HTTP body handling | `run` / `run_with_shutdown` | blocking accept handler loops |
+| REST public routes | `src/rest/router.rs` | routing + body collection | route handlers in `run_rest_blocking` | `rest_route`, `rest_embedding_search`, `rest_auth` | inline `collections`, `documents`, `indexes`, `search`, auth/lookup calls |
+| Shutdown paths | `src/main.rs`, `src/pgwire/server.rs`, `src/rest/router.rs` | signal/shutdown listeners | runtime notification and task finish | `pgwire/shutdown`, `rest/shutdown` | unbounded task abandonment on signal |
+
+## Runtime-Boundary Validation Ownership
+
+Validation is owned by the same transport slice:
+
+- pgwire boundary behavior: `tests/pgwire_simple_query.rs`, `tests/pgwire_extended_prepared.rs`, `tests/pgwire_startup.rs`, `tests/metrics_runtime.rs`.
+- REST boundary behavior: `tests/rest.rs`, `tests/rest_embeddings.rs`, `tests/rest_metrics.rs`, and `tests/metrics_runtime.rs`.
+- static/diff audit: `tests/transport_boundaries.rs` contains a focused scriptable check that verifies transport modules do not call synchronous engine/auth/search/storage APIs directly outside approved blocking helpers.
+
 ## Write-Path Assertions
 
 Write optimization must include write-path assertions, not just throughput assertions.

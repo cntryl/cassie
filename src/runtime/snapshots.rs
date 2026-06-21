@@ -29,6 +29,11 @@ pub struct RestSnapshot {
     pub by_method: BTreeMap<String, u64>,
     pub by_route: BTreeMap<String, u64>,
     pub by_status_class: BTreeMap<String, u64>,
+    pub blocking_started_total: BTreeMap<String, u64>,
+    pub blocking_completed_total: BTreeMap<String, u64>,
+    pub blocking_error_total: BTreeMap<String, u64>,
+    pub blocking_join_failed_total: BTreeMap<String, u64>,
+    pub blocking_elapsed_ms_total: BTreeMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -44,6 +49,11 @@ pub struct PgwireSnapshot {
     pub prepared_statements: u64,
     pub portals: u64,
     pub messages_total: BTreeMap<String, u64>,
+    pub blocking_started_total: BTreeMap<String, u64>,
+    pub blocking_completed_total: BTreeMap<String, u64>,
+    pub blocking_error_total: BTreeMap<String, u64>,
+    pub blocking_join_failed_total: BTreeMap<String, u64>,
+    pub blocking_elapsed_ms_total: BTreeMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

@@ -2,7 +2,7 @@ use crate::app::{Cassie, CassieSession};
 use crate::catalog::{CollectionSchema, IndexKind};
 use crate::executor::batch::{Batch, BatchRow, DEFAULT_BATCH_SIZE};
 use crate::midge::adapter::RowFilter;
-use crate::midge::adapter::{ColumnBatchScanFilter, DocumentRef};
+use crate::midge::adapter::{ColumnBatchScanDecision, ColumnBatchScanFilter, DocumentRef};
 use crate::types::{DataType, Value, Vector};
 use std::collections::HashSet;
 use std::time::Duration;
@@ -83,7 +83,7 @@ pub(crate) fn scan_projected_filtered_with_timings(
             column_filter,
             limit,
         ) {
-            Ok(Some(outcome)) => {
+            Ok(ColumnBatchScanDecision::Hit(outcome)) => {
                 cassie.runtime.record_storage_access("data", false, true);
                 let schema = cassie.catalog.get_schema(collection);
                 let mut timings = ScanTimings {
@@ -109,10 +109,17 @@ pub(crate) fn scan_projected_filtered_with_timings(
                 );
                 return Ok((batches, timings));
             }
-            Ok(None) if has_covering_column_index(cassie, collection, fields) => {
-                cassie.runtime.record_column_batch_decode_fallback();
+            Ok(ColumnBatchScanDecision::Fallback(reason)) => {
+                if has_covering_column_index(cassie, collection, fields) {
+                    if reason.is_decode_fallback() {
+                        cassie
+                            .runtime
+                            .record_column_batch_decode_fallback_with_reason(reason.as_str());
+                    } else {
+                        cassie.runtime.record_column_batch_fallback(reason.as_str());
+                    }
+                }
             }
-            Ok(None) => {}
             Err(error) => {
                 cassie.runtime.record_column_batch_fallback("error");
                 cassie.runtime.record_storage_access("data", false, false);

@@ -3,9 +3,11 @@ use std::convert::TryFrom;
 use std::io;
 use std::str;
 use std::sync::Arc;
+use std::time::Instant;
 
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
+use tokio::task;
 
 use crate::app::{Cassie, CassieError, CassieSession};
 use crate::config::CassieRuntimeConfig;
@@ -225,7 +227,13 @@ pub async fn run_connection(
                 match read_password_message(&mut reader).await {
                     Ok(password) => {
                         runtime.record_pgwire_message("password");
-                        match cassie.authenticate_role(&user, Some(&password), database.clone()) {
+                        let auth_result =
+                            run_pgwire_blocking(cassie.clone(), "pgwire_auth", move |cassie| {
+                                cassie.authenticate_role(&user, Some(&password), database.clone())
+                            })
+                            .await;
+
+                        match auth_result {
                             Ok(session) => {
                                 state.authenticated = true;
                                 state.session = Some(session.clone());
@@ -374,7 +382,15 @@ pub async fn run_connection(
                         }
                     };
 
-                    match cassie.execute_sql(session, &sql, Vec::new()) {
+                    let session_for_query = session.clone();
+                    let sql_for_query = sql.clone();
+                    let query_result =
+                        run_pgwire_blocking(cassie.clone(), "pgwire_simple_query", move |cassie| {
+                            cassie.execute_sql(&session_for_query, &sql_for_query, Vec::new())
+                        })
+                        .await;
+
+                    match query_result {
                         Ok(result) => {
                             if write_simple_query_result(&mut write_half, result)
                                 .await
@@ -641,10 +657,18 @@ pub async fn run_connection(
                                 },
                             };
 
-                            match cassie.describe_parsed_statement(
-                                prepared.parsed.clone(),
-                                prepared.sql_fingerprint,
-                            ) {
+                            let parsed = prepared.parsed.clone();
+                            let sql_fingerprint = prepared.sql_fingerprint;
+                            let describe_result = run_pgwire_blocking(
+                                cassie.clone(),
+                                "pgwire_describe",
+                                move |cassie| {
+                                    cassie.describe_parsed_statement(parsed, sql_fingerprint)
+                                },
+                            )
+                            .await;
+
+                            match describe_result {
                                 Ok(columns) => {
                                     if write_parameter_description(
                                         &mut write_half,
@@ -714,13 +738,25 @@ pub async fn run_connection(
                                 continue;
                             };
 
-                            let query_result = cassie.execute_preparsed_statement_with_mode(
-                                &session,
-                                prepared.parsed.clone(),
-                                prepared.sql_fingerprint,
-                                portal.params.clone(),
-                                ExecutionMode::ExtendedQuery,
-                            );
+                            let session_for_execute = session.clone();
+                            let query_parsed = prepared.parsed.clone();
+                            let query_sql_fingerprint = prepared.sql_fingerprint;
+                            let query_params = portal.params.clone();
+                            let query_result = run_pgwire_blocking(
+                                cassie.clone(),
+                                "pgwire_execute",
+                                move |cassie| {
+                                    cassie.execute_preparsed_statement_with_mode(
+                                        &session_for_execute,
+                                        query_parsed,
+                                        query_sql_fingerprint,
+                                        query_params,
+                                        ExecutionMode::ExtendedQuery,
+                                    )
+                                },
+                            )
+                            .await;
+
                             match query_result {
                                 Ok(mut result) => {
                                     if let Some(limit) = limit {
@@ -827,6 +863,40 @@ pub async fn run_connection(
                     },
                 }
             }
+        }
+    }
+}
+
+async fn run_pgwire_blocking<T>(
+    cassie: Arc<Cassie>,
+    operation_name: &'static str,
+    operation: impl FnOnce(Arc<Cassie>) -> Result<T, CassieError> + Send + 'static,
+) -> Result<T, CassieError>
+where
+    T: Send + 'static,
+{
+    let runtime = cassie.runtime.clone();
+    let started_at = Instant::now();
+    runtime.record_pgwire_boundary_started(operation_name);
+
+    let result = task::spawn_blocking(move || operation(cassie)).await;
+
+    match result {
+        Ok(result) => match result {
+            Ok(value) => {
+                runtime.record_pgwire_boundary_completed(operation_name, started_at.elapsed());
+                Ok(value)
+            }
+            Err(error) => {
+                runtime.record_pgwire_boundary_error(operation_name, started_at.elapsed());
+                Err(error)
+            }
+        },
+        Err(error) => {
+            runtime.record_pgwire_boundary_join_failed(operation_name, started_at.elapsed());
+            Err(CassieError::StorageRetryable(format!(
+                "pgwire blocking boundary '{operation_name}' failed: {error}"
+            )))
         }
     }
 }

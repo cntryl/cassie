@@ -191,6 +191,57 @@ pub enum ColumnBatchScanOp {
     IsNotNull,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum ColumnBatchScanFallbackReason {
+    NoCoveringIndex,
+    MissingMetadata,
+    SegmentSizeMismatch,
+    FieldCoverageMismatch,
+    SegmentMissing,
+    SegmentChecksumMismatch,
+    InvalidPayload,
+    InvalidEncodingVersion,
+    SegmentCodecMismatch,
+    SegmentDecodeFailed,
+    RowFilterMismatch,
+}
+
+impl ColumnBatchScanFallbackReason {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::NoCoveringIndex => "no_covering_column_index",
+            Self::MissingMetadata => "missing_metadata",
+            Self::SegmentSizeMismatch => "segment_size_mismatch",
+            Self::FieldCoverageMismatch => "field_coverage_mismatch",
+            Self::SegmentMissing => "segment_missing",
+            Self::SegmentChecksumMismatch => "segment_checksum_mismatch",
+            Self::InvalidPayload => "invalid_payload",
+            Self::InvalidEncodingVersion => "invalid_encoding_version",
+            Self::SegmentCodecMismatch => "segment_codec_mismatch",
+            Self::SegmentDecodeFailed => "segment_decode_failed",
+            Self::RowFilterMismatch => "row_filter_mismatch",
+        }
+    }
+
+    pub const fn is_decode_fallback(&self) -> bool {
+        matches!(
+            self,
+            Self::SegmentMissing
+                | Self::SegmentChecksumMismatch
+                | Self::InvalidPayload
+                | Self::InvalidEncodingVersion
+                | Self::SegmentCodecMismatch
+                | Self::SegmentDecodeFailed
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ColumnBatchScanDecision {
+    Hit(ColumnBatchScanOutcome),
+    Fallback(ColumnBatchScanFallbackReason),
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MidgeScanTimings {
     pub scan: Duration,

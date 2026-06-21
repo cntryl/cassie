@@ -1,70 +1,89 @@
-# Phase 04 Issue 06: Runtime Operator Switching
+# Phase 04 Issue 06: Boundary Regression Tests And Static Audit
 
-Milestone: Advanced Backlog
-Area: Query Intelligence
+Milestone: Runtime Boundary Discipline
+Area: Testing
 Status: Open
-Priority: P3
+Priority: P2
 
 ## Requirements
 
-Switch between compatible physical operators during execution when observed work exceeds safe thresholds, without changing query semantics.
-Runtime switching is the highest-risk query-intelligence feature in this backlog and must only operate on explicitly pre-validated switch pairs.
+Add regression coverage that prevents async/sync boundary drift.
+Future changes should fail loudly when async transport modules directly call synchronous engine/auth/provider work that should go through an explicit blocking boundary.
 
 ## Dependencies
 
-- Depends on phase 04 issue 05 for adaptive plan alternatives, guard conditions, and type-checked fallback operators.
-- Depends on phase 04 issue 01 for operator feedback and threshold calibration where feedback is used.
-- Consumes phase 04 issue 03 merge joins, phase 04 issue 04 vectorized joins, and phase 03 issue 09 vectorized aggregation only for switch pairs that have explicit state-transfer rules.
+- Depends on phase 04 issue 01 for forbidden direct-blocking behavior.
+- Depends on phase 04 issue 02 for the protected synchronous API list and operation names.
+- Consumes final helper names and diagnostics from phase 04 issues 03 through 05.
 
 ## Handoff
 
-- Provides a constrained runtime switching framework for future operator-specific optimization work.
+- Provides the enforcement layer required to keep phase 04 from regressing after implementation.
 
 ## Functional Scope
 
-- Support switchable operator pairs only when state can be transferred or replayed safely, such as nested-loop to hash join, row scan to indexed/column path for remaining work, or scalar to batch aggregation.
-- Start with one explicitly named switch pair and keep every additional pair behind its own tests and eligibility guard.
-- Define checkpoint and replay rules for each supported switch point.
-- Respect timeout, cancellation, memory/spill budgets, and deterministic final ordering.
-- Emit switch decisions, trigger reason, transferred state, and fallback through EXPLAIN ANALYZE/metrics.
-- Keep a runtime control to disable operator switching for deterministic debugging.
-- Guarantee that rows already emitted before a switch are not duplicated, skipped, or reordered in a SQL-visible way.
+- Add static-audit coverage for async transport modules.
+- Add behavioral tests that prove pgwire and REST still preserve existing semantics after boundary helpers are used.
+- Add metrics assertions from issue 05 where available.
+- Keep audits narrow enough to avoid blocking valid synchronous app usage outside async transport modules.
+
+## Implementation Plan
+
+### Step 1: Define audit rules
+
+- Audit only transport-owned async modules first: pgwire connection/server and REST router.
+- Forbid direct calls from those modules to known blocking APIs when the call is not inside an approved boundary helper.
+- Initial forbidden call patterns should cover query execution, describe, preparsed execution, auth, REST handler calls, vector search, and direct embedding provider calls.
+
+### Step 2: Add static audit test
+
+- Add a focused test file or module that reads source files and asserts forbidden patterns are absent outside approved helper scopes.
+- Keep the audit explicit and maintainable rather than a broad lint framework.
+- Include failure messages that name the expected helper.
+
+### Step 3: Add behavior regression tests
+
+- Preserve pgwire simple query, extended query, describe, auth success, and auth failure behavior.
+- Preserve REST health, metrics, collection/document/index/search, auth success, auth failure, and forbidden behavior.
+- Add diagnostics assertions only where issue 05 has exposed stable metrics.
+
+### Step 4: Add close-out audit commands
+
+- Add issue close-out instructions for `rg` checks over async modules.
+- Ensure phase 00 index checks still pass after issue completion/deletion.
 
 ## Non-Goals
 
-- Do not switch to an operator that was not pre-validated for the query.
-- Do not implement distributed operator migration.
-- Do not switch after a LIMIT/OFFSET, final sort, or side-effecting administrative operation has made replay unsafe.
+- Do not build a general Rust linter.
+- Do not forbid synchronous Cassie APIs in synchronous tests, benchmarks, embedded usage, or engine modules.
+- Do not audit every possible CPU-heavy expression; focus on known boundary-crossing APIs.
 
 ## Acceptance Criteria
 
-- Supported operator switches return identical results to no-switch execution.
-- Switch thresholds trigger deterministically in tests and can be disabled.
-- Partial state transfer/replay is covered for every supported switch pair.
-- Errors/cancellation during switch cleanup leave no active worker state.
-- Unsupported or unsafe switch opportunities continue with the original operator and report the skipped reason.
+- Static audit fails if pgwire or REST async modules call protected synchronous APIs directly.
+- Behavior tests prove protocol and HTTP semantics remain stable.
+- Diagnostics tests prove boundary metrics when issue 05 has exposed them.
+- Audit rules are documented and narrow enough to avoid false positives in unrelated code.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering each supported switch pair, disabled mode, threshold trigger, skipped unsafe switch, state transfer/replay, no duplicate emitted rows, timeout/cancellation during switch, and EXPLAIN ANALYZE diagnostics.
-- Include planner, integration, and metrics tests.
+- Static audit test in a focused test file.
+- Relevant pgwire and REST behavior tests touched by the boundary implementation.
+- Runtime metrics tests when diagnostics are part of the acceptance surface.
+- `cntryl-tools validate-tests -f <path>` for every touched test file.
 
 ## Close-Out Steps
 
-- Confirm every requirement and acceptance criterion above is implemented and covered by tests.
+- Confirm every requirement and acceptance criterion above is implemented and documented.
 - Keep source, test, and benchmark files under 1,000 lines; split focused modules/tests before adding large blocks.
-- Keep new code in the owning subsystem shown in `AGENTS.md` and `docs/module-organization.md`; do not introduce a second storage abstraction.
-- Update docs/catalog/EXPLAIN/metrics references when user-visible behavior changes.
-- Run the validation commands below in order, including `cargo build --locked` before tests.
+- Update docs if protected API names or helper names changed.
+- Run the validation commands below in order.
 - Run `cntryl-tools validate-tests -f <path>` for every touched test file.
 - Delete this issue file only after implementation, validation, documentation, and close-out checks are complete.
 
 ## Validation
 
 - `cargo build --locked`
-- `cargo test --locked --test planner_estimates --test planner_indexes --test planner_physical`
-- `cargo test --locked --test metrics_adaptive --test metrics_feedback --test metrics_runtime --test metrics_search`
-- `cargo test --locked --test integration_sql_predicates --test integration_sql_ordering --test integration_sql_projection`
 - `cargo test --locked`
 - `cargo fmt --all -- --check`
 - `cntryl-tools validate-tests -f <each touched test file>`

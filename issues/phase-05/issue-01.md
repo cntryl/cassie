@@ -15,6 +15,7 @@ Correctness is required but not sufficient: each supported write pattern must al
 
 - Depends on `docs/performance-contracts.md` for the contract format and benchmark discipline.
 - Depends on phase 02 issue 07 for rebuild-oriented benchmark baselines.
+- Depends on phase 04 issue 07 for read access-path vocabulary before index-maintenance or key-layout contracts are finalized.
 
 ## Handoff
 
@@ -24,6 +25,7 @@ Correctness is required but not sufficient: each supported write pattern must al
 
 - Define write-pattern contracts for single-row projection mutation, replay batch ingestion, duplicate replay skip, index-maintained writes, projection rebuild ingest, index rebuild/backfill, checkpoint/metadata updates, and swap-adjacent rebuild writes.
 - Document data assumptions, freshness constraints, throughput/latency targets, memory budgets, and expected Midge write paths.
+- For index-maintained writes and key-layout-sensitive writes, import the relevant read pattern from phase 04 issue 07: primary lookup, secondary lookup, range scan, ordered page, filtered page, full-text, vector, hybrid, aggregate, or projection-shaped read.
 - Define required and forbidden write-path characteristics for each pattern.
 - Map each contract to deterministic benchmark fixtures and regression thresholds.
 - Identify which contracts are interactive paths and which are bulk/replay/rebuild paths.
@@ -45,6 +47,7 @@ API, SQL, replay batch, rebuild workflow, or DDL example.
 - Rows/events:
 - Batch size:
 - Indexes maintained:
+- Read access shape served:
 - Freshness/checkpoint behavior:
 - Idempotency requirement:
 
@@ -60,6 +63,9 @@ API, SQL, replay batch, rebuild workflow, or DDL example.
 
 ### Required write strategy
 Midge row/index/metadata write path expected for this pattern.
+
+### Required read-shape compatibility
+The read access path this write shape must preserve.
 
 ### Forbidden write strategy
 Generic or wasteful behavior that must not satisfy the contract.
@@ -92,27 +98,33 @@ Benchmark name, fixture size, counters, and expected assertions.
 - Read materialized projection rebuild code in `src/executor/execution/materialized_projection.rs` before defining rebuild/write contracts.
 - Record findings in `docs/performance-contracts.md` under a write-pattern section instead of adding implementation notes to source code.
 
-### Step 2: Add write contract docs
+### Step 2: Import read-shape assumptions
+
+- Read or complete phase 04 issue 07 before finalizing contracts for index-maintained writes, key-layout changes, covering indexes, full-text, vector, hybrid, ordered pages, and projection-shaped reads.
+- Copy only the needed access-path vocabulary into write contracts: required read shape, forbidden read shape, and whether the write path must preserve index-local, projection-local, or version-local grouping.
+- Do not implement phase 06 planner/executor behavior here.
+
+### Step 3: Add write contract docs
 
 - Add a `Write Pattern Contracts` section to `docs/performance-contracts.md`.
-- For each initial write pattern, fill in purpose, shape, data assumptions, performance targets, required write strategy, forbidden write strategy, and validation.
+- For each initial write pattern, fill in purpose, shape, data assumptions, performance targets, required write strategy, required read-shape compatibility, forbidden write strategy, and validation.
 - Keep initial latency/throughput values as measured placeholders unless benchmark data already exists.
 - Tie each pattern to one owning benchmark: `tier2_subsystem_ingest` for replay/ingest, `tier3_system_rebuild` for rebuild/swap/index rebuild.
 
-### Step 3: Define write amplification vocabulary
+### Step 4: Define write amplification vocabulary
 
 - Define common counters in the docs before issue 06 implements them: `row_puts`, `row_deletes`, `index_puts`, `index_deletes`, `metadata_puts`, `metadata_deletes`, `duplicate_checks`, `duplicates_skipped`, `batch_flushes`, `rebuild_target_puts`, and `activation_metadata_writes`.
 - Mark counters as exact, derived, or planned depending on whether the current code can expose them.
 - Define derived ratios: storage writes per applied replay event, index writes per row mutation, metadata writes per replay batch, and activation writes per swap.
 
-### Step 4: Map tests and benchmarks
+### Step 5: Map tests and benchmarks
 
 - Map replay correctness tests to `tests/projection_lifecycle.rs`; create `tests/projection_write_optimization.rs` only if the existing file approaches the 1,000-line limit.
 - Map storage key/layout checks to `tests/midge_row_blob_layout.rs`, `tests/midge_metadata_stats.rs`, or a new focused storage test file if needed.
 - Map runtime metric assertions to `tests/metrics_runtime.rs`.
 - Map compile-only benchmark validation to `tier2_subsystem_ingest` and `tier3_system_rebuild`.
 
-### Step 5: Close the contract issue
+### Step 6: Close the contract issue
 
 - Update this issue with the final contract doc links before deletion.
 - Do not change write-path implementation in this issue unless a tiny fixture helper is needed to make the contracts measurable.
@@ -126,6 +138,7 @@ Benchmark name, fixture size, counters, and expected assertions.
 
 - Every supported write-side workflow has a documented contract template filled in.
 - Each contract identifies the intended Midge-aware write path.
+- Index-maintained and key-layout-sensitive contracts identify the read access shape they preserve.
 - Each contract identifies forbidden generic behavior, such as per-row catalog rediscovery, full index rebuilds for row updates, duplicate replay rewrites, or active-version data rewrites during activation.
 - Each contract maps to a named benchmark or explicitly creates one as follow-up.
 - The contract distinguishes interactive mutation paths from replay/rebuild bulk paths.

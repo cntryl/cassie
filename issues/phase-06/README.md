@@ -42,12 +42,14 @@ The goal is that implementation work is mostly mechanical once the issue is pick
 
 ## Phase Sequence
 
-1. Read access-path contracts: define supported patterns and required/forbidden access paths.
-2. Predicate/order/limit pushdown: lower eligible reads into bounded storage scans.
-3. Keyset pagination: make interactive paging seek-based where the query shape proves ordering.
-4. Top-K and early stop execution: stop scanning/scoring once exactness allows.
-5. Projection-shaped read layouts: require materialization when generic execution cannot be efficient.
-6. Access-path assertions and diagnostics: make optimized and degraded paths visible and testable.
+Phase 06 consumes phase 04 issue 07 for access-path contracts.
+It does not redefine read-shape vocabulary while implementing read-path behavior.
+
+1. Predicate/order/limit pushdown: lower eligible reads into bounded storage scans.
+2. Keyset pagination: make interactive paging seek-based where the query shape proves ordering.
+3. Top-K and early stop execution: stop scanning/scoring once exactness allows.
+4. Projection-shaped read layouts: require materialization when generic execution cannot be efficient.
+5. Access-path assertions and diagnostics: make optimized and degraded paths visible and testable.
 
 ## Non-Goals
 
@@ -56,3 +58,4 @@ The goal is that implementation work is mostly mechanical once the issue is pick
 - No hidden projection rewrites without EXPLAIN/diagnostic visibility.
 - No misleading `EXPLAIN` labels when the planner cannot prove an access path.
 - No optimization that changes ordering, null, offset, limit, or error semantics.
+- No read implementation should infer an access path that is absent from phase 04 issue 07.

@@ -60,6 +60,7 @@ A query pattern is supported only when it lowers into the expected Midge-efficie
 ## Access-Path Assertions
 
 Performance work must include access-path assertions, not just latency assertions.
+Phase 04 owns the shared read access-path vocabulary before phase 05 write optimization or phase 06 read implementation consumes it.
 
 Each supported query pattern should define:
 
@@ -70,6 +71,24 @@ Each supported query pattern should define:
 
 This is necessary because a query can look fast at 10k rows while already using the wrong execution model.
 The contract should fail before that mistake reaches larger scales.
+
+## Runtime-Boundary Assertions
+
+Runtime-boundary work must include async/sync assertions, not just response correctness assertions.
+
+Each supported async entrypoint should define:
+
+- required async ownership, such as socket IO, HTTP body collection, shutdown, and task coordination
+- required synchronous ownership, such as query execution, catalog access, storage, auth verification, and embedding providers
+- the blocking boundary that protects Tokio worker tasks
+- forbidden direct-blocking behavior inside async transport tasks
+- the tests, diagnostics, or static audits that prove the boundary remains explicit
+
+This is necessary because a pgwire or REST path can look correct while blocking the async runtime with planner, executor, storage, Argon2, provider HTTP, or retry sleep work.
+Phase 04 runtime-boundary work should fail the contract when Cassie hides synchronous engine work behind async transport code.
+
+For runtime-boundary patterns, pgwire and REST are async interfaces.
+They are not a requirement to make the engine itself async.
 
 ## Write-Path Assertions
 

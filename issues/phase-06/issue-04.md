@@ -1,105 +1,100 @@
-# Phase 06 Issue 04: Top-K And Early Stop Execution
+# Phase 06 Issue 04: Projection-Shaped Read Layouts
 
 Milestone: Read-Model Read Optimization
-Area: Executor
+Area: Projections
 Status: Open
 Priority: P2
 
 ## Requirements
 
-Stop read-side work as soon as the contract allows, especially for top-K pages, existence checks, and bounded candidate retrieval.
+Require latency-sensitive read models to shape data, keys, and derived projections around expected reads when generic SQL lowering cannot reach an efficient path.
 
 ## Dependencies
 
-- Depends on phase 06 issue 01 for access-path contracts.
-- Depends on phase 06 issue 02 for bounded scan planning.
+- Depends on phase 04 issue 07 for read contracts.
+- Depends on phase 01 projection lifecycle foundations for materialized/versioned projections.
 
 ## Handoff
 
-- Provides executor-side bounded work patterns for read contracts that should not materialize unnecessary rows.
+- Provides the projection-design optimization path when planner/executor work alone is insufficient.
 
 ## Functional Scope
 
-- Add explicit early-stop behavior for top-N ordered pages, `EXISTS`, limit-bounded scans, and bounded candidate retrieval where exactness permits.
-- Preserve deterministic ordering and exact result semantics.
-- Report early-stop decisions through EXPLAIN/metrics where practical.
+- Define when a read pattern must be satisfied by a materialized or derived projection instead of generic runtime joins/scans.
+- Add planning/diagnostic hooks that make projection-shaped read paths explicit.
+- Document the boundary between supported efficient runtime reads and required projection shaping.
 
 ## Required Access Path
 
-- Executor has a proof that enough rows/candidates have been seen.
-- Scan/scoring stops at the smallest exact bound allowed by the query.
-- `EXISTS` stops at the first qualifying row.
-- Top-K over ordered storage stops at K; top-K without ordered storage remains heap-bounded but does not claim scan early-stop.
+- Latency-sensitive multi-entity or multi-shape reads use a declared projection/materialized shape.
+- Planner/executor identifies that the source is a projection-shaped read.
+- EXPLAIN reports the projection name, active output collection/version where applicable, freshness, and fallback status.
+- Runtime-heavy joins remain correct but are marked as degraded for read-model contracts unless explicitly optimized.
 
 ## Forbidden Access Path
 
-- Full collection materialization for `EXISTS`.
-- Reading all rows for a limit-only projected scan when `scan_limit` is proven.
-- Claiming top-K early-stop when the executor still scans the full corpus.
-- Approximating full-text/vector/hybrid results without an explicit approximate contract.
+- Treating arbitrary runtime joins as satisfying projection-shaped read contracts.
+- Hidden rewrites from base collections to projections without diagnostic visibility.
+- Serving stale or inactive projection data as if it were fresh.
+- Rebuilding projection data during a read to satisfy an interactive query.
 
 ## Implementation Plan
 
-### Step 1: Add failing behavior tests
+### Step 1: Document projection-shaped read contract
 
-- Extend `tests/executor_limits.rs`, `tests/executor_query_sources.rs`, or a new focused file if needed.
-- Add `should_short_circuit_exists_after_first_match` using metrics or a deterministic scan counter once diagnostics exist.
-- Add `should_stop_projected_scan_at_scan_limit` for limit-only projected reads.
-- Add `should_not_label_heap_top_k_as_storage_early_stop` for unordered top-K.
-- Add `should_stop_ordered_storage_top_k_when_ordering_proof_exists` after issue 02 ordering proof exists.
+- Extend `docs/performance-contracts.md` with a `Projection-shaped read` pattern.
+- State that product-critical join-like reads should usually query a materialized projection directly.
+- Define when runtime joins are acceptable: small/admin/non-contract paths or explicitly benchmarked optimized joins.
 
-### Step 2: Separate top-K concepts
+### Step 2: Add tests around current materialized source behavior
 
-- In `src/planner/physical.rs`, distinguish:
-  - `top_k=true`: query has ORDER BY plus LIMIT.
-  - `heap_top_k=true`: executor can keep a bounded heap but may still scan all candidates.
-  - `storage_top_k=true`: storage ordering proof allows early scan stop.
-- Keep existing `top_k` and `top_k_limit` for compatibility; add new diagnostics only when issue 06 can expose them.
+- Extend `tests/projection_lifecycle.rs` or `tests/integration_sql_projection.rs`.
+- Add `should_explain_materialized_projection_read_shape`:
+  - Arrange a materialized projection with active output.
+  - Act with `EXPLAIN SELECT ... FROM projection_name`.
+  - Assert plan reports projection-shaped read, active output collection/version, and freshness.
+- Add `should_mark_runtime_join_as_degraded_for_projection_shaped_contract` in `tests/integration_sql_join_plans.rs` or EXPLAIN tests.
+- Add freshness/fallback assertions if existing projection metadata exposes freshness.
 
-### Step 3: Tighten projected scan limits
+### Step 3: Add catalog/read-shape metadata only if needed
 
-- Reuse `scan_limit` in `src/executor/execution/projected_read.rs` and `src/executor/scan.rs`.
-- Confirm `Midge::scan_rows_batched_limit` and projected scan helpers stop iterating once the limit is reached.
-- Add tests around offset handling: limit-only scan stops at K; offset+limit scans at offset+K unless keyset pagination applies.
+- Prefer using existing materialized projection metadata first.
+- If explicit read-shape metadata is needed, add it under `src/catalog/` near materialized projection metadata rather than inventing a planner-only registry.
+- Keep metadata Cassie-specific and visible through catalog/EXPLAIN.
 
-### Step 4: Short-circuit EXISTS
+### Step 4: Wire source execution diagnostics
 
-- Inspect `resolve_exists_expr` in `src/executor/executor.rs` and source-expression handling in `src/executor/execution/source.rs`.
-- Change EXISTS subquery execution to request at most one row where SQL semantics allow it.
-- Ensure correlated/lateral EXISTS still sees the correct outer row and short-circuits per outer row.
-- Preserve NOT EXISTS semantics by short-circuiting once any row exists.
+- `src/executor/execution/source.rs` already resolves materialized projection names to active output collections.
+- Add a small plan/explain helper that identifies when `physical.collection` or source maps to a materialized projection.
+- Include active version/output collection and freshness in `src/app/query.rs` EXPLAIN.
+- Keep reads using the active output collection; do not rebuild or refresh during query execution.
 
-### Step 5: Bound scored candidate work honestly
+### Step 5: Define fallback/degraded behavior
 
-- In `src/executor/execution/scored.rs` and `src/executor/execution/scored/vector_topk.rs`, keep heap-bounded top-K behavior separate from storage early-stop.
-- Only label full-text/vector/hybrid as early-stop when candidate generation itself is bounded by an index/candidate path.
-- Continue exact final scoring for all candidates required by the contract.
+- Runtime joins remain semantically correct.
+- EXPLAIN should show `projection_shape=runtime_join_degraded` or equivalent for join-like reads that are not materialized and not otherwise optimized.
+- Do not fail correct SQL queries merely because they are not contract-optimized unless a future strict mode is explicitly introduced.
 
-### Step 6: Metrics and EXPLAIN
+### Step 6: Benchmark validation
 
-- Add runtime counters for early-stop hits, rows avoided, EXISTS short-circuit hits, and degraded top-K scans if issue 06 introduces a read diagnostics snapshot.
-- Add EXPLAIN labels such as `early_stop=scan_limit`, `early_stop=exists`, `top_k_mode=heap`, `top_k_mode=storage`, and `early_stop=none`.
-
-### Step 7: Benchmark validation
-
-- Extend `tier2_subsystem_executor` with `exists_short_circuit`, `limit_projected_scan`, and storage-ordered top-K cases when supported.
-- Keep `tier2_subsystem_search`, `tier2_subsystem_vector`, and `tier2_subsystem_hybrid` for scored top-K candidate behavior.
+- Add or update a `tier3_system_query` or `tier3_system_query_breakdown` case comparing projection-shaped read against runtime join only after diagnostics exist.
+- Use the benchmark to document why projection shaping is required for product-critical read models.
 
 ## Non-Goals
 
-- Do not approximate exact SQL result sets for interactive query paths.
-- Do not introduce hidden truncation.
+- Do not claim a generic runtime optimization for every read-model query shape.
+- Do not turn projection shaping into a hidden planner rewrite without visibility.
 
 ## Acceptance Criteria
 
-- Eligible queries stop work after enough rows/candidates have been produced.
-- `EXISTS` and similar patterns short-circuit deterministically.
-- Benchmarks show reduced row work or latency for eligible patterns.
+- The doc and planning surface clearly distinguish runtime-efficient paths from projection-required paths.
+- Latency-sensitive join-like or multi-shape reads can be declared projection-backed.
+- EXPLAIN/diagnostics identify when a projection-shaped path is being used.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering top-N early stop, `EXISTS` short-circuit, bounded candidate retrieval, fallback, and EXPLAIN/metrics output.
-- Include executor and integration coverage.
+- Add `should_` tests with `// Arrange / Act / Assert` covering projection-required path selection, runtime fallback, and explain/diagnostic visibility.
+- Include integration coverage for projection-backed reads.
 
 ## Close-Out Steps
 
@@ -114,10 +109,8 @@ Stop read-side work as soon as the contract allows, especially for top-K pages, 
 ## Validation
 
 - `cargo build --locked`
-- `cargo test --locked --test executor_limits --test executor_query_sources --test executor_sort`
-- `cargo test --locked --test integration_sql_ordering --test integration_sql_predicates --test integration_sql_explain`
+- `cargo test --locked --test projection_lifecycle --test integration_sql_projection --test integration_sql_joins --test integration_sql_join_plans`
+- `cargo test --locked --test planner_indexes --test planner_physical --test integration_sql_explain`
 - `cargo test --locked`
-- `cargo bench --locked --bench tier2_subsystem_executor --no-run`
-- `cargo bench --locked --bench tier2_subsystem_search --no-run`
 - `cargo fmt --all -- --check`
 - `cntryl-tools validate-tests -f <each touched test file>`

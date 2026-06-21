@@ -40,7 +40,8 @@ Goal: prove rebuilt read models and derived state are internally consistent befo
 | Projection Merkle roots | Implemented | Experimental Cassie-specific |
 | Rebuild verification | Implemented | Experimental Cassie-specific |
 | Integrity verification | Implemented | Experimental Cassie-specific |
-| Projection diffing and multi-instance consistency checks | Planned | Cassie-specific |
+| Projection diffing and manifest comparison | Implemented baseline | Experimental Cassie-specific |
+| Multi-instance consistency checks | Planned | Cassie-specific |
 
 ## SQL Foundation
 
@@ -85,7 +86,7 @@ Goal: provide predictable index behavior and visible planner decisions without a
 | Partial indexes | Implemented | Experimental predicate implication |
 | Expression indexes | Implemented | Experimental expression equivalence |
 | Planner optimization | Implemented | Stable result semantics |
-| Adaptive feedback and cost-informed planning | Implemented/Planned by depth | Experimental |
+| Adaptive feedback and cost-informed planning | Implemented baseline/Planned by depth | Experimental |
 
 ## Search & AI
 
@@ -97,7 +98,8 @@ Goal: expose document-native search, vector, hybrid, and embedding workflows thr
 | `search`, `search_score`, `snippet` | Implemented | Cassie-specific |
 | Vector values and distance functions | Implemented | Cassie-specific with pgvector-style operators |
 | HNSW vector indexes | Implemented | Experimental |
-| IVFFlat vector indexes | Planned/Experimental | Experimental |
+| IVFFlat vector index metadata/options | Implemented | Experimental |
+| IVFFlat trained candidate execution | Implemented | Experimental exact re-rank |
 | Hybrid scoring | Implemented | Cassie-specific |
 | Embedding providers and validation | Implemented | Experimental |
 
@@ -113,8 +115,28 @@ Goal: provide analytical read acceleration and operational visibility while keep
 | `time_bucket` fixed windows | Implemented | Cassie-specific deterministic function |
 | Rollups | Implemented | Experimental |
 | Retention policies | Implemented | Experimental explicit enforcement |
-| Time-series indexes | Planned | Experimental |
+| Time-series index metadata and range planning | Implemented baseline | Experimental |
+| Time-series index storage maintenance and bucket scans | Planned | Experimental |
+| Analytical projection options and covered-query routing | Implemented | Experimental Cassie-specific |
 | EXPLAIN, EXPLAIN ANALYZE, metrics | Implemented | Experimental output format |
+
+## Foundation Contracts
+
+Goal: define the runtime and access-path contracts that later write/read optimization must preserve.
+
+Phase 04 treats pgwire and REST as async interfaces over a synchronous Rust engine.
+Supported runtime paths must define where async IO stops, where synchronous engine work starts, and which blocking boundary protects Tokio worker tasks.
+Phase 04 also defines read access-path vocabulary before write-side index/key-layout work or read-side planner/executor work consumes it.
+
+| Feature Area | Status | Compatibility |
+| --- | --- | --- |
+| Runtime-boundary contracts | Planned | Cassie-specific internal/runtime contract |
+| Pgwire blocking boundaries | Planned | Internal runtime behavior, stable protocol semantics |
+| REST blocking boundaries | Planned | Internal runtime behavior, stable HTTP semantics |
+| Auth and embedding blocking discipline | Planned | Internal runtime behavior |
+| Runtime-boundary diagnostics | Planned | Experimental metrics/admin diagnostics |
+| Boundary regression tests and static audit | Planned | Internal test discipline |
+| Read access-path contracts | Planned | Cassie-specific internal/perf contract |
 
 ## Write Optimization
 
@@ -165,8 +187,10 @@ Goal: support practical PostgreSQL client interoperability for read-model access
 - Harden verification gates and repair workflows beyond local read-only integrity reports.
 - Promote performance targets for replay ingestion, projection rebuilds, verification, swaps, and lag catch-up from baseline benchmarks to measured thresholds.
 - Prioritize query patterns required by real read models over feature parity with any general-purpose database.
-- Build phase 05 around write-side performance contracts, replay/ingest batching, locality, and write-amplification control.
-- Build phase 06 around read-side performance contracts, Midge-native access paths, access-path assertions, and projection-shaped reads.
+- Build phase 04 around explicit async transport boundaries, synchronous engine paths, blocking offload, runtime-boundary diagnostics, and read access-path contracts.
+- Build phase 05 around write-side performance contracts, replay/ingest batching, locality, and write-amplification control, using phase 04 issue 07 read-shape contracts before index/key-layout changes.
+- Build phase 06 around Midge-native read implementation, access-path assertions, and projection-shaped reads using phase 04 issue 07 contracts.
+- Keep phase 07 parked for advanced query and distributed backlog work until the required phase 04 through phase 06 gates are complete.
 - Tighten PostgreSQL compatibility documentation for already-implemented SQL features through the read-model access lens.
 - Expand client compatibility probes for psql, sqlx, diesel, prisma, and SQLAlchemy read-model workflows.
 - Promote experimental catalog, procedure, rollup, HNSW, and embedding surfaces as their compatibility guarantees settle.

@@ -1,71 +1,102 @@
-# Phase 04 Issue 07: Multi-Instance Consistency Checks
+# Phase 04 Issue 07: Read Access-Path Contracts
 
-Milestone: Advanced Backlog
-Area: Distributed Read Models
+Milestone: Foundation Contracts
+Area: Contracts
 Status: Open
-Priority: P3
+Priority: P2
 
 ## Requirements
 
-Compare verification manifests from multiple Cassie instances to detect read-model divergence without performing replication or repair.
-This issue extends local verification and projection comparison into an offline/admin consistency workflow across instances.
+Define support for Cassie read patterns in terms of Midge-native access paths before write or read optimization changes implementation.
+This issue operationalizes the access-path discipline described in `docs/performance-contracts.md` and removes any need for phase 05 to depend on a future phase 06 issue.
 
 ## Dependencies
 
-- Depends on phase 02 issues 01 through 06 for row hashes, range hashes, Merkle roots, rebuild verification, operations views, and local integrity reports.
-- Depends on phase 03 issue 05 for projection diffing.
-- Depends on phase 03 issue 11 for projection comparison semantics.
+- Depends on `docs/performance-contracts.md`.
 
 ## Handoff
 
-- Provides divergence reports for future repair, audit, or deployment tooling without adding distributed query semantics.
+- Provides the read-shape vocabulary consumed by phase 05 write contracts, index maintenance, write-locality key layout, and write amplification diagnostics.
+- Provides the read-side contract set consumed by phase 06 read implementation issues.
 
 ## Functional Scope
 
-- Add an authenticated/admin-only path to export a projection verification manifest containing instance id, projection id/version, schema/hash metadata, root/range summaries, and generated timestamp.
-- Add a consistency-check operation that imports two or more manifests and compares compatibility, roots, ranges, and optional row-level diffs.
-- Report consistent, divergent, stale, incompatible, and unverifiable states with deterministic ordering.
-- Store check reports locally and expose metrics for checks, mismatches, stale manifests, and incompatible manifests.
-- Ensure exported manifests contain no row values or sensitive bind data.
-- Define a versioned manifest format with canonical ordering, manifest digest, hash algorithm metadata, source checkpoint where available, and expiration/staleness rules.
-- Keep comparison offline/admin-driven; query planning and query execution must never wait on remote manifest checks.
+- Fill in contract targets for primary lookup, secondary lookup, range scan, ordered page, filtered page, count/exists, aggregates, full-text, vector, hybrid, time-bucket, column batch, and projection-shaped join-like reads.
+- For each pattern, define required and forbidden access-path characteristics.
+- Map each pattern to planner/explain assertions and deterministic benchmark ownership.
+- For write-sensitive read paths, define the storage/index/key grouping expectation that phase 05 must preserve.
+- Keep this issue contract-only; phase 06 owns planner/executor implementation of the access paths.
+
+## Implementation Plan
+
+### Step 1: Inventory current read paths
+
+- Read `src/planner/physical.rs` and document existing plan signals: `predicate_pushdown`, `projected_scan_fields`, `scan_limit`, `selected_index`, `covered_index`, `column_batch_index`, `top_k`, `top_k_limit`, `join_strategy`, and aggregate acceleration flags.
+- Read `src/app/query.rs` EXPLAIN generation and document which plan signals are already user-visible.
+- Read `src/executor/executor.rs` dispatch order for vector top-K, full-text/scored paths, ordered column top-K, projected filtered reads, rollups, and fallback execution.
+- Read `src/executor/execution/projected_read.rs`, `src/executor/scan.rs`, `src/executor/execution/scored.rs`, and `src/executor/execution/scored/vector_topk.rs` to identify where broad materialization still happens.
+- Read `src/midge/adapter/documents.rs` and `src/midge/adapter/column_batches.rs` to document current scan capabilities, limits, filters, column batches, and missing bounded prefix/range APIs.
+
+### Step 2: Define access-path vocabulary
+
+- Add or refine terms in `docs/performance-contracts.md`: point lookup, index seek, covering index scan, projected row scan, bounded prefix scan, bounded range scan, column-batch scan, full-text candidate path, vector top-K path, hybrid candidate merge, rollup rewrite, projection-shaped read, and degraded fallback.
+- Define forbidden paths for each pattern: full collection scan, late sort, broad materialization, offset discard scan, full-corpus rerank, runtime-heavy join, and hidden fallback.
+- Mark each access path as implemented, planned, or unsupported.
+
+### Step 3: Fill read contracts
+
+- For each pattern in this issue, fill the existing contract sections in `docs/performance-contracts.md`.
+- Keep initial latency numbers as measured placeholders unless benchmark data has been captured.
+- For every supported pattern, include `Required access-path assertions` and `Forbidden plan shape`.
+- For unsupported patterns, explicitly say whether users must materialize the projection shape.
+- Add a compact `Write-path compatibility` note for each read pattern that requires index or key-layout support.
+
+### Step 4: Map validation ownership
+
+- Planner shape tests: `tests/planner_physical.rs`, `tests/planner_indexes.rs`, `tests/planner_estimates.rs`.
+- EXPLAIN tests: `tests/integration_sql_explain.rs`, plus subsystem-specific explain tests for scalar/vector/hybrid/column batches.
+- Executor behavior tests: `tests/executor_query_sources.rs`, `tests/executor_sort.rs`, `tests/executor_limits.rs`, or focused subsystem files.
+- Benchmarks: `tier2_subsystem_executor`, `tier2_subsystem_search`, `tier2_subsystem_vector`, `tier2_subsystem_hybrid`, `tier3_system_query`, and `tier3_system_query_breakdown`.
+
+### Step 5: Close the contract issue
+
+- Do not change planner/executor behavior here unless a tiny diagnostic helper is needed to make the contracts measurable.
+- Update phase 05 and phase 06 references if new diagnostics are required to make an access path assertable.
 
 ## Non-Goals
 
-- Do not implement data replication, leader election, quorum reads, or automatic repair.
-- Do not require network calls from the query path.
-- Do not treat manifest equality as proof of source-of-record correctness; it only compares Cassie read-model materialization state.
+- Do not change planner/executor implementation in this issue unless needed to make the contract measurable.
+- Do not define support for patterns that Cassie cannot lower into an efficient path.
 
 ## Acceptance Criteria
 
-- Manifests from identical instances compare consistent.
-- Divergent manifests report changed projections/ranges/rows where available.
-- Stale, incompatible, or missing metadata reports clear non-success states.
-- Manifest export/import and report persistence work after restart.
-- Manifest export excludes row values, vector values, full text bodies, bind values, and credentials.
-- Compatibility checks reject mismatched schema epoch, hash algorithm, projection definition, or source checkpoint where those fields are required.
+- Each supported read pattern has an explicit access-path contract.
+- Each contract names required and forbidden plan behavior.
+- Each contract identifies benchmark and assertion ownership.
+- Contracts used by phase 05 name the index/key grouping expectation the write path must preserve.
+- Phase 06 issues can implement top-to-bottom without redefining read-shape vocabulary.
+- Unsupported patterns are documented as non-goals or materialization requirements.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering manifest export, canonical ordering, equal comparison, divergent comparison, stale manifest, incompatible schema/hash/source metadata, privacy/no row values, report persistence, restart hydration, and metrics.
-- Include integration tests for admin/export/import paths.
+- Add docs/benchmark support only where needed.
+- If reusable fixture code is added, include deterministic fixture tests in `should_` style.
 
 ## Close-Out Steps
 
-- Confirm every requirement and acceptance criterion above is implemented and covered by tests.
+- Confirm every requirement and acceptance criterion above is implemented and documented.
 - Keep source, test, and benchmark files under 1,000 lines; split focused modules/tests before adding large blocks.
-- Keep new code in the owning subsystem shown in `AGENTS.md` and `docs/module-organization.md`; do not introduce a second storage abstraction.
-- Update docs/catalog/EXPLAIN/metrics references when user-visible behavior changes.
-- Run the validation commands below in order, including `cargo build --locked` before tests.
+- Update roadmap/docs references when the contract surface changes.
+- Run the validation commands below in order.
 - Run `cntryl-tools validate-tests -f <path>` for every touched test file.
 - Delete this issue file only after implementation, validation, documentation, and close-out checks are complete.
 
 ## Validation
 
 - `cargo build --locked`
-- `cargo test --locked --test integration_sql_catalog --test views --test catalog_introspection`
-- `cargo test --locked --test midge_metadata_stats --test midge_namespace_hydration`
-- `cargo test --locked --test metrics_runtime --test metrics_feedback`
 - `cargo test --locked`
+- `cargo bench --locked --bench tier2_subsystem_executor --no-run`
+- `cargo bench --locked --bench tier2_subsystem_search --no-run`
+- `cargo bench --locked --bench tier2_subsystem_vector --no-run`
 - `cargo fmt --all -- --check`
 - `cntryl-tools validate-tests -f <each touched test file>`

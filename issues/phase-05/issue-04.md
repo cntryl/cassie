@@ -13,6 +13,7 @@ This issue is about making Cassie's keys and write ordering match Midge strength
 ## Dependencies
 
 - Depends on phase 05 issue 01 for write contracts.
+- Depends on phase 04 issue 07 for read access-path vocabulary before persistent key shapes are changed.
 - Depends on current Midge adapter/storage metadata layout.
 
 ## Handoff
@@ -23,6 +24,7 @@ This issue is about making Cassie's keys and write ordering match Midge strength
 
 - Audit projection row, metadata, and index key shapes used by the write path.
 - Identify avoidable locality losses caused by generic key composition or write ordering.
+- For every changed persistent key prefix, name the read or write access shape it is optimizing.
 - Define locality expectations for row keys, projection replay metadata, source checkpoints, duplicate-event ledgers, index keys, version/build keys, and verification-adjacent metadata.
 - Prefer key prefixes that group writes by projection, version/build target, index, source, and batch where that preserves existing compatibility.
 - Introduce safer key/layout improvements where they preserve compatibility and correctness.
@@ -56,6 +58,7 @@ This issue is about making Cassie's keys and write ordering match Midge strength
   - normalized vector keys
   - column batch keys
 - For each prefix, record storage family, grouping dimension, expected operation, and whether broad scans are required.
+- Mark each prefix as write-only, read-serving, or shared. Shared/read-serving prefixes must name the phase 04 issue 07 access-path contract they support.
 
 ### Step 2: Add key-shape tests before layout changes
 
@@ -102,6 +105,7 @@ This issue is about making Cassie's keys and write ordering match Midge strength
 
 - Write-heavy workloads show improved locality-sensitive behavior or reduced storage round trips where measured.
 - Compatibility/migration behavior is explicit for any changed key shape.
+- Every changed key prefix states which read or write access pattern it optimizes.
 - Diagnostics identify the key/layout path being exercised by benchmarks.
 - The key-layout audit names any intentionally unchanged layouts and why they remain acceptable.
 - Tests cover restart/hydration for changed metadata or key prefixes.

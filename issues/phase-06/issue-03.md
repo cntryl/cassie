@@ -1,4 +1,4 @@
-# Phase 06 Issue 03: Keyset Pagination
+# Phase 06 Issue 03: Top-K And Early Stop Execution
 
 Milestone: Read-Model Read Optimization
 Area: Executor
@@ -7,108 +7,99 @@ Priority: P2
 
 ## Requirements
 
-Prefer seek/keyset pagination and bounded continuation scans for interactive read-model pages instead of offset-driven scans that discard work.
+Stop read-side work as soon as the contract allows, especially for top-K pages, existence checks, and bounded candidate retrieval.
 
 ## Dependencies
 
-- Depends on phase 06 issue 01 for the ordered-page and filtered-page contracts.
-- Depends on phase 06 issue 02 for bounded ordered scan planning.
+- Depends on phase 04 issue 07 for access-path contracts.
+- Depends on phase 06 issue 01 for bounded scan planning.
 
 ## Handoff
 
-- Provides the pagination model used by latency-sensitive read-model list views.
+- Provides executor-side bounded work patterns for read contracts that should not materialize unnecessary rows.
 
 ## Functional Scope
 
-- Add keyset/seek pagination support for supported ordered-page patterns.
-- Keep offset pagination correct but explicitly degraded when it cannot use an efficient path.
-- Expose continuation key semantics through SQL-visible or Cassie-specific documented surfaces where needed.
-- Preserve deterministic ordering and tie handling.
+- Add explicit early-stop behavior for top-N ordered pages, `EXISTS`, limit-bounded scans, and bounded candidate retrieval where exactness permits.
+- Preserve deterministic ordering and exact result semantics.
+- Report early-stop decisions through EXPLAIN/metrics where practical.
 
 ## Required Access Path
 
-- Query proves a stable ordering over indexed or projection-shaped keys.
-- Cursor predicate is represented as a bounded seek/range start, not as rows to discard.
-- Executor streams from the seek point and stops at page size.
-- EXPLAIN distinguishes `keyset` from degraded `offset` pagination.
+- Executor has a proof that enough rows/candidates have been seen.
+- Scan/scoring stops at the smallest exact bound allowed by the query.
+- `EXISTS` stops at the first qualifying row.
+- Top-K over ordered storage stops at K; top-K without ordered storage remains heap-bounded but does not claim scan early-stop.
 
 ## Forbidden Access Path
 
-- Scanning from the beginning of a collection and discarding prior pages for keyset-eligible queries.
-- Keyset labels on unordered or non-deterministically ordered results.
-- Changing PostgreSQL `OFFSET/LIMIT` result semantics.
-- Returning unstable page ordering when sort keys tie.
+- Full collection materialization for `EXISTS`.
+- Reading all rows for a limit-only projected scan when `scan_limit` is proven.
+- Claiming top-K early-stop when the executor still scans the full corpus.
+- Approximating full-text/vector/hybrid results without an explicit approximate contract.
 
 ## Implementation Plan
 
-### Step 1: Start with canonical SQL shape, no new syntax
+### Step 1: Add failing behavior tests
 
-- Do not add new cursor syntax in the first implementation.
-- Recognize canonical keyset SQL patterns users can already write, such as:
-  - `WHERE created_at < $cursor ORDER BY created_at DESC, id ASC LIMIT 50`
-  - `WHERE tenant_id = $tenant AND created_at < $cursor ORDER BY created_at DESC, id ASC LIMIT 50`
-  - tie-safe variants with `created_at = $cursor AND id > $last_id`
-- Document any Cassie-specific cursor helper as a future extension, not required for this issue.
+- Extend `tests/executor_limits.rs`, `tests/executor_query_sources.rs`, or a new focused file if needed.
+- Add `should_short_circuit_exists_after_first_match` using metrics or a deterministic scan counter once diagnostics exist.
+- Add `should_stop_projected_scan_at_scan_limit` for limit-only projected reads.
+- Add `should_not_label_heap_top_k_as_storage_early_stop` for unordered top-K.
+- Add `should_stop_ordered_storage_top_k_when_ordering_proof_exists` after issue 01 ordering proof exists.
 
-### Step 2: Add failing planner and EXPLAIN tests
+### Step 2: Separate top-K concepts
 
-- Add planner tests in `tests/planner_physical.rs` or `tests/planner_indexes.rs`:
-  - `should_mark_descending_time_cursor_as_keyset_scan`
-  - `should_require_tie_breaker_for_stable_keyset_order`
-  - `should_fallback_for_offset_without_cursor_predicate`
-- Add EXPLAIN tests in `tests/integration_sql_explain.rs`:
-  - `keyset_pagination=true`
-  - `pagination=offset_degraded` for deep offset fallback
-  - `cursor_bound=...` or equivalent diagnostic once implemented.
+- In `src/planner/physical.rs`, distinguish:
+  - `top_k=true`: query has ORDER BY plus LIMIT.
+  - `heap_top_k=true`: executor can keep a bounded heap but may still scan all candidates.
+  - `storage_top_k=true`: storage ordering proof allows early scan stop.
+- Keep existing `top_k` and `top_k_limit` for compatibility; add new diagnostics only when issue 05 can expose them.
 
-### Step 3: Extend physical plan metadata
+### Step 3: Tighten projected scan limits
 
-- Add `pagination_strategy` or reuse an access-path enum from issue 02 with values like `none`, `offset`, `keyset`, and `degraded_offset`.
-- Add optional `cursor_bound` or `seek_bound` metadata that is safe to expose without leaking bind values.
-- Keep `scan_limit` behavior for ordinary `LIMIT/OFFSET`; keyset should use a limit of page size, not offset plus page size.
+- Reuse `scan_limit` in `src/executor/execution/projected_read.rs` and `src/executor/scan.rs`.
+- Confirm `Midge::scan_rows_batched_limit` and projected scan helpers stop iterating once the limit is reached.
+- Add tests around offset handling: limit-only scan stops at K; offset+limit scans at offset+K unless keyset pagination applies.
 
-### Step 4: Add seek-bound extraction
+### Step 4: Short-circuit EXISTS
 
-- In `src/planner/physical.rs`, add helper functions to prove:
-  - order columns are deterministic
-  - cursor predicates reference the leading order key and optional tie key
-  - predicates are compatible with ASC/DESC direction
-  - tenant/equality prefix predicates are preserved ahead of the cursor range
-- Start with simple column/literal/param predicates.
+- Inspect `resolve_exists_expr` in `src/executor/executor.rs` and source-expression handling in `src/executor/execution/source.rs`.
+- Change EXISTS subquery execution to request at most one row where SQL semantics allow it.
+- Ensure correlated/lateral EXISTS still sees the correct outer row and short-circuits per outer row.
+- Preserve NOT EXISTS semantics by short-circuiting once any row exists.
 
-### Step 5: Wire executor and storage
+### Step 5: Bound scored candidate work honestly
 
-- Extend the scan request from issue 02 with an optional seek/range start.
-- Update `src/executor/execution/projected_read.rs` and `src/executor/scan.rs` to pass the keyset bound to Midge only when the planner proves it.
-- Add Midge range/prefix scan support only for key layouts that can honor ordering and bounds.
-- If storage cannot yet honor the bound, return explicit fallback and keep result correctness.
+- In `src/executor/execution/scored.rs` and `src/executor/execution/scored/vector_topk.rs`, keep heap-bounded top-K behavior separate from storage early-stop.
+- Only label full-text/vector/hybrid as early-stop when candidate generation itself is bounded by an index/candidate path.
+- Continue exact final scoring for all candidates required by the contract.
 
-### Step 6: Preserve offset compatibility
+### Step 6: Metrics and EXPLAIN
 
-- Leave `OFFSET/LIMIT` behavior intact.
-- Add diagnostics that offset pagination is degraded when no matching keyset predicate exists.
-- Do not rewrite arbitrary offset queries into keyset behavior.
+- Add runtime counters for early-stop hits, rows avoided, EXISTS short-circuit hits, and degraded top-K scans if issue 05 introduces a read diagnostics snapshot.
+- Add EXPLAIN labels such as `early_stop=scan_limit`, `early_stop=exists`, `top_k_mode=heap`, `top_k_mode=storage`, and `early_stop=none`.
 
 ### Step 7: Benchmark validation
 
-- Add a focused ordered-page benchmark to `tier2_subsystem_executor` or `tier3_system_query` after keyset execution exists.
-- Include a deep-offset degraded benchmark only if needed to document the performance gap.
+- Extend `tier2_subsystem_executor` with `exists_short_circuit`, `limit_projected_scan`, and storage-ordered top-K cases when supported.
+- Keep `tier2_subsystem_search`, `tier2_subsystem_vector`, and `tier2_subsystem_hybrid` for scored top-K candidate behavior.
 
 ## Non-Goals
 
-- Do not break PostgreSQL-compatible OFFSET/LIMIT semantics.
-- Do not claim keyset support for unordered result sets.
+- Do not approximate exact SQL result sets for interactive query paths.
+- Do not introduce hidden truncation.
 
 ## Acceptance Criteria
 
-- Supported ordered-page patterns can stop after page-size work rather than scanning discarded offsets.
-- Offset-based paths remain correct and visibly degraded where appropriate.
-- Benchmarks demonstrate bounded continuation behavior.
+- Eligible queries stop work after enough rows/candidates have been produced.
+- `EXISTS` and similar patterns short-circuit deterministically.
+- Benchmarks show reduced row work or latency for eligible patterns.
 
 ## Required Tests
 
-- Add `should_` tests with `// Arrange / Act / Assert` covering forward continuation, tie behavior, degraded offset fallback, and EXPLAIN/diagnostic output.
-- Include planner and integration coverage.
+- Add `should_` tests with `// Arrange / Act / Assert` covering top-N early stop, `EXISTS` short-circuit, bounded candidate retrieval, fallback, and EXPLAIN/metrics output.
+- Include executor and integration coverage.
 
 ## Close-Out Steps
 
@@ -123,9 +114,10 @@ Prefer seek/keyset pagination and bounded continuation scans for interactive rea
 ## Validation
 
 - `cargo build --locked`
+- `cargo test --locked --test executor_limits --test executor_query_sources --test executor_sort`
 - `cargo test --locked --test integration_sql_ordering --test integration_sql_predicates --test integration_sql_explain`
-- `cargo test --locked --test planner_indexes --test planner_physical`
 - `cargo test --locked`
 - `cargo bench --locked --bench tier2_subsystem_executor --no-run`
+- `cargo bench --locked --bench tier2_subsystem_search --no-run`
 - `cargo fmt --all -- --check`
 - `cntryl-tools validate-tests -f <each touched test file>`

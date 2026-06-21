@@ -14,6 +14,7 @@ Without these diagnostics, phase 05 cannot distinguish a real Midge-efficient pa
 
 - Depends on phase 05 issue 01 for the contract and benchmark framing.
 - Consumes metrics from phase 05 issues 02 through 05 as they land.
+- Consumes read-shape labels imported from phase 04 issue 07 by phase 05 issue 01.
 
 ## Handoff
 

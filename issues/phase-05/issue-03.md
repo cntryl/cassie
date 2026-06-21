@@ -14,6 +14,7 @@ Index maintenance must be a delta-oriented write path, not a hidden rebuild or p
 
 - Depends on phase 05 issue 01 for write contracts.
 - Depends on phase 05 issue 02 for write batching foundations.
+- Depends on phase 04 issue 07 for the read access shapes each maintained index must serve.
 
 ## Handoff
 
@@ -22,6 +23,7 @@ Index maintenance must be a delta-oriented write path, not a hidden rebuild or p
 ## Functional Scope
 
 - Batch index entry creation, update, and delete work for scalar, composite, covering, search, and vector metadata where safe.
+- For every index family touched, name the read access shape it supports before changing write maintenance behavior.
 - Avoid duplicate index maintenance within a batch when intermediate states are superseded before flush.
 - Compute old/new indexed field deltas once per logical row mutation.
 - Skip index writes for unchanged indexed values.
@@ -70,6 +72,15 @@ Index maintenance must be a delta-oriented write path, not a hidden rebuild or p
   - `IndexMaintenanceReport`: puts, deletes, unchanged_skips, uniqueness_checks.
 - Keep the first implementation scoped to indexes that currently have physical write behavior. Document no-op metadata-only indexes explicitly.
 
+### Step 2a: Lock read-shape compatibility
+
+- For scalar/composite indexes, map maintenance to primary lookup, secondary lookup, range scan, ordered page, or filtered page contracts.
+- For covering indexes, map maintenance to covered lookup/page contracts.
+- For full-text indexes, map maintenance to full-text candidate path contracts.
+- For vector indexes, map maintenance to vector top-K contracts.
+- For hybrid use, state whether the index is a text candidate source, vector candidate source, or structured prefilter source.
+- Do not change write behavior for an index family until this mapping is documented in the issue branch.
+
 ### Step 3: Reuse row encode/decode work
 
 - Extend the batch document helper from issue 02 to optionally load the old row once when an update may affect indexed fields.
@@ -101,6 +112,7 @@ Index maintenance must be a delta-oriented write path, not a hidden rebuild or p
 ## Acceptance Criteria
 
 - Index-maintained writes remain semantically identical to existing behavior.
+- Each changed index-maintenance path names the read access shape it preserves.
 - Eligible workloads show lower write amplification or lower per-row write cost.
 - Unique/constraint behavior remains deterministic under batched maintenance.
 - Metrics distinguish row writes from index writes.

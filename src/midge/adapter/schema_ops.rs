@@ -224,6 +224,7 @@ impl Midge {
         for key in index_keys {
             schema_tx.delete(key).map_err(CassieError::from)?;
         }
+        Self::delete_keys_with_prefix(&mut schema_tx, Self::column_batch_collection_prefix(name))?;
 
         schema_tx
             .delete(Self::constraints_key(name))
@@ -252,6 +253,7 @@ impl Midge {
             Self::row_prefix(name),
             Self::doc_prefix(name),
             Self::normalized_vector_collection_prefix(name),
+            Self::column_batch_collection_prefix(name),
         ] {
             let mut documents = data_tx
                 .scan(&Query::new().prefix(data_prefix.into()))
@@ -321,6 +323,7 @@ impl Midge {
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
+        self.rebuild_column_batches_for_collection(collection)?;
         Ok(())
     }
 
@@ -367,6 +370,31 @@ impl Midge {
             serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(schema_key, schema_bytes, None)
             .map_err(CassieError::from)?;
+        let index_prefix = Self::index_collection_prefix(collection);
+        let mut indexes = tx
+            .scan(&Query::new().prefix(index_prefix.into()))
+            .map_err(CassieError::from)?;
+        let mut dropped_column_index_keys = Vec::new();
+        while let Some((key, value)) = indexes.next() {
+            let Ok(metadata) = serde_json::from_slice::<IndexMeta>(&value) else {
+                continue;
+            };
+            if metadata.kind == IndexKind::Column
+                && metadata
+                    .normalized_fields()
+                    .iter()
+                    .any(|candidate| candidate.eq_ignore_ascii_case(field))
+            {
+                dropped_column_index_keys.push((key, metadata.name));
+            }
+        }
+        for (key, index_name) in dropped_column_index_keys {
+            tx.delete(key).map_err(CassieError::from)?;
+            Self::delete_keys_with_prefix(
+                &mut tx,
+                Self::column_batch_index_prefix(collection, &index_name),
+            )?;
+        }
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
 
@@ -378,6 +406,7 @@ impl Midge {
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
+        self.rebuild_column_batches_for_collection(collection)?;
         Ok(())
     }
 
@@ -564,6 +593,7 @@ impl Midge {
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
+        self.rebuild_column_batches_for_collection(collection)?;
         Ok(())
     }
 
@@ -696,6 +726,36 @@ impl Midge {
                 .map_err(CassieError::from)?;
         }
 
+        let current_column_batch_prefix = Self::column_batch_collection_prefix(current_name);
+        let next_column_batch_prefix = Self::column_batch_collection_prefix(next_name);
+        let mut column_batches = schema_tx
+            .scan(&Query::new().prefix(current_column_batch_prefix.clone().into()))
+            .map_err(CassieError::from)?;
+        let mut column_batch_entries = Vec::new();
+        while let Some((key, value)) = column_batches.next() {
+            column_batch_entries.push((key, value));
+        }
+        for (key, value) in column_batch_entries {
+            let Some(suffix) = key.strip_prefix(current_column_batch_prefix.as_slice()) else {
+                continue;
+            };
+            let next_key = [next_column_batch_prefix.as_slice(), suffix].concat();
+            schema_tx.delete(key.clone()).map_err(CassieError::from)?;
+            let mut metadata: ColumnBatchMetadata =
+                serde_json::from_slice(&value).map_err(|error| {
+                    CassieError::Parse(format!("invalid column batch metadata: {error}"))
+                })?;
+            metadata.collection = next_name.to_string();
+            schema_tx
+                .put(
+                    next_key,
+                    serde_json::to_vec(&metadata)
+                        .map_err(|error| CassieError::Parse(error.to_string()))?,
+                    None,
+                )
+                .map_err(CassieError::from)?;
+        }
+
         let current_constraints_key = Self::constraints_key(current_name);
         let constraints = schema_tx
             .get(&current_constraints_key)
@@ -733,6 +793,10 @@ impl Midge {
             (
                 Self::normalized_vector_collection_prefix(current_name),
                 Self::normalized_vector_collection_prefix(next_name),
+            ),
+            (
+                Self::column_batch_collection_prefix(current_name),
+                Self::column_batch_collection_prefix(next_name),
             ),
         ] {
             let mut documents = data_tx

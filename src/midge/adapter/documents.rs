@@ -47,6 +47,7 @@ impl Midge {
         }
         Self::write_normalized_vector_records(&mut tx, &normalized_records)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        self.rebuild_column_batches_for_collection(collection)?;
         Ok(doc_id)
     }
 
@@ -97,6 +98,7 @@ impl Midge {
             Self::delete_normalized_vector_keys_for_document(&mut tx, collection, id)?;
         if row_exists || legacy_exists || normalized_exists {
             tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+            self.rebuild_column_batches_for_collection(collection)?;
             return Ok(true);
         }
 

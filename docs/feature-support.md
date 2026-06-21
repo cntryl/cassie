@@ -53,7 +53,7 @@ Expression	CREATE INDEX ON table (lower(email))
 Full-text	inverted index
 Vector	brute force, HNSW, IVFFlat
 Hybrid	text candidate + vector rerank metadata
-Column-store	columnar index / column batches
+Column-store	USING column indexes / uncompressed column batches
 Time-series	time-bucket index
 Merkle	integrity index
 
@@ -91,5 +91,5 @@ PostgreSQL wire	startup, auth, simple query, extended query, parse, bind, descri
 Pgwire results	row description, data row, command complete, error response, ready for query
 Pgwire compatibility	prepared statements, portals, text/binary formats, catalog introspection
 HTTP	SQL query, search query, vector query, hybrid query, document APIs, admin APIs
-Observability	EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, index used, rows scanned
-Metrics	latency, throughput, errors, cache hit rate, projection lag
+Observability	EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, index used, column-batch index used, rows scanned
+Metrics	latency, throughput, errors, cache hit rate, projection lag, column-batch scans/fallbacks

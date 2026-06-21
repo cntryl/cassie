@@ -155,8 +155,10 @@ pub(super) fn bind_create_index(
         .get_schema(&table)
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
 
-    if !matches!(statement.kind, crate::catalog::IndexKind::Scalar)
-        && fields.len() + expressions.len() > 1
+    if !matches!(
+        statement.kind,
+        crate::catalog::IndexKind::Scalar | crate::catalog::IndexKind::Column
+    ) && fields.len() + expressions.len() > 1
     {
         return Err(CassieError::Planner(
             "composite indexes are only supported for scalar index methods".into(),
@@ -449,6 +451,55 @@ pub(super) fn bind_create_index(
         );
     }
 
+    if statement.kind == crate::catalog::IndexKind::Column {
+        if fields.is_empty() {
+            return Err(CassieError::Planner(
+                "column index requires at least one field".into(),
+            ));
+        }
+        if !expressions.is_empty() {
+            return Err(CassieError::Planner(
+                "column indexes do not support expressions".into(),
+            ));
+        }
+        if statement.unique {
+            return Err(CassieError::Planner(
+                "column indexes cannot be unique".into(),
+            ));
+        }
+        if !include_fields.is_empty() {
+            return Err(CassieError::Planner(
+                "column indexes do not support INCLUDE columns".into(),
+            ));
+        }
+        if statement.predicate.is_some() {
+            return Err(CassieError::Planner(
+                "partial column indexes are not supported".into(),
+            ));
+        }
+
+        let mut seen_fields = std::collections::BTreeSet::new();
+        for field in &fields {
+            if !seen_fields.insert(field.to_ascii_lowercase()) {
+                return Err(CassieError::Planner(format!(
+                    "column index field '{field}' is duplicated"
+                )));
+            }
+        }
+
+        let segment_size = parse_column_index_segment_size(statement.options.get("segment_size"))?;
+        for key in statement.options.keys() {
+            if key != "segment_size" {
+                return Err(CassieError::Planner(format!(
+                    "unsupported column index option '{key}' for '{name}' on collection '{table}'"
+                )));
+            }
+        }
+        statement
+            .options
+            .insert("segment_size".to_string(), segment_size.to_string());
+    }
+
     if !statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
         return Err(CassieError::Planner(format!(
             "index '{name}' already exists on collection '{table}'"
@@ -556,6 +607,24 @@ pub(super) fn parse_vector_metric(raw_metric: Option<&str>) -> Result<DistanceMe
             "unsupported vector metric '{metric}' (expected cosine, l2, or dot)"
         ))
     })
+}
+
+pub(super) fn parse_column_index_segment_size(
+    value: Option<&String>,
+) -> Result<usize, CassieError> {
+    let value = value.map(String::as_str).unwrap_or("").trim();
+    if value.is_empty() {
+        return Ok(1024);
+    }
+    let parsed = value
+        .parse::<usize>()
+        .map_err(|_| CassieError::Planner("invalid column index option 'segment_size'".into()))?;
+    if !(1..=1_000_000).contains(&parsed) {
+        return Err(CassieError::Planner(
+            "column index option 'segment_size' must be in [1, 1000000]".into(),
+        ));
+    }
+    Ok(parsed)
 }
 
 pub(super) fn parse_vector_index_usize_option(

@@ -33,6 +33,7 @@ impl Cassie {
             "feedback": snapshot.feedback,
             "adaptive_candidates": snapshot.adaptive_candidates,
             "covering_indexes": snapshot.covering_indexes,
+            "column_batches": snapshot.column_batches,
             "parallel_scans": snapshot.parallel_scans,
             "parallel_scoring": snapshot.parallel_scoring,
             "parallel_aggregation": snapshot.parallel_aggregation,

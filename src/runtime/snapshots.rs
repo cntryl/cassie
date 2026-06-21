@@ -120,6 +120,13 @@ pub struct CoveringIndexSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct ColumnBatchSnapshot {
+    pub scans: u64,
+    pub row_fetches_avoided: u64,
+    pub fallback_scans: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct ParallelScanSnapshot {
     pub scans: u64,
     pub fallback_scans: u64,
@@ -180,6 +187,7 @@ pub struct RuntimeMetricsSnapshot {
     pub feedback: FeedbackSnapshot,
     pub adaptive_candidates: AdaptiveCandidateSnapshot,
     pub covering_indexes: CoveringIndexSnapshot,
+    pub column_batches: ColumnBatchSnapshot,
     pub parallel_scans: ParallelScanSnapshot,
     pub parallel_scoring: ParallelScoringSnapshot,
     pub parallel_aggregation: ParallelAggregationSnapshot,

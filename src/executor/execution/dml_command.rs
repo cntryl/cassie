@@ -452,7 +452,13 @@ pub(super) fn execute_command(
                 .midge
                 .put_index(metadata.clone())
                 .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.register_index(metadata);
+            cassie.catalog.register_index(metadata.clone());
+            if matches!(metadata.kind, catalog::IndexKind::Column) {
+                cassie
+                    .midge
+                    .rebuild_column_batches_for_index(&metadata)
+                    .map_err(|error| QueryError::General(error.to_string()))?;
+            }
             cassie
                 .refresh_cardinality_stats(&statement.table)
                 .map_err(|error| QueryError::General(error.to_string()))?;
@@ -484,6 +490,12 @@ pub(super) fn execute_command(
                     cassie
                         .catalog
                         .unregister_vector_index(&statement.table, &index.field);
+                }
+                if matches!(index.kind, catalog::IndexKind::Column) {
+                    cassie
+                        .midge
+                        .delete_column_batches(&statement.table, &index.name)
+                        .map_err(|error| QueryError::General(error.to_string()))?;
                 }
             }
 

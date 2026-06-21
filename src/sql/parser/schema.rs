@@ -105,7 +105,9 @@ pub(super) fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement,
         return Err(SqlError("unsupported CREATE INDEX syntax".to_string()));
     }
 
-    if !matches!(kind, IndexKind::Scalar) && fields.len() + expressions.len() > 1 {
+    if !matches!(kind, IndexKind::Scalar | IndexKind::Column)
+        && fields.len() + expressions.len() > 1
+    {
         return Err(SqlError(
             "composite indexes are only supported for scalar index methods".to_string(),
         ));
@@ -787,6 +789,9 @@ pub(super) fn parse_index_kind(raw: &str) -> Result<(IndexKind, &str), SqlError>
     }
     if starts_with_keyword(remainder, "vector") {
         return Ok((IndexKind::Vector, remainder[6..].trim_start()));
+    }
+    if starts_with_keyword(remainder, "column") {
+        return Ok((IndexKind::Column, remainder[6..].trim_start()));
     }
 
     Err(SqlError("unsupported index method".to_string()))

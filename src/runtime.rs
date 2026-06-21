@@ -100,6 +100,7 @@ struct RuntimeMetricsState {
     feedback: FeedbackSnapshot,
     adaptive_candidates: AdaptiveCandidateSnapshot,
     covering_indexes: CoveringIndexSnapshot,
+    column_batches: ColumnBatchSnapshot,
     parallel_scans: ParallelScanSnapshot,
     parallel_scoring: ParallelScoringSnapshot,
     parallel_aggregation: ParallelAggregationSnapshot,
@@ -659,6 +660,17 @@ impl RuntimeState {
         metrics.covering_indexes.fallback_scans += 1;
     }
 
+    pub fn record_column_batch_scan(&self, rows: usize) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.column_batches.scans += 1;
+        metrics.column_batches.row_fetches_avoided += rows as u64;
+    }
+
+    pub fn record_column_batch_fallback(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.column_batches.fallback_scans += 1;
+    }
+
     pub fn record_parallel_scan(&self, workers: usize, shards: usize, rows: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.parallel_scans.scans += 1;
@@ -935,6 +947,7 @@ impl RuntimeState {
             feedback: metrics.feedback.clone(),
             adaptive_candidates: metrics.adaptive_candidates.clone(),
             covering_indexes: metrics.covering_indexes.clone(),
+            column_batches: metrics.column_batches.clone(),
             parallel_scans: metrics.parallel_scans.clone(),
             parallel_scoring: metrics.parallel_scoring.clone(),
             parallel_aggregation: metrics.parallel_aggregation.clone(),

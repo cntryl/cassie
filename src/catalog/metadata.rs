@@ -6,7 +6,7 @@ use parking_lot::RwLock;
 
 use crate::catalog::{
     normalize_role_name, CollectionCardinalityStats, CollectionMeta, CollectionSchema,
-    FieldConstraint, FieldMeta, FunctionMeta, IndexMeta, NamespaceMeta, ProcedureMeta,
+    FieldConstraint, FieldMeta, FunctionMeta, IndexKind, IndexMeta, NamespaceMeta, ProcedureMeta,
     ProjectionMeta, RoleMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
@@ -410,6 +410,14 @@ impl Catalog {
         };
 
         schema.fields.retain(|field| field.name != name);
+        self.indexes.write().retain(|_, index| {
+            index.collection != collection
+                || index.kind != IndexKind::Column
+                || !index
+                    .normalized_fields()
+                    .iter()
+                    .any(|field| field.eq_ignore_ascii_case(name))
+        });
         self.bump_version();
     }
 

@@ -25,6 +25,7 @@ impl CollectionCardinalityStats {
             IndexKind::FullText => "fulltext",
             IndexKind::Vector => "vector",
             IndexKind::Hybrid => "hybrid",
+            IndexKind::Column => "column",
         };
         format!("{kind}:{name}")
     }
@@ -70,7 +71,7 @@ pub fn payload_contains_index_membership(payload: &serde_json::Value, index: &In
     }
 
     match index.kind {
-        IndexKind::Scalar | IndexKind::Hybrid => fields
+        IndexKind::Scalar | IndexKind::Hybrid | IndexKind::Column => fields
             .iter()
             .all(|field| payload.get(field).is_some_and(|value| !value.is_null())),
         IndexKind::FullText => fields

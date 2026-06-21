@@ -241,6 +241,7 @@ fn should_fail_unknown_function_during_execution() {
             scan_limit: None,
             selected_index: None,
             covered_index: false,
+            column_batch_index: None,
             top_k: false,
             top_k_limit: None,
             join_strategy: None,

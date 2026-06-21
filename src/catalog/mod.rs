@@ -16,7 +16,10 @@ pub use collections::{
     is_reserved_namespace, CollectionMeta, NamespaceMeta, ProjectionMeta, ProjectionRebuildState,
 };
 pub use constraints::{ConstraintCheck, ConstraintOperator, FieldConstraint};
-pub use indexes::{IndexKind, IndexMeta};
+pub use indexes::{
+    ColumnBatchMetadata, ColumnBatchPayload, ColumnBatchRow, ColumnBatchSegmentMeta, IndexKind,
+    IndexMeta,
+};
 pub use metadata::Catalog;
 pub use programs::{FunctionArgMeta, FunctionMeta, ProcedureMeta, ViewMeta, Volatility};
 pub use roles::{normalize_role_name, RoleMeta};

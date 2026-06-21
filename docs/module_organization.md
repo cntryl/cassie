@@ -20,7 +20,7 @@ Cassie keeps module boundaries small so feature work can be reviewed and tested 
 - `dml.rs`: insert, update, and delete row mutations.
 - `source.rs`: sources, joins, CTEs, set operations, distinct, and slicing.
 - `scored.rs`: fulltext, hybrid, and vector top-k paths.
-- `projected_read.rs`: projected scans, covering indexes, and pushdown reads.
+- `projected_read.rs` and `scan.rs`: projected scans, covering indexes, pushdown reads, and column-batch read routing.
 - `plan_inspection.rs`: query and expression feature detection.
 
 ## SQL
@@ -28,6 +28,8 @@ Cassie keeps module boundaries small so feature work can be reviewed and tested 
 Keep parser, binder, AST, and function metadata separate. When parser or binder files grow, split by statement family rather than by syntax token.
 
 Current oversized legacy source files that need dedicated extraction passes include `src/sql/parser.rs`, `src/app.rs`, `src/sql/binder.rs`, `src/midge/adapter.rs`, `src/executor/executor.rs`, `src/pgwire/connection.rs`, `src/executor/filter.rs`, `src/runtime.rs`, `src/executor/execution/scored.rs`, `src/midge/row_blob.rs`, and `src/planner/physical.rs`.
+
+Storage-adjacent acceleration such as column batches belongs in focused `src/midge/adapter/*` modules and must keep Midge as the direct storage layer. Do not add another storage abstraction for analytical overlays.
 
 ## Tests
 

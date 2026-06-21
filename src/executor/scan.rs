@@ -1,5 +1,5 @@
 use crate::app::{Cassie, CassieSession};
-use crate::catalog::CollectionSchema;
+use crate::catalog::{CollectionSchema, IndexKind};
 use crate::executor::batch::{Batch, BatchRow, DEFAULT_BATCH_SIZE};
 use crate::midge::adapter::DocumentRef;
 use crate::midge::adapter::RowFilter;
@@ -48,31 +48,15 @@ pub(crate) fn scan_projected_filtered(
     limit: Option<usize>,
     document_filter: Option<&ProjectedDocumentFilter>,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
-    let storage_filter = document_filter.and_then(row_filter_from_projected_filter);
-    let document_batches = cassie
-        .scan_projected_documents_batched_for_session_with_filter_and_timings(
-            session,
-            collection,
-            DEFAULT_BATCH_SIZE,
-            fields,
-            storage_filter.as_ref(),
-            limit,
-        )
-        .map(|(batches, _)| batches)
-        .map_err(|error| {
-            cassie.runtime.record_storage_access("data", false, false);
-            crate::executor::QueryError::General(error.to_string())
-        })?;
-    cassie.runtime.record_storage_access("data", false, true);
-    let schema = cassie.catalog.get_schema(collection);
-
-    Ok(projected_document_batches_to_rows(
+    scan_projected_filtered_with_timings(
         cassie,
-        document_batches,
+        session,
+        collection,
         fields,
+        limit,
         document_filter,
-        schema.as_ref(),
-    ))
+    )
+    .map(|(batches, _)| batches)
 }
 
 pub(crate) fn scan_projected_filtered_with_timings(
@@ -84,6 +68,48 @@ pub(crate) fn scan_projected_filtered_with_timings(
     document_filter: Option<&ProjectedDocumentFilter>,
 ) -> Result<(Vec<Batch>, ScanTimings), crate::executor::QueryError> {
     let storage_filter = document_filter.and_then(row_filter_from_projected_filter);
+    if session
+        .map(|session| session.collection_changes(collection).is_empty())
+        .unwrap_or(true)
+    {
+        match cassie.midge.scan_column_batch_projected_rows(
+            collection,
+            DEFAULT_BATCH_SIZE,
+            fields,
+            storage_filter.as_ref(),
+            limit,
+        ) {
+            Ok(Some((document_batches, raw_timings, _index_name))) => {
+                cassie.runtime.record_storage_access("data", false, true);
+                let schema = cassie.catalog.get_schema(collection);
+                let mut timings = ScanTimings {
+                    scan: raw_timings.scan,
+                    row_decode: raw_timings.row_decode,
+                };
+                let materialize_started = std::time::Instant::now();
+                let batches = projected_document_batches_to_rows(
+                    cassie,
+                    document_batches,
+                    fields,
+                    document_filter,
+                    schema.as_ref(),
+                );
+                timings.scan += materialize_started.elapsed();
+                let rows = batches.iter().map(Vec::len).sum::<usize>();
+                cassie.runtime.record_column_batch_scan(rows);
+                return Ok((batches, timings));
+            }
+            Ok(None) if has_covering_column_index(cassie, collection, fields) => {
+                cassie.runtime.record_column_batch_fallback();
+            }
+            Ok(None) => {}
+            Err(error) => {
+                cassie.runtime.record_column_batch_fallback();
+                cassie.runtime.record_storage_access("data", false, false);
+                return Err(crate::executor::QueryError::General(error.to_string()));
+            }
+        }
+    }
     let (document_batches, raw_timings) = cassie
         .scan_projected_documents_batched_for_session_with_filter_and_timings(
             session,
@@ -115,6 +141,28 @@ pub(crate) fn scan_projected_filtered_with_timings(
     timings.scan += materialize_started.elapsed();
 
     Ok((batches, timings))
+}
+
+fn has_covering_column_index(cassie: &Cassie, collection: &str, fields: &[String]) -> bool {
+    let wanted = fields
+        .iter()
+        .filter(|field| !field.eq_ignore_ascii_case("id") && !field.eq_ignore_ascii_case("_id"))
+        .map(|field| field.to_ascii_lowercase())
+        .collect::<HashSet<_>>();
+    !wanted.is_empty()
+        && cassie
+            .catalog
+            .list_indexes(collection)
+            .into_iter()
+            .any(|index| {
+                index.kind == IndexKind::Column
+                    && wanted.iter().all(|field| {
+                        index
+                            .normalized_fields()
+                            .iter()
+                            .any(|candidate| candidate.eq_ignore_ascii_case(field))
+                    })
+            })
 }
 
 fn row_filter_from_projected_filter(filter: &ProjectedDocumentFilter) -> Option<RowFilter> {

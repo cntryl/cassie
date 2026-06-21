@@ -242,17 +242,22 @@ Current HNSW support persists and hydrates versioned HNSW options and routes HNS
 
 Column-store indexes are optional analytical acceleration, not default storage.
 
-Example:
+Current V4 support adds explicit column-batch indexes over named fields:
 
 ```sql
-CREATE COLUMN INDEX ON applications (status, created_at, amount);
+CREATE INDEX idx_applications_column
+ON applications USING column (status, created_at, amount)
+WITH (segment_size = 1024);
 ```
 
 Physical shape:
 
 ```text
-col/{projection}/{column}/{segment}
-  -> compressed column batch
+__cassie__/column-batch/v1/{collection}/{index}/metadata
+  -> fields, schema epoch, segment size, row-id ranges, encoding version
+
+__cassie__/column-batch/v1/{collection}/{index}/segment/{segment_id}
+  -> uncompressed JSON column-batch payload
 ```
 
 Good for:
@@ -267,8 +272,10 @@ Rules:
 
 - Row blob remains the source of truth.
 - Column indexes are rebuilt from row blobs.
-- Column indexes accelerate scans and aggregates only when available.
+- Column indexes accelerate covered projected scans when available.
 - Query execution must fall back to row scans for correctness.
+- `EXPLAIN` reports `column_batch_index=<name>` for eligible covered scans.
+- Runtime metrics expose `column_batches.scans`, `row_fetches_avoided`, and `fallback_scans`.
 
 ## P3 Scope
 

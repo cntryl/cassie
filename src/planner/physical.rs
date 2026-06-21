@@ -6,9 +6,12 @@ use crate::sql::ast::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+#[path = "physical/column_batches.rs"]
+mod column_batches;
 #[path = "physical/feature_flags.rs"]
 mod feature_flags;
 
+use column_batches::column_batch_index;
 use feature_flags::{
     function_uses_fulltext, function_uses_vector, plan_expressions, plan_uses_fulltext,
     plan_uses_vector,
@@ -41,6 +44,7 @@ pub struct PhysicalPlan {
     pub scan_limit: Option<usize>,
     pub selected_index: Option<String>,
     pub covered_index: bool,
+    pub column_batch_index: Option<String>,
     pub top_k: bool,
     pub top_k_limit: Option<usize>,
     pub join_strategy: Option<String>,
@@ -77,6 +81,7 @@ pub fn build_with_indexes(
             scan_limit: None,
             selected_index: None,
             covered_index: false,
+            column_batch_index: None,
             top_k: false,
             top_k_limit: None,
             join_strategy: None,
@@ -92,6 +97,7 @@ pub fn build_with_indexes(
         .as_deref()
         .and_then(|name| indexes.iter().find(|index| index.name == name))
         .is_some_and(|index| plan_is_covered_by_index(&plan, index));
+    let column_batch_index = column_batch_index(&plan, indexes.as_slice());
     let top_k_limit = top_k_limit(&plan);
     let top_k = top_k_limit.is_some();
     let join_strategy = join_strategy(&plan);
@@ -141,6 +147,7 @@ pub fn build_with_indexes(
         scan_limit,
         selected_index,
         covered_index,
+        column_batch_index,
         top_k,
         top_k_limit,
         join_strategy,

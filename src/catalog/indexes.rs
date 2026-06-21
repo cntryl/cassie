@@ -7,6 +7,7 @@ pub enum IndexKind {
     FullText,
     Vector,
     Hybrid,
+    Column,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -25,6 +26,38 @@ pub struct IndexMeta {
     pub kind: IndexKind,
     pub unique: bool,
     pub options: std::collections::BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ColumnBatchMetadata {
+    pub collection: String,
+    pub index_name: String,
+    pub schema_epoch: u64,
+    pub fields: Vec<String>,
+    pub segment_size: usize,
+    pub segments: Vec<ColumnBatchSegmentMeta>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ColumnBatchSegmentMeta {
+    pub segment_id: u64,
+    pub row_id_start: Option<String>,
+    pub row_id_end: Option<String>,
+    pub row_count: usize,
+    pub null_bitmap_available: bool,
+    pub encoding_version: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ColumnBatchPayload {
+    pub encoding_version: u32,
+    pub rows: Vec<ColumnBatchRow>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ColumnBatchRow {
+    pub row_id: String,
+    pub values: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
 impl IndexMeta {

@@ -10,7 +10,8 @@ use uuid::Uuid;
 use crate::app::CassieError;
 use crate::catalog::{
     payload_contains_index_membership, payload_contains_vector_membership,
-    CollectionCardinalityStats, FieldConstraint, IndexMeta, NamespaceMeta, ProjectionMeta,
+    CollectionCardinalityStats, ColumnBatchMetadata, ColumnBatchPayload, ColumnBatchRow,
+    ColumnBatchSegmentMeta, FieldConstraint, IndexKind, IndexMeta, NamespaceMeta, ProjectionMeta,
     RoleMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord};
@@ -37,6 +38,7 @@ const TEMP_FAMILY_NAME: &str = "cf2";
 const DEFAULT_FAMILY_NAME: &str = "default";
 const VECTOR_INDEX_PREFIX: &str = "__cassie__/vector-index/";
 const INDEX_PREFIX: &str = "__cassie__/index/";
+const COLUMN_BATCH_PREFIX: &str = "__cassie__/column-batch/v1/";
 const CONSTRAINTS_PREFIX: &str = "__cassie__/constraints/";
 const FUNCTION_PREFIX: &str = "__cassie__/function/";
 const PROCEDURE_PREFIX: &str = "__cassie__/procedure/";
@@ -163,6 +165,8 @@ pub struct MidgeScanTimings {
     pub row_decode: Duration,
 }
 
+#[path = "adapter/column_batches.rs"]
+mod column_batches;
 #[path = "adapter/documents.rs"]
 mod documents;
 #[path = "adapter/metadata.rs"]
@@ -365,6 +369,23 @@ impl Midge {
 
     fn index_collection_prefix(collection: &str) -> Vec<u8> {
         format!("{INDEX_PREFIX}{collection}/").into_bytes()
+    }
+
+    fn column_batch_metadata_key(collection: &str, index_name: &str) -> Vec<u8> {
+        format!("{COLUMN_BATCH_PREFIX}{collection}/{index_name}/metadata").into_bytes()
+    }
+
+    fn column_batch_segment_key(collection: &str, index_name: &str, segment_id: u64) -> Vec<u8> {
+        format!("{COLUMN_BATCH_PREFIX}{collection}/{index_name}/segment/{segment_id:020}")
+            .into_bytes()
+    }
+
+    fn column_batch_index_prefix(collection: &str, index_name: &str) -> Vec<u8> {
+        format!("{COLUMN_BATCH_PREFIX}{collection}/{index_name}/").into_bytes()
+    }
+
+    fn column_batch_collection_prefix(collection: &str) -> Vec<u8> {
+        format!("{COLUMN_BATCH_PREFIX}{collection}/").into_bytes()
     }
 
     fn function_key(name: &str) -> Vec<u8> {

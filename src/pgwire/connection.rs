@@ -259,7 +259,10 @@ pub async fn run_connection(
                                 runtime.record_pgwire_protocol_error();
                                 let pg_error =
                                     PgWireError::from_cassie_error(PgWireSeverity::Fatal, &error);
-                                if write_error_response(&mut write_half, &pg_error).await.is_err() {
+                                if write_error_response(&mut write_half, &pg_error)
+                                    .await
+                                    .is_err()
+                                {
                                     break;
                                 }
                             }
@@ -383,7 +386,10 @@ pub async fn run_connection(
                         Err(error) => {
                             runtime.record_pgwire_protocol_error();
                             let pg_error = cassie_pg_error(&error);
-                            if write_error_response(&mut write_half, &pg_error).await.is_err() {
+                            if write_error_response(&mut write_half, &pg_error)
+                                .await
+                                .is_err()
+                            {
                                 break;
                             }
                         }
@@ -463,7 +469,10 @@ pub async fn run_connection(
                                 runtime.record_pgwire_protocol_error();
                                 awaiting_sync = true;
                                 let pg_error = cassie_pg_error(&error);
-                                if write_error_response(&mut write_half, &pg_error).await.is_err() {
+                                if write_error_response(&mut write_half, &pg_error)
+                                    .await
+                                    .is_err()
+                                {
                                     break;
                                 }
                                 continue;
@@ -505,11 +514,7 @@ pub async fn run_connection(
                                     awaiting_sync = true;
                                     if write_error_response(
                                         &mut write_half,
-                                        &PgWireError::new(
-                                            PgWireSeverity::Error,
-                                            "42601",
-                                            error.0,
-                                        ),
+                                        &PgWireError::new(PgWireSeverity::Error, "42601", error.0),
                                     )
                                     .await
                                     .is_err()
@@ -668,7 +673,9 @@ pub async fn run_connection(
                                     runtime.record_pgwire_protocol_error();
                                     awaiting_sync = true;
                                     let pg_error = cassie_pg_error(&error);
-                                    if write_error_response(&mut write_half, &pg_error).await.is_err()
+                                    if write_error_response(&mut write_half, &pg_error)
+                                        .await
+                                        .is_err()
                                     {
                                         break;
                                     }
@@ -744,7 +751,9 @@ pub async fn run_connection(
                                     runtime.record_pgwire_protocol_error();
                                     awaiting_sync = true;
                                     let pg_error = cassie_pg_error(&error);
-                                    if write_error_response(&mut write_half, &pg_error).await.is_err()
+                                    if write_error_response(&mut write_half, &pg_error)
+                                        .await
+                                        .is_err()
                                     {
                                         break;
                                     }

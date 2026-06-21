@@ -428,10 +428,7 @@ fn should_recover_ready_after_simple_query_error() {
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
         let startup_ready = read_wire_frame(&mut reader).await;
-        assert_eq!(
-            startup_ready.0, b'Z',
-            "startup should end ready-for-query"
-        );
+        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
         assert_eq!(startup_ready.1, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
@@ -449,7 +446,10 @@ fn should_recover_ready_after_simple_query_error() {
 
         // Assert
         assert_eq!(error.0, b'E', "query failure should return an error frame");
-        assert_eq!(ready.0, b'Z', "query failure should still return ready-for-query");
+        assert_eq!(
+            ready.0, b'Z',
+            "query failure should still return ready-for-query"
+        );
         let error_fields = parse_error_fields(&error.1);
         assert_eq!(
             error_fields

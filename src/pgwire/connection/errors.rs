@@ -29,7 +29,11 @@ pub(super) struct PgWireError {
 }
 
 impl PgWireError {
-    pub(super) fn new(severity: PgWireSeverity, code: &'static str, message: impl Into<String>) -> Self {
+    pub(super) fn new(
+        severity: PgWireSeverity,
+        code: &'static str,
+        message: impl Into<String>,
+    ) -> Self {
         Self {
             severity,
             code,

@@ -1,16 +1,17 @@
 use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, IndexKind};
 use crate::sql::ast::{
-    AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation,
-    AlterTableStatement, BinaryOp, CallProcedureStatement, CommonTableExpression,
-    CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement, CreateRoleStatement,
-    CreateRollupStatement, CreateSchemaStatement, CreateTableStatement, CreateViewStatement,
-    CteQuery, DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropRoleStatement,
-    DropRollupStatement, DropSchemaStatement, DropTableStatement, DropViewStatement,
-    ExplainStatement, Expr, FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind,
-    NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement, RefreshRollupStatement,
-    SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement, ShowStatement,
-    SortDirection, TransactionAction, TransactionIsolation, TransactionStatement, Volatility,
-    WindowFunctionCall,
+    AlterRetentionPolicyStatement, AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement,
+    AlterTableOperation, AlterTableStatement, BinaryOp, CallProcedureStatement,
+    CommonTableExpression, CreateFunctionStatement, CreateIndexStatement, CreateProcedureStatement,
+    CreateRetentionPolicyStatement, CreateRoleStatement, CreateRollupStatement,
+    CreateSchemaStatement, CreateTableStatement, CreateViewStatement, CteQuery,
+    DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
+    DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement, DropSchemaStatement,
+    DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement, ExplainStatement, Expr,
+    FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr,
+    ParsedStatement, QuerySource, QueryStatement, RefreshRollupStatement, SelectItem, SelectSet,
+    SelectStatement, SetOperator, SetStatement, ShowStatement, SortDirection, TransactionAction,
+    TransactionIsolation, TransactionStatement, Volatility, WindowFunctionCall,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -27,6 +28,8 @@ mod dml;
 mod expr;
 #[path = "parser/query.rs"]
 mod query;
+#[path = "parser/retention.rs"]
+mod retention;
 #[path = "parser/rollups.rs"]
 mod rollups;
 #[path = "parser/schema.rs"]
@@ -38,6 +41,7 @@ use clauses::*;
 use dml::*;
 pub(crate) use expr::parse_expression;
 use query::*;
+use retention::*;
 use rollups::*;
 use schema::*;
 use statements::*;
@@ -155,6 +159,14 @@ fn parse_view_or_index_statement(
         Ok(Some(parse_refresh_rollup_statement(trimmed)?))
     } else if starts_statement(lower, "drop rollup") {
         Ok(Some(parse_drop_rollup_statement(trimmed)?))
+    } else if starts_statement(lower, "create retention policy") {
+        Ok(Some(parse_create_retention_policy_statement(trimmed)?))
+    } else if starts_statement(lower, "alter retention policy") {
+        Ok(Some(parse_alter_retention_policy_statement(trimmed)?))
+    } else if starts_statement(lower, "drop retention policy") {
+        Ok(Some(parse_drop_retention_policy_statement(trimmed)?))
+    } else if starts_statement(lower, "enforce retention policy") {
+        Ok(Some(parse_enforce_retention_policy_statement(trimmed)?))
     } else if starts_statement(lower, "create unique index")
         || starts_statement(lower, "create index")
     {

@@ -119,6 +119,10 @@ pub enum QueryStatement {
     CreateRollup(CreateRollupStatement),
     RefreshRollup(RefreshRollupStatement),
     DropRollup(DropRollupStatement),
+    CreateRetentionPolicy(CreateRetentionPolicyStatement),
+    AlterRetentionPolicy(AlterRetentionPolicyStatement),
+    DropRetentionPolicy(DropRetentionPolicyStatement),
+    EnforceRetentionPolicy(EnforceRetentionPolicyStatement),
     CreateFunction(CreateFunctionStatement),
     DropFunction(DropFunctionStatement),
     CreateProcedure(CreateProcedureStatement),
@@ -243,6 +247,33 @@ pub struct RefreshRollupStatement {
 pub struct DropRollupStatement {
     pub name: String,
     pub if_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateRetentionPolicyStatement {
+    pub name: String,
+    pub collection: String,
+    pub timestamp_field: String,
+    pub retention_duration: String,
+    pub if_not_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlterRetentionPolicyStatement {
+    pub name: String,
+    pub retention_duration: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DropRetentionPolicyStatement {
+    pub name: String,
+    pub if_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnforceRetentionPolicyStatement {
+    pub name: String,
+    pub at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

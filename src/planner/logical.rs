@@ -1,14 +1,15 @@
 use crate::app::CassieError;
 use crate::sql::{
     ast::{
-        AlterRoleStatement, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
-        CommonTableExpression, CreateFunctionStatement, CreateIndexStatement,
-        CreateProcedureStatement, CreateRoleStatement, CreateSchemaStatement, CreateTableStatement,
-        CreateViewStatement, DeleteStatement, DropFunctionStatement, DropIndexStatement,
-        DropProcedureStatement, DropRoleStatement, DropRollupStatement, DropSchemaStatement,
-        DropTableStatement, DropViewStatement, Expr, InsertStatement, OrderExpr, QuerySource,
-        QueryStatement, RefreshRollupStatement, SelectItem, SelectStatement, SetStatement,
-        ShowStatement, UpdateStatement,
+        AlterRetentionPolicyStatement, AlterRoleStatement, AlterSchemaStatement,
+        AlterTableOperation, AlterTableStatement, CommonTableExpression, CreateFunctionStatement,
+        CreateIndexStatement, CreateProcedureStatement, CreateRoleStatement, CreateSchemaStatement,
+        CreateTableStatement, CreateViewStatement, DeleteStatement, DropFunctionStatement,
+        DropIndexStatement, DropProcedureStatement, DropRetentionPolicyStatement,
+        DropRoleStatement, DropRollupStatement, DropSchemaStatement, DropTableStatement,
+        DropViewStatement, EnforceRetentionPolicyStatement, Expr, InsertStatement, OrderExpr,
+        QuerySource, QueryStatement, RefreshRollupStatement, SelectItem, SelectStatement,
+        SetStatement, ShowStatement, UpdateStatement,
     },
     binder::BoundStatement,
 };
@@ -54,6 +55,10 @@ pub enum LogicalCommand {
     CreateRollup(crate::sql::ast::CreateRollupStatement),
     RefreshRollup(RefreshRollupStatement),
     DropRollup(DropRollupStatement),
+    CreateRetentionPolicy(crate::sql::ast::CreateRetentionPolicyStatement),
+    AlterRetentionPolicy(AlterRetentionPolicyStatement),
+    DropRetentionPolicy(DropRetentionPolicyStatement),
+    EnforceRetentionPolicy(EnforceRetentionPolicyStatement),
     CallProcedure(crate::sql::ast::CallProcedureStatement),
     Show(ShowStatement),
     Set(SetStatement),
@@ -173,6 +178,26 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
             &statement.name,
             "DROP ROLLUP requires a name",
             LogicalCommand::DropRollup(statement.clone()),
+        ),
+        QueryStatement::CreateRetentionPolicy(statement) => plan_named_command(
+            &statement.name,
+            "CREATE RETENTION POLICY requires a name",
+            LogicalCommand::CreateRetentionPolicy(statement.clone()),
+        ),
+        QueryStatement::AlterRetentionPolicy(statement) => plan_named_command(
+            &statement.name,
+            "ALTER RETENTION POLICY requires a name",
+            LogicalCommand::AlterRetentionPolicy(statement.clone()),
+        ),
+        QueryStatement::DropRetentionPolicy(statement) => plan_named_command(
+            &statement.name,
+            "DROP RETENTION POLICY requires a name",
+            LogicalCommand::DropRetentionPolicy(statement.clone()),
+        ),
+        QueryStatement::EnforceRetentionPolicy(statement) => plan_named_command(
+            &statement.name,
+            "ENFORCE RETENTION POLICY requires a name",
+            LogicalCommand::EnforceRetentionPolicy(statement.clone()),
         ),
         QueryStatement::Transaction(_) => Err(CassieError::Planner(
             "transaction control statements are handled by the session runtime".into(),

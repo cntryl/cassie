@@ -27,7 +27,6 @@ Maintain a live coverage index that links every active roadmap concept to its im
 
 ## Coverage
 
-- [Issue 117: Retention Policies](issue-117.md) - V4 - Analytical Overlay / Time Series
 - [Issue 118: Time-Series Indexes](issue-118.md) - V4 - Analytical Overlay / Time Series
 - [Issue 119: Materialized Projections](issue-119.md) - V4 - Analytical Overlay / Materialization
 - [Issue 120: Projection Versioning](issue-120.md) - V4 - Analytical Overlay / Materialization

@@ -21,6 +21,7 @@ Cassie keeps row blobs as the source of truth and uses indexes, constraints, and
 | Full-text indexes | Stable | Cassie inverted index and BM25 support |
 | Vector indexes | Stable/Experimental | Brute force, HNSW, and IVFFlat surfaces by support level |
 | Column-batch indexes | Stable | Covered scans, segment pruning, aggregate acceleration |
+| Retention policies | Experimental | Explicit timestamp-based cleanup with catalog and metrics diagnostics |
 
 ## Design Rules
 
@@ -168,6 +169,26 @@ Supported behavior:
 - Query execution falls back to row scans for correctness.
 - EXPLAIN reports `column_batch_index=<name>` for eligible covered scans and `aggregate_acceleration=true` for eligible summary aggregates.
 - Runtime metrics expose scan, fallback, byte, segment, decoded-column, and aggregate-acceleration counters.
+
+## Retention Policies
+
+Retention policies delete expired rows through explicit deterministic enforcement.
+
+```sql
+CREATE RETENTION POLICY events_retention
+ON events USING event_at
+RETAIN FOR '7 days';
+
+ENFORCE RETENTION POLICY events_retention AT '2026-01-10T00:00:00Z';
+```
+
+Supported behavior:
+
+- Policy metadata persists and hydrates after restart.
+- `ALTER RETENTION POLICY ... RETAIN FOR ...` updates the retained duration.
+- Enforcement deletes rows older than `AT - duration` and skips missing or invalid timestamps with diagnostics.
+- Row blobs remain authoritative; deletion uses the normal document cleanup path so dependent index/vector/column state is refreshed.
+- `pg_catalog.pg_retention_policies` and runtime metrics expose state, deletes, skips, and errors.
 
 ## Constraint Behavior
 

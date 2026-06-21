@@ -193,6 +193,49 @@ fn bind_statement(
                 }),
             })
         }
+        QueryStatement::CreateRetentionPolicy(statement) => {
+            let statement = bind_create_retention_policy(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::CreateRetentionPolicy(statement),
+            })
+        }
+        QueryStatement::AlterRetentionPolicy(statement) => {
+            let statement = bind_alter_retention_policy(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::AlterRetentionPolicy(statement),
+            })
+        }
+        QueryStatement::DropRetentionPolicy(statement) => {
+            let name = statement.name.trim().to_string();
+            if name.is_empty() {
+                return Err(CassieError::Planner(
+                    "DROP RETENTION POLICY requires a name".into(),
+                ));
+            }
+            if !statement.if_exists && catalog.get_retention_policy(&name).is_none() {
+                return Err(CassieError::Planner(format!(
+                    "retention policy '{name}' does not exist"
+                )));
+            }
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::DropRetentionPolicy(
+                    crate::sql::ast::DropRetentionPolicyStatement {
+                        name,
+                        if_exists: statement.if_exists,
+                    },
+                ),
+            })
+        }
+        QueryStatement::EnforceRetentionPolicy(statement) => {
+            let statement = bind_enforce_retention_policy(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::EnforceRetentionPolicy(statement),
+            })
+        }
         QueryStatement::CreateSchema(statement) => {
             let schema = statement.schema.trim().to_string();
             if schema.is_empty() {

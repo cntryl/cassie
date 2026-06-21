@@ -13,7 +13,7 @@ use crate::catalog::{
     CollectionCardinalityStats, ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchFieldSummary,
     ColumnBatchMetadata, ColumnBatchPayload, ColumnBatchRow, ColumnBatchSegmentMeta,
     ColumnBatchValueRun, FieldConstraint, IndexKind, IndexMeta, NamespaceMeta, ProjectionMeta,
-    RoleMeta, RollupMeta,
+    RetentionPolicyMeta, RoleMeta, RollupMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord};
 use crate::midge::row_blob::{
@@ -46,6 +46,7 @@ const PROCEDURE_PREFIX: &str = "__cassie__/procedure/";
 const VIEW_PREFIX: &str = "__cassie__/view/";
 const ROLE_PREFIX: &str = "__cassie__/role/";
 const ROLLUP_PREFIX: &str = "__cassie__/rollup/v1/";
+const RETENTION_PREFIX: &str = "__cassie__/retention/v1/";
 const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
 const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
 const PROJECTION_KEY_PREFIX: &str = "__cassie__/projection/";
@@ -405,6 +406,14 @@ impl Midge {
 
     fn rollup_key(name: &str) -> Vec<u8> {
         format!("{ROLLUP_PREFIX}{}", name.trim().to_ascii_lowercase()).into_bytes()
+    }
+
+    fn retention_prefix() -> Vec<u8> {
+        RETENTION_PREFIX.as_bytes().to_vec()
+    }
+
+    fn retention_key(name: &str) -> Vec<u8> {
+        format!("{RETENTION_PREFIX}{}", name.trim().to_ascii_lowercase()).into_bytes()
     }
 
     fn index_prefix() -> Vec<u8> {

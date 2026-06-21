@@ -7,7 +7,7 @@ use parking_lot::RwLock;
 use crate::catalog::{
     normalize_role_name, CollectionCardinalityStats, CollectionMeta, CollectionSchema,
     FieldConstraint, FieldMeta, FunctionMeta, IndexKind, IndexMeta, NamespaceMeta, ProcedureMeta,
-    ProjectionMeta, RoleMeta, RollupMeta, ViewMeta,
+    ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
@@ -25,6 +25,7 @@ pub struct Catalog {
     pub views: Arc<RwLock<HashMap<String, ViewMeta>>>,
     pub roles: Arc<RwLock<HashMap<String, RoleMeta>>>,
     pub rollups: Arc<RwLock<HashMap<String, RollupMeta>>>,
+    pub retention_policies: Arc<RwLock<HashMap<String, RetentionPolicyMeta>>>,
     pub vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
     pub cardinality: Arc<RwLock<HashMap<String, CollectionCardinalityStats>>>,
     version: Arc<AtomicU64>,
@@ -44,6 +45,7 @@ impl Catalog {
             views: Arc::new(RwLock::new(HashMap::new())),
             roles: Arc::new(RwLock::new(HashMap::new())),
             rollups: Arc::new(RwLock::new(HashMap::new())),
+            retention_policies: Arc::new(RwLock::new(HashMap::new())),
             vector_indexes: Arc::new(RwLock::new(HashMap::new())),
             cardinality: Arc::new(RwLock::new(HashMap::new())),
             version: Arc::new(AtomicU64::new(0)),
@@ -276,6 +278,38 @@ impl Catalog {
         out
     }
 
+    pub fn register_retention_policy(&self, metadata: RetentionPolicyMeta) {
+        self.retention_policies
+            .write()
+            .insert(metadata.name.to_ascii_lowercase(), metadata);
+        self.bump_version();
+    }
+
+    pub fn unregister_retention_policy(&self, name: &str) {
+        self.retention_policies
+            .write()
+            .remove(&name.to_ascii_lowercase());
+        self.bump_version();
+    }
+
+    pub fn get_retention_policy(&self, name: &str) -> Option<RetentionPolicyMeta> {
+        self.retention_policies
+            .read()
+            .get(&name.to_ascii_lowercase())
+            .cloned()
+    }
+
+    pub fn list_retention_policies(&self) -> Vec<RetentionPolicyMeta> {
+        let mut out = self
+            .retention_policies
+            .read()
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        out.sort_by_key(|policy| policy.name.to_ascii_lowercase());
+        out
+    }
+
     pub fn namespace_exists(&self, namespace: &str) -> bool {
         self.namespaces.read().contains_key(namespace)
     }
@@ -291,6 +325,7 @@ impl Catalog {
         self.views.write().clear();
         self.roles.write().clear();
         self.rollups.write().clear();
+        self.retention_policies.write().clear();
         self.indexes.write().clear();
         self.vector_indexes.write().clear();
         self.cardinality.write().clear();
@@ -312,6 +347,9 @@ impl Catalog {
         self.rollups
             .write()
             .retain(|_, rollup| rollup.source_collection != collection);
+        self.retention_policies
+            .write()
+            .retain(|_, policy| policy.collection != collection);
         self.bump_version();
     }
 
@@ -468,6 +506,9 @@ impl Catalog {
                     .iter()
                     .any(|field| field.eq_ignore_ascii_case(name))
         });
+        self.retention_policies.write().retain(|_, policy| {
+            policy.collection != collection || !policy.timestamp_field.eq_ignore_ascii_case(name)
+        });
         self.bump_version();
     }
 
@@ -541,6 +582,12 @@ impl Catalog {
                 rollup.source_collection = next_name.to_string();
             }
         }
+        let mut retention_policies = self.retention_policies.write();
+        for policy in retention_policies.values_mut() {
+            if policy.collection == current_name {
+                policy.collection = next_name.to_string();
+            }
+        }
         self.bump_version();
     }
 
@@ -611,6 +658,16 @@ impl Catalog {
                 key
             };
             vector_indexes.insert(next_key, record);
+        }
+
+        let mut retention_policies = self.retention_policies.write();
+        for policy in retention_policies
+            .values_mut()
+            .filter(|policy| policy.collection == collection)
+        {
+            if policy.timestamp_field.eq_ignore_ascii_case(current_name) {
+                policy.timestamp_field = next_name.to_string();
+            }
         }
 
         self.bump_version();

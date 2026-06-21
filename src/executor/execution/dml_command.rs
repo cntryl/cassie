@@ -146,6 +146,21 @@ pub(super) fn execute_command(
             invalidate_plan_cache = true;
             super::rollups::drop_rollup(cassie, &statement.name, statement.if_exists)
         }
+        LogicalCommand::CreateRetentionPolicy(statement) => {
+            invalidate_plan_cache = true;
+            super::retention::create_retention_policy(cassie, statement)
+        }
+        LogicalCommand::AlterRetentionPolicy(statement) => {
+            invalidate_plan_cache = true;
+            super::retention::alter_retention_policy(cassie, statement)
+        }
+        LogicalCommand::DropRetentionPolicy(statement) => {
+            invalidate_plan_cache = true;
+            super::retention::drop_retention_policy(cassie, &statement.name, statement.if_exists)
+        }
+        LogicalCommand::EnforceRetentionPolicy(statement) => {
+            super::retention::enforce_retention_policy(cassie, statement, user_functions, controls)
+        }
         LogicalCommand::CreateTable(statement) => {
             if statement.if_not_exists
                 && (cassie.catalog.relation_exists(&statement.table)

@@ -224,6 +224,21 @@ impl Midge {
         for key in index_keys {
             schema_tx.delete(key).map_err(CassieError::from)?;
         }
+        let mut retention_scan = schema_tx
+            .scan(&Query::new().prefix(Self::retention_prefix().into()))
+            .map_err(CassieError::from)?;
+        let mut retention_keys = Vec::new();
+        while let Some((key, value)) = retention_scan.next() {
+            let Ok(policy) = serde_json::from_slice::<RetentionPolicyMeta>(&value) else {
+                continue;
+            };
+            if policy.collection == name {
+                retention_keys.push(key);
+            }
+        }
+        for key in retention_keys {
+            schema_tx.delete(key).map_err(CassieError::from)?;
+        }
         Self::delete_keys_with_prefix(&mut schema_tx, Self::column_batch_collection_prefix(name))?;
 
         schema_tx
@@ -723,6 +738,28 @@ impl Midge {
                 .map_err(|error| CassieError::Parse(error.to_string()))?;
             schema_tx
                 .put(next_key, value, None)
+                .map_err(CassieError::from)?;
+        }
+
+        let mut retention_scan = schema_tx
+            .scan(&Query::new().prefix(Self::retention_prefix().into()))
+            .map_err(CassieError::from)?;
+        let mut retention_entries = Vec::new();
+        while let Some((key, value)) = retention_scan.next() {
+            let Ok(mut policy) = serde_json::from_slice::<RetentionPolicyMeta>(&value) else {
+                continue;
+            };
+            if policy.collection == current_name {
+                policy.collection = next_name.to_string();
+                retention_entries.push((key, policy));
+            }
+        }
+        for (key, policy) in retention_entries {
+            schema_tx.delete(key).map_err(CassieError::from)?;
+            let value = serde_json::to_vec(&policy)
+                .map_err(|error| CassieError::Parse(error.to_string()))?;
+            schema_tx
+                .put(Self::retention_key(&policy.name), value, None)
                 .map_err(CassieError::from)?;
         }
 

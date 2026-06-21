@@ -140,6 +140,15 @@ impl Cassie {
             self.catalog.register_rollup(metadata);
         }
 
+        let retention_policies = self.midge.list_retention_policies().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list retention policies: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for metadata in retention_policies {
+            self.catalog.register_retention_policy(metadata);
+        }
+
         self.hydrate_roles()?;
         self.runtime.record_catalog_hydration(started_at.elapsed());
         Ok(())

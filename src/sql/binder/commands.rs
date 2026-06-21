@@ -335,6 +335,130 @@ pub(super) fn bind_create_rollup(
     Ok(statement)
 }
 
+pub(super) fn bind_create_retention_policy(
+    mut statement: crate::sql::ast::CreateRetentionPolicyStatement,
+    catalog: &Catalog,
+) -> Result<crate::sql::ast::CreateRetentionPolicyStatement, CassieError> {
+    let name = statement.name.trim().to_string();
+    if name.is_empty() {
+        return Err(CassieError::Planner(
+            "CREATE RETENTION POLICY requires a name".into(),
+        ));
+    }
+    if catalog.get_retention_policy(&name).is_some() {
+        if statement.if_not_exists {
+            statement.name = name;
+            return Ok(statement);
+        }
+        return Err(CassieError::Planner(format!(
+            "retention policy '{name}' already exists"
+        )));
+    }
+
+    let collection = statement.collection.trim().to_string();
+    let field = statement.timestamp_field.trim().to_string();
+    validate_retention_target(catalog, &collection, &field)?;
+    validate_retention_duration(&statement.retention_duration)?;
+
+    statement.name = name;
+    statement.collection = collection;
+    statement.timestamp_field = field;
+    Ok(statement)
+}
+
+pub(super) fn bind_alter_retention_policy(
+    mut statement: crate::sql::ast::AlterRetentionPolicyStatement,
+    catalog: &Catalog,
+) -> Result<crate::sql::ast::AlterRetentionPolicyStatement, CassieError> {
+    let name = statement.name.trim().to_string();
+    if name.is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER RETENTION POLICY requires a name".into(),
+        ));
+    }
+    if catalog.get_retention_policy(&name).is_none() {
+        return Err(CassieError::Planner(format!(
+            "retention policy '{name}' does not exist"
+        )));
+    }
+    validate_retention_duration(&statement.retention_duration)?;
+    statement.name = name;
+    Ok(statement)
+}
+
+pub(super) fn bind_enforce_retention_policy(
+    mut statement: crate::sql::ast::EnforceRetentionPolicyStatement,
+    catalog: &Catalog,
+) -> Result<crate::sql::ast::EnforceRetentionPolicyStatement, CassieError> {
+    let name = statement.name.trim().to_string();
+    if name.is_empty() {
+        return Err(CassieError::Planner(
+            "ENFORCE RETENTION POLICY requires a name".into(),
+        ));
+    }
+    if catalog.get_retention_policy(&name).is_none() {
+        return Err(CassieError::Planner(format!(
+            "retention policy '{name}' does not exist"
+        )));
+    }
+    validate_retention_timestamp(&statement.at)?;
+    statement.name = name;
+    Ok(statement)
+}
+
+fn validate_retention_target(
+    catalog: &Catalog,
+    collection: &str,
+    field: &str,
+) -> Result<(), CassieError> {
+    if collection.is_empty() || !catalog.exists(collection) {
+        return Err(CassieError::CollectionNotFound(collection.to_string()));
+    }
+    if virtual_views::schema(collection).is_some() || catalog.get_view(collection).is_some() {
+        return Err(CassieError::Unsupported(format!(
+            "retention policy target '{collection}' must be a base collection"
+        )));
+    }
+    match catalog.field_type(collection, field) {
+        Some(DataType::Text | DataType::Timestamp) => Ok(()),
+        Some(_) => Err(CassieError::Planner(format!(
+            "retention timestamp field '{field}' must be text or timestamp"
+        ))),
+        None => Err(CassieError::Planner(format!(
+            "retention timestamp field '{field}' does not exist in '{collection}'"
+        ))),
+    }
+}
+
+fn validate_retention_duration(raw: &str) -> Result<(), CassieError> {
+    let mut parts = raw.split_whitespace();
+    let amount = parts
+        .next()
+        .ok_or_else(|| CassieError::Planner("retention duration cannot be empty".into()))?
+        .parse::<u64>()
+        .map_err(|_| CassieError::Planner("retention duration requires a number".into()))?;
+    let unit = parts
+        .next()
+        .ok_or_else(|| CassieError::Planner("retention duration requires a unit".into()))?;
+    if amount == 0 || parts.next().is_some() {
+        return Err(CassieError::Planner(
+            "retention duration must be '<positive number> <unit>'".into(),
+        ));
+    }
+    match unit.to_ascii_lowercase().as_str() {
+        "minute" | "minutes" | "hour" | "hours" | "day" | "days" => Ok(()),
+        _ => Err(CassieError::Planner(
+            "retention duration supports minutes, hours, or days".into(),
+        )),
+    }
+}
+
+fn validate_retention_timestamp(raw: &str) -> Result<(), CassieError> {
+    time::OffsetDateTime::parse(raw, &time::format_description::well_known::Rfc3339)
+        .map(|_| ())
+        .map_err(|_| CassieError::Planner("retention enforcement AT must be RFC3339".into()))
+}
+
 pub(super) fn validate_returning_items(
     returning: &[SelectItem],
     schema: &CollectionSchema,

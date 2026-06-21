@@ -32,7 +32,7 @@ Status terms:
 | Set operations | UNION, UNION ALL, INTERSECT, EXCEPT | Stable | PostgreSQL-like |
 | Window functions | row_number, rank, dense_rank, lag, lead, first_value, last_value, supported frames | Stable | PostgreSQL-like with documented frame limits |
 | DML | INSERT, UPDATE, DELETE, RETURNING | Stable | PostgreSQL-like |
-| DDL | CREATE TABLE, ALTER TABLE, DROP TABLE, CREATE SCHEMA, DROP SCHEMA, CREATE INDEX, DROP INDEX, CREATE ROLLUP, REFRESH ROLLUP, DROP ROLLUP | Stable/Experimental by object type | PostgreSQL-like plus Cassie-specific rollups |
+| DDL | CREATE TABLE, ALTER TABLE, DROP TABLE, CREATE SCHEMA, DROP SCHEMA, CREATE INDEX, DROP INDEX, CREATE ROLLUP, REFRESH ROLLUP, DROP ROLLUP, CREATE/ALTER/DROP/ENFORCE RETENTION POLICY | Stable/Experimental by object type | PostgreSQL-like plus Cassie-specific analytics |
 | Transactions | BEGIN, COMMIT, ROLLBACK, savepoints | Stable | PostgreSQL-like with Cassie/Midge durability notes |
 | Views | CREATE VIEW, DROP VIEW, nested views | Stable | PostgreSQL-like read-only view behavior |
 | Functions | scalar functions, user-defined functions | Stable/Experimental | PostgreSQL-like where documented |
@@ -50,7 +50,7 @@ Status terms:
 | Hybrid | hybrid_score(text_score, vector_score) | Stable | Cassie-specific |
 | Embeddings | provider, model, dimensions, metric validation | Experimental | Cassie-specific |
 | Projections | projection metadata, schema version, offset, lag, rebuild state | Experimental | Cassie-specific |
-| Time series | time_bucket fixed windows, exact-match materialized rollups over deterministic aggregates, retention, range queries | Experimental | Cassie-specific deterministic semantics |
+| Time series | time_bucket fixed windows, exact-match materialized rollups over deterministic aggregates, explicit retention policies, range queries | Experimental | Cassie-specific deterministic semantics |
 | Merkle | row hash, range hash, projection root, diff | Planned | Cassie-specific |
 
 ## Index Support
@@ -109,7 +109,7 @@ Status terms:
 | Pgwire compatibility | prepared statements, portals, text/binary formats, catalog introspection | Stable/Experimental | PostgreSQL-compatible subset |
 | HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin APIs | Stable/Experimental | Cassie REST API |
 | Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, index used, column-batch index used, aggregate acceleration, rollup rewrite selected, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
-| Metrics | latency, throughput, errors, cache hit rate, projection lag, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
+| Metrics | latency, throughput, errors, cache hit rate, projection lag, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
 
 ## Compatibility Notes
 

@@ -58,6 +58,18 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             int("lag_rows"),
             text("bucket_expr"),
         ],
+        "pg_catalog.pg_retention_policies" => vec![
+            text("policy_name"),
+            text("collection"),
+            text("timestamp_field"),
+            text("retention_duration"),
+            text("enforcement_mode"),
+            text("state"),
+            int("last_enforced_ms"),
+            int("last_deleted_rows"),
+            int("last_skipped_rows"),
+            text("last_error"),
+        ],
         "pg_catalog.pg_type" => vec![
             int("oid"),
             text("typname"),
@@ -109,6 +121,27 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                     string("state", rollup.state.as_str()),
                     int_value("lag_rows", rollup.refresh_cursor.lag_rows as i64),
                     string("bucket_expr", rollup.bucket_expr),
+                ]
+            })
+            .collect(),
+        "pg_catalog.pg_retention_policies" => catalog
+            .list_retention_policies()
+            .into_iter()
+            .map(|policy| {
+                vec![
+                    string("policy_name", policy.name),
+                    string("collection", policy.collection),
+                    string("timestamp_field", policy.timestamp_field),
+                    string("retention_duration", policy.retention_duration),
+                    string("enforcement_mode", policy.enforcement_mode.as_str()),
+                    string("state", policy.state.as_str()),
+                    int_value(
+                        "last_enforced_ms",
+                        policy.last_enforced_ms.unwrap_or_default() as i64,
+                    ),
+                    int_value("last_deleted_rows", policy.last_deleted_rows as i64),
+                    int_value("last_skipped_rows", policy.last_skipped_rows as i64),
+                    string("last_error", policy.last_error.unwrap_or_default()),
                 ]
             })
             .collect(),

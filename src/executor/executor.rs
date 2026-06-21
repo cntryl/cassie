@@ -328,6 +328,8 @@ pub(crate) fn rollup_rewrite_name_for_plan(cassie: &Cassie, plan: &LogicalPlan) 
 mod dml;
 #[path = "execution/dml_command.rs"]
 mod dml_command;
+#[path = "execution/retention.rs"]
+mod retention;
 #[path = "execution/rollups.rs"]
 mod rollups;
 

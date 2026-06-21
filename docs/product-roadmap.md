@@ -81,7 +81,7 @@ Goal: provide analytical read acceleration and operational visibility while keep
 | Aggregate acceleration | Implemented | Cassie-specific |
 | `time_bucket` fixed windows | Implemented | Cassie-specific deterministic function |
 | Rollups | Implemented | Experimental |
-| Retention policies | Planned | Experimental |
+| Retention policies | Implemented | Experimental explicit enforcement |
 | Time-series indexes | Planned | Experimental |
 | EXPLAIN, EXPLAIN ANALYZE, metrics | Implemented | Experimental output format |
 

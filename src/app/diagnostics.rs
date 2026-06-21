@@ -39,6 +39,7 @@ impl Cassie {
             "parallel_scoring": snapshot.parallel_scoring,
             "parallel_aggregation": snapshot.parallel_aggregation,
             "rollups": snapshot.rollups,
+            "retention": snapshot.retention,
         })
     }
 }

@@ -193,6 +193,28 @@ Required behaviors:
 - Planner matches exact normalized expression equality predicates and falls back for non-equivalent predicates.
 - Physical expression-key maintenance remains scoped to the current scalar index metadata path until the secondary index storage layout lands.
 
+### Full-Text Analyzers
+
+Full-text indexes accept named analyzer options in `WITH (...)`:
+
+```sql
+CREATE INDEX ON documents USING fulltext (body)
+WITH (analyzer = standard, stop_words = none, accent_folding = true);
+```
+
+Supported analyzers and options:
+
+- `analyzer = standard`: default behavior, case folds text and removes English stop words.
+- `analyzer = simple`: case folds text without stop-word removal unless overridden.
+- `case_folding = true|false`: controls lowercase normalization.
+- `stop_words = english|none`: controls built-in stop-word filtering.
+- `stemming = none`: placeholder for future stemming modes; other values are rejected.
+- `accent_folding = true|false`: folds common Latin accented characters before tokenization.
+
+Analyzer options are persisted in full-text index metadata and used by indexing, `search()`,
+`search_score()`, snippet query tokenization, BM25 statistics, rebuild-style scans, and cached
+full-text scoring metadata.
+
 ## P2/P3 Scope
 
 ### Column-Store Indexes

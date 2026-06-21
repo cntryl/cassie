@@ -11,6 +11,7 @@ use crate::app::CassieError;
 use crate::config::CassieRuntimeLimits;
 use crate::executor::QueryResult;
 use crate::planner::physical::PhysicalPlan;
+use crate::search::analyzer::AnalyzerConfig;
 use crate::types::Value;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -138,6 +139,7 @@ pub struct FulltextIndexOptions {
     pub field_boost: HashMap<String, f64>,
     pub field_k1: HashMap<String, f64>,
     pub field_b: HashMap<String, f64>,
+    pub field_analyzer: HashMap<String, AnalyzerConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

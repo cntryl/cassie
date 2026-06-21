@@ -1225,6 +1225,93 @@ fn should_apply_fulltext_index_params_during_search_score() {
 }
 
 #[test]
+fn should_apply_fulltext_analyzer_stop_words_during_search_score() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let cassie = Cassie::new().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE exec_fulltext_analyzer_stop_words (id TEXT, body TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO exec_fulltext_analyzer_stop_words (id, body) VALUES ('d1', 'the the alpha')",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_exec_fulltext_analyzer_stop_words ON exec_fulltext_analyzer_stop_words USING fulltext (body) WITH (analyzer = standard, stop_words = none)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT search_score(body, 'the') AS score FROM exec_fulltext_analyzer_stop_words",
+                vec![],
+            )
+            .expect("query should execute");
+
+        // Assert
+        match &result.rows[0][0] {
+            Value::Float64(score) => assert!(*score > 0.0),
+            _ => panic!("expected float score"),
+        }
+    });
+}
+
+#[test]
+fn should_reject_unknown_fulltext_analyzer() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let cassie = Cassie::new().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE exec_fulltext_bad_analyzer (body TEXT)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let err = cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_exec_fulltext_bad_analyzer ON exec_fulltext_bad_analyzer USING fulltext (body) WITH (analyzer = unsupported)",
+                vec![],
+            )
+            .expect_err("unknown analyzer should fail");
+
+        // Assert
+        assert!(err
+            .to_string()
+            .contains("unsupported fulltext analyzer 'unsupported'"));
+    });
+}
+
+#[test]
 fn should_reject_non_finite_fulltext_index_options_during_search_score() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

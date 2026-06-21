@@ -1,14 +1,7 @@
 use std::collections::HashSet;
 
 pub fn tokenize(input: &str) -> Vec<String> {
-    let stop = stop_words();
-    input
-        .to_lowercase()
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|t| !t.is_empty())
-        .filter(|t| !stop.contains(*t))
-        .map(|t| t.to_string())
-        .collect()
+    crate::search::analyzer::AnalyzerConfig::default().analyze(input)
 }
 
 pub fn stop_words() -> &'static HashSet<&'static str> {

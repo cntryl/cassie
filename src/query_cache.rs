@@ -32,6 +32,7 @@ pub(crate) enum NonDurablePlanOutcome {
 struct FulltextStatsRecord {
     collection: String,
     field: String,
+    analyzer_key: String,
     schema_epoch: u64,
     data_epoch: u64,
     created_at_ms: u64,
@@ -43,6 +44,7 @@ struct FulltextStatsRecord {
 struct FulltextStatsKey<'a> {
     collection: &'a str,
     field: &'a str,
+    analyzer_key: &'a str,
     schema_epoch: u64,
     data_epoch: u64,
 }
@@ -71,12 +73,14 @@ fn plan_entry_key(key: &PlanCacheKey) -> Result<Vec<u8>, CassieError> {
 fn fulltext_stats_key(
     collection: &str,
     field: &str,
+    analyzer_key: &str,
     schema_epoch: u64,
     data_epoch: u64,
 ) -> Result<Vec<u8>, CassieError> {
     let key = FulltextStatsKey {
         collection,
         field,
+        analyzer_key,
         schema_epoch,
         data_epoch,
     };
@@ -198,6 +202,7 @@ pub(crate) fn lookup_fulltext_stats(
     runtime: &RuntimeState,
     collection: &str,
     field: &str,
+    analyzer_key: &str,
     schema_epoch: u64,
     data_epoch: u64,
 ) -> Result<Option<SearchContext>, CassieError> {
@@ -206,7 +211,8 @@ pub(crate) fn lookup_fulltext_stats(
         return Ok(None);
     }
 
-    let storage_key = fulltext_stats_key(collection, field, schema_epoch, data_epoch)?;
+    let storage_key =
+        fulltext_stats_key(collection, field, analyzer_key, schema_epoch, data_epoch)?;
     let Some(raw) = (match midge.raw_get(StorageFamily::Temp, &storage_key) {
         Ok(value) => {
             runtime.record_storage_access("temp", false, true);
@@ -231,7 +237,10 @@ pub(crate) fn lookup_fulltext_stats(
         }
     };
 
-    if record.schema_epoch != schema_epoch || record.data_epoch != data_epoch {
+    if record.schema_epoch != schema_epoch
+        || record.data_epoch != data_epoch
+        || record.analyzer_key != analyzer_key
+    {
         runtime.record_query_cache_schema_epoch_reject();
         runtime.record_query_cache_fulltext_stats_miss();
         return Ok(None);
@@ -247,6 +256,7 @@ pub(crate) fn store_fulltext_stats(
     runtime: &RuntimeState,
     collection: &str,
     field: &str,
+    analyzer_key: &str,
     schema_epoch: u64,
     data_epoch: u64,
     context: &SearchContext,
@@ -259,6 +269,7 @@ pub(crate) fn store_fulltext_stats(
     let record = FulltextStatsRecord {
         collection: collection.to_string(),
         field: field.to_string(),
+        analyzer_key: analyzer_key.to_string(),
         schema_epoch,
         data_epoch,
         created_at_ms: current_time_millis(),
@@ -267,7 +278,7 @@ pub(crate) fn store_fulltext_stats(
     put_temp_json(
         midge,
         runtime,
-        fulltext_stats_key(collection, field, schema_epoch, data_epoch)?,
+        fulltext_stats_key(collection, field, analyzer_key, schema_epoch, data_epoch)?,
         &record,
         ttl_seconds,
     )

@@ -27,7 +27,6 @@ Maintain a live coverage index that links every active roadmap concept to its im
 
 ## Coverage
 
-- [Issue 103: Advanced Analyzers](issue-103.md) - V3 - Advanced Query Features / Search
 - [Issue 104: Custom Tokenizers](issue-104.md) - V3 - Advanced Query Features / Search
 - [Issue 105: HNSW Indexes](issue-105.md) - V3 - Advanced Query Features / Vector
 - [Issue 106: Parallel Scans](issue-106.md) - V3 - Advanced Query Features / Execution

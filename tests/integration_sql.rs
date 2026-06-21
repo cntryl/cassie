@@ -2820,6 +2820,77 @@ fn should_persist_include_index_metadata_after_restart() {
 }
 
 #[test]
+fn should_hydrate_fulltext_analyzer_options_after_restart() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("fulltext_analyzer_restart");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE sql_fulltext_analyzer_restart (id TEXT, body TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO sql_fulltext_analyzer_restart (id, body) VALUES ('d1', 'the alpha marker')",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE INDEX idx_sql_fulltext_analyzer_restart ON sql_fulltext_analyzer_restart USING fulltext (body) WITH (analyzer = standard, stop_words = none)",
+                    vec![],
+                )
+                .unwrap();
+        }
+
+        // Act
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().unwrap();
+        let index = restarted
+            .catalog
+            .get_index(
+                "sql_fulltext_analyzer_restart",
+                "idx_sql_fulltext_analyzer_restart",
+            )
+            .expect("index should hydrate");
+        let session = restarted.create_session("tester", None);
+        let result = restarted
+            .execute_sql(
+                &session,
+                "SELECT search(body, 'the') AS matched, snippet(body, 'the') AS excerpt FROM sql_fulltext_analyzer_restart",
+                vec![],
+            )
+            .expect("query should execute");
+
+        // Assert
+        assert_eq!(
+            index.options.get("stop_words"),
+            Some(&"none".to_string())
+        );
+        assert_eq!(result.rows[0][0], Value::Bool(true));
+        let Value::String(excerpt) = &result.rows[0][1] else {
+            panic!("expected snippet string");
+        };
+        assert!(excerpt.contains("<mark>the</mark>"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_use_include_columns_for_covered_projection() {
     // Arrange
     with_fallback();

@@ -809,9 +809,22 @@ fn bind_create_index(
             0.0,
             Some(1.0),
         )?;
+        let analyzer =
+            crate::search::analyzer::AnalyzerConfig::from_index_options(&statement.options)
+                .map_err(CassieError::Planner)?;
 
         for key in statement.options.keys() {
-            if !matches!(key.as_str(), "boost" | "k1" | "b") {
+            if !matches!(
+                key.as_str(),
+                "boost"
+                    | "k1"
+                    | "b"
+                    | "analyzer"
+                    | "case_folding"
+                    | "stop_words"
+                    | "stemming"
+                    | "accent_folding"
+            ) {
                 return Err(CassieError::Planner(format!(
                     "unsupported fulltext index option '{key}' for '{name}' on collection '{table}'"
                 )));
@@ -823,6 +836,23 @@ fn bind_create_index(
             .insert("boost".to_string(), boost.to_string());
         statement.options.insert("k1".to_string(), k1.to_string());
         statement.options.insert("b".to_string(), b.to_string());
+        statement
+            .options
+            .insert("analyzer".to_string(), analyzer.name);
+        statement.options.insert(
+            "case_folding".to_string(),
+            analyzer.case_folding.to_string(),
+        );
+        statement
+            .options
+            .insert("stop_words".to_string(), analyzer.stop_words);
+        statement
+            .options
+            .insert("stemming".to_string(), analyzer.stemming);
+        statement.options.insert(
+            "accent_folding".to_string(),
+            analyzer.accent_folding.to_string(),
+        );
     }
 
     if !statement.if_not_exists && catalog.get_index(&table, &name).is_some() {

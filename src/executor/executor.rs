@@ -15,6 +15,7 @@ use crate::planner::logical::{LogicalCommand, LogicalPlan};
 use crate::planner::physical::PhysicalPlan;
 use crate::query_cache;
 use crate::runtime::{FulltextIndexOptions, FulltextIndexOptionsCacheKey, QueryExecutionControls};
+use crate::search::analyzer::AnalyzerConfig;
 use crate::sql::ast::{
     BinaryOp, CommonTableExpression, CteQuery, Expr, FunctionCall, InsertSource, JoinKind,
     QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement, SetOperator,
@@ -2336,17 +2337,24 @@ fn cached_search_context<D>(
     field_boost: &HashMap<String, f64>,
     field_k1: &HashMap<String, f64>,
     field_b: &HashMap<String, f64>,
+    field_analyzer: &HashMap<String, AnalyzerConfig>,
 ) -> Result<filter::SearchContext, QueryError>
 where
     D: PostingListDocument,
 {
     let schema_epoch = cassie.runtime.schema_epoch();
     let data_epoch = cassie.runtime.data_epoch();
+    let analyzer_key = field_analyzer
+        .get(&field.to_ascii_lowercase())
+        .cloned()
+        .unwrap_or_default()
+        .cache_key();
     if let Some(context) = query_cache::lookup_fulltext_stats(
         &cassie.midge,
         &cassie.runtime,
         collection,
         field,
+        &analyzer_key,
         schema_epoch,
         data_epoch,
     )
@@ -2361,12 +2369,14 @@ where
         field_boost,
         field_k1,
         field_b,
+        field_analyzer,
     );
     query_cache::store_fulltext_stats(
         &cassie.midge,
         &cassie.runtime,
         collection,
         field,
+        &analyzer_key,
         schema_epoch,
         data_epoch,
         &context,
@@ -2388,18 +2398,19 @@ fn execute_fulltext_top_k(
             RowDecode::Projected(vec![spec.text_field.clone()]),
         )
         .map_err(|error| QueryError::General(error.to_string()))?;
-    let search_documents = documents
-        .into_iter()
-        .map(|document| TokenizedFulltextDocument {
-            id: document.id,
-            text_stats: json_search_term_stats(document.payload.get(&spec.text_field)),
-        })
-        .collect::<Vec<_>>();
     let search_index_options = search_context_for_fields(
         cassie,
         &spec.collection,
         std::slice::from_ref(&spec.text_field),
     )?;
+    let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
+    let search_documents = documents
+        .into_iter()
+        .map(|document| TokenizedFulltextDocument {
+            id: document.id,
+            text_stats: json_search_term_stats(document.payload.get(&spec.text_field), &analyzer),
+        })
+        .collect::<Vec<_>>();
     let search_context = cached_search_context(
         cassie,
         &spec.collection,
@@ -2408,8 +2419,9 @@ fn execute_fulltext_top_k(
         &search_index_options.field_boost,
         &search_index_options.field_k1,
         &search_index_options.field_b,
+        &search_index_options.field_analyzer,
     )?;
-    let query_terms = filter::prepare_query_terms(&spec.query);
+    let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
     let candidate_ids = if spec.require_match {
         Some(posting_list_candidate_ids(&search_documents, &query_terms))
     } else {
@@ -2480,6 +2492,12 @@ fn execute_hybrid_top_k(
             return Ok(None);
         }
     }
+    let search_index_options = search_context_for_fields(
+        cassie,
+        &spec.collection,
+        std::slice::from_ref(&spec.text_field),
+    )?;
+    let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
     let search_documents = rows
         .into_iter()
         .map(|row| TokenizedHybridDocument {
@@ -2488,15 +2506,10 @@ fn execute_hybrid_top_k(
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_string(),
-            text_stats: json_search_term_stats_value(row.get(&spec.text_field)),
+            text_stats: json_search_term_stats_value(row.get(&spec.text_field), &analyzer),
             vector: row.get(&spec.vector_field).and_then(value_to_vector),
         })
         .collect::<Vec<_>>();
-    let search_index_options = search_context_for_fields(
-        cassie,
-        &spec.collection,
-        std::slice::from_ref(&spec.text_field),
-    )?;
     let search_context = cached_search_context(
         cassie,
         &spec.collection,
@@ -2505,8 +2518,9 @@ fn execute_hybrid_top_k(
         &search_index_options.field_boost,
         &search_index_options.field_k1,
         &search_index_options.field_b,
+        &search_index_options.field_analyzer,
     )?;
-    let query_terms = filter::prepare_query_terms(&spec.query);
+    let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
     let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
     let mut text_candidate_count = 0usize;
@@ -2581,23 +2595,24 @@ fn execute_fulltext_filtered_read(
             None,
         )
         .map_err(|error| QueryError::General(error.to_string()))?;
-    let search_documents = document_batches
-        .into_iter()
-        .flat_map(|documents| documents.into_iter())
-        .map(|document| TokenizedFulltextReadDocument {
-            id: document.id,
-            text_stats: json_search_term_stats(json_projected_value(
-                &document.payload,
-                &spec.text_field,
-            )),
-            payload: document.payload,
-        })
-        .collect::<Vec<_>>();
     let search_index_options = search_context_for_fields(
         cassie,
         &spec.collection,
         std::slice::from_ref(&spec.text_field),
     )?;
+    let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
+    let search_documents = document_batches
+        .into_iter()
+        .flat_map(|documents| documents.into_iter())
+        .map(|document| TokenizedFulltextReadDocument {
+            id: document.id,
+            text_stats: json_search_term_stats(
+                json_projected_value(&document.payload, &spec.text_field),
+                &analyzer,
+            ),
+            payload: document.payload,
+        })
+        .collect::<Vec<_>>();
     let search_context = cached_search_context(
         cassie,
         &spec.collection,
@@ -2606,8 +2621,9 @@ fn execute_fulltext_filtered_read(
         &search_index_options.field_boost,
         &search_index_options.field_k1,
         &search_index_options.field_b,
+        &search_index_options.field_analyzer,
     )?;
-    let query_terms = filter::prepare_query_terms(&spec.query);
+    let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
     let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
 
     let mut skipped = 0usize;
@@ -3015,12 +3031,29 @@ fn function_call_key(function: &FunctionCall) -> String {
     format!("{}({})", function.name.to_ascii_lowercase(), args)
 }
 
-fn json_search_term_stats(value: Option<&serde_json::Value>) -> filter::SearchTermStats {
-    filter::SearchTermStats::from_text(value.and_then(serde_json::Value::as_str))
+fn json_search_term_stats(
+    value: Option<&serde_json::Value>,
+    analyzer: &AnalyzerConfig,
+) -> filter::SearchTermStats {
+    filter::SearchTermStats::from_text_with_analyzer(
+        value.and_then(serde_json::Value::as_str),
+        analyzer,
+    )
 }
 
-fn json_search_term_stats_value(value: Option<&Value>) -> filter::SearchTermStats {
-    filter::SearchTermStats::from_text(value.and_then(Value::as_str))
+fn json_search_term_stats_value(
+    value: Option<&Value>,
+    analyzer: &AnalyzerConfig,
+) -> filter::SearchTermStats {
+    filter::SearchTermStats::from_text_with_analyzer(value.and_then(Value::as_str), analyzer)
+}
+
+fn analyzer_for_search_field(options: &FulltextIndexOptions, field: &str) -> AnalyzerConfig {
+    options
+        .field_analyzer
+        .get(&field.to_ascii_lowercase())
+        .cloned()
+        .unwrap_or_default()
 }
 
 fn value_to_vector(value: &Value) -> Option<Vec<f32>> {
@@ -5328,24 +5361,35 @@ fn execute_source_query_with_outer_row(
     let search_context = if fulltext_fields.is_empty() {
         None
     } else {
-        let (field_boost, field_k1, field_b) = if let QuerySource::Collection(name) = &plan.source {
-            let fields = cassie.catalog.text_fields(name);
-            let mut boost = HashMap::with_capacity(fields.len());
-            for field in fields {
-                if let Some(value) = cassie.catalog.get_field_boost(name, &field) {
-                    boost.insert(field, value as f64);
+        let (field_boost, field_k1, field_b, field_analyzer) =
+            if let QuerySource::Collection(name) = &plan.source {
+                let fields = cassie.catalog.text_fields(name);
+                let mut boost = HashMap::with_capacity(fields.len());
+                for field in fields {
+                    if let Some(value) = cassie.catalog.get_field_boost(name, &field) {
+                        boost.insert(field, value as f64);
+                    }
                 }
-            }
 
-            let index_options = load_fulltext_index_options(cassie, name, &fulltext_fields)?;
-            for (field, value) in index_options.field_boost {
-                boost.insert(field, value);
-            }
+                let index_options = load_fulltext_index_options(cassie, name, &fulltext_fields)?;
+                for (field, value) in index_options.field_boost {
+                    boost.insert(field, value);
+                }
 
-            (boost, index_options.field_k1, index_options.field_b)
-        } else {
-            (HashMap::new(), HashMap::new(), HashMap::new())
-        };
+                (
+                    boost,
+                    index_options.field_k1,
+                    index_options.field_b,
+                    index_options.field_analyzer,
+                )
+            } else {
+                (
+                    HashMap::new(),
+                    HashMap::new(),
+                    HashMap::new(),
+                    HashMap::new(),
+                )
+            };
 
         Some(filter::SearchContext::from_rows(
             batches.iter().flat_map(|batch| batch.iter()),
@@ -5353,6 +5397,7 @@ fn execute_source_query_with_outer_row(
             &field_boost,
             &field_k1,
             &field_b,
+            &field_analyzer,
         ))
     };
 
@@ -5528,6 +5573,7 @@ fn load_fulltext_index_options(
     let mut field_boost = HashMap::new();
     let mut field_k1 = HashMap::new();
     let mut field_b = HashMap::new();
+    let mut field_analyzer = HashMap::new();
     let mut seen_fields = HashSet::new();
 
     for index in cassie.catalog.list_indexes(collection) {
@@ -5575,16 +5621,20 @@ fn load_fulltext_index_options(
             0.0,
             Some(1.0),
         )?;
+        let analyzer = AnalyzerConfig::from_index_options(&index.options)
+            .map_err(|error| QueryError::General(error.to_string()))?;
 
         field_boost.insert(field.clone(), boost);
         field_k1.insert(field.clone(), k1);
-        field_b.insert(field, b);
+        field_b.insert(field.clone(), b);
+        field_analyzer.insert(field, analyzer);
     }
 
     let options = FulltextIndexOptions {
         field_boost,
         field_k1,
         field_b,
+        field_analyzer,
     };
     cassie
         .runtime

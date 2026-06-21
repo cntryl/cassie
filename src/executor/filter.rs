@@ -8,6 +8,7 @@ use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::{Batch, RowAccess};
 use crate::executor::QueryError;
+use crate::search::analyzer::AnalyzerConfig;
 use crate::sql::ast::FunctionCall;
 use crate::sql::ast::{BinaryOp, Expr};
 use crate::types::{DataType, Value};
@@ -135,6 +136,7 @@ pub(crate) struct SearchContext {
     doc_boost: HashMap<String, f64>,
     field_k1: HashMap<String, f64>,
     field_b: HashMap<String, f64>,
+    field_analyzer: HashMap<String, AnalyzerConfig>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -156,11 +158,16 @@ pub(crate) struct SingleFieldSearchContext {
 }
 
 impl SearchTermStats {
+    #[allow(dead_code)]
     pub(crate) fn from_text(source: Option<&str>) -> Self {
+        Self::from_text_with_analyzer(source, &AnalyzerConfig::default())
+    }
+
+    pub(crate) fn from_text_with_analyzer(source: Option<&str>, analyzer: &AnalyzerConfig) -> Self {
         let Some(source) = source else {
             return Self::default();
         };
-        let tokens = crate::search::tokenizer::tokenize(source);
+        let tokens = analyzer.analyze(source);
         Self {
             has_text: true,
             doc_length: tokens.len(),
@@ -264,6 +271,7 @@ impl SearchContext {
         field_boost: &HashMap<String, f64>,
         field_k1: &HashMap<String, f64>,
         field_b: &HashMap<String, f64>,
+        field_analyzer: &HashMap<String, AnalyzerConfig>,
     ) -> Self
     where
         I: IntoIterator<Item = &'a R>,
@@ -273,6 +281,7 @@ impl SearchContext {
             doc_boost: field_boost.clone(),
             field_k1: field_k1.clone(),
             field_b: field_b.clone(),
+            field_analyzer: field_analyzer.clone(),
             ..Default::default()
         };
 
@@ -294,7 +303,8 @@ impl SearchContext {
                 let Value::String(text) = value else {
                     continue;
                 };
-                let term_stats = SearchTermStats::from_text(Some(text));
+                let analyzer = context.analyzer_for_field(&name);
+                let term_stats = SearchTermStats::from_text_with_analyzer(Some(text), &analyzer);
                 text_length
                     .entry(name.clone())
                     .and_modify(|value| *value += term_stats.doc_length)
@@ -335,6 +345,7 @@ impl SearchContext {
         field_boost: &HashMap<String, f64>,
         field_k1: &HashMap<String, f64>,
         field_b: &HashMap<String, f64>,
+        field_analyzer: &HashMap<String, AnalyzerConfig>,
     ) -> Self
     where
         I: IntoIterator<Item = &'a SearchTermStats>,
@@ -344,6 +355,7 @@ impl SearchContext {
             doc_boost: field_boost.clone(),
             field_k1: field_k1.clone(),
             field_b: field_b.clone(),
+            field_analyzer: field_analyzer.clone(),
             ..Default::default()
         };
         let mut docs_with_field = 0usize;
@@ -409,9 +421,19 @@ impl SearchContext {
     }
 
     pub(crate) fn score_text(&self, field: Option<&str>, source: &str, query: &str) -> f64 {
-        let query_terms = prepare_query_terms(query);
-        let source_stats = SearchTermStats::from_text(Some(source));
+        let analyzer = field
+            .map(|field| self.analyzer_for_field(field))
+            .unwrap_or_default();
+        let query_terms = prepare_query_terms_with_analyzer(query, &analyzer);
+        let source_stats = SearchTermStats::from_text_with_analyzer(Some(source), &analyzer);
         self.score_term_stats(field, &source_stats, &query_terms)
+    }
+
+    pub(crate) fn analyzer_for_field(&self, field: &str) -> AnalyzerConfig {
+        self.field_analyzer
+            .get(&field.to_lowercase())
+            .cloned()
+            .unwrap_or_default()
     }
 
     pub(crate) fn score_term_stats(
@@ -1310,7 +1332,11 @@ fn evaluate_function<R: RowAccess + ?Sized>(
             }
             let source = to_text(&args[0]);
             let query = to_text(&args[1]);
-            let terms = crate::search::tokenizer::tokenize(&query);
+            let analyzer = match (&function.args[0], search_context) {
+                (Expr::Column(field), Some(context)) => context.analyzer_for_field(field),
+                _ => AnalyzerConfig::default(),
+            };
+            let terms = analyzer.analyze(&query);
             Ok(Value::String(crate::search::snippet(&source, &terms)))
         }
         "cast" => {
@@ -1525,10 +1551,18 @@ fn token_counts(tokens: &[String]) -> HashMap<String, usize> {
     out
 }
 
+#[allow(dead_code)]
 pub(crate) fn prepare_query_terms(query: &str) -> Vec<String> {
+    prepare_query_terms_with_analyzer(query, &AnalyzerConfig::default())
+}
+
+pub(crate) fn prepare_query_terms_with_analyzer(
+    query: &str,
+    analyzer: &AnalyzerConfig,
+) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut terms = Vec::new();
-    for token in crate::search::tokenizer::tokenize(query) {
+    for token in analyzer.analyze(query) {
         if seen.insert(token.clone()) {
             terms.push(token);
         }
@@ -1627,6 +1661,7 @@ mod tests {
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
         );
         let term_stats = SearchTermStats::from_text(Some("alpha beta alpha"));
         let query_terms = prepare_query_terms("alpha beta");
@@ -1658,6 +1693,7 @@ mod tests {
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
+            &HashMap::new(),
         );
         let term_stats = [
             SearchTermStats::from_text(Some("alpha beta")),
@@ -1669,6 +1705,7 @@ mod tests {
         let stats_context = SearchContext::from_term_stats(
             "body",
             term_stats.iter(),
+            &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
             &HashMap::new(),
@@ -1702,6 +1739,7 @@ mod tests {
             &field_boost,
             &field_k1,
             &field_b,
+            &HashMap::new(),
         );
         let single_field_context = SingleFieldSearchContext::from_term_stats(
             "body",

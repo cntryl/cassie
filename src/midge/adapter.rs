@@ -10,9 +10,9 @@ use uuid::Uuid;
 use crate::app::CassieError;
 use crate::catalog::{
     payload_contains_index_membership, payload_contains_vector_membership,
-    CollectionCardinalityStats, ColumnBatchMetadata, ColumnBatchPayload, ColumnBatchRow,
-    ColumnBatchSegmentMeta, FieldConstraint, IndexKind, IndexMeta, NamespaceMeta, ProjectionMeta,
-    RoleMeta,
+    CollectionCardinalityStats, ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchMetadata,
+    ColumnBatchPayload, ColumnBatchRow, ColumnBatchSegmentMeta, ColumnBatchValueRun,
+    FieldConstraint, IndexKind, IndexMeta, NamespaceMeta, ProjectionMeta, RoleMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord};
 use crate::midge::row_blob::{
@@ -163,6 +163,15 @@ pub struct RowFilter {
 pub struct MidgeScanTimings {
     pub scan: Duration,
     pub row_decode: Duration,
+}
+
+#[derive(Debug, Clone)]
+pub struct ColumnBatchScanOutcome {
+    pub batches: Vec<Vec<DocumentRef>>,
+    pub timings: MidgeScanTimings,
+    pub index_name: String,
+    pub compressed_bytes: usize,
+    pub uncompressed_bytes: usize,
 }
 
 #[path = "adapter/column_batches.rs"]

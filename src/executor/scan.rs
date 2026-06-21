@@ -79,28 +79,32 @@ pub(crate) fn scan_projected_filtered_with_timings(
             storage_filter.as_ref(),
             limit,
         ) {
-            Ok(Some((document_batches, raw_timings, _index_name))) => {
+            Ok(Some(outcome)) => {
                 cassie.runtime.record_storage_access("data", false, true);
                 let schema = cassie.catalog.get_schema(collection);
                 let mut timings = ScanTimings {
-                    scan: raw_timings.scan,
-                    row_decode: raw_timings.row_decode,
+                    scan: outcome.timings.scan,
+                    row_decode: outcome.timings.row_decode,
                 };
                 let materialize_started = std::time::Instant::now();
                 let batches = projected_document_batches_to_rows(
                     cassie,
-                    document_batches,
+                    outcome.batches,
                     fields,
                     document_filter,
                     schema.as_ref(),
                 );
                 timings.scan += materialize_started.elapsed();
                 let rows = batches.iter().map(Vec::len).sum::<usize>();
-                cassie.runtime.record_column_batch_scan(rows);
+                cassie.runtime.record_column_batch_scan(
+                    rows,
+                    outcome.compressed_bytes,
+                    outcome.uncompressed_bytes,
+                );
                 return Ok((batches, timings));
             }
             Ok(None) if has_covering_column_index(cassie, collection, fields) => {
-                cassie.runtime.record_column_batch_fallback();
+                cassie.runtime.record_column_batch_decode_fallback();
             }
             Ok(None) => {}
             Err(error) => {

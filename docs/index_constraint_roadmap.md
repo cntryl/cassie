@@ -254,10 +254,10 @@ Physical shape:
 
 ```text
 __cassie__/column-batch/v1/{collection}/{index}/metadata
-  -> fields, schema epoch, segment size, row-id ranges, encoding version
+  -> fields, schema epoch, segment size, row-id ranges, encoding version, codec metadata
 
 __cassie__/column-batch/v1/{collection}/{index}/segment/{segment_id}
-  -> uncompressed JSON column-batch payload
+  -> uncompressed or dictionary/RLE JSON column-batch payload
 ```
 
 Good for:
@@ -272,10 +272,11 @@ Rules:
 
 - Row blob remains the source of truth.
 - Column indexes are rebuilt from row blobs.
+- Segment build picks dictionary/RLE only when it is smaller than uncompressed payloads.
 - Column indexes accelerate covered projected scans when available.
 - Query execution must fall back to row scans for correctness.
 - `EXPLAIN` reports `column_batch_index=<name>` for eligible covered scans.
-- Runtime metrics expose `column_batches.scans`, `row_fetches_avoided`, and `fallback_scans`.
+- Runtime metrics expose `column_batches.scans`, `row_fetches_avoided`, `fallback_scans`, `decode_fallbacks`, and compressed/uncompressed byte totals.
 
 ## P3 Scope
 

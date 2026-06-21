@@ -17,8 +17,8 @@ pub use collections::{
 };
 pub use constraints::{ConstraintCheck, ConstraintOperator, FieldConstraint};
 pub use indexes::{
-    ColumnBatchMetadata, ColumnBatchPayload, ColumnBatchRow, ColumnBatchSegmentMeta, IndexKind,
-    IndexMeta,
+    ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchMetadata, ColumnBatchPayload,
+    ColumnBatchRow, ColumnBatchSegmentMeta, ColumnBatchValueRun, IndexKind, IndexMeta,
 };
 pub use metadata::Catalog;
 pub use programs::{FunctionArgMeta, FunctionMeta, ProcedureMeta, ViewMeta, Volatility};

@@ -844,6 +844,7 @@ fn resolve_exists_expr<'a>(
         }),
         Expr::Exists(statement) => {
             let logical = build_logical_plan(statement.as_ref())?;
+            let logical = bounded_exists_logical(logical);
             let mut subquery_context = cte_context.clone();
             let rows = execute_plan(
                 cassie,
@@ -882,6 +883,16 @@ fn build_logical_plan(
     }
 
     Ok(plan)
+}
+
+fn bounded_exists_logical(mut logical: LogicalPlan) -> LogicalPlan {
+    logical.limit = Some(
+        logical
+            .limit
+            .map(|limit| if limit <= 0 { 0 } else { 1 })
+            .unwrap_or(1),
+    );
+    logical
 }
 
 #[path = "execution/fulltext_options.rs"]

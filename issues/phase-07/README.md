@@ -5,10 +5,12 @@ Phase 07 is the parked advanced backlog.
 These issues are intentionally after the foundation, write-path, and read-path implementation contracts in phases 04 through 06.
 They add adaptive planning, advanced operators, column-store tables, runtime switching, and multi-instance comparison only after Cassie can prove the simpler runtime and access-path contracts.
 
+Phase 05 write optimization is closed; its archived contract and diagnostic surface lives in `docs/performance-contracts.md` and `issues/phase-05/README.md`.
+
 ## Core Rule
 
 Advanced execution work must not become a shortcut around the lower-level contracts.
-Each phase 07 issue must consume the relevant phase 04 foundation rules, phase 05 write/layout rules, and phase 06 read/access-path diagnostics before adding new planner or executor behavior.
+Each phase 07 issue must consume the archived phase 04 runtime-boundary and read-access-path contract surfaces, the archived phase 05 write/layout and diagnostics contract surface, and phase 06 read/access-path diagnostics before adding new planner or executor behavior.
 
 ## Phase Sequence
 
@@ -22,10 +24,10 @@ Each phase 07 issue must consume the relevant phase 04 foundation rules, phase 0
 
 ## Required Gates
 
-- Phase 04 issue 06 must be complete before runtime-adaptive or async-surfaced Phase 07 work begins.
-- Phase 05 issue 04 must be complete before Phase 07 changes persistent key or storage layout.
+- The archived phase 04 runtime-boundary contract surface must be complete before runtime-adaptive or async-surfaced Phase 07 work begins.
+- The archived phase 05 write-layout contract surface must be complete before Phase 07 changes persistent key or storage layout.
 - Phase 06 issue 05 must be complete before Phase 07 adds new planner/executor alternatives that require EXPLAIN or metrics assertions.
-- Phase 04 issue 07 must be complete before Phase 07 adds any new access path or storage mode.
+- The archived phase 04 read access-path contract surface must be complete before Phase 07 adds any new access path or storage mode.
 
 ## Non-Goals
 

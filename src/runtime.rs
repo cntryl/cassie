@@ -70,6 +70,8 @@ mod helpers;
 mod projection_metrics;
 #[path = "runtime/query_cache.rs"]
 pub(crate) mod query_cache;
+#[path = "runtime/read_path_metrics.rs"]
+mod read_path_metrics;
 #[path = "runtime/retention_metrics.rs"]
 mod retention_metrics;
 #[path = "runtime/rollup_metrics.rs"]
@@ -127,6 +129,7 @@ struct RuntimeMetricsState {
     rollups: RollupSnapshot,
     projections: ProjectionSnapshot,
     retention: RetentionSnapshot,
+    read_paths: ReadPathSnapshot,
 }
 
 #[derive(Debug, Clone)]
@@ -1042,6 +1045,7 @@ impl RuntimeState {
             rollups: metrics.rollups.clone(),
             projections: metrics.projections.clone(),
             retention: metrics.retention.clone(),
+            read_paths: metrics.read_paths.clone(),
         };
         snapshot.runtime.uptime_seconds = uptime_seconds;
         snapshot.runtime.running_queries = metrics.runtime.running_queries;

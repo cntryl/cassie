@@ -15,7 +15,7 @@ Adaptive execution here means choosing among planned alternatives at explicit de
 - Depends on phase 07 issue 01 for operator selection feedback when feedback is used as a signal.
 - Depends on phase 03 issue 10 for cardinality estimates and confidence metadata.
 - Depends on phase 03 issue 08 for executor coordination and cleanup behavior.
-- Depends on phase 04 issue 06 for runtime-boundary regression rules.
+- Depends on the archived phase 04 runtime-boundary contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` for runtime-boundary regression rules.
 - Depends on phase 06 issue 05 for access-path and executor diagnostics.
 - Consumes phase 07 issue 03 merge joins and phase 07 issue 04 vectorized joins when those alternatives are implemented.
 

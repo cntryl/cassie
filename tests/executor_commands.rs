@@ -247,6 +247,12 @@ fn should_fail_unknown_function_during_execution() {
             join_strategy: None,
             parallel_aggregate_candidate: false,
             aggregate_acceleration: false,
+            access_path: cassie::planner::physical::ReadAccessPath::CollectionScan,
+            access_path_reason: "command-path".to_string(),
+            fallback_reason: Some("command".to_string()),
+            pagination_strategy: cassie::planner::physical::PaginationStrategy::None,
+            top_k_mode: cassie::planner::physical::TopKMode::None,
+            projection_shape: cassie::planner::physical::ProjectionShape::Other,
             logical,
         };
 

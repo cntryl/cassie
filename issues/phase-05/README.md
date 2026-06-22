@@ -1,5 +1,7 @@
 # Phase 05: Write Optimization
 
+Phase 05 is closed. Its issue files were retired after the write contracts, batching, locality, rebuild, and diagnostics work were implemented and validated.
+
 Phase 05 optimizes Cassie's write side for read-model workloads.
 
 The goal is not generic write throughput.
@@ -38,10 +40,10 @@ The goal is that implementation work is mostly mechanical once the issue is pick
 
 ## Phase Sequence
 
-Phase 05 consumes phase 04 issue 07 for read-shape vocabulary before any index-maintenance or key-layout optimization.
+Phase 05 consumes the archived phase 04 read access-path contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` for read-shape vocabulary before any index-maintenance or key-layout optimization.
 It does not depend on phase 06 read implementation.
 
-1. Write performance contracts: define supported write patterns and budgets before changing implementation, importing read-shape assumptions from phase 04 issue 07.
+1. Write performance contracts: define supported write patterns and budgets before changing implementation, importing read-shape assumptions from the archived phase 04 read access-path contract surface.
 2. Replay and ingest batching: reduce per-row overhead on the dominant write workflow.
 3. Index maintenance batching: reduce secondary write amplification without weakening visibility.
 4. Write-locality key layout: align keys and write ordering with Midge locality.
@@ -55,4 +57,4 @@ It does not depend on phase 06 read implementation.
 - No eventual index visibility for normal query paths.
 - No benchmark-only shortcuts that bypass replay, freshness, verification, or lifecycle metadata.
 - No optimization that makes rebuilds unverifiable or swaps less safe.
-- No index or key-layout change before the relevant phase 04 issue 07 read-model access shape is named in the write contracts.
+- No index or key-layout change before the relevant archived phase 04 read-model access shape is named in the write contracts.

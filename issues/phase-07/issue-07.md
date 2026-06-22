@@ -15,8 +15,8 @@ This issue extends local verification and projection comparison into an offline/
 - Depends on phase 02 issues 01 through 06 for row hashes, range hashes, Merkle roots, rebuild verification, operations views, and local integrity reports.
 - Depends on phase 03 issue 05 for projection diffing.
 - Depends on phase 03 issue 11 for projection comparison semantics.
-- Depends on phase 04 issue 04 if manifest export/import is exposed through REST.
-- Depends on phase 05 issue 06 for rebuild/write diagnostic vocabulary when reports include operational counters.
+- Depends on the archived phase 04 REST blocking-boundary contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` if manifest export/import is exposed through REST.
+- Depends on the archived phase 05 write-amplification diagnostic surface in `docs/performance-contracts.md` and `issues/phase-05/README.md` when reports include operational counters.
 
 ## Handoff
 

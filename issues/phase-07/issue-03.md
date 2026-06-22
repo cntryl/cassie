@@ -16,7 +16,7 @@ This issue adds one new join strategy after the planner can reason about orderin
 - Depends on phase 03 issue 08 for advanced parallel execution foundations where sorted inputs are produced concurrently.
 - Depends on phase 03 issue 10 for cardinality estimates that compare merge join against hash and nested-loop joins.
 - Depends on existing sort and join executor semantics.
-- Depends on phase 04 issue 07 for read/access-path contracts and phase 06 issue 05 for plan/executor diagnostics.
+- Depends on the archived phase 04 read access-path contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` for read/access-path contracts and phase 06 issue 05 for plan/executor diagnostics.
 
 ## Handoff
 

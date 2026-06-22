@@ -11,7 +11,7 @@ Stop read-side work as soon as the contract allows, especially for top-K pages, 
 
 ## Dependencies
 
-- Depends on phase 04 issue 07 for access-path contracts.
+- Depends on the archived phase 04 read access-path contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` for access-path contracts.
 - Depends on phase 06 issue 01 for bounded scan planning.
 
 ## Handoff

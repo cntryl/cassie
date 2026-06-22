@@ -245,6 +245,12 @@ mod tests {
             join_strategy: None,
             parallel_aggregate_candidate: false,
             aggregate_acceleration: false,
+            access_path: crate::planner::physical::ReadAccessPath::CollectionScan,
+            access_path_reason: "sample-plan".to_string(),
+            fallback_reason: None,
+            pagination_strategy: crate::planner::physical::PaginationStrategy::None,
+            top_k_mode: crate::planner::physical::TopKMode::None,
+            projection_shape: crate::planner::physical::ProjectionShape::Collection,
             logical: LogicalPlan {
                 command: None,
                 source: QuerySource::Collection("bench_documents".to_string()),

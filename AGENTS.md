@@ -123,10 +123,10 @@ The prioritized source of truth is `issues/phase-00/issue-01.md`.
 
 For the current rebaseline, work phases stay in this execution gate:
 
-1. Resolve phase-04 issues in listed order from `issue-01` through `issue-07`.
-2. Resolve phase-05 issues in listed order (`issue-01` through `issue-06`).
+1. Phase 04 foundation contracts are closed; use `docs/performance-contracts.md` and `issues/phase-04/README.md` as the archived reference surface.
+2. Phase 05 write optimization is closed; use `docs/performance-contracts.md` and `issues/phase-05/README.md` as the archived reference surface.
 3. Resolve phase-06 issues in listed order (`issue-01` through `issue-05`).
-4. Move to phase-07 only after phase-04/05/06 gates are complete.
+4. Move to phase-07 only after the phase-06 gates are complete.
 
 Required loop:
 

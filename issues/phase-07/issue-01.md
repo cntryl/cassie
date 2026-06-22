@@ -16,7 +16,7 @@ This issue extends earlier cost and index feedback work from access-path choice 
 - Depends on phase 03 issue 03 for safe runtime feedback collection and feedback invalidation patterns.
 - Depends on phase 03 issue 10 for advanced cardinality estimates used as the base planner signal.
 - Depends on phase 02 issue 05 for bounded metrics and EXPLAIN diagnostics.
-- Depends on phase 04 issue 05 for runtime-boundary metrics vocabulary.
+- Depends on the archived phase 04 runtime-boundary contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` for runtime-boundary metrics vocabulary.
 - Depends on phase 06 issue 05 for access-path and executor diagnostic assertions.
 
 ## Handoff

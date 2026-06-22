@@ -124,36 +124,39 @@ Goal: provide analytical read acceleration and operational visibility while keep
 
 Goal: define the runtime and access-path contracts that later write/read optimization must preserve.
 
+Phase 04 is complete and archived in `docs/performance-contracts.md` and `issues/phase-04/README.md`.
 Phase 04 treats pgwire and REST as async interfaces over a synchronous Rust engine.
 Supported runtime paths must define where async IO stops, where synchronous engine work starts, and which blocking boundary protects Tokio worker tasks.
 Phase 04 also defines read access-path vocabulary before write-side index/key-layout work or read-side planner/executor work consumes it.
 
 | Feature Area | Status | Compatibility |
 | --- | --- | --- |
-| Runtime-boundary contracts | Planned | Cassie-specific internal/runtime contract |
-| Pgwire blocking boundaries | Planned | Internal runtime behavior, stable protocol semantics |
-| REST blocking boundaries | Planned | Internal runtime behavior, stable HTTP semantics |
-| Auth and embedding blocking discipline | Planned | Internal runtime behavior |
-| Runtime-boundary diagnostics | Planned | Experimental metrics/admin diagnostics |
-| Boundary regression tests and static audit | Planned | Internal test discipline |
-| Read access-path contracts | Planned | Cassie-specific internal/perf contract |
+| Runtime-boundary contracts | Implemented | Cassie-specific internal/runtime contract |
+| Pgwire blocking boundaries | Implemented | Internal runtime behavior, stable protocol semantics |
+| REST blocking boundaries | Implemented | Internal runtime behavior, stable HTTP semantics |
+| Auth and embedding blocking discipline | Implemented | Internal runtime behavior |
+| Runtime-boundary diagnostics | Implemented | Experimental metrics/admin diagnostics |
+| Boundary regression tests and static audit | Implemented | Internal test discipline |
+| Read access-path contracts | Implemented | Cassie-specific internal/perf contract |
 
 ## Write Optimization
 
 Goal: compile write-side read-model workflows into Midge-efficient write paths without weakening deterministic replay, freshness, verification, or projection lifecycle semantics.
+
+Phase 05 write optimization is implemented and documented; the archived contract and diagnostics surface lives in `docs/performance-contracts.md`.
 
 Phase 05 treats SQL, REST, replay, and rebuild commands as write interfaces, not as a requirement to use the same per-row mutation path for every workload.
 Supported write patterns must define required and forbidden write-path behavior, write amplification budgets, and benchmark or diagnostic evidence.
 
 | Feature Area | Status | Compatibility |
 | --- | --- | --- |
-| Write-path performance contracts | Planned | Cassie-specific internal/perf contract |
-| Replay and ingest batching | Planned | Cassie-specific internal |
-| Duplicate replay skip without row/index rewrites | Planned | Cassie-specific internal |
-| Index maintenance batching and delta coalescing | Planned | Cassie-specific internal |
-| Write-locality key/layout optimization | Planned | Cassie-specific internal |
-| Bulk rebuild/ingest fast paths | Planned | Cassie-specific internal |
-| Write amplification diagnostics and budgets | Planned | Experimental metrics/admin diagnostics |
+| Write-path performance contracts | Implemented | Cassie-specific internal/perf contract |
+| Replay and ingest batching | Implemented | Cassie-specific internal |
+| Duplicate replay skip without row/index rewrites | Implemented | Cassie-specific internal |
+| Index maintenance batching and delta coalescing | Implemented | Cassie-specific internal |
+| Write-locality key/layout optimization | Implemented | Cassie-specific internal |
+| Bulk rebuild/ingest fast paths | Implemented | Cassie-specific internal |
+| Write amplification diagnostics and budgets | Implemented | Experimental metrics/admin diagnostics |
 
 ## Read Optimization
 
@@ -187,10 +190,10 @@ Goal: support practical PostgreSQL client interoperability for read-model access
 - Harden verification gates and repair workflows beyond local read-only integrity reports.
 - Promote performance targets for replay ingestion, projection rebuilds, verification, swaps, and lag catch-up from baseline benchmarks to measured thresholds.
 - Prioritize query patterns required by real read models over feature parity with any general-purpose database.
-- Build phase 04 around explicit async transport boundaries, synchronous engine paths, blocking offload, runtime-boundary diagnostics, and read access-path contracts.
-- Build phase 05 around write-side performance contracts, replay/ingest batching, locality, and write-amplification control, using phase 04 issue 07 read-shape contracts before index/key-layout changes.
-- Build phase 06 around Midge-native read implementation, access-path assertions, and projection-shaped reads using phase 04 issue 07 contracts.
-- Keep phase 07 parked for advanced query and distributed backlog work until the required phase 04 through phase 06 gates are complete.
+- Treat the archived phase 04 contract surface as the reference for explicit async transport boundaries, synchronous engine paths, blocking offload, runtime-boundary diagnostics, and read access-path contracts.
+- Keep future write-path changes aligned with the archived phase 05 contracts in `docs/performance-contracts.md`.
+- Build phase 06 around Midge-native read implementation, access-path assertions, and projection-shaped reads using the archived phase 04 read access-path contract surface.
+- Keep phase 07 parked for advanced query and distributed backlog work until the required archived phase 04 and phase 06 gates are complete.
 - Tighten PostgreSQL compatibility documentation for already-implemented SQL features through the read-model access lens.
 - Expand client compatibility probes for psql, sqlx, diesel, prisma, and SQLAlchemy read-model workflows.
 - Promote experimental catalog, procedure, rollup, HNSW, and embedding surfaces as their compatibility guarantees settle.

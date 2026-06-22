@@ -14,7 +14,7 @@ Track one open issue for every active, uncompleted concept in `docs/product-road
 Maintain a live coverage index that links every active roadmap concept to its implementation issue and removes concepts once their issue files are completed and deleted.
 Keep the coverage index ordered by execution priority so autopilot can work from top to bottom without re-triage.
 Do not create additional local issue files until the current active set is completed, deleted, or intentionally rebaselined.
-Phase 04, phase 05, phase 06, and phase 07 are the current intentional rebaseline for foundation, optimization, and advanced backlog work.
+Phase 04 is closed and archived in `docs/performance-contracts.md` and `issues/phase-04/README.md`. Phase 06 and phase 07 are the current intentional rebaseline for read optimization and advanced backlog work. Phase 05 write optimization is closed and archived in `docs/performance-contracts.md` and `issues/phase-05/README.md`.
 
 ## Functional Scope
 
@@ -30,7 +30,7 @@ Phase 04, phase 05, phase 06, and phase 07 are the current intentional rebaselin
 
 - Do not track detailed implementation requirements in this index; those belong in the individual issue files.
 - Do not keep broken links to deleted completed issue files.
-- Do not add new local issue files while any `phase-01` through `phase-03` issue remains open, unless the backlog is intentionally rebaselined as it is for phase 04 through phase 07 work.
+- Do not add new local issue files while any `phase-01` through `phase-03` issue remains open, unless the backlog is intentionally rebaselined as it is for phase 06 and phase 07 work.
 
 ## Priority Policy
 
@@ -47,10 +47,8 @@ Phase 04, phase 05, phase 06, and phase 07 are the current intentional rebaselin
 
 This rebaseline keeps the engine-safe implementation order mechanical:
 
-1. `phase-04/issue-01` through `phase-04/issue-07` (boundary contract + diagnostics + read-shape gates)
-2. `phase-05/issue-01` through `phase-05/issue-06` (write contracts and optimization gates)
-3. `phase-06/issue-01` through `phase-06/issue-05` (read implementation gates)
-4. `phase-07` issues only after the phase-04/05/06 gate is closed.
+1. `phase-06/issue-01` through `phase-06/issue-05` (read implementation gates)
+2. `phase-07` issues only after the phase-06 gates are closed.
 
 ### P0 Now
 
@@ -63,19 +61,8 @@ This rebaseline keeps the engine-safe implementation order mechanical:
 ### P2 Follow-Up
 
 - Phase 03 implementation is complete and closed. Issues 01–13 were completed and removed from active follow-up after validation and close-out.
-- [Phase 04 Issue 01: Runtime Boundary Contracts](../phase-04/issue-01.md) - Runtime Boundary Discipline / Contracts
-- [Phase 04 Issue 02: Auth And Embedding Blocking Discipline](../phase-04/issue-02.md) - Runtime Boundary Discipline / Auth and Embeddings
-- [Phase 04 Issue 03: Pgwire Blocking Boundary](../phase-04/issue-03.md) - Runtime Boundary Discipline / Pgwire
-- [Phase 04 Issue 04: REST Blocking Boundary](../phase-04/issue-04.md) - Runtime Boundary Discipline / REST
-- [Phase 04 Issue 05: Runtime Boundary Diagnostics](../phase-04/issue-05.md) - Runtime Boundary Discipline / Observability
-- [Phase 04 Issue 06: Boundary Regression Tests And Static Audit](../phase-04/issue-06.md) - Runtime Boundary Discipline / Testing
-- [Phase 04 Issue 07: Read Access-Path Contracts](../phase-04/issue-07.md) - Foundation Contracts / Read Access Paths
-- [Phase 05 Issue 01: Write Performance Contracts](../phase-05/issue-01.md) - Read-Model Write Optimization / Contracts
-- [Phase 05 Issue 02: Replay And Ingest Batching](../phase-05/issue-02.md) - Read-Model Write Optimization / Write Path and Duplicate Replay Skip
-- [Phase 05 Issue 03: Index Maintenance Batching](../phase-05/issue-03.md) - Read-Model Write Optimization / Indexes
-- [Phase 05 Issue 04: Write-Locality Key Layout](../phase-05/issue-04.md) - Read-Model Write Optimization / Storage Layout
-- [Phase 05 Issue 05: Bulk Rebuild Fast Paths](../phase-05/issue-05.md) - Read-Model Write Optimization / Rebuild
-- [Phase 05 Issue 06: Write Amplification Diagnostics](../phase-05/issue-06.md) - Read-Model Write Optimization / Diagnostics
+- Phase 04 foundation contracts are complete and closed. The archived contract surface lives in `docs/performance-contracts.md` and `issues/phase-04/README.md`.
+- Phase 05 write optimization is complete and closed. The contracts, benchmarks, and diagnostics are archived in `docs/performance-contracts.md`.
 - [Phase 06 Issue 01: Predicate Order Limit Pushdown](../phase-06/issue-01.md) - Read-Model Read Optimization / Planner
 - [Phase 06 Issue 02: Keyset Pagination](../phase-06/issue-02.md) - Read-Model Read Optimization / Executor
 - [Phase 06 Issue 03: Top-K And Early Stop Execution](../phase-06/issue-03.md) - Read-Model Read Optimization / Executor
@@ -84,7 +71,7 @@ This rebaseline keeps the engine-safe implementation order mechanical:
 
 ### P3 Parked
 
-Phase 07 remains parked until the relevant Phase 04 foundation gate, Phase 05 write/layout gate, and Phase 06 read-implementation gate named by each issue are complete.
+Phase 07 remains parked until the relevant Phase 04 foundation gate and Phase 06 read-implementation gate named by each issue are complete. Phase 05 write optimization is closed and archived.
 
 - [Phase 07 Issue 01: Operator Selection Feedback](../phase-07/issue-01.md) - Advanced Backlog / Planner Intelligence
 - [Phase 07 Issue 02: Full Column-Store Tables](../phase-07/issue-02.md) - Advanced Backlog / Column Tables

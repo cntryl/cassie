@@ -11,7 +11,7 @@ Make supported read paths provable by plan-shape assertions, EXPLAIN output, and
 
 ## Dependencies
 
-- Depends on phase 04 issue 07 for the contract definitions.
+- Depends on the archived phase 04 read access-path contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` for the contract definitions.
 - Consumes planner/executor behavior from phase 06 issues 01 through 04.
 
 ## Handoff
@@ -43,7 +43,7 @@ Make supported read paths provable by plan-shape assertions, EXPLAIN output, and
 
 ### Step 1: Add physical diagnostic fields
 
-- Extend `PhysicalPlan` in `src/planner/physical.rs` with explicit read diagnostics after phase 04 issue 07 and phase 06 issue 01 settle the vocabulary:
+- Extend `PhysicalPlan` in `src/planner/physical.rs` with explicit read diagnostics after the archived phase 04 read access-path contract surface and phase 06 issue 01 settle the vocabulary:
   - `access_path`
   - `access_path_reason`
   - `fallback_reason`

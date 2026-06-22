@@ -229,3 +229,58 @@ fn should_report_execution_breakdown_for_projected_filtered_read() {
 
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_report_execution_breakdown_for_point_lookup_read() {
+    // Arrange
+    let mut path = std::env::temp_dir();
+    path.push(format!(
+        "cassie-execution-point-lookup-{}",
+        uuid::Uuid::new_v4()
+    ));
+    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let collection = "point_lookup_documents";
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .expect("create collection");
+    cassie.register_collection(collection, schema);
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("doc-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .expect("put document");
+
+    let logical = plan_for_sql("SELECT id, title FROM point_lookup_documents WHERE id = 'doc-1'");
+    let physical = crate::planner::physical::build(logical);
+
+    // Act
+    let output =
+        run_with_execution_breakdown(&cassie, physical, vec![]).expect("execution breakdown");
+
+    // Assert
+    assert_eq!(output.result.rows.len(), 1);
+    assert_eq!(
+        output.result.rows[0],
+        vec![
+            Value::String("doc-1".to_string()),
+            Value::String("alpha".to_string()),
+        ]
+    );
+    assert_eq!(output.breakdown.scan_us, 0);
+    assert_eq!(output.breakdown.filter_us, 0);
+    assert_eq!(output.breakdown.sort_us, 0);
+    assert!(output.breakdown.result_build_us > 0);
+
+    let _ = std::fs::remove_dir_all(path);
+}

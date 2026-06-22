@@ -16,8 +16,8 @@ This issue promotes columnar acceleration from derived execution support into an
 - Depends on phase 03 issue 07 for hybrid row/column planning.
 - Depends on phase 03 issue 12 for analytical projection semantics where column-store tables participate in projection workflows.
 - Depends on phase 02 issue 05 for catalog, EXPLAIN, and metrics visibility.
-- Depends on phase 05 issue 04 for persistent key/layout compatibility rules.
-- Depends on phase 04 issue 07 for read-shape contracts and phase 06 issue 05 for diagnostics.
+- Depends on the archived phase 05 write-layout contract surface in `docs/performance-contracts.md` and `issues/phase-05/README.md` for persistent key/layout compatibility rules.
+- Depends on the archived phase 04 read access-path contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` for read-shape contracts and phase 06 issue 05 for diagnostics.
 
 ## Handoff
 
@@ -62,7 +62,7 @@ This issue promotes columnar acceleration from derived execution support into an
   - row-id mapping
   - visibility/deletion markers
   - optional materialized row cache
-- Reuse key-layout compatibility constants from phase 05 issue 04.
+- Reuse key-layout compatibility constants from the archived phase 05 layout contract surface.
 
 ### Step 4: Implement column-store DML
 

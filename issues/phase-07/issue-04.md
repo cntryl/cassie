@@ -16,7 +16,7 @@ This issue accelerates existing join semantics; it must not introduce a second s
 - Depends on phase 03 issue 07 for hybrid row/column planning.
 - Depends on phase 03 issue 08 for parallel execution foundations.
 - Depends on phase 03 issue 09 for vectorized execution conventions and batch memory accounting.
-- Depends on phase 04 issue 06 for runtime-boundary regression rules.
+- Depends on the archived phase 04 runtime-boundary contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` for runtime-boundary regression rules.
 - Depends on phase 06 issue 05 for access-path/executor diagnostics.
 - Can use phase 07 issue 02 column-store tables when present, but must also work with existing batch/row inputs.
 

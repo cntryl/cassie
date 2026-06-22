@@ -287,6 +287,85 @@ fn should_plan_join_source_with_physical_join_operator() {
 }
 
 #[test]
+fn should_mark_row_id_filter_as_point_lookup_access_path() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_point_lookup");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT id, title FROM planner_point_lookup WHERE id = 'alpha'",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+        let logical = optimizer::optimize(logical);
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert_eq!(
+            physical_plan.access_path,
+            physical::ReadAccessPath::PointLookup
+        );
+        assert_eq!(physical_plan.access_path_reason, "point-lookup-id");
+        assert_eq!(physical_plan.fallback_reason, None);
+        assert_eq!(
+            physical_plan.pagination_strategy,
+            physical::PaginationStrategy::None
+        );
+        assert_eq!(physical_plan.top_k_mode, physical::TopKMode::None);
+        assert_eq!(
+            physical_plan.projection_shape,
+            physical::ProjectionShape::MaterializedProjection
+        );
+    });
+}
+
+#[test]
+fn should_fallback_from_point_lookup_to_collection_scan_with_offset() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_point_lookup_offset");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT id, title FROM planner_point_lookup_offset WHERE id = 'alpha' OFFSET 1",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+        let logical = optimizer::optimize(logical);
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert_eq!(
+            physical_plan.access_path,
+            physical::ReadAccessPath::CollectionScan
+        );
+        assert_eq!(
+            physical_plan.fallback_reason,
+            Some("offset-degraded".to_string())
+        );
+        assert_eq!(
+            physical_plan.pagination_strategy,
+            physical::PaginationStrategy::DegradedOffset
+        );
+    });
+}
+
+#[test]
 fn should_mark_exists_predicate_as_semi_join() {
     // Arrange
     let catalog = Catalog::new();

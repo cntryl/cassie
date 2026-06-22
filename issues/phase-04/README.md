@@ -1,6 +1,8 @@
 # Phase 04: Foundation Contracts
 
-Phase 04 makes Cassie's runtime and access-path contracts explicit before write or read optimization changes implementation.
+Phase 04 is closed. Its issue files were retired after the runtime-boundary and read-access-path contracts were implemented and validated.
+
+The remaining text is the archived contract surface for Cassie's runtime and access-path rules before write or read optimization changes implementation.
 
 The goal is not to optimize the engine yet.
 The goal is to define the boundaries later phases must preserve: async at transport, shutdown, and task-coordination edges; synchronous planner, executor, catalog, storage, auth, and embedding contracts; and read-model access-path vocabulary that write and read work can share.
@@ -18,7 +20,7 @@ A runtime path is correct only when async code performs async IO and delegates s
 A read access pattern is not a contract merely because it returns correct rows.
 A read access pattern is a contract only when it names the intended Midge-efficient access path, the forbidden fallback shape, and the storage/index/key grouping expectation later phases must preserve.
 
-Each phase 04 issue must define the relevant contract surface:
+Each archived phase 04 contract slice defined the relevant contract surface:
 
 - async entrypoints and synchronous engine ownership
 - required blocking-boundary behavior
@@ -27,8 +29,8 @@ Each phase 04 issue must define the relevant contract surface:
 - read access-path vocabulary when later write/read work depends on it
 - tests, diagnostics, or static audits that keep the contract visible
 
-Each issue should include a concrete `Implementation Plan` section with expected modules, TDD order, diagnostics, validation, and close-out sequence.
-The goal is that implementation work is mostly mechanical once the issue is picked up.
+Each contract slice included a concrete `Implementation Plan` section with expected modules, TDD order, diagnostics, validation, and close-out sequence.
+The goal was that implementation work was mostly mechanical once the contract slice was picked up.
 
 ## Boundary Categories
 
@@ -60,5 +62,5 @@ The goal is that implementation work is mostly mechanical once the issue is pick
 - No Dotnet-style async cascade through synchronous Rust engine code.
 - No change to SQL, pgwire, REST, auth, embedding, or timeout semantics unless a focused issue explicitly narrows a bug.
 - No hidden unbounded task spawning that makes backpressure, cancellation, or shutdown less predictable.
-- No write-path index/key-layout optimization before phase 04 issue 07 names the read shape it must preserve.
-- No phase 06 read implementation before phase 04 issue 07 defines the access-path contract it is implementing.
+- No write-path index/key-layout optimization before the archived read access-path contract surface names the read shape it must preserve.
+- No phase 06 read implementation before the archived read access-path contract surface defines the access-path contract it is implementing.

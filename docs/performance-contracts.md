@@ -180,7 +180,7 @@ Serve interactive CRUD and admin mutations against a projection table with predi
 
 ### Validation
 - Benchmarks: focused mutation fixture in `tier2_subsystem_ingest`
-- Assertions: contract-level row/index/metadata write counters once exposed in phase 05 issue 06
+- Assertions: contract-level row/index/metadata write counters once exposed in the phase 05 write-amplification diagnostics surface
 
 ### Interactive or bulk?
 Interactive mutation.
@@ -289,7 +289,7 @@ Any indexed column mutation path in insert/update/delete flows.
 
 ### Required write strategy
 - update or delete only affected index entries for touched keys
-- keep key encoding and grouping aligned with read pattern requirements in phase 04 issue 07
+- keep key encoding and grouping aligned with the archived read access-path contract surface in this document
 
 ### Required read-shape compatibility
 - maintain index localities used by required filtered and ordered reads

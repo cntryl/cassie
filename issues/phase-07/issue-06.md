@@ -14,7 +14,7 @@ Runtime switching is the highest-risk query-intelligence feature in this backlog
 
 - Depends on phase 07 issue 05 for adaptive plan alternatives, guard conditions, and type-checked fallback operators.
 - Depends on phase 07 issue 01 for operator feedback and threshold calibration where feedback is used.
-- Depends on phase 04 issue 06 for runtime-boundary regression rules.
+- Depends on the archived phase 04 runtime-boundary contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` for runtime-boundary regression rules.
 - Depends on phase 06 issue 05 for executor diagnostics and fallback reporting.
 - Consumes phase 07 issue 03 merge joins, phase 07 issue 04 vectorized joins, and phase 03 issue 09 vectorized aggregation only for switch pairs that have explicit state-transfer rules.
 

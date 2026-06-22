@@ -11,7 +11,7 @@ Lower supported read-model predicates, ordering, and limits into bounded Midge-n
 
 ## Dependencies
 
-- Depends on phase 04 issue 07 for access-path contracts.
+- Depends on the archived phase 04 read access-path contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` for access-path contracts.
 - Depends on existing planner/index metadata and physical planning surfaces.
 
 ## Handoff

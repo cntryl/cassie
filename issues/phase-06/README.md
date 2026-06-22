@@ -42,7 +42,7 @@ The goal is that implementation work is mostly mechanical once the issue is pick
 
 ## Phase Sequence
 
-Phase 06 consumes phase 04 issue 07 for access-path contracts.
+Phase 06 consumes the archived phase 04 read access-path contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` for access-path contracts.
 It does not redefine read-shape vocabulary while implementing read-path behavior.
 
 1. Predicate/order/limit pushdown: lower eligible reads into bounded storage scans.
@@ -58,4 +58,4 @@ It does not redefine read-shape vocabulary while implementing read-path behavior
 - No hidden projection rewrites without EXPLAIN/diagnostic visibility.
 - No misleading `EXPLAIN` labels when the planner cannot prove an access path.
 - No optimization that changes ordering, null, offset, limit, or error semantics.
-- No read implementation should infer an access path that is absent from phase 04 issue 07.
+- No read implementation should infer an access path that is absent from the archived phase 04 read access-path contract surface.

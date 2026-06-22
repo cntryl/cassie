@@ -260,6 +260,18 @@ pub(super) fn execute_projected_filtered_read(
         return Ok(Some(rows));
     }
 
+    if let Some(spec) = point_lookup_read_spec(plan, params) {
+        return Ok(Some(execute_projected_point_lookup_read(
+            cassie,
+            session,
+            user_functions,
+            params,
+            controls,
+            plan,
+            spec,
+        )?));
+    }
+
     let pushdown_filter = plan
         .filter
         .as_ref()
@@ -274,25 +286,55 @@ pub(super) fn execute_projected_filtered_read(
         pushdown_filter.as_ref(),
         column_filter.as_ref(),
     )?;
+
+    cassie
+        .runtime
+        .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len());
+
     ensure_temp_budget(controls, &batches)?;
 
-    if pushdown_filter.is_none() {
+    Ok(Some(finalize_projected_filtered_read(
+        cassie,
+        session,
+        plan,
+        user_functions,
+        params,
+        controls,
+        &mut batches,
+        pushdown_filter.is_none(),
+    )?))
+}
+
+fn finalize_projected_filtered_read(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &LogicalPlan,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+    batches: &mut Vec<Vec<BatchRow>>,
+    apply_filter: bool,
+) -> Result<Vec<BatchRow>, QueryError> {
+    if apply_filter {
         if let Some(filter_expr) = &plan.filter {
-            batches = filter::filter_batches(
-                batches,
+            let filter_started = Instant::now();
+            *batches = filter::filter_batches(
+                batches.clone(),
                 filter_expr,
                 params,
                 None,
                 user_functions,
                 session,
             )?;
-            ensure_temp_budget(controls, &batches)?;
+            ensure_temp_budget(controls, batches)?;
+            let _ = filter_started;
         }
     }
 
     if !plan.order.is_empty() {
-        batches = sort::sort_batches(
-            batches,
+        let sort_started = Instant::now();
+        *batches = sort::sort_batches(
+            batches.clone(),
             &plan.order,
             &plan.projection,
             params,
@@ -300,36 +342,76 @@ pub(super) fn execute_projected_filtered_read(
             user_functions,
             session,
         )?;
-        ensure_temp_budget(controls, &batches)?;
+        ensure_temp_budget(controls, batches)?;
+        let _ = sort_started;
     }
 
-    batches = projection::project_batches(
-        batches,
+    *batches = projection::project_batches(
+        batches.clone(),
         &plan.projection,
         params,
         None,
         user_functions,
         session,
     )?;
-    ensure_temp_budget(controls, &batches)?;
+    ensure_temp_budget(controls, batches)?;
 
     if let Some(offset) = plan.offset {
         let offset = offset.max(0) as usize;
         let limit = plan.limit.map(|value| value.max(0) as usize);
-        batches = batch::slice_batches(batches, offset, limit);
+        *batches = batch::slice_batches(batches.clone(), offset, limit);
     } else if let Some(limit) = plan.limit {
         let limit = limit.max(0) as usize;
-        batches = batch::slice_batches(batches, 0, Some(limit));
+        *batches = batch::slice_batches(batches.clone(), 0, Some(limit));
     }
 
-    let rows = batch::flatten_batches(batches);
+    let rows = batch::flatten_batches(std::mem::take(batches));
+
     if covering_index_for_plan(cassie, plan).is_some() {
         cassie.runtime.record_covering_index_scan(rows.len());
     } else if selected_scalar_index_for_plan(cassie, plan).is_some() {
         cassie.runtime.record_covering_index_fallback();
     }
 
-    Ok(Some(rows))
+    Ok(rows)
+}
+
+fn execute_projected_point_lookup_read(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+    plan: &LogicalPlan,
+    spec: PointLookupReadSpec,
+) -> Result<Vec<BatchRow>, QueryError> {
+    let Some(document) = cassie
+        .get_document_for_session(session, &spec.collection, &spec.row_id)
+        .map_err(|error| QueryError::General(error.to_string()))?
+    else {
+        cassie
+            .runtime
+            .record_read_path_point_lookup(&spec.collection, false);
+        return Ok(Vec::new());
+    };
+
+    cassie
+        .runtime
+        .record_read_path_point_lookup(&spec.collection, true);
+    let schema = cassie.catalog.get_schema(&spec.collection);
+    let row = scan::projected_document_to_row(document, &spec.scan_fields, schema.as_ref());
+    let mut batches = vec![vec![row]];
+
+    finalize_projected_filtered_read(
+        cassie,
+        session,
+        plan,
+        user_functions,
+        params,
+        controls,
+        &mut batches,
+        false,
+    )
 }
 
 pub(super) fn execute_projected_filtered_read_with_breakdown(
@@ -361,6 +443,21 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
 
     let mut breakdown = ExecutionBreakdownDurations::default();
 
+    if let Some(spec) = point_lookup_read_spec(plan, params) {
+        let result_started = Instant::now();
+        let rows = execute_projected_point_lookup_read(
+            cassie,
+            session,
+            user_functions,
+            params,
+            controls,
+            plan,
+            spec,
+        )?;
+        breakdown.result_build += result_started.elapsed();
+        return Ok(Some((rows, breakdown)));
+    }
+
     let scan_started = Instant::now();
     let pushdown_filter = plan
         .filter
@@ -381,6 +478,9 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
     breakdown.scan += scan_timings
         .scan
         .saturating_add(scan_started.elapsed().saturating_sub(measured_scan));
+    cassie
+        .runtime
+        .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len());
     ensure_temp_budget(controls, &batches)?;
 
     if pushdown_filter.is_none() {
@@ -453,6 +553,13 @@ pub(super) struct ProjectedFilteredReadSpec {
     pub(super) scan_limit: Option<usize>,
 }
 
+#[derive(Debug, Clone)]
+struct PointLookupReadSpec {
+    collection: String,
+    row_id: String,
+    scan_fields: Vec<String>,
+}
+
 pub(super) fn projected_filtered_read_spec(
     plan: &LogicalPlan,
 ) -> Option<ProjectedFilteredReadSpec> {
@@ -510,6 +617,78 @@ pub(super) fn projected_filtered_read_spec(
         scan_fields,
         scan_limit,
     })
+}
+
+fn point_lookup_read_spec(plan: &LogicalPlan, params: &[Value]) -> Option<PointLookupReadSpec> {
+    if plan.offset.is_some_and(|offset| offset > 0) {
+        return None;
+    }
+
+    let projected = projected_filtered_read_spec(plan)?;
+    let filter = plan.filter.as_ref()?;
+    let row_id = point_lookup_row_id(filter, params)?;
+
+    Some(PointLookupReadSpec {
+        collection: projected.collection,
+        row_id,
+        scan_fields: projected.scan_fields,
+    })
+}
+
+fn point_lookup_row_id(filter: &Expr, params: &[Value]) -> Option<String> {
+    let Expr::Binary {
+        left,
+        op: BinaryOp::Eq,
+        right,
+    } = filter
+    else {
+        return None;
+    };
+
+    match (left.as_ref(), right.as_ref()) {
+        (Expr::Column(column), value) if is_row_id_column(column) => {
+            point_lookup_value_to_row_id(value, params)
+        }
+        (value, Expr::Column(column)) if is_row_id_column(column) => {
+            point_lookup_value_to_row_id(value, params)
+        }
+        _ => None,
+    }
+}
+
+fn point_lookup_value_to_row_id(expr: &Expr, params: &[Value]) -> Option<String> {
+    match expr {
+        Expr::StringLiteral(value) => Some(value.clone()),
+        Expr::NumberLiteral(value) => row_id_from_number(*value),
+        Expr::BoolLiteral(value) => Some(value.to_string()),
+        Expr::Param(index) => params.get(*index).and_then(row_id_from_value),
+        _ => None,
+    }
+}
+
+fn row_id_from_value(value: &Value) -> Option<String> {
+    match value {
+        Value::String(value) => Some(value.clone()),
+        Value::Int64(value) => Some(value.to_string()),
+        Value::Bool(value) => Some(value.to_string()),
+        Value::Float64(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn row_id_from_number(value: f64) -> Option<String> {
+    if !value.is_finite() {
+        return None;
+    }
+
+    if value.fract() == 0.0 {
+        let integer = value as i64;
+        if (integer as f64) == value {
+            return Some(integer.to_string());
+        }
+    }
+
+    Some(value.to_string())
 }
 
 fn projected_order_columns(plan: &LogicalPlan) -> Option<Vec<String>> {

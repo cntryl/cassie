@@ -295,6 +295,123 @@ fn should_report_runtime_metrics_snapshot() {
 }
 
 #[test]
+fn should_record_read_path_metrics_for_point_lookup_collection_scan() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("read_path_metrics");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "metrics_read_paths";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "status".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(collection, schema);
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha", "status": "active"}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-2".to_string()),
+                serde_json::json!({"title": "bravo", "status": "queued"}),
+            )
+            .unwrap();
+
+        let session = cassie.create_session("tester", None);
+        let before = cassie.metrics();
+        let before_point_hits = before["read_paths"]["point_lookup_hits"]
+            .as_u64()
+            .unwrap_or_default();
+        let before_point_misses = before["read_paths"]["point_lookup_misses"]
+            .as_u64()
+            .unwrap_or_default();
+        let before_point_scans = before["read_paths"]["point_lookup_scans"]
+            .as_u64()
+            .unwrap_or_default();
+        let before_scans = before["read_paths"]["collection_scans"]
+            .as_u64()
+            .unwrap_or_default();
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM metrics_read_paths WHERE id = 'doc-1'",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM metrics_read_paths WHERE id = 'missing'",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(&session, "SELECT title FROM metrics_read_paths", vec![])
+            .unwrap();
+
+        // Assert
+        let after = cassie.metrics();
+        assert_eq!(
+            after["read_paths"]["point_lookup_scans"]
+                .as_u64()
+                .unwrap_or_default(),
+            before_point_scans + 2,
+        );
+        assert_eq!(
+            after["read_paths"]["point_lookup_hits"]
+                .as_u64()
+                .unwrap_or_default(),
+            before_point_hits + 1,
+        );
+        assert_eq!(
+            after["read_paths"]["point_lookup_misses"]
+                .as_u64()
+                .unwrap_or_default(),
+            before_point_misses + 1,
+        );
+        assert_eq!(
+            after["read_paths"]["collection_scans"]
+                .as_u64()
+                .unwrap_or_default(),
+            before_scans + 1,
+        );
+        assert!(after["read_paths"]["last_point_lookup_collection"]
+            .as_str()
+            .is_some());
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_expose_cardinality_metrics_with_explain_plan_estimates() {
     // Arrange
     with_fallback();

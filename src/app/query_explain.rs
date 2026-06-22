@@ -36,6 +36,12 @@ pub(super) fn plan_line(
         .top_k_limit
         .map(|limit| limit.to_string())
         .unwrap_or_else(|| "none".to_string());
+    let access_path = physical.access_path.as_str();
+    let access_path_reason = physical.access_path_reason.as_str();
+    let fallback_reason = physical.fallback_reason.as_deref().unwrap_or("none");
+    let pagination_strategy = physical.pagination_strategy.as_str();
+    let top_k_mode = physical.top_k_mode.as_str();
+    let projection_shape = physical.projection_shape.as_str();
     let join_strategy = physical.join_strategy.as_deref().unwrap_or("none");
     let aggregate_parallel = physical.parallel_aggregate_candidate;
     let aggregate_acceleration = physical.aggregate_acceleration;
@@ -62,7 +68,7 @@ pub(super) fn plan_line(
     };
 
     format!(
-        "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} index_aware={} index={} index_feedback={} covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={} cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
+        "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} access_path={} access_path_reason={} fallback_reason={} pagination_strategy={} top_k_mode={} projection_shape={} index_aware={} index={} index_feedback={} covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={} cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
         physical.collection,
         if operators.is_empty() {
             "Command".to_string()
@@ -74,6 +80,12 @@ pub(super) fn plan_line(
         scan_fields,
         limit_pushdown,
         scan_limit,
+        access_path,
+        access_path_reason,
+        fallback_reason,
+        pagination_strategy,
+        top_k_mode,
+        projection_shape,
         index_aware,
         index,
         index_feedback,

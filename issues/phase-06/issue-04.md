@@ -11,7 +11,7 @@ Require latency-sensitive read models to shape data, keys, and derived projectio
 
 ## Dependencies
 
-- Depends on phase 04 issue 07 for read contracts.
+- Depends on the archived phase 04 read access-path contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` for read contracts.
 - Depends on phase 01 projection lifecycle foundations for materialized/versioned projections.
 
 ## Handoff

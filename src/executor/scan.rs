@@ -334,24 +334,30 @@ fn projected_document_batch_to_rows(
                 .map(|filter| projected_document_matches(&document.payload, filter))
                 .unwrap_or(true)
         })
-        .map(|document| {
-            let mut row = Vec::with_capacity(fields.len() + 1);
-            row.push(("id".to_string(), Value::String(document.id)));
-            let object = document.payload.as_object();
-            for field in fields {
-                let value = object
-                    .and_then(|object| projected_field_value(object, field))
-                    .map(|value| {
-                        field_data_type(schema, field)
-                            .map(|data_type| json_to_typed_value(value, data_type))
-                            .unwrap_or_else(|| json_to_value(value))
-                    })
-                    .unwrap_or(Value::Null);
-                row.push((field.clone(), value));
-            }
-            BatchRow::from_projected_values(row)
-        })
+        .map(|document| projected_document_to_row(document, fields, schema))
         .collect::<Batch>()
+}
+
+pub(crate) fn projected_document_to_row(
+    document: DocumentRef,
+    fields: &[String],
+    schema: Option<&CollectionSchema>,
+) -> BatchRow {
+    let mut row = Vec::with_capacity(fields.len() + 1);
+    row.push(("id".to_string(), Value::String(document.id)));
+    let object = document.payload.as_object();
+    for field in fields {
+        let value = object
+            .and_then(|object| projected_field_value(object, field))
+            .map(|value| {
+                field_data_type(schema, field)
+                    .map(|data_type| json_to_typed_value(value, data_type))
+                    .unwrap_or_else(|| json_to_value(value))
+            })
+            .unwrap_or(Value::Null);
+        row.push((field.clone(), value));
+    }
+    BatchRow::from_projected_values(row)
 }
 
 fn field_data_type<'a>(schema: Option<&'a CollectionSchema>, field: &str) -> Option<&'a DataType> {

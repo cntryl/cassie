@@ -254,6 +254,18 @@ pub struct RetentionSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct ReadPathSnapshot {
+    pub collection_scans: u64,
+    pub collection_scan_fields: u64,
+    pub point_lookup_scans: u64,
+    pub point_lookup_hits: u64,
+    pub point_lookup_misses: u64,
+    pub last_collection_scan_collection: String,
+    pub last_point_lookup_collection: String,
+    pub last_point_lookup_hit: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct StorageFamilySnapshot {
     pub reads: u64,
     pub writes: u64,
@@ -294,4 +306,5 @@ pub struct RuntimeMetricsSnapshot {
     pub rollups: RollupSnapshot,
     pub projections: ProjectionSnapshot,
     pub retention: RetentionSnapshot,
+    pub read_paths: ReadPathSnapshot,
 }

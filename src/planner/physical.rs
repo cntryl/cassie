@@ -40,6 +40,92 @@ pub enum Operator {
     SetOperation,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadAccessPath {
+    #[default]
+    Unknown,
+    CollectionScan,
+    PointLookup,
+    RuntimeJoin,
+}
+
+impl ReadAccessPath {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::CollectionScan => "collection_scan",
+            Self::PointLookup => "point_lookup",
+            Self::RuntimeJoin => "runtime_join",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PaginationStrategy {
+    #[default]
+    None,
+    Limit,
+    Offset,
+    Keyset,
+    DegradedOffset,
+}
+
+impl PaginationStrategy {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Limit => "limit",
+            Self::Offset => "offset",
+            Self::Keyset => "keyset",
+            Self::DegradedOffset => "degraded_offset",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TopKMode {
+    #[default]
+    None,
+    Heap,
+    Storage,
+}
+
+impl TopKMode {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Heap => "heap",
+            Self::Storage => "storage",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectionShape {
+    #[default]
+    Unknown,
+    RuntimeJoinDegraded,
+    Collection,
+    MaterializedProjection,
+    Other,
+}
+
+impl ProjectionShape {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::RuntimeJoinDegraded => "runtime_join_degraded",
+            Self::Collection => "collection",
+            Self::MaterializedProjection => "materialized_projection",
+            Self::Other => "other",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhysicalPlan {
     pub collection: String,
@@ -57,6 +143,18 @@ pub struct PhysicalPlan {
     pub join_strategy: Option<String>,
     pub parallel_aggregate_candidate: bool,
     pub aggregate_acceleration: bool,
+    #[serde(default)]
+    pub access_path: ReadAccessPath,
+    #[serde(default)]
+    pub access_path_reason: String,
+    #[serde(default)]
+    pub fallback_reason: Option<String>,
+    #[serde(default)]
+    pub pagination_strategy: PaginationStrategy,
+    #[serde(default)]
+    pub top_k_mode: TopKMode,
+    #[serde(default)]
+    pub projection_shape: ProjectionShape,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -101,6 +199,12 @@ pub fn build_with_indexes(
             join_strategy: None,
             parallel_aggregate_candidate: false,
             aggregate_acceleration: false,
+            access_path: ReadAccessPath::Unknown,
+            access_path_reason: "command-path".to_string(),
+            fallback_reason: Some("command".to_string()),
+            pagination_strategy: PaginationStrategy::None,
+            top_k_mode: TopKMode::None,
+            projection_shape: ProjectionShape::Unknown,
         };
     }
 
@@ -118,6 +222,12 @@ pub fn build_with_indexes(
     let join_strategy = join_strategy(&plan);
     let parallel_aggregate_candidate = plan_supports_parallel_aggregation(&plan);
     let aggregate_acceleration = plan_supports_aggregate_acceleration(&plan, indexes.as_slice());
+    let access_path = determine_read_access_path(&plan);
+    let access_path_reason = read_access_path_reason(&plan, &access_path);
+    let fallback_reason = read_access_path_fallback_reason(&plan, &access_path);
+    let pagination_strategy = determine_pagination_strategy(&plan);
+    let top_k_mode = determine_top_k_mode(&plan);
+    let projection_shape = determine_projection_shape(&plan);
     let estimates = PlanEstimates::from_plan(&plan, selected_index.as_deref(), cardinality_stats);
     let mut operators = vec![Operator::Scan];
     if source_contains_join(&plan.source) {
@@ -169,7 +279,185 @@ pub fn build_with_indexes(
         join_strategy,
         parallel_aggregate_candidate,
         aggregate_acceleration,
+        access_path,
+        access_path_reason,
+        fallback_reason,
+        pagination_strategy,
+        top_k_mode,
+        projection_shape,
     }
+}
+
+fn determine_read_access_path(plan: &LogicalPlan) -> ReadAccessPath {
+    if source_contains_join(&plan.source) {
+        return ReadAccessPath::RuntimeJoin;
+    }
+
+    if is_row_id_lookup_query(plan) {
+        return ReadAccessPath::PointLookup;
+    }
+
+    if matches!(&plan.source, QuerySource::Collection(_)) {
+        return ReadAccessPath::CollectionScan;
+    }
+
+    ReadAccessPath::Unknown
+}
+
+fn determine_pagination_strategy(plan: &LogicalPlan) -> PaginationStrategy {
+    let offset = plan.offset.unwrap_or(0);
+    if plan.limit.is_none() {
+        return if offset > 0 {
+            PaginationStrategy::DegradedOffset
+        } else {
+            PaginationStrategy::None
+        };
+    }
+
+    if offset > 0 {
+        PaginationStrategy::DegradedOffset
+    } else {
+        PaginationStrategy::Limit
+    }
+}
+
+fn determine_top_k_mode(plan: &LogicalPlan) -> TopKMode {
+    if !is_heap_top_k_candidate(plan) {
+        return TopKMode::None;
+    }
+
+    if is_storage_top_k_candidate(plan) {
+        return TopKMode::Storage;
+    }
+
+    TopKMode::Heap
+}
+
+fn determine_projection_shape(plan: &LogicalPlan) -> ProjectionShape {
+    if source_contains_join(&plan.source) {
+        return ProjectionShape::RuntimeJoinDegraded;
+    }
+
+    if is_row_projection(plan) {
+        if plan.filter.is_some() {
+            return ProjectionShape::MaterializedProjection;
+        }
+        return ProjectionShape::Collection;
+    }
+
+    ProjectionShape::Other
+}
+
+fn read_access_path_reason(plan: &LogicalPlan, access_path: &ReadAccessPath) -> String {
+    match access_path {
+        ReadAccessPath::Unknown => {
+            if plan.command.is_some() {
+                "command-path".to_string()
+            } else {
+                "unsupported-plan-shape".to_string()
+            }
+        }
+        ReadAccessPath::CollectionScan => "collection-scan".to_string(),
+        ReadAccessPath::PointLookup => "point-lookup-id".to_string(),
+        ReadAccessPath::RuntimeJoin => "runtime-join".to_string(),
+    }
+}
+
+fn read_access_path_fallback_reason(
+    plan: &LogicalPlan,
+    access_path: &ReadAccessPath,
+) -> Option<String> {
+    match access_path {
+        ReadAccessPath::CollectionScan => {
+            if plan.offset.is_some() {
+                Some("offset-degraded".to_string())
+            } else {
+                None
+            }
+        }
+        ReadAccessPath::RuntimeJoin => Some("runtime-join-required".to_string()),
+        _ => None,
+    }
+}
+
+fn is_row_projection(plan: &LogicalPlan) -> bool {
+    !plan.projection.is_empty()
+        && plan
+            .projection
+            .iter()
+            .all(|item| matches!(item, SelectItem::Column { .. }))
+}
+
+fn is_row_id_lookup_query(plan: &LogicalPlan) -> bool {
+    if plan.distinct
+        || !plan.distinct_on.is_empty()
+        || !plan.group_by.is_empty()
+        || plan.having.is_some()
+        || plan.set.is_some()
+        || !matches!(plan.source, QuerySource::Collection(_))
+    {
+        return false;
+    }
+
+    let Some(filter) = plan.filter.as_ref() else {
+        return false;
+    };
+
+    is_id_point_lookup_filter(filter)
+        && is_row_projection(plan)
+        && !plan.offset.is_some_and(|offset| offset > 0)
+}
+
+fn is_id_point_lookup_filter(expr: &Expr) -> bool {
+    let Expr::Binary {
+        left,
+        op: BinaryOp::Eq,
+        right,
+    } = expr
+    else {
+        return false;
+    };
+
+    let (lhs, rhs) = (left.as_ref(), right.as_ref());
+    let (column, other) = match (lhs, rhs) {
+        (Expr::Column(column), other) => (column, other),
+        (other, Expr::Column(column)) => (column, other),
+        _ => return false,
+    };
+
+    if !is_row_id_column(column) {
+        return false;
+    }
+
+    matches!(
+        other,
+        Expr::StringLiteral(_)
+            | Expr::BoolLiteral(_)
+            | Expr::NumberLiteral(_)
+            | Expr::Null
+            | Expr::Param(_)
+    )
+}
+
+fn is_heap_top_k_candidate(plan: &LogicalPlan) -> bool {
+    !plan.order.is_empty() && plan.limit.is_some() && plan.set.is_none()
+}
+
+fn is_storage_top_k_candidate(plan: &LogicalPlan) -> bool {
+    is_heap_top_k_candidate(plan)
+        && plan.filter.is_none()
+        && !plan.distinct
+        && plan.distinct_on.is_empty()
+        && plan.group_by.is_empty()
+        && plan.having.is_none()
+        && plan.set.is_none()
+        && plan
+            .projection
+            .iter()
+            .all(|item| matches!(item, SelectItem::Column { .. }))
+        && plan.order.len() == 1
+        && matches!(plan.order[0].expr, Expr::Column(_))
+        && plan.ctes.is_empty()
 }
 
 fn join_strategy(plan: &LogicalPlan) -> Option<String> {

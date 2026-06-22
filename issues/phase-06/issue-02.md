@@ -11,7 +11,7 @@ Prefer seek/keyset pagination and bounded continuation scans for interactive rea
 
 ## Dependencies
 
-- Depends on phase 04 issue 07 for the ordered-page and filtered-page contracts.
+- Depends on the archived phase 04 read access-path contract surface in `docs/performance-contracts.md` and `issues/phase-04/README.md` for the ordered-page and filtered-page contracts.
 - Depends on phase 06 issue 01 for bounded ordered scan planning.
 
 ## Handoff

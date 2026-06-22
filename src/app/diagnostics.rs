@@ -42,6 +42,7 @@ impl Cassie {
             "rollups": snapshot.rollups,
             "projections": snapshot.projections,
             "retention": snapshot.retention,
+            "read_paths": snapshot.read_paths,
         })
     }
 }

@@ -132,6 +132,72 @@ fn should_explain_predicate_pushdown_for_literal_equality_filter() {
 }
 
 #[test]
+fn should_report_read_path_metadata_in_explain() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("explain_read_path_metadata");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_explain_read_path_metadata";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT id, title FROM sql_explain_read_path_metadata WHERE id = 'doc-1'",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        let Value::String(plan) = &result.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("access_path=point_lookup"));
+        assert!(plan.contains("access_path_reason=point-lookup-id"));
+        assert!(plan.contains("fallback_reason=none"));
+        assert!(plan.contains("pagination_strategy=none"));
+        assert!(plan.contains("top_k_mode=none"));
+        assert!(plan.contains("projection_shape=materialized_projection"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_explain_projection_pruning_fields() {
     // Arrange
     with_fallback();

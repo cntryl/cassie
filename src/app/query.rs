@@ -34,6 +34,8 @@ impl Cassie {
             limits.adaptive_execution_enabled,
             limits.adaptive_min_cost_savings_bps,
             limits.operator_feedback_enabled,
+            limits.operator_switching_enabled,
+            limits.operator_switch_join_row_threshold,
         ))
     }
 
@@ -778,6 +780,22 @@ impl Cassie {
                 .adaptive_candidates
                 .plan_selected_alternatives
                 .saturating_sub(before.adaptive_candidates.plan_selected_alternatives);
+            let operator_switch_attempts_delta = after
+                .adaptive_candidates
+                .operator_switch_attempts
+                .saturating_sub(before.adaptive_candidates.operator_switch_attempts);
+            let operator_switch_success_delta = after
+                .adaptive_candidates
+                .operator_switch_successes
+                .saturating_sub(before.adaptive_candidates.operator_switch_successes);
+            let operator_switch_skips_delta = after
+                .adaptive_candidates
+                .operator_switch_skips
+                .saturating_sub(before.adaptive_candidates.operator_switch_skips);
+            let operator_switch_fallbacks_delta = after
+                .adaptive_candidates
+                .operator_switch_fallbacks
+                .saturating_sub(before.adaptive_candidates.operator_switch_fallbacks);
             self.record_feedback_for_keys(
                 feedback_keys,
                 RuntimeFeedbackObservation {
@@ -818,7 +836,7 @@ impl Cassie {
                     .join("|")
             };
             plan.push_str(&format!(
-                " analyze=true actual_rows={} actual_ms={} operator_actuals={} diagnostics=plan_cache_hits_delta:{},plan_cache_misses_delta:{},storage_reads_delta:{},storage_writes_delta:{},temp_writes_delta:{},candidate_count_delta:{},result_count_delta:{},parallel_aggregations_delta:{},parallel_aggregation_fallback_delta:{},parallel_aggregation_workers_delta:{},parallel_aggregation_groups_delta:{},adaptive_plan_decisions_delta:{},adaptive_plan_selected_delta:{}",
+                " analyze=true actual_rows={} actual_ms={} operator_actuals={} diagnostics=plan_cache_hits_delta:{},plan_cache_misses_delta:{},storage_reads_delta:{},storage_writes_delta:{},temp_writes_delta:{},candidate_count_delta:{},result_count_delta:{},parallel_aggregations_delta:{},parallel_aggregation_fallback_delta:{},parallel_aggregation_workers_delta:{},parallel_aggregation_groups_delta:{},adaptive_plan_decisions_delta:{},adaptive_plan_selected_delta:{},operator_switch_attempts_delta:{},operator_switch_success_delta:{},operator_switch_skips_delta:{},operator_switch_fallbacks_delta:{}",
                 result.rows.len(),
                 elapsed_ms,
                 actual_operators,
@@ -834,7 +852,11 @@ impl Cassie {
                 parallel_aggregation_workers_delta,
                 parallel_aggregation_groups_delta,
                 adaptive_plan_decisions_delta,
-                adaptive_plan_selected_delta
+                adaptive_plan_selected_delta,
+                operator_switch_attempts_delta,
+                operator_switch_success_delta,
+                operator_switch_skips_delta,
+                operator_switch_fallbacks_delta
             ));
         }
 

@@ -320,6 +320,11 @@ fn should_plan_join_source_with_physical_join_operator() {
             Some(Operator::Join)
         ));
         assert_eq!(physical_plan.join_strategy.as_deref(), Some("hash"));
+        assert!(physical_plan.vectorized_join_candidate);
+        assert_eq!(
+            physical_plan.vectorized_join_fallback_reason.as_deref(),
+            None
+        );
     });
 }
 

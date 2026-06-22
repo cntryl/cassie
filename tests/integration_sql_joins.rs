@@ -20,6 +20,13 @@ fn vectorized_join_config() -> CassieRuntimeConfig {
     config
 }
 
+fn operator_switch_join_config(enabled: bool, threshold: usize) -> CassieRuntimeConfig {
+    let mut config = vectorized_join_config();
+    config.limits.operator_switching_enabled = enabled;
+    config.limits.operator_switch_join_row_threshold = threshold;
+    config
+}
+
 #[test]
 fn should_execute_inner_join_query() {
     // Arrange
@@ -338,6 +345,110 @@ fn should_execute_vectorized_left_join_unmatched_rows() {
         assert_eq!(metrics["joins"]["vectorized_build_rows_total"], 1);
 
         let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_preserve_join_results_when_operator_switch_replays_inputs() {
+    // Arrange
+    with_fallback();
+    let fixed_path = data_dir("join_operator_switch_fixed");
+    let switched_path = data_dir("join_operator_switch_replay");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let fixed =
+            Cassie::new_with_data_dir_and_config(&fixed_path, operator_switch_join_config(false, 0))
+                .unwrap();
+        let switched =
+            Cassie::new_with_data_dir_and_config(&switched_path, operator_switch_join_config(true, 1))
+                .unwrap();
+        let fixed_session = fixed.create_session("tester", None);
+        let switched_session = switched.create_session("tester", None);
+        for (cassie, session, users, orders) in [
+            (
+                &fixed,
+                &fixed_session,
+                "join_switch_fixed_users",
+                "join_switch_fixed_orders",
+            ),
+            (
+                &switched,
+                &switched_session,
+                "join_switch_replay_users",
+                "join_switch_replay_orders",
+            ),
+        ] {
+            cassie
+                .execute_sql(
+                    session,
+                    &format!("CREATE TABLE {users} (user_key INT, name TEXT)"),
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    session,
+                    &format!("CREATE TABLE {orders} (order_user_key INT, total INT)"),
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    session,
+                    &format!(
+                        "INSERT INTO {users} (user_key, name) VALUES (1, 'ada'), (2, 'grace')"
+                    ),
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    session,
+                    &format!(
+                        "INSERT INTO {orders} (order_user_key, total) VALUES (1, 10), (2, 20)"
+                    ),
+                    vec![],
+                )
+                .unwrap();
+        }
+
+        // Act
+        let fixed_result = fixed
+            .execute_sql(
+                &fixed_session,
+                "SELECT join_switch_fixed_users.name, join_switch_fixed_orders.total FROM join_switch_fixed_users JOIN join_switch_fixed_orders ON join_switch_fixed_users.user_key = join_switch_fixed_orders.order_user_key ORDER BY join_switch_fixed_users.name",
+                vec![],
+            )
+            .unwrap();
+        let switched_result = switched
+            .execute_sql(
+                &switched_session,
+                "SELECT join_switch_replay_users.name, join_switch_replay_orders.total FROM join_switch_replay_users JOIN join_switch_replay_orders ON join_switch_replay_users.user_key = join_switch_replay_orders.order_user_key ORDER BY join_switch_replay_users.name",
+                vec![],
+            )
+            .unwrap();
+        let metrics = switched.metrics();
+
+        // Assert
+        assert_eq!(fixed_result.rows, switched_result.rows);
+        assert_eq!(
+            switched_result.rows,
+            vec![
+                vec![Value::String("ada".to_string()), Value::Int64(10)],
+                vec![Value::String("grace".to_string()), Value::Int64(20)],
+            ]
+        );
+        assert_eq!(
+            metrics["adaptive_candidates"]["last_operator_switch_state"],
+            "replay_left_rows=2;replay_right_rows=2;rows_emitted=0"
+        );
+
+        let _ = std::fs::remove_dir_all(fixed_path);
+        let _ = std::fs::remove_dir_all(switched_path);
     });
 }
 

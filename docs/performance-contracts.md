@@ -74,9 +74,12 @@ Current EXPLAIN and metrics contracts should make the path explicit through labe
 `projection_freshness` when applicable. Adaptive read-operator plans also expose
 `adaptive_plan_enabled`, `adaptive_decision_point`, `adaptive_candidates`,
 `adaptive_selected_alternative`, `adaptive_guard`, and `adaptive_reason` so prevalidated
-alternative selection remains auditable. Join-sensitive plans also expose `join_strategy`,
-`join_keys`, `join_sort_required`, `join_fallback_reason`, `vectorized_join_candidate`,
-`vectorized_join_enabled`, `vectorized_join_batch_size`, and
+alternative selection remains auditable. Runtime operator switching exposes
+`operator_switch_candidate`, `operator_switch_enabled`, `operator_switch_pair`,
+`operator_switch_threshold`, and `operator_switch_reason`; supported switch pairs must define a
+replay or transfer state that prevents duplicate or skipped emitted rows. Join-sensitive plans also
+expose `join_strategy`, `join_keys`, `join_sort_required`, `join_fallback_reason`,
+`vectorized_join_candidate`, `vectorized_join_enabled`, `vectorized_join_batch_size`, and
 `vectorized_join_fallback_reason` so merge/vectorized join selection and fallbacks are visible.
 For the current scalar and ordered-read scope, that vocabulary includes
 `point_lookup`, `index_seek`, `prefix_scan`, `range_scan`, `ordered_bounded_scan`,

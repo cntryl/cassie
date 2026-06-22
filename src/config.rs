@@ -31,6 +31,8 @@ pub struct CassieRuntimeLimits {
     pub vectorized_join_batch_size: usize,
     pub adaptive_execution_enabled: bool,
     pub adaptive_min_cost_savings_bps: usize,
+    pub operator_switching_enabled: bool,
+    pub operator_switch_join_row_threshold: usize,
     pub adaptive_candidate_min: usize,
     pub adaptive_candidate_max: usize,
     pub parallel_scan_workers: usize,
@@ -113,6 +115,8 @@ impl Default for CassieRuntimeLimits {
             vectorized_join_batch_size: 1024,
             adaptive_execution_enabled: false,
             adaptive_min_cost_savings_bps: 500,
+            operator_switching_enabled: false,
+            operator_switch_join_row_threshold: 4096,
             adaptive_candidate_min: 16,
             adaptive_candidate_max: 100_000,
             parallel_scan_workers: 1,
@@ -220,6 +224,14 @@ impl CassieRuntimeConfig {
             adaptive_min_cost_savings_bps: parse_usize(
                 "CASSIE_ADAPTIVE_MIN_COST_SAVINGS_BPS",
                 config.limits.adaptive_min_cost_savings_bps,
+            ),
+            operator_switching_enabled: parse_bool(
+                "CASSIE_OPERATOR_SWITCHING_ENABLED",
+                config.limits.operator_switching_enabled,
+            ),
+            operator_switch_join_row_threshold: parse_usize(
+                "CASSIE_OPERATOR_SWITCH_JOIN_ROW_THRESHOLD",
+                config.limits.operator_switch_join_row_threshold,
             ),
             adaptive_candidate_min: parse_usize(
                 "CASSIE_ADAPTIVE_CANDIDATE_MIN",

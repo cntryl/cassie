@@ -144,6 +144,13 @@ pub struct AdaptiveCandidateSnapshot {
     pub last_plan_selected_alternative: String,
     pub last_plan_guard: String,
     pub last_plan_reason: String,
+    pub operator_switch_attempts: u64,
+    pub operator_switch_successes: u64,
+    pub operator_switch_skips: u64,
+    pub operator_switch_fallbacks: u64,
+    pub last_operator_switch_pair: String,
+    pub last_operator_switch_reason: String,
+    pub last_operator_switch_state: String,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

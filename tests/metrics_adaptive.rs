@@ -59,6 +59,15 @@ fn adaptive_execution_config(
     config
 }
 
+fn operator_switch_config(enabled: bool, threshold: usize) -> cassie::config::CassieRuntimeConfig {
+    let mut config = cassie::config::CassieRuntimeConfig::from_env();
+    config.limits.vectorized_joins_enabled = true;
+    config.limits.vectorized_join_batch_size = 2;
+    config.limits.operator_switching_enabled = enabled;
+    config.limits.operator_switch_join_row_threshold = threshold;
+    config
+}
+
 fn confident_feedback(elapsed_ms: u64, storage_reads: u64) -> RuntimeFeedbackObservation {
     RuntimeFeedbackObservation {
         rows_in: storage_reads.max(1),
@@ -129,6 +138,37 @@ fn register_operator_feedback_indexes(
         cassie.midge.put_index(index.clone()).unwrap();
         cassie.catalog.register_index(index);
     }
+}
+
+fn create_switch_join_tables(cassie: &Cassie, session: &CassieSession, users: &str, orders: &str) {
+    cassie
+        .execute_sql(
+            session,
+            &format!("CREATE TABLE {users} (user_key INT, name TEXT)"),
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            session,
+            &format!("CREATE TABLE {orders} (order_user_key INT, total INT)"),
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            session,
+            &format!("INSERT INTO {users} (user_key, name) VALUES (1, 'ada'), (2, 'grace')"),
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            session,
+            &format!("INSERT INTO {orders} (order_user_key, total) VALUES (1, 10), (2, 20)"),
+            vec![],
+        )
+        .unwrap();
 }
 
 fn adaptive_candidate_config(min: usize, max: usize) -> cassie::config::CassieRuntimeConfig {
@@ -504,6 +544,226 @@ fn should_keep_base_alternative_when_adaptive_guard_fails() {
         );
         assert!(plan.contains("adaptive_guard_passed=false"), "plan={plan}");
         assert!(plan.contains("adaptive_reason=guard_failed"), "plan={plan}");
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_switch_vectorized_join_to_merge_when_threshold_exceeded() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("operator_switch_join_threshold");
+    let config = operator_switch_config(true, 2);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let session = cassie.create_session("tester", None);
+        create_switch_join_tables(
+            &cassie,
+            &session,
+            "metrics_switch_users",
+            "metrics_switch_orders",
+        );
+        let before = cassie.metrics();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT metrics_switch_users.name, metrics_switch_orders.total FROM metrics_switch_users JOIN metrics_switch_orders ON metrics_switch_users.user_key = metrics_switch_orders.order_user_key ORDER BY metrics_switch_users.name",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![
+                vec![
+                    cassie::types::Value::String("ada".to_string()),
+                    cassie::types::Value::Int64(10)
+                ],
+                vec![
+                    cassie::types::Value::String("grace".to_string()),
+                    cassie::types::Value::Int64(20)
+                ],
+            ]
+        );
+        assert_eq!(
+            after["adaptive_candidates"]["operator_switch_successes"]
+                .as_u64()
+                .unwrap_or_default()
+                - before["adaptive_candidates"]["operator_switch_successes"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            1
+        );
+        assert_eq!(
+            after["adaptive_candidates"]["last_operator_switch_pair"],
+            "vectorized_join_to_merge_join"
+        );
+        assert_eq!(
+            after["adaptive_candidates"]["last_operator_switch_reason"],
+            "row_threshold_exceeded"
+        );
+        assert_eq!(after["joins"]["last_strategy"], "merge");
+        assert_eq!(after["joins"]["vectorized_joins"], 0);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_keep_vectorized_join_when_operator_switching_disabled() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("operator_switch_disabled");
+    let config = operator_switch_config(false, 0);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let session = cassie.create_session("tester", None);
+        create_switch_join_tables(
+            &cassie,
+            &session,
+            "metrics_switch_disabled_users",
+            "metrics_switch_disabled_orders",
+        );
+        let before = cassie.metrics();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT metrics_switch_disabled_users.name, metrics_switch_disabled_orders.total FROM metrics_switch_disabled_users JOIN metrics_switch_disabled_orders ON metrics_switch_disabled_users.user_key = metrics_switch_disabled_orders.order_user_key",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(selected.rows.len(), 2);
+        assert_eq!(
+            after["adaptive_candidates"]["operator_switch_attempts"]
+                .as_u64()
+                .unwrap_or_default()
+                - before["adaptive_candidates"]["operator_switch_attempts"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            0
+        );
+        assert_eq!(after["joins"]["last_strategy"], "vectorized");
+        assert_eq!(after["joins"]["vectorized_joins"], 1);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_report_runtime_operator_switch_in_explain_analyze() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("operator_switch_explain");
+    let config = operator_switch_config(true, 1);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let session = cassie.create_session("tester", None);
+        create_switch_join_tables(
+            &cassie,
+            &session,
+            "metrics_switch_explain_users",
+            "metrics_switch_explain_orders",
+        );
+
+        // Act
+        let explained = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN ANALYZE SELECT metrics_switch_explain_users.name, metrics_switch_explain_orders.total FROM metrics_switch_explain_users JOIN metrics_switch_explain_orders ON metrics_switch_explain_users.user_key = metrics_switch_explain_orders.order_user_key",
+                vec![],
+            )
+            .unwrap();
+        let plan = explained.rows[0][0].as_str().unwrap_or_default();
+
+        // Assert
+        assert!(plan.contains("operator_switch_enabled=true"), "plan={plan}");
+        assert!(
+            plan.contains("operator_switch_pair=vectorized_join_to_merge_join"),
+            "plan={plan}"
+        );
+        assert!(plan.contains("operator_switch_reason=armed"), "plan={plan}");
+        assert!(
+            plan.contains("operator_switch_success_delta:1"),
+            "plan={plan}"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_skip_runtime_operator_switch_for_unsupported_join_type() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("operator_switch_unsupported");
+    let config = operator_switch_config(true, 0);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let session = cassie.create_session("tester", None);
+        create_switch_join_tables(
+            &cassie,
+            &session,
+            "metrics_switch_right_users",
+            "metrics_switch_right_orders",
+        );
+        let before = cassie.metrics();
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT metrics_switch_right_users.name, metrics_switch_right_orders.total FROM metrics_switch_right_users RIGHT JOIN metrics_switch_right_orders ON metrics_switch_right_users.user_key = metrics_switch_right_orders.order_user_key",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(selected.rows.len(), 2);
+        assert_eq!(
+            after["adaptive_candidates"]["operator_switch_skips"]
+                .as_u64()
+                .unwrap_or_default()
+                - before["adaptive_candidates"]["operator_switch_skips"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            1
+        );
+        assert_eq!(
+            after["adaptive_candidates"]["last_operator_switch_reason"],
+            "unsupported_join_type"
+        );
+        assert_eq!(after["joins"]["last_strategy"], "merge");
 
         let _ = std::fs::remove_dir_all(path);
     });

@@ -58,4 +58,31 @@ impl RuntimeState {
         metrics.adaptive_candidates.last_plan_guard = diagnostics.guard.clone();
         metrics.adaptive_candidates.last_plan_reason = diagnostics.reason.clone();
     }
+
+    pub fn record_runtime_operator_switch(&self, pair: &str, reason: &str, state: &str) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.adaptive_candidates.operator_switch_attempts += 1;
+        metrics.adaptive_candidates.operator_switch_successes += 1;
+        metrics.adaptive_candidates.last_operator_switch_pair = pair.to_string();
+        metrics.adaptive_candidates.last_operator_switch_reason = reason.to_string();
+        metrics.adaptive_candidates.last_operator_switch_state = state.to_string();
+    }
+
+    pub fn record_runtime_operator_switch_skip(&self, pair: &str, reason: &str, state: &str) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.adaptive_candidates.operator_switch_attempts += 1;
+        metrics.adaptive_candidates.operator_switch_skips += 1;
+        metrics.adaptive_candidates.last_operator_switch_pair = pair.to_string();
+        metrics.adaptive_candidates.last_operator_switch_reason = reason.to_string();
+        metrics.adaptive_candidates.last_operator_switch_state = state.to_string();
+    }
+
+    pub fn record_runtime_operator_switch_fallback(&self, pair: &str, reason: &str, state: &str) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.adaptive_candidates.operator_switch_attempts += 1;
+        metrics.adaptive_candidates.operator_switch_fallbacks += 1;
+        metrics.adaptive_candidates.last_operator_switch_pair = pair.to_string();
+        metrics.adaptive_candidates.last_operator_switch_reason = reason.to_string();
+        metrics.adaptive_candidates.last_operator_switch_state = state.to_string();
+    }
 }

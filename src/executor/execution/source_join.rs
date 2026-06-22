@@ -1,5 +1,7 @@
 use super::*;
 
+const VECTOR_TO_MERGE_SWITCH_PAIR: &str = "vectorized_join_to_merge_join";
+
 #[derive(Debug, Clone)]
 struct EquiJoinKeys {
     left: String,
@@ -210,6 +212,13 @@ fn execute_vectorized_join(
         return Ok(None);
     }
     if !matches!(kind, JoinKind::Inner | JoinKind::Left) {
+        if limits.operator_switching_enabled {
+            env.cassie.runtime.record_runtime_operator_switch_skip(
+                VECTOR_TO_MERGE_SWITCH_PAIR,
+                "unsupported_join_type",
+                "rows_emitted=0",
+            );
+        }
         env.cassie.runtime.record_vectorized_join_fallback(
             "unsupported_join_type",
             batch_size,
@@ -218,8 +227,33 @@ fn execute_vectorized_join(
         return Ok(None);
     }
 
+    let observed_rows = left_rows.len().saturating_add(right_rows.len());
+    if limits.operator_switching_enabled
+        && observed_rows > limits.operator_switch_join_row_threshold
+    {
+        check_timeout(env.controls)?;
+        let state = format!(
+            "replay_left_rows={};replay_right_rows={};rows_emitted=0",
+            left_rows.len(),
+            right_rows.len()
+        );
+        env.cassie.runtime.record_runtime_operator_switch(
+            VECTOR_TO_MERGE_SWITCH_PAIR,
+            "row_threshold_exceeded",
+            &state,
+        );
+        return Ok(None);
+    }
+
     let estimated_bytes = estimate_vectorized_join_bytes(left_rows.len(), right_rows.len());
     if estimated_bytes > env.controls.temp_spill_budget_bytes {
+        if limits.operator_switching_enabled {
+            env.cassie.runtime.record_runtime_operator_switch_fallback(
+                VECTOR_TO_MERGE_SWITCH_PAIR,
+                "spill_budget_exceeded",
+                "rows_emitted=0",
+            );
+        }
         env.cassie.runtime.record_vectorized_join_fallback(
             "spill_budget_exceeded",
             batch_size,

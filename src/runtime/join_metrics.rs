@@ -27,4 +27,44 @@ impl RuntimeState {
         metrics.joins.last_strategy = strategy.to_string();
         metrics.joins.last_fallback_reason = fallback_reason.unwrap_or("").to_string();
     }
+
+    pub(crate) fn record_vectorized_join_execution(
+        &self,
+        left_rows: usize,
+        right_rows: usize,
+        matched_rows: usize,
+        output_rows: usize,
+        batch_size: usize,
+        batches: usize,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.joins.executions += 1;
+        metrics.joins.vectorized_joins += 1;
+        metrics.joins.left_input_rows_total += left_rows as u64;
+        metrics.joins.right_input_rows_total += right_rows as u64;
+        metrics.joins.matched_rows_total += matched_rows as u64;
+        metrics.joins.output_rows_total += output_rows as u64;
+        metrics.joins.vectorized_batches_total += batches as u64;
+        metrics.joins.vectorized_build_rows_total += right_rows as u64;
+        metrics.joins.vectorized_probe_rows_total += left_rows as u64;
+        metrics.joins.last_vectorized_batch_size = batch_size as u64;
+        metrics.joins.last_strategy = "vectorized".to_string();
+        metrics.joins.last_fallback_reason.clear();
+    }
+
+    pub(crate) fn record_vectorized_join_fallback(
+        &self,
+        reason: &str,
+        batch_size: usize,
+        spill: bool,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.joins.vectorized_fallbacks += 1;
+        metrics.joins.fallback_joins += 1;
+        if spill {
+            metrics.joins.vectorized_spill_fallbacks += 1;
+        }
+        metrics.joins.last_vectorized_batch_size = batch_size as u64;
+        metrics.joins.last_vectorized_fallback_reason = reason.to_string();
+    }
 }

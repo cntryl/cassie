@@ -34,9 +34,20 @@ pub(super) fn execute_join_source<'a>(
     let left_columns = row_columns(&left_rows);
     let right_columns = row_columns(&right_rows);
 
-    let joined = merge_join_keys(on, &left_columns, &right_columns)
+    let joined = match merge_join_keys(on, &left_columns, &right_columns)
         .filter(|_| !matches!(kind, JoinKind::Cross))
-        .map(|keys| {
+    {
+        Some(keys) => execute_vectorized_join(
+            env,
+            kind,
+            on,
+            keys.clone(),
+            left_rows.clone(),
+            right_rows.clone(),
+            &right_columns,
+        )?
+        .map(Ok)
+        .unwrap_or_else(|| {
             execute_merge_join(
                 env,
                 kind,
@@ -47,20 +58,17 @@ pub(super) fn execute_join_source<'a>(
                 &left_columns,
                 &right_columns,
             )
-        })
-        .transpose()?
-        .map(Ok)
-        .unwrap_or_else(|| {
-            execute_nested_loop_join(
-                env,
-                kind,
-                on,
-                left_rows,
-                right_rows,
-                &left_columns,
-                &right_columns,
-            )
-        })?;
+        })?,
+        None => execute_nested_loop_join(
+            env,
+            kind,
+            on,
+            left_rows,
+            right_rows,
+            &left_columns,
+            &right_columns,
+        )?,
+    };
 
     finish_join(joined)
 }
@@ -184,6 +192,95 @@ fn execute_nested_loop_join(
         None,
     );
     Ok(joined)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_vectorized_join(
+    env: &SourceExecutionEnv<'_>,
+    kind: &JoinKind,
+    on: &Expr,
+    keys: EquiJoinKeys,
+    left_rows: Vec<BatchRow>,
+    right_rows: Vec<BatchRow>,
+    right_columns: &[String],
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let limits = env.cassie.runtime.limits();
+    let batch_size = limits.vectorized_join_batch_size.max(1);
+    if !limits.vectorized_joins_enabled {
+        return Ok(None);
+    }
+    if !matches!(kind, JoinKind::Inner | JoinKind::Left) {
+        env.cassie.runtime.record_vectorized_join_fallback(
+            "unsupported_join_type",
+            batch_size,
+            false,
+        );
+        return Ok(None);
+    }
+
+    let estimated_bytes = estimate_vectorized_join_bytes(left_rows.len(), right_rows.len());
+    if estimated_bytes > env.controls.temp_spill_budget_bytes {
+        env.cassie.runtime.record_vectorized_join_fallback(
+            "spill_budget_exceeded",
+            batch_size,
+            true,
+        );
+        return Ok(None);
+    }
+
+    let mut build = std::collections::HashMap::<String, Vec<BatchRow>>::new();
+    for right in right_rows {
+        let key = row_join_key(&right, &keys.right);
+        build.entry(key).or_default().push(right);
+    }
+
+    let probe_rows = left_rows.len();
+    let build_rows = build.values().map(Vec::len).sum::<usize>();
+    let batches = probe_rows.div_ceil(batch_size);
+    let mut matched_rows = 0usize;
+    let mut joined = Vec::new();
+
+    for left_batch in left_rows.chunks(batch_size) {
+        check_timeout(env.controls)?;
+        for left in left_batch {
+            let key = row_join_key(left, &keys.left);
+            let mut matched = false;
+            if let Some(right_group) = build.get(&key) {
+                for right in right_group {
+                    let combined = combine_rows(left, right);
+                    if filter::eval_scalar(
+                        &combined,
+                        on,
+                        env.params,
+                        None,
+                        env.user_functions,
+                        None,
+                        env.session,
+                    )?
+                    .as_bool()
+                    {
+                        matched = true;
+                        matched_rows += 1;
+                        joined.push(combined);
+                    }
+                }
+            }
+
+            if !matched && matches!(kind, JoinKind::Left) {
+                joined.push(combine_row_with_nulls(left, right_columns));
+            }
+        }
+    }
+
+    env.cassie.runtime.record_vectorized_join_execution(
+        probe_rows,
+        build_rows,
+        matched_rows,
+        joined.len(),
+        batch_size,
+        batches,
+    );
+    Ok(Some(joined))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -322,6 +419,18 @@ fn keyed_rows(rows: Vec<BatchRow>, key_column: &str) -> Vec<KeyedRow> {
             KeyedRow { key, row }
         })
         .collect()
+}
+
+fn row_join_key(row: &BatchRow, key_column: &str) -> String {
+    row.get(key_column)
+        .map(value_sort_key)
+        .unwrap_or_else(|| value_sort_key(&Value::Null))
+}
+
+fn estimate_vectorized_join_bytes(left_rows: usize, right_rows: usize) -> usize {
+    left_rows
+        .saturating_add(right_rows)
+        .saturating_mul(std::mem::size_of::<BatchRow>().max(512))
 }
 
 fn keyed_group_end(rows: &[KeyedRow], start: usize) -> usize {

@@ -72,8 +72,9 @@ Each supported query pattern should define:
 Current EXPLAIN and metrics contracts should make the path explicit through labels such as
 `access_path`, `fallback_reason`, `pagination_strategy`, `top_k_mode`, `early_stop`, and
 `projection_freshness` when applicable. Join-sensitive plans also expose `join_strategy`,
-`join_keys`, `join_sort_required`, and `join_fallback_reason` so merge-join selection and
-fallbacks are visible.
+`join_keys`, `join_sort_required`, `join_fallback_reason`, `vectorized_join_candidate`,
+`vectorized_join_enabled`, `vectorized_join_batch_size`, and
+`vectorized_join_fallback_reason` so merge/vectorized join selection and fallbacks are visible.
 For the current scalar and ordered-read scope, that vocabulary includes
 `point_lookup`, `index_seek`, `prefix_scan`, `range_scan`, `ordered_bounded_scan`,
 `storage_top_k`, `keyset`, and degraded `offset` paths.

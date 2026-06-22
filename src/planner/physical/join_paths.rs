@@ -46,6 +46,30 @@ pub(super) fn join_fallback_reason(plan: &LogicalPlan, strategy: Option<&str>) -
     Some("ordering_not_beneficial".to_string())
 }
 
+pub(super) fn vectorized_join_candidate(plan: &LogicalPlan) -> bool {
+    matches!(
+        &plan.source,
+        QuerySource::Join {
+            kind: JoinKind::Inner | JoinKind::Left,
+            on,
+            ..
+        } if is_equi_join_predicate(on)
+    )
+}
+
+pub(super) fn vectorized_join_fallback_reason(plan: &LogicalPlan) -> Option<String> {
+    let QuerySource::Join { kind, on, .. } = &plan.source else {
+        return None;
+    };
+    if matches!(kind, JoinKind::Inner | JoinKind::Left) && is_equi_join_predicate(on) {
+        return None;
+    }
+    if !matches!(kind, JoinKind::Inner | JoinKind::Left) {
+        return Some("unsupported_join_type".to_string());
+    }
+    Some("non_equi_predicate".to_string())
+}
+
 fn merge_join_preferred(plan: &LogicalPlan, kind: JoinKind, on: &Expr) -> bool {
     matches!(
         kind,

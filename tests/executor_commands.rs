@@ -249,6 +249,8 @@ fn should_fail_unknown_function_during_execution() {
             join_keys: Vec::new(),
             join_sort_required: false,
             join_fallback_reason: None,
+            vectorized_join_candidate: false,
+            vectorized_join_fallback_reason: None,
             parallel_aggregate_candidate: false,
             aggregate_acceleration: false,
             access_path: cassie::planner::physical::ReadAccessPath::CollectionScan,

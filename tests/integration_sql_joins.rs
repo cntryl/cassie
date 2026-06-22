@@ -13,6 +13,13 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 mod support;
 use support::*;
 
+fn vectorized_join_config() -> CassieRuntimeConfig {
+    let mut config = CassieRuntimeConfig::from_env();
+    config.limits.vectorized_joins_enabled = true;
+    config.limits.vectorized_join_batch_size = 2;
+    config
+}
+
 #[test]
 fn should_execute_inner_join_query() {
     // Arrange
@@ -195,6 +202,140 @@ fn should_execute_merge_join_duplicate_null_keys() {
         let metrics = cassie.metrics();
         assert_eq!(metrics["joins"]["last_strategy"], "merge");
         assert_eq!(metrics["joins"]["merge_joins"], 1);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_execute_vectorized_inner_join_duplicate_null_keys() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("join_vectorized_inner_duplicate_null_keys");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie =
+            Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE vector_users (user_key INT, name TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE vector_orders (order_user_key INT, total INT)",
+                vec![],
+            )
+            .unwrap();
+        for sql in [
+            "INSERT INTO vector_users (user_key, name) VALUES (1, 'ada')",
+            "INSERT INTO vector_users (user_key, name) VALUES (1, 'ada-alt')",
+            "INSERT INTO vector_users (user_key, name) VALUES (NULL, 'unknown')",
+            "INSERT INTO vector_orders (order_user_key, total) VALUES (1, 42)",
+            "INSERT INTO vector_orders (order_user_key, total) VALUES (1, 99)",
+            "INSERT INTO vector_orders (order_user_key, total) VALUES (NULL, 7)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).unwrap();
+        }
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT vector_users.name, vector_orders.total FROM vector_users JOIN vector_orders ON vector_users.user_key = vector_orders.order_user_key ORDER BY vector_users.name, vector_orders.total",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![
+                vec![Value::String("ada".to_string()), Value::Int64(42)],
+                vec![Value::String("ada".to_string()), Value::Int64(99)],
+                vec![Value::String("ada-alt".to_string()), Value::Int64(42)],
+                vec![Value::String("ada-alt".to_string()), Value::Int64(99)],
+                vec![Value::String("unknown".to_string()), Value::Int64(7)]
+            ]
+        );
+
+        let metrics = cassie.metrics();
+        assert_eq!(metrics["joins"]["last_strategy"], "vectorized");
+        assert_eq!(metrics["joins"]["vectorized_joins"], 1);
+        assert_eq!(metrics["joins"]["last_vectorized_batch_size"], 2);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_execute_vectorized_left_join_unmatched_rows() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("join_vectorized_left_unmatched");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie =
+            Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE vector_left_users (user_key INT, name TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE vector_left_orders (order_user_key INT, total INT)",
+                vec![],
+            )
+            .unwrap();
+        for sql in [
+            "INSERT INTO vector_left_users (user_key, name) VALUES (1, 'ada')",
+            "INSERT INTO vector_left_users (user_key, name) VALUES (2, 'grace')",
+            "INSERT INTO vector_left_orders (order_user_key, total) VALUES (1, 42)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).unwrap();
+        }
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT vector_left_users.name, vector_left_orders.total FROM vector_left_users LEFT JOIN vector_left_orders ON vector_left_users.user_key = vector_left_orders.order_user_key ORDER BY vector_left_users.name",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![
+                vec![Value::String("ada".to_string()), Value::Int64(42)],
+                vec![Value::String("grace".to_string()), Value::Null]
+            ]
+        );
+
+        let metrics = cassie.metrics();
+        assert_eq!(metrics["joins"]["last_strategy"], "vectorized");
+        assert_eq!(metrics["joins"]["vectorized_probe_rows_total"], 2);
+        assert_eq!(metrics["joins"]["vectorized_build_rows_total"], 1);
 
         let _ = std::fs::remove_dir_all(path);
     });

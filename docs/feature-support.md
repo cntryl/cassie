@@ -95,7 +95,7 @@ Status terms:
 | Plans | logical plan, physical plan | Stable | Internal |
 | Optimization | predicate pushdown, projection pruning, limit pushdown, index selection | Stable | Semantics-preserving |
 | Sorting | full sort, partial sort, top-k | Stable | Semantics-preserving |
-| Joins | nested-loop, hash join, merge join, semi join, anti join | Stable/Experimental | Semantics-preserving |
+| Joins | nested-loop, hash join, merge join, vectorized inner/left equi-join, semi join, anti join | Stable/Experimental | Semantics-preserving |
 | Aggregation | hash aggregate, sort aggregate | Stable | Semantics-preserving |
 | Distinct | hash distinct, sort distinct | Stable | Semantics-preserving |
 | Execution | row executor, batch/vectorized executor | Stable/Experimental | Internal |
@@ -111,14 +111,15 @@ Status terms:
 | Pgwire results | row description, data row, command complete, error response, ready for query | Stable | PostgreSQL-compatible subset |
 | Pgwire compatibility | prepared statements, portals, text/binary formats, catalog introspection | Stable/Experimental | PostgreSQL-compatible subset |
 | HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin APIs | Stable/Experimental | Cassie REST API |
-| Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, cost-model diagnostics, index used, index feedback marker, operator feedback state/reason/cost/confidence diagnostics, join strategy/key/sort/fallback diagnostics, time-series index diagnostics, column-batch index used, storage-mode diagnostics, aggregate acceleration, rollup rewrite selected, mixed execution stages, analytical projection markers, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
+| Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, cost-model diagnostics, index used, index feedback marker, operator feedback state/reason/cost/confidence diagnostics, join strategy/key/sort/vectorized/fallback diagnostics, time-series index diagnostics, column-batch index used, storage-mode diagnostics, aggregate acceleration, rollup rewrite selected, mixed execution stages, analytical projection markers, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
 | Projection operations | active version, source checkpoint, lag, freshness, rebuild state, verification state, root state, last replay batch, last error, version state | Experimental | Cassie-specific |
-| Metrics | latency, throughput, errors, cache hit rate, join execution/strategy/row counters, projection replay/build/swap/stale/hash/verification/integrity/mixed-fallback counters, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
+| Metrics | latency, throughput, errors, cache hit rate, join execution/strategy/row/vectorized batch/spill-fallback counters, projection replay/build/swap/stale/hash/verification/integrity/mixed-fallback counters, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
 
 ## Projection Verification Surfaces
 
 - `CASSIE_OPERATOR_FEEDBACK_ENABLED=1` enables experimental operator-selection feedback. When unset, the planner stays on the deterministic base path and EXPLAIN reports feedback as ignored or disabled.
 - `CASSIE_EXPERIMENTAL_COLUMN_STORE_ENABLED=1` enables `CREATE TABLE ... WITH (storage = column_store)`. `pg_catalog.pg_table_storage` and EXPLAIN `storage_mode` expose the effective table mode (`row-store`, `column-indexed`, or `column-store`).
+- `CASSIE_VECTORIZED_JOINS_ENABLED=1` enables the experimental vectorized inner/left equi-join executor path. `CASSIE_VECTORIZED_JOIN_BATCH_SIZE` bounds probe batch size, and EXPLAIN reports `vectorized_join_candidate`, `vectorized_join_enabled`, `vectorized_join_batch_size`, and `vectorized_join_fallback_reason`.
 
 - `VERIFY PROJECTION <name> [VERSION <version_id>] [MODE metadata_only|hashes_only|indexes_only|full]` runs a read-only local integrity check and persists the latest report.
 - `DIFF PROJECTION <left> [VERSION <version_id>] WITH <right> [VERSION <version_id>] [LIMIT n] [AFTER cursor]` returns deterministic local hash differences or an explicit unverifiable result.
@@ -127,7 +128,7 @@ Status terms:
 - `pg_catalog.pg_projection_operations` exposes freshness, rebuild, active-version, verification, and root state.
 - `pg_catalog.pg_projection_integrity_reports` exposes the latest local integrity report.
 - `pg_catalog.pg_projection_comparison_reports` exposes persisted local-vs-manifest comparison reports after restart hydration.
-- EXPLAIN includes `cost_model`, `selected_cost`, `rejected_alternatives`, `operator_feedback`, `operator_feedback_reason`, `operator_feedback_base_candidate`, `operator_feedback_selected_candidate`, `operator_feedback_base_cost`, `operator_feedback_adjusted_cost`, `operator_feedback_confidence_bps`, `operator_feedback_age_ms`, `operator_feedback_samples`, `operator_feedback_outliers`, `join_strategy`, `join_keys`, `join_sort_required`, `join_fallback_reason`, `mixed_execution`, `mixed_stages`, `exact_baseline`, `analytical_projection`, and `projection_freshness` diagnostics for mixed search/vector/analytical plans.
+- EXPLAIN includes `cost_model`, `selected_cost`, `rejected_alternatives`, `operator_feedback`, `operator_feedback_reason`, `operator_feedback_base_candidate`, `operator_feedback_selected_candidate`, `operator_feedback_base_cost`, `operator_feedback_adjusted_cost`, `operator_feedback_confidence_bps`, `operator_feedback_age_ms`, `operator_feedback_samples`, `operator_feedback_outliers`, `join_strategy`, `join_keys`, `join_sort_required`, `join_fallback_reason`, `vectorized_join_candidate`, `vectorized_join_enabled`, `vectorized_join_batch_size`, `vectorized_join_fallback_reason`, `mixed_execution`, `mixed_stages`, `exact_baseline`, `analytical_projection`, and `projection_freshness` diagnostics for mixed search/vector/analytical plans.
 
 ## Compatibility Notes
 

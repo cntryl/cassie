@@ -283,6 +283,8 @@ mod tests {
             join_keys: Vec::new(),
             join_sort_required: false,
             join_fallback_reason: None,
+            vectorized_join_candidate: false,
+            vectorized_join_fallback_reason: None,
             parallel_aggregate_candidate: false,
             aggregate_acceleration: false,
             access_path: crate::planner::physical::ReadAccessPath::CollectionScan,

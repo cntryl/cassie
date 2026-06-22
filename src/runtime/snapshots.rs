@@ -114,6 +114,12 @@ pub struct FeedbackSnapshot {
     pub misses: u64,
     pub writes: u64,
     pub evictions: u64,
+    pub used: u64,
+    pub ignored_disabled: u64,
+    pub ignored_missing: u64,
+    pub ignored_stale: u64,
+    pub ignored_low_confidence: u64,
+    pub outliers: u64,
     pub entries: u64,
     pub max_entries: u64,
 }

@@ -49,14 +49,8 @@ fn projection_metric_delta(
 }
 
 fn feedback_key(sql: &str, collection: &str, schema_epoch: u64) -> RuntimeFeedbackKey {
-    let parsed = parser::parse_statement(sql).expect("parse feedback sql");
-    RuntimeFeedbackKey {
-        sql_fingerprint: cassie::runtime::sql_fingerprint(&parsed),
-        schema_epoch,
-        database: Some("postgres".to_string()),
-        collection: collection.to_string(),
-        operator: "Scan".to_string(),
-    }
+    let _ = (sql, collection, schema_epoch);
+    panic!("feedback_key helper is unused in metrics_runtime");
 }
 
 fn register_feedback_collection(cassie: &Cassie, collection: &str) {

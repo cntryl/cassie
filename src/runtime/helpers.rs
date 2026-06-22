@@ -185,10 +185,46 @@ pub(super) fn apply_feedback_observation(
         record.errors_total = record.errors_total.saturating_add(1);
         record.last_error_class = Some(error_class.clone());
     }
+    if observation_is_outlier(record, observation) {
+        record.outlier_samples = record.outlier_samples.saturating_add(1);
+    } else {
+        record.stable_samples = record.stable_samples.saturating_add(1);
+        record.stable_rows_in_total = record
+            .stable_rows_in_total
+            .saturating_add(observation.rows_in);
+        record.stable_rows_out_total = record
+            .stable_rows_out_total
+            .saturating_add(observation.rows_out);
+        record.stable_elapsed_ms_total = record
+            .stable_elapsed_ms_total
+            .saturating_add(observation.elapsed_ms);
+        record.stable_storage_reads_total = record
+            .stable_storage_reads_total
+            .saturating_add(observation.storage_reads);
+        record.stable_storage_writes_total = record
+            .stable_storage_writes_total
+            .saturating_add(observation.storage_writes);
+        record.stable_temp_writes_total = record
+            .stable_temp_writes_total
+            .saturating_add(observation.temp_writes);
+        record.stable_candidate_count_total = record
+            .stable_candidate_count_total
+            .saturating_add(observation.candidate_count);
+        record.stable_result_count_total = record
+            .stable_result_count_total
+            .saturating_add(observation.result_count);
+        if observation.spilled {
+            record.spill_samples = record.spill_samples.saturating_add(1);
+        }
+        if observation.memory_pressure {
+            record.memory_pressure_samples = record.memory_pressure_samples.saturating_add(1);
+        }
+    }
     if record.first_seen_ms == 0 {
         record.first_seen_ms = now_ms;
     }
     record.last_seen_ms = now_ms;
+    recompute_feedback_confidence(record);
 }
 
 pub(super) fn prune_feedback_by_age(
@@ -234,6 +270,7 @@ mod tests {
             collection: "bench_documents".to_string(),
             operators: vec![Operator::Scan, Operator::Filter, Operator::Project],
             estimates: Default::default(),
+            operator_feedback: Default::default(),
             predicate_pushdown: false,
             projected_scan_fields: Vec::new(),
             scan_limit: None,

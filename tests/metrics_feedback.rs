@@ -1,9 +1,9 @@
 #![allow(unused_imports, dead_code)]
-use cassie::app::Cassie;
+use cassie::app::{Cassie, CassieSession};
 use cassie::catalog::{IndexKind, IndexMeta};
-use cassie::runtime::RuntimeFeedbackKey;
-use cassie::sql::parser;
+use cassie::runtime::{RuntimeFeedbackKey, RuntimeFeedbackObservation};
 use cassie::types::{DataType, FieldSchema, Schema};
+use std::time::Duration;
 use uuid::Uuid;
 
 fn with_fallback() {
@@ -37,24 +37,21 @@ fn startup_frame(user: &str, database: &str) -> Vec<u8> {
     frame
 }
 
-fn feedback_key(sql: &str, collection: &str, schema_epoch: u64) -> RuntimeFeedbackKey {
-    feedback_key_for_operator(sql, collection, schema_epoch, "Scan")
+fn operator_feedback_config(enabled: bool) -> cassie::config::CassieRuntimeConfig {
+    let mut config = cassie::config::CassieRuntimeConfig::from_env();
+    config.limits.operator_feedback_enabled = enabled;
+    config
 }
 
-fn feedback_key_for_operator(
+fn feedback_key(
+    cassie: &Cassie,
+    session: &CassieSession,
     sql: &str,
-    collection: &str,
-    schema_epoch: u64,
-    operator: &str,
+    candidate_index: Option<&str>,
 ) -> RuntimeFeedbackKey {
-    let parsed = parser::parse_statement(sql).expect("parse feedback sql");
-    RuntimeFeedbackKey {
-        sql_fingerprint: cassie::runtime::sql_fingerprint(&parsed),
-        schema_epoch,
-        database: Some("postgres".to_string()),
-        collection: collection.to_string(),
-        operator: operator.to_string(),
-    }
+    cassie
+        .read_operator_feedback_key_for_diagnostics(session, sql, candidate_index)
+        .expect("feedback key")
 }
 
 fn register_feedback_collection(cassie: &Cassie, collection: &str) {
@@ -100,6 +97,40 @@ fn adaptive_candidate_config(min: usize, max: usize) -> cassie::config::CassieRu
     config.limits.adaptive_candidate_min = min;
     config.limits.adaptive_candidate_max = max;
     config
+}
+
+fn register_operator_feedback_indexes(
+    cassie: &Cassie,
+    collection: &str,
+    first_index: &str,
+    second_index: &str,
+) {
+    for (field, index_name) in [("body", first_index), ("title", second_index)] {
+        let index = IndexMeta {
+            collection: collection.to_string(),
+            name: index_name.to_string(),
+            field: field.to_string(),
+            fields: vec![field.to_string()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: false,
+            options: Default::default(),
+        };
+        cassie.midge.put_index(index.clone()).unwrap();
+        cassie.catalog.register_index(index);
+    }
+}
+
+fn confident_feedback(elapsed_ms: u64, storage_reads: u64) -> RuntimeFeedbackObservation {
+    RuntimeFeedbackObservation {
+        rows_in: storage_reads.max(1),
+        rows_out: 1,
+        elapsed_ms,
+        storage_reads,
+        ..RuntimeFeedbackObservation::default()
+    }
 }
 
 fn register_adaptive_candidate_collection(cassie: &Cassie, collection: &str) {
@@ -206,7 +237,7 @@ fn should_capture_runtime_feedback_for_normalized_select() {
         register_feedback_collection(&cassie, collection);
         let session = cassie.create_session("tester", None);
         let sql = "SELECT title FROM metrics_feedback_capture WHERE title = $1";
-        let key = feedback_key(sql, collection, 0);
+        let key = feedback_key(&cassie, &session, sql, None);
 
         // Act
         let result = cassie
@@ -270,7 +301,7 @@ fn should_capture_runtime_feedback_for_selected_index() {
         cassie.catalog.register_index(index);
         let session = cassie.create_session("tester", None);
         let sql = "SELECT body FROM metrics_feedback_selected_index WHERE title = $1";
-        let key = feedback_key_for_operator(sql, collection, 0, &format!("Index:{index_name}"));
+        let key = feedback_key(&cassie, &session, sql, Some(index_name));
 
         // Act
         let result = cassie
@@ -295,7 +326,7 @@ fn should_capture_runtime_feedback_for_selected_index() {
         assert_eq!(result.rows.len(), 1);
         assert_eq!(record.executions, 1);
         assert_eq!(record.rows_out_total, 1);
-        assert!(!key.operator.contains("alpha"));
+        assert_eq!(key.operator_family, "index_read");
         let cassie::types::Value::String(plan) = &explained.rows[0][0] else {
             panic!("expected explain string");
         };
@@ -322,7 +353,7 @@ fn should_aggregate_runtime_feedback_across_parameter_values() {
         register_feedback_collection(&cassie, collection);
         let session = cassie.create_session("tester", None);
         let sql = "SELECT title FROM metrics_feedback_aggregate WHERE title = $1";
-        let key = feedback_key(sql, collection, 0);
+        let key = feedback_key(&cassie, &session, sql, None);
 
         // Act
         cassie
@@ -372,8 +403,7 @@ fn should_partition_runtime_feedback_by_schema_epoch() {
         register_feedback_collection(&cassie, collection);
         let session = cassie.create_session("tester", None);
         let sql = "SELECT title FROM metrics_feedback_schema_epoch WHERE title = $1";
-        let first_key = feedback_key(sql, collection, 0);
-        let second_key = feedback_key(sql, collection, 1);
+        let first_key = feedback_key(&cassie, &session, sql, None);
 
         // Act
         cassie
@@ -390,6 +420,7 @@ fn should_partition_runtime_feedback_by_schema_epoch() {
                 vec![],
             )
             .unwrap();
+        let second_key = feedback_key(&cassie, &session, sql, None);
         cassie
             .execute_sql(
                 &session,
@@ -397,15 +428,13 @@ fn should_partition_runtime_feedback_by_schema_epoch() {
                 vec![cassie::types::Value::String("beta".to_string())],
             )
             .unwrap();
-        let first = cassie
-            .feedback_record_for_diagnostics(&first_key)
-            .expect("first schema epoch feedback");
+        let first = cassie.feedback_record_for_diagnostics(&first_key).is_none();
         let second = cassie
             .feedback_record_for_diagnostics(&second_key)
             .expect("second schema epoch feedback");
 
         // Assert
-        assert_eq!(first.executions, 1);
+        assert!(first, "schema changes should invalidate older feedback");
         assert_eq!(second.executions, 1);
 
         let _ = std::fs::remove_dir_all(path);
@@ -418,7 +447,7 @@ fn should_evict_runtime_feedback_when_retention_limit_is_exceeded() {
     with_fallback();
     let path = data_dir("feedback_eviction");
     let mut config = cassie::config::CassieRuntimeConfig::from_env();
-    config.limits.feedback_entries = 2;
+    config.limits.feedback_entries = 1;
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -431,7 +460,7 @@ fn should_evict_runtime_feedback_when_retention_limit_is_exceeded() {
         let session = cassie.create_session("tester", None);
         let first_sql = "SELECT title FROM metrics_feedback_eviction";
         let second_sql = "SELECT body FROM metrics_feedback_eviction";
-        let first_key = feedback_key(first_sql, collection, 0);
+        let first_key = feedback_key(&cassie, &session, first_sql, None);
 
         // Act
         cassie.execute_sql(&session, first_sql, vec![]).unwrap();
@@ -440,7 +469,7 @@ fn should_evict_runtime_feedback_when_retention_limit_is_exceeded() {
 
         // Assert
         assert!(cassie.feedback_record_for_diagnostics(&first_key).is_none());
-        assert_eq!(metrics["feedback"]["entries"].as_u64(), Some(2));
+        assert_eq!(metrics["feedback"]["entries"].as_u64(), Some(1));
         assert!(
             metrics["feedback"]["evictions"]
                 .as_u64()
@@ -448,6 +477,307 @@ fn should_evict_runtime_feedback_when_retention_limit_is_exceeded() {
                 >= 1,
             "retention limit should evict the oldest feedback"
         );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_ignore_operator_feedback_when_confidence_is_too_low() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("operator_feedback_low_confidence");
+    let config = operator_feedback_config(true);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let collection = "metrics_operator_feedback_low_confidence";
+        register_feedback_collection(&cassie, collection);
+        let session = cassie.create_session("tester", None);
+        let sql = "SELECT title FROM metrics_operator_feedback_low_confidence WHERE title = $1";
+        let key = feedback_key(&cassie, &session, sql, None);
+
+        cassie
+            .execute_sql(
+                &session,
+                sql,
+                vec![cassie::types::Value::String("alpha".to_string())],
+            )
+            .unwrap();
+
+        // Act
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM metrics_operator_feedback_low_confidence WHERE title = 'alpha'",
+                vec![],
+            )
+            .unwrap();
+        let plan = explain.rows[0][0].as_str().unwrap().to_string();
+        let record = cassie
+            .feedback_record_for_diagnostics(&key)
+            .expect("low-confidence feedback");
+
+        // Assert
+        assert!(record.confidence_bps < 600, "record={record:?}");
+        assert!(plan.contains("operator_feedback=ignored"), "plan={plan}");
+        assert!(
+            plan.contains("operator_feedback_reason=low_confidence"),
+            "plan={plan}"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_use_confident_operator_feedback_to_switch_selected_index() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("operator_feedback_switch");
+    let config = operator_feedback_config(true);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let collection = "metrics_operator_feedback_switch";
+        let base_index = "metrics_operator_feedback_body_idx_a";
+        let preferred_index = "metrics_operator_feedback_title_idx_b";
+        register_feedback_collection(&cassie, collection);
+        register_operator_feedback_indexes(&cassie, collection, base_index, preferred_index);
+        let session = cassie.create_session("tester", None);
+        let explain_sql = "EXPLAIN SELECT title FROM metrics_operator_feedback_switch WHERE title = 'alpha' AND body = 'one'";
+        let shape_sql = "SELECT title FROM metrics_operator_feedback_switch WHERE title = 'alpha' AND body = 'one'";
+        let base_key = feedback_key(&cassie, &session, shape_sql, Some(base_index));
+        let preferred_key = feedback_key(&cassie, &session, shape_sql, Some(preferred_index));
+
+        let baseline = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
+        let baseline_plan = baseline.rows[0][0].as_str().unwrap().to_string();
+        assert!(baseline_plan.contains(base_index), "plan={baseline_plan}");
+
+        for _ in 0..4 {
+            cassie
+                .seed_feedback_for_diagnostics(base_key.clone(), confident_feedback(90, 24))
+                .expect("seed base feedback");
+            cassie
+                .seed_feedback_for_diagnostics(preferred_key.clone(), confident_feedback(5, 1))
+                .expect("seed preferred feedback");
+        }
+        let base_record = cassie
+            .feedback_record_for_diagnostics(&base_key)
+            .expect("base record");
+        let preferred_record = cassie
+            .feedback_record_for_diagnostics(&preferred_key)
+            .expect("preferred record");
+        assert_ne!(base_key, preferred_key);
+        assert!(
+            preferred_record.stable_average_elapsed_ms()
+                < base_record.stable_average_elapsed_ms()
+        );
+
+        // Act
+        let explain = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
+        let plan = explain.rows[0][0].as_str().unwrap().to_string();
+
+        // Assert
+        assert!(plan.contains(preferred_index), "plan={plan}");
+        assert!(plan.contains("operator_feedback=used"), "plan={plan}");
+        assert!(
+            plan.contains(&format!(
+                "operator_feedback_base_candidate=index:{base_index}"
+            )),
+            "plan={plan}"
+        );
+        assert!(
+            plan.contains(&format!(
+                "operator_feedback_selected_candidate=index:{preferred_index}"
+            )),
+            "plan={plan}"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_fall_back_to_base_index_when_operator_feedback_is_disabled() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("operator_feedback_disabled");
+    let config = operator_feedback_config(false);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let collection = "metrics_operator_feedback_disabled";
+        let base_index = "metrics_operator_feedback_disabled_body_idx_a";
+        let preferred_index = "metrics_operator_feedback_disabled_title_idx_b";
+        register_feedback_collection(&cassie, collection);
+        register_operator_feedback_indexes(&cassie, collection, base_index, preferred_index);
+        let session = cassie.create_session("tester", None);
+        let explain_sql = "EXPLAIN SELECT title FROM metrics_operator_feedback_disabled WHERE title = 'alpha' AND body = 'one'";
+        let shape_sql = "SELECT title FROM metrics_operator_feedback_disabled WHERE title = 'alpha' AND body = 'one'";
+        let base_key = feedback_key(&cassie, &session, shape_sql, Some(base_index));
+        let preferred_key = feedback_key(&cassie, &session, shape_sql, Some(preferred_index));
+
+        for _ in 0..4 {
+            cassie
+                .seed_feedback_for_diagnostics(base_key.clone(), confident_feedback(90, 24))
+                .expect("seed base feedback");
+            cassie
+                .seed_feedback_for_diagnostics(preferred_key.clone(), confident_feedback(5, 1))
+                .expect("seed preferred feedback");
+        }
+
+        // Act
+        let explain = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
+        let plan = explain.rows[0][0].as_str().unwrap().to_string();
+
+        // Assert
+        assert!(plan.contains(base_index), "plan={plan}");
+        assert!(plan.contains("operator_feedback=ignored"), "plan={plan}");
+        assert!(
+            plan.contains("operator_feedback_reason=disabled"),
+            "plan={plan}"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_report_stale_operator_feedback_in_explain_diagnostics() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("operator_feedback_stale");
+    let mut config = operator_feedback_config(true);
+    config.limits.feedback_ttl_seconds = 1;
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let collection = "metrics_operator_feedback_stale";
+        register_feedback_collection(&cassie, collection);
+        let session = cassie.create_session("tester", None);
+        let sql = "SELECT title FROM metrics_operator_feedback_stale WHERE title = $1";
+
+        for value in ["alpha", "beta", "alpha", "beta"] {
+            cassie
+                .execute_sql(
+                    &session,
+                    sql,
+                    vec![cassie::types::Value::String(value.to_string())],
+                )
+                .unwrap();
+        }
+        std::thread::sleep(Duration::from_millis(1_200));
+
+        // Act
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM metrics_operator_feedback_stale WHERE title = 'alpha'",
+                vec![],
+            )
+            .unwrap();
+        let plan = explain.rows[0][0].as_str().unwrap().to_string();
+
+        // Assert
+        assert!(plan.contains("operator_feedback=ignored"), "plan={plan}");
+        assert!(
+            plan.contains("operator_feedback_reason=stale"),
+            "plan={plan}"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_hydrate_persisted_operator_feedback_from_storage() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("operator_feedback_restart");
+    let config = operator_feedback_config(true);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE metrics_operator_feedback_restart (title TEXT, body TEXT)",
+                vec![],
+            )
+            .unwrap();
+        for (title, body) in [("alpha", "one"), ("beta", "two"), ("gamma", "three")] {
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO metrics_operator_feedback_restart (title, body) VALUES ($1, $2)",
+                    vec![
+                        cassie::types::Value::String(title.to_string()),
+                        cassie::types::Value::String(body.to_string()),
+                    ],
+                )
+                .unwrap();
+        }
+        let sql = "SELECT title FROM metrics_operator_feedback_restart WHERE title = $1";
+        let key = feedback_key(&cassie, &session, sql, None);
+
+        for value in ["alpha", "beta", "gamma"] {
+            cassie
+                .execute_sql(
+                    &session,
+                    sql,
+                    vec![cassie::types::Value::String(value.to_string())],
+                )
+                .unwrap();
+        }
+        assert!(
+            !cassie
+                .midge
+                .list_runtime_feedback_records()
+                .unwrap()
+                .is_empty(),
+            "feedback records should be persisted into storage"
+        );
+        cassie.clear_feedback_for_diagnostics();
+        assert!(
+            cassie.feedback_record_for_diagnostics(&key).is_none(),
+            "clearing runtime feedback should remove the in-memory record"
+        );
+
+        cassie
+            .reload_feedback_from_storage_for_diagnostics()
+            .expect("reload feedback from storage");
+
+        // Act
+        let record = cassie
+            .feedback_record_for_diagnostics(&key)
+            .expect("persisted feedback record");
+
+        // Assert
+        assert_eq!(record.executions, 3, "record={record:?}");
+        assert!(record.confidence_bps >= 600, "record={record:?}");
 
         let _ = std::fs::remove_dir_all(path);
     });

@@ -14,6 +14,8 @@ mod column_batches;
 mod cost;
 #[path = "physical/feature_flags.rs"]
 mod feature_flags;
+#[path = "physical/index_selection.rs"]
+mod index_selection;
 #[path = "physical/join_paths.rs"]
 mod join_paths;
 #[path = "physical/read_paths.rs"]
@@ -29,9 +31,12 @@ use feature_flags::{
     function_uses_fulltext, function_uses_vector, plan_expressions, plan_uses_fulltext,
     plan_uses_vector,
 };
+pub(crate) use index_selection::{
+    read_operator_selection, ReadOperatorCandidate, ReadOperatorSelection,
+};
 pub(crate) use scalar_paths::{scalar_index_plan_shape, ScalarIndexPlanPath};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Operator {
     Scan,
     Filter,
@@ -172,6 +177,8 @@ pub struct PhysicalPlan {
     pub operators: Vec<Operator>,
     pub logical: LogicalPlan,
     pub estimates: PlanEstimates,
+    #[serde(default)]
+    pub operator_feedback: OperatorFeedbackPlanDiagnostics,
     pub predicate_pushdown: bool,
     pub projected_scan_fields: Vec<String>,
     pub scan_limit: Option<usize>,
@@ -215,6 +222,20 @@ pub struct PlanEstimates {
     pub rejected_alternatives: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct OperatorFeedbackPlanDiagnostics {
+    pub state: String,
+    pub reason: String,
+    pub base_candidate: String,
+    pub selected_candidate: String,
+    pub base_selected_cost: u64,
+    pub adjusted_selected_cost: u64,
+    pub confidence_bps: u16,
+    pub age_ms: u64,
+    pub samples: u64,
+    pub outlier_samples: u64,
+}
+
 pub fn build(plan: LogicalPlan) -> PhysicalPlan {
     build_with_indexes(plan, Vec::new(), &Default::default())
 }
@@ -224,12 +245,31 @@ pub fn build_with_indexes(
     indexes: Vec<IndexMeta>,
     cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
 ) -> PhysicalPlan {
+    let selected_index =
+        index_selection::base_selected_index(&plan, indexes.as_slice(), cardinality_stats);
+    build_with_selection(
+        plan,
+        indexes,
+        cardinality_stats,
+        selected_index,
+        OperatorFeedbackPlanDiagnostics::default(),
+    )
+}
+
+pub(crate) fn build_with_selection(
+    plan: LogicalPlan,
+    indexes: Vec<IndexMeta>,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+    selected_index: Option<String>,
+    operator_feedback: OperatorFeedbackPlanDiagnostics,
+) -> PhysicalPlan {
     if plan.command.is_some() {
         return PhysicalPlan {
             collection: plan.collection.clone(),
             operators: Vec::new(),
             logical: plan,
             estimates: PlanEstimates::default(),
+            operator_feedback,
             predicate_pushdown: false,
             projected_scan_fields: Vec::new(),
             scan_limit: None,
@@ -254,7 +294,6 @@ pub fn build_with_indexes(
     let predicate_pushdown = plan_supports_predicate_pushdown(&plan);
     let projected_scan_fields = projected_scan_fields(&plan).unwrap_or_default();
     let scan_limit = scan_limit(&plan, &projected_scan_fields);
-    let selected_index = selected_index(&plan, indexes.as_slice(), cardinality_stats);
     let covered_index = selected_index
         .as_deref()
         .and_then(|name| indexes.iter().find(|index| index.name == name))
@@ -321,6 +360,7 @@ pub fn build_with_indexes(
         operators,
         logical: plan,
         estimates,
+        operator_feedback,
         predicate_pushdown,
         projected_scan_fields,
         scan_limit,
@@ -360,161 +400,6 @@ fn top_k_limit(plan: &LogicalPlan) -> Option<usize> {
     let limit = usize::try_from(plan.limit?.max(0)).ok()?;
     let offset = usize::try_from(plan.offset.unwrap_or(0).max(0)).ok()?;
     limit.checked_add(offset)
-}
-
-fn selected_index(
-    plan: &LogicalPlan,
-    indexes: &[IndexMeta],
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
-) -> Option<String> {
-    let QuerySource::Collection(collection) = &plan.source else {
-        return None;
-    };
-    let equality_fields = plan
-        .filter
-        .as_ref()
-        .map(equality_filter_fields)
-        .unwrap_or_default();
-    let equality_expressions = plan
-        .filter
-        .as_ref()
-        .map(equality_filter_expressions)
-        .unwrap_or_default();
-    let scalar = indexes
-        .iter()
-        .filter(|index| index.collection == *collection && index.kind == IndexKind::Scalar)
-        .filter(|index| partial_index_matches_query(plan.filter.as_ref(), index.predicate.as_ref()))
-        .filter(|index| {
-            scalar_index_matches_plan(plan, index, &equality_fields, &equality_expressions)
-        })
-        .min_by(|left, right| {
-            compare_scalar_index_candidates(plan, collection, left, right, cardinality_stats)
-        })
-        .map(|index| index.name.clone());
-    scalar.or_else(|| {
-        plan.filter
-            .as_ref()
-            .and_then(|filter| time_series::selected_time_series_index(collection, filter, indexes))
-    })
-}
-
-fn scalar_index_matches_plan(
-    plan: &LogicalPlan,
-    index: &IndexMeta,
-    equality_fields: &BTreeSet<String>,
-    equality_expressions: &BTreeSet<String>,
-) -> bool {
-    if index.expressions.is_empty() {
-        let field_match = index
-            .normalized_fields()
-            .iter()
-            .all(|field| equality_fields.contains(&field.to_ascii_lowercase()));
-        return scalar_index_plan_shape(plan, index).is_some() || field_match;
-    }
-
-    let field_match = index
-        .normalized_fields()
-        .iter()
-        .all(|field| equality_fields.contains(&field.to_ascii_lowercase()));
-    let expression_match = index
-        .normalized_expressions()
-        .iter()
-        .all(|expression| equality_expressions.contains(expression));
-    field_match && expression_match
-}
-
-fn compare_scalar_index_candidates(
-    plan: &LogicalPlan,
-    collection: &str,
-    left: &IndexMeta,
-    right: &IndexMeta,
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
-) -> std::cmp::Ordering {
-    match (
-        scalar_index_plan_shape(plan, left),
-        scalar_index_plan_shape(plan, right),
-    ) {
-        (Some(left_shape), Some(right_shape)) => scalar_index_path_rank(left_shape.path)
-            .cmp(&scalar_index_path_rank(right_shape.path))
-            .then_with(|| {
-                right_shape
-                    .equality_prefix_len
-                    .cmp(&left_shape.equality_prefix_len)
-            })
-            .then_with(|| {
-                right_shape
-                    .order_columns_used
-                    .cmp(&left_shape.order_columns_used)
-            })
-            .then_with(|| {
-                index_estimate(collection, left, cardinality_stats).cmp(&index_estimate(
-                    collection,
-                    right,
-                    cardinality_stats,
-                ))
-            })
-            .then_with(|| {
-                let right_specificity =
-                    right.normalized_fields().len() + right.normalized_expressions().len();
-                let left_specificity =
-                    left.normalized_fields().len() + left.normalized_expressions().len();
-                right_specificity.cmp(&left_specificity)
-            })
-            .then_with(|| left.name.cmp(&right.name)),
-        (Some(_), None) => std::cmp::Ordering::Less,
-        (None, Some(_)) => std::cmp::Ordering::Greater,
-        (None, None) => index_estimate(collection, left, cardinality_stats)
-            .cmp(&index_estimate(collection, right, cardinality_stats))
-            .then_with(|| {
-                let right_specificity =
-                    right.normalized_fields().len() + right.normalized_expressions().len();
-                let left_specificity =
-                    left.normalized_fields().len() + left.normalized_expressions().len();
-                right_specificity.cmp(&left_specificity)
-            })
-            .then_with(|| left.name.cmp(&right.name)),
-    }
-}
-
-fn scalar_index_path_rank(path: ScalarIndexPlanPath) -> u8 {
-    match path {
-        ScalarIndexPlanPath::IndexSeek => 0,
-        ScalarIndexPlanPath::PrefixScan => 1,
-        ScalarIndexPlanPath::RangeScan => 2,
-        ScalarIndexPlanPath::OrderedBoundedScan => 3,
-    }
-}
-
-fn index_estimate(
-    collection: &str,
-    index: &IndexMeta,
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
-) -> u64 {
-    cardinality_stats
-        .get(collection)
-        .filter(|stats| stats.hydrated)
-        .and_then(|stats| {
-            stats.index_cardinality(&CollectionCardinalityStats::index_key(
-                &index.kind,
-                &index.name,
-            ))
-        })
-        .unwrap_or(u64::MAX)
-}
-
-fn partial_index_matches_query(
-    query_filter: Option<&Expr>,
-    index_predicate: Option<&String>,
-) -> bool {
-    match index_predicate {
-        None => true,
-        Some(predicate) => {
-            query_filter
-                .and_then(|filter| serde_json::to_string(filter).ok())
-                .as_ref()
-                == Some(predicate)
-        }
-    }
 }
 
 fn plan_is_covered_by_index(plan: &LogicalPlan, index: &IndexMeta) -> bool {

@@ -436,6 +436,8 @@ mod lifecycle;
 mod query;
 #[path = "app/query_explain.rs"]
 mod query_explain;
+#[path = "app/query_feedback.rs"]
+mod query_feedback;
 #[path = "app/registry.rs"]
 mod registry;
 #[path = "app/replay.rs"]

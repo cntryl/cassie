@@ -66,6 +66,8 @@ mod feedback;
 mod fulltext;
 #[path = "runtime/helpers.rs"]
 mod helpers;
+#[path = "runtime/operator_feedback_state.rs"]
+mod operator_feedback_state;
 #[path = "runtime/projection_metrics.rs"]
 mod projection_metrics;
 #[path = "runtime/query_cache.rs"]
@@ -84,6 +86,11 @@ mod time_series_metrics;
 mod vector_metrics;
 
 pub use controls::QueryExecutionControls;
+pub(crate) use feedback::{
+    normalized_feedback_key, observation_is_outlier, recompute_feedback_confidence,
+    OperatorFeedbackEstimate, RuntimeFeedbackLookup, RuntimeFeedbackLookupState,
+    OPERATOR_FEEDBACK_CONFIDENCE_FLOOR_BPS, OPERATOR_FEEDBACK_MIN_STABLE_SAMPLES,
+};
 pub use feedback::{RuntimeFeedbackKey, RuntimeFeedbackObservation, RuntimeFeedbackRecord};
 pub use fulltext::{FulltextIndexOptions, FulltextIndexOptionsCacheKey};
 pub(crate) use helpers::stable_fingerprint;
@@ -628,104 +635,6 @@ impl RuntimeState {
         metrics.feedback.evictions += evictions;
     }
 
-    pub fn feedback_lookup(&self, key: &RuntimeFeedbackKey) -> Option<RuntimeFeedbackRecord> {
-        let now_ms = current_time_millis();
-        let mut feedback = self.feedback.lock().expect("runtime feedback");
-        let evictions =
-            prune_feedback_by_age(&mut feedback, now_ms, self.limits.feedback_ttl_seconds);
-        let record = feedback.entries.get(key).cloned();
-        if record.is_some() {
-            touch_feedback(&mut feedback.order, key);
-        }
-        drop(feedback);
-
-        self.record_feedback_eviction(evictions);
-        if record.is_some() {
-            self.record_feedback_hit();
-        } else {
-            self.record_feedback_miss();
-        }
-        record
-    }
-
-    pub fn feedback_record(&self, key: &RuntimeFeedbackKey) -> Option<RuntimeFeedbackRecord> {
-        self.feedback
-            .lock()
-            .expect("runtime feedback")
-            .entries
-            .get(key)
-            .cloned()
-    }
-
-    pub fn record_feedback(
-        &self,
-        key: RuntimeFeedbackKey,
-        observation: RuntimeFeedbackObservation,
-    ) {
-        let updates_index_feedback = key.operator.starts_with("Index:");
-        let now_ms = current_time_millis();
-        let max_entries = self.limits.feedback_entries.max(1);
-        let mut feedback = self.feedback.lock().expect("runtime feedback");
-        let mut evictions =
-            prune_feedback_by_age(&mut feedback, now_ms, self.limits.feedback_ttl_seconds);
-
-        if let Some(record) = feedback.entries.get_mut(&key) {
-            apply_feedback_observation(record, &observation, now_ms);
-            touch_feedback(&mut feedback.order, &key);
-        } else {
-            while feedback.entries.len() >= max_entries {
-                let Some(oldest) = feedback.order.pop_front() else {
-                    break;
-                };
-                if feedback.entries.remove(&oldest).is_some() {
-                    evictions += 1;
-                }
-            }
-
-            let mut record = RuntimeFeedbackRecord {
-                first_seen_ms: now_ms,
-                last_seen_ms: now_ms,
-                ..RuntimeFeedbackRecord::default()
-            };
-            apply_feedback_observation(&mut record, &observation, now_ms);
-            feedback.entries.insert(key.clone(), record);
-            feedback.order.push_back(key);
-        }
-
-        drop(feedback);
-        if updates_index_feedback {
-            self.bump_index_feedback_epoch();
-        }
-        self.record_feedback_write();
-        self.record_feedback_eviction(evictions);
-    }
-
-    pub fn feedback_candidate_budget(&self, collection: &str) -> Option<usize> {
-        let now_ms = current_time_millis();
-        let mut feedback = self.feedback.lock().expect("runtime feedback");
-        let evictions =
-            prune_feedback_by_age(&mut feedback, now_ms, self.limits.feedback_ttl_seconds);
-        let budget = feedback
-            .entries
-            .iter()
-            .filter(|(key, record)| {
-                key.collection.eq_ignore_ascii_case(collection)
-                    && record.executions > 0
-                    && record.candidate_count_total > 0
-            })
-            .map(|(_, record)| {
-                record
-                    .candidate_count_total
-                    .saturating_add(record.executions - 1)
-                    / record.executions
-            })
-            .max()
-            .and_then(|value| usize::try_from(value).ok());
-        drop(feedback);
-        self.record_feedback_eviction(evictions);
-        budget
-    }
-
     pub fn record_covering_index_scan(&self, rows: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.covering_indexes.scans += 1;
@@ -986,6 +895,7 @@ impl RuntimeState {
             .lock()
             .expect("fulltext index options")
             .clear();
+        self.clear_feedback();
     }
 
     pub fn fulltext_index_options_lookup(
@@ -1054,14 +964,6 @@ impl RuntimeState {
         snapshot.feedback.entries = self.feedback_entry_count() as u64;
         snapshot.feedback.max_entries = self.limits.feedback_entries as u64;
         snapshot
-    }
-
-    pub fn feedback_entry_count(&self) -> usize {
-        self.feedback
-            .lock()
-            .expect("runtime feedback")
-            .entries
-            .len()
     }
 }
 

@@ -29,6 +29,10 @@ impl Cassie {
             .bump_schema_epoch()
             .map_err(|error| CassieError::Storage(format!("bump schema epoch: {error}")))?;
         self.runtime.record_storage_access("schema", true, true);
+        self.midge
+            .clear_runtime_feedback_records()
+            .map_err(|error| CassieError::Storage(format!("clear operator feedback: {error}")))?;
+        self.runtime.record_storage_access("schema", true, true);
         self.runtime.set_schema_epoch(schema_epoch);
         self.runtime.invalidate_plan_cache();
         Ok(())

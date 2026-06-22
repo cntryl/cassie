@@ -79,7 +79,7 @@ fn should_select_time_series_index_for_timestamp_range_explain() {
         assert!(plan.contains("time_series=bucket_width:1 hour"));
         assert!(plan.contains("partition_by:tenant"));
         assert!(plan.contains("range_filter:true"));
-        assert!(plan.contains("cost_model=v1"));
+        assert!(plan.contains("cost_model=v2"));
 
         let _ = std::fs::remove_dir_all(path);
     });

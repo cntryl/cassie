@@ -28,6 +28,27 @@ pub(super) fn plan_line(
     } else {
         "none"
     };
+    let operator_feedback = if physical.operator_feedback.state.is_empty() {
+        "none"
+    } else {
+        physical.operator_feedback.state.as_str()
+    };
+    let operator_feedback_reason = if physical.operator_feedback.reason.is_empty() {
+        "none"
+    } else {
+        physical.operator_feedback.reason.as_str()
+    };
+    let operator_feedback_base_candidate = if physical.operator_feedback.base_candidate.is_empty() {
+        "none"
+    } else {
+        physical.operator_feedback.base_candidate.as_str()
+    };
+    let operator_feedback_selected_candidate =
+        if physical.operator_feedback.selected_candidate.is_empty() {
+            "none"
+        } else {
+            physical.operator_feedback.selected_candidate.as_str()
+        };
     let covered_index = physical.covered_index;
     let column_batch_index = physical.column_batch_index.as_deref().unwrap_or("none");
     let prefilter = prefilter_description(cassie, physical);
@@ -62,6 +83,11 @@ pub(super) fn plan_line(
         .map(|projection| projection.freshness.as_str().to_string())
         .unwrap_or_else(|| "unavailable".to_string());
     let estimates = &physical.estimates;
+    let selected_cost = if operator_feedback == "used" {
+        physical.operator_feedback.adjusted_selected_cost
+    } else {
+        estimates.selected_cost
+    };
     let rejected_alternatives = if estimates.rejected_alternatives.is_empty() {
         "none".to_string()
     } else {
@@ -69,7 +95,7 @@ pub(super) fn plan_line(
     };
 
     format!(
-        "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} access_path={} access_path_reason={} fallback_reason={} pagination_strategy={} top_k_mode={} early_stop={} projection_shape={} index_aware={} index={} index_feedback={} covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={} cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
+        "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} access_path={} access_path_reason={} fallback_reason={} pagination_strategy={} top_k_mode={} early_stop={} projection_shape={} index_aware={} index={} index_feedback={} operator_feedback={} operator_feedback_reason={} operator_feedback_base_candidate={} operator_feedback_selected_candidate={} operator_feedback_base_cost={} operator_feedback_adjusted_cost={} operator_feedback_confidence_bps={} operator_feedback_age_ms={} operator_feedback_samples={} operator_feedback_outliers={} covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={} cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
         physical.collection,
         if operators.is_empty() {
             "Command".to_string()
@@ -91,6 +117,16 @@ pub(super) fn plan_line(
         index_aware,
         index,
         index_feedback,
+        operator_feedback,
+        operator_feedback_reason,
+        operator_feedback_base_candidate,
+        operator_feedback_selected_candidate,
+        physical.operator_feedback.base_selected_cost,
+        physical.operator_feedback.adjusted_selected_cost,
+        physical.operator_feedback.confidence_bps,
+        physical.operator_feedback.age_ms,
+        physical.operator_feedback.samples,
+        physical.operator_feedback.outlier_samples,
         covered_index,
         column_batch_index,
         diagnostics.column_native,
@@ -112,7 +148,7 @@ pub(super) fn plan_line(
         mixed.exact_baseline,
         projection_freshness,
         estimates.cost_model_version,
-        estimates.selected_cost,
+        selected_cost,
         estimates.scan_cost,
         estimates.index_cost,
         estimates.cost_source,

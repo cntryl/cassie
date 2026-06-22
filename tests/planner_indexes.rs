@@ -427,3 +427,48 @@ fn should_skip_expression_index_for_non_equivalent_predicate() {
         assert!(physical_plan.selected_index.is_none());
     });
 }
+
+#[test]
+fn should_keep_scalar_index_selection_deterministic_when_candidates_tie() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_operator_feedback_tie");
+    register_scalar_index(
+        &catalog,
+        "planner_operator_feedback_tie",
+        "planner_operator_feedback_body_idx_a",
+        vec!["body"],
+    );
+    register_scalar_index(
+        &catalog,
+        "planner_operator_feedback_tie",
+        "planner_operator_feedback_title_idx_b",
+        vec!["title"],
+    );
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_operator_feedback_tie WHERE title = 'alpha' AND body = 'one'",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build_with_indexes(
+            logical,
+            catalog.list_indexes("planner_operator_feedback_tie"),
+            &Default::default(),
+        );
+
+        // Assert
+        assert_eq!(
+            physical_plan.selected_index.as_deref(),
+            Some("planner_operator_feedback_body_idx_a")
+        );
+    });
+}

@@ -70,7 +70,11 @@ impl PlanEstimates {
         let index_cost = selected_index
             .map(|_| index_rows.max(1))
             .unwrap_or(scan_rows);
-        let selected_cost = index_cost.min(scan_cost);
+        let selected_cost = if selected_index.is_some() {
+            index_cost
+        } else {
+            scan_cost
+        };
         let cost_source = if filter_rows.is_some() {
             "advanced_stats"
         } else if stats.is_some() {
@@ -88,7 +92,7 @@ impl PlanEstimates {
         };
 
         Self {
-            cost_model_version: 1,
+            cost_model_version: 2,
             scan_rows,
             index_rows,
             join_rows,

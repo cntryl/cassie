@@ -1,7 +1,7 @@
 use super::*;
 use crate::midge::adapter::DocumentWriteOp;
 
-const PLAN_CACHE_COST_MODEL_VERSION: u32 = 1;
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 2;
 
 impl Cassie {
     fn is_query_cacheable(statement: &QueryStatement) -> bool {
@@ -27,53 +27,6 @@ impl Cassie {
         }
     }
 
-    fn feedback_keys_for_plan(
-        &self,
-        sql_fingerprint: u64,
-        database: Option<String>,
-        physical: &crate::planner::physical::PhysicalPlan,
-    ) -> Vec<RuntimeFeedbackKey> {
-        let schema_epoch = self.runtime.schema_epoch();
-        let collection = physical.collection.clone();
-        let mut keys = physical
-            .operators
-            .iter()
-            .map(|operator| RuntimeFeedbackKey {
-                sql_fingerprint,
-                schema_epoch,
-                database: database.clone(),
-                collection: collection.clone(),
-                operator: format!("{operator:?}"),
-            })
-            .collect::<Vec<_>>();
-        if let Some(index) = &physical.selected_index {
-            keys.push(RuntimeFeedbackKey {
-                sql_fingerprint,
-                schema_epoch,
-                database,
-                collection,
-                operator: format!("Index:{index}"),
-            });
-        }
-        keys
-    }
-
-    fn observe_feedback_lookup(&self, keys: &[RuntimeFeedbackKey]) {
-        for key in keys {
-            let _ = self.runtime.feedback_lookup(key);
-        }
-    }
-
-    fn record_feedback_for_keys(
-        &self,
-        keys: Vec<RuntimeFeedbackKey>,
-        observation: RuntimeFeedbackObservation,
-    ) {
-        for key in keys {
-            self.runtime.record_feedback(key, observation.clone());
-        }
-    }
-
     #[doc(hidden)]
     pub fn plan_cache_hit_for_diagnostics(
         &self,
@@ -89,14 +42,6 @@ impl Cassie {
             database,
         );
         self.runtime.plan_cache_lookup(&key).is_some()
-    }
-
-    #[doc(hidden)]
-    pub fn feedback_record_for_diagnostics(
-        &self,
-        key: &RuntimeFeedbackKey,
-    ) -> Option<crate::runtime::RuntimeFeedbackRecord> {
-        self.runtime.feedback_record(key)
     }
 
     fn plan_cache_provenance(
@@ -118,6 +63,7 @@ impl Cassie {
         &self,
         parsed: crate::sql::ast::ParsedStatement,
         key: PlanCacheKey,
+        database: Option<String>,
         controls: Option<&QueryExecutionControls>,
     ) -> Result<
         (
@@ -136,7 +82,7 @@ impl Cassie {
         }
 
         self.runtime.record_query_cache_compile_miss();
-        let plan = self.compile_physical_plan(parsed, controls)?;
+        let plan = self.compile_physical_plan(parsed, database, controls)?;
         self.runtime.plan_cache_store(key, plan.clone(), false);
         Ok((plan, PlanCacheProvenance::Compiled))
     }
@@ -242,10 +188,10 @@ impl Cassie {
             )
         });
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
-            self.resolve_physical_plan(parsed, key, Some(&controls))?
+            self.resolve_physical_plan(parsed, key, None, Some(&controls))?
         } else {
             (
-                self.compile_physical_plan(parsed, Some(&controls))?,
+                self.compile_physical_plan(parsed, None, Some(&controls))?,
                 PlanCacheProvenance::Compiled,
             )
         };
@@ -333,26 +279,6 @@ impl Cassie {
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
         self.execute_sql_core(session, sql, params, mode, controls)
-    }
-
-    fn compile_physical_plan(
-        &self,
-        parsed: crate::sql::ast::ParsedStatement,
-        controls: Option<&QueryExecutionControls>,
-    ) -> Result<Arc<crate::planner::physical::PhysicalPlan>, CassieError> {
-        let bound = binder::bind(parsed, &self.catalog)?;
-        if controls.is_some_and(QueryExecutionControls::is_timed_out) {
-            return Err(CassieError::Execution("query timeout exceeded".to_string()));
-        }
-
-        let logical = crate::planner::logical::plan(&bound)?;
-        let optimized = crate::planner::optimizer::optimize(logical);
-        let cardinality_stats = self.catalog.cardinality.read().clone();
-        Ok(Arc::new(crate::planner::physical::build_with_indexes(
-            optimized,
-            bound.indexes,
-            &cardinality_stats,
-        )))
     }
 
     fn execute_sql_core(
@@ -466,16 +392,15 @@ impl Cassie {
             )
         });
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
-            self.resolve_physical_plan(parsed, key, Some(controls))?
+            self.resolve_physical_plan(parsed, key, session.database.clone(), Some(controls))?
         } else {
             (
-                self.compile_physical_plan(parsed, Some(controls))?,
+                self.compile_physical_plan(parsed, session.database.clone(), Some(controls))?,
                 PlanCacheProvenance::Compiled,
             )
         };
         let feedback_keys = is_select.then(|| {
-            let keys =
-                self.feedback_keys_for_plan(sql_fingerprint, session.database.clone(), &physical);
+            let keys = self.feedback_keys_for_plan(session.database.clone(), &physical);
             self.observe_feedback_lookup(&keys);
             keys
         });
@@ -521,8 +446,60 @@ impl Cassie {
         if let Some(keys) = feedback_keys.clone() {
             let after = self.runtime.snapshot();
             let before = feedback_before.expect("feedback snapshot");
+            let storage_reads = after
+                .storage
+                .data
+                .reads
+                .saturating_sub(before.storage.data.reads);
+            let storage_writes = after
+                .storage
+                .data
+                .writes
+                .saturating_sub(before.storage.data.writes);
+            let temp_writes = after
+                .storage
+                .temp
+                .writes
+                .saturating_sub(before.storage.temp.writes);
+            let candidate_count = after
+                .search
+                .candidate_count_total
+                .saturating_sub(before.search.candidate_count_total)
+                .saturating_add(
+                    after
+                        .vector
+                        .candidate_count_total
+                        .saturating_sub(before.vector.candidate_count_total),
+                )
+                .saturating_add(
+                    after
+                        .hybrid
+                        .candidate_count_total
+                        .saturating_sub(before.hybrid.candidate_count_total),
+                );
+            let result_count = after
+                .search
+                .result_count_total
+                .saturating_sub(before.search.result_count_total)
+                .saturating_add(
+                    after
+                        .vector
+                        .result_count_total
+                        .saturating_sub(before.vector.result_count_total),
+                )
+                .saturating_add(
+                    after
+                        .hybrid
+                        .result_count_total
+                        .saturating_sub(before.hybrid.result_count_total),
+                );
             let observation = RuntimeFeedbackObservation {
-                rows_in: physical.estimates.scan_rows,
+                rows_in: storage_reads.saturating_add(candidate_count).max(
+                    execution
+                        .as_ref()
+                        .map(|result| result.rows.len() as u64)
+                        .unwrap_or(0),
+                ),
                 rows_out: execution
                     .as_ref()
                     .map(|result| result.rows.len() as u64)
@@ -531,57 +508,17 @@ impl Cassie {
                     .elapsed()
                     .as_millis()
                     .min(u64::MAX as u128) as u64,
-                storage_reads: after
-                    .storage
-                    .data
-                    .reads
-                    .saturating_sub(before.storage.data.reads),
-                storage_writes: after
-                    .storage
-                    .data
-                    .writes
-                    .saturating_sub(before.storage.data.writes),
-                temp_writes: after
-                    .storage
-                    .temp
-                    .writes
-                    .saturating_sub(before.storage.temp.writes),
-                candidate_count: after
-                    .search
-                    .candidate_count_total
-                    .saturating_sub(before.search.candidate_count_total)
-                    .saturating_add(
-                        after
-                            .vector
-                            .candidate_count_total
-                            .saturating_sub(before.vector.candidate_count_total),
-                    )
-                    .saturating_add(
-                        after
-                            .hybrid
-                            .candidate_count_total
-                            .saturating_sub(before.hybrid.candidate_count_total),
-                    ),
-                result_count: after
-                    .search
-                    .result_count_total
-                    .saturating_sub(before.search.result_count_total)
-                    .saturating_add(
-                        after
-                            .vector
-                            .result_count_total
-                            .saturating_sub(before.vector.result_count_total),
-                    )
-                    .saturating_add(
-                        after
-                            .hybrid
-                            .result_count_total
-                            .saturating_sub(before.hybrid.result_count_total),
-                    ),
+                storage_reads,
+                storage_writes,
+                temp_writes,
+                candidate_count,
+                result_count,
                 error_class: execution
                     .as_ref()
                     .err()
                     .map(|error| crate::runtime::error_class(error).to_string()),
+                spilled: temp_writes > 0,
+                memory_pressure: temp_writes > 0,
             };
             self.record_feedback_for_keys(keys, observation);
         }
@@ -728,14 +665,13 @@ impl Cassie {
         analyze: bool,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
-        let sql_fingerprint = crate::runtime::sql_fingerprint(&statement);
         let before = analyze.then(|| self.runtime.snapshot());
-        let physical = self.compile_physical_plan(statement, Some(controls))?;
+        let physical =
+            self.compile_physical_plan(statement, session.database.clone(), Some(controls))?;
         let mut plan = super::query_explain::plan_line(self, &physical);
 
         if analyze {
-            let feedback_keys =
-                self.feedback_keys_for_plan(sql_fingerprint, session.database.clone(), &physical);
+            let feedback_keys = self.feedback_keys_for_plan(session.database.clone(), &physical);
             self.observe_feedback_lookup(&feedback_keys);
             let started_at = Instant::now();
             let result = crate::executor::run_with_session_controls(
@@ -821,7 +757,9 @@ impl Cassie {
             self.record_feedback_for_keys(
                 feedback_keys,
                 RuntimeFeedbackObservation {
-                    rows_in: physical.estimates.scan_rows,
+                    rows_in: storage_reads_delta
+                        .saturating_add(candidate_count_delta)
+                        .max(result.rows.len() as u64),
                     rows_out: result.rows.len() as u64,
                     elapsed_ms: elapsed_ms.min(u128::from(u64::MAX)) as u64,
                     storage_reads: storage_reads_delta,
@@ -830,6 +768,8 @@ impl Cassie {
                     candidate_count: candidate_count_delta,
                     result_count: result_count_delta,
                     error_class: None,
+                    spilled: temp_writes_delta > 0,
+                    memory_pressure: temp_writes_delta > 0,
                 },
             );
             let actual_operators = if physical.operators.is_empty() {

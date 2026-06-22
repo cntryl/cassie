@@ -58,6 +58,7 @@ const ROW_HASH_PREFIX: &str = "__cassie__/row-hash/v1/";
 const RANGE_HASH_PREFIX: &str = "__cassie__/range-hash/v1/";
 const ROOT_HASH_PREFIX: &str = "__cassie__/root-hash/v1/";
 const CARDINALITY_KEY_PREFIX: &str = "__cassie__/cardinality/v1/";
+const OPERATOR_FEEDBACK_PREFIX: &str = "__cassie__/operator-feedback/v1/";
 const NORMALIZED_VECTOR_PREFIX: &str = "__cassie__/normalized-vector/";
 const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
 const NAMESPACES_KEY: &str = "__cassie__/namespaces";
@@ -274,6 +275,8 @@ mod column_batches;
 pub(crate) mod documents;
 #[path = "adapter/metadata.rs"]
 mod metadata;
+#[path = "adapter/operator_feedback.rs"]
+mod operator_feedback;
 #[path = "adapter/projections.rs"]
 mod projections;
 #[path = "adapter/scalar_indexes.rs"]
@@ -870,6 +873,18 @@ impl Midge {
 
     fn cardinality_prefix() -> Vec<u8> {
         CARDINALITY_KEY_PREFIX.as_bytes().to_vec()
+    }
+
+    fn runtime_feedback_key(key: &crate::runtime::RuntimeFeedbackKey) -> Vec<u8> {
+        format!(
+            "{OPERATOR_FEEDBACK_PREFIX}{:016x}",
+            crate::runtime::stable_fingerprint(key)
+        )
+        .into_bytes()
+    }
+
+    fn runtime_feedback_prefix() -> Vec<u8> {
+        OPERATOR_FEEDBACK_PREFIX.as_bytes().to_vec()
     }
 
     fn load_cardinality_stats_from_tx(

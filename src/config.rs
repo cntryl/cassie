@@ -25,6 +25,7 @@ pub struct CassieRuntimeLimits {
     pub cf2_fulltext_stats_ttl_seconds: u64,
     pub feedback_entries: usize,
     pub feedback_ttl_seconds: u64,
+    pub operator_feedback_enabled: bool,
     pub adaptive_candidate_min: usize,
     pub adaptive_candidate_max: usize,
     pub parallel_scan_workers: usize,
@@ -101,6 +102,7 @@ impl Default for CassieRuntimeLimits {
             cf2_fulltext_stats_ttl_seconds: 300,
             feedback_entries: 128,
             feedback_ttl_seconds: 900,
+            operator_feedback_enabled: false,
             adaptive_candidate_min: 16,
             adaptive_candidate_max: 100_000,
             parallel_scan_workers: 1,
@@ -184,6 +186,10 @@ impl CassieRuntimeConfig {
             feedback_ttl_seconds: parse_u64(
                 "CASSIE_FEEDBACK_TTL_SECONDS",
                 config.limits.feedback_ttl_seconds,
+            ),
+            operator_feedback_enabled: parse_bool(
+                "CASSIE_OPERATOR_FEEDBACK_ENABLED",
+                config.limits.operator_feedback_enabled,
             ),
             adaptive_candidate_min: parse_usize(
                 "CASSIE_ADAPTIVE_CANDIDATE_MIN",
@@ -295,6 +301,17 @@ fn parse_usize(key: &str, fallback: usize) -> usize {
     env::var(key)
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(fallback)
+}
+
+fn parse_bool(key: &str, fallback: bool) -> bool {
+    env::var(key)
+        .ok()
+        .and_then(|value| match value.to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => Some(true),
+            "0" | "false" | "no" | "off" => Some(false),
+            _ => None,
+        })
         .unwrap_or(fallback)
 }
 

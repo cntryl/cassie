@@ -49,7 +49,7 @@ fn should_explain_cost_model_diagnostics_for_index_choice() {
             cassie::types::Value::String(value) => value,
             other => panic!("expected explain string, got {other:?}"),
         };
-        assert!(plan.contains("cost_model=v1"));
+        assert!(plan.contains("cost_model=v2"));
         assert!(plan.contains("selected_cost="));
         assert!(plan.contains("cost_source="));
         assert!(plan.contains("rejected_alternatives="));

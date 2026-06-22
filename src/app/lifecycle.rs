@@ -196,6 +196,7 @@ impl Cassie {
 
         self.hydrate_catalog()
             .map_err(|error| CassieError::Storage(format!("catalog hydration: {error}")))?;
+        self.hydrate_runtime_feedback()?;
         self.runtime.mark_started();
         self.runtime.record_startup(started_at.elapsed());
         self.started.store(true, Ordering::SeqCst);
@@ -283,6 +284,47 @@ impl Cassie {
         self.runtime.record_cardinality_rebuild();
         self.runtime.record_cardinality_write();
         self.catalog.hydrate_cardinality_stats(collection, stats);
+        Ok(())
+    }
+
+    pub(crate) fn hydrate_runtime_feedback(&self) -> Result<(), CassieError> {
+        let records = self
+            .midge
+            .list_runtime_feedback_records()
+            .map_err(|error| {
+                self.runtime.record_storage_access("schema", false, false);
+                CassieError::Storage(format!("list operator feedback: {error}"))
+            })?;
+        self.runtime.record_storage_access("schema", false, true);
+
+        let current_epoch = self.runtime.schema_epoch();
+        let effective_epoch = if current_epoch == 0 {
+            records
+                .iter()
+                .map(|(key, _record)| key.schema_epoch)
+                .max()
+                .unwrap_or(current_epoch)
+        } else {
+            current_epoch
+        };
+        if effective_epoch != current_epoch {
+            self.runtime.set_schema_epoch(effective_epoch);
+        }
+        let now_ms = current_time_millis();
+        let ttl_ms = self
+            .runtime
+            .limits()
+            .feedback_ttl_seconds
+            .saturating_mul(1_000);
+        let hydrated = records
+            .into_iter()
+            .filter(|(key, record)| {
+                key.schema_epoch == effective_epoch
+                    && (ttl_ms == 0 || now_ms.saturating_sub(record.last_seen_ms) <= ttl_ms)
+            })
+            .collect::<Vec<_>>();
+        self.runtime.replace_feedback_records(hydrated);
+        self.persist_runtime_feedback();
         Ok(())
     }
 }

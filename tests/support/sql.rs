@@ -59,3 +59,18 @@ pub fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str)
     }
     tx.commit(WriteOptions::sync()).unwrap();
 }
+
+pub fn explain_plan_text(result: &cassie::executor::QueryResult) -> &str {
+    match &result.rows[0][0] {
+        cassie::types::Value::String(plan) => plan,
+        _ => panic!("expected textual plan"),
+    }
+}
+
+pub fn assert_explain_contains(plan: &str, key: &str, value: &str) {
+    let needle = format!("{key}={value}");
+    assert!(
+        plan.contains(&needle),
+        "expected '{needle}' in plan: {plan}"
+    );
+}

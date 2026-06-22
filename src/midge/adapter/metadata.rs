@@ -56,6 +56,9 @@ impl Midge {
         tx.put(key, value, None).map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
+        if metadata.kind == IndexKind::Scalar {
+            self.rebuild_scalar_index_for_index(&metadata)?;
+        }
         Ok(())
     }
 
@@ -92,11 +95,15 @@ impl Midge {
     }
 
     pub fn delete_index(&self, collection: &str, name: &str) -> Result<(), CassieError> {
+        let metadata = self.get_index(collection, name)?;
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::index_key(collection, name))
             .map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
+        if metadata.is_some_and(|index| index.kind == IndexKind::Scalar) {
+            self.delete_scalar_index_data(collection, name)?;
+        }
         Ok(())
     }
 

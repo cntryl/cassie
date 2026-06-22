@@ -1,6 +1,7 @@
 use criterion::{
     criterion_group, criterion_main, BenchmarkId, Criterion, SamplingMode, Throughput,
 };
+use std::hint::black_box;
 
 #[path = "support/criterion_config.rs"]
 mod criterion_config;
@@ -24,8 +25,28 @@ fn bench_executor(c: &mut Criterion) {
             "SELECT id, title FROM bench_documents WHERE title = 'title-1'",
         ),
         (
+            "scalar_index_seek_executor",
+            "SELECT id FROM bench_documents WHERE title = 'title-1' ORDER BY id ASC LIMIT 25",
+        ),
+        (
+            "scalar_range_scan_executor",
+            "SELECT id FROM bench_documents WHERE title >= 'title-04' AND title < 'title-09' ORDER BY title ASC LIMIT 25",
+        ),
+        (
+            "scalar_ordered_bounded_executor",
+            "SELECT id FROM bench_documents ORDER BY title ASC LIMIT 25",
+        ),
+        (
             "large_ordered_scan_executor",
             "SELECT id FROM bench_documents ORDER BY title ASC LIMIT 25 OFFSET 9000",
+        ),
+        (
+            "row_id_storage_top_k_executor",
+            "SELECT id FROM bench_documents ORDER BY id ASC LIMIT 25",
+        ),
+        (
+            "row_id_keyset_executor",
+            "SELECT id FROM bench_documents WHERE id > 'doc-09000' ORDER BY id ASC LIMIT 25",
         ),
         (
             "indexed_filter_executor",
@@ -55,7 +76,7 @@ fn bench_executor(c: &mut Criterion) {
 
     for (name, sql) in cases {
         group.bench_function(BenchmarkId::new(name, "10k"), |b| {
-            b.iter(|| runtime.block_on(workloads::execute_sql(&ctx, sql)))
+            b.iter(|| black_box(runtime.block_on(workloads::execute_sql(&ctx, sql))))
         });
     }
 

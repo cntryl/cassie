@@ -112,21 +112,21 @@ fn should_execute_query_across_multiple_batches_without_truncation() {
                 .collect(),
         );
 
-        for index in 0..1105 {
-            let id = format!("d{index:04}");
-            let title = format!("doc-{index:04}");
-            cassie
-                .midge
-                .put_document(collection, Some(id), serde_json::json!({ "title": title }))
-                .unwrap();
-        }
+        let documents = (0..1029)
+            .map(|index| {
+                let id = format!("d{index:04}");
+                let title = format!("doc-{index:04}");
+                (Some(id), serde_json::json!({ "title": title }))
+            })
+            .collect::<Vec<_>>();
+        cassie.midge.put_documents(collection, documents).unwrap();
 
         // Act
         let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
                 &session,
-                "SELECT id FROM exec_multi_batch ORDER BY title ASC LIMIT 5 OFFSET 1095",
+                "SELECT id FROM exec_multi_batch ORDER BY title ASC LIMIT 5 OFFSET 1024",
                 vec![],
             )
             .expect("query should execute");
@@ -144,11 +144,11 @@ fn should_execute_query_across_multiple_batches_without_truncation() {
         assert_eq!(
             ids,
             vec![
-                "d1095".to_string(),
-                "d1096".to_string(),
-                "d1097".to_string(),
-                "d1098".to_string(),
-                "d1099".to_string(),
+                "d1024".to_string(),
+                "d1025".to_string(),
+                "d1026".to_string(),
+                "d1027".to_string(),
+                "d1028".to_string(),
             ]
         );
     });
@@ -196,19 +196,18 @@ fn should_preserve_filtered_projection_across_multiple_batches() {
                     .collect(),
             );
 
-        for index in 0..1105 {
-            let id = format!("d{index:04}");
-            let title = format!("doc-{index:04}");
-            let status = if index % 2 == 0 { "keep" } else { "drop" };
-            cassie
-                .midge
-                .put_document(
-                    collection,
+        let documents = (0..1030)
+            .map(|index| {
+                let id = format!("d{index:04}");
+                let title = format!("doc-{index:04}");
+                let status = if index % 2 == 0 { "keep" } else { "drop" };
+                (
                     Some(id),
                     serde_json::json!({ "title": title, "status": status }),
                 )
-                .unwrap();
-        }
+            })
+            .collect::<Vec<_>>();
+        cassie.midge.put_documents(collection, documents).unwrap();
 
         // Act
         let session = cassie.create_session("tester", None);

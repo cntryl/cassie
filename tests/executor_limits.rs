@@ -484,19 +484,18 @@ fn should_cleanup_parallel_aggregation_workers_on_timeout() {
                 .map(|field| (field.name.clone(), field.data_type.clone()))
                 .collect(),
         );
-        for index in 0..1100 {
-            cassie
-                .midge
-                .put_document(
-                    collection,
+        let documents = (0..1024)
+            .map(|index| {
+                (
                     Some(format!("doc-{index:04}")),
                     serde_json::json!({
                         "category": format!("g{}", index % 4),
                         "score": 1,
                     }),
                 )
-                .unwrap();
-        }
+            })
+            .collect::<Vec<_>>();
+        cassie.midge.put_documents(collection, documents).unwrap();
         let session = cassie.create_session("tester", None);
 
         // Act

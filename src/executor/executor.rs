@@ -427,7 +427,25 @@ fn execute_plan_with_outer_row(
             return Ok(rows);
         }
 
-        if let Some(rows) = projected_read::execute_ordered_column_top_k(cassie, plan)? {
+        if let Some(rows) = index_read::execute_scalar_index_read(
+            cassie,
+            session,
+            plan,
+            user_functions,
+            params,
+            controls,
+        )? {
+            if mixed_execution.is_some() {
+                cassie
+                    .runtime
+                    .record_mixed_execution_optimized(plan.collection.clone());
+            }
+            return Ok(rows);
+        }
+
+        if let Some(rows) =
+            ordered_read::execute_ordered_column_top_k(cassie, session, params, plan)?
+        {
             if mixed_execution.is_some() {
                 cassie
                     .runtime
@@ -694,6 +712,10 @@ pub(crate) use scored::{vector_prefilter_fallback_reason, vector_prefilter_suppo
 
 #[path = "execution/analytical_projection.rs"]
 mod analytical_projection;
+#[path = "execution/index_read.rs"]
+mod index_read;
+#[path = "execution/ordered_read.rs"]
+mod ordered_read;
 #[path = "execution/projected_read.rs"]
 mod projected_read;
 #[path = "execution/time_series_read.rs"]

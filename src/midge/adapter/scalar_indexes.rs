@@ -1,0 +1,446 @@
+use super::*;
+use crate::catalog::{payload_contains_index_membership, IndexKind, IndexMeta};
+use crate::executor::filter;
+use crate::sql::ast::Expr;
+use crate::types::Value;
+use cntryl_midge::{Query, WriteOptions};
+use std::collections::{BTreeMap, HashMap};
+
+#[derive(Debug, Clone)]
+pub(crate) struct ScalarIndexBound {
+    pub value: serde_json::Value,
+    pub inclusive: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ScalarIndexScanRequest {
+    pub equality_prefix: Vec<serde_json::Value>,
+    pub lower_bound: Option<ScalarIndexBound>,
+    pub upper_bound: Option<ScalarIndexBound>,
+    pub reverse: bool,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ScalarIndexScanHit {
+    pub id: String,
+    pub fields: serde_json::Map<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+struct ScalarIndexStoredRow {
+    id: String,
+    fields: BTreeMap<String, serde_json::Value>,
+}
+
+impl Midge {
+    pub(crate) fn sync_scalar_indexes_for_document(
+        &self,
+        tx: &mut cntryl_midge::Transaction,
+        id: &str,
+        old_payload: Option<&serde_json::Value>,
+        new_payload: Option<&serde_json::Value>,
+        indexes: &[IndexMeta],
+    ) -> Result<(usize, usize), CassieError> {
+        let mut deletes = 0usize;
+        let mut puts = 0usize;
+
+        for index in indexes {
+            let old_entry = match old_payload {
+                Some(payload) => Self::scalar_index_entry(index, id, payload)?,
+                None => None,
+            };
+            let new_entry = match new_payload {
+                Some(payload) => Self::scalar_index_entry(index, id, payload)?,
+                None => None,
+            };
+
+            match (old_entry.as_ref(), new_entry.as_ref()) {
+                (Some((old_key, old_value)), Some((new_key, new_value))) if old_key == new_key => {
+                    if old_value != new_value {
+                        tx.put(new_key.clone(), new_value.clone(), None)
+                            .map_err(CassieError::from)?;
+                        puts += 1;
+                    }
+                }
+                _ => {
+                    if let Some((old_key, _)) = old_entry {
+                        tx.delete(old_key).map_err(CassieError::from)?;
+                        deletes += 1;
+                    }
+                    if let Some((new_key, new_value)) = new_entry {
+                        tx.put(new_key, new_value, None)
+                            .map_err(CassieError::from)?;
+                        puts += 1;
+                    }
+                }
+            }
+        }
+
+        Ok((deletes, puts))
+    }
+
+    pub(crate) fn rebuild_scalar_indexes_for_collection(
+        &self,
+        collection: &str,
+    ) -> Result<(), CassieError> {
+        for index in self.list_indexes()?.into_iter().filter(|index| {
+            index.collection == collection && Self::scalar_index_supports_storage(index)
+        }) {
+            self.rebuild_scalar_index_for_index(&index)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn rebuild_scalar_index_for_index(
+        &self,
+        index: &IndexMeta,
+    ) -> Result<(), CassieError> {
+        if !Self::scalar_index_supports_storage(index) {
+            self.delete_scalar_index_data(&index.collection, &index.name)?;
+            return Ok(());
+        }
+
+        let rows = self.scan_rows_for_rebuild(&index.collection, RowDecode::Full)?;
+        let mut tx = self.begin_data_rw_tx()?;
+        Self::delete_keys_with_prefix(
+            &mut tx,
+            Self::scalar_index_data_prefix(&index.collection, &index.name),
+        )?;
+
+        for row in rows {
+            if let Some((key, value)) = Self::scalar_index_entry(index, &row.id, &row.payload)? {
+                tx.put(key, value, None).map_err(CassieError::from)?;
+            }
+        }
+
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub(crate) fn delete_scalar_index_data(
+        &self,
+        collection: &str,
+        index_name: &str,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_data_rw_tx()?;
+        Self::delete_keys_with_prefix(
+            &mut tx,
+            Self::scalar_index_data_prefix(collection, index_name),
+        )?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    pub(crate) fn scan_scalar_index(
+        &self,
+        index: &IndexMeta,
+        request: ScalarIndexScanRequest,
+    ) -> Result<Vec<ScalarIndexScanHit>, CassieError> {
+        if !Self::scalar_index_supports_storage(index) {
+            return Err(CassieError::Unsupported(format!(
+                "scalar index '{}' is not storage-backed",
+                index.name
+            )));
+        }
+
+        let tx = self.begin_data_readonly_tx()?;
+        let data_prefix = Self::scalar_index_data_prefix(&index.collection, &index.name);
+        let seek_prefix = Self::scalar_index_seek_prefix(&data_prefix, &request.equality_prefix)?;
+        let (start_key, end_key) = Self::scalar_index_query_bounds(
+            &seek_prefix,
+            request.lower_bound.as_ref(),
+            request.upper_bound.as_ref(),
+        )?;
+        let mut query = Query::new().prefix(data_prefix.into());
+        if let Some(start_key) = start_key {
+            query = query.start_key(start_key.into());
+        }
+        if let Some(end_key) = end_key {
+            query = query.end_key(end_key.into());
+        }
+        if request.reverse {
+            query = query.reverse();
+        }
+
+        let mut scan = tx.scan(&query).map_err(CassieError::from)?;
+        let mut hits = Vec::new();
+        let limit = request.limit.unwrap_or(usize::MAX);
+
+        while let Some((_key, raw_value)) = scan.next() {
+            let stored: ScalarIndexStoredRow =
+                serde_json::from_slice(&raw_value).map_err(|error| {
+                    CassieError::Parse(format!(
+                        "invalid scalar index entry for '{}': {error}",
+                        index.name
+                    ))
+                })?;
+            hits.push(ScalarIndexScanHit {
+                id: stored.id,
+                fields: stored.fields.into_iter().collect(),
+            });
+            if hits.len() >= limit {
+                break;
+            }
+        }
+
+        Ok(hits)
+    }
+
+    fn scalar_index_supports_storage(index: &IndexMeta) -> bool {
+        index.kind == IndexKind::Scalar
+            && index.expressions.is_empty()
+            && !index.normalized_fields().is_empty()
+    }
+
+    fn scalar_index_entry(
+        index: &IndexMeta,
+        id: &str,
+        payload: &serde_json::Value,
+    ) -> Result<Option<(Vec<u8>, Vec<u8>)>, CassieError> {
+        if !Self::scalar_index_supports_storage(index)
+            || !payload_contains_index_membership(payload, index)
+            || !Self::payload_matches_scalar_index_predicate(index, payload)?
+        {
+            return Ok(None);
+        }
+
+        let key_values = Self::scalar_index_key_values(index, payload)?;
+        let key = Self::scalar_index_entry_key(&index.collection, &index.name, &key_values, id)?;
+        let value = serde_json::to_vec(&ScalarIndexStoredRow {
+            id: id.to_string(),
+            fields: Self::scalar_index_stored_fields(index, payload),
+        })
+        .map_err(|error| CassieError::Parse(error.to_string()))?;
+        Ok(Some((key, value)))
+    }
+
+    fn scalar_index_key_values(
+        index: &IndexMeta,
+        payload: &serde_json::Value,
+    ) -> Result<Vec<serde_json::Value>, CassieError> {
+        index
+            .normalized_fields()
+            .into_iter()
+            .map(|field| {
+                payload.get(&field).cloned().ok_or_else(|| {
+                    CassieError::Parse(format!("missing scalar index field '{field}'"))
+                })
+            })
+            .collect()
+    }
+
+    fn scalar_index_stored_fields(
+        index: &IndexMeta,
+        payload: &serde_json::Value,
+    ) -> BTreeMap<String, serde_json::Value> {
+        let mut fields = BTreeMap::new();
+        for field in index
+            .normalized_fields()
+            .into_iter()
+            .chain(index.normalized_include_fields())
+        {
+            if let Some(value) = payload.get(&field) {
+                fields.entry(field).or_insert_with(|| value.clone());
+            }
+        }
+        fields
+    }
+
+    fn scalar_index_entry_key(
+        collection: &str,
+        index_name: &str,
+        values: &[serde_json::Value],
+        id: &str,
+    ) -> Result<Vec<u8>, CassieError> {
+        let mut key = Self::scalar_index_data_prefix(collection, index_name);
+        for value in values {
+            Self::append_scalar_index_value(&mut key, value)?;
+        }
+        key.push(b'/');
+        Self::append_scalar_index_component(&mut key, id.as_bytes());
+        Ok(key)
+    }
+
+    fn scalar_index_seek_prefix(
+        prefix: &[u8],
+        equality_prefix: &[serde_json::Value],
+    ) -> Result<Vec<u8>, CassieError> {
+        let mut seek_prefix = prefix.to_vec();
+        for value in equality_prefix {
+            Self::append_scalar_index_value(&mut seek_prefix, value)?;
+        }
+        Ok(seek_prefix)
+    }
+
+    fn scalar_index_query_bounds(
+        seek_prefix: &[u8],
+        lower_bound: Option<&ScalarIndexBound>,
+        upper_bound: Option<&ScalarIndexBound>,
+    ) -> Result<(Option<Vec<u8>>, Option<Vec<u8>>), CassieError> {
+        if lower_bound.is_none() && upper_bound.is_none() && seek_prefix.is_empty() {
+            return Ok((None, None));
+        }
+
+        let start_key = match lower_bound {
+            Some(bound) => Some(Self::scalar_index_bound_key(
+                seek_prefix,
+                &bound.value,
+                bound.inclusive,
+                true,
+            )?),
+            None if seek_prefix.is_empty() => None,
+            None => Some(seek_prefix.to_vec()),
+        };
+        let end_key = match upper_bound {
+            Some(bound) => Some(Self::scalar_index_bound_key(
+                seek_prefix,
+                &bound.value,
+                bound.inclusive,
+                false,
+            )?),
+            None if seek_prefix.is_empty() => None,
+            None => Some(Self::scalar_index_prefix_upper_bound(seek_prefix)),
+        };
+        Ok((start_key, end_key))
+    }
+
+    fn scalar_index_bound_key(
+        seek_prefix: &[u8],
+        value: &serde_json::Value,
+        inclusive: bool,
+        lower: bool,
+    ) -> Result<Vec<u8>, CassieError> {
+        let mut key = seek_prefix.to_vec();
+        Self::append_scalar_index_value(&mut key, value)?;
+        if (lower && !inclusive) || (!lower && inclusive) {
+            key.push(0xff);
+        }
+        Ok(key)
+    }
+
+    fn scalar_index_prefix_upper_bound(prefix: &[u8]) -> Vec<u8> {
+        let mut end_key = prefix.to_vec();
+        end_key.push(0xff);
+        end_key
+    }
+
+    fn append_scalar_index_value(
+        key: &mut Vec<u8>,
+        value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        match value {
+            serde_json::Value::Null => key.extend_from_slice(&[0x10, 0x00]),
+            serde_json::Value::Bool(false) => key.extend_from_slice(&[0x20, 0x00]),
+            serde_json::Value::Bool(true) => key.extend_from_slice(&[0x21, 0x00]),
+            serde_json::Value::Number(number) => {
+                if let Some(integer) = number
+                    .as_i64()
+                    .or_else(|| number.as_u64().and_then(|value| i64::try_from(value).ok()))
+                {
+                    key.push(0x30);
+                    key.extend_from_slice(
+                        &(u64::from_be_bytes(integer.to_be_bytes()) ^ (1_u64 << 63)).to_be_bytes(),
+                    );
+                    key.push(0x00);
+                } else if let Some(float) = number.as_f64() {
+                    if !float.is_finite() {
+                        return Err(CassieError::Unsupported(
+                            "non-finite scalar index values are not supported".to_string(),
+                        ));
+                    }
+                    let bits = float.to_bits();
+                    let ordered = if (bits >> 63) == 0 {
+                        bits ^ (1_u64 << 63)
+                    } else {
+                        !bits
+                    };
+                    key.push(0x40);
+                    key.extend_from_slice(&ordered.to_be_bytes());
+                    key.push(0x00);
+                } else {
+                    return Err(CassieError::Unsupported(
+                        "scalar index number is not representable".to_string(),
+                    ));
+                }
+            }
+            serde_json::Value::String(value) => {
+                key.push(0x50);
+                Self::append_scalar_index_component(key, value.as_bytes());
+            }
+            other => {
+                return Err(CassieError::Unsupported(format!(
+                    "scalar index does not support key value '{}'",
+                    other
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    fn append_scalar_index_component(key: &mut Vec<u8>, bytes: &[u8]) {
+        for byte in bytes {
+            match byte {
+                0x00 => key.extend_from_slice(&[0x00, 0xff]),
+                value => key.push(*value),
+            }
+        }
+        key.push(0x00);
+    }
+
+    fn payload_matches_scalar_index_predicate(
+        index: &IndexMeta,
+        payload: &serde_json::Value,
+    ) -> Result<bool, CassieError> {
+        let Some(raw_predicate) = index.predicate.as_ref() else {
+            return Ok(true);
+        };
+        let predicate: Expr = serde_json::from_str(raw_predicate).map_err(|error| {
+            CassieError::Parse(format!(
+                "invalid scalar index predicate for '{}': {error}",
+                index.name
+            ))
+        })?;
+        let row = payload_to_row(payload);
+        let matched = !filter::filter_rows(vec![row], &predicate, &[], None, &HashMap::new(), None)
+            .map_err(|error| {
+                CassieError::Parse(format!(
+                    "invalid scalar index predicate evaluation: {error}"
+                ))
+            })?
+            .is_empty();
+        Ok(matched)
+    }
+}
+
+fn payload_to_row(payload: &serde_json::Value) -> Vec<(String, Value)> {
+    let Some(object) = payload.as_object() else {
+        return Vec::new();
+    };
+    object
+        .iter()
+        .map(|(field, value)| (field.clone(), json_to_query_value(value)))
+        .collect()
+}
+
+fn json_to_query_value(value: &serde_json::Value) -> Value {
+    if value.is_null() {
+        return Value::Null;
+    }
+    if let Some(value) = value.as_str() {
+        return Value::String(value.to_string());
+    }
+    if let Some(value) = value.as_bool() {
+        return Value::Bool(value);
+    }
+    if let Some(value) = value.as_i64() {
+        return Value::Int64(value);
+    }
+    if let Some(value) = value.as_u64().and_then(|value| i64::try_from(value).ok()) {
+        return Value::Int64(value);
+    }
+    if let Some(value) = value.as_f64() {
+        return Value::Float64(value);
+    }
+    Value::Json(value.clone())
+}

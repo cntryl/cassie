@@ -40,6 +40,7 @@ const TEMP_FAMILY_NAME: &str = "cf2";
 const DEFAULT_FAMILY_NAME: &str = "default";
 const VECTOR_INDEX_PREFIX: &str = "__cassie__/vector-index/";
 const INDEX_PREFIX: &str = "__cassie__/index/";
+const SCALAR_INDEX_PREFIX: &str = "__cassie__/scalar-index/v1/";
 const COLUMN_BATCH_PREFIX: &str = "__cassie__/column-batch/v1/";
 const CONSTRAINTS_PREFIX: &str = "__cassie__/constraints/";
 const FUNCTION_PREFIX: &str = "__cassie__/function/";
@@ -249,6 +250,12 @@ pub struct MidgeScanTimings {
 }
 
 #[derive(Debug, Clone)]
+pub(crate) struct OrderedRowBound {
+    pub id: String,
+    pub inclusive: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct ColumnBatchScanOutcome {
     pub batches: Vec<Vec<DocumentRef>>,
     pub timings: MidgeScanTimings,
@@ -269,6 +276,9 @@ pub(crate) mod documents;
 mod metadata;
 #[path = "adapter/projections.rs"]
 mod projections;
+#[path = "adapter/scalar_indexes.rs"]
+mod scalar_indexes;
+pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
 #[path = "adapter/schema_ops.rs"]
 mod schema_ops;
 #[path = "adapter/verification.rs"]
@@ -530,6 +540,14 @@ impl Midge {
 
     fn index_collection_prefix(collection: &str) -> Vec<u8> {
         format!("{INDEX_PREFIX}{collection}/").into_bytes()
+    }
+
+    fn scalar_index_collection_prefix(collection: &str) -> Vec<u8> {
+        format!("{SCALAR_INDEX_PREFIX}{collection}/").into_bytes()
+    }
+
+    fn scalar_index_data_prefix(collection: &str, index_name: &str) -> Vec<u8> {
+        format!("{SCALAR_INDEX_PREFIX}{collection}/{index_name}/").into_bytes()
     }
 
     fn column_batch_metadata_key(collection: &str, index_name: &str) -> Vec<u8> {

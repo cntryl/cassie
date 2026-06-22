@@ -57,6 +57,7 @@ fn should_explain_index_aware_plan_for_scalar_equality_filter() {
         };
         assert!(plan.contains("index_aware=true"));
         assert!(plan.contains("index=sql_explain_index_aware_email_idx"));
+        assert!(plan.contains("access_path=index_seek"));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -635,12 +636,171 @@ fn should_query_rows_after_creating_composite_index() {
                 vec![],
             )
             .unwrap();
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM composite_index_query WHERE tenant_id = 'tenant-a' AND status = 'closed'",
+                vec![],
+            )
+            .unwrap();
 
         // Assert
         assert_eq!(
             selected.rows,
             vec![vec![Value::String("beta".to_string())]]
         );
+        let Value::String(plan) = &explain.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("access_path=prefix_scan"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_query_rows_after_creating_range_index() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("range_index_query");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE range_index_query (title TEXT, body TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX range_title_idx ON range_index_query USING btree (title)",
+                vec![],
+            )
+            .unwrap();
+        for (title, body) in [
+            ("alpha", "a"),
+            ("beta", "b"),
+            ("delta", "d"),
+            ("omega", "o"),
+        ] {
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO range_index_query (title, body) VALUES ($1, $2)",
+                    vec![Value::String(title.to_string()), Value::String(body.to_string())],
+                )
+                .unwrap();
+        }
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM range_index_query WHERE title >= 'beta' AND title < 'omega' ORDER BY title ASC",
+                vec![],
+            )
+            .unwrap();
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM range_index_query WHERE title >= 'beta' AND title < 'omega' ORDER BY title ASC",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("beta".to_string())],
+                vec![Value::String("delta".to_string())],
+            ]
+        );
+        let Value::String(plan) = &explain.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("access_path=range_scan"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_query_rows_after_creating_ordered_bounded_index() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ordered_bounded_index_query");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE ordered_bounded_index_query (title TEXT, body TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX ordered_bounded_title_idx ON ordered_bounded_index_query USING btree (title)",
+                vec![],
+            )
+            .unwrap();
+        for (title, body) in [("delta", "d"), ("alpha", "a"), ("charlie", "c"), ("beta", "b")] {
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO ordered_bounded_index_query (title, body) VALUES ($1, $2)",
+                    vec![Value::String(title.to_string()), Value::String(body.to_string())],
+                )
+                .unwrap();
+        }
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM ordered_bounded_index_query ORDER BY title ASC LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM ordered_bounded_index_query ORDER BY title ASC LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("alpha".to_string())],
+                vec![Value::String("beta".to_string())],
+            ]
+        );
+        let Value::String(plan) = &explain.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("access_path=ordered_bounded_scan"));
+        assert!(plan.contains("top_k_mode=storage"));
 
         let _ = std::fs::remove_dir_all(path);
     });

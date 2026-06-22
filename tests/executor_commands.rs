@@ -252,6 +252,7 @@ fn should_fail_unknown_function_during_execution() {
             fallback_reason: Some("command".to_string()),
             pagination_strategy: cassie::planner::physical::PaginationStrategy::None,
             top_k_mode: cassie::planner::physical::TopKMode::None,
+            early_stop: cassie::planner::physical::EarlyStopMode::None,
             projection_shape: cassie::planner::physical::ProjectionShape::Other,
             logical,
         };

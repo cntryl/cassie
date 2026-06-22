@@ -18,6 +18,19 @@ pub(crate) struct DocumentWriteBatchReport {
     pub stats: crate::runtime::ProjectionWriteStats,
 }
 
+#[derive(Debug, Clone)]
+struct OrderedScanEntry {
+    id: String,
+    raw_value: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OrderedScanSelection {
+    Row,
+    Doc,
+    Both,
+}
+
 impl Midge {
     pub fn put_document(
         &self,
@@ -137,6 +150,11 @@ impl Midge {
             .into_iter()
             .filter(|index| index.collection == collection)
             .collect::<Vec<_>>();
+        let scalar_indexes = self
+            .list_indexes()?
+            .into_iter()
+            .filter(|index| index.collection == collection && index.kind == IndexKind::Scalar)
+            .collect::<Vec<_>>();
 
         #[derive(Debug)]
         struct PreparedWrite {
@@ -193,6 +211,8 @@ impl Midge {
         for prepared in prepared {
             let row_key = Self::row_key(collection, &prepared.id);
             let legacy_key = Self::doc_key(collection, &prepared.id);
+            let existing_payload =
+                Self::load_document_payload_from_tx(&tx, collection, &prepared.id, &row_schema)?;
 
             if let Some(row_blob) = prepared.row_blob {
                 let payload = prepared
@@ -224,13 +244,29 @@ impl Midge {
                     tx.delete(legacy_key).map_err(CassieError::from)?;
                 }
                 Self::write_normalized_vector_records(&mut tx, &prepared.normalized_records)?;
+                let (scalar_deleted, scalar_puts) = self.sync_scalar_indexes_for_document(
+                    &mut tx,
+                    &prepared.id,
+                    existing_payload.as_ref(),
+                    Some(&payload),
+                    &scalar_indexes,
+                )?;
 
                 report.ids.push(prepared.id.clone());
                 report.stats.row_puts = report.stats.row_puts.saturating_add(1);
-                report.stats.index_puts = report
+                report.stats.index_puts = report.stats.index_puts.saturating_add(
+                    u64::try_from(
+                        prepared
+                            .normalized_records
+                            .len()
+                            .saturating_add(scalar_puts),
+                    )
+                    .unwrap_or(0),
+                );
+                report.stats.index_deletes = report
                     .stats
-                    .index_puts
-                    .saturating_add(u64::try_from(prepared.normalized_records.len()).unwrap_or(0));
+                    .index_deletes
+                    .saturating_add(u64::try_from(scalar_deleted).unwrap_or(0));
                 report.stats.metadata_puts = report.stats.metadata_puts.saturating_add(1);
                 if !replacing {
                     report.row_delta = report.row_delta.saturating_add(1);
@@ -257,10 +293,20 @@ impl Midge {
                     collection,
                     &prepared.id,
                 )?;
-                report.stats.index_deletes = report
+                let (scalar_deleted, scalar_puts) = self.sync_scalar_indexes_for_document(
+                    &mut tx,
+                    &prepared.id,
+                    existing_payload.as_ref(),
+                    None,
+                    &scalar_indexes,
+                )?;
+                report.stats.index_deletes = report.stats.index_deletes.saturating_add(
+                    u64::try_from(normalized_deleted.saturating_add(scalar_deleted)).unwrap_or(0),
+                );
+                report.stats.index_puts = report
                     .stats
-                    .index_deletes
-                    .saturating_add(u64::try_from(normalized_deleted).unwrap_or(0));
+                    .index_puts
+                    .saturating_add(u64::try_from(scalar_puts).unwrap_or(0));
             }
         }
 
@@ -282,6 +328,27 @@ impl Midge {
         self.refresh_ivfflat_indexes_for_collection(collection)?;
         self.refresh_projection_hashes_after_write(collection, report.row_delta)?;
         Ok(report)
+    }
+
+    fn load_document_payload_from_tx(
+        tx: &cntryl_midge::Transaction,
+        collection: &str,
+        id: &str,
+        row_schema: &RowSchema,
+    ) -> Result<Option<serde_json::Value>, CassieError> {
+        if let Some(raw) = tx
+            .get(&Self::row_key(collection, id))
+            .map_err(CassieError::from)?
+        {
+            return decode_row(row_schema, &raw).map(Some);
+        }
+        let Some(raw) = tx
+            .get(&Self::doc_key(collection, id))
+            .map_err(CassieError::from)?
+        else {
+            return Ok(None);
+        };
+        decode_row(row_schema, &raw).map(Some)
     }
 
     pub fn scan_documents_batched(
@@ -336,6 +403,27 @@ impl Midge {
             batch_size,
             RowDecode::Projected(fields),
             filter,
+            limit,
+        )
+    }
+
+    pub(crate) fn scan_ordered_rows_batched_by_id_limit_with_timings(
+        &self,
+        collection: &str,
+        batch_size: usize,
+        decode: RowDecode,
+        start_bound: Option<super::OrderedRowBound>,
+        end_bound: Option<super::OrderedRowBound>,
+        reverse: bool,
+        limit: Option<usize>,
+    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
+        self.scan_ordered_rows_batched_by_id(
+            collection,
+            batch_size,
+            decode,
+            start_bound,
+            end_bound,
+            reverse,
             limit,
         )
     }
@@ -453,6 +541,237 @@ impl Midge {
                 row_decode,
             },
         ))
+    }
+
+    fn scan_ordered_rows_batched_by_id(
+        &self,
+        collection: &str,
+        batch_size: usize,
+        decode: RowDecode,
+        start_bound: Option<super::OrderedRowBound>,
+        end_bound: Option<super::OrderedRowBound>,
+        reverse: bool,
+        limit: Option<usize>,
+    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
+        let scan_started = Instant::now();
+        let mut row_decode = Duration::ZERO;
+        let row_schema = self.row_schema(collection)?;
+        let projection = match decode {
+            RowDecode::Full => None,
+            RowDecode::Projected(fields) => Some(
+                fields
+                    .into_iter()
+                    .map(|field| field.to_ascii_lowercase())
+                    .collect::<HashSet<_>>(),
+            ),
+        };
+
+        let tx = self.begin_data_readonly_tx()?;
+        let batch_size = batch_size.max(1);
+        let limit = limit.unwrap_or(usize::MAX);
+        let mut results = Vec::new();
+        if limit == 0 {
+            return Ok((
+                results,
+                MidgeScanTimings {
+                    scan: scan_started.elapsed(),
+                    row_decode,
+                },
+            ));
+        }
+
+        let row_prefix = Self::row_prefix(collection);
+        let doc_prefix = Self::doc_prefix(collection);
+        let row_prefix_str = String::from_utf8(row_prefix.clone()).map_err(|error| {
+            CassieError::Parse(format!("invalid row prefix for ordered scan: {error}"))
+        })?;
+        let doc_prefix_str = String::from_utf8(doc_prefix.clone()).map_err(|error| {
+            CassieError::Parse(format!("invalid doc prefix for ordered scan: {error}"))
+        })?;
+
+        let mut row_iter = tx
+            .scan(&Self::ordered_row_query(
+                &row_prefix,
+                start_bound.as_ref(),
+                end_bound.as_ref(),
+                reverse,
+            ))
+            .map_err(CassieError::from)?;
+        let mut doc_iter = tx
+            .scan(&Self::ordered_row_query(
+                &doc_prefix,
+                start_bound.as_ref(),
+                end_bound.as_ref(),
+                reverse,
+            ))
+            .map_err(CassieError::from)?;
+
+        let mut row_next = Self::ordered_next_entry(&mut row_iter, &row_prefix_str)?;
+        let mut doc_next = Self::ordered_next_entry(&mut doc_iter, &doc_prefix_str)?;
+        let mut current = Vec::with_capacity(batch_size);
+        let mut emitted = 0usize;
+
+        while row_next.is_some() || doc_next.is_some() {
+            let Some(selection) =
+                Self::ordered_selection(row_next.as_ref(), doc_next.as_ref(), reverse)
+            else {
+                break;
+            };
+
+            let selected = match selection {
+                OrderedScanSelection::Row => row_next
+                    .take()
+                    .expect("row entry should exist for row selection"),
+                OrderedScanSelection::Doc => doc_next
+                    .take()
+                    .expect("doc entry should exist for doc selection"),
+                OrderedScanSelection::Both => row_next
+                    .take()
+                    .expect("row entry should exist for duplicate selection"),
+            };
+
+            let decode_started = Instant::now();
+            let payload = match projection.as_ref() {
+                Some(projection) => {
+                    decode_projected_row(&row_schema, &selected.raw_value, projection)?
+                }
+                None => decode_row(&row_schema, &selected.raw_value)?,
+            };
+            row_decode += decode_started.elapsed();
+
+            current.push(DocumentRef {
+                id: selected.id,
+                payload,
+            });
+            emitted += 1;
+            if current.len() >= batch_size {
+                results.push(current);
+                current = Vec::with_capacity(batch_size);
+            }
+
+            if emitted >= limit {
+                if !current.is_empty() {
+                    results.push(current);
+                }
+                return Ok((
+                    results,
+                    MidgeScanTimings {
+                        scan: scan_started.elapsed().saturating_sub(row_decode),
+                        row_decode,
+                    },
+                ));
+            }
+
+            match selection {
+                OrderedScanSelection::Row => {
+                    row_next = Self::ordered_next_entry(&mut row_iter, &row_prefix_str)?;
+                }
+                OrderedScanSelection::Doc => {
+                    doc_next = Self::ordered_next_entry(&mut doc_iter, &doc_prefix_str)?;
+                }
+                OrderedScanSelection::Both => {
+                    row_next = Self::ordered_next_entry(&mut row_iter, &row_prefix_str)?;
+                    doc_next = Self::ordered_next_entry(&mut doc_iter, &doc_prefix_str)?;
+                }
+            }
+        }
+
+        if !current.is_empty() {
+            results.push(current);
+        }
+
+        Ok((
+            results,
+            MidgeScanTimings {
+                scan: scan_started.elapsed().saturating_sub(row_decode),
+                row_decode,
+            },
+        ))
+    }
+
+    fn ordered_row_query(
+        prefix: &[u8],
+        start_bound: Option<&super::OrderedRowBound>,
+        end_bound: Option<&super::OrderedRowBound>,
+        reverse: bool,
+    ) -> Query {
+        let mut query = Query::new().prefix(prefix.to_vec().into());
+        if let Some(bound) = start_bound {
+            query =
+                query.start_key(Self::ordered_start_key(prefix, &bound.id, bound.inclusive).into());
+        }
+        if let Some(bound) = end_bound {
+            query = query.end_key(Self::ordered_end_key(prefix, &bound.id, bound.inclusive).into());
+        }
+        if reverse {
+            query = query.reverse();
+        }
+        query
+    }
+
+    fn ordered_start_key(prefix: &[u8], id: &str, inclusive: bool) -> Vec<u8> {
+        let mut key = prefix.to_vec();
+        key.extend_from_slice(id.as_bytes());
+        if !inclusive {
+            key.push(0);
+        }
+        key
+    }
+
+    fn ordered_end_key(prefix: &[u8], id: &str, inclusive: bool) -> Vec<u8> {
+        let mut key = prefix.to_vec();
+        key.extend_from_slice(id.as_bytes());
+        if inclusive {
+            key.push(0);
+        }
+        key
+    }
+
+    fn ordered_next_entry(
+        iter: &mut cntryl_midge::ScanIterator,
+        prefix: &str,
+    ) -> Result<Option<OrderedScanEntry>, CassieError> {
+        while let Some((raw_key, raw_value)) = iter.next() {
+            let raw_key = String::from_utf8(raw_key).map_err(|error| {
+                CassieError::Parse(format!("invalid ordered scan key in storage: {error}"))
+            })?;
+            let id = raw_key.strip_prefix(prefix).unwrap_or("").to_string();
+            if id.is_empty() {
+                continue;
+            }
+            return Ok(Some(OrderedScanEntry { id, raw_value }));
+        }
+
+        Ok(None)
+    }
+
+    fn ordered_selection(
+        row: Option<&OrderedScanEntry>,
+        doc: Option<&OrderedScanEntry>,
+        reverse: bool,
+    ) -> Option<OrderedScanSelection> {
+        match (row, doc) {
+            (Some(_), None) => Some(OrderedScanSelection::Row),
+            (None, Some(_)) => Some(OrderedScanSelection::Doc),
+            (Some(row), Some(doc)) => match row.id.cmp(&doc.id) {
+                std::cmp::Ordering::Less => {
+                    if reverse {
+                        Some(OrderedScanSelection::Doc)
+                    } else {
+                        Some(OrderedScanSelection::Row)
+                    }
+                }
+                std::cmp::Ordering::Greater => {
+                    if reverse {
+                        Some(OrderedScanSelection::Row)
+                    } else {
+                        Some(OrderedScanSelection::Doc)
+                    }
+                }
+                std::cmp::Ordering::Equal => Some(OrderedScanSelection::Both),
+            },
+            (None, None) => None,
+        }
     }
 
     pub fn scan_documents(&self, collection: &str) -> Result<Vec<DocumentRef>, CassieError> {

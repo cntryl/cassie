@@ -12,19 +12,25 @@ use cassie::types::{DataType, FieldSchema};
 use std::collections::BTreeMap;
 
 fn register_test_collection(catalog: &Catalog, name: &str) {
-    let schema = vec![
-        FieldSchema {
-            name: "title".to_string(),
-            data_type: DataType::Text,
-            nullable: true,
-        },
-        FieldSchema {
-            name: "body".to_string(),
-            data_type: DataType::Text,
-            nullable: true,
-        },
-    ];
+    register_collection_fields(
+        catalog,
+        name,
+        vec![
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    );
+}
 
+fn register_collection_fields(catalog: &Catalog, name: &str, schema: Vec<FieldSchema>) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -244,6 +250,8 @@ fn should_mark_order_limit_query_as_top_k() {
         // Assert
         assert!(physical_plan.top_k);
         assert_eq!(physical_plan.top_k_limit, Some(5));
+        assert_eq!(physical_plan.top_k_mode, physical::TopKMode::Heap);
+        assert_eq!(physical_plan.early_stop, physical::EarlyStopMode::None);
     });
 }
 
@@ -321,9 +329,122 @@ fn should_mark_row_id_filter_as_point_lookup_access_path() {
         );
         assert_eq!(physical_plan.top_k_mode, physical::TopKMode::None);
         assert_eq!(
+            physical_plan.early_stop,
+            physical::EarlyStopMode::PointLookup
+        );
+        assert_eq!(
             physical_plan.projection_shape,
             physical::ProjectionShape::MaterializedProjection
         );
+    });
+}
+
+#[test]
+fn should_mark_row_id_order_limit_as_storage_top_k() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_row_id_top_k");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT id, title FROM planner_row_id_top_k ORDER BY id ASC LIMIT 5",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+        let logical = optimizer::optimize(logical);
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert_eq!(
+            physical_plan.access_path,
+            physical::ReadAccessPath::CollectionScan
+        );
+        assert_eq!(physical_plan.access_path_reason, "row-key-top-k");
+        assert_eq!(
+            physical_plan.pagination_strategy,
+            physical::PaginationStrategy::Limit
+        );
+        assert_eq!(physical_plan.top_k_mode, physical::TopKMode::Storage);
+        assert_eq!(
+            physical_plan.early_stop,
+            physical::EarlyStopMode::StorageTopK
+        );
+    });
+}
+
+#[test]
+fn should_mark_row_id_cursor_as_keyset_pagination() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_row_id_keyset");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT id, title FROM planner_row_id_keyset WHERE id > 'cursor' ORDER BY id ASC LIMIT 5",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+        let logical = optimizer::optimize(logical);
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert_eq!(physical_plan.access_path_reason, "row-key-keyset");
+        assert_eq!(
+            physical_plan.pagination_strategy,
+            physical::PaginationStrategy::Keyset
+        );
+        assert_eq!(physical_plan.top_k_mode, physical::TopKMode::None);
+        assert_eq!(physical_plan.early_stop, physical::EarlyStopMode::Keyset);
+    });
+}
+
+#[test]
+fn should_mark_row_id_offset_page_as_degraded_offset() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_row_id_offset_page");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT id, title FROM planner_row_id_offset_page ORDER BY id ASC LIMIT 5 OFFSET 2",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+        let logical = optimizer::optimize(logical);
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert_eq!(physical_plan.access_path_reason, "row-key-ordered-page");
+        assert_eq!(
+            physical_plan.fallback_reason,
+            Some("offset-degraded".to_string())
+        );
+        assert_eq!(
+            physical_plan.pagination_strategy,
+            physical::PaginationStrategy::DegradedOffset
+        );
+        assert_eq!(physical_plan.early_stop, physical::EarlyStopMode::None);
     });
 }
 
@@ -360,7 +481,245 @@ fn should_fallback_from_point_lookup_to_collection_scan_with_offset() {
         );
         assert_eq!(
             physical_plan.pagination_strategy,
-            physical::PaginationStrategy::DegradedOffset
+            physical::PaginationStrategy::Offset
+        );
+    });
+}
+
+#[test]
+fn should_mark_composite_equality_as_prefix_scan() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_collection_fields(
+        &catalog,
+        "planner_prefix_scan",
+        vec![
+            FieldSchema {
+                name: "tenant_id".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "status".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    );
+    register_scalar_index(
+        &catalog,
+        "planner_prefix_scan",
+        "planner_prefix_scan_tenant_status_idx",
+        vec!["tenant_id", "status"],
+    );
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_prefix_scan WHERE tenant_id = 'tenant-a' AND status = 'open'",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build_with_indexes(
+            logical,
+            catalog.list_indexes("planner_prefix_scan"),
+            &Default::default(),
+        );
+
+        // Assert
+        assert_eq!(
+            physical_plan.selected_index.as_deref(),
+            Some("planner_prefix_scan_tenant_status_idx")
+        );
+        assert_eq!(physical_plan.access_path, physical::ReadAccessPath::PrefixScan);
+        assert_eq!(physical_plan.access_path_reason, "scalar-index-prefix");
+    });
+}
+
+#[test]
+fn should_mark_range_filter_as_range_scan() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_collection_fields(
+        &catalog,
+        "planner_range_scan",
+        vec![
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    );
+    register_scalar_index(
+        &catalog,
+        "planner_range_scan",
+        "planner_range_scan_title_idx",
+        vec!["title"],
+    );
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_range_scan WHERE title >= 'alpha' AND title < 'omega'",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build_with_indexes(
+            logical,
+            catalog.list_indexes("planner_range_scan"),
+            &Default::default(),
+        );
+
+        // Assert
+        assert_eq!(
+            physical_plan.selected_index.as_deref(),
+            Some("planner_range_scan_title_idx")
+        );
+        assert_eq!(
+            physical_plan.access_path,
+            physical::ReadAccessPath::RangeScan
+        );
+        assert_eq!(physical_plan.access_path_reason, "scalar-index-range");
+    });
+}
+
+#[test]
+fn should_mark_order_limit_as_ordered_bounded_scan_when_index_matches() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_collection_fields(
+        &catalog,
+        "planner_ordered_bounded",
+        vec![
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    );
+    register_scalar_index(
+        &catalog,
+        "planner_ordered_bounded",
+        "planner_ordered_bounded_title_idx",
+        vec!["title"],
+    );
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_ordered_bounded ORDER BY title ASC LIMIT 3",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build_with_indexes(
+            logical,
+            catalog.list_indexes("planner_ordered_bounded"),
+            &Default::default(),
+        );
+
+        // Assert
+        assert_eq!(
+            physical_plan.selected_index.as_deref(),
+            Some("planner_ordered_bounded_title_idx")
+        );
+        assert_eq!(
+            physical_plan.access_path,
+            physical::ReadAccessPath::OrderedBoundedScan
+        );
+        assert_eq!(physical_plan.top_k_mode, physical::TopKMode::Storage);
+    });
+}
+
+#[test]
+fn should_report_fallback_when_secondary_ordering_proof_is_missing() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_collection_fields(
+        &catalog,
+        "planner_ordering_fallback",
+        vec![
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    );
+    register_scalar_index(
+        &catalog,
+        "planner_ordering_fallback",
+        "planner_ordering_fallback_title_idx",
+        vec!["title"],
+    );
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT body FROM planner_ordering_fallback WHERE title = 'alpha' ORDER BY body ASC LIMIT 1",
+        )
+        .unwrap();
+        let bound = binder::bind(parsed, &catalog).unwrap();
+        let logical = logical::plan(&bound).unwrap();
+
+        // Act
+        let physical_plan = physical::build_with_indexes(
+            logical,
+            catalog.list_indexes("planner_ordering_fallback"),
+            &Default::default(),
+        );
+
+        // Assert
+        assert_eq!(
+            physical_plan.selected_index.as_deref(),
+            Some("planner_ordering_fallback_title_idx")
+        );
+        assert_eq!(physical_plan.access_path, physical::ReadAccessPath::CollectionScan);
+        assert_eq!(
+            physical_plan.fallback_reason.as_deref(),
+            Some("index-order-proof-missing")
         );
     });
 }
@@ -390,6 +749,7 @@ fn should_mark_exists_predicate_as_semi_join() {
 
         // Assert
         assert_eq!(physical_plan.join_strategy.as_deref(), Some("semi"));
+        assert_eq!(physical_plan.early_stop, physical::EarlyStopMode::Exists);
     });
 }
 
@@ -418,6 +778,7 @@ fn should_mark_not_exists_predicate_as_anti_join() {
 
         // Assert
         assert_eq!(physical_plan.join_strategy.as_deref(), Some("anti"));
+        assert_eq!(physical_plan.early_stop, physical::EarlyStopMode::Exists);
     });
 }
 

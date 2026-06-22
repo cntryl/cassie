@@ -14,7 +14,7 @@ Track one open issue for every active, uncompleted concept in `docs/product-road
 Maintain a live coverage index that links every active roadmap concept to its implementation issue and removes concepts once their issue files are completed and deleted.
 Keep the coverage index ordered by execution priority so autopilot can work from top to bottom without re-triage.
 Do not create additional local issue files until the current active set is completed, deleted, or intentionally rebaselined.
-Phase 04 is closed and archived in `docs/performance-contracts.md` and `issues/phase-04/README.md`. Phase 06 and phase 07 are the current intentional rebaseline for read optimization and advanced backlog work. Phase 05 write optimization is closed and archived in `docs/performance-contracts.md` and `issues/phase-05/README.md`.
+Phase 04 is closed and archived in `docs/performance-contracts.md` and `issues/phase-04/README.md`. Phase 06 is closed and archived in `issues/phase-06/README.md`. Phase 07 is the parked advanced backlog. Phase 05 write optimization is closed and archived in `docs/performance-contracts.md` and `issues/phase-05/README.md`.
 
 ## Functional Scope
 
@@ -45,10 +45,9 @@ Phase 04 is closed and archived in `docs/performance-contracts.md` and `issues/p
 
 ### Active Execution Gate
 
-This rebaseline keeps the engine-safe implementation order mechanical:
+Phase 06 implementation gates are closed and archived in `issues/phase-06/README.md`.
 
-1. `phase-06/issue-01` through `phase-06/issue-05` (read implementation gates)
-2. `phase-07` issues only after the phase-06 gates are closed.
+1. `phase-07` issues only after the relevant phase 04, phase 05, and phase 06 gates named by each issue are complete.
 
 ### P0 Now
 
@@ -60,14 +59,7 @@ This rebaseline keeps the engine-safe implementation order mechanical:
 
 ### P2 Follow-Up
 
-- Phase 03 implementation is complete and closed. Issues 01–13 were completed and removed from active follow-up after validation and close-out.
-- Phase 04 foundation contracts are complete and closed. The archived contract surface lives in `docs/performance-contracts.md` and `issues/phase-04/README.md`.
-- Phase 05 write optimization is complete and closed. The contracts, benchmarks, and diagnostics are archived in `docs/performance-contracts.md`.
-- [Phase 06 Issue 01: Predicate Order Limit Pushdown](../phase-06/issue-01.md) - Read-Model Read Optimization / Planner
-- [Phase 06 Issue 02: Keyset Pagination](../phase-06/issue-02.md) - Read-Model Read Optimization / Executor
-- [Phase 06 Issue 03: Top-K And Early Stop Execution](../phase-06/issue-03.md) - Read-Model Read Optimization / Executor
-- [Phase 06 Issue 04: Projection-Shaped Read Layouts](../phase-06/issue-04.md) - Read-Model Read Optimization / Projections
-- [Phase 06 Issue 05: Access-Path Assertions And Diagnostics](../phase-06/issue-05.md) - Read-Model Read Optimization / Observability
+- No open P2 coverage items.
 
 ### P3 Parked
 

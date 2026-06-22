@@ -14,6 +14,12 @@ mod column_batches;
 mod cost;
 #[path = "physical/feature_flags.rs"]
 mod feature_flags;
+#[path = "physical/join_paths.rs"]
+mod join_paths;
+#[path = "physical/read_paths.rs"]
+mod read_paths;
+#[path = "physical/scalar_paths.rs"]
+mod scalar_paths;
 #[path = "physical/time_series.rs"]
 mod time_series;
 
@@ -23,6 +29,7 @@ use feature_flags::{
     function_uses_fulltext, function_uses_vector, plan_expressions, plan_uses_fulltext,
     plan_uses_vector,
 };
+pub(crate) use scalar_paths::{scalar_index_plan_shape, ScalarIndexPlanPath};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Operator {
@@ -47,6 +54,10 @@ pub enum ReadAccessPath {
     Unknown,
     CollectionScan,
     PointLookup,
+    IndexSeek,
+    PrefixScan,
+    RangeScan,
+    OrderedBoundedScan,
     RuntimeJoin,
 }
 
@@ -56,6 +67,10 @@ impl ReadAccessPath {
             Self::Unknown => "unknown",
             Self::CollectionScan => "collection_scan",
             Self::PointLookup => "point_lookup",
+            Self::IndexSeek => "index_seek",
+            Self::PrefixScan => "prefix_scan",
+            Self::RangeScan => "range_scan",
+            Self::OrderedBoundedScan => "ordered_bounded_scan",
             Self::RuntimeJoin => "runtime_join",
         }
     }
@@ -126,6 +141,31 @@ impl ProjectionShape {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EarlyStopMode {
+    #[default]
+    None,
+    PointLookup,
+    ScanLimit,
+    Exists,
+    StorageTopK,
+    Keyset,
+}
+
+impl EarlyStopMode {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::PointLookup => "point_lookup",
+            Self::ScanLimit => "scan_limit",
+            Self::Exists => "exists",
+            Self::StorageTopK => "storage_top_k",
+            Self::Keyset => "keyset",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhysicalPlan {
     pub collection: String,
@@ -153,6 +193,8 @@ pub struct PhysicalPlan {
     pub pagination_strategy: PaginationStrategy,
     #[serde(default)]
     pub top_k_mode: TopKMode,
+    #[serde(default)]
+    pub early_stop: EarlyStopMode,
     #[serde(default)]
     pub projection_shape: ProjectionShape,
 }
@@ -204,6 +246,7 @@ pub fn build_with_indexes(
             fallback_reason: Some("command".to_string()),
             pagination_strategy: PaginationStrategy::None,
             top_k_mode: TopKMode::None,
+            early_stop: EarlyStopMode::None,
             projection_shape: ProjectionShape::Unknown,
         };
     }
@@ -219,15 +262,25 @@ pub fn build_with_indexes(
     let column_batch_index = column_batch_index(&plan, indexes.as_slice());
     let top_k_limit = top_k_limit(&plan);
     let top_k = top_k_limit.is_some();
-    let join_strategy = join_strategy(&plan);
+    let join_strategy = join_paths::join_strategy(&plan);
     let parallel_aggregate_candidate = plan_supports_parallel_aggregation(&plan);
     let aggregate_acceleration = plan_supports_aggregate_acceleration(&plan, indexes.as_slice());
-    let access_path = determine_read_access_path(&plan);
-    let access_path_reason = read_access_path_reason(&plan, &access_path);
-    let fallback_reason = read_access_path_fallback_reason(&plan, &access_path);
-    let pagination_strategy = determine_pagination_strategy(&plan);
-    let top_k_mode = determine_top_k_mode(&plan);
-    let projection_shape = determine_projection_shape(&plan);
+    let access_path = read_paths::determine_read_access_path(
+        &plan,
+        indexes.as_slice(),
+        selected_index.as_deref(),
+    );
+    let access_path_reason = read_paths::read_access_path_reason(&plan, &access_path);
+    let fallback_reason = read_paths::read_access_path_fallback_reason(
+        &plan,
+        &access_path,
+        selected_index.as_deref(),
+    );
+    let pagination_strategy = read_paths::determine_pagination_strategy(&plan, &access_path);
+    let top_k_mode = read_paths::determine_top_k_mode(&plan, &access_path);
+    let early_stop =
+        read_paths::determine_early_stop(&plan, &access_path, &pagination_strategy, &top_k_mode);
+    let projection_shape = read_paths::determine_projection_shape(&plan);
     let estimates = PlanEstimates::from_plan(&plan, selected_index.as_deref(), cardinality_stats);
     let mut operators = vec![Operator::Scan];
     if source_contains_join(&plan.source) {
@@ -284,255 +337,8 @@ pub fn build_with_indexes(
         fallback_reason,
         pagination_strategy,
         top_k_mode,
+        early_stop,
         projection_shape,
-    }
-}
-
-fn determine_read_access_path(plan: &LogicalPlan) -> ReadAccessPath {
-    if source_contains_join(&plan.source) {
-        return ReadAccessPath::RuntimeJoin;
-    }
-
-    if is_row_id_lookup_query(plan) {
-        return ReadAccessPath::PointLookup;
-    }
-
-    if matches!(&plan.source, QuerySource::Collection(_)) {
-        return ReadAccessPath::CollectionScan;
-    }
-
-    ReadAccessPath::Unknown
-}
-
-fn determine_pagination_strategy(plan: &LogicalPlan) -> PaginationStrategy {
-    let offset = plan.offset.unwrap_or(0);
-    if plan.limit.is_none() {
-        return if offset > 0 {
-            PaginationStrategy::DegradedOffset
-        } else {
-            PaginationStrategy::None
-        };
-    }
-
-    if offset > 0 {
-        PaginationStrategy::DegradedOffset
-    } else {
-        PaginationStrategy::Limit
-    }
-}
-
-fn determine_top_k_mode(plan: &LogicalPlan) -> TopKMode {
-    if !is_heap_top_k_candidate(plan) {
-        return TopKMode::None;
-    }
-
-    if is_storage_top_k_candidate(plan) {
-        return TopKMode::Storage;
-    }
-
-    TopKMode::Heap
-}
-
-fn determine_projection_shape(plan: &LogicalPlan) -> ProjectionShape {
-    if source_contains_join(&plan.source) {
-        return ProjectionShape::RuntimeJoinDegraded;
-    }
-
-    if is_row_projection(plan) {
-        if plan.filter.is_some() {
-            return ProjectionShape::MaterializedProjection;
-        }
-        return ProjectionShape::Collection;
-    }
-
-    ProjectionShape::Other
-}
-
-fn read_access_path_reason(plan: &LogicalPlan, access_path: &ReadAccessPath) -> String {
-    match access_path {
-        ReadAccessPath::Unknown => {
-            if plan.command.is_some() {
-                "command-path".to_string()
-            } else {
-                "unsupported-plan-shape".to_string()
-            }
-        }
-        ReadAccessPath::CollectionScan => "collection-scan".to_string(),
-        ReadAccessPath::PointLookup => "point-lookup-id".to_string(),
-        ReadAccessPath::RuntimeJoin => "runtime-join".to_string(),
-    }
-}
-
-fn read_access_path_fallback_reason(
-    plan: &LogicalPlan,
-    access_path: &ReadAccessPath,
-) -> Option<String> {
-    match access_path {
-        ReadAccessPath::CollectionScan => {
-            if plan.offset.is_some() {
-                Some("offset-degraded".to_string())
-            } else {
-                None
-            }
-        }
-        ReadAccessPath::RuntimeJoin => Some("runtime-join-required".to_string()),
-        _ => None,
-    }
-}
-
-fn is_row_projection(plan: &LogicalPlan) -> bool {
-    !plan.projection.is_empty()
-        && plan
-            .projection
-            .iter()
-            .all(|item| matches!(item, SelectItem::Column { .. }))
-}
-
-fn is_row_id_lookup_query(plan: &LogicalPlan) -> bool {
-    if plan.distinct
-        || !plan.distinct_on.is_empty()
-        || !plan.group_by.is_empty()
-        || plan.having.is_some()
-        || plan.set.is_some()
-        || !matches!(plan.source, QuerySource::Collection(_))
-    {
-        return false;
-    }
-
-    let Some(filter) = plan.filter.as_ref() else {
-        return false;
-    };
-
-    is_id_point_lookup_filter(filter)
-        && is_row_projection(plan)
-        && !plan.offset.is_some_and(|offset| offset > 0)
-}
-
-fn is_id_point_lookup_filter(expr: &Expr) -> bool {
-    let Expr::Binary {
-        left,
-        op: BinaryOp::Eq,
-        right,
-    } = expr
-    else {
-        return false;
-    };
-
-    let (lhs, rhs) = (left.as_ref(), right.as_ref());
-    let (column, other) = match (lhs, rhs) {
-        (Expr::Column(column), other) => (column, other),
-        (other, Expr::Column(column)) => (column, other),
-        _ => return false,
-    };
-
-    if !is_row_id_column(column) {
-        return false;
-    }
-
-    matches!(
-        other,
-        Expr::StringLiteral(_)
-            | Expr::BoolLiteral(_)
-            | Expr::NumberLiteral(_)
-            | Expr::Null
-            | Expr::Param(_)
-    )
-}
-
-fn is_heap_top_k_candidate(plan: &LogicalPlan) -> bool {
-    !plan.order.is_empty() && plan.limit.is_some() && plan.set.is_none()
-}
-
-fn is_storage_top_k_candidate(plan: &LogicalPlan) -> bool {
-    is_heap_top_k_candidate(plan)
-        && plan.filter.is_none()
-        && !plan.distinct
-        && plan.distinct_on.is_empty()
-        && plan.group_by.is_empty()
-        && plan.having.is_none()
-        && plan.set.is_none()
-        && plan
-            .projection
-            .iter()
-            .all(|item| matches!(item, SelectItem::Column { .. }))
-        && plan.order.len() == 1
-        && matches!(plan.order[0].expr, Expr::Column(_))
-        && plan.ctes.is_empty()
-}
-
-fn join_strategy(plan: &LogicalPlan) -> Option<String> {
-    match &plan.source {
-        QuerySource::Join {
-            kind: JoinKind::Inner,
-            on,
-            ..
-        } if is_equi_join_predicate(on) => Some("hash".to_string()),
-        QuerySource::Join { .. } => Some("nested_loop".to_string()),
-        _ if plan.filter.as_ref().is_some_and(expr_contains_not_exists) => Some("anti".to_string()),
-        _ if plan.filter.as_ref().is_some_and(expr_contains_exists) => Some("semi".to_string()),
-        _ => None,
-    }
-}
-
-fn expr_contains_exists(expr: &Expr) -> bool {
-    match expr {
-        Expr::Exists(_) => true,
-        Expr::Binary { left, right, .. } => {
-            expr_contains_exists(left) || expr_contains_exists(right)
-        }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } => expr_contains_exists(expr),
-        Expr::InList { expr, values, .. } => {
-            expr_contains_exists(expr) || values.iter().any(expr_contains_exists)
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => expr_contains_exists(expr) || expr_contains_exists(low) || expr_contains_exists(high),
-        Expr::Not { .. }
-        | Expr::Column(_)
-        | Expr::Param(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Function(_) => false,
-    }
-}
-
-fn expr_contains_not_exists(expr: &Expr) -> bool {
-    expr_contains_not_exists_with_polarity(expr, false)
-}
-
-fn expr_contains_not_exists_with_polarity(expr: &Expr, negated: bool) -> bool {
-    match expr {
-        Expr::Not { expr } => expr_contains_not_exists_with_polarity(expr, !negated),
-        Expr::Exists(_) => negated,
-        Expr::Binary { left, right, .. } => {
-            expr_contains_not_exists_with_polarity(left, negated)
-                || expr_contains_not_exists_with_polarity(right, negated)
-        }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } => {
-            expr_contains_not_exists_with_polarity(expr, negated)
-        }
-        Expr::InList { expr, values, .. } => {
-            expr_contains_not_exists_with_polarity(expr, negated)
-                || values
-                    .iter()
-                    .any(|value| expr_contains_not_exists_with_polarity(value, negated))
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            expr_contains_not_exists_with_polarity(expr, negated)
-                || expr_contains_not_exists_with_polarity(low, negated)
-                || expr_contains_not_exists_with_polarity(high, negated)
-        }
-        Expr::Column(_)
-        | Expr::Param(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Function(_) => false,
     }
 }
 
@@ -564,38 +370,119 @@ fn selected_index(
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
     };
-    let filter = plan.filter.as_ref()?;
-    let equality_fields = equality_filter_fields(filter);
-    let equality_expressions = equality_filter_expressions(filter);
+    let equality_fields = plan
+        .filter
+        .as_ref()
+        .map(equality_filter_fields)
+        .unwrap_or_default();
+    let equality_expressions = plan
+        .filter
+        .as_ref()
+        .map(equality_filter_expressions)
+        .unwrap_or_default();
     let scalar = indexes
         .iter()
         .filter(|index| index.collection == *collection && index.kind == IndexKind::Scalar)
         .filter(|index| partial_index_matches_query(plan.filter.as_ref(), index.predicate.as_ref()))
         .filter(|index| {
-            let field_match = index
-                .normalized_fields()
-                .iter()
-                .all(|field| equality_fields.contains(&field.to_ascii_lowercase()));
-            let expression_match = index
-                .normalized_expressions()
-                .iter()
-                .all(|expression| equality_expressions.contains(expression));
-            field_match && expression_match
+            scalar_index_matches_plan(plan, index, &equality_fields, &equality_expressions)
         })
         .min_by(|left, right| {
-            index_estimate(collection, left, cardinality_stats)
-                .cmp(&index_estimate(collection, right, cardinality_stats))
-                .then_with(|| {
-                    let right_specificity =
-                        right.normalized_fields().len() + right.normalized_expressions().len();
-                    let left_specificity =
-                        left.normalized_fields().len() + left.normalized_expressions().len();
-                    right_specificity.cmp(&left_specificity)
-                })
-                .then_with(|| left.name.cmp(&right.name))
+            compare_scalar_index_candidates(plan, collection, left, right, cardinality_stats)
         })
         .map(|index| index.name.clone());
-    scalar.or_else(|| time_series::selected_time_series_index(collection, filter, indexes))
+    scalar.or_else(|| {
+        plan.filter
+            .as_ref()
+            .and_then(|filter| time_series::selected_time_series_index(collection, filter, indexes))
+    })
+}
+
+fn scalar_index_matches_plan(
+    plan: &LogicalPlan,
+    index: &IndexMeta,
+    equality_fields: &BTreeSet<String>,
+    equality_expressions: &BTreeSet<String>,
+) -> bool {
+    if index.expressions.is_empty() {
+        let field_match = index
+            .normalized_fields()
+            .iter()
+            .all(|field| equality_fields.contains(&field.to_ascii_lowercase()));
+        return scalar_index_plan_shape(plan, index).is_some() || field_match;
+    }
+
+    let field_match = index
+        .normalized_fields()
+        .iter()
+        .all(|field| equality_fields.contains(&field.to_ascii_lowercase()));
+    let expression_match = index
+        .normalized_expressions()
+        .iter()
+        .all(|expression| equality_expressions.contains(expression));
+    field_match && expression_match
+}
+
+fn compare_scalar_index_candidates(
+    plan: &LogicalPlan,
+    collection: &str,
+    left: &IndexMeta,
+    right: &IndexMeta,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+) -> std::cmp::Ordering {
+    match (
+        scalar_index_plan_shape(plan, left),
+        scalar_index_plan_shape(plan, right),
+    ) {
+        (Some(left_shape), Some(right_shape)) => scalar_index_path_rank(left_shape.path)
+            .cmp(&scalar_index_path_rank(right_shape.path))
+            .then_with(|| {
+                right_shape
+                    .equality_prefix_len
+                    .cmp(&left_shape.equality_prefix_len)
+            })
+            .then_with(|| {
+                right_shape
+                    .order_columns_used
+                    .cmp(&left_shape.order_columns_used)
+            })
+            .then_with(|| {
+                index_estimate(collection, left, cardinality_stats).cmp(&index_estimate(
+                    collection,
+                    right,
+                    cardinality_stats,
+                ))
+            })
+            .then_with(|| {
+                let right_specificity =
+                    right.normalized_fields().len() + right.normalized_expressions().len();
+                let left_specificity =
+                    left.normalized_fields().len() + left.normalized_expressions().len();
+                right_specificity.cmp(&left_specificity)
+            })
+            .then_with(|| left.name.cmp(&right.name)),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => index_estimate(collection, left, cardinality_stats)
+            .cmp(&index_estimate(collection, right, cardinality_stats))
+            .then_with(|| {
+                let right_specificity =
+                    right.normalized_fields().len() + right.normalized_expressions().len();
+                let left_specificity =
+                    left.normalized_fields().len() + left.normalized_expressions().len();
+                right_specificity.cmp(&left_specificity)
+            })
+            .then_with(|| left.name.cmp(&right.name)),
+    }
+}
+
+fn scalar_index_path_rank(path: ScalarIndexPlanPath) -> u8 {
+    match path {
+        ScalarIndexPlanPath::IndexSeek => 0,
+        ScalarIndexPlanPath::PrefixScan => 1,
+        ScalarIndexPlanPath::RangeScan => 2,
+        ScalarIndexPlanPath::OrderedBoundedScan => 3,
+    }
 }
 
 fn index_estimate(

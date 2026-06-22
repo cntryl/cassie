@@ -250,6 +250,7 @@ mod tests {
             fallback_reason: None,
             pagination_strategy: crate::planner::physical::PaginationStrategy::None,
             top_k_mode: crate::planner::physical::TopKMode::None,
+            early_stop: crate::planner::physical::EarlyStopMode::None,
             projection_shape: crate::planner::physical::ProjectionShape::Collection,
             logical: LogicalPlan {
                 command: None,

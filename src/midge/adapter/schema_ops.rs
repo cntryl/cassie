@@ -267,6 +267,7 @@ impl Midge {
         for data_prefix in [
             Self::row_prefix(name),
             Self::doc_prefix(name),
+            Self::scalar_index_collection_prefix(name),
             Self::normalized_vector_collection_prefix(name),
             Self::column_batch_collection_prefix(name),
             Self::row_hash_prefix(name),
@@ -396,17 +397,27 @@ impl Midge {
             .scan(&Query::new().prefix(index_prefix.into()))
             .map_err(CassieError::from)?;
         let mut dropped_column_index_keys = Vec::new();
+        let mut dropped_scalar_indexes = Vec::new();
         while let Some((key, value)) = indexes.next() {
             let Ok(metadata) = serde_json::from_slice::<IndexMeta>(&value) else {
                 continue;
             };
-            if metadata.kind == IndexKind::Column
-                && metadata
-                    .normalized_fields()
-                    .iter()
-                    .any(|candidate| candidate.eq_ignore_ascii_case(field))
-            {
-                dropped_column_index_keys.push((key, metadata.name));
+            let references_field = metadata
+                .normalized_fields()
+                .iter()
+                .chain(metadata.normalized_include_fields().iter())
+                .any(|candidate| candidate.eq_ignore_ascii_case(field));
+            if !references_field {
+                continue;
+            }
+            match metadata.kind {
+                IndexKind::Column => {
+                    dropped_column_index_keys.push((key, metadata.name));
+                }
+                IndexKind::Scalar => {
+                    dropped_scalar_indexes.push((key, metadata.name));
+                }
+                _ => {}
             }
         }
         for (key, index_name) in dropped_column_index_keys {
@@ -416,6 +427,11 @@ impl Midge {
                 Self::column_batch_index_prefix(collection, &index_name),
             )?;
         }
+        let mut dropped_scalar_index_names = Vec::new();
+        for (key, index_name) in dropped_scalar_indexes {
+            tx.delete(key).map_err(CassieError::from)?;
+            dropped_scalar_index_names.push(index_name);
+        }
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
 
@@ -424,9 +440,16 @@ impl Midge {
             &mut data_tx,
             Self::normalized_vector_prefix(collection, field),
         )?;
+        for index_name in dropped_scalar_index_names {
+            Self::delete_keys_with_prefix(
+                &mut data_tx,
+                Self::scalar_index_data_prefix(collection, &index_name),
+            )?;
+        }
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
+        self.rebuild_scalar_indexes_for_collection(collection)?;
         let _ = self.rebuild_column_batches_for_collection(collection)?;
         self.rebuild_projection_hashes(collection)?;
         Ok(())
@@ -615,6 +638,7 @@ impl Midge {
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
+        self.rebuild_scalar_indexes_for_collection(collection)?;
         let _ = self.rebuild_column_batches_for_collection(collection)?;
         self.rebuild_projection_hashes(collection)?;
         Ok(())
@@ -838,6 +862,10 @@ impl Midge {
         for (current_prefix, next_prefix) in [
             (Self::row_prefix(current_name), Self::row_prefix(next_name)),
             (Self::doc_prefix(current_name), Self::doc_prefix(next_name)),
+            (
+                Self::scalar_index_collection_prefix(current_name),
+                Self::scalar_index_collection_prefix(next_name),
+            ),
             (
                 Self::normalized_vector_collection_prefix(current_name),
                 Self::normalized_vector_collection_prefix(next_name),

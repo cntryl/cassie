@@ -69,6 +69,13 @@ Each supported query pattern should define:
 - the benchmark that measures the path
 - the plan/explain/assertion coverage that proves Cassie chose the right path
 
+Current EXPLAIN and metrics contracts should make the path explicit through labels such as
+`access_path`, `fallback_reason`, `pagination_strategy`, `top_k_mode`, `early_stop`, and
+`projection_freshness` when applicable.
+For the current scalar and ordered-read scope, that vocabulary includes
+`point_lookup`, `index_seek`, `prefix_scan`, `range_scan`, `ordered_bounded_scan`,
+`storage_top_k`, `keyset`, and degraded `offset` paths.
+
 This is necessary because a query can look fast at 10k rows while already using the wrong execution model.
 The contract should fail before that mistake reaches larger scales.
 

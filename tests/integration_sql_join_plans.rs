@@ -56,6 +56,7 @@ fn should_explain_hash_join_strategy_for_inner_equi_join() {
             panic!("expected textual plan");
         };
         assert!(plan.contains("join_strategy=hash"));
+        assert!(plan.contains("projection_shape=runtime_join_degraded"));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -104,6 +105,7 @@ fn should_explain_semi_join_strategy_for_exists_predicate() {
             panic!("expected textual plan");
         };
         assert!(plan.contains("join_strategy=semi"));
+        assert!(plan.contains("early_stop=exists"));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -152,6 +154,7 @@ fn should_explain_anti_join_strategy_for_not_exists_predicate() {
             panic!("expected textual plan");
         };
         assert!(plan.contains("join_strategy=anti"));
+        assert!(plan.contains("early_stop=exists"));
 
         let _ = std::fs::remove_dir_all(path);
     });

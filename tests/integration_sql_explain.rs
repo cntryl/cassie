@@ -191,7 +191,62 @@ fn should_report_read_path_metadata_in_explain() {
         assert!(plan.contains("fallback_reason=none"));
         assert!(plan.contains("pagination_strategy=none"));
         assert!(plan.contains("top_k_mode=none"));
+        assert!(plan.contains("early_stop=point_lookup"));
         assert!(plan.contains("projection_shape=materialized_projection"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_explain_materialized_projection_freshness() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("explain_materialized_projection");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_explain_projection_source (title TEXT, score INT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO sql_explain_projection_source (title, score) VALUES ('alpha', 1)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE MATERIALIZED PROJECTION sql_explain_projection_ready AS SELECT title, score FROM sql_explain_projection_source",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM sql_explain_projection_ready ORDER BY title",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        let plan = explain_plan_text(&result);
+        assert_explain_contains(plan, "projection_freshness", "fresh");
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -312,6 +367,7 @@ fn should_explain_limit_pushdown_scan_limit() {
         };
         assert!(plan.contains("limit_pushdown=true"));
         assert!(plan.contains("scan_limit=25"));
+        assert!(plan.contains("early_stop=scan_limit"));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -354,6 +410,92 @@ fn should_explain_top_k_plan_for_order_limit_query() {
         };
         assert!(plan.contains("top_k=true"));
         assert!(plan.contains("top_k_limit=5"));
+        assert!(plan.contains("top_k_mode=heap"));
+        assert!(plan.contains("early_stop=none"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_explain_storage_top_k_read_path_for_row_id_order() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("explain_storage_top_k");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_explain_storage_top_k (title TEXT)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT id, title FROM sql_explain_storage_top_k ORDER BY id ASC LIMIT 5",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        let plan = explain_plan_text(&result);
+        assert_explain_contains(plan, "access_path_reason", "row-key-top-k");
+        assert_explain_contains(plan, "pagination_strategy", "limit");
+        assert_explain_contains(plan, "top_k_mode", "storage");
+        assert_explain_contains(plan, "early_stop", "storage_top_k");
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_explain_keyset_read_path_for_row_id_cursor() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("explain_keyset");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_explain_keyset (title TEXT)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT id, title FROM sql_explain_keyset WHERE id > 'doc-1' ORDER BY id ASC LIMIT 5",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        let plan = explain_plan_text(&result);
+        assert_explain_contains(plan, "access_path_reason", "row-key-keyset");
+        assert_explain_contains(plan, "pagination_strategy", "keyset");
+        assert_explain_contains(plan, "top_k_mode", "none");
+        assert_explain_contains(plan, "early_stop", "keyset");
 
         let _ = std::fs::remove_dir_all(path);
     });

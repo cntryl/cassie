@@ -1,212 +1,5 @@
 use super::*;
 
-pub(super) fn execute_ordered_column_top_k(
-    cassie: &Cassie,
-    plan: &LogicalPlan,
-) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(spec) = ordered_column_top_k_spec(plan) else {
-        return Ok(None);
-    };
-
-    let documents = cassie
-        .midge
-        .scan_rows_for_rebuild(
-            &spec.collection,
-            RowDecode::Projected(spec.projected_scan_fields()),
-        )
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
-
-    for document in documents {
-        let order_value = if is_row_id_column(&spec.order_column) {
-            Value::String(document.id.clone())
-        } else {
-            document
-                .payload
-                .get(&spec.order_column)
-                .map(json_to_query_value)
-                .unwrap_or(Value::Null)
-        };
-        let values = spec
-            .projection
-            .iter()
-            .map(|column| {
-                let value = if is_row_id_column(&column.name) {
-                    Value::String(document.id.clone())
-                } else {
-                    document
-                        .payload
-                        .get(&column.name)
-                        .map(json_to_query_value)
-                        .unwrap_or(Value::Null)
-                };
-                (column.output_name.clone(), value)
-            })
-            .collect();
-        let candidate = OrderedColumnCandidate {
-            order_value,
-            id: document.id,
-            values,
-            direction: spec.direction.clone(),
-        };
-        push_ordered_column_top_k(&mut top, spec.top_needed(), candidate);
-    }
-
-    let mut ranked = top.into_vec();
-    ranked.sort_by(compare_ordered_column_candidates);
-    let rows = ranked
-        .into_iter()
-        .skip(spec.offset)
-        .take(spec.limit)
-        .map(|candidate| BatchRow::new(candidate.values))
-        .collect();
-    Ok(Some(rows))
-}
-
-struct OrderedColumnTopKSpec {
-    collection: String,
-    order_column: String,
-    direction: SortDirection,
-    projection: Vec<OrderedProjectionColumn>,
-    limit: usize,
-    offset: usize,
-}
-
-impl OrderedColumnTopKSpec {
-    fn top_needed(&self) -> usize {
-        self.limit.saturating_add(self.offset).max(1)
-    }
-
-    fn projected_scan_fields(&self) -> Vec<String> {
-        let mut fields = Vec::new();
-        if !is_row_id_column(&self.order_column) {
-            fields.push(self.order_column.clone());
-        }
-        for column in &self.projection {
-            if !is_row_id_column(&column.name) && !fields.contains(&column.name) {
-                fields.push(column.name.clone());
-            }
-        }
-        fields
-    }
-}
-
-struct OrderedProjectionColumn {
-    name: String,
-    output_name: String,
-}
-
-fn ordered_column_top_k_spec(plan: &LogicalPlan) -> Option<OrderedColumnTopKSpec> {
-    if plan.command.is_some()
-        || !plan.ctes.is_empty()
-        || plan.distinct
-        || !plan.distinct_on.is_empty()
-        || plan.filter.is_some()
-        || !plan.group_by.is_empty()
-        || plan.having.is_some()
-        || plan.set.is_some()
-        || plan.order.len() != 1
-        || plan.order[0].nulls.is_some()
-    {
-        return None;
-    }
-
-    let QuerySource::Collection(collection) = &plan.source else {
-        return None;
-    };
-    let limit = usize::try_from(plan.limit?).ok()?.max(1);
-    let offset = plan
-        .offset
-        .and_then(|offset| usize::try_from(offset).ok())
-        .unwrap_or(0);
-    let Expr::Column(order_column) = &plan.order[0].expr else {
-        return None;
-    };
-    let projection = plan
-        .projection
-        .iter()
-        .map(|item| match item {
-            SelectItem::Column { name, alias } => Some(OrderedProjectionColumn {
-                name: name.clone(),
-                output_name: alias.clone().unwrap_or_else(|| name.clone()),
-            }),
-            _ => None,
-        })
-        .collect::<Option<Vec<_>>>()?;
-    if projection.is_empty() {
-        return None;
-    }
-
-    Some(OrderedColumnTopKSpec {
-        collection: collection.clone(),
-        order_column: order_column.clone(),
-        direction: plan.order[0].direction.clone(),
-        projection,
-        limit,
-        offset,
-    })
-}
-
-#[derive(Debug, Clone)]
-struct OrderedColumnCandidate {
-    order_value: Value,
-    id: String,
-    values: Vec<(String, Value)>,
-    direction: SortDirection,
-}
-
-impl OrderedColumnCandidate {
-    fn is_better_than(&self, other: &Self) -> bool {
-        compare_ordered_column_candidates(self, other) == CmpOrdering::Less
-    }
-}
-
-impl PartialEq for OrderedColumnCandidate {
-    fn eq(&self, other: &Self) -> bool {
-        compare_ordered_column_candidates(self, other) == CmpOrdering::Equal
-    }
-}
-
-impl Eq for OrderedColumnCandidate {}
-
-impl PartialOrd for OrderedColumnCandidate {
-    fn partial_cmp(&self, other: &Self) -> Option<CmpOrdering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for OrderedColumnCandidate {
-    fn cmp(&self, other: &Self) -> CmpOrdering {
-        compare_ordered_column_candidates(self, other)
-    }
-}
-
-fn compare_ordered_column_candidates(
-    left: &OrderedColumnCandidate,
-    right: &OrderedColumnCandidate,
-) -> CmpOrdering {
-    let value_order = compare_query_values(&left.order_value, &right.order_value);
-    let value_order = match &left.direction {
-        SortDirection::Asc => value_order,
-        SortDirection::Desc => value_order.reverse(),
-    };
-    value_order.then_with(|| left.id.cmp(&right.id))
-}
-fn push_ordered_column_top_k(
-    top: &mut BinaryHeap<OrderedColumnCandidate>,
-    top_needed: usize,
-    candidate: OrderedColumnCandidate,
-) {
-    if top.len() < top_needed {
-        top.push(candidate);
-    } else if let Some(worst) = top.peek() {
-        if candidate.is_better_than(worst) {
-            top.pop();
-            top.push(candidate);
-        }
-    }
-}
-
 pub(super) fn is_row_id_column(column: &str) -> bool {
     column.eq_ignore_ascii_case("id") || column.eq_ignore_ascii_case("_id")
 }
@@ -302,10 +95,11 @@ pub(super) fn execute_projected_filtered_read(
         controls,
         &mut batches,
         pushdown_filter.is_none(),
+        true,
     )?))
 }
 
-fn finalize_projected_filtered_read(
+pub(super) fn finalize_projected_filtered_read(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     plan: &LogicalPlan,
@@ -314,6 +108,7 @@ fn finalize_projected_filtered_read(
     controls: &QueryExecutionControls,
     batches: &mut Vec<Vec<BatchRow>>,
     apply_filter: bool,
+    apply_sort: bool,
 ) -> Result<Vec<BatchRow>, QueryError> {
     if apply_filter {
         if let Some(filter_expr) = &plan.filter {
@@ -331,7 +126,7 @@ fn finalize_projected_filtered_read(
         }
     }
 
-    if !plan.order.is_empty() {
+    if apply_sort && !plan.order.is_empty() {
         let sort_started = Instant::now();
         *batches = sort::sort_batches(
             batches.clone(),
@@ -411,6 +206,7 @@ fn execute_projected_point_lookup_read(
         controls,
         &mut batches,
         false,
+        true,
     )
 }
 
@@ -656,7 +452,7 @@ fn point_lookup_row_id(filter: &Expr, params: &[Value]) -> Option<String> {
     }
 }
 
-fn point_lookup_value_to_row_id(expr: &Expr, params: &[Value]) -> Option<String> {
+pub(super) fn point_lookup_value_to_row_id(expr: &Expr, params: &[Value]) -> Option<String> {
     match expr {
         Expr::StringLiteral(value) => Some(value.clone()),
         Expr::NumberLiteral(value) => row_id_from_number(*value),

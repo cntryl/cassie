@@ -120,6 +120,138 @@ fn should_apply_limit_offset_after_ordering() {
 }
 
 #[test]
+fn should_page_by_row_id_with_storage_top_k() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("row_id_storage_top_k");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_row_id_storage_top_k";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
+
+        for (id, title) in [("d3", "three"), ("d1", "one"), ("d2", "two")] {
+            cassie
+                .midge
+                .put_document(
+                    collection,
+                    Some(id.to_string()),
+                    serde_json::json!({"title": title}),
+                )
+                .unwrap();
+        }
+
+        // Act
+        let session = cassie.create_session("tester", None);
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, title FROM sql_row_id_storage_top_k ORDER BY id ASC LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0][0], Value::String("d1".to_string()));
+        assert_eq!(result.rows[0][1], Value::String("one".to_string()));
+        assert_eq!(result.rows[1][0], Value::String("d2".to_string()));
+        assert_eq!(result.rows[1][1], Value::String("two".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_page_by_row_id_with_keyset_cursor() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("row_id_keyset");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "sql_row_id_keyset";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
+
+        for (id, title) in [("d1", "one"), ("d2", "two"), ("d3", "three")] {
+            cassie
+                .midge
+                .put_document(
+                    collection,
+                    Some(id.to_string()),
+                    serde_json::json!({"title": title}),
+                )
+                .unwrap();
+        }
+
+        // Act
+        let session = cassie.create_session("tester", None);
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, title FROM sql_row_id_keyset WHERE id > 'd1' ORDER BY id ASC LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0][0], Value::String("d2".to_string()));
+        assert_eq!(result.rows[0][1], Value::String("two".to_string()));
+        assert_eq!(result.rows[1][0], Value::String("d3".to_string()));
+        assert_eq!(result.rows[1][1], Value::String("three".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_filter_projected_scan_range_query_without_changing_results() {
     // Arrange
     with_fallback();

@@ -2,55 +2,7 @@ use super::*;
 
 impl Midge {
     pub fn create_collection(&self, name: &str, schema: Schema) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
-
-        let schema_key = Self::collection_schema_key(name);
-        if tx.get(&schema_key).map_err(CassieError::from)?.is_none() {
-            let schema_bytes = serde_json::to_vec(&schema)
-                .map_err(|error| CassieError::Parse(error.to_string()))?;
-            tx.put(schema_key, schema_bytes, None)
-                .map_err(CassieError::from)?;
-        }
-        let row_schema = RowSchema::from_schema(&schema);
-        if tx
-            .get(&Self::row_schema_key(name))
-            .map_err(CassieError::from)?
-            .is_none()
-        {
-            Self::save_row_schema_to_tx(&mut tx, name, &row_schema)?;
-        }
-        if tx
-            .get(&Self::projection_key(name))
-            .map_err(CassieError::from)?
-            .is_none()
-        {
-            Self::save_projection_metadata_to_tx(
-                &mut tx,
-                &ProjectionMeta::new(name, row_schema.schema_version),
-            )?;
-        }
-        if tx
-            .get(Self::cardinality_key(name).as_slice())
-            .map_err(CassieError::from)?
-            .is_none()
-        {
-            Self::save_cardinality_stats_to_tx(
-                &mut tx,
-                name,
-                &CollectionCardinalityStats::default(),
-            )?;
-        }
-
-        let mut collections = self.load_collections(&tx)?;
-        if !collections.iter().any(|entry| entry == name) {
-            collections.push(name.to_string());
-            collections.sort();
-            self.save_collections(&mut tx, &collections)?;
-        }
-
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
-
-        Ok(())
+        self.create_collection_with_meta(name, schema, CollectionMeta::new(name, None))
     }
 
     pub fn create_namespace(&self, namespace: &str) -> Result<(), CassieError> {
@@ -240,6 +192,7 @@ impl Midge {
             schema_tx.delete(key).map_err(CassieError::from)?;
         }
         Self::delete_keys_with_prefix(&mut schema_tx, Self::column_batch_collection_prefix(name))?;
+        Self::delete_collection_metadata_to_tx(&mut schema_tx, name)?;
 
         schema_tx
             .delete(Self::constraints_key(name))
@@ -270,6 +223,7 @@ impl Midge {
             Self::scalar_index_collection_prefix(name),
             Self::normalized_vector_collection_prefix(name),
             Self::column_batch_collection_prefix(name),
+            Self::column_store_collection_prefix(name),
             Self::row_hash_prefix(name),
             Self::range_hash_prefix(name),
         ] {
@@ -691,6 +645,7 @@ impl Midge {
                 )
                 .map_err(CassieError::from)?;
         }
+        Self::rename_collection_metadata_to_tx(&mut schema_tx, current_name, next_name)?;
 
         let current_projection_key = Self::projection_key(current_name);
         if let Some(projection_bytes) = schema_tx
@@ -869,6 +824,10 @@ impl Midge {
             (
                 Self::normalized_vector_collection_prefix(current_name),
                 Self::normalized_vector_collection_prefix(next_name),
+            ),
+            (
+                Self::column_store_collection_prefix(current_name),
+                Self::column_store_collection_prefix(next_name),
             ),
             (
                 Self::column_batch_collection_prefix(current_name),

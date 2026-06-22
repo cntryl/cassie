@@ -21,6 +21,16 @@ pub(super) fn bind_create_table(
         )));
     }
 
+    if matches!(
+        statement.storage_mode,
+        crate::catalog::CollectionStorageMode::ColumnIndexed
+    ) {
+        return Err(CassieError::Planner(
+            "CREATE TABLE storage mode 'column_indexed' is derived and cannot be created explicitly"
+                .into(),
+        ));
+    }
+
     let mut seen = HashSet::new();
     let mut primary_key_field: Option<String> = None;
     for field in &mut statement.fields {

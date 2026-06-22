@@ -10,8 +10,7 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
     let open_paren = rest
         .find('(')
         .ok_or_else(|| SqlError("CREATE TABLE requires a column list".into()))?;
-    let close_paren = rest
-        .rfind(')')
+    let close_paren = find_matching_paren(rest, open_paren)
         .ok_or_else(|| SqlError("CREATE TABLE requires closing ')'".into()))?;
     if close_paren < open_paren {
         return Err(SqlError("invalid CREATE TABLE definition".into()));
@@ -20,13 +19,15 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
     let table = rest[..open_paren].trim();
     let body = rest[(open_paren + 1)..close_paren].trim();
     let trailing = rest[(close_paren + 1)..].trim();
+    if table.is_empty() {
+        return Err(SqlError("missing table name".into()));
+    }
+
+    let (options, trailing) = parse_index_options(trailing)?;
     if !trailing.is_empty() {
         return Err(SqlError(
             "unexpected tokens after CREATE TABLE columns".into(),
         ));
-    }
-    if table.is_empty() {
-        return Err(SqlError("missing table name".into()));
     }
 
     let mut fields = Vec::new();
@@ -53,12 +54,35 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
         }
     }
 
+    let storage_mode = match options.get("storage") {
+        Some(value) => {
+            let Some(mode) = crate::catalog::CollectionStorageMode::parse_option(value) else {
+                return Err(SqlError(format!(
+                    "unsupported CREATE TABLE storage mode '{value}'"
+                )));
+            };
+            if matches!(mode, crate::catalog::CollectionStorageMode::ColumnIndexed) {
+                return Err(SqlError(
+                    "CREATE TABLE storage mode 'column_indexed' is derived and cannot be created explicitly"
+                        .to_string(),
+                ));
+            }
+            mode
+        }
+        None => crate::catalog::CollectionStorageMode::RowStore,
+    };
+
+    if let Some(key) = options.keys().find(|key| key.as_str() != "storage") {
+        return Err(SqlError(format!("unsupported CREATE TABLE option '{key}'")));
+    }
+
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::CreateTable(CreateTableStatement {
             table: table.to_string(),
             fields,
             if_not_exists,
+            storage_mode,
         }),
     })
 }

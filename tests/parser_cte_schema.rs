@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 
 use cassie::app::Cassie;
-use cassie::catalog::{IndexKind, IndexMeta};
+use cassie::catalog::{CollectionStorageMode, IndexKind, IndexMeta};
 use cassie::sql::ast::{
     BinaryOp, CteQuery, Expr, InsertSource, JoinKind, QuerySource, QueryStatement, SelectItem,
     SetOperator, SortDirection,
@@ -114,6 +114,38 @@ fn should_parse_create_table_with_if_not_exists() {
     assert_eq!(statement.fields.len(), 4);
     assert_eq!(statement.fields[1].name, "title");
     assert_eq!(statement.fields[1].data_type, DataType::Text);
+}
+
+#[test]
+fn should_parse_create_table_with_column_store_storage_mode() {
+    // Arrange
+    let sql = "CREATE TABLE analytics_docs (id TEXT, title TEXT) WITH (storage = column_store)";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateTable(statement) = parsed.statement else {
+        panic!("expected create table statement");
+    };
+
+    assert_eq!(statement.table, "analytics_docs");
+    assert_eq!(statement.storage_mode, CollectionStorageMode::ColumnStore);
+}
+
+#[test]
+fn should_reject_create_table_with_column_indexed_storage_mode() {
+    // Arrange
+    let sql = "CREATE TABLE analytics_docs (id TEXT) WITH (storage = column_indexed)";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(matches!(
+        parsed,
+        Err(err) if err.0.contains("column_indexed")
+    ));
 }
 
 #[test]

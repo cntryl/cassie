@@ -372,3 +372,209 @@ fn should_describe_select_projection_with_column_metadata() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_execute_projected_crud_queries_against_column_store_tables() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("column_store_projection_crud");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let mut config = CassieRuntimeConfig::default();
+        config.limits.experimental_column_store_enabled = true;
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        let collection = "sql_column_store_projection_crud";
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_column_store_projection_crud (doc_id TEXT, title TEXT, summary TEXT, score INT) WITH (storage = column_store)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO sql_column_store_projection_crud (doc_id, title, summary, score) VALUES ('d1', 'alpha', NULL, 10)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO sql_column_store_projection_crud (doc_id, title, score) VALUES ('d2', 'beta', 20)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let before = cassie
+            .execute_sql(
+                &session,
+                "SELECT doc_id, title, summary, score FROM sql_column_store_projection_crud ORDER BY doc_id",
+                vec![],
+            )
+            .unwrap();
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title, score FROM sql_column_store_projection_crud WHERE doc_id = 'd2'",
+                vec![],
+            )
+            .unwrap();
+        let documents = cassie.midge.scan_documents(collection).unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "UPDATE sql_column_store_projection_crud SET summary = 'filled' WHERE doc_id = 'd2'",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "DELETE FROM sql_column_store_projection_crud WHERE doc_id = 'd1'",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie
+            .execute_sql(
+                &session,
+                "SELECT doc_id, title, summary, score FROM sql_column_store_projection_crud ORDER BY doc_id",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            before.rows,
+            vec![
+                vec![
+                    Value::String("d1".to_string()),
+                    Value::String("alpha".to_string()),
+                    Value::Null,
+                    Value::Int64(10),
+                ],
+                vec![
+                    Value::String("d2".to_string()),
+                    Value::String("beta".to_string()),
+                    Value::Null,
+                    Value::Int64(20),
+                ],
+            ]
+        );
+        let explicit_null = documents
+            .iter()
+            .find(|document| {
+                document.payload.get("doc_id") == Some(&serde_json::Value::String("d1".to_string()))
+            })
+            .expect("stored null row");
+        let missing = documents
+            .iter()
+            .find(|document| {
+                document.payload.get("doc_id") == Some(&serde_json::Value::String("d2".to_string()))
+            })
+            .expect("stored missing row");
+        assert!(matches!(
+            explicit_null.payload.get("summary"),
+            Some(serde_json::Value::Null)
+        ));
+        assert!(missing.payload.get("summary").is_none());
+
+        let plan = explain_plan_text(&explain);
+        assert_explain_contains(plan, "storage_mode", "column-store");
+
+        assert_eq!(
+            after.rows,
+            vec![vec![
+                Value::String("d2".to_string()),
+                Value::String("beta".to_string()),
+                Value::String("filled".to_string()),
+                Value::Int64(20),
+            ]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_column_store_creation_when_experimental_mode_is_disabled() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("column_store_disabled");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let error = cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_column_store_disabled (title TEXT) WITH (storage = column_store)",
+                vec![],
+            )
+            .expect_err("column-store creation should be gated");
+
+        // Assert
+        assert!(error.to_string().contains("column-store"));
+        assert!(!cassie.catalog.exists("sql_column_store_disabled"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_column_store_schema_rewrites_before_partial_write() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("column_store_schema_rewrite");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let mut config = CassieRuntimeConfig::default();
+        config.limits.experimental_column_store_enabled = true;
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_column_store_schema_rewrite (title TEXT) WITH (storage = column_store)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let error = cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE sql_column_store_schema_rewrite ADD COLUMN summary TEXT",
+                vec![],
+            )
+            .expect_err("column-store schema rewrite should fail");
+        let columns = cassie.describe_sql("SELECT title FROM sql_column_store_schema_rewrite").unwrap();
+
+        // Assert
+        assert!(error.to_string().contains("column-store"));
+        assert_eq!(columns.len(), 1);
+        assert_eq!(columns[0].name, "title");
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

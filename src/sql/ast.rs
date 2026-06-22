@@ -219,6 +219,7 @@ pub struct CreateTableStatement {
     pub table: String,
     pub fields: Vec<FieldDefinition>,
     pub if_not_exists: bool,
+    pub storage_mode: crate::catalog::CollectionStorageMode,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -71,6 +71,18 @@ impl Midge {
         id: &str,
     ) -> Result<Option<DocumentRef>, CassieError> {
         let row_schema = self.row_schema(collection)?;
+        if self.collection_uses_column_store(collection)? {
+            let tx = self.begin_data_readonly_tx()?;
+            let Some(payload) =
+                Self::load_column_store_document_from_tx(&tx, collection, id, &row_schema)?
+            else {
+                return Ok(None);
+            };
+            return Ok(Some(DocumentRef {
+                id: id.to_string(),
+                payload,
+            }));
+        }
 
         let tx = self.begin_data_readonly_tx()?;
         let payload = match tx
@@ -145,6 +157,7 @@ impl Midge {
             .collection_schema(collection)
             .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
         let row_schema = self.row_schema(collection)?;
+        let uses_column_store = self.collection_uses_column_store(collection)?;
         let vector_indexes = self
             .list_vector_indexes()?
             .into_iter()
@@ -211,14 +224,28 @@ impl Midge {
         for prepared in prepared {
             let row_key = Self::row_key(collection, &prepared.id);
             let legacy_key = Self::doc_key(collection, &prepared.id);
-            let existing_payload =
-                Self::load_document_payload_from_tx(&tx, collection, &prepared.id, &row_schema)?;
+            let existing_payload = if uses_column_store {
+                Self::load_column_store_document_from_tx(
+                    &tx,
+                    collection,
+                    &prepared.id,
+                    &row_schema,
+                )?
+            } else {
+                Self::load_document_payload_from_tx(&tx, collection, &prepared.id, &row_schema)?
+            };
 
             if let Some(row_blob) = prepared.row_blob {
                 let payload = prepared
                     .payload
                     .expect("prepared put operation must include payload");
-                let row_exists = tx.get(&row_key).map_err(CassieError::from)?.is_some();
+                let row_exists = if uses_column_store {
+                    tx.get(&Self::column_store_row_key(collection, &prepared.id))
+                        .map_err(CassieError::from)?
+                        .is_some()
+                } else {
+                    tx.get(&row_key).map_err(CassieError::from)?.is_some()
+                };
                 let legacy_exists = tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
                 let replacing = row_exists || legacy_exists;
 
@@ -232,7 +259,17 @@ impl Midge {
                     .index_deletes
                     .saturating_add(u64::try_from(normalized_deleted).unwrap_or(0));
 
-                tx.put(row_key, row_blob, None).map_err(CassieError::from)?;
+                if uses_column_store {
+                    Self::write_column_store_document_to_tx(
+                        &mut tx,
+                        collection,
+                        &prepared.id,
+                        &payload,
+                        &schema,
+                    )?;
+                } else {
+                    tx.put(row_key, row_blob, None).map_err(CassieError::from)?;
+                }
                 Self::write_document_hash_to_tx(
                     &mut tx,
                     collection,
@@ -272,10 +309,23 @@ impl Midge {
                     report.row_delta = report.row_delta.saturating_add(1);
                 }
             } else {
-                let row_exists = tx.get(&row_key).map_err(CassieError::from)?.is_some();
+                let row_exists = if uses_column_store {
+                    tx.get(&Self::column_store_row_key(collection, &prepared.id))
+                        .map_err(CassieError::from)?
+                        .is_some()
+                } else {
+                    tx.get(&row_key).map_err(CassieError::from)?.is_some()
+                };
                 let legacy_exists = tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
 
-                if row_exists {
+                if row_exists && uses_column_store {
+                    Self::delete_column_store_document_to_tx(
+                        &mut tx,
+                        collection,
+                        &prepared.id,
+                        &schema,
+                    )?;
+                } else if row_exists {
                     tx.delete(row_key).map_err(CassieError::from)?;
                 }
                 if legacy_exists {
@@ -452,6 +502,17 @@ impl Midge {
         let tx = self.begin_data_readonly_tx()?;
         let batch_size = batch_size.max(1);
         let limit = limit.unwrap_or(usize::MAX);
+        if self.collection_uses_column_store(collection)? {
+            return self.scan_column_store_rows_batched(
+                &tx,
+                collection,
+                &row_schema,
+                batch_size,
+                projection.as_ref(),
+                filter,
+                limit,
+            );
+        }
         let mut results = Vec::new();
         if limit == 0 {
             return Ok((
@@ -569,6 +630,19 @@ impl Midge {
         let tx = self.begin_data_readonly_tx()?;
         let batch_size = batch_size.max(1);
         let limit = limit.unwrap_or(usize::MAX);
+        if self.collection_uses_column_store(collection)? {
+            return self.scan_ordered_column_store_rows_batched_by_id(
+                &tx,
+                collection,
+                &row_schema,
+                batch_size,
+                projection.as_ref(),
+                start_bound,
+                end_bound,
+                reverse,
+                limit,
+            );
+        }
         let mut results = Vec::new();
         if limit == 0 {
             return Ok((

@@ -10,11 +10,11 @@ use uuid::Uuid;
 use crate::app::CassieError;
 use crate::catalog::{
     payload_contains_index_membership, payload_contains_vector_membership,
-    CollectionCardinalityStats, ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchFieldSummary,
-    ColumnBatchMetadata, ColumnBatchPayload, ColumnBatchRow, ColumnBatchSegmentMeta,
-    ColumnBatchValueRun, FieldCardinalityStats, FieldConstraint, FieldHeavyHitter,
-    FieldHistogramBucket, IndexKind, IndexMeta, NamespaceMeta, ProjectionMeta, RetentionPolicyMeta,
-    RoleMeta, RollupMeta,
+    CollectionCardinalityStats, CollectionMeta, CollectionStorageMode, ColumnBatchCodecMeta,
+    ColumnBatchColumn, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchPayload,
+    ColumnBatchRow, ColumnBatchSegmentMeta, ColumnBatchValueRun, FieldCardinalityStats,
+    FieldConstraint, FieldHeavyHitter, FieldHistogramBucket, IndexKind, IndexMeta, NamespaceMeta,
+    ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord};
 use crate::midge::row_blob::{
@@ -271,6 +271,8 @@ pub struct ColumnBatchScanOutcome {
 mod cardinality_stats;
 #[path = "adapter/column_batches.rs"]
 mod column_batches;
+#[path = "adapter/column_store.rs"]
+mod column_store;
 #[path = "adapter/documents.rs"]
 pub(crate) mod documents;
 #[path = "adapter/metadata.rs"]

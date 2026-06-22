@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, Value};
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -272,6 +273,81 @@ fn should_list_composite_indexes_through_pg_catalog() {
                     "CREATE INDEX catalog_title_score_idx ON catalog_composite_index_docs (title, score)"
                         .to_string()
                 ),
+            ]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_report_column_store_storage_metadata_after_restart() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("column_store_storage_restart");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let mut config = CassieRuntimeConfig::default();
+        config.user = "postgres".to_string();
+        config.limits.experimental_column_store_enabled = true;
+
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE catalog_column_store_docs (doc_id TEXT, title TEXT, score INT) WITH (storage = column_store)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO catalog_column_store_docs (doc_id, title, score) VALUES ('d1', 'alpha', 7)",
+                vec![],
+            )
+            .unwrap();
+        drop(cassie);
+
+        // Act
+        let restarted = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        restarted.startup().unwrap();
+        let session = restarted.create_session("tester", None);
+        let storage = restarted
+            .execute_sql(
+                &session,
+                "SELECT tablename, storage_mode, storage_version FROM pg_catalog.pg_table_storage WHERE tablename = 'catalog_column_store_docs'",
+                vec![],
+            )
+            .unwrap();
+        let selected = restarted
+            .execute_sql(
+                &session,
+                "SELECT doc_id, title, score FROM catalog_column_store_docs",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            storage.rows,
+            vec![vec![
+                Value::String("catalog_column_store_docs".to_string()),
+                Value::String("column-store".to_string()),
+                Value::Int64(1),
+            ]]
+        );
+        assert_eq!(
+            selected.rows,
+            vec![vec![
+                Value::String("d1".to_string()),
+                Value::String("alpha".to_string()),
+                Value::Int64(7),
             ]]
         );
 

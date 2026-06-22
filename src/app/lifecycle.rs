@@ -62,9 +62,13 @@ impl Cassie {
                         "load constraints for collection '{name}': {error}"
                     ))
                 })?;
+                let metadata = self.midge.collection_metadata(&name).map_err(|error| {
+                    self.runtime.record_storage_access("schema", false, false);
+                    CassieError::Storage(format!("load collection metadata for '{name}': {error}"))
+                })?;
                 self.runtime.record_storage_access("schema", false, true);
-                self.catalog.register_collection_with_constraints(
-                    &name,
+                self.catalog.register_collection_meta_with_constraints(
+                    metadata.unwrap_or_else(|| crate::catalog::CollectionMeta::new(&name, None)),
                     schema
                         .fields
                         .into_iter()

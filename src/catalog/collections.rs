@@ -11,6 +11,47 @@ pub fn is_reserved_namespace(name: &str) -> bool {
 pub struct CollectionMeta {
     pub name: String,
     pub description: Option<String>,
+    #[serde(default)]
+    pub storage_mode: CollectionStorageMode,
+    #[serde(default = "default_collection_storage_version")]
+    pub storage_version: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CollectionStorageMode {
+    RowStore,
+    ColumnIndexed,
+    ColumnStore,
+}
+
+impl Default for CollectionStorageMode {
+    fn default() -> Self {
+        Self::RowStore
+    }
+}
+
+impl CollectionStorageMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::RowStore => "row-store",
+            Self::ColumnIndexed => "column-indexed",
+            Self::ColumnStore => "column-store",
+        }
+    }
+
+    pub fn parse_option(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "row_store" | "row-store" => Some(Self::RowStore),
+            "column_indexed" | "column-indexed" => Some(Self::ColumnIndexed),
+            "column_store" | "column-store" => Some(Self::ColumnStore),
+            _ => None,
+        }
+    }
+
+    pub fn uses_column_store_storage(self) -> bool {
+        matches!(self, Self::ColumnStore)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -357,11 +398,25 @@ pub struct NamespaceMeta {
 
 impl CollectionMeta {
     pub fn new(name: impl Into<String>, description: Option<String>) -> Self {
+        Self::new_with_storage_mode(name, description, CollectionStorageMode::RowStore)
+    }
+
+    pub fn new_with_storage_mode(
+        name: impl Into<String>,
+        description: Option<String>,
+        storage_mode: CollectionStorageMode,
+    ) -> Self {
         Self {
             name: name.into(),
             description,
+            storage_mode,
+            storage_version: default_collection_storage_version(),
         }
     }
+}
+
+fn default_collection_storage_version() -> u16 {
+    1
 }
 
 impl ProjectionMeta {

@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 use cassie::app::CassieError;
-use cassie::catalog::{Catalog, IndexKind, IndexMeta};
+use cassie::catalog::{Catalog, CollectionStorageMode, IndexKind, IndexMeta};
 use cassie::planner::{logical, optimizer, physical, physical::Operator};
 use cassie::sql::ast::{
     BinaryOp, Expr, InsertSource, JoinKind, ParsedStatement, QuerySource, QueryStatement,
@@ -164,6 +164,35 @@ fn should_emit_offset_node_even_with_default_zero() {
             physical_plan.operators.get(3),
             Some(Operator::Offset)
         ));
+    });
+}
+
+#[test]
+fn should_preserve_column_store_storage_mode_in_create_table_logical_command() {
+    // Arrange
+    let catalog = Catalog::new();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "CREATE TABLE planner_column_store_docs (id TEXT, title TEXT) WITH (storage = column_store)",
+        )
+        .expect("parse should succeed");
+        let bound = binder::bind(parsed, &catalog).expect("bind should succeed");
+
+        // Act
+        let logical = logical::plan(&bound).expect("logical plan");
+
+        // Assert
+        let Some(cassie::planner::logical::LogicalCommand::CreateTable(statement)) = logical.command
+        else {
+            panic!("expected create table logical command");
+        };
+        assert_eq!(statement.table, "planner_column_store_docs");
+        assert_eq!(statement.storage_mode, CollectionStorageMode::ColumnStore);
     });
 }
 

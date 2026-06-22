@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 use cassie::app::Cassie;
-use cassie::catalog::{IndexKind, IndexMeta};
+use cassie::catalog::{CollectionMeta, CollectionStorageMode, IndexKind, IndexMeta};
 use cassie::catalog::{ProjectionFreshness, ProjectionRebuildState};
 use cassie::midge::adapter::{RowDecode, StorageFamily, StorageLayout};
 use cassie::types::{DataType, FieldSchema, Schema};
@@ -261,6 +261,91 @@ fn should_move_cleanup_cardinality_stats_on_collection_rename_drop() {
         assert_eq!(renamed_stats.row_count, 1);
         assert!(old_stats.is_none());
         assert!(dropped_stats.is_none());
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_cleanup_column_store_keys_after_collection_rename_then_drop() {
+    // Arrange
+    let path = data_dir("column_store_cleanup");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.midge.ensure_families_ready().unwrap();
+        let collection = "cf_layout_column_store_cleanup";
+        let renamed = "cf_layout_column_store_cleanup_archive";
+        cassie
+            .midge
+            .create_collection_with_meta(
+                collection,
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "title".to_string(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        },
+                        FieldSchema {
+                            name: "score".to_string(),
+                            data_type: DataType::Int,
+                            nullable: true,
+                        },
+                    ],
+                },
+                CollectionMeta::new_with_storage_mode(
+                    collection,
+                    None,
+                    CollectionStorageMode::ColumnStore,
+                ),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha", "score": 7}),
+            )
+            .unwrap();
+
+        let original_prefix = format!("__cassie__/column-store/v1/{collection}/");
+        assert!(!cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, original_prefix.as_bytes())
+            .unwrap()
+            .is_empty());
+
+        // Act
+        cassie.midge.rename_collection(collection, renamed).unwrap();
+        let metadata = cassie
+            .midge
+            .collection_metadata(renamed)
+            .unwrap()
+            .expect("collection metadata");
+        let renamed_prefix = format!("__cassie__/column-store/v1/{renamed}/");
+        let moved = cassie.midge.get_document(renamed, "doc-1").unwrap();
+        cassie.midge.drop_collection(renamed).unwrap();
+
+        // Assert
+        assert_eq!(metadata.storage_mode, CollectionStorageMode::ColumnStore);
+        assert!(moved.is_some());
+        assert!(cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, original_prefix.as_bytes())
+            .unwrap()
+            .is_empty());
+        assert!(cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, renamed_prefix.as_bytes())
+            .unwrap()
+            .is_empty());
+        assert!(cassie.midge.collection_metadata(renamed).unwrap().is_none());
 
         let _ = std::fs::remove_dir_all(path);
     });

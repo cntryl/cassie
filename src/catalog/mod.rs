@@ -16,7 +16,7 @@ pub use cardinality::{
     FieldHeavyHitter, FieldHistogramBucket, IndexCardinalityStats,
 };
 pub use collections::{
-    is_reserved_namespace, materialized_output_collection, CollectionMeta,
+    is_reserved_namespace, materialized_output_collection, CollectionMeta, CollectionStorageMode,
     MaterializedProjectionMeta, MaterializedProjectionState, NamespaceMeta,
     ProjectionComparisonReportMeta, ProjectionFreshness, ProjectionHashAlgorithmMeta,
     ProjectionHashCoverageMeta, ProjectionHashMeta, ProjectionIntegrityReportMeta, ProjectionKind,

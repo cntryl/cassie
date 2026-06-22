@@ -3,6 +3,9 @@ use crate::types::{DataType, Value};
 
 pub type VirtualRow = Vec<(String, Value)>;
 
+#[path = "virtual_views_storage.rs"]
+mod virtual_views_storage;
+
 pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
     let name = normalize_name(name);
     let fields = match name.as_str() {
@@ -48,6 +51,7 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             text("indexname"),
             text("indexdef"),
         ],
+        "pg_catalog.pg_table_storage" => virtual_views_storage::schema(),
         "pg_catalog.pg_constraint" => vec![text("conname"), text("conrelid"), text("contype")],
         "pg_catalog.pg_roles" => vec![text("rolname"), bool("rolcanlogin"), bool("rolsuper")],
         "pg_catalog.pg_rollups" => vec![
@@ -182,6 +186,7 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
         "pg_catalog.pg_class" => pg_class(catalog),
         "pg_catalog.pg_attribute" => pg_attribute(catalog),
         "pg_catalog.pg_indexes" => pg_indexes(catalog),
+        "pg_catalog.pg_table_storage" => virtual_views_storage::rows(catalog),
         "pg_catalog.pg_constraint" => pg_constraint(catalog),
         "pg_catalog.pg_type" => pg_type(catalog),
         "pg_catalog.pg_roles" => catalog

@@ -251,10 +251,27 @@ pub(super) fn execute_command(
                     })
                     .collect(),
             };
+            if statement.storage_mode.uses_column_store_storage()
+                && !cassie.runtime.limits().experimental_column_store_enabled
+            {
+                return Err(QueryError::General(
+                    "column-store tables are disabled; set CASSIE_EXPERIMENTAL_COLUMN_STORE_ENABLED=1 to create them"
+                        .to_string(),
+                ));
+            }
+            let collection_meta = catalog::CollectionMeta::new_with_storage_mode(
+                &statement.table,
+                None,
+                statement.storage_mode,
+            );
 
             cassie
                 .midge
-                .create_collection(&statement.table, schema.clone())
+                .create_collection_with_meta(
+                    &statement.table,
+                    schema.clone(),
+                    collection_meta.clone(),
+                )
                 .map_err(|error| QueryError::General(error.to_string()))?;
 
             let constraints = statement
@@ -274,8 +291,8 @@ pub(super) fn execute_command(
                     .put_index(index.clone())
                     .map_err(|error| QueryError::General(error.to_string()))?;
             }
-            cassie.catalog.register_collection_with_constraints(
-                &statement.table,
+            cassie.catalog.register_collection_meta_with_constraints(
+                collection_meta,
                 schema
                     .fields
                     .into_iter()
@@ -393,8 +410,19 @@ pub(super) fn execute_command(
             })
         }
         LogicalCommand::AlterTable(statement) => {
+            let is_column_store = cassie
+                .catalog
+                .collection_storage_mode(&statement.table)
+                .map(|mode| mode.uses_column_store_storage())
+                .unwrap_or(false);
             match &statement.operation {
                 crate::sql::ast::AlterTableOperation::AddColumn { field, data_type } => {
+                    if is_column_store {
+                        return Err(QueryError::General(
+                            "ALTER TABLE ADD COLUMN is not supported for column-store tables"
+                                .to_string(),
+                        ));
+                    }
                     let field = FieldSchema {
                         name: field.clone(),
                         data_type: data_type.clone(),
@@ -415,6 +443,12 @@ pub(super) fn execute_command(
                     invalidate_plan_cache = true;
                 }
                 crate::sql::ast::AlterTableOperation::DropColumn { field } => {
+                    if is_column_store {
+                        return Err(QueryError::General(
+                            "ALTER TABLE DROP COLUMN is not supported for column-store tables"
+                                .to_string(),
+                        ));
+                    }
                     cassie
                         .midge
                         .alter_collection_drop_column(&statement.table, field)
@@ -428,6 +462,12 @@ pub(super) fn execute_command(
                     invalidate_plan_cache = true;
                 }
                 crate::sql::ast::AlterTableOperation::RenameColumn { from, to } => {
+                    if is_column_store {
+                        return Err(QueryError::General(
+                            "ALTER TABLE RENAME COLUMN is not supported for column-store tables"
+                                .to_string(),
+                        ));
+                    }
                     cassie
                         .midge
                         .alter_collection_rename_column(&statement.table, from, to)
@@ -575,6 +615,16 @@ pub(super) fn execute_command(
             })
         }
         LogicalCommand::CreateIndex(statement) => {
+            let is_column_store = cassie
+                .catalog
+                .collection_storage_mode(&statement.table)
+                .map(|mode| mode.uses_column_store_storage())
+                .unwrap_or(false);
+            if is_column_store && matches!(statement.kind, catalog::IndexKind::Column) {
+                return Err(QueryError::General(
+                    "column indexes are not supported on column-store tables".to_string(),
+                ));
+            }
             if matches!(statement.kind, catalog::IndexKind::Vector) {
                 let vector_index =
                     super::vector_index_command::vector_index_metadata(cassie, statement)?;

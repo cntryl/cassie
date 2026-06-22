@@ -6,9 +6,9 @@ use parking_lot::RwLock;
 
 use crate::catalog::{
     normalize_role_name, CollectionCardinalityStats, CollectionMeta, CollectionSchema,
-    FieldConstraint, FieldMeta, FunctionMeta, IndexKind, IndexMeta, NamespaceMeta, ProcedureMeta,
-    ProjectionComparisonReportMeta, ProjectionKind, ProjectionMeta, RetentionPolicyMeta, RoleMeta,
-    RollupMeta, ViewMeta,
+    CollectionStorageMode, FieldConstraint, FieldMeta, FunctionMeta, IndexKind, IndexMeta,
+    NamespaceMeta, ProcedureMeta, ProjectionComparisonReportMeta, ProjectionKind, ProjectionMeta,
+    RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
@@ -69,8 +69,22 @@ impl Catalog {
         schema: Vec<(String, DataType)>,
         constraints: Vec<FieldConstraint>,
     ) {
+        self.register_collection_meta_with_constraints(
+            CollectionMeta::new(name, None),
+            schema,
+            constraints,
+        );
+    }
+
+    pub fn register_collection_meta_with_constraints(
+        &self,
+        metadata: CollectionMeta,
+        schema: Vec<(String, DataType)>,
+        constraints: Vec<FieldConstraint>,
+    ) {
         let mut collections = self.collections.write();
-        collections.insert(name.to_string(), CollectionMeta::new(name, None));
+        let name = metadata.name.clone();
+        collections.insert(name.clone(), metadata);
 
         let mut schemas = self.schemas.write();
         let fields = schema
@@ -97,7 +111,7 @@ impl Catalog {
         self.constraints
             .write()
             .insert(name.to_string(), normalized);
-        self.register_projection_metadata(ProjectionMeta::new(name, 1));
+        self.register_projection_metadata(ProjectionMeta::new(&name, 1));
         self.cardinality.write().insert(
             name.to_string(),
             CollectionCardinalityStats {
@@ -106,6 +120,30 @@ impl Catalog {
             },
         );
         self.bump_version();
+    }
+
+    pub fn get_collection(&self, name: &str) -> Option<CollectionMeta> {
+        self.collections.read().get(name).cloned()
+    }
+
+    pub fn collection_storage_mode(&self, name: &str) -> Option<CollectionStorageMode> {
+        let base = self.get_collection(name)?.storage_mode;
+        if matches!(
+            base,
+            CollectionStorageMode::ColumnStore | CollectionStorageMode::ColumnIndexed
+        ) {
+            return Some(base);
+        }
+        let has_column_index = self
+            .indexes
+            .read()
+            .values()
+            .any(|index| index.collection == name && index.kind == IndexKind::Column);
+        Some(if has_column_index {
+            CollectionStorageMode::ColumnIndexed
+        } else {
+            CollectionStorageMode::RowStore
+        })
     }
 
     pub fn list_collections(&self) -> Vec<CollectionMeta> {
@@ -581,8 +619,11 @@ impl Catalog {
 
     pub fn rename_collection(&self, current_name: &str, next_name: &str) {
         let mut collections = self.collections.write();
-        collections.remove(current_name);
-        collections.insert(next_name.to_string(), CollectionMeta::new(next_name, None));
+        let metadata = collections.remove(current_name);
+        if let Some(mut metadata) = metadata {
+            metadata.name = next_name.to_string();
+            collections.insert(next_name.to_string(), metadata);
+        }
 
         let mut schemas = self.schemas.write();
         if let Some(schema) = schemas.remove(current_name) {

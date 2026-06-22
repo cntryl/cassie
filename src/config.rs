@@ -26,6 +26,7 @@ pub struct CassieRuntimeLimits {
     pub feedback_entries: usize,
     pub feedback_ttl_seconds: u64,
     pub operator_feedback_enabled: bool,
+    pub experimental_column_store_enabled: bool,
     pub adaptive_candidate_min: usize,
     pub adaptive_candidate_max: usize,
     pub parallel_scan_workers: usize,
@@ -103,6 +104,7 @@ impl Default for CassieRuntimeLimits {
             feedback_entries: 128,
             feedback_ttl_seconds: 900,
             operator_feedback_enabled: false,
+            experimental_column_store_enabled: false,
             adaptive_candidate_min: 16,
             adaptive_candidate_max: 100_000,
             parallel_scan_workers: 1,
@@ -190,6 +192,10 @@ impl CassieRuntimeConfig {
             operator_feedback_enabled: parse_bool(
                 "CASSIE_OPERATOR_FEEDBACK_ENABLED",
                 config.limits.operator_feedback_enabled,
+            ),
+            experimental_column_store_enabled: parse_bool(
+                "CASSIE_EXPERIMENTAL_COLUMN_STORE_ENABLED",
+                config.limits.experimental_column_store_enabled,
             ),
             adaptive_candidate_min: parse_usize(
                 "CASSIE_ADAPTIVE_CANDIDATE_MIN",

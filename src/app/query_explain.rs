@@ -65,6 +65,13 @@ pub(super) fn plan_line(
     let early_stop = physical.early_stop.as_str();
     let projection_shape = physical.projection_shape.as_str();
     let join_strategy = physical.join_strategy.as_deref().unwrap_or("none");
+    let join_keys = if physical.join_keys.is_empty() {
+        "none".to_string()
+    } else {
+        physical.join_keys.join(",")
+    };
+    let join_sort_required = physical.join_sort_required;
+    let join_fallback_reason = physical.join_fallback_reason.as_deref().unwrap_or("none");
     let storage_mode = cassie
         .catalog
         .collection_storage_mode(&physical.collection)
@@ -100,7 +107,7 @@ pub(super) fn plan_line(
     };
 
     format!(
-        "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} access_path={} access_path_reason={} fallback_reason={} pagination_strategy={} top_k_mode={} early_stop={} projection_shape={} storage_mode={} index_aware={} index={} index_feedback={} operator_feedback={} operator_feedback_reason={} operator_feedback_base_candidate={} operator_feedback_selected_candidate={} operator_feedback_base_cost={} operator_feedback_adjusted_cost={} operator_feedback_confidence_bps={} operator_feedback_age_ms={} operator_feedback_samples={} operator_feedback_outliers={} covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={} cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
+        "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} access_path={} access_path_reason={} fallback_reason={} pagination_strategy={} top_k_mode={} early_stop={} projection_shape={} storage_mode={} index_aware={} index={} index_feedback={} operator_feedback={} operator_feedback_reason={} operator_feedback_base_candidate={} operator_feedback_selected_candidate={} operator_feedback_base_cost={} operator_feedback_adjusted_cost={} operator_feedback_confidence_bps={} operator_feedback_age_ms={} operator_feedback_samples={} operator_feedback_outliers={} covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} join_keys={} join_sort_required={} join_fallback_reason={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={} cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
         physical.collection,
         if operators.is_empty() {
             "Command".to_string()
@@ -146,6 +153,9 @@ pub(super) fn plan_line(
         top_k_limit,
         candidate_budget,
         join_strategy,
+        join_keys,
+        join_sort_required,
+        join_fallback_reason,
         aggregate_parallel,
         aggregate_acceleration,
         rollup_rewrite,

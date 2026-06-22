@@ -65,7 +65,6 @@ Phase 06 implementation gates are closed and archived in `issues/phase-06/README
 
 Phase 07 remains parked until the relevant Phase 04 foundation gate and Phase 06 read-implementation gate named by each issue are complete. Phase 05 write optimization is closed and archived.
 
-- [Phase 07 Issue 03: Merge Joins](../phase-07/issue-03.md) - Advanced Backlog / Execution
 - [Phase 07 Issue 04: Vectorized Joins](../phase-07/issue-04.md) - Advanced Backlog / Execution
 - [Phase 07 Issue 05: Adaptive Execution Plans](../phase-07/issue-05.md) - Advanced Backlog / Query Intelligence
 - [Phase 07 Issue 06: Runtime Operator Switching](../phase-07/issue-06.md) - Advanced Backlog / Query Intelligence

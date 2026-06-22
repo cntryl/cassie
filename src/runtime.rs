@@ -66,6 +66,8 @@ mod feedback;
 mod fulltext;
 #[path = "runtime/helpers.rs"]
 mod helpers;
+#[path = "runtime/join_metrics.rs"]
+mod join_metrics;
 #[path = "runtime/operator_feedback_state.rs"]
 mod operator_feedback_state;
 #[path = "runtime/projection_metrics.rs"]
@@ -126,6 +128,7 @@ struct RuntimeMetricsState {
     cardinality: CardinalitySnapshot,
     feedback: FeedbackSnapshot,
     adaptive_candidates: AdaptiveCandidateSnapshot,
+    joins: JoinSnapshot,
     covering_indexes: CoveringIndexSnapshot,
     column_batches: ColumnBatchSnapshot,
     time_series: TimeSeriesSnapshot,
@@ -945,6 +948,7 @@ impl RuntimeState {
             cardinality: metrics.cardinality.clone(),
             feedback: metrics.feedback.clone(),
             adaptive_candidates: metrics.adaptive_candidates.clone(),
+            joins: metrics.joins.clone(),
             covering_indexes: metrics.covering_indexes.clone(),
             column_batches: metrics.column_batches.clone(),
             time_series: metrics.time_series.clone(),

@@ -32,6 +32,7 @@ impl Cassie {
             "cardinality": snapshot.cardinality,
             "feedback": snapshot.feedback,
             "adaptive_candidates": snapshot.adaptive_candidates,
+            "joins": snapshot.joins,
             "covering_indexes": snapshot.covering_indexes,
             "column_batches": snapshot.column_batches,
             "time_series": snapshot.time_series,

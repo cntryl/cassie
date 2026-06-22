@@ -111,9 +111,9 @@ Status terms:
 | Pgwire results | row description, data row, command complete, error response, ready for query | Stable | PostgreSQL-compatible subset |
 | Pgwire compatibility | prepared statements, portals, text/binary formats, catalog introspection | Stable/Experimental | PostgreSQL-compatible subset |
 | HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin APIs | Stable/Experimental | Cassie REST API |
-| Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, cost-model diagnostics, index used, index feedback marker, operator feedback state/reason/cost/confidence diagnostics, time-series index diagnostics, column-batch index used, storage-mode diagnostics, aggregate acceleration, rollup rewrite selected, mixed execution stages, analytical projection markers, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
+| Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, cost-model diagnostics, index used, index feedback marker, operator feedback state/reason/cost/confidence diagnostics, join strategy/key/sort/fallback diagnostics, time-series index diagnostics, column-batch index used, storage-mode diagnostics, aggregate acceleration, rollup rewrite selected, mixed execution stages, analytical projection markers, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
 | Projection operations | active version, source checkpoint, lag, freshness, rebuild state, verification state, root state, last replay batch, last error, version state | Experimental | Cassie-specific |
-| Metrics | latency, throughput, errors, cache hit rate, projection replay/build/swap/stale/hash/verification/integrity/mixed-fallback counters, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
+| Metrics | latency, throughput, errors, cache hit rate, join execution/strategy/row counters, projection replay/build/swap/stale/hash/verification/integrity/mixed-fallback counters, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
 
 ## Projection Verification Surfaces
 
@@ -127,7 +127,7 @@ Status terms:
 - `pg_catalog.pg_projection_operations` exposes freshness, rebuild, active-version, verification, and root state.
 - `pg_catalog.pg_projection_integrity_reports` exposes the latest local integrity report.
 - `pg_catalog.pg_projection_comparison_reports` exposes persisted local-vs-manifest comparison reports after restart hydration.
-- EXPLAIN includes `cost_model`, `selected_cost`, `rejected_alternatives`, `operator_feedback`, `operator_feedback_reason`, `operator_feedback_base_candidate`, `operator_feedback_selected_candidate`, `operator_feedback_base_cost`, `operator_feedback_adjusted_cost`, `operator_feedback_confidence_bps`, `operator_feedback_age_ms`, `operator_feedback_samples`, `operator_feedback_outliers`, `mixed_execution`, `mixed_stages`, `exact_baseline`, `analytical_projection`, and `projection_freshness` diagnostics for mixed search/vector/analytical plans.
+- EXPLAIN includes `cost_model`, `selected_cost`, `rejected_alternatives`, `operator_feedback`, `operator_feedback_reason`, `operator_feedback_base_candidate`, `operator_feedback_selected_candidate`, `operator_feedback_base_cost`, `operator_feedback_adjusted_cost`, `operator_feedback_confidence_bps`, `operator_feedback_age_ms`, `operator_feedback_samples`, `operator_feedback_outliers`, `join_strategy`, `join_keys`, `join_sort_required`, `join_fallback_reason`, `mixed_execution`, `mixed_stages`, `exact_baseline`, `analytical_projection`, and `projection_freshness` diagnostics for mixed search/vector/analytical plans.
 
 ## Compatibility Notes
 

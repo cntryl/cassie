@@ -133,6 +133,74 @@ fn should_execute_left_join_query() {
 }
 
 #[test]
+fn should_execute_merge_join_duplicate_null_keys() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("join_merge_duplicate_null_keys");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE merge_users (user_key INT, name TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE merge_orders (order_user_key INT, total INT)",
+                vec![],
+            )
+            .unwrap();
+        for sql in [
+            "INSERT INTO merge_users (user_key, name) VALUES (1, 'ada')",
+            "INSERT INTO merge_users (user_key, name) VALUES (1, 'ada-alt')",
+            "INSERT INTO merge_users (user_key, name) VALUES (NULL, 'unknown')",
+            "INSERT INTO merge_orders (order_user_key, total) VALUES (1, 42)",
+            "INSERT INTO merge_orders (order_user_key, total) VALUES (1, 99)",
+            "INSERT INTO merge_orders (order_user_key, total) VALUES (NULL, 7)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).unwrap();
+        }
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT merge_users.name, merge_orders.total FROM merge_users JOIN merge_orders ON merge_users.user_key = merge_orders.order_user_key ORDER BY merge_users.name, merge_orders.total",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![
+                vec![Value::String("ada".to_string()), Value::Int64(42)],
+                vec![Value::String("ada".to_string()), Value::Int64(99)],
+                vec![Value::String("ada-alt".to_string()), Value::Int64(42)],
+                vec![Value::String("ada-alt".to_string()), Value::Int64(99)],
+                vec![Value::String("unknown".to_string()), Value::Int64(7)]
+            ]
+        );
+
+        let metrics = cassie.metrics();
+        assert_eq!(metrics["joins"]["last_strategy"], "merge");
+        assert_eq!(metrics["joins"]["merge_joins"], 1);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_execute_right_join_query() {
     // Arrange
     with_fallback();

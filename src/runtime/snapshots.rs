@@ -136,6 +136,21 @@ pub struct AdaptiveCandidateSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct JoinSnapshot {
+    pub executions: u64,
+    pub merge_joins: u64,
+    pub vectorized_joins: u64,
+    pub scalar_joins: u64,
+    pub fallback_joins: u64,
+    pub left_input_rows_total: u64,
+    pub right_input_rows_total: u64,
+    pub matched_rows_total: u64,
+    pub output_rows_total: u64,
+    pub last_strategy: String,
+    pub last_fallback_reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct CoveringIndexSnapshot {
     pub scans: u64,
     pub row_fetches_avoided: u64,
@@ -317,6 +332,7 @@ pub struct RuntimeMetricsSnapshot {
     pub cardinality: CardinalitySnapshot,
     pub feedback: FeedbackSnapshot,
     pub adaptive_candidates: AdaptiveCandidateSnapshot,
+    pub joins: JoinSnapshot,
     pub covering_indexes: CoveringIndexSnapshot,
     pub column_batches: ColumnBatchSnapshot,
     pub time_series: TimeSeriesSnapshot,

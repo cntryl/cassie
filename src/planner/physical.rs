@@ -188,6 +188,12 @@ pub struct PhysicalPlan {
     pub top_k: bool,
     pub top_k_limit: Option<usize>,
     pub join_strategy: Option<String>,
+    #[serde(default)]
+    pub join_keys: Vec<String>,
+    #[serde(default)]
+    pub join_sort_required: bool,
+    #[serde(default)]
+    pub join_fallback_reason: Option<String>,
     pub parallel_aggregate_candidate: bool,
     pub aggregate_acceleration: bool,
     #[serde(default)]
@@ -279,6 +285,9 @@ pub(crate) fn build_with_selection(
             top_k: false,
             top_k_limit: None,
             join_strategy: None,
+            join_keys: Vec::new(),
+            join_sort_required: false,
+            join_fallback_reason: None,
             parallel_aggregate_candidate: false,
             aggregate_acceleration: false,
             access_path: ReadAccessPath::Unknown,
@@ -302,6 +311,9 @@ pub(crate) fn build_with_selection(
     let top_k_limit = top_k_limit(&plan);
     let top_k = top_k_limit.is_some();
     let join_strategy = join_paths::join_strategy(&plan);
+    let join_keys = join_paths::join_keys(&plan);
+    let join_sort_required = join_paths::join_sort_required(&plan, join_strategy.as_deref());
+    let join_fallback_reason = join_paths::join_fallback_reason(&plan, join_strategy.as_deref());
     let parallel_aggregate_candidate = plan_supports_parallel_aggregation(&plan);
     let aggregate_acceleration = plan_supports_aggregate_acceleration(&plan, indexes.as_slice());
     let access_path = read_paths::determine_read_access_path(
@@ -370,6 +382,9 @@ pub(crate) fn build_with_selection(
         top_k,
         top_k_limit,
         join_strategy,
+        join_keys,
+        join_sort_required,
+        join_fallback_reason,
         parallel_aggregate_candidate,
         aggregate_acceleration,
         access_path,

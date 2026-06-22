@@ -1,6 +1,9 @@
 use super::plan_inspection;
 use super::*;
 
+#[path = "source_join.rs"]
+mod source_join;
+
 type SourceExecution<'a> = Result<(Vec<Batch>, Vec<String>), QueryError>;
 
 pub(super) struct SourceExecutionEnv<'a> {
@@ -167,104 +170,15 @@ pub(super) fn execute_query_source<'a>(
             kind,
             on,
         } => {
-            let (left_batches, _left_text) =
-                execute_query_source(env, left, cte_context, true, outer_row)?;
-            if source_contains_lateral(right) {
-                let left_rows = batch::flatten_batches(left_batches);
-                let mut joined = Vec::new();
-
-                for left_row in &left_rows {
-                    let (right_batches, _right_text) =
-                        execute_query_source(env, right, cte_context, true, Some(left_row))?;
-                    let right_rows = batch::flatten_batches(right_batches);
-                    let right_columns = row_columns(&right_rows);
-                    let mut matched = false;
-                    for right_row in &right_rows {
-                        let combined = combine_rows(left_row, right_row);
-                        let passes = matches!(kind, JoinKind::Cross)
-                            || filter::eval_scalar(
-                                &combined,
-                                on,
-                                env.params,
-                                None,
-                                env.user_functions,
-                                None,
-                                env.session,
-                            )?
-                            .as_bool();
-                        if passes {
-                            matched = true;
-                            joined.push(combined);
-                        }
-                    }
-
-                    if !matched && matches!(kind, JoinKind::Left | JoinKind::Full) {
-                        joined.push(combine_row_with_nulls(left_row, &right_columns));
-                    }
-                }
-
-                let text_fields = deduce_text_fields(
-                    &joined
-                        .iter()
-                        .map(|row| row.entries().to_vec())
-                        .collect::<Vec<_>>(),
-                );
-                let batches = batch::chunk_rows(joined, batch::DEFAULT_BATCH_SIZE);
-                ensure_temp_budget(env.controls, &batches)?;
-                return Ok((batches, text_fields));
-            }
-
-            let (right_batches, _right_text) =
-                execute_query_source(env, right, cte_context, true, outer_row)?;
-            let left_rows = batch::flatten_batches(left_batches);
-            let right_rows = batch::flatten_batches(right_batches);
-            let left_columns = row_columns(&left_rows);
-            let right_columns = row_columns(&right_rows);
-            let mut joined = Vec::new();
-            let mut right_matched = vec![false; right_rows.len()];
-
-            for left_row in &left_rows {
-                let mut matched = false;
-                for (right_index, right_row) in right_rows.iter().enumerate() {
-                    let combined = combine_rows(left_row, right_row);
-                    let passes = matches!(kind, JoinKind::Cross)
-                        || filter::eval_scalar(
-                            &combined,
-                            on,
-                            env.params,
-                            None,
-                            env.user_functions,
-                            None,
-                            env.session,
-                        )?
-                        .as_bool();
-                    if passes {
-                        matched = true;
-                        right_matched[right_index] = true;
-                        joined.push(combined);
-                    }
-                }
-
-                if !matched && matches!(kind, JoinKind::Left | JoinKind::Full) {
-                    joined.push(combine_row_with_nulls(left_row, &right_columns));
-                }
-            }
-
-            if matches!(kind, JoinKind::Right | JoinKind::Full) {
-                for (right_index, right_row) in right_rows.iter().enumerate() {
-                    if !right_matched[right_index] {
-                        joined.push(combine_nulls_with_row(&left_columns, right_row));
-                    }
-                }
-            }
-
-            let text_fields = deduce_text_fields(
-                &joined
-                    .iter()
-                    .map(|row| row.entries().to_vec())
-                    .collect::<Vec<_>>(),
-            );
-            let batches = batch::chunk_rows(joined, batch::DEFAULT_BATCH_SIZE);
+            let (batches, text_fields) = source_join::execute_join_source(
+                env,
+                left,
+                right,
+                kind,
+                on,
+                cte_context,
+                outer_row,
+            )?;
             ensure_temp_budget(env.controls, &batches)?;
             Ok((batches, text_fields))
         }

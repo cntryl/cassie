@@ -65,7 +65,7 @@ Phase 06 implementation gates are closed and archived in `issues/phase-06/README
 
 Phase 07 remains parked until the relevant Phase 04 foundation gate and Phase 06 read-implementation gate named by each issue are complete. Phase 05 write optimization is closed and archived.
 
-- [Phase 07 Issue 07: Multi-Instance Consistency Checks](../phase-07/issue-07.md) - Advanced Backlog / Distributed Read Models
+- No open P3 coverage items.
 
 ## Acceptance Criteria
 

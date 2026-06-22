@@ -205,6 +205,39 @@ impl RuntimeState {
         metrics.projections.last_projection = projection.into();
     }
 
+    pub fn record_projection_manifest_export(&self, projection: impl Into<String>) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.projections.consistency_exports += 1;
+        metrics.projections.last_projection = projection.into();
+        metrics.projections.last_state = "manifest_exported".to_string();
+    }
+
+    pub fn record_projection_consistency_check(
+        &self,
+        projection: impl Into<String>,
+        state: impl Into<String>,
+        mismatches: u64,
+        stale_manifests: u64,
+        incompatible_manifests: u64,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.projections.consistency_checks += 1;
+        metrics.projections.consistency_mismatches = metrics
+            .projections
+            .consistency_mismatches
+            .saturating_add(mismatches);
+        metrics.projections.consistency_stale_manifests = metrics
+            .projections
+            .consistency_stale_manifests
+            .saturating_add(stale_manifests);
+        metrics.projections.consistency_incompatible_manifests = metrics
+            .projections
+            .consistency_incompatible_manifests
+            .saturating_add(incompatible_manifests);
+        metrics.projections.last_projection = projection.into();
+        metrics.projections.last_state = state.into();
+    }
+
     pub fn record_mixed_execution_optimized(&self, projection: impl Into<String>) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.projections.mixed_execution_optimized += 1;

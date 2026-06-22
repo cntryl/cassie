@@ -54,7 +54,7 @@ Status terms:
 | Projections | projection metadata, source checkpoints, freshness, replay batch diagnostics, schema version, offset, lag, rebuild state | Experimental | Cassie-specific |
 | Projection lifecycle | internal idempotent replay ingestion, materialized projections, analytical projection options, versioned builds, verification-aware active-version swaps, operations views | Experimental | Cassie-specific |
 | Time series | time_bucket fixed windows, exact-match materialized rollups over deterministic aggregates, explicit retention policies, range queries | Experimental | Cassie-specific deterministic semantics |
-| Verification | deterministic row hashes, range hashes, projection roots, rebuild verification metadata, `VERIFY PROJECTION`, `DIFF PROJECTION`, `COMPARE PROJECTION`, local integrity reports | Experimental | Cassie-specific |
+| Verification | deterministic row hashes, range hashes, projection roots, rebuild verification metadata, `VERIFY PROJECTION`, `DIFF PROJECTION`, `COMPARE PROJECTION`, local integrity reports, admin multi-instance consistency manifests/reports | Experimental | Cassie-specific |
 
 ## Index Support
 
@@ -110,10 +110,10 @@ Status terms:
 | PostgreSQL wire | startup, auth, simple query, extended query, parse, bind, describe, execute, sync, close | Stable | PostgreSQL-compatible subset |
 | Pgwire results | row description, data row, command complete, error response, ready for query | Stable | PostgreSQL-compatible subset |
 | Pgwire compatibility | prepared statements, portals, text/binary formats, catalog introspection | Stable/Experimental | PostgreSQL-compatible subset |
-| HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin APIs | Stable/Experimental | Cassie REST API |
+| HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin manifest export and consistency-check APIs | Stable/Experimental | Cassie REST API |
 | Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, cost-model diagnostics, index used, index feedback marker, operator feedback state/reason/cost/confidence diagnostics, adaptive decision/alternative/guard diagnostics, runtime operator switch candidate/pair/threshold/reason diagnostics, join strategy/key/sort/vectorized/fallback diagnostics, time-series index diagnostics, column-batch index used, storage-mode diagnostics, aggregate acceleration, rollup rewrite selected, mixed execution stages, analytical projection markers, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
 | Projection operations | active version, source checkpoint, lag, freshness, rebuild state, verification state, root state, last replay batch, last error, version state | Experimental | Cassie-specific |
-| Metrics | latency, throughput, errors, cache hit rate, adaptive candidate, adaptive plan, and runtime operator switch counters, join execution/strategy/row/vectorized batch/spill-fallback counters, projection replay/build/swap/stale/hash/verification/integrity/mixed-fallback counters, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
+| Metrics | latency, throughput, errors, cache hit rate, adaptive candidate, adaptive plan, and runtime operator switch counters, join execution/strategy/row/vectorized batch/spill-fallback counters, projection replay/build/swap/stale/hash/verification/integrity/consistency/mixed-fallback counters, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
 
 ## Projection Verification Surfaces
 
@@ -126,10 +126,13 @@ Status terms:
 - `VERIFY PROJECTION <name> [VERSION <version_id>] [MODE metadata_only|hashes_only|indexes_only|full]` runs a read-only local integrity check and persists the latest report.
 - `DIFF PROJECTION <left> [VERSION <version_id>] WITH <right> [VERSION <version_id>] [LIMIT n] [AFTER cursor]` returns deterministic local hash differences or an explicit unverifiable result.
 - `COMPARE PROJECTION <name> [VERSION <version_id>] WITH MANIFEST '<json>'` compares the current local root digest with an imported manifest digest.
+- `POST /v1/admin/projections/{projection}/verification-manifest` exports an authenticated versioned verification manifest with instance, schema, source checkpoint, hash metadata, root/range summaries, optional row-hash summaries, generated/expiration timestamps, and a canonical manifest digest. It excludes row values, vectors, text bodies, bind values, and credentials.
+- `POST /v1/admin/projection-consistency-checks` imports two or more manifests and persists a deterministic offline report with `consistent`, `divergent`, `stale`, `incompatible`, or `unverifiable` state. This is an admin workflow only; query planning and execution do not wait on remote manifest checks.
 - `pg_catalog.pg_projection_hashes` exposes row/range/root hash state, algorithm metadata, coverage counts, and root digest.
 - `pg_catalog.pg_projection_operations` exposes freshness, rebuild, active-version, verification, and root state.
 - `pg_catalog.pg_projection_integrity_reports` exposes the latest local integrity report.
 - `pg_catalog.pg_projection_comparison_reports` exposes persisted local-vs-manifest comparison reports after restart hydration.
+- `pg_catalog.pg_projection_consistency_reports` exposes persisted multi-instance consistency reports, including manifest count, instance ids, mismatch counts, stale/incompatible/unverifiable counts, and deterministic diagnostic samples after restart hydration.
 - EXPLAIN includes `cost_model`, `selected_cost`, `rejected_alternatives`, `operator_feedback`, `operator_feedback_reason`, `operator_feedback_base_candidate`, `operator_feedback_selected_candidate`, `operator_feedback_base_cost`, `operator_feedback_adjusted_cost`, `operator_feedback_confidence_bps`, `operator_feedback_age_ms`, `operator_feedback_samples`, `operator_feedback_outliers`, `adaptive_plan_enabled`, `adaptive_decision_point`, `adaptive_candidates`, `adaptive_base_alternative`, `adaptive_selected_alternative`, `adaptive_guard`, `adaptive_guard_passed`, `adaptive_reason`, `adaptive_diagnostic`, `operator_switch_candidate`, `operator_switch_enabled`, `operator_switch_pair`, `operator_switch_threshold`, `operator_switch_reason`, `join_strategy`, `join_keys`, `join_sort_required`, `join_fallback_reason`, `vectorized_join_candidate`, `vectorized_join_enabled`, `vectorized_join_batch_size`, `vectorized_join_fallback_reason`, `mixed_execution`, `mixed_stages`, `exact_baseline`, `analytical_projection`, and `projection_freshness` diagnostics for mixed search/vector/analytical plans.
 
 ## Compatibility Notes

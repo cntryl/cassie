@@ -1,5 +1,6 @@
 pub mod cardinality;
 pub mod collections;
+pub mod consistency;
 pub mod constraints;
 pub mod indexes;
 pub mod metadata;
@@ -22,6 +23,11 @@ pub use collections::{
     ProjectionHashCoverageMeta, ProjectionHashMeta, ProjectionIntegrityReportMeta, ProjectionKind,
     ProjectionMeta, ProjectionRebuildState, ProjectionRebuildVerificationMeta, ProjectionSwapMeta,
     ProjectionVerificationState, ProjectionVersionMeta, ProjectionVersionState,
+};
+pub use consistency::{
+    ProjectionConsistencyReportMeta, ProjectionManifestHashMetadata,
+    ProjectionManifestRangeSummary, ProjectionManifestRootSummary,
+    ProjectionManifestRowHashSummary, ProjectionVerificationManifest,
 };
 pub use constraints::{
     generated_constraint_name, ConstraintCheck, ConstraintOperator, FieldConstraint,

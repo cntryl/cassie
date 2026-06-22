@@ -53,6 +53,7 @@ const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
 const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
 const PROJECTION_KEY_PREFIX: &str = "__cassie__/projection/";
 const PROJECTION_COMPARISON_REPORT_PREFIX: &str = "__cassie__/projection-comparison-report/v1/";
+const PROJECTION_CONSISTENCY_REPORT_PREFIX: &str = "__cassie__/projection-consistency-report/v1/";
 const PROJECTION_EVENT_PREFIX: &str = "__cassie__/projection-event/v1/";
 const ROW_HASH_PREFIX: &str = "__cassie__/row-hash/v1/";
 const RANGE_HASH_PREFIX: &str = "__cassie__/range-hash/v1/";
@@ -461,6 +462,14 @@ impl Midge {
 
     fn projection_comparison_report_prefix() -> Vec<u8> {
         PROJECTION_COMPARISON_REPORT_PREFIX.as_bytes().to_vec()
+    }
+
+    fn projection_consistency_report_key(report_id: &str) -> Vec<u8> {
+        format!("{PROJECTION_CONSISTENCY_REPORT_PREFIX}{report_id}").into_bytes()
+    }
+
+    fn projection_consistency_report_prefix() -> Vec<u8> {
+        PROJECTION_CONSISTENCY_REPORT_PREFIX.as_bytes().to_vec()
     }
 
     fn projection_event_key(projection: &str, source_identity: &str, event_id: &str) -> Vec<u8> {

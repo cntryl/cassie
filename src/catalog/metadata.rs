@@ -7,8 +7,8 @@ use parking_lot::RwLock;
 use crate::catalog::{
     normalize_role_name, CollectionCardinalityStats, CollectionMeta, CollectionSchema,
     CollectionStorageMode, FieldConstraint, FieldMeta, FunctionMeta, IndexKind, IndexMeta,
-    NamespaceMeta, ProcedureMeta, ProjectionComparisonReportMeta, ProjectionKind, ProjectionMeta,
-    RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
+    NamespaceMeta, ProcedureMeta, ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta,
+    ProjectionKind, ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
@@ -30,6 +30,8 @@ pub struct Catalog {
     pub vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
     pub cardinality: Arc<RwLock<HashMap<String, CollectionCardinalityStats>>>,
     pub projection_comparison_reports: Arc<RwLock<HashMap<String, ProjectionComparisonReportMeta>>>,
+    pub projection_consistency_reports:
+        Arc<RwLock<HashMap<String, ProjectionConsistencyReportMeta>>>,
     version: Arc<AtomicU64>,
 }
 
@@ -51,6 +53,7 @@ impl Catalog {
             vector_indexes: Arc::new(RwLock::new(HashMap::new())),
             cardinality: Arc::new(RwLock::new(HashMap::new())),
             projection_comparison_reports: Arc::new(RwLock::new(HashMap::new())),
+            projection_consistency_reports: Arc::new(RwLock::new(HashMap::new())),
             version: Arc::new(AtomicU64::new(0)),
         }
     }
@@ -172,24 +175,6 @@ impl Catalog {
             .cloned()
             .collect::<Vec<_>>();
         out.sort_by_key(|projection| projection.collection.to_ascii_lowercase());
-        out
-    }
-
-    pub fn register_projection_comparison_report(&self, report: ProjectionComparisonReportMeta) {
-        self.projection_comparison_reports
-            .write()
-            .insert(report.report_id.clone(), report);
-        self.bump_version();
-    }
-
-    pub fn list_projection_comparison_reports(&self) -> Vec<ProjectionComparisonReportMeta> {
-        let mut out = self
-            .projection_comparison_reports
-            .read()
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
-        out.sort_by_key(|report| report.report_id.clone());
         out
     }
 
@@ -431,6 +416,7 @@ impl Catalog {
         self.vector_indexes.write().clear();
         self.cardinality.write().clear();
         self.projection_comparison_reports.write().clear();
+        self.projection_consistency_reports.write().clear();
         self.bump_version();
     }
 
@@ -455,6 +441,9 @@ impl Catalog {
         self.projection_comparison_reports
             .write()
             .retain(|_, report| report.target != collection);
+        self.projection_consistency_reports
+            .write()
+            .retain(|_, report| report.projection_id != collection);
         self.bump_version();
     }
 
@@ -958,7 +947,7 @@ impl Catalog {
             || constraint.references_table.is_some()
     }
 
-    fn bump_version(&self) {
+    pub(crate) fn bump_version(&self) {
         self.version.fetch_add(1, Ordering::SeqCst);
     }
 }

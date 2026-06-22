@@ -3,6 +3,8 @@ use crate::types::{DataType, Value};
 
 pub type VirtualRow = Vec<(String, Value)>;
 
+#[path = "virtual_views_consistency.rs"]
+mod virtual_views_consistency;
 #[path = "virtual_views_storage.rs"]
 mod virtual_views_storage;
 
@@ -147,6 +149,7 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             int("created_ms"),
             text("last_error"),
         ],
+        "pg_catalog.pg_projection_consistency_reports" => virtual_views_consistency::schema(),
         "pg_catalog.pg_retention_policies" => vec![
             text("policy_name"),
             text("collection"),
@@ -405,6 +408,7 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                 ]
             })
             .collect(),
+        "pg_catalog.pg_projection_consistency_reports" => virtual_views_consistency::rows(catalog),
         "pg_catalog.pg_retention_policies" => catalog
             .list_retention_policies()
             .into_iter()

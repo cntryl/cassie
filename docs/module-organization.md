@@ -31,6 +31,8 @@ Current oversized legacy source files that need dedicated extraction passes incl
 
 Storage-adjacent acceleration such as column batches belongs in focused `src/midge/adapter/*` modules and must keep Midge as the direct storage layer. Do not add another storage abstraction for analytical overlays.
 
+Projection verification and consistency workflows should stay split by ownership: app-level manifest/export comparison logic in `src/app/consistency.rs`, serializable manifest/report metadata in `src/catalog/consistency.rs`, catalog view rows in `src/catalog/virtual_views_consistency.rs`, and Midge persistence beside the existing metadata adapter methods.
+
 ## Tests
 
 Integration tests should be named for the subsystem under test. Prefer adding a new focused test file over extending an already-large file.

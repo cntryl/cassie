@@ -424,6 +424,8 @@ enum PlanCacheProvenance {
 
 #[path = "app/auth.rs"]
 mod auth;
+#[path = "app/consistency.rs"]
+mod consistency;
 #[path = "app/diagnostics.rs"]
 mod diagnostics;
 #[path = "app/documents.rs"]
@@ -458,6 +460,7 @@ fn current_time_millis() -> u64 {
 
 impl Cassie {}
 
+pub use consistency::ProjectionManifestExportOptions;
 pub use replay::{ProjectionReplayBatch, ProjectionReplayEvent, ProjectionReplayReport};
 
 impl From<QueryError> for CassieError {

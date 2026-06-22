@@ -41,7 +41,7 @@ Goal: prove rebuilt read models and derived state are internally consistent befo
 | Rebuild verification | Implemented | Experimental Cassie-specific |
 | Integrity verification | Implemented | Experimental Cassie-specific |
 | Projection diffing and manifest comparison | Implemented baseline | Experimental Cassie-specific |
-| Multi-instance consistency checks | Planned | Cassie-specific |
+| Multi-instance consistency checks | Implemented baseline | Cassie-specific |
 
 ## SQL Foundation
 

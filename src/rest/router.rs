@@ -262,6 +262,39 @@ pub async fn route_request(
             })?;
             json_response(StatusCode::OK, &value)
         }
+        (Method::POST, ["v1", "admin", "projections", projection, "verification-manifest"]) => {
+            let projection = projection.to_string();
+            let body = body.clone();
+            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
+                crate::rest::consistency::export_manifest(&cassie, &projection, body.as_ref())
+            })
+            .await
+            .map_err(|error| {
+                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+            })?;
+            json_response(StatusCode::OK, &value)
+        }
+        (Method::POST, ["v1", "admin", "projection-consistency-checks"]) => {
+            let body = body.clone();
+            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
+                crate::rest::consistency::compare_manifests(&cassie, body.as_ref())
+            })
+            .await
+            .map_err(|error| {
+                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+            })?;
+            json_response(StatusCode::OK, &value)
+        }
+        (Method::GET, ["v1", "admin", "projection-consistency-reports"]) => {
+            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
+                Ok(crate::rest::consistency::reports(&cassie))
+            })
+            .await
+            .map_err(|error| {
+                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+            })?;
+            json_response(StatusCode::OK, &value)
+        }
         (Method::GET, ["v1", "collections", collection, "documents", id]) => {
             let collection = collection.to_string();
             let id = id.to_string();

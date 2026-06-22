@@ -14,6 +14,8 @@ Cassie prioritizes exceptional single-node performance over distributed complexi
 
 Cassie scales by adding more nodes, not by distributing individual queries. Its focus is on workload isolation, projection ownership, tenant routing, partition assignment, and horizontal expansion of independent read nodes.
 
+Independent Cassie instances can export offline projection verification manifests for admin consistency checks. These checks compare read-model materialization state across instances; they do not add distributed query execution, replication, or repair.
+
 ### Purpose-built for read models
 
 Cassie is optimized for the query patterns that matter in real-world read models, including primary-key lookups, secondary-index lookups, time-range queries, aggregations, reporting workloads, full-text search, vector search, and hybrid search.

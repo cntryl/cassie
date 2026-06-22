@@ -125,7 +125,7 @@ Current boundary ownership:
 | pgwire listener accept | `src/pgwire/server.rs` | transport parse/write only | socket tasks | `run` / `run_with_shutdown` | blocking IO work in accept loop |
 | pgwire startup + protocol | `src/pgwire/connection.rs` | `run_connection` | query auth/parse/execute modules | `pgwire_auth`, `pgwire_simple_query`, `pgwire_describe`, `pgwire_execute` | inline `authenticate_role`, `execute_sql`, `describe_parsed_statement`, `execute_preparsed_statement_with_mode` |
 | REST listener accept | `src/rest/router.rs` | `run_with_shutdown`, `route` | HTTP body handling | `run` / `run_with_shutdown` | blocking accept handler loops |
-| REST public routes | `src/rest/router.rs` | routing + body collection | route handlers in `run_rest_blocking` | `rest_route`, `rest_embedding_search`, `rest_auth` | inline `collections`, `documents`, `indexes`, `search`, auth/lookup calls |
+| REST public/admin routes | `src/rest/router.rs` | routing + body collection | route handlers in `run_rest_blocking` | `rest_route`, `rest_embedding_search`, `rest_auth` | inline `collections`, `documents`, `indexes`, `search`, manifest export, manifest comparison, auth/lookup calls |
 | Shutdown paths | `src/main.rs`, `src/pgwire/server.rs`, `src/rest/router.rs` | signal/shutdown listeners | runtime notification and task finish | `pgwire/shutdown`, `rest/shutdown` | unbounded task abandonment on signal |
 
 ## Runtime-Boundary Validation Ownership

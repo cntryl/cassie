@@ -144,6 +144,35 @@ fn should_keep_scan_operator_for_parallel_scan_candidates() {
 }
 
 #[test]
+fn should_keep_fixed_plan_adaptive_diagnostics_disabled() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_test_collection(&catalog, "planner_adaptive_fixed");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let parsed = parser::parse_statement(
+            "SELECT title FROM planner_adaptive_fixed WHERE title = 'alpha'",
+        )
+        .expect("parse should succeed");
+        let bound = binder::bind(parsed, &catalog).expect("bind should succeed");
+        let logical = logical::plan(&bound).expect("logical plan");
+        let logical = optimizer::optimize(logical);
+
+        // Act
+        let physical_plan = physical::build(logical);
+
+        // Assert
+        assert!(!physical_plan.adaptive_plan.enabled);
+        assert!(physical_plan.adaptive_plan.decision_point.is_empty());
+        assert!(physical_plan.adaptive_plan.candidates.is_empty());
+    });
+}
+
+#[test]
 fn should_mark_literal_equality_filter_as_pushed_down() {
     // Arrange
     let catalog = Catalog::new();

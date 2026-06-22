@@ -28,6 +28,8 @@ pub struct PlanCacheKey {
     pub data_epoch: u64,
     pub index_feedback_epoch: u64,
     pub cost_model_version: u32,
+    #[serde(default)]
+    pub adaptive_config_hash: u64,
     pub parameter_shape: Vec<ParameterShape>,
     pub mode: ExecutionMode,
     pub database: Option<String>,

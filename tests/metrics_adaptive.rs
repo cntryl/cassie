@@ -1,7 +1,7 @@
 #![allow(unused_imports, dead_code)]
-use cassie::app::Cassie;
+use cassie::app::{Cassie, CassieSession};
 use cassie::catalog::{IndexKind, IndexMeta};
-use cassie::runtime::RuntimeFeedbackKey;
+use cassie::runtime::{RuntimeFeedbackKey, RuntimeFeedbackObservation};
 use cassie::sql::parser;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
@@ -37,9 +37,36 @@ fn startup_frame(user: &str, database: &str) -> Vec<u8> {
     frame
 }
 
-fn feedback_key(sql: &str, collection: &str, schema_epoch: u64) -> RuntimeFeedbackKey {
-    let _ = (sql, collection, schema_epoch);
-    panic!("feedback_key helper is unused in metrics_adaptive");
+fn feedback_key(
+    cassie: &Cassie,
+    session: &CassieSession,
+    sql: &str,
+    candidate_index: Option<&str>,
+) -> RuntimeFeedbackKey {
+    cassie
+        .read_operator_feedback_key_for_diagnostics(session, sql, candidate_index)
+        .expect("feedback key")
+}
+
+fn adaptive_execution_config(
+    enabled: bool,
+    min_cost_savings_bps: usize,
+) -> cassie::config::CassieRuntimeConfig {
+    let mut config = cassie::config::CassieRuntimeConfig::from_env();
+    config.limits.operator_feedback_enabled = true;
+    config.limits.adaptive_execution_enabled = enabled;
+    config.limits.adaptive_min_cost_savings_bps = min_cost_savings_bps;
+    config
+}
+
+fn confident_feedback(elapsed_ms: u64, storage_reads: u64) -> RuntimeFeedbackObservation {
+    RuntimeFeedbackObservation {
+        rows_in: storage_reads.max(1),
+        rows_out: 1,
+        elapsed_ms,
+        storage_reads,
+        ..RuntimeFeedbackObservation::default()
+    }
 }
 
 fn register_feedback_collection(cassie: &Cassie, collection: &str) {
@@ -78,6 +105,30 @@ fn register_feedback_collection(cassie: &Cassie, collection: &str) {
             serde_json::json!({"title": "beta", "body": "two"}),
         )
         .unwrap();
+}
+
+fn register_operator_feedback_indexes(
+    cassie: &Cassie,
+    collection: &str,
+    first_index: &str,
+    second_index: &str,
+) {
+    for (field, index_name) in [("body", first_index), ("title", second_index)] {
+        let index = IndexMeta {
+            collection: collection.to_string(),
+            name: index_name.to_string(),
+            field: field.to_string(),
+            fields: vec![field.to_string()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: false,
+            options: Default::default(),
+        };
+        cassie.midge.put_index(index.clone()).unwrap();
+        cassie.catalog.register_index(index);
+    }
 }
 
 fn adaptive_candidate_config(min: usize, max: usize) -> cassie::config::CassieRuntimeConfig {
@@ -327,6 +378,132 @@ fn should_report_adaptive_candidate_budget_in_explain() {
             plan.contains("candidate_budget=2"),
             "explain should include adaptive candidate budget: {plan}"
         );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_select_adaptive_read_operator_alternative() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("adaptive_read_operator_select");
+    let config = adaptive_execution_config(true, 100);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let collection = "metrics_adaptive_read_operator_select";
+        let base_index = "metrics_adaptive_read_operator_body_idx_a";
+        let preferred_index = "metrics_adaptive_read_operator_title_idx_b";
+        register_feedback_collection(&cassie, collection);
+        register_operator_feedback_indexes(&cassie, collection, base_index, preferred_index);
+        let session = cassie.create_session("tester", None);
+        let shape_sql = "SELECT title FROM metrics_adaptive_read_operator_select WHERE title = 'alpha' AND body = 'one'";
+        let explain_sql = "EXPLAIN ANALYZE SELECT title FROM metrics_adaptive_read_operator_select WHERE title = 'alpha' AND body = 'one'";
+        let base_key = feedback_key(&cassie, &session, shape_sql, Some(base_index));
+        let preferred_key = feedback_key(&cassie, &session, shape_sql, Some(preferred_index));
+        for _ in 0..4 {
+            cassie
+                .seed_feedback_for_diagnostics(base_key.clone(), confident_feedback(90, 24))
+                .expect("seed base feedback");
+            cassie
+                .seed_feedback_for_diagnostics(preferred_key.clone(), confident_feedback(5, 1))
+                .expect("seed preferred feedback");
+        }
+        let before = cassie.metrics();
+
+        // Act
+        let explain = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
+        let plan = explain.rows[0][0].as_str().unwrap().to_string();
+        let after = cassie.metrics();
+
+        // Assert
+        assert!(plan.contains(preferred_index), "plan={plan}");
+        assert!(plan.contains("adaptive_plan_enabled=true"), "plan={plan}");
+        assert!(
+            plan.contains(&format!(
+                "adaptive_selected_alternative=index:{preferred_index}"
+            )),
+            "plan={plan}"
+        );
+        assert!(
+            plan.contains("adaptive_reason=selected_operator_feedback"),
+            "plan={plan}"
+        );
+        assert!(
+            plan.contains("adaptive_plan_decisions_delta:1"),
+            "plan={plan}"
+        );
+        assert!(
+            plan.contains("adaptive_plan_selected_delta:1"),
+            "plan={plan}"
+        );
+        assert_eq!(
+            after["adaptive_candidates"]["plan_selected_alternatives"]
+                .as_u64()
+                .unwrap_or_default()
+                - before["adaptive_candidates"]["plan_selected_alternatives"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            1
+        );
+        assert_eq!(
+            after["adaptive_candidates"]["last_plan_selected_alternative"],
+            format!("index:{preferred_index}")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_keep_base_alternative_when_adaptive_guard_fails() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("adaptive_read_operator_guard");
+    let config = adaptive_execution_config(true, 10_000);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let collection = "metrics_adaptive_read_operator_guard";
+        let base_index = "metrics_adaptive_read_operator_guard_body_idx_a";
+        let preferred_index = "metrics_adaptive_read_operator_guard_title_idx_b";
+        register_feedback_collection(&cassie, collection);
+        register_operator_feedback_indexes(&cassie, collection, base_index, preferred_index);
+        let session = cassie.create_session("tester", None);
+        let shape_sql = "SELECT title FROM metrics_adaptive_read_operator_guard WHERE title = 'alpha' AND body = 'one'";
+        let explain_sql = "EXPLAIN SELECT title FROM metrics_adaptive_read_operator_guard WHERE title = 'alpha' AND body = 'one'";
+        let base_key = feedback_key(&cassie, &session, shape_sql, Some(base_index));
+        let preferred_key = feedback_key(&cassie, &session, shape_sql, Some(preferred_index));
+        for _ in 0..4 {
+            cassie
+                .seed_feedback_for_diagnostics(base_key.clone(), confident_feedback(90, 24))
+                .expect("seed base feedback");
+            cassie
+                .seed_feedback_for_diagnostics(preferred_key.clone(), confident_feedback(5, 1))
+                .expect("seed preferred feedback");
+        }
+
+        // Act
+        let explain = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
+        let plan = explain.rows[0][0].as_str().unwrap().to_string();
+
+        // Assert
+        assert!(plan.contains(base_index), "plan={plan}");
+        assert!(
+            plan.contains(&format!("adaptive_selected_alternative=index:{base_index}")),
+            "plan={plan}"
+        );
+        assert!(plan.contains("adaptive_guard_passed=false"), "plan={plan}");
+        assert!(plan.contains("adaptive_reason=guard_failed"), "plan={plan}");
 
         let _ = std::fs::remove_dir_all(path);
     });

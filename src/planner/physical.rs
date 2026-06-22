@@ -6,6 +6,8 @@ use crate::sql::ast::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+#[path = "physical/adaptive.rs"]
+mod adaptive;
 #[path = "physical/aggregate_accel.rs"]
 mod aggregate_accel;
 #[path = "physical/column_batches.rs"]
@@ -25,6 +27,8 @@ mod scalar_paths;
 #[path = "physical/time_series.rs"]
 mod time_series;
 
+pub(crate) use adaptive::select_adaptive_read_operator;
+pub use adaptive::{AdaptivePlanDiagnostics, OperatorFeedbackPlanDiagnostics};
 use aggregate_accel::plan_supports_aggregate_acceleration;
 use column_batches::column_batch_index;
 use feature_flags::{
@@ -179,6 +183,8 @@ pub struct PhysicalPlan {
     pub estimates: PlanEstimates,
     #[serde(default)]
     pub operator_feedback: OperatorFeedbackPlanDiagnostics,
+    #[serde(default)]
+    pub adaptive_plan: AdaptivePlanDiagnostics,
     pub predicate_pushdown: bool,
     pub projected_scan_fields: Vec<String>,
     pub scan_limit: Option<usize>,
@@ -232,20 +238,6 @@ pub struct PlanEstimates {
     pub rejected_alternatives: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct OperatorFeedbackPlanDiagnostics {
-    pub state: String,
-    pub reason: String,
-    pub base_candidate: String,
-    pub selected_candidate: String,
-    pub base_selected_cost: u64,
-    pub adjusted_selected_cost: u64,
-    pub confidence_bps: u16,
-    pub age_ms: u64,
-    pub samples: u64,
-    pub outlier_samples: u64,
-}
-
 pub fn build(plan: LogicalPlan) -> PhysicalPlan {
     build_with_indexes(plan, Vec::new(), &Default::default())
 }
@@ -263,6 +255,7 @@ pub fn build_with_indexes(
         cardinality_stats,
         selected_index,
         OperatorFeedbackPlanDiagnostics::default(),
+        AdaptivePlanDiagnostics::default(),
     )
 }
 
@@ -272,6 +265,7 @@ pub(crate) fn build_with_selection(
     cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
     selected_index: Option<String>,
     operator_feedback: OperatorFeedbackPlanDiagnostics,
+    adaptive_plan: AdaptivePlanDiagnostics,
 ) -> PhysicalPlan {
     if plan.command.is_some() {
         return PhysicalPlan {
@@ -280,6 +274,7 @@ pub(crate) fn build_with_selection(
             logical: plan,
             estimates: PlanEstimates::default(),
             operator_feedback,
+            adaptive_plan,
             predicate_pushdown: false,
             projected_scan_fields: Vec::new(),
             scan_limit: None,
@@ -381,6 +376,7 @@ pub(crate) fn build_with_selection(
         logical: plan,
         estimates,
         operator_feedback,
+        adaptive_plan,
         predicate_pushdown,
         projected_scan_fields,
         scan_limit,

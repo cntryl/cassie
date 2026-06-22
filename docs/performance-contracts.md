@@ -71,7 +71,10 @@ Each supported query pattern should define:
 
 Current EXPLAIN and metrics contracts should make the path explicit through labels such as
 `access_path`, `fallback_reason`, `pagination_strategy`, `top_k_mode`, `early_stop`, and
-`projection_freshness` when applicable. Join-sensitive plans also expose `join_strategy`,
+`projection_freshness` when applicable. Adaptive read-operator plans also expose
+`adaptive_plan_enabled`, `adaptive_decision_point`, `adaptive_candidates`,
+`adaptive_selected_alternative`, `adaptive_guard`, and `adaptive_reason` so prevalidated
+alternative selection remains auditable. Join-sensitive plans also expose `join_strategy`,
 `join_keys`, `join_sort_required`, `join_fallback_reason`, `vectorized_join_candidate`,
 `vectorized_join_enabled`, `vectorized_join_batch_size`, and
 `vectorized_join_fallback_reason` so merge/vectorized join selection and fallbacks are visible.

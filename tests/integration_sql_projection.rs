@@ -6,12 +6,31 @@ use cassie::embeddings::{
     DEFAULT_EMBEDDING_MODEL,
 };
 use cassie::midge::adapter::StorageFamily;
+use cassie::runtime::RuntimeFeedbackObservation;
 use cassie::types::{DataType, FieldSchema, Schema, Value, Vector};
 use cntryl_midge::{TransactionMode, WriteOptions};
 
 #[path = "support/sql.rs"]
 mod support;
 use support::*;
+
+fn adaptive_execution_config() -> CassieRuntimeConfig {
+    let mut config = CassieRuntimeConfig::default();
+    config.limits.operator_feedback_enabled = true;
+    config.limits.adaptive_execution_enabled = true;
+    config.limits.adaptive_min_cost_savings_bps = 0;
+    config
+}
+
+fn confident_feedback(elapsed_ms: u64, storage_reads: u64) -> RuntimeFeedbackObservation {
+    RuntimeFeedbackObservation {
+        rows_in: storage_reads.max(1),
+        rows_out: 1,
+        elapsed_ms,
+        storage_reads,
+        ..RuntimeFeedbackObservation::default()
+    }
+}
 
 #[test]
 fn should_order_column_top_k_with_deterministic_tie_break() {
@@ -96,6 +115,109 @@ fn should_order_column_top_k_with_deterministic_tie_break() {
         assert_eq!(result.rows[1][0], Value::String("d2".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_preserve_results_for_adaptive_read_operator_choice() {
+    // Arrange
+    with_fallback();
+    let fixed_path = data_dir("adaptive_read_operator_fixed");
+    let adaptive_path = data_dir("adaptive_read_operator_enabled");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let fixed = Cassie::new_with_data_dir(&fixed_path).unwrap();
+        let adaptive =
+            Cassie::new_with_data_dir_and_config(&adaptive_path, adaptive_execution_config())
+                .unwrap();
+        let fixed_session = fixed.create_session("tester", None);
+        let adaptive_session = adaptive.create_session("tester", None);
+        for cassie in [&fixed, &adaptive] {
+            let session = if std::ptr::eq(cassie, &fixed) {
+                &fixed_session
+            } else {
+                &adaptive_session
+            };
+            cassie
+                .execute_sql(
+                    session,
+                    "CREATE TABLE sql_adaptive_projection (title TEXT, body TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    session,
+                    "CREATE INDEX sql_adaptive_projection_body_idx_a ON sql_adaptive_projection (body)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    session,
+                    "CREATE INDEX sql_adaptive_projection_title_idx_b ON sql_adaptive_projection (title)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    session,
+                    "INSERT INTO sql_adaptive_projection (title, body) VALUES ('alpha', 'one'), ('beta', 'two')",
+                    vec![],
+                )
+                .unwrap();
+        }
+
+        let sql = "SELECT title FROM sql_adaptive_projection WHERE title = 'alpha' AND body = 'one'";
+        let base_index = "sql_adaptive_projection_body_idx_a";
+        let preferred_index = "sql_adaptive_projection_title_idx_b";
+        let base_key = adaptive
+            .read_operator_feedback_key_for_diagnostics(&adaptive_session, sql, Some(base_index))
+            .unwrap();
+        let preferred_key = adaptive
+            .read_operator_feedback_key_for_diagnostics(
+                &adaptive_session,
+                sql,
+                Some(preferred_index),
+            )
+            .unwrap();
+        for _ in 0..4 {
+            adaptive
+                .seed_feedback_for_diagnostics(base_key.clone(), confident_feedback(90, 24))
+                .unwrap();
+            adaptive
+                .seed_feedback_for_diagnostics(preferred_key.clone(), confident_feedback(5, 1))
+                .unwrap();
+        }
+
+        // Act
+        let fixed_result = fixed.execute_sql(&fixed_session, sql, vec![]).unwrap();
+        let adaptive_result = adaptive
+            .execute_sql(&adaptive_session, sql, vec![])
+            .unwrap();
+        let adaptive_plan = adaptive
+            .execute_sql(&adaptive_session, &format!("EXPLAIN {sql}"), vec![])
+            .unwrap();
+        let plan = adaptive_plan.rows[0][0].as_str().unwrap_or_default();
+
+        // Assert
+        assert_eq!(fixed_result.rows, adaptive_result.rows);
+        assert_eq!(
+            adaptive_result.rows,
+            vec![vec![Value::String("alpha".to_string())]]
+        );
+        assert!(plan.contains(preferred_index), "plan={plan}");
+        assert!(
+            plan.contains("adaptive_reason=selected_operator_feedback"),
+            "plan={plan}"
+        );
+
+        let _ = std::fs::remove_dir_all(fixed_path);
+        let _ = std::fs::remove_dir_all(adaptive_path);
     });
 }
 

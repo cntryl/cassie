@@ -204,12 +204,20 @@ impl Cassie {
             bound.indexes.as_slice(),
             &cardinality_stats,
         );
-        let (selected_index, operator_feedback) = self.select_operator_feedback_plan(
+        let (operator_selected_index, operator_feedback) = self.select_operator_feedback_plan(
             database,
             &optimized.collection,
             &optimized,
             &selection,
         );
+        let limits = self.runtime.limits();
+        let (selected_index, adaptive_plan) =
+            crate::planner::physical::select_adaptive_read_operator(
+                &selection,
+                operator_selected_index,
+                &operator_feedback,
+                &limits,
+            );
 
         Ok(Arc::new(crate::planner::physical::build_with_selection(
             optimized,
@@ -217,6 +225,7 @@ impl Cassie {
             &cardinality_stats,
             selected_index,
             operator_feedback,
+            adaptive_plan,
         )))
     }
 

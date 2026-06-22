@@ -133,6 +133,17 @@ pub struct AdaptiveCandidateSnapshot {
     pub final_candidate_count_total: u64,
     pub exhausted_total: u64,
     pub limit_errors_total: u64,
+    pub plan_decisions: u64,
+    pub plan_selected_alternatives: u64,
+    pub plan_disabled_total: u64,
+    pub plan_guard_passed_total: u64,
+    pub plan_guard_failed_total: u64,
+    pub plan_candidate_alternatives_total: u64,
+    pub last_plan_decision_point: String,
+    pub last_plan_base_alternative: String,
+    pub last_plan_selected_alternative: String,
+    pub last_plan_guard: String,
+    pub last_plan_reason: String,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

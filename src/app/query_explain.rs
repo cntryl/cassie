@@ -49,6 +49,43 @@ pub(super) fn plan_line(
         } else {
             physical.operator_feedback.selected_candidate.as_str()
         };
+    let adaptive_plan = &physical.adaptive_plan;
+    let adaptive_plan_enabled = adaptive_plan.enabled;
+    let adaptive_decision_point = if adaptive_plan.decision_point.is_empty() {
+        "none"
+    } else {
+        adaptive_plan.decision_point.as_str()
+    };
+    let adaptive_candidates = if adaptive_plan.candidates.is_empty() {
+        "none".to_string()
+    } else {
+        adaptive_plan.candidates.join("|")
+    };
+    let adaptive_base_alternative = if adaptive_plan.base_alternative.is_empty() {
+        "none"
+    } else {
+        adaptive_plan.base_alternative.as_str()
+    };
+    let adaptive_selected_alternative = if adaptive_plan.selected_alternative.is_empty() {
+        "none"
+    } else {
+        adaptive_plan.selected_alternative.as_str()
+    };
+    let adaptive_guard = if adaptive_plan.guard.is_empty() {
+        "none"
+    } else {
+        adaptive_plan.guard.as_str()
+    };
+    let adaptive_reason = if adaptive_plan.reason.is_empty() {
+        "none"
+    } else {
+        adaptive_plan.reason.as_str()
+    };
+    let adaptive_diagnostic = if adaptive_plan.diagnostic.is_empty() {
+        "none"
+    } else {
+        adaptive_plan.diagnostic.as_str()
+    };
     let covered_index = physical.covered_index;
     let column_batch_index = physical.column_batch_index.as_deref().unwrap_or("none");
     let prefilter = prefilter_description(cassie, physical);
@@ -109,7 +146,9 @@ pub(super) fn plan_line(
         .map(|projection| projection.freshness.as_str().to_string())
         .unwrap_or_else(|| "unavailable".to_string());
     let estimates = &physical.estimates;
-    let selected_cost = if operator_feedback == "used" {
+    let selected_cost = if operator_feedback == "used"
+        && adaptive_selected_alternative == operator_feedback_selected_candidate
+    {
         physical.operator_feedback.adjusted_selected_cost
     } else {
         estimates.selected_cost
@@ -121,7 +160,7 @@ pub(super) fn plan_line(
     };
 
     format!(
-        "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} access_path={} access_path_reason={} fallback_reason={} pagination_strategy={} top_k_mode={} early_stop={} projection_shape={} storage_mode={} index_aware={} index={} index_feedback={} operator_feedback={} operator_feedback_reason={} operator_feedback_base_candidate={} operator_feedback_selected_candidate={} operator_feedback_base_cost={} operator_feedback_adjusted_cost={} operator_feedback_confidence_bps={} operator_feedback_age_ms={} operator_feedback_samples={} operator_feedback_outliers={} covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} join_keys={} join_sort_required={} join_fallback_reason={} vectorized_join_candidate={} vectorized_join_enabled={} vectorized_join_batch_size={} vectorized_join_fallback_reason={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={} cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
+        "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} access_path={} access_path_reason={} fallback_reason={} pagination_strategy={} top_k_mode={} early_stop={} projection_shape={} storage_mode={} index_aware={} index={} index_feedback={} operator_feedback={} operator_feedback_reason={} operator_feedback_base_candidate={} operator_feedback_selected_candidate={} operator_feedback_base_cost={} operator_feedback_adjusted_cost={} operator_feedback_confidence_bps={} operator_feedback_age_ms={} operator_feedback_samples={} operator_feedback_outliers={} adaptive_plan_enabled={} adaptive_decision_point={} adaptive_candidates={} adaptive_base_alternative={} adaptive_selected_alternative={} adaptive_guard={} adaptive_guard_passed={} adaptive_reason={} adaptive_diagnostic={} covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} join_keys={} join_sort_required={} join_fallback_reason={} vectorized_join_candidate={} vectorized_join_enabled={} vectorized_join_batch_size={} vectorized_join_fallback_reason={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={} cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
         physical.collection,
         if operators.is_empty() {
             "Command".to_string()
@@ -154,6 +193,15 @@ pub(super) fn plan_line(
         physical.operator_feedback.age_ms,
         physical.operator_feedback.samples,
         physical.operator_feedback.outlier_samples,
+        adaptive_plan_enabled,
+        adaptive_decision_point,
+        adaptive_candidates,
+        adaptive_base_alternative,
+        adaptive_selected_alternative,
+        adaptive_guard,
+        adaptive_plan.guard_passed,
+        adaptive_reason,
+        adaptive_diagnostic,
         covered_index,
         column_batch_index,
         diagnostics.column_native,

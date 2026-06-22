@@ -21,10 +21,20 @@ impl Cassie {
             data_epoch: self.runtime.data_epoch(),
             index_feedback_epoch: self.runtime.index_feedback_epoch(),
             cost_model_version: PLAN_CACHE_COST_MODEL_VERSION,
+            adaptive_config_hash: self.adaptive_config_hash(),
             parameter_shape,
             mode,
             database,
         }
+    }
+
+    fn adaptive_config_hash(&self) -> u64 {
+        let limits = self.runtime.limits();
+        crate::runtime::stable_fingerprint(&(
+            limits.adaptive_execution_enabled,
+            limits.adaptive_min_cost_savings_bps,
+            limits.operator_feedback_enabled,
+        ))
     }
 
     #[doc(hidden)]
@@ -399,6 +409,10 @@ impl Cassie {
                 PlanCacheProvenance::Compiled,
             )
         };
+        if is_select {
+            self.runtime
+                .record_adaptive_plan_decision(&physical.adaptive_plan);
+        }
         let feedback_keys = is_select.then(|| {
             let keys = self.feedback_keys_for_plan(session.database.clone(), &physical);
             self.observe_feedback_lookup(&keys);
@@ -671,6 +685,8 @@ impl Cassie {
         let mut plan = super::query_explain::plan_line(self, &physical);
 
         if analyze {
+            self.runtime
+                .record_adaptive_plan_decision(&physical.adaptive_plan);
             let feedback_keys = self.feedback_keys_for_plan(session.database.clone(), &physical);
             self.observe_feedback_lookup(&feedback_keys);
             let started_at = Instant::now();
@@ -754,6 +770,14 @@ impl Cassie {
                 .parallel_aggregation
                 .groups
                 .saturating_sub(before.parallel_aggregation.groups);
+            let adaptive_plan_decisions_delta = after
+                .adaptive_candidates
+                .plan_decisions
+                .saturating_sub(before.adaptive_candidates.plan_decisions);
+            let adaptive_plan_selected_delta = after
+                .adaptive_candidates
+                .plan_selected_alternatives
+                .saturating_sub(before.adaptive_candidates.plan_selected_alternatives);
             self.record_feedback_for_keys(
                 feedback_keys,
                 RuntimeFeedbackObservation {
@@ -794,7 +818,7 @@ impl Cassie {
                     .join("|")
             };
             plan.push_str(&format!(
-                " analyze=true actual_rows={} actual_ms={} operator_actuals={} diagnostics=plan_cache_hits_delta:{},plan_cache_misses_delta:{},storage_reads_delta:{},storage_writes_delta:{},temp_writes_delta:{},candidate_count_delta:{},result_count_delta:{},parallel_aggregations_delta:{},parallel_aggregation_fallback_delta:{},parallel_aggregation_workers_delta:{},parallel_aggregation_groups_delta:{}",
+                " analyze=true actual_rows={} actual_ms={} operator_actuals={} diagnostics=plan_cache_hits_delta:{},plan_cache_misses_delta:{},storage_reads_delta:{},storage_writes_delta:{},temp_writes_delta:{},candidate_count_delta:{},result_count_delta:{},parallel_aggregations_delta:{},parallel_aggregation_fallback_delta:{},parallel_aggregation_workers_delta:{},parallel_aggregation_groups_delta:{},adaptive_plan_decisions_delta:{},adaptive_plan_selected_delta:{}",
                 result.rows.len(),
                 elapsed_ms,
                 actual_operators,
@@ -808,7 +832,9 @@ impl Cassie {
                 parallel_aggregations_delta,
                 parallel_aggregation_fallback_delta,
                 parallel_aggregation_workers_delta,
-                parallel_aggregation_groups_delta
+                parallel_aggregation_groups_delta,
+                adaptive_plan_decisions_delta,
+                adaptive_plan_selected_delta
             ));
         }
 

@@ -237,6 +237,7 @@ fn should_fail_unknown_function_during_execution() {
             operators: vec![cassie::planner::physical::Operator::Project],
             estimates: Default::default(),
             operator_feedback: Default::default(),
+            adaptive_plan: Default::default(),
             predicate_pushdown: false,
             projected_scan_fields: Vec::new(),
             scan_limit: None,

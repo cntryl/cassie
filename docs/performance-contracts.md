@@ -680,6 +680,8 @@ It reserves representative future scenario ids without requiring 1M fixture gene
 | `perf.http.document_create_get.10k` | HTTP | `tier4_integration_http` | `http_document_create_get` | 10k |
 | `perf.http.document_create_get.100k` | HTTP | `tier4_integration_http` | `http_document_create_get` | 100k |
 
+`time_series_window_scan` owns developer feedback for the bucket-native range path and its row-backed fallback.
+
 ### Evidence Labels
 
 | Contract family | Memory/fallback evidence | EXPLAIN or metrics evidence |
@@ -691,7 +693,7 @@ It reserves representative future scenario ids without requiring 1M fixture gene
 | Search | `search.candidate_count_total`, `search_fallback` | `access_path=fulltext`, `search.latency_ms_total` |
 | Vector | `vector.candidate_count_total`, `vector.normalized_fallback_count_total` | `access_path=vector`, `vector.latency_ms_total` |
 | Hybrid | `hybrid.candidate_count_total`, `hybrid.prefilter_fallback_count_total` | `mixed_execution`, `hybrid.latency_ms_total` |
-| Time series | `time_series.buckets_scanned`, `time_series.fallback_reason`, `retention.skipped_rows`, `retention.errors`, `rollups.refreshes`, `rollups.stale_fallbacks` | `time_series=bucket_width:1 hour`, `time_series.scans`, `ENFORCE RETENTION`, `retention.deleted_rows`, `REFRESH ROLLUP`, `rollups.rewrite_hits` |
+| Time series | `time_series.bucket_native_hits`, `time_series.fallback_reason`, `retention.skipped_rows`, `retention.errors`, `rollups.refreshes`, `rollups.stale_fallbacks` | `time_series_storage=bucket-native-v1`, `time_series.buckets_scanned`, `time_series.scans`, `ENFORCE RETENTION`, `retention.deleted_rows`, `REFRESH ROLLUP`, `rollups.rewrite_hits` |
 | pgwire | `pgwire.blocking_elapsed_ms_total`, `pgwire.protocol_errors_total` | `pgwire_simple_query`, `pgwire.simple_queries_total` |
 | HTTP | `storage.data.writes`, `rest.blocking_error_total` | `documents::create/get`, `rest.requests_total` |
 
@@ -1181,8 +1183,9 @@ ORDER BY day;
 
 ### Required execution strategy
 Time-bucket-aware aggregate path or materialized rollup with fallback semantics.
-Time-series range indexes currently provide a row-backed scan baseline with bucket diagnostics;
-persisted bucket-native storage scans remain planned depth work.
+Time-series range indexes use persisted bucket-native membership when the bucket width is supported,
+then load row blobs and run the normal filter/sort/projection path for correctness.
+Unsupported, missing, corrupt, or transaction-local bucket metadata falls back to the row-backed scan baseline with bucket diagnostics.
 
 ### Non-goals
 Arbitrary ad hoc bucket widths over large unprepared datasets are not guaranteed interactive.
@@ -1194,7 +1197,7 @@ Arbitrary ad hoc bucket widths over large unprepared datasets are not guaranteed
 ### Required access-path assertions
 - Required plan shape: rollup or bucket-aware aggregate path when the contract depends on it
 - Forbidden plan shape: large raw-row scan when a declared rollup path should apply
-- Explain/assertion coverage: tests must show freshness, fallback, selected rollup behavior, selected time-series index, scanned/skipped bucket counts, and retention freshness effects
+- Explain/assertion coverage: tests must show freshness, fallback, selected rollup behavior, selected time-series index, bucket-native hits, scanned/skipped bucket counts, and retention freshness effects
 
 ### Query Pattern: Column batch
 

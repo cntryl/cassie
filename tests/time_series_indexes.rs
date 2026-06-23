@@ -3,6 +3,7 @@
 use cassie::app::Cassie;
 use cassie::catalog::IndexKind;
 use cassie::sql::ast::QueryStatement;
+use cassie::types::Value;
 
 #[path = "support/sql.rs"]
 mod support;
@@ -77,6 +78,7 @@ fn should_select_time_series_index_for_timestamp_range_explain() {
         };
         assert!(plan.contains("index=idx_ts_events_time"));
         assert!(plan.contains("time_series=bucket_width:1 hour"));
+        assert!(plan.contains("time_series_storage=bucket-native-v1"));
         assert!(plan.contains("partition_by:tenant"));
         assert!(plan.contains("range_filter:true"));
         assert!(plan.contains("cost_model=v2"));
@@ -130,6 +132,8 @@ fn should_execute_timestamp_range_with_time_series_metrics() {
             )
             .unwrap();
         let metrics = cassie.metrics();
+        let sidecars =
+            time_series_sidecar_records(&cassie, "ts_execute_events", "idx_ts_execute_time");
 
         // Assert
         assert_eq!(
@@ -145,7 +149,12 @@ fn should_execute_timestamp_range_with_time_series_metrics() {
                 ],
             ]
         );
+        assert_eq!(sidecars.len(), 3);
         assert_eq!(metrics["time_series"]["scans"].as_u64(), Some(1));
+        assert_eq!(
+            metrics["time_series"]["bucket_native_hits"].as_u64(),
+            Some(1)
+        );
         assert_eq!(metrics["time_series"]["rows"].as_u64(), Some(2));
         assert_eq!(metrics["time_series"]["buckets_scanned"].as_u64(), Some(2));
         assert_eq!(metrics["time_series"]["buckets_skipped"].as_u64(), Some(1));
@@ -229,6 +238,11 @@ fn should_preserve_time_series_range_reads_after_mutations_restart() {
             )
             .unwrap();
         let metrics = restarted.metrics();
+        let sidecars = time_series_sidecar_records(
+            &restarted,
+            "ts_mutation_events",
+            "idx_ts_mutation_time",
+        );
 
         // Assert
         assert_eq!(result.rows, vec![vec![cassie::types::Value::Int64(20)]]);
@@ -238,10 +252,166 @@ fn should_preserve_time_series_range_reads_after_mutations_restart() {
         };
         assert!(plan.contains("index=idx_ts_mutation_time"));
         assert!(plan.contains("time_series=bucket_width:1 hour"));
+        assert!(plan.contains("time_series_storage=bucket-native-v1"));
+        assert_eq!(sidecars.len(), 2);
         assert_eq!(metrics["time_series"]["scans"].as_u64(), Some(1));
+        assert_eq!(
+            metrics["time_series"]["bucket_native_hits"].as_u64(),
+            Some(1)
+        );
         assert_eq!(
             metrics["time_series"]["last_index"].as_str(),
             Some("idx_ts_mutation_time")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_fallback_to_row_blobs_when_bucket_membership_is_missing() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("time_series_index_missing_sidecar");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE ts_missing_bucket_events (tenant TEXT, event_at TIMESTAMP, amount INT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO ts_missing_bucket_events (tenant, event_at, amount) VALUES ('acme', '2026-01-01T00:00:00Z', 10), ('acme', '2026-01-01T01:00:00Z', 20)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_ts_missing_bucket_time ON ts_missing_bucket_events USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)",
+                vec![],
+            )
+            .unwrap();
+        clear_time_series_sidecars(
+            &cassie,
+            "ts_missing_bucket_events",
+            "idx_ts_missing_bucket_time",
+        );
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT amount FROM ts_missing_bucket_events WHERE event_at >= '2026-01-01T01:00:00Z' ORDER BY event_at",
+                vec![],
+            )
+            .unwrap();
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(result.rows, vec![vec![Value::Int64(20)]]);
+        assert_eq!(
+            metrics["time_series"]["bucket_native_hits"].as_u64(),
+            Some(0)
+        );
+        assert_eq!(metrics["time_series"]["fallback_scans"].as_u64(), Some(1));
+        assert_eq!(
+            metrics["time_series"]["last_fallback_reason"].as_str(),
+            Some("missing-bucket-metadata")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_cleanup_bucket_membership_after_retention() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("time_series_index_retention_sidecar");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE ts_retention_bucket_events (tenant TEXT, event_at TIMESTAMP, amount INT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO ts_retention_bucket_events (tenant, event_at, amount) VALUES ('acme', '2026-01-01T00:00:00Z', 10), ('acme', '2026-01-03T00:00:00Z', 20)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_ts_retention_bucket_time ON ts_retention_bucket_events USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)",
+                vec![],
+            )
+            .unwrap();
+        let sidecars_before = time_series_sidecar_records(
+            &cassie,
+            "ts_retention_bucket_events",
+            "idx_ts_retention_bucket_time",
+        );
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE RETENTION POLICY ts_retention_bucket_policy ON ts_retention_bucket_events USING event_at RETAIN FOR '1 day'",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "ENFORCE RETENTION POLICY ts_retention_bucket_policy AT '2026-01-03T12:00:00Z'",
+                vec![],
+            )
+            .unwrap();
+        let sidecars_after = time_series_sidecar_records(
+            &cassie,
+            "ts_retention_bucket_events",
+            "idx_ts_retention_bucket_time",
+        );
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT amount FROM ts_retention_bucket_events WHERE event_at >= '2026-01-01T00:00:00Z' ORDER BY event_at",
+                vec![],
+            )
+            .unwrap();
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(sidecars_before.len(), 2);
+        assert_eq!(sidecars_after.len(), 1);
+        assert_eq!(result.rows, vec![vec![Value::Int64(20)]]);
+        assert_eq!(
+            metrics["time_series"]["bucket_native_hits"].as_u64(),
+            Some(1)
         );
 
         let _ = std::fs::remove_dir_all(path);

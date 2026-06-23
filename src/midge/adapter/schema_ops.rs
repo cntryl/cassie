@@ -216,6 +216,7 @@ impl Midge {
             Self::row_prefix(name),
             Self::doc_prefix(name),
             Self::scalar_index_collection_prefix(name),
+            Self::time_series_index_collection_prefix(name),
             Self::normalized_vector_collection_prefix(name),
             Self::column_batch_collection_prefix(name),
             Self::column_store_collection_prefix(name),
@@ -347,15 +348,27 @@ impl Midge {
             .map_err(CassieError::from)?;
         let mut dropped_column_index_keys = Vec::new();
         let mut dropped_scalar_indexes = Vec::new();
+        let mut dropped_time_series_indexes = Vec::new();
         while let Some((key, value)) = indexes.next() {
             let Ok(metadata) = serde_json::from_slice::<IndexMeta>(&value) else {
                 continue;
             };
-            let references_field = metadata
-                .normalized_fields()
-                .iter()
-                .chain(metadata.normalized_include_fields().iter())
-                .any(|candidate| candidate.eq_ignore_ascii_case(field));
+            let partition_references_field = metadata
+                .options
+                .get("partition_by")
+                .map(|fields| {
+                    fields
+                        .split(',')
+                        .map(str::trim)
+                        .any(|candidate| candidate.eq_ignore_ascii_case(field))
+                })
+                .unwrap_or(false);
+            let references_field = partition_references_field
+                || metadata
+                    .normalized_fields()
+                    .iter()
+                    .chain(metadata.normalized_include_fields().iter())
+                    .any(|candidate| candidate.eq_ignore_ascii_case(field));
             if !references_field {
                 continue;
             }
@@ -365,6 +378,9 @@ impl Midge {
                 }
                 IndexKind::Scalar => {
                     dropped_scalar_indexes.push((key, metadata.name));
+                }
+                IndexKind::TimeSeries => {
+                    dropped_time_series_indexes.push((key, metadata.name));
                 }
                 _ => {}
             }
@@ -381,6 +397,11 @@ impl Midge {
             tx.delete(key).map_err(CassieError::from)?;
             dropped_scalar_index_names.push(index_name);
         }
+        let mut dropped_time_series_index_names = Vec::new();
+        for (key, index_name) in dropped_time_series_indexes {
+            tx.delete(key).map_err(CassieError::from)?;
+            dropped_time_series_index_names.push(index_name);
+        }
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
 
@@ -395,10 +416,17 @@ impl Midge {
                 Self::scalar_index_data_prefix(collection, &index_name),
             )?;
         }
+        for index_name in dropped_time_series_index_names {
+            Self::delete_keys_with_prefix(
+                &mut data_tx,
+                Self::time_series_index_data_prefix(collection, &index_name),
+            )?;
+        }
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
         self.rebuild_scalar_indexes_for_collection(collection)?;
+        self.rebuild_time_series_indexes_for_collection(collection)?;
         let _ = self.rebuild_column_batches_for_collection(collection)?;
         self.rebuild_projection_hashes(collection)?;
         Ok(())
@@ -504,7 +532,31 @@ impl Midge {
             let Ok(mut metadata) = serde_json::from_slice::<IndexMeta>(&raw_value) else {
                 continue;
             };
-            if metadata.rename_field(current_name, next_name) {
+            let mut changed = metadata.rename_field(current_name, next_name);
+            if metadata.kind == IndexKind::TimeSeries {
+                if let Some(raw_partition_by) = metadata.options.get("partition_by").cloned() {
+                    let partition_by = raw_partition_by
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|field| !field.is_empty())
+                        .map(|field| {
+                            if field.eq_ignore_ascii_case(current_name) {
+                                next_name.to_string()
+                            } else {
+                                field.to_string()
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    let next_partition_by = partition_by.join(",");
+                    if next_partition_by != raw_partition_by {
+                        metadata
+                            .options
+                            .insert("partition_by".to_string(), next_partition_by);
+                        changed = true;
+                    }
+                }
+            }
+            if changed {
                 let value = serde_json::to_vec(&metadata)
                     .map_err(|error| CassieError::Parse(error.to_string()))?;
                 tx.put(key, value, None).map_err(CassieError::from)?;
@@ -588,6 +640,7 @@ impl Midge {
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
         self.rebuild_scalar_indexes_for_collection(collection)?;
+        self.rebuild_time_series_indexes_for_collection(collection)?;
         let _ = self.rebuild_column_batches_for_collection(collection)?;
         self.rebuild_projection_hashes(collection)?;
         Ok(())
@@ -826,6 +879,11 @@ impl Midge {
                 false,
             ),
             (
+                Self::time_series_index_collection_prefix(current_name),
+                Self::time_series_index_collection_prefix(next_name),
+                false,
+            ),
+            (
                 Self::normalized_vector_collection_prefix(current_name),
                 Self::normalized_vector_collection_prefix(next_name),
                 true,
@@ -907,6 +965,7 @@ impl Midge {
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
+        self.rebuild_time_series_indexes_for_collection(next_name)?;
         self.rebuild_projection_hashes(next_name)?;
 
         Ok(())

@@ -26,7 +26,7 @@ The largest remaining gaps are now production evidence and operational depth gap
 
 - Tier 4 operational-scale metadata now covers local assignment inspection, external router/drain/move contracts, local snapshot/restore, and advisory capacity guidance. Actual traffic routing and node movement remain outside Cassie.
 - Performance has broad benchmark coverage and an initial 10k/100k manual feedback loop, but larger-scale claims and production-grade capacity thresholds still need follow-up evidence.
-- Several important read-model capabilities remain experimental or planned by depth, especially bucket-native time-series storage depth, broader read-path combinations beyond the Phase 09 narrow mixed-order/expression-index proof, byte-accurate capacity reporting, and non-tokio PostgreSQL client probe depth.
+- Several important read-model capabilities remain experimental or planned by depth, especially broader read-path combinations beyond the Phase 09 narrow mixed-order/expression-index proof, byte-accurate capacity reporting, and non-tokio PostgreSQL client probe depth.
 - The product boundary around procedures is now explicit: limited experimental compatibility/admin support is allowed, while stored-procedure and trigger-based business-logic platforms remain out of scope.
 - The issue backlog has an archived phase surface and Phase 08 now records the README-goal closure baseline.
 
@@ -47,7 +47,7 @@ The largest remaining gaps are now production evidence and operational depth gap
 | --- | --- | --- | --- |
 | Single-node first | Midge remains the direct storage layer; read/write contracts, benchmarks, 10k/100k manual benchmark scenarios, and advisory capacity guidance exist. | Production claims still need byte-accurate capacity reports, deployment-profile thresholds, and larger-scale evidence. | P1 |
 | Operational scale over distributed SQL | Offline manifests explicitly avoid distributed query/replication semantics; local assignment metadata, external routing contracts, local snapshot/restore, and capacity guidance are available. | Deployment-specific router integrations, fleet monitoring thresholds, and production evidence remain outside Cassie. | P1 |
-| Purpose-built read models | Primary/secondary lookups, range queries, tenant filtered pages, narrow mixed-order equality-prefix scans, exact expression-index equality seeks, aggregations, search, vector, hybrid, projections, and analytics exist. | Remaining depth is focused on broader read-path combinations, persisted bucket-native time-series storage, and deeper projection-shaped layout guidance. | P1 |
+| Purpose-built read models | Primary/secondary lookups, range queries, tenant filtered pages, narrow mixed-order equality-prefix scans, exact expression-index equality seeks, aggregations, search, vector, hybrid, projections, time-series bucket membership, and analytics exist. | Remaining depth is focused on broader read-path combinations, larger analytical fixtures, and deeper projection-shaped layout guidance. | P1 |
 | Performance is a feature | Broad benchmark suite, performance contracts, manifest-owned 10k/100k manual scenarios, and capacity signal guidance exist. | Future work should improve scenario quality, capture repeatable local evidence, add byte-accurate capacity data, and add larger scale points. | P1 |
 | Event-sourcing native | Replay batches, checkpoint metadata, duplicate skip ledger, materialized projection builds, handler determinism contracts, replay failure guidance, verification, repair plans, local hash repair, swaps, and local snapshot/restore exist. | Production replay capacity evidence remains classification work. | P1 |
 | Simplicity wins | Docs now frame Cassie as a read-model database, reject distributed SQL, and define procedures as limited compatibility/admin support rather than application business logic. | Feature surface is broad and can read like PostgreSQL parity unless non-goals and experimental boundaries stay explicit. | P1 |
@@ -141,20 +141,20 @@ Recommendation:
 Evidence:
 
 - `docs/product-roadmap.md` marks time-series index metadata and range planning as implemented baseline.
-- Row-backed time-series range scans are selected for timestamp range predicates with EXPLAIN metadata and runtime counters for selected scans, rows, scanned buckets, skipped buckets, last index, and fallbacks.
+- Time-series range scans can use persisted bucket-native membership for supported minute/hour/day bucket widths, then load authoritative row blobs for correctness. Row-backed fallback remains available with EXPLAIN metadata and runtime counters for selected scans, rows, bucket-native hits, scanned buckets, skipped buckets, last index, and fallbacks.
 - Insert/update/delete/restart correctness is tested against authoritative row blobs.
 - Retention enforcement uses normal document deletion, refreshes rollups, and marks dependent materialized projections stale for re-verification.
 - Manual benchmark scenarios cover time-window scans, retention enforcement, and rollup refresh at 10k and 100k fixture scales.
 
 Impact:
 
-Time-range reads, rollups, and retention interactions are complete enough for an MVP baseline.
-Persisted bucket-native membership remains a depth/capacity optimization, not an MVP correctness blocker.
+Time-range reads, rollups, retention interactions, and the first persisted bucket-native membership path are complete enough for an experimental baseline.
+Larger fixtures and production capacity thresholds remain classification work.
 
 Recommendation:
 
 - Keep row blobs as the source of truth for the MVP path.
-- Treat persisted bucket-native storage as a future performance slice with its own migration and fallback proof.
+- Keep bucket-native storage as a candidate accelerator with row-blob fallback until larger-scale evidence exists.
 - Use the manual Criterion scenarios as developer feedback before making larger-scale time-series claims.
 
 ### 6. PostgreSQL Client Matrix Has A Baseline
@@ -284,7 +284,7 @@ Closed baseline:
 - [Performance Contracts](performance-contracts.md): manifest-owned 10k/100k manual benchmark scenarios for core read, replay, rebuild, verification, search/vector/hybrid, pgwire, and HTTP workloads.
 - [Feature Support](feature-support.md): projection repair dry-run commands, local row/range hash repair, persisted repair audit reports, and admin-only/no-distributed repair boundaries.
 - [Performance Contracts](performance-contracts.md): read-optimization MVP baseline for point lookup, scalar index seek/prefix/range scans, ordered bounded scans, row-id keyset/top-k, and tenant filtered pages.
-- [Performance Contracts](performance-contracts.md): time-series MVP baseline for row-backed range scans, bucket diagnostics, retention freshness effects, rollup refresh, and manual 10k/100k feedback benches.
+- [Performance Contracts](performance-contracts.md): time-series baseline for bucket-native membership, row-backed fallback, bucket diagnostics, retention freshness effects, rollup refresh, and manual 10k/100k feedback benches.
 - [PostgreSQL Compatibility](postgres-compatibility.md): maintained read-model client matrix, default tokio-postgres compatibility coverage, opt-in psql probe, and explicit planned/unsupported client boundaries.
 - [Feature Support](feature-support.md): procedure boundary resolved as limited experimental compatibility/admin support, with stored-procedure and trigger-based business logic explicitly out of scope.
 - [Production Readiness](production-readiness.md): feature-family readiness matrix with owners, support levels, evidence, benchmark/operational signals, restart coverage, and blockers.
@@ -304,10 +304,10 @@ Closed baseline:
 - [Module Organization](module-organization.md): extraction gate lowered the immediate Midge, executor, and schema-parser touch points below the 1,000-line file limit before read-path, projection, and time-series depth work.
 - [Read-path depth](performance-contracts.md): narrow equality-prefix mixed ordering and exact expression-index equality seeks with EXPLAIN proof, metrics, restart coverage, and manual benchmark ownership.
 - [Projection replay contracts](projection-replay-contracts.md): handler-owned determinism, Cassie-owned replay metadata, duplicate/conflict handling, failure observability, restart hydration, and safe rebuild/verify/swap guidance.
+- [Time-series bucket-native storage](indexes-and-constraints.md): persisted bucket membership, row-backed fallback, mutation/restart/retention correctness, EXPLAIN storage diagnostics, and manual benchmark ownership.
 
 Remaining sequence:
 
-- [Persisted bucket-native time-series storage](../issues/phase-09/issue-06.md): bucket-native metadata, mutation/restart correctness, retention interactions, and fallback proof.
 - [Pgwire client probes](../issues/phase-09/issue-07.md): opt-in non-tokio client probes while keeping the default suite deterministic.
 - [Byte-accurate capacity diagnostics](../issues/phase-09/issue-08.md): local byte accounting for storage families, indexes, sidecars, and rebuild artifacts where feasible.
 - [Repair depth and runbooks](../issues/phase-09/issue-09.md): operator runbooks and the next safe local repair scope.

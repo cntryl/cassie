@@ -53,7 +53,7 @@ Status terms:
 | Embeddings | provider, model, dimensions, metric validation | Experimental | Cassie-specific |
 | Projections | projection metadata, source checkpoints, freshness, replay batch diagnostics, schema version, offset, lag, rebuild state | Experimental | Cassie-specific |
 | Projection lifecycle | internal idempotent replay ingestion, materialized projections, analytical projection options, versioned builds, verification-aware active-version swaps, operations views | Experimental | Cassie-specific |
-| Time series | time_bucket fixed windows, exact-match materialized rollups over deterministic aggregates, explicit retention policies, range queries | Experimental | Cassie-specific deterministic semantics |
+| Time series | time_bucket fixed windows, exact-match materialized rollups over deterministic aggregates, explicit retention policies, bucket-native range membership with row-backed fallback | Experimental | Cassie-specific deterministic semantics |
 | Verification | deterministic row hashes, range hashes, projection roots, rebuild verification metadata, `VERIFY PROJECTION`, `DIFF PROJECTION`, `COMPARE PROJECTION`, `PLAN REPAIR PROJECTION`, `REPAIR PROJECTION`, local integrity reports, repair audit reports, admin multi-instance consistency manifests/reports | Experimental | Cassie-specific |
 
 ## Procedure Boundary

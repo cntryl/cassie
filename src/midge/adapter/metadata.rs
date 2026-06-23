@@ -59,6 +59,9 @@ impl Midge {
         if metadata.kind == IndexKind::Scalar {
             self.rebuild_scalar_index_for_index(&metadata)?;
         }
+        if metadata.kind == IndexKind::TimeSeries {
+            self.rebuild_time_series_index_for_index(&metadata)?;
+        }
         Ok(())
     }
 
@@ -101,8 +104,13 @@ impl Midge {
             .map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
-        if metadata.is_some_and(|index| index.kind == IndexKind::Scalar) {
-            self.delete_scalar_index_data(collection, name)?;
+        if let Some(index) = metadata {
+            if index.kind == IndexKind::Scalar {
+                self.delete_scalar_index_data(collection, name)?;
+            }
+            if index.kind == IndexKind::TimeSeries {
+                self.delete_time_series_index_data(collection, name)?;
+            }
         }
         Ok(())
     }

@@ -20,7 +20,7 @@ Cassie keeps row blobs as the source of truth and uses indexes, constraints, and
 | Expression indexes | Experimental | Deterministic expression matching |
 | Full-text indexes | Stable | Cassie inverted index and BM25 support |
 | Vector indexes | Stable/Experimental | Brute force, HNSW, and IVFFlat surfaces by support level |
-| Time-series indexes | Experimental | Timestamp range planning, row-backed scans, bucket diagnostics, restart-safe metadata |
+| Time-series indexes | Experimental | Timestamp range planning, bucket-native membership, row-backed fallback, bucket diagnostics, restart-safe metadata |
 | Column-batch indexes | Stable | Covered scans, segment pruning, aggregate acceleration |
 | Retention policies | Experimental | Explicit timestamp-based cleanup with catalog and metrics diagnostics |
 
@@ -175,15 +175,17 @@ Current guarantee:
 
 - Parser, binder, catalog metadata, restart hydration, and EXPLAIN planner selection are supported for timestamp range predicates.
 - EXPLAIN includes selected bucket width, partition fields, and range-filter diagnostics for selected time-series indexes.
-- Row-backed time-series range execution is supported when planner proof selects a time-series index.
-- Runtime metrics expose selected scans, rows, scanned buckets, skipped buckets, last index, and fallback reasons.
+- Bucket-native membership is persisted in the Midge data family under the lexkey v2 `time-series-index` key family. The v1 key shape is `cassie/lexkey/v2/time-series-index/<collection>/<index>/data/<bucket_key>/<row_id>`, and the JSON value carries `collection`, `index_name`, `id`, `bucket_key`, and `timestamp`.
+- Bucket-native hits load authoritative row blobs and then run the normal filter, sort, and projection path, so bucket metadata is a candidate accelerator rather than the source of truth.
+- Row-backed time-series range execution remains the correctness fallback when planner proof selects a time-series index but bucket-native data is missing, corrupt, or unsupported.
+- Runtime metrics expose bucket-native hits, selected scans, rows, scanned buckets, skipped buckets, last index, and fallback reasons.
 - Insert/update/delete/restart correctness is preserved because row blobs remain authoritative.
 - Retention enforcement uses normal document deletion, refreshes source rollups, and marks dependent materialized projections stale for re-verification.
 - The indexed field must be a timestamp, and unsupported unique, partial, expression, or INCLUDE forms are rejected.
 
 Current limitation:
 
-- Persisted bucket membership and bucket-native storage scans remain planned depth work. The MVP path computes bucket diagnostics from authoritative rows instead of introducing a second storage abstraction.
+- Bucket-native v1 supports fixed minute/hour/day widths. Other non-empty widths are accepted as metadata but fall back to row-backed execution until a future format explicitly defines them.
 
 ## Column-Batch Indexes
 

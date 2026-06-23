@@ -90,6 +90,7 @@ pub(super) fn plan_line(
     let column_batch_index = physical.column_batch_index.as_deref().unwrap_or("none");
     let prefilter = prefilter_description(cassie, physical);
     let time_series = time_series_description(cassie, physical);
+    let time_series_storage = time_series_storage_description(cassie, physical);
     let top_k_limit = physical
         .top_k_limit
         .map(|limit| limit.to_string())
@@ -175,7 +176,7 @@ pub(super) fn plan_line(
     };
 
     format!(
-        "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} access_path={} access_path_reason={} fallback_reason={} pagination_strategy={} top_k_mode={} early_stop={} projection_shape={} storage_mode={} index_aware={} index={} index_feedback={} operator_feedback={} operator_feedback_reason={} operator_feedback_base_candidate={} operator_feedback_selected_candidate={} operator_feedback_base_cost={} operator_feedback_adjusted_cost={} operator_feedback_confidence_bps={} operator_feedback_age_ms={} operator_feedback_samples={} operator_feedback_outliers={} adaptive_plan_enabled={} adaptive_decision_point={} adaptive_candidates={} adaptive_base_alternative={} adaptive_selected_alternative={} adaptive_guard={} adaptive_guard_passed={} adaptive_reason={} adaptive_diagnostic={} covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} join_keys={} join_sort_required={} join_fallback_reason={} vectorized_join_candidate={} vectorized_join_enabled={} vectorized_join_batch_size={} vectorized_join_fallback_reason={} operator_switch_candidate={} operator_switch_enabled={} operator_switch_pair={} operator_switch_threshold={} operator_switch_reason={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={} cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
+        "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} access_path={} access_path_reason={} fallback_reason={} pagination_strategy={} top_k_mode={} early_stop={} projection_shape={} storage_mode={} index_aware={} index={} index_feedback={} operator_feedback={} operator_feedback_reason={} operator_feedback_base_candidate={} operator_feedback_selected_candidate={} operator_feedback_base_cost={} operator_feedback_adjusted_cost={} operator_feedback_confidence_bps={} operator_feedback_age_ms={} operator_feedback_samples={} operator_feedback_outliers={} adaptive_plan_enabled={} adaptive_decision_point={} adaptive_candidates={} adaptive_base_alternative={} adaptive_selected_alternative={} adaptive_guard={} adaptive_guard_passed={} adaptive_reason={} adaptive_diagnostic={} covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} time_series_storage={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} join_keys={} join_sort_required={} join_fallback_reason={} vectorized_join_candidate={} vectorized_join_enabled={} vectorized_join_batch_size={} vectorized_join_fallback_reason={} operator_switch_candidate={} operator_switch_enabled={} operator_switch_pair={} operator_switch_threshold={} operator_switch_reason={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={} cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
         physical.collection,
         if operators.is_empty() {
             "Command".to_string()
@@ -226,6 +227,7 @@ pub(super) fn plan_line(
         diagnostics.analytical_projection,
         prefilter,
         time_series,
+        time_series_storage,
         physical.top_k,
         top_k_limit,
         candidate_budget,
@@ -314,6 +316,41 @@ fn time_series_description(
         .unwrap_or_else(|| "none".to_string());
     let range_filter = physical.logical.filter.is_some();
     format!("bucket_width:{bucket_width},partition_by:{partition_by},range_filter:{range_filter}")
+}
+
+fn time_series_storage_description(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+) -> String {
+    let Some(index_name) = physical.selected_index.as_deref() else {
+        return "none".to_string();
+    };
+    let Some(index) = cassie.catalog.get_index(&physical.collection, index_name) else {
+        return "none".to_string();
+    };
+    if index.kind != crate::catalog::IndexKind::TimeSeries {
+        return "none".to_string();
+    }
+    if time_series_bucket_width_supported(index.options.get("bucket_width").map(String::as_str)) {
+        "bucket-native-v1".to_string()
+    } else {
+        "row-backed-fallback".to_string()
+    }
+}
+
+fn time_series_bucket_width_supported(raw: Option<&str>) -> bool {
+    let Some(raw) = raw else {
+        return false;
+    };
+    let mut parts = raw.trim().split_whitespace();
+    let amount = parts.next().and_then(|value| value.parse::<u64>().ok());
+    let unit = parts.next().map(str::to_ascii_lowercase);
+    amount.is_some_and(|value| value > 0)
+        && parts.next().is_none()
+        && matches!(
+            unit.as_deref(),
+            Some("minute" | "minutes" | "hour" | "hours" | "day" | "days")
+        )
 }
 
 fn candidate_budget(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan) -> String {

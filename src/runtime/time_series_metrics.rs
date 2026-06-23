@@ -1,6 +1,11 @@
 use super::*;
 
 impl RuntimeState {
+    pub fn record_time_series_bucket_native_hit(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.time_series.bucket_native_hits += 1;
+    }
+
     pub fn record_time_series_scan(
         &self,
         index: impl Into<String>,

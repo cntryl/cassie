@@ -168,6 +168,11 @@ impl Midge {
             .into_iter()
             .filter(|index| index.collection == collection && index.kind == IndexKind::Scalar)
             .collect::<Vec<_>>();
+        let time_series_indexes = self
+            .list_indexes()?
+            .into_iter()
+            .filter(|index| index.collection == collection && index.kind == IndexKind::TimeSeries)
+            .collect::<Vec<_>>();
 
         #[derive(Debug)]
         struct PreparedWrite {
@@ -288,6 +293,14 @@ impl Midge {
                     Some(&payload),
                     &scalar_indexes,
                 )?;
+                let (time_series_deleted, time_series_puts) = self
+                    .sync_time_series_indexes_for_document(
+                        &mut tx,
+                        &prepared.id,
+                        existing_payload.as_ref(),
+                        Some(&payload),
+                        &time_series_indexes,
+                    )?;
 
                 report.ids.push(prepared.id.clone());
                 report.stats.row_puts = report.stats.row_puts.saturating_add(1);
@@ -296,14 +309,14 @@ impl Midge {
                         prepared
                             .normalized_records
                             .len()
-                            .saturating_add(scalar_puts),
+                            .saturating_add(scalar_puts)
+                            .saturating_add(time_series_puts),
                     )
                     .unwrap_or(0),
                 );
-                report.stats.index_deletes = report
-                    .stats
-                    .index_deletes
-                    .saturating_add(u64::try_from(scalar_deleted).unwrap_or(0));
+                report.stats.index_deletes = report.stats.index_deletes.saturating_add(
+                    u64::try_from(scalar_deleted.saturating_add(time_series_deleted)).unwrap_or(0),
+                );
                 report.stats.metadata_puts = report.stats.metadata_puts.saturating_add(1);
                 if !replacing {
                     report.row_delta = report.row_delta.saturating_add(1);
@@ -350,13 +363,25 @@ impl Midge {
                     None,
                     &scalar_indexes,
                 )?;
+                let (time_series_deleted, time_series_puts) = self
+                    .sync_time_series_indexes_for_document(
+                        &mut tx,
+                        &prepared.id,
+                        existing_payload.as_ref(),
+                        None,
+                        &time_series_indexes,
+                    )?;
                 report.stats.index_deletes = report.stats.index_deletes.saturating_add(
-                    u64::try_from(normalized_deleted.saturating_add(scalar_deleted)).unwrap_or(0),
+                    u64::try_from(
+                        normalized_deleted
+                            .saturating_add(scalar_deleted)
+                            .saturating_add(time_series_deleted),
+                    )
+                    .unwrap_or(0),
                 );
-                report.stats.index_puts = report
-                    .stats
-                    .index_puts
-                    .saturating_add(u64::try_from(scalar_puts).unwrap_or(0));
+                report.stats.index_puts = report.stats.index_puts.saturating_add(
+                    u64::try_from(scalar_puts.saturating_add(time_series_puts)).unwrap_or(0),
+                );
             }
         }
 

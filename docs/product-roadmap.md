@@ -121,7 +121,7 @@ Goal: provide analytical read acceleration and operational visibility while keep
 | Retention policies | Implemented | Experimental explicit enforcement |
 | Time-series index metadata and range planning | Implemented baseline | Experimental |
 | Time-series row-backed range scans and bucket diagnostics | Implemented baseline | Experimental |
-| Persisted bucket-native time-series index storage | Planned by depth | Experimental |
+| Persisted bucket-native time-series index storage | Implemented baseline | Experimental |
 | Analytical projection options and covered-query routing | Implemented | Experimental Cassie-specific |
 | EXPLAIN, EXPLAIN ANALYZE, metrics | Implemented | Experimental output format |
 
@@ -215,7 +215,7 @@ Goal: support horizontal expansion through externally orchestrated independent C
 - Treat the archived phase 06 surface in `issues/phase-06/README.md` plus the Phase 09 read-path depth in `docs/performance-contracts.md` as the reference for implemented Midge-native read paths, access-path assertions, and projection-shaped read diagnostics. Remaining read-optimization depth is limited to explicit follow-on slices such as broader mixed-direction suffix ordering and expression range/order lowering.
 - Treat the archived phase 07 surface in `issues/phase-07/README.md` as the reference for advanced query, adaptive execution, column-store table mode, and offline consistency-comparison behavior.
 - Treat `issues/phase-08/README.md` as the archived README-goal closure surface for operational metadata, snapshot/restore, repair, read optimization, time-series, client compatibility, production classification, and capacity-management documentation.
-- Work Phase 09 from `issues/phase-09/README.md` for production-depth follow-up: production evidence, read-path depth, time-series storage depth, client probes, capacity diagnostics, repair depth, adaptive planning depth, experimental promotion criteria, and extraction guardrails.
+- Work Phase 09 from `issues/phase-09/README.md` for production-depth follow-up: production evidence, read-path depth, client probes, capacity diagnostics, repair depth, adaptive planning depth, experimental promotion criteria, and extraction guardrails.
 - Tighten PostgreSQL compatibility documentation for already-implemented SQL features through the read-model access lens.
 - Expand client compatibility probes for psql, sqlx, diesel, prisma, and SQLAlchemy read-model workflows.
 - Promote experimental catalog, limited procedure, rollup, HNSW, and embedding surfaces as their compatibility guarantees settle.

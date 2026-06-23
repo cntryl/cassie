@@ -7,6 +7,15 @@ use cassie::midge::adapter::StorageFamily;
 use cntryl_midge::{TransactionMode, WriteOptions};
 use uuid::Uuid;
 
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct TimeSeriesSidecarRecord {
+    pub collection: String,
+    pub index_name: String,
+    pub id: String,
+    pub bucket_key: String,
+    pub timestamp: String,
+}
+
 pub fn with_fallback() {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
     std::env::set_var("CASSIE_MIDGE_DATA_DIR", data_dir("fallback"));
@@ -60,6 +69,38 @@ pub fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str)
             continue;
         };
         if record.collection == collection && record.field == field {
+            tx.delete(key).unwrap();
+        }
+    }
+    tx.commit(WriteOptions::sync()).unwrap();
+}
+
+pub fn time_series_sidecar_records(
+    cassie: &Cassie,
+    collection: &str,
+    index_name: &str,
+) -> Vec<TimeSeriesSidecarRecord> {
+    cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, b"")
+        .unwrap()
+        .into_iter()
+        .filter_map(|(_key, value)| serde_json::from_slice::<TimeSeriesSidecarRecord>(&value).ok())
+        .filter(|record| record.collection == collection && record.index_name == index_name)
+        .collect()
+}
+
+pub fn clear_time_series_sidecars(cassie: &Cassie, collection: &str, index_name: &str) {
+    let entries = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, b"")
+        .unwrap();
+    let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
+    for (key, value) in entries {
+        let Ok(record) = serde_json::from_slice::<TimeSeriesSidecarRecord>(&value) else {
+            continue;
+        };
+        if record.collection == collection && record.index_name == index_name {
             tx.delete(key).unwrap();
         }
     }

@@ -175,6 +175,8 @@ mod scalar_indexes;
 pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
 #[path = "adapter/schema_ops.rs"]
 mod schema_ops;
+#[path = "adapter/time_series_indexes.rs"]
+mod time_series_indexes;
 #[path = "adapter/verification.rs"]
 mod verification;
 
@@ -528,6 +530,14 @@ impl Midge {
 
     fn scalar_index_data_prefix(collection: &str, index_name: &str) -> Vec<u8> {
         key_encoding::scalar_index_data_prefix(collection, index_name)
+    }
+
+    fn time_series_index_collection_prefix(collection: &str) -> Vec<u8> {
+        key_encoding::time_series_index_collection_prefix(collection)
+    }
+
+    fn time_series_index_data_prefix(collection: &str, index_name: &str) -> Vec<u8> {
+        key_encoding::time_series_index_data_prefix(collection, index_name)
     }
 
     fn column_batch_metadata_key(collection: &str, index_name: &str) -> Vec<u8> {

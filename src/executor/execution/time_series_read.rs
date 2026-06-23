@@ -43,10 +43,44 @@ pub(super) fn try_execute_time_series_read(
     }
 
     let schema = cassie.catalog.get_schema(&spec.collection);
-    let mut documents = cassie
-        .midge
-        .scan_rows_for_rebuild(&spec.collection, RowDecode::Projected(scan_fields.clone()))
-        .map_err(|error| QueryError::General(error.to_string()))?;
+    let mut documents = match cassie.midge.scan_time_series_index(&index) {
+        Ok(report) if report.hits.is_empty() => {
+            cassie
+                .runtime
+                .record_time_series_fallback("missing-bucket-metadata");
+            scan_row_backed_documents(cassie, &spec.collection, scan_fields.clone())?
+        }
+        Ok(report) => {
+            let mut documents = Vec::with_capacity(report.hits.len());
+            for hit in report.hits {
+                if let Some(document) = cassie
+                    .midge
+                    .get_document(&spec.collection, &hit.id)
+                    .map_err(|error| QueryError::General(error.to_string()))?
+                {
+                    documents.push(document);
+                }
+            }
+            if documents.is_empty() {
+                cassie
+                    .runtime
+                    .record_time_series_fallback("stale-bucket-metadata");
+                scan_row_backed_documents(cassie, &spec.collection, scan_fields.clone())?
+            } else {
+                cassie.runtime.record_time_series_bucket_native_hit();
+                documents
+            }
+        }
+        Err(error) => {
+            let reason = if matches!(error, crate::app::CassieError::Unsupported(_)) {
+                "unsupported-bucket-width"
+            } else {
+                "corrupt-bucket-metadata"
+            };
+            cassie.runtime.record_time_series_fallback(reason);
+            scan_row_backed_documents(cassie, &spec.collection, scan_fields.clone())?
+        }
+    };
     let total_buckets = bucket_keys(documents.as_slice(), &timestamp_field, &index).len();
     documents.sort_by(|left, right| {
         timestamp_sort_key(&left.payload, &timestamp_field)
@@ -115,6 +149,17 @@ pub(super) fn try_execute_time_series_read(
         skipped_buckets,
     );
     Ok(Some(rows))
+}
+
+fn scan_row_backed_documents(
+    cassie: &Cassie,
+    collection: &str,
+    scan_fields: Vec<String>,
+) -> Result<Vec<DocumentRef>, QueryError> {
+    cassie
+        .midge
+        .scan_rows_for_rebuild(collection, RowDecode::Projected(scan_fields))
+        .map_err(|error| QueryError::General(error.to_string()))
 }
 
 fn selected_time_series_index(cassie: &Cassie, plan: &LogicalPlan) -> Option<catalog::IndexMeta> {

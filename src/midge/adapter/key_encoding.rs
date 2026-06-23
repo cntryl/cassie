@@ -25,6 +25,7 @@ const FAMILY_VECTOR_INDEX: &[u8] = b"vector-index";
 const FAMILY_NORMALIZED_VECTOR: &[u8] = b"normalized-vector";
 const FAMILY_INDEX: &[u8] = b"index";
 const FAMILY_SCALAR_INDEX: &[u8] = b"scalar-index";
+const FAMILY_TIME_SERIES_INDEX: &[u8] = b"time-series-index";
 const FAMILY_COLUMN_BATCH: &[u8] = b"column-batch";
 const FAMILY_FUNCTION: &[u8] = b"function";
 const FAMILY_PROCEDURE: &[u8] = b"procedure";
@@ -204,6 +205,17 @@ pub(super) fn scalar_index_collection_prefix(collection: &str) -> Vec<u8> {
 pub(super) fn scalar_index_data_prefix(collection: &str, index_name: &str) -> Vec<u8> {
     prefix(
         FAMILY_SCALAR_INDEX,
+        &[collection.as_bytes(), index_name.as_bytes(), b"data"],
+    )
+}
+
+pub(super) fn time_series_index_collection_prefix(collection: &str) -> Vec<u8> {
+    prefix(FAMILY_TIME_SERIES_INDEX, &[collection.as_bytes()])
+}
+
+pub(super) fn time_series_index_data_prefix(collection: &str, index_name: &str) -> Vec<u8> {
+    prefix(
+        FAMILY_TIME_SERIES_INDEX,
         &[collection.as_bytes(), index_name.as_bytes(), b"data"],
     )
 }
@@ -411,6 +423,24 @@ pub(super) fn scalar_index_entry_key(
     key.push(LexKey::SEPARATOR);
     append_terminated_component(&mut key, id.as_bytes());
     Ok(key)
+}
+
+pub(super) fn time_series_index_entry_key(
+    collection: &str,
+    index_name: &str,
+    bucket_key: &str,
+    id: &str,
+) -> Vec<u8> {
+    key(
+        FAMILY_TIME_SERIES_INDEX,
+        &[
+            collection.as_bytes(),
+            index_name.as_bytes(),
+            b"data",
+            bucket_key.as_bytes(),
+            id.as_bytes(),
+        ],
+    )
 }
 
 pub(super) fn scalar_index_seek_prefix(

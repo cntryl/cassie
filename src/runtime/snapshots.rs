@@ -199,6 +199,7 @@ pub struct ColumnBatchSnapshot {
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct TimeSeriesSnapshot {
     pub scans: u64,
+    pub bucket_native_hits: u64,
     pub fallback_scans: u64,
     pub rows: u64,
     pub buckets_scanned: u64,

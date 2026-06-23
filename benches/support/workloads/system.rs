@@ -406,7 +406,11 @@ pub async fn time_series_window_scan(ctx: &BenchContext) -> usize {
     let buckets = metrics["time_series"]["buckets_scanned"]
         .as_u64()
         .unwrap_or_default();
+    let bucket_native_hits = metrics["time_series"]["bucket_native_hits"]
+        .as_u64()
+        .unwrap_or_default();
     std::hint::black_box(buckets);
+    std::hint::black_box(bucket_native_hits);
     std::hint::black_box(result.rows.len())
 }
 

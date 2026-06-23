@@ -1,7 +1,7 @@
 # Phase 09: Production Depth And Operational Orchestration
 
 Phase 09 is the active follow-on gate after Phase 08 README-goal closure.
-It tracks planned or planned-by-depth roadmap work that remains after the MVP baseline: external orchestration contracts, production evidence, read-path depth, time-series storage depth, client probes, capacity diagnostics, repair depth, adaptive planning depth, experimental promotion criteria, and large-file extraction.
+It tracks planned or planned-by-depth roadmap work that remains after the MVP baseline: external orchestration contracts, production evidence, read-path depth, client probes, capacity diagnostics, repair depth, adaptive planning depth, experimental promotion criteria, and large-file extraction.
 
 This phase must preserve the Phase 08 boundary: Cassie exposes local metadata, diagnostics, and admin workflows for independent read-model nodes, but it does not become distributed SQL.
 
@@ -14,7 +14,6 @@ Every implementation slice must remain tied to read-model workloads, Midge-nativ
 
 P1 next:
 
-6. Persisted bucket-native time-series storage.
 7. Pgwire client probe expansion.
 
 P2 follow-up:
@@ -36,6 +35,7 @@ P3 parked:
 - Phase 08 README-goal closure is archived in `issues/phase-08/README.md`.
 - Phase 09 issue 04 read-path depth is archived in `docs/performance-contracts.md`.
 - Phase 09 issue 05 projection replay contracts are archived in `docs/projection-replay-contracts.md`.
+- Phase 09 issue 06 bucket-native time-series storage is archived in `docs/indexes-and-constraints.md` and `docs/performance-contracts.md`.
 
 ## Non-Goals
 

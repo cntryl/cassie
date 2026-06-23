@@ -64,11 +64,10 @@ Phase 08 issue 10 is closed for capacity management and docs reconciliation; see
 
 ### P1 Next
 
-1. [Phase 09 Issue 03: Large Module Extraction Gate](../phase-09/issue-03.md)
-2. [Phase 09 Issue 04: Read-Path Depth For Mixed Ordering And Expression Indexes](../phase-09/issue-04.md)
-3. [Phase 09 Issue 05: Projection Handler Determinism And Replay Contracts](../phase-09/issue-05.md)
-4. [Phase 09 Issue 06: Persisted Bucket-Native Time-Series Storage](../phase-09/issue-06.md)
-5. [Phase 09 Issue 07: Pgwire Client Probe Expansion](../phase-09/issue-07.md)
+1. [Phase 09 Issue 04: Read-Path Depth For Mixed Ordering And Expression Indexes](../phase-09/issue-04.md)
+2. [Phase 09 Issue 05: Projection Handler Determinism And Replay Contracts](../phase-09/issue-05.md)
+3. [Phase 09 Issue 06: Persisted Bucket-Native Time-Series Storage](../phase-09/issue-06.md)
+4. [Phase 09 Issue 07: Pgwire Client Probe Expansion](../phase-09/issue-07.md)
 
 ### P2 Follow-Up
 

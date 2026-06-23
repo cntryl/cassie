@@ -1,6 +1,10 @@
 use super::expr::*;
 use super::*;
 
+#[path = "schema_references.rs"]
+mod schema_references;
+use schema_references::parse_references_target;
+
 pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[12..].trim();
@@ -650,29 +654,6 @@ pub(super) fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlEr
         data_type,
         constraints: vec![constraint],
     })
-}
-
-fn parse_references_target(raw: &str) -> Result<(String, String), SqlError> {
-    let raw = raw.trim();
-    let open = raw
-        .find('(')
-        .ok_or_else(|| SqlError("REFERENCES requires target column list".into()))?;
-    let close = find_matching_paren(raw, open)
-        .ok_or_else(|| SqlError("REFERENCES requires closing ')'".into()))?;
-    let table = raw[..open].trim();
-    if table.is_empty() {
-        return Err(SqlError("REFERENCES requires target table".into()));
-    }
-    let field = raw[open + 1..close].trim();
-    if field.is_empty() {
-        return Err(SqlError("REFERENCES requires target column".into()));
-    }
-    if field.split(',').count() != 1 {
-        return Err(SqlError(
-            "REFERENCES supports exactly one target column".into(),
-        ));
-    }
-    Ok((table.to_string(), field.to_string()))
 }
 
 pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlError> {

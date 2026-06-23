@@ -14,7 +14,6 @@ Every implementation slice must remain tied to read-model workloads, Midge-nativ
 
 P1 next:
 
-3. Large module extraction gate for Phase 09 work.
 4. Read-path depth for mixed ordering and expression indexes.
 5. Projection handler determinism and replay contracts.
 6. Persisted bucket-native time-series storage.

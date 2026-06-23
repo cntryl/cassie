@@ -300,10 +300,10 @@ Phase 09 tracks planned or planned-by-depth work after README-goal closure:
 Closed baseline:
 
 - [Performance Contracts](performance-contracts.md): deployment-profile benchmark reports, larger fixture placeholders, and production-readiness evidence boundaries without unsupported SLA claims.
+- [Module Organization](module-organization.md): extraction gate lowered the immediate Midge, executor, and schema-parser touch points below the 1,000-line file limit before read-path, projection, and time-series depth work.
 
 Remaining sequence:
 
-- [Large module extraction](../issues/phase-09/issue-03.md): extraction guardrail before broad planner, executor, parser, catalog, Midge, or integration-test work.
 - [Read-path depth](../issues/phase-09/issue-04.md): mixed-direction secondary ordering, richer expression-index lowering, EXPLAIN proof, metrics, and fallback semantics.
 - [Projection determinism](../issues/phase-09/issue-05.md): handler determinism, replay failure modes, and Cassie-owned versus application-owned responsibilities.
 - [Persisted bucket-native time-series storage](../issues/phase-09/issue-06.md): bucket-native metadata, mutation/restart correctness, retention interactions, and fallback proof.

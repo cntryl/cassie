@@ -115,7 +115,8 @@ pub fn vector_index_cardinality_key(record: &VectorIndexRecord) -> String {
 pub fn payload_contains_index_membership(payload: &serde_json::Value, index: &IndexMeta) -> bool {
     let fields = index.normalized_fields();
     if fields.is_empty() {
-        return false;
+        return matches!(index.kind, IndexKind::Scalar)
+            && !index.normalized_expressions().is_empty();
     }
 
     match index.kind {

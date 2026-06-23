@@ -1,0 +1,204 @@
+#![allow(unused_imports, dead_code)]
+use cassie::app::Cassie;
+use cassie::types::Value;
+
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
+
+#[test]
+fn should_scan_mixed_order_suffix_when_prefix_order_field_is_equality_bound() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("read_path_mixed_order_prefix");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE read_path_mixed_order_prefix \
+                 (tenant TEXT, status TEXT, created_at INT, title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        for (id, tenant, status, created_at, title) in [
+            ("row-1", "tenant-a", "open", 30, "third"),
+            ("row-2", "tenant-a", "open", 10, "first"),
+            ("row-3", "tenant-a", "open", 20, "second"),
+            ("row-4", "tenant-a", "closed", 5, "closed"),
+            ("row-5", "tenant-b", "open", 1, "other"),
+        ] {
+            cassie
+                .midge
+                .put_document(
+                    "read_path_mixed_order_prefix",
+                    Some(id.to_string()),
+                    serde_json::json!({
+                        "tenant": tenant,
+                        "status": status,
+                        "created_at": created_at,
+                        "title": title
+                    }),
+                )
+                .unwrap();
+        }
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX read_path_mixed_order_prefix_idx \
+                 ON read_path_mixed_order_prefix USING btree (tenant, status, created_at)",
+                vec![],
+            )
+            .unwrap();
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM read_path_mixed_order_prefix \
+                 WHERE tenant = 'tenant-a' AND status = 'open' AND created_at >= 10 \
+                 ORDER BY status DESC, created_at ASC LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM read_path_mixed_order_prefix \
+                 WHERE tenant = 'tenant-a' AND status = 'open' AND created_at >= 10 \
+                 ORDER BY status DESC, created_at ASC LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("first".to_string())],
+                vec![Value::String("second".to_string())],
+            ]
+        );
+        let Value::String(plan) = &explain.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("index=read_path_mixed_order_prefix_idx"));
+        assert!(plan.contains("access_path=range_scan"));
+        assert!(plan.contains("access_path_reason=scalar-index-range"));
+        assert!(plan.contains("fallback_reason=none"));
+        assert!(
+            after["read_paths"]["range_scans"].as_u64().unwrap()
+                > before["read_paths"]["range_scans"].as_u64().unwrap()
+        );
+        assert_eq!(
+            after["read_paths"]["last_index_scan_index"].as_str(),
+            Some("read_path_mixed_order_prefix_idx")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_scan_expression_index_after_restart_with_row_blob_projection() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("read_path_expression_index_restart");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let session = cassie.create_session("tester", None);
+
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE read_path_expression_index_restart (title TEXT, body TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .midge
+                .put_document(
+                    "read_path_expression_index_restart",
+                    Some("row-1".to_string()),
+                    serde_json::json!({"title": "Alpha", "body": "kept in row blob"}),
+                )
+                .unwrap();
+            cassie
+                .midge
+                .put_document(
+                    "read_path_expression_index_restart",
+                    Some("row-2".to_string()),
+                    serde_json::json!({"title": "Beta", "body": "filtered"}),
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE INDEX read_path_expression_index_restart_idx \
+                     ON read_path_expression_index_restart USING btree (lower(title))",
+                    vec![],
+                )
+                .unwrap();
+        }
+
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().unwrap();
+        let session = restarted.create_session("tester", None);
+        let before = restarted.metrics();
+
+        // Act
+        let result = restarted
+            .execute_sql(
+                &session,
+                "SELECT body FROM read_path_expression_index_restart WHERE lower(title) = 'alpha'",
+                vec![],
+            )
+            .unwrap();
+        let explain = restarted
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT body FROM read_path_expression_index_restart WHERE lower(title) = 'alpha'",
+                vec![],
+            )
+            .unwrap();
+        let after = restarted.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![vec![Value::String("kept in row blob".to_string())]]
+        );
+        let Value::String(plan) = &explain.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("index=read_path_expression_index_restart_idx"));
+        assert!(plan.contains("access_path=index_seek"));
+        assert!(plan.contains("access_path_reason=scalar-index-seek"));
+        assert!(plan.contains("fallback_reason=none"));
+        assert!(
+            after["read_paths"]["index_seek_scans"].as_u64().unwrap()
+                > before["read_paths"]["index_seek_scans"].as_u64().unwrap()
+        );
+        assert_eq!(
+            after["read_paths"]["last_index_scan_index"].as_str(),
+            Some("read_path_expression_index_restart_idx")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

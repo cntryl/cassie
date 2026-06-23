@@ -19,6 +19,12 @@ fn bench_query(c: &mut Criterion) {
     let ctx_100k = runtime
         .block_on(workloads::unindexed_context("tier3-query-100k", 100_000))
         .expect("100k benchmark context");
+    let scalar_ctx_100k = runtime
+        .block_on(workloads::scalar_context(
+            "tier3-query-scalar-100k",
+            100_000,
+        ))
+        .expect("100k scalar benchmark context");
     let time_series_ctx_10k = runtime
         .block_on(workloads::time_series_context("tier3-query-ts", 10_000))
         .expect("time-series benchmark context");
@@ -55,6 +61,16 @@ fn bench_query(c: &mut Criterion) {
             "SELECT id FROM bench_documents ORDER BY score DESC LIMIT 50",
         ),
         (
+            "mixed_order_scalar_query",
+            "10k",
+            "SELECT id FROM bench_documents WHERE status = 'approved' AND score >= 10 ORDER BY status DESC, score ASC LIMIT 50",
+        ),
+        (
+            "expression_index_query",
+            "10k",
+            "SELECT id FROM bench_documents WHERE lower(title) = 'title-1' LIMIT 50",
+        ),
+        (
             "fulltext_search_query",
             "10k",
             "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 20",
@@ -72,7 +88,10 @@ fn bench_query(c: &mut Criterion) {
     ];
 
     for (name, dataset, sql) in cases {
-        if name == "simple_sql_query" {
+        if matches!(
+            name,
+            "simple_sql_query" | "mixed_order_scalar_query" | "expression_index_query"
+        ) {
             performance_benchmarks::expect_benchmark(BENCHMARK, name, dataset);
         }
         group.bench_function(BenchmarkId::new(name, dataset), |b| {
@@ -91,6 +110,23 @@ fn bench_query(c: &mut Criterion) {
             })
         },
     );
+    let scalar_100k_cases = [
+        (
+            "mixed_order_scalar_query",
+            "SELECT id FROM bench_documents WHERE status = 'approved' AND score >= 10 ORDER BY status DESC, score ASC LIMIT 50",
+        ),
+        (
+            "expression_index_query",
+            "SELECT id FROM bench_documents WHERE lower(title) = 'title-1' LIMIT 50",
+        ),
+    ];
+    for (workload, sql) in scalar_100k_cases {
+        let benchmark = performance_benchmarks::expect_benchmark(BENCHMARK, workload, "100k");
+        group.bench_function(
+            BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
+            |b| b.iter(|| runtime.block_on(workloads::execute_sql(&scalar_ctx_100k, sql))),
+        );
+    }
     let ts_10k =
         performance_benchmarks::expect_benchmark(BENCHMARK, "time_series_window_scan", "10k");
     group.bench_function(

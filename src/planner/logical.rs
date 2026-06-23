@@ -355,7 +355,9 @@ fn plan_create_view(statement: &CreateViewStatement) -> Result<LogicalPlan, Cass
 fn plan_create_index(statement: &CreateIndexStatement) -> Result<LogicalPlan, CassieError> {
     require_name(&statement.table, "CREATE INDEX requires a collection name")?;
     require_name(&statement.name, "CREATE INDEX requires an index name")?;
-    if statement.fields.is_empty() || statement.fields.iter().any(|field| field.trim().is_empty()) {
+    if (statement.fields.is_empty() && statement.expressions.is_empty())
+        || statement.fields.iter().any(|field| field.trim().is_empty())
+    {
         return Err(CassieError::Planner(
             "CREATE INDEX requires an indexed field".into(),
         ));

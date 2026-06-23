@@ -83,7 +83,9 @@ fn scalar_index_read_spec(
     plan: &LogicalPlan,
     params: &[Value],
 ) -> Result<Option<ScalarIndexReadSpec>, QueryError> {
-    let Some(projected) = projected_read::projected_filtered_read_spec(plan) else {
+    let Some(projected) = projected_read::projected_filtered_read_spec(plan)
+        .or_else(|| expression_index_read_spec(plan))
+    else {
         return Ok(None);
     };
     if session
@@ -109,19 +111,22 @@ fn scalar_index_read_spec(
         return Ok(None);
     };
 
-    let constraints = concrete_constraints(plan.filter.as_ref(), params)
-        .ok_or_else(|| QueryError::General("unsupported scalar index filter".to_string()))?;
+    let constraints = if index.expressions.is_empty() {
+        concrete_constraints(plan.filter.as_ref(), params)
+    } else {
+        concrete_constraints_for_expression_index(plan.filter.as_ref(), params)
+    }
+    .ok_or_else(|| QueryError::General("unsupported scalar index filter".to_string()))?;
+    let expression_equalities = if index.expressions.is_empty() {
+        BTreeMap::new()
+    } else {
+        concrete_expression_equalities(plan.filter.as_ref(), params).ok_or_else(|| {
+            QueryError::General("unsupported scalar expression index filter".to_string())
+        })?
+    };
     let fields = index.normalized_fields();
-    let equality_prefix = fields
-        .iter()
-        .take(shape.equality_prefix_len)
-        .map(|field| {
-            constraints
-                .get(&field.to_ascii_lowercase())
-                .and_then(|constraint| constraint.equality.clone())
-                .ok_or_else(|| QueryError::General(format!("missing equality bound for '{field}'")))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let equality_prefix =
+        scalar_index_equality_prefix(&index, &shape, &constraints, &expression_equalities)?;
     let lower_bound = shape
         .range_field_index
         .and_then(|field_index| constraints.get(&fields[field_index].to_ascii_lowercase()))
@@ -157,6 +162,85 @@ fn scalar_index_read_spec(
     }))
 }
 
+fn expression_index_read_spec(
+    plan: &LogicalPlan,
+) -> Option<projected_read::ProjectedFilteredReadSpec> {
+    if plan.command.is_some()
+        || !plan.ctes.is_empty()
+        || plan.distinct
+        || !plan.distinct_on.is_empty()
+        || !plan.group_by.is_empty()
+        || plan.having.is_some()
+        || plan.set.is_some()
+        || !plan.order.is_empty()
+    {
+        return None;
+    }
+
+    let QuerySource::Collection(collection) = &plan.source else {
+        return None;
+    };
+    let projection_columns = plan
+        .projection
+        .iter()
+        .map(|item| match item {
+            SelectItem::Column { name, .. } => Some(name.clone()),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if projection_columns.is_empty() {
+        return None;
+    }
+
+    let scan_fields = projection_columns
+        .into_iter()
+        .filter(|column| !projected_read::is_row_id_column(column))
+        .collect::<Vec<_>>();
+    Some(projected_read::ProjectedFilteredReadSpec {
+        collection: collection.clone(),
+        scan_fields,
+        scan_limit: None,
+    })
+}
+
+fn scalar_index_equality_prefix(
+    index: &IndexMeta,
+    shape: &crate::planner::physical::ScalarIndexPlanShape,
+    constraints: &BTreeMap<String, ConcreteConstraint>,
+    expression_equalities: &BTreeMap<String, serde_json::Value>,
+) -> Result<Vec<serde_json::Value>, QueryError> {
+    let fields = index.normalized_fields();
+    let expressions = index.normalized_expressions();
+    let key_count = fields.len() + expressions.len();
+    if shape.equality_prefix_len > key_count {
+        return Err(QueryError::General(format!(
+            "scalar index '{}' equality prefix exceeds key width",
+            index.name
+        )));
+    }
+
+    let mut equality_prefix = Vec::with_capacity(shape.equality_prefix_len);
+    let field_prefix_len = shape.equality_prefix_len.min(fields.len());
+    for field in fields.iter().take(field_prefix_len) {
+        let value = constraints
+            .get(&field.to_ascii_lowercase())
+            .and_then(|constraint| constraint.equality.clone())
+            .ok_or_else(|| QueryError::General(format!("missing equality bound for '{field}'")))?;
+        equality_prefix.push(value);
+    }
+
+    let expression_prefix_len = shape.equality_prefix_len.saturating_sub(fields.len());
+    for expression in expressions.iter().take(expression_prefix_len) {
+        let value = expression_equalities
+            .get(expression)
+            .cloned()
+            .ok_or_else(|| QueryError::General("missing expression equality bound".to_string()))?;
+        equality_prefix.push(value);
+    }
+
+    Ok(equality_prefix)
+}
+
 fn storage_limit(plan: &LogicalPlan) -> Option<usize> {
     let limit = usize::try_from(plan.limit?.max(0)).ok()?;
     let offset = usize::try_from(plan.offset.unwrap_or(0).max(0)).ok()?;
@@ -186,6 +270,138 @@ fn concrete_constraints(
     };
     collect_concrete_constraints(filter, params, &mut constraints)?;
     Some(constraints)
+}
+
+fn concrete_constraints_for_expression_index(
+    filter: Option<&Expr>,
+    params: &[Value],
+) -> Option<BTreeMap<String, ConcreteConstraint>> {
+    let mut constraints = BTreeMap::new();
+    collect_expression_index_field_constraints(filter?, params, &mut constraints)?;
+    Some(constraints)
+}
+
+fn collect_expression_index_field_constraints(
+    expr: &Expr,
+    params: &[Value],
+    constraints: &mut BTreeMap<String, ConcreteConstraint>,
+) -> Option<()> {
+    match expr {
+        Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } => {
+            collect_expression_index_field_constraints(left, params, constraints)?;
+            collect_expression_index_field_constraints(right, params, constraints)
+        }
+        Expr::Binary {
+            left,
+            op: BinaryOp::Eq,
+            right,
+        } if concrete_expression_equality(left, right, params).is_some() => Some(()),
+        Expr::Binary { left, op, right } => {
+            let (field, op, value) = concrete_constraint(left, op, right, params)?;
+            let entry = constraints
+                .entry(field)
+                .or_insert_with(|| ConcreteConstraint {
+                    equality: None,
+                    lower: None,
+                    upper: None,
+                });
+            match op {
+                BinaryOp::Eq => entry.equality = Some(value),
+                _ => return None,
+            }
+            Some(())
+        }
+        _ => None,
+    }
+}
+
+fn concrete_expression_equalities(
+    filter: Option<&Expr>,
+    params: &[Value],
+) -> Option<BTreeMap<String, serde_json::Value>> {
+    let mut equalities = BTreeMap::new();
+    collect_concrete_expression_equalities(filter?, params, &mut equalities)?;
+    Some(equalities)
+}
+
+fn collect_concrete_expression_equalities(
+    expr: &Expr,
+    params: &[Value],
+    equalities: &mut BTreeMap<String, serde_json::Value>,
+) -> Option<()> {
+    match expr {
+        Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } => {
+            collect_concrete_expression_equalities(left, params, equalities)?;
+            collect_concrete_expression_equalities(right, params, equalities)
+        }
+        Expr::Binary {
+            left,
+            op: BinaryOp::Eq,
+            right,
+        } => collect_concrete_expression_equality(left, right, params, equalities),
+        _ => None,
+    }
+}
+
+fn collect_concrete_expression_equality(
+    left: &Expr,
+    right: &Expr,
+    params: &[Value],
+    equalities: &mut BTreeMap<String, serde_json::Value>,
+) -> Option<()> {
+    if let Some((expression, value)) = concrete_expression_equality(left, right, params) {
+        equalities.insert(expression, value);
+    }
+    Some(())
+}
+
+fn concrete_expression_equality(
+    left: &Expr,
+    right: &Expr,
+    params: &[Value],
+) -> Option<(String, serde_json::Value)> {
+    match (left, right) {
+        (expr, value) if expr_has_column(expr) && !matches!(expr, Expr::Column(_)) => {
+            let value = expr_to_json(value, params)?;
+            Some((serde_json::to_string(expr).ok()?, value))
+        }
+        (value, expr) if expr_has_column(expr) && !matches!(expr, Expr::Column(_)) => {
+            let value = expr_to_json(value, params)?;
+            Some((serde_json::to_string(expr).ok()?, value))
+        }
+        _ => None,
+    }
+}
+
+fn expr_has_column(expr: &Expr) -> bool {
+    match expr {
+        Expr::Column(_) => true,
+        Expr::Binary { left, right, .. } => expr_has_column(left) || expr_has_column(right),
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            expr_has_column(expr)
+        }
+        Expr::InList { expr, values, .. } => {
+            expr_has_column(expr) || values.iter().any(expr_has_column)
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => expr_has_column(expr) || expr_has_column(low) || expr_has_column(high),
+        Expr::Function(function) => function.args.iter().any(expr_has_column),
+        Expr::Exists(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null
+        | Expr::Param(_) => false,
+    }
 }
 
 fn collect_concrete_constraints(

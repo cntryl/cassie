@@ -150,7 +150,9 @@ fn scalar_index_matches_plan(
             .normalized_fields()
             .iter()
             .all(|field| equality_fields.contains(&field.to_ascii_lowercase()));
-        return scalar_index_plan_shape(plan, index).is_some() || field_match;
+        return scalar_index_plan_shape(plan, index).is_some()
+            || field_match
+            || super::scalar_paths::scalar_index_order_proof_missing_candidate(plan, index);
     }
 
     let field_match = index

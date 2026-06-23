@@ -1,6 +1,6 @@
 use super::*;
 use crate::sql::ast::SortDirection;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ScalarIndexPlanPath {
@@ -13,6 +13,8 @@ pub(crate) enum ScalarIndexPlanPath {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ScalarIndexPlanShape {
     pub path: ScalarIndexPlanPath,
+    /// Number of leading scalar-index key components constrained by equality.
+    /// For expression indexes this counts fields first, then expression keys.
     pub equality_prefix_len: usize,
     pub range_field_index: Option<usize>,
     pub order_columns_used: usize,
@@ -46,9 +48,12 @@ pub(crate) fn scalar_index_plan_shape(
         || plan.set.is_some()
         || !matches!(plan.source, QuerySource::Collection(_))
         || index.kind != IndexKind::Scalar
-        || !index.expressions.is_empty()
     {
         return None;
+    }
+
+    if !index.expressions.is_empty() {
+        return expression_index_plan_shape(plan, index);
     }
 
     let constraints = filter_constraint_shapes(plan.filter.as_ref())?;
@@ -118,6 +123,201 @@ pub(crate) fn scalar_index_plan_shape(
     None
 }
 
+pub(crate) fn scalar_index_order_proof_missing_candidate(
+    plan: &LogicalPlan,
+    index: &IndexMeta,
+) -> bool {
+    if plan.order.is_empty()
+        || plan.limit.is_none()
+        || index.kind != IndexKind::Scalar
+        || !index.expressions.is_empty()
+        || scalar_index_plan_shape(plan, index).is_some()
+    {
+        return false;
+    }
+
+    let Some(constraints) = filter_constraint_shapes(plan.filter.as_ref()) else {
+        return false;
+    };
+    let fields = index.normalized_fields();
+    if fields.is_empty()
+        || constraints.keys().any(|field| {
+            !fields
+                .iter()
+                .any(|candidate| candidate.eq_ignore_ascii_case(field))
+        })
+        || plan.order.iter().any(|order| order.nulls.is_some())
+    {
+        return false;
+    }
+
+    let equality_prefix_len = fields
+        .iter()
+        .take_while(|field| {
+            constraints
+                .get(&field.to_ascii_lowercase())
+                .is_some_and(|constraint| constraint.equality)
+        })
+        .count();
+    if equality_prefix_len == 0 || equality_prefix_len >= fields.len() {
+        return false;
+    }
+
+    let order_terms = plan
+        .order
+        .iter()
+        .map(|order| match &order.expr {
+            Expr::Column(column) => Some((
+                column.clone(),
+                matches!(order.direction, SortDirection::Desc),
+            )),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>();
+    let Some(order_terms) = order_terms else {
+        return false;
+    };
+    let effective_order = order_terms
+        .into_iter()
+        .filter(|(column, _)| {
+            !fields[..equality_prefix_len]
+                .iter()
+                .any(|field| field.eq_ignore_ascii_case(column))
+        })
+        .collect::<Vec<_>>();
+    if effective_order.len() < 2 {
+        return false;
+    }
+
+    let remaining = &fields[equality_prefix_len..];
+    let matched = remaining
+        .iter()
+        .zip(effective_order.iter())
+        .take_while(|(field, (column, _))| field.eq_ignore_ascii_case(column))
+        .count();
+    if matched != effective_order.len() {
+        return false;
+    }
+
+    let first_reverse = effective_order[0].1;
+    effective_order
+        .iter()
+        .any(|(_, reverse)| *reverse != first_reverse)
+}
+
+fn expression_index_plan_shape(
+    plan: &LogicalPlan,
+    index: &IndexMeta,
+) -> Option<ScalarIndexPlanShape> {
+    if !plan.order.is_empty() {
+        return None;
+    }
+
+    let fields = index.normalized_fields();
+    let expressions = index.normalized_expressions();
+    let key_count = fields.len() + expressions.len();
+    if key_count == 0 {
+        return None;
+    }
+
+    let equality = exact_expression_index_equalities(plan.filter.as_ref())?;
+    let required_fields = fields
+        .iter()
+        .map(|field| field.to_ascii_lowercase())
+        .collect::<BTreeSet<_>>();
+    let required_expressions = expressions.into_iter().collect::<BTreeSet<_>>();
+    if equality.fields != required_fields || equality.expressions != required_expressions {
+        return None;
+    }
+
+    Some(ScalarIndexPlanShape {
+        path: if key_count == 1 {
+            ScalarIndexPlanPath::IndexSeek
+        } else {
+            ScalarIndexPlanPath::PrefixScan
+        },
+        equality_prefix_len: key_count,
+        range_field_index: None,
+        order_columns_used: 0,
+        order_by_row_id: false,
+        reverse: false,
+    })
+}
+
+#[derive(Debug, Default)]
+struct ExactExpressionIndexEqualities {
+    fields: BTreeSet<String>,
+    expressions: BTreeSet<String>,
+}
+
+fn exact_expression_index_equalities(
+    filter: Option<&Expr>,
+) -> Option<ExactExpressionIndexEqualities> {
+    let mut equality = ExactExpressionIndexEqualities::default();
+    collect_exact_expression_index_equalities(filter?, &mut equality)?;
+    Some(equality)
+}
+
+fn collect_exact_expression_index_equalities(
+    expr: &Expr,
+    equality: &mut ExactExpressionIndexEqualities,
+) -> Option<()> {
+    match expr {
+        Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } => {
+            collect_exact_expression_index_equalities(left, equality)?;
+            collect_exact_expression_index_equalities(right, equality)
+        }
+        Expr::Binary {
+            left,
+            op: BinaryOp::Eq,
+            right,
+        } => collect_exact_expression_index_equality(left, right, equality),
+        _ => None,
+    }
+}
+
+fn collect_exact_expression_index_equality(
+    left: &Expr,
+    right: &Expr,
+    equality: &mut ExactExpressionIndexEqualities,
+) -> Option<()> {
+    match (left, right) {
+        (Expr::Column(field), value) if super::expr_is_constant(value) => {
+            equality.fields.insert(field.to_ascii_lowercase());
+            Some(())
+        }
+        (value, Expr::Column(field)) if super::expr_is_constant(value) => {
+            equality.fields.insert(field.to_ascii_lowercase());
+            Some(())
+        }
+        (expr, value)
+            if super::expr_has_column(expr)
+                && !matches!(expr, Expr::Column(_))
+                && super::expr_is_constant(value) =>
+        {
+            equality
+                .expressions
+                .insert(serde_json::to_string(expr).ok()?);
+            Some(())
+        }
+        (value, expr)
+            if super::expr_has_column(expr)
+                && !matches!(expr, Expr::Column(_))
+                && super::expr_is_constant(value) =>
+        {
+            equality
+                .expressions
+                .insert(serde_json::to_string(expr).ok()?);
+            Some(())
+        }
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 struct OrderShape {
     order_columns_used: usize,
@@ -138,28 +338,45 @@ fn order_shape(
         return None;
     }
 
-    let direction = plan.order.first()?.direction.clone();
-    let reverse = matches!(direction, SortDirection::Desc);
-    if plan
+    let order_terms = plan
         .order
         .iter()
-        .any(|order| matches!(order.direction, SortDirection::Desc) != reverse)
+        .map(|order| match &order.expr {
+            Expr::Column(column) => Some((
+                column.clone(),
+                matches!(order.direction, SortDirection::Desc),
+            )),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let effective_order = order_terms
+        .into_iter()
+        .filter(|(column, _)| {
+            !fields[..equality_prefix_len]
+                .iter()
+                .any(|field| field.eq_ignore_ascii_case(column))
+        })
+        .collect::<Vec<_>>();
+
+    if effective_order.is_empty() {
+        return Some(OrderShape {
+            order_columns_used: 0,
+            order_by_row_id: false,
+            reverse: false,
+        });
+    }
+
+    let reverse = effective_order[0].1;
+    if effective_order
+        .iter()
+        .any(|(_, direction)| *direction != reverse)
     {
         return None;
     }
 
-    let order_columns = plan
-        .order
-        .iter()
-        .map(|order| match &order.expr {
-            Expr::Column(column) => Some(column.clone()),
-            _ => None,
-        })
-        .collect::<Option<Vec<_>>>()?;
-
     if equality_prefix_len == fields.len()
-        && order_columns.len() == 1
-        && super::is_row_id_column(&order_columns[0])
+        && effective_order.len() == 1
+        && super::is_row_id_column(&effective_order[0].0)
     {
         return Some(OrderShape {
             order_columns_used: 0,
@@ -168,31 +385,17 @@ fn order_shape(
         });
     }
 
-    if !order_columns.is_empty()
-        && order_columns.iter().all(|column| {
-            fields[..equality_prefix_len]
-                .iter()
-                .any(|field| field.eq_ignore_ascii_case(column))
-        })
-    {
-        return Some(OrderShape {
-            order_columns_used: 0,
-            order_by_row_id: false,
-            reverse,
-        });
-    }
-
     let remaining = &fields[equality_prefix_len..];
     let matched = remaining
         .iter()
-        .zip(order_columns.iter())
-        .take_while(|(field, column)| field.eq_ignore_ascii_case(column))
+        .zip(effective_order.iter())
+        .take_while(|(field, (column, _))| field.eq_ignore_ascii_case(column))
         .count();
     if matched == 0 {
         return None;
     }
 
-    if matched == order_columns.len() {
+    if matched == effective_order.len() {
         return Some(OrderShape {
             order_columns_used: matched,
             order_by_row_id: false,
@@ -200,11 +403,12 @@ fn order_shape(
         });
     }
 
-    if matched + 1 == order_columns.len()
+    if matched + 1 == effective_order.len()
         && super::is_row_id_column(
-            order_columns
+            &effective_order
                 .last()
-                .expect("order columns contain trailing row id"),
+                .expect("order columns contain trailing row id")
+                .0,
         )
     {
         return Some(OrderShape {

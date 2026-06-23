@@ -1,5 +1,5 @@
 use super::*;
-use crate::catalog::{payload_contains_index_membership, IndexKind, IndexMeta};
+use crate::catalog::{IndexKind, IndexMeta};
 use crate::executor::filter;
 use crate::sql::ast::Expr;
 use crate::types::Value;
@@ -193,8 +193,7 @@ impl Midge {
 
     fn scalar_index_supports_storage(index: &IndexMeta) -> bool {
         index.kind == IndexKind::Scalar
-            && index.expressions.is_empty()
-            && !index.normalized_fields().is_empty()
+            && (!index.normalized_fields().is_empty() || !index.normalized_expressions().is_empty())
     }
 
     fn scalar_index_entry(
@@ -203,13 +202,14 @@ impl Midge {
         payload: &serde_json::Value,
     ) -> Result<Option<(Vec<u8>, Vec<u8>)>, CassieError> {
         if !Self::scalar_index_supports_storage(index)
-            || !payload_contains_index_membership(payload, index)
             || !Self::payload_matches_scalar_index_predicate(index, payload)?
         {
             return Ok(None);
         }
 
-        let key_values = Self::scalar_index_key_values(index, payload)?;
+        let Some(key_values) = Self::scalar_index_key_values(index, payload)? else {
+            return Ok(None);
+        };
         let key =
             key_encoding::scalar_index_entry_key(&index.collection, &index.name, &key_values, id)?;
         let value = serde_json::to_vec(&ScalarIndexStoredRow {
@@ -223,16 +223,57 @@ impl Midge {
     fn scalar_index_key_values(
         index: &IndexMeta,
         payload: &serde_json::Value,
-    ) -> Result<Vec<serde_json::Value>, CassieError> {
-        index
-            .normalized_fields()
-            .into_iter()
-            .map(|field| {
-                payload.get(&field).cloned().ok_or_else(|| {
-                    CassieError::Parse(format!("missing scalar index field '{field}'"))
-                })
-            })
-            .collect()
+    ) -> Result<Option<Vec<serde_json::Value>>, CassieError> {
+        let mut values = Vec::new();
+        for field in index.normalized_fields() {
+            let Some(value) = payload.get(&field) else {
+                return Ok(None);
+            };
+            if value.is_null() {
+                return Ok(None);
+            }
+            values.push(value.clone());
+        }
+
+        let expressions = index.normalized_expressions();
+        if expressions.is_empty() {
+            return Ok(Some(values));
+        }
+
+        let row = payload_to_row(payload);
+        let user_functions = HashMap::new();
+        for raw_expression in expressions {
+            let expression = Self::scalar_index_expression(&index.name, &raw_expression)?;
+            let value = filter::evaluate_expr_value(
+                &row,
+                &expression,
+                &[],
+                None,
+                &user_functions,
+                None,
+                None,
+            )
+            .map_err(|error| {
+                CassieError::Parse(format!(
+                    "invalid scalar index expression evaluation for '{}': {error}",
+                    index.name
+                ))
+            })?;
+            if matches!(value, Value::Null) {
+                return Ok(None);
+            }
+            values.push(query_value_to_json(value)?);
+        }
+
+        Ok(Some(values))
+    }
+
+    fn scalar_index_expression(index_name: &str, raw: &str) -> Result<Expr, CassieError> {
+        serde_json::from_str(raw).map_err(|error| {
+            CassieError::Parse(format!(
+                "invalid scalar index expression for '{index_name}': {error}"
+            ))
+        })
     }
 
     fn scalar_index_stored_fields(
@@ -307,4 +348,29 @@ fn json_to_query_value(value: &serde_json::Value) -> Value {
         return Value::Float64(value);
     }
     Value::Json(value.clone())
+}
+
+fn query_value_to_json(value: Value) -> Result<serde_json::Value, CassieError> {
+    match value {
+        Value::Null => Ok(serde_json::Value::Null),
+        Value::Bool(value) => Ok(serde_json::Value::Bool(value)),
+        Value::Int64(value) => Ok(serde_json::Value::Number(value.into())),
+        Value::Float64(value) => serde_json::Number::from_f64(value)
+            .map(serde_json::Value::Number)
+            .ok_or_else(|| {
+                CassieError::Unsupported(
+                    "non-finite scalar index expression values are not supported".to_string(),
+                )
+            }),
+        Value::String(value) => Ok(serde_json::Value::String(value)),
+        Value::Vector(value) => Ok(serde_json::Value::Array(
+            value
+                .values
+                .into_iter()
+                .filter_map(|value| serde_json::Number::from_f64(value as f64))
+                .map(serde_json::Value::Number)
+                .collect(),
+        )),
+        Value::Json(value) => Ok(value),
+    }
 }

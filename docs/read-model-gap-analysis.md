@@ -26,7 +26,7 @@ The largest remaining gaps are now production evidence and operational depth gap
 
 - Tier 4 operational-scale metadata now covers local assignment inspection, external router/drain/move contracts, local snapshot/restore, and advisory capacity guidance. Actual traffic routing and node movement remain outside Cassie.
 - Performance has broad benchmark coverage and an initial 10k/100k manual feedback loop, but larger-scale claims and production-grade capacity thresholds still need follow-up evidence.
-- Several important read-model capabilities remain experimental or planned by depth, especially bucket-native time-series storage depth, mixed-direction/expression-index read optimization depth, byte-accurate capacity reporting, and non-tokio PostgreSQL client probe depth.
+- Several important read-model capabilities remain experimental or planned by depth, especially bucket-native time-series storage depth, broader read-path combinations beyond the Phase 09 narrow mixed-order/expression-index proof, byte-accurate capacity reporting, and non-tokio PostgreSQL client probe depth.
 - The product boundary around procedures is now explicit: limited experimental compatibility/admin support is allowed, while stored-procedure and trigger-based business-logic platforms remain out of scope.
 - The issue backlog has an archived phase surface and Phase 08 now records the README-goal closure baseline.
 
@@ -47,7 +47,7 @@ The largest remaining gaps are now production evidence and operational depth gap
 | --- | --- | --- | --- |
 | Single-node first | Midge remains the direct storage layer; read/write contracts, benchmarks, 10k/100k manual benchmark scenarios, and advisory capacity guidance exist. | Production claims still need byte-accurate capacity reports, deployment-profile thresholds, and larger-scale evidence. | P1 |
 | Operational scale over distributed SQL | Offline manifests explicitly avoid distributed query/replication semantics; local assignment metadata, external routing contracts, local snapshot/restore, and capacity guidance are available. | Deployment-specific router integrations, fleet monitoring thresholds, and production evidence remain outside Cassie. | P1 |
-| Purpose-built read models | Primary/secondary lookups, range queries, tenant filtered pages, aggregations, search, vector, hybrid, projections, and analytics exist. | Remaining read-path depth is focused on mixed-direction secondary ordering, richer expression-index lowering, persisted bucket-native time-series storage, and deeper projection-shaped layout guidance. | P1 |
+| Purpose-built read models | Primary/secondary lookups, range queries, tenant filtered pages, narrow mixed-order equality-prefix scans, exact expression-index equality seeks, aggregations, search, vector, hybrid, projections, and analytics exist. | Remaining depth is focused on broader read-path combinations, persisted bucket-native time-series storage, and deeper projection-shaped layout guidance. | P1 |
 | Performance is a feature | Broad benchmark suite, performance contracts, manifest-owned 10k/100k manual scenarios, and capacity signal guidance exist. | Future work should improve scenario quality, capture repeatable local evidence, add byte-accurate capacity data, and add larger scale points. | P1 |
 | Event-sourcing native | Replay batches, checkpoint metadata, duplicate skip ledger, materialized projection builds, verification, repair plans, local hash repair, swaps, and local snapshot/restore exist. | Projection handler/determinism contracts and production-readiness evidence remain classification work. | P1 |
 | Simplicity wins | Docs now frame Cassie as a read-model database, reject distributed SQL, and define procedures as limited compatibility/admin support rather than application business logic. | Feature surface is broad and can read like PostgreSQL parity unless non-goals and experimental boundaries stay explicit. | P1 |
@@ -122,7 +122,8 @@ Evidence:
 
 - `issues/phase-06/README.md` archives point lookup, scalar index seek/prefix/range scans, ordered bounded scans, row-id keyset/top-k, EXPLAIN labels, metrics, and benchmark ownership.
 - Tenant filtered pages using composite scalar equality-prefix plus range/order fields are covered by integration tests and documented performance contracts.
-- Mixed-direction multi-column secondary ordering and richer expression-index lowering remain explicit follow-on depth.
+- Phase 09 issue 04 adds narrow mixed-order equality-prefix proof and exact expression-index equality seeks with EXPLAIN, metrics, restart, and benchmark ownership.
+- Broader mixed-direction suffix ordering, expression range scans, and expression ORDER BY lowering remain explicit follow-on depth.
 
 Impact:
 
@@ -132,7 +133,7 @@ The MVP baseline covers the core single-node read-model shapes, but not every ad
 Recommendation:
 
 - Treat the Phase 06 archived scope plus tenant filtered-page coverage as the MVP read-optimization baseline.
-- Track mixed-direction secondary ordering and expression-index lowering only as explicit future slices with EXPLAIN assertions and metrics.
+- Track broader mixed-direction suffix ordering and expression range/order lowering only as explicit future slices with EXPLAIN assertions and metrics.
 - Prioritize tenant-scoped filtered pages, time-range pages, and projection-shaped reads over generic SQL breadth.
 
 ### 5. Time-Series Has An MVP Baseline
@@ -301,10 +302,10 @@ Closed baseline:
 
 - [Performance Contracts](performance-contracts.md): deployment-profile benchmark reports, larger fixture placeholders, and production-readiness evidence boundaries without unsupported SLA claims.
 - [Module Organization](module-organization.md): extraction gate lowered the immediate Midge, executor, and schema-parser touch points below the 1,000-line file limit before read-path, projection, and time-series depth work.
+- [Read-path depth](performance-contracts.md): narrow equality-prefix mixed ordering and exact expression-index equality seeks with EXPLAIN proof, metrics, restart coverage, and manual benchmark ownership.
 
 Remaining sequence:
 
-- [Read-path depth](../issues/phase-09/issue-04.md): mixed-direction secondary ordering, richer expression-index lowering, EXPLAIN proof, metrics, and fallback semantics.
 - [Projection determinism](../issues/phase-09/issue-05.md): handler determinism, replay failure modes, and Cassie-owned versus application-owned responsibilities.
 - [Persisted bucket-native time-series storage](../issues/phase-09/issue-06.md): bucket-native metadata, mutation/restart correctness, retention interactions, and fallback proof.
 - [Pgwire client probes](../issues/phase-09/issue-07.md): opt-in non-tokio client probes while keeping the default suite deterministic.

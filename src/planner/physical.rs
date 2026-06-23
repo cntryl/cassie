@@ -38,7 +38,7 @@ use feature_flags::{
 pub(crate) use index_selection::{
     read_operator_selection, ReadOperatorCandidate, ReadOperatorSelection,
 };
-pub(crate) use scalar_paths::{scalar_index_plan_shape, ScalarIndexPlanPath};
+pub(crate) use scalar_paths::{scalar_index_plan_shape, ScalarIndexPlanPath, ScalarIndexPlanShape};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Operator {

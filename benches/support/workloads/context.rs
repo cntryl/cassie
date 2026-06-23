@@ -379,6 +379,14 @@ async fn prepare_collection(
                 "CREATE INDEX {}_score_idx ON {} USING btree (score)",
                 ctx.collection, ctx.collection
             ),
+            format!(
+                "CREATE INDEX {}_status_score_idx ON {} USING btree (status, score)",
+                ctx.collection, ctx.collection
+            ),
+            format!(
+                "CREATE INDEX {}_lower_title_idx ON {} USING btree (lower(title))",
+                ctx.collection, ctx.collection
+            ),
         ];
 
         for statement in statements {

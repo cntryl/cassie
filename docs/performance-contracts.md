@@ -85,9 +85,12 @@ For the current scalar and ordered-read scope, that vocabulary includes
 `point_lookup`, `index_seek`, `prefix_scan`, `range_scan`, `ordered_bounded_scan`,
 `storage_top_k`, `keyset`, and degraded `offset` paths.
 The implemented filtered-page baseline includes composite scalar indexes with equality prefixes
-and a single range/order field, such as tenant/status filters ordered by a timestamp. Mixed-direction
-multi-column secondary ordering and expression-index lowering require separate proof before they can
-be claimed as optimized paths.
+and a single range/order field, such as tenant/status filters ordered by a timestamp. The current
+mixed-direction proof is intentionally narrow: ORDER BY terms over equality-bound leading index
+fields may use any direction, and the remaining suffix must match the scalar index order with one
+direction. Exact equality predicates on deterministic scalar expression indexes lower to
+`index_seek`/`prefix_scan`; expression range, ordering, collation, and generic PostgreSQL expression
+equivalence are not claimed.
 
 This is necessary because a query can look fast at 10k rows while already using the wrong execution model.
 The contract should fail before that mistake reaches larger scales.
@@ -648,6 +651,10 @@ It reserves representative future scenario ids without requiring 1M fixture gene
 | --- | --- | --- | --- | --- |
 | `perf.core_read.simple.10k` | Core read | `tier3_system_query` | `simple_sql_query` | 10k |
 | `perf.core_read.simple.100k` | Core read | `tier3_system_query` | `simple_sql_query` | 100k |
+| `perf.read_path.mixed_order.10k` | Core read | `tier3_system_query` | `mixed_order_scalar_query` | 10k |
+| `perf.read_path.mixed_order.100k` | Core read | `tier3_system_query` | `mixed_order_scalar_query` | 100k |
+| `perf.read_path.expression_index.10k` | Core read | `tier3_system_query` | `expression_index_query` | 10k |
+| `perf.read_path.expression_index.100k` | Core read | `tier3_system_query` | `expression_index_query` | 100k |
 | `perf.replay.lag_catchup.10k` | Replay | `tier2_subsystem_ingest` | `projection_lag_catchup` | 10k |
 | `perf.replay.lag_catchup.100k` | Replay | `tier2_subsystem_ingest` | `projection_lag_catchup` | 100k |
 | `perf.rebuild.refresh.10k` | Rebuild | `tier3_system_rebuild` | `projection_refresh` | 10k |
@@ -675,7 +682,7 @@ It reserves representative future scenario ids without requiring 1M fixture gene
 
 | Contract family | Memory/fallback evidence | EXPLAIN or metrics evidence |
 | --- | --- | --- |
-| Core read | `storage.data.reads`, `fallback_reason` | `access_path=point_lookup`, `query.latency_ms_total` |
+| Core read | `storage.data.reads`, `fallback_reason` | `access_path=point_lookup`, `access_path=range_scan`, `access_path=index_seek`, `query.latency_ms_total`, `read_paths.range_scans`, `read_paths.index_seek_scans` |
 | Replay | `projections.write_batch_flushes`, `projections.replay_duplicates_skipped` | `replay_checkpoint`, `projections.replay_events_applied` |
 | Rebuild | `projections.write_rebuild_target_puts`, `rebuild_fallback` | `materialized_projection_refresh`, `projections.refreshes` |
 | Verification | `projection_hash_rows`, `verification_mismatch_count` | `VERIFY PROJECTION`, `projections.verifications` |
@@ -918,12 +925,12 @@ single range/order field, for example `(tenant_id, status, created_at)`.
 
 ### Non-goals
 Ad hoc combinations without supporting index/layout are not guaranteed to meet the contract.
-Mixed-direction secondary ordering and expression-index filtered pages remain explicit follow-on
-scope until planner proof and executor coverage exist.
+Mixed-direction suffix ordering beyond the equality-bound-prefix proof, expression range scans, and
+expression ORDER BY lowering remain explicit follow-on scope.
 
 ### Validation
-- Benchmarks: `perf.core_read.filtered_page.10k` and `perf.core_read.filtered_page.100k`
-- Tests: `tests/integration_sql_scalar_indexes.rs`, `tests/integration_sql_predicates.rs`, `tests/planner_indexes.rs`
+- Benchmarks: `perf.read_path.mixed_order.10k`, `perf.read_path.mixed_order.100k`, `perf.read_path.expression_index.10k`, and `perf.read_path.expression_index.100k`
+- Tests: `tests/integration_sql_scalar_indexes.rs`, `tests/integration_sql_read_path_depth.rs`, `tests/planner_read_path_depth.rs`, `tests/planner_indexes.rs`
 
 ### Required access-path assertions
 - Required plan shape: composite filter/order access path or equivalent projection-local shape

@@ -102,11 +102,14 @@ Current guarantee:
 
 - Supported expression metadata is persisted and hydrated.
 - Planner matching uses Cassie expression normalization.
+- Exact equality predicates on deterministic expression keys are storage-backed scalar index seeks.
+- Projection fields that are not stored in the index are fetched from row blobs.
 - Non-equivalent or unsupported expressions fall back to non-expression paths.
 
 Current limitation:
 
 - Full PostgreSQL expression equivalence, collation, and operator-class behavior is not guaranteed.
+- Expression range scans and expression ORDER BY proofs are not claimed.
 
 ## Full-Text Indexes
 

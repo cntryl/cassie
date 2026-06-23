@@ -660,7 +660,7 @@ fn should_store_insert_values_as_row_blobs() {
                 vec![],
             )
             .unwrap();
-        let row_entries = cassie
+        let legacy_row_entries = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Data, b"r/insert_values_row_blob/")
             .unwrap();
@@ -668,10 +668,14 @@ fn should_store_insert_values_as_row_blobs() {
             .midge
             .raw_scan_prefix(StorageFamily::Data, b"doc:insert_values_row_blob:")
             .unwrap();
+        let selected = cassie
+            .execute_sql(&session, "SELECT title FROM insert_values_row_blob", vec![])
+            .unwrap();
 
         // Assert
-        assert_eq!(row_entries.len(), 1);
+        assert!(legacy_row_entries.is_empty());
         assert!(legacy_entries.is_empty());
+        assert_eq!(selected.rows[0][0], Value::String("alpha".to_string()));
 
         let _ = std::fs::remove_dir_all(path);
     });

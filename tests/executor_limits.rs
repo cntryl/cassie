@@ -269,7 +269,7 @@ fn should_skip_offset_then_take_limit() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_offset_limit";
 
         let schema = Schema {
@@ -368,7 +368,7 @@ fn should_default_missing_offset_to_zero_in_execution() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_default_offset";
 
         let schema = Schema {

@@ -1,6 +1,7 @@
 # Definition of Done
 
 Feature work is not done when code compiles. A Cassie feature is done when implementation, tests, documentation, compatibility, and operational behavior are all explicit.
+Production-readiness evidence is tracked in [Production Readiness](production-readiness.md).
 
 ## Status Levels
 

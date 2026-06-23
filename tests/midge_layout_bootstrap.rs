@@ -112,34 +112,40 @@ fn should_route_schema_data_temp_across_families() {
             .unwrap();
 
         // Act
-        let data_prefix = format!("r/{collection}/").into_bytes();
-        let expected_doc_key = format!("r/{collection}/{doc_id}").into_bytes();
-
-        let data_entries = cassie
+        let legacy_row_entries = cassie
             .midge
-            .raw_scan_prefix(StorageFamily::Data, data_prefix.as_slice())
+            .raw_scan_prefix(StorageFamily::Data, b"r/")
             .unwrap();
-        let schema_prefix = b"__cassie__/schema/";
+        let legacy_doc_entries = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, b"doc:")
+            .unwrap();
+        let legacy_schema_entries = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Schema, b"__cassie__/schema/")
+            .unwrap();
         let schema_entries = cassie
             .midge
-            .raw_scan_prefix(StorageFamily::Schema, schema_prefix)
+            .raw_scan_prefix(StorageFamily::Schema, b"")
             .unwrap();
         let temp_entries = cassie
             .midge
             .raw_scan_prefix(StorageFamily::Temp, b"")
             .unwrap();
+        let stored = cassie
+            .midge
+            .get_document(collection, &doc_id)
+            .unwrap()
+            .expect("stored row should decode");
 
         // Assert
-        assert!(
-            data_entries.iter().any(|(key, _)| key == &expected_doc_key),
-            "row blob should be stored in cf1"
-        );
-        assert!(
-            schema_entries
-                .iter()
-                .any(|(key, _)| key.starts_with(schema_prefix)),
-            "schema metadata should be stored in cf0"
-        );
+        assert_eq!(stored.payload["title"], "alpha");
+        assert!(legacy_row_entries.is_empty());
+        assert!(legacy_doc_entries.is_empty());
+        assert!(legacy_schema_entries.is_empty());
+        assert!(schema_entries
+            .iter()
+            .any(|(_, value)| value.as_slice() == b"cassie-midge-lexkey-v2"));
         assert!(
             temp_entries.is_empty(),
             "temp family should start empty in bootstrap state"
@@ -194,6 +200,42 @@ fn should_reject_transactions_that_include_schema_plus_data_families() {
         };
         assert!(
             error.contains("cannot open a transaction across schema and data families"),
+            "unexpected error: {error}"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reject_v1_data_prefix_after_reopen() {
+    // Arrange
+    let path = data_dir("v1_data_reject");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.midge.ensure_families_ready().unwrap();
+            let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
+            tx.put(b"doc:legacy:1".to_vec(), b"{}".to_vec(), None)
+                .unwrap();
+            tx.commit(cntryl_midge::WriteOptions::sync()).unwrap();
+        }
+
+        // Act
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        let result = restarted.startup();
+
+        // Assert
+        let error = result.expect_err("v1 data prefix should be rejected");
+        assert!(
+            error
+                .to_string()
+                .contains("incompatible lexkey v2 storage layout"),
             "unexpected error: {error}"
         );
 

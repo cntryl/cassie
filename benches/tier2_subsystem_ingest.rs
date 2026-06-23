@@ -1,15 +1,24 @@
-use criterion::{criterion_group, criterion_main, Criterion, SamplingMode, Throughput};
+use criterion::{
+    criterion_group, criterion_main, BenchmarkId, Criterion, SamplingMode, Throughput,
+};
 
 #[path = "support/criterion_config.rs"]
 mod criterion_config;
+#[path = "support/performance_benchmarks.rs"]
+mod performance_benchmarks;
 #[path = "support/workloads.rs"]
 mod workloads;
 
 fn bench_ingest(c: &mut Criterion) {
+    const BENCHMARK: &str = "tier2_subsystem_ingest";
+
     let runtime = workloads::runtime();
-    let ctx = runtime
+    let ctx_10k = runtime
         .block_on(workloads::context("tier2-ingest", 10_000))
         .expect("benchmark context");
+    let ctx_100k = runtime
+        .block_on(workloads::unindexed_context("tier2-ingest-100k", 100_000))
+        .expect("100k benchmark context");
 
     let mut group = c.benchmark_group("tier2_subsystem_ingest");
     group.sampling_mode(SamplingMode::Flat);
@@ -19,17 +28,22 @@ fn bench_ingest(c: &mut Criterion) {
         b.iter_custom(|iterations| {
             let mut elapsed = std::time::Duration::ZERO;
             for _ in 0..iterations {
-                elapsed += runtime.block_on(workloads::timed_ingest_document_batch(&ctx, 64));
+                elapsed += runtime.block_on(workloads::timed_ingest_document_batch(&ctx_10k, 64));
             }
             elapsed
         })
     });
     group.bench_function("projection_duplicate_replay", |b| {
-        b.iter(|| runtime.block_on(workloads::projection_duplicate_replay(&ctx)))
+        b.iter(|| runtime.block_on(workloads::projection_duplicate_replay(&ctx_10k)))
     });
-    group.bench_function("projection_lag_catchup", |b| {
-        b.iter(|| runtime.block_on(workloads::projection_lag_catchup(&ctx)))
-    });
+    for (dataset, ctx) in [("10k", &ctx_10k), ("100k", &ctx_100k)] {
+        let benchmark =
+            performance_benchmarks::expect_benchmark(BENCHMARK, "projection_lag_catchup", dataset);
+        group.bench_function(
+            BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
+            |b| b.iter(|| runtime.block_on(workloads::projection_lag_catchup(ctx))),
+        );
+    }
 
     group.finish();
 }

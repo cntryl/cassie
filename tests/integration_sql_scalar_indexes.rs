@@ -735,6 +735,108 @@ fn should_query_rows_after_creating_range_index() {
 }
 
 #[test]
+fn should_page_tenant_filtered_rows_through_composite_range_index() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("tenant_filtered_page_index_query");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE tenant_filtered_page_index_query (tenant_id TEXT, status TEXT, created_at INT, title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX tenant_filtered_page_lookup_idx ON tenant_filtered_page_index_query USING btree (tenant_id, status, created_at)",
+                vec![],
+            )
+            .unwrap();
+        for (tenant_id, status, created_at, title) in [
+            ("tenant-a", "open", 10, "alpha"),
+            ("tenant-a", "open", 20, "beta"),
+            ("tenant-a", "open", 30, "gamma"),
+            ("tenant-a", "closed", 40, "closed"),
+            ("tenant-b", "open", 50, "other"),
+        ] {
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO tenant_filtered_page_index_query (tenant_id, status, created_at, title) VALUES ($1, $2, $3, $4)",
+                    vec![
+                        Value::String(tenant_id.to_string()),
+                        Value::String(status.to_string()),
+                        Value::Int64(created_at),
+                        Value::String(title.to_string()),
+                    ],
+                )
+                .unwrap();
+        }
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM tenant_filtered_page_index_query WHERE tenant_id = 'tenant-a' AND status = 'open' AND created_at >= 10 ORDER BY created_at DESC LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT title FROM tenant_filtered_page_index_query WHERE tenant_id = 'tenant-a' AND status = 'open' AND created_at >= 10 ORDER BY created_at DESC LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("gamma".to_string())],
+                vec![Value::String("beta".to_string())],
+            ]
+        );
+        let Value::String(plan) = &explain.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("index=tenant_filtered_page_lookup_idx"));
+        assert!(plan.contains("access_path=range_scan"));
+        assert!(plan.contains("access_path_reason=scalar-index-range"));
+        assert!(plan.contains("pagination_strategy=limit"));
+        assert!(plan.contains("early_stop=scan_limit"));
+        assert!(plan.contains("fallback_reason=none"));
+        assert_eq!(
+            after["read_paths"]["range_scans"]
+                .as_u64()
+                .unwrap_or_default(),
+            before["read_paths"]["range_scans"]
+                .as_u64()
+                .unwrap_or_default()
+                + 1,
+        );
+        assert_eq!(
+            after["read_paths"]["last_index_scan_index"].as_str(),
+            Some("tenant_filtered_page_lookup_idx"),
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_query_rows_after_creating_ordered_bounded_index() {
     // Arrange
     with_fallback();

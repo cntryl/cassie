@@ -27,7 +27,7 @@ fn should_apply_fulltext_index_params_during_search_score() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_fulltext_k1_b";
 
         let schema = Schema {
@@ -121,7 +121,7 @@ fn should_apply_fulltext_analyzer_stop_words_during_search_score() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -172,7 +172,7 @@ fn should_reject_unknown_fulltext_analyzer() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -208,7 +208,7 @@ fn should_reject_unknown_fulltext_tokenizer() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -244,7 +244,7 @@ fn should_reject_non_finite_fulltext_index_options_during_search_score() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_fulltext_non_finite";
 
         let schema = Schema {
@@ -335,7 +335,7 @@ fn should_reject_duplicate_fulltext_indexes_during_search_score() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_fulltext_duplicate";
 
         let schema = Schema {
@@ -446,7 +446,7 @@ fn should_allow_plain_select_with_non_finite_fulltext_metadata() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_plain_select_bad_fulltext";
 
         let schema = Schema {
@@ -534,7 +534,7 @@ fn should_project_snippet_function_output_for_text_matches() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_snippet_output";
 
         let schema = Schema {

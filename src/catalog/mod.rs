@@ -4,7 +4,9 @@ pub mod consistency;
 pub mod constraints;
 pub mod indexes;
 pub mod metadata;
+pub mod operational;
 pub mod programs;
+pub mod repair;
 pub mod retention;
 pub mod roles;
 pub mod rollups;
@@ -38,7 +40,9 @@ pub use indexes::{
     IndexMeta,
 };
 pub use metadata::Catalog;
+pub use operational::{OperationalAssignmentMeta, OperationalAssignmentState};
 pub use programs::{FunctionArgMeta, FunctionMeta, ProcedureMeta, ViewMeta, Volatility};
+pub use repair::ProjectionRepairReportMeta;
 pub use retention::{RetentionEnforcementMode, RetentionPolicyMeta, RetentionPolicyState};
 pub use roles::{normalize_role_name, RoleMeta};
 pub use rollups::{

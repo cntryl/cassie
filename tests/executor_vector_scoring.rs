@@ -23,7 +23,7 @@ fn should_execute_query_filters_by_vector_score_function() {
     // Act
     // Assert
     with_fallback();
-    let cassie = Cassie::new().unwrap();
+    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_vector_score_filter";
 
     let schema = Schema {
@@ -89,7 +89,7 @@ fn should_execute_query_orders_by_vector_distance_function_parameterized() {
     // Act
     // Assert
     with_fallback();
-    let cassie = Cassie::new().unwrap();
+    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_vector_order_func";
 
     let schema = Schema {
@@ -172,7 +172,7 @@ fn should_order_by_pgvector_dot_operator() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_vector_dot_order";
 
         let schema = Schema {
@@ -258,7 +258,7 @@ fn should_order_by_pgvector_l2_operator() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_vector_l2_order";
 
         let schema = Schema {
@@ -344,7 +344,7 @@ fn should_fail_query_when_vector_function_dimensions_mismatch() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_vector_mismatch";
 
         let schema = Schema {

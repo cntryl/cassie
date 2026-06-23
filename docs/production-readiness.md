@@ -1,0 +1,44 @@
+# Production Readiness
+
+This matrix classifies major Cassie feature families against the bar in [Definition of Done](definition-of-done.md).
+It is separate from implementation status: a feature can be implemented or stable without being production-ready.
+
+No feature family is currently classified as production-ready by default.
+Stable areas are production-ready candidates only after their benchmark, operational, restart, compatibility, and blocker evidence is complete for a declared deployment profile.
+Deployment-profile benchmark output is evidence collection only; it does not create a production SLA or production-ready promotion by itself.
+
+## Readiness Levels
+
+| Readiness | Meaning |
+| --- | --- |
+| Production-ready | Stable, documented, benchmarked where performance-sensitive, operationally observable, restart-safe where metadata persists, and supported boundaries are explicit. |
+| Stable candidate | Stable user-visible behavior exists, but production evidence or capacity guidance is not complete. |
+| Experimental baseline | Supported cases work, but compatibility, scale, output shape, or operational guarantees may change. |
+| Planned | Accepted product area without an implemented production guarantee. |
+
+## Feature Matrix
+
+| Feature family | Owner | Support level | Readiness | Evidence | Benchmarks and signals | Restart/hydration | Blockers before production-ready |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Core SQL reads | `src/sql`, `src/planner`, `src/executor` | Stable | Stable candidate | `tests/integration_sql_*`, `tests/planner_*`, `tests/executor_*` | `perf.core_read.simple.10k`, `perf.core_read.simple.100k`, EXPLAIN access-path labels, query metrics | Schema/catalog hydration tests cover persisted metadata where relevant | Recorded deployment-profile evidence, capacity targets, and operator thresholds |
+| DML and transactions | `src/sql`, `src/executor`, `src/midge` | Stable for projection-state mutation | Stable candidate | `tests/integration_sql_insert_values.rs`, `tests/integration_sql_update.rs`, `tests/integration_sql_delete.rs`, `tests/integration_sql_transactions.rs` | Write-path metrics, storage write counters, transaction tests | Transaction and row-blob restart paths covered by storage/catalog tests | Deployment durability notes and write-capacity guidance |
+| Schema, constraints, and catalog | `src/catalog`, `src/sql`, `src/midge` | Stable/Experimental by object type | Stable candidate | `tests/catalog_introspection.rs`, `tests/integration_sql_constraints.rs`, `tests/midge_metadata_stats.rs` | Catalog probes, SQLSTATE metadata, constraint diagnostics | Restart hydration tests for schemas, constraints, indexes, views, procedures, rollups, retention, operational metadata | Full production classification by object family and remaining catalog parity boundaries |
+| Scalar indexes and read optimization | `src/planner`, `src/executor`, `src/midge` | Stable baseline with planned depth | Stable candidate | `tests/integration_sql_scalar_indexes.rs`, `tests/planner_indexes.rs`, `tests/metrics_read_paths.rs` | `perf.core_read.simple.*`, access-path metrics, EXPLAIN labels | Index metadata hydration covered by integration tests | Mixed-direction ordering, richer expression-index lowering, and larger-scale read evidence recorded through deployment profiles |
+| Pgwire protocol and client access | `src/pgwire`, `src/sql`, `src/catalog` | Stable/Experimental | Stable candidate | `tests/pgwire_*`, `tests/compatibility_matrix.rs`, [PostgreSQL Compatibility](postgres-compatibility.md) | `perf.pgwire.simple_query.10k`, `perf.pgwire.simple_query.100k`, pgwire metrics | Startup/auth/catalog probes covered | Broader non-tokio client automation and SQLSTATE mapping completeness |
+| Projection lifecycle and replay | `src/app`, `src/catalog`, `src/executor` | Experimental Cassie-specific | Experimental baseline | `tests/projection_lifecycle.rs`, `tests/metrics_runtime.rs`, `tests/analytical_projections.rs` | `perf.replay.lag_catchup.*`, `perf.rebuild.refresh.*`, projection metrics and catalog views | Projection metadata hydration and restart tests exist | Handler determinism contracts, failure-mode guidance, and production replay capacity evidence |
+| Verification, repair, and consistency | `src/catalog`, `src/executor`, `src/rest` | Experimental baseline | Experimental baseline | `tests/projection_verification.rs`, `tests/projection_diffing.rs`, `tests/projection_consistency.rs`, `tests/projection_repair.rs` | `perf.verification.full.*`, integrity/repair metrics and catalog reports | Persisted reports and restart hydration covered | Unsupported repair scopes, operator runbooks, and larger manifest/verification evidence |
+| Snapshot and local restore | `src/app`, `src/midge` | Experimental baseline | Experimental baseline | `tests/snapshot_restore.rs`, [Snapshot And Restore](snapshot-restore.md) | Restore smoke tests and compatibility manifest diagnostics | Restore-to-new-data-dir smoke coverage | Scheduling, encryption, retention, remote transport, failover, and capacity guidance remain external |
+| Search, vector, and hybrid retrieval | `src/search`, `src/vector`, `src/embeddings`, `src/executor` | Stable/Experimental by path | Experimental baseline | `tests/integration_sql_fulltext_query.rs`, `tests/integration_sql_vector_*`, `tests/integration_sql_hybrid_query.rs`, `tests/ivfflat_indexes.rs` | `perf.search.fulltext.*`, `perf.vector.executor.*`, `perf.hybrid.executor.*`, candidate/fallback metrics | Index metadata and sidecar hydration tests exist | Larger corpus evidence, provider operational guidance, HNSW/IVFFlat promotion criteria |
+| Analytics and time series | `src/executor`, `src/catalog`, `src/planner` | Experimental | Experimental baseline | `tests/column_batches.rs`, `tests/aggregate_acceleration.rs`, `tests/time_series_*` | `perf.time_series.window_scan.*`, `perf.time_series.retention.*`, `perf.time_series.rollup_refresh.*`, rollup/retention/time-series metrics | Rollup, retention, column-batch, and time-series metadata hydration covered where applicable | Persisted bucket-native time-series storage, larger analytical fixtures, and capacity guidance |
+| Operational scale metadata | `src/catalog`, `src/app`, `src/rest` | Experimental baseline | Experimental baseline | `tests/operational_ownership.rs`, [Operational Scale](operational-scale.md) | Assignment catalog diagnostics, external router contract, assignment lifecycle, and operational metadata tests | Restart hydration covered | Deployment-profile router evidence, fleet monitoring thresholds, and production runbook validation |
+| Limited procedures and CALL | `src/sql`, `src/executor`, `src/catalog` | Experimental compatibility/admin surface | Experimental baseline | `tests/executor_commands.rs`, `tests/parser_functions_roles.rs`, `tests/compatibility_matrix.rs` | Procedure rejection tests and pgwire compatibility coverage | Procedure metadata hydration covered | No PL/pgSQL, triggers, dynamic SQL, transaction-control procedures, recursive workflows, or business-logic platform semantics |
+| Capacity management | `docs`, future diagnostics owners | Experimental documentation | Experimental baseline | [Capacity Management](capacity-management.md), [Performance Contracts](performance-contracts.md), runtime metrics snapshots | Storage-family operation counts, cache occupancy, fallback counters, column-batch byte totals, projection rebuild/write counters, manual benchmark scenarios with deployment-profile report lines | Local metrics and catalog diagnostics are available after startup; byte-accurate storage-family sizing is not persisted as a Cassie report | Byte-accurate family/index/vector/full-text sizing, automatic capacity reports, and production thresholds by deployment profile |
+
+## Promotion Rules
+
+- Do not mark a feature family production-ready unless this document links to tests, benchmark or operational evidence, restart/hydration evidence when metadata persists, and explicit blockers are closed.
+- Do not promote experimental surfaces solely because they are implemented or covered by integration tests.
+- Performance-sensitive paths need benchmark scenario ownership, recorded deployment-profile evidence, and metrics evidence before promotion.
+- Manual benchmark report lines are not CI gates unless a future issue explicitly defines a lightweight CI subset.
+- Pgwire-visible behavior needs deterministic errors and SQLSTATE coverage for common failures before promotion.
+- Cassie-specific operational workflows need runbook-quality docs before promotion.

@@ -225,6 +225,14 @@ fn bind_statement(
             raw_sql,
             statement: QueryStatement::CompareProjection(statement),
         }),
+        QueryStatement::PlanRepairProjection(statement) => Ok(ParsedStatement {
+            raw_sql,
+            statement: QueryStatement::PlanRepairProjection(statement),
+        }),
+        QueryStatement::RepairProjection(statement) => Ok(ParsedStatement {
+            raw_sql,
+            statement: QueryStatement::RepairProjection(statement),
+        }),
         QueryStatement::CreateRetentionPolicy(statement) => {
             let statement = bind_create_retention_policy(statement, catalog)?;
             Ok(ParsedStatement {

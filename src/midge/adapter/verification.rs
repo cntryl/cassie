@@ -220,11 +220,10 @@ impl Midge {
         let existing =
             self.raw_scan_prefix(StorageFamily::Data, &Self::row_hash_prefix(collection))?;
         for (key, _value) in existing {
-            let key_text = String::from_utf8_lossy(&key);
-            let row_id = key_text
-                .strip_prefix(&format!("{ROW_HASH_PREFIX}{collection}/"))
-                .unwrap_or_default();
-            if !live_ids.contains(row_id) {
+            let Ok(record) = serde_json::from_slice::<RowHashRecord>(&_value) else {
+                continue;
+            };
+            if !live_ids.contains(&record.row_id) {
                 tx.delete(key).map_err(CassieError::from)?;
             }
         }

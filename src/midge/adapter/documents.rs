@@ -527,26 +527,17 @@ impl Midge {
         let mut seen_ids = HashSet::new();
         let mut emitted = 0usize;
 
-        for (prefix, needle, include_seen) in [
-            (
-                Self::row_prefix(collection),
-                format!("r/{collection}/"),
-                true,
-            ),
-            (
-                Self::doc_prefix(collection),
-                format!("doc:{collection}:"),
-                false,
-            ),
+        for (prefix, include_seen) in [
+            (Self::row_prefix(collection), true),
+            (Self::doc_prefix(collection), false),
         ] {
             let mut iter = tx
-                .scan(&Query::new().prefix(prefix.into()))
+                .scan(&Query::new().prefix(prefix.clone().into()))
                 .map_err(CassieError::from)?;
             while let Some((raw_key, raw_value)) = iter.next() {
-                let raw_key = String::from_utf8(raw_key).map_err(|error| {
-                    CassieError::Parse(format!("invalid document key in storage: {error}"))
-                })?;
-                let id = raw_key.strip_prefix(&needle).unwrap_or("").to_string();
+                let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &prefix) else {
+                    continue;
+                };
                 if id.is_empty() || (!include_seen && seen_ids.contains(&id)) {
                     continue;
                 }
@@ -656,12 +647,6 @@ impl Midge {
 
         let row_prefix = Self::row_prefix(collection);
         let doc_prefix = Self::doc_prefix(collection);
-        let row_prefix_str = String::from_utf8(row_prefix.clone()).map_err(|error| {
-            CassieError::Parse(format!("invalid row prefix for ordered scan: {error}"))
-        })?;
-        let doc_prefix_str = String::from_utf8(doc_prefix.clone()).map_err(|error| {
-            CassieError::Parse(format!("invalid doc prefix for ordered scan: {error}"))
-        })?;
 
         let mut row_iter = tx
             .scan(&Self::ordered_row_query(
@@ -680,8 +665,8 @@ impl Midge {
             ))
             .map_err(CassieError::from)?;
 
-        let mut row_next = Self::ordered_next_entry(&mut row_iter, &row_prefix_str)?;
-        let mut doc_next = Self::ordered_next_entry(&mut doc_iter, &doc_prefix_str)?;
+        let mut row_next = Self::ordered_next_entry(&mut row_iter, &row_prefix)?;
+        let mut doc_next = Self::ordered_next_entry(&mut doc_iter, &doc_prefix)?;
         let mut current = Vec::with_capacity(batch_size);
         let mut emitted = 0usize;
 
@@ -738,14 +723,14 @@ impl Midge {
 
             match selection {
                 OrderedScanSelection::Row => {
-                    row_next = Self::ordered_next_entry(&mut row_iter, &row_prefix_str)?;
+                    row_next = Self::ordered_next_entry(&mut row_iter, &row_prefix)?;
                 }
                 OrderedScanSelection::Doc => {
-                    doc_next = Self::ordered_next_entry(&mut doc_iter, &doc_prefix_str)?;
+                    doc_next = Self::ordered_next_entry(&mut doc_iter, &doc_prefix)?;
                 }
                 OrderedScanSelection::Both => {
-                    row_next = Self::ordered_next_entry(&mut row_iter, &row_prefix_str)?;
-                    doc_next = Self::ordered_next_entry(&mut doc_iter, &doc_prefix_str)?;
+                    row_next = Self::ordered_next_entry(&mut row_iter, &row_prefix)?;
+                    doc_next = Self::ordered_next_entry(&mut doc_iter, &doc_prefix)?;
                 }
             }
         }
@@ -803,13 +788,12 @@ impl Midge {
 
     fn ordered_next_entry(
         iter: &mut cntryl_midge::ScanIterator,
-        prefix: &str,
+        prefix: &[u8],
     ) -> Result<Option<OrderedScanEntry>, CassieError> {
         while let Some((raw_key, raw_value)) = iter.next() {
-            let raw_key = String::from_utf8(raw_key).map_err(|error| {
-                CassieError::Parse(format!("invalid ordered scan key in storage: {error}"))
-            })?;
-            let id = raw_key.strip_prefix(prefix).unwrap_or("").to_string();
+            let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, prefix) else {
+                continue;
+            };
             if id.is_empty() {
                 continue;
             }

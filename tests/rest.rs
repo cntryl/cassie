@@ -2,11 +2,18 @@ use cassie::app::Cassie;
 use cassie::rest::{collections, documents};
 use uuid::Uuid;
 
+fn data_dir(label: &str) -> String {
+    let mut path = std::env::temp_dir();
+    path.push(format!("cassie-rest-{}-{}", label, Uuid::new_v4()));
+    path.to_string_lossy().to_string()
+}
+
 #[test]
 fn should_crud_collection_documents_through_rest() {
     // Arrange
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
-    let cassie = Cassie::new().unwrap();
+    let path = data_dir("crud");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
     let collection = "rest_docs";
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -44,6 +51,8 @@ fn should_crud_collection_documents_through_rest() {
         assert!(list.contains(&collection.to_string()));
         assert_eq!(got["title"], "hello");
         assert_eq!(removed["deleted"], serde_json::Value::Bool(true));
+
+        let _ = std::fs::remove_dir_all(path);
     });
 }
 
@@ -51,7 +60,8 @@ fn should_crud_collection_documents_through_rest() {
 fn should_reject_invalid_vector_dimensions_through_rest() {
     // Arrange
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
-    let cassie = Cassie::new().unwrap();
+    let path = data_dir("bad_vector");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
     let collection = "rest_bad_vector";
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -80,6 +90,8 @@ fn should_reject_invalid_vector_dimensions_through_rest() {
 
         // Assert
         assert!(insert.is_err(), "dimension mismatch should fail");
+
+        let _ = std::fs::remove_dir_all(path);
     });
 }
 
@@ -87,7 +99,8 @@ fn should_reject_invalid_vector_dimensions_through_rest() {
 fn should_reject_missing_document_lookup_through_rest() {
     // Arrange
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
-    let cassie = Cassie::new().unwrap();
+    let path = data_dir("missing_doc");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
     let collection = "rest_missing_doc";
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -114,6 +127,8 @@ fn should_reject_missing_document_lookup_through_rest() {
             error.contains("document not found"),
             "unexpected error: {error}"
         );
+
+        let _ = std::fs::remove_dir_all(path);
     });
 }
 

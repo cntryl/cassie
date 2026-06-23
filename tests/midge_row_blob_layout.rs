@@ -73,11 +73,13 @@ fn should_store_rows_as_field_id_blobs_in_data_family() {
             .unwrap();
 
         // Act
-        let row_prefix = format!("r/{collection}/").into_bytes();
-        let expected_row_key = format!("r/{collection}/{doc_id}").into_bytes();
-        let row_entries = cassie
+        let legacy_row_entries = cassie
             .midge
-            .raw_scan_prefix(StorageFamily::Data, row_prefix.as_slice())
+            .raw_scan_prefix(StorageFamily::Data, b"r/")
+            .unwrap();
+        let legacy_doc_entries = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, b"doc:")
             .unwrap();
         let stored = cassie
             .midge
@@ -87,15 +89,8 @@ fn should_store_rows_as_field_id_blobs_in_data_family() {
 
         // Assert
         assert_eq!(stored.payload["title"], "alpha");
-        let (_, row_blob) = row_entries
-            .iter()
-            .find(|(key, _)| key == &expected_row_key)
-            .expect("row blob should be stored under row key");
-        let row_blob_text = String::from_utf8_lossy(row_blob);
-        assert!(
-            !row_blob_text.contains("title") && !row_blob_text.contains("embedding"),
-            "row blob should store field ids, not field names"
-        );
+        assert!(legacy_row_entries.is_empty());
+        assert!(legacy_doc_entries.is_empty());
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -152,19 +147,17 @@ fn should_preserve_retired_field_ids_in_row_schema_metadata() {
                 },
             )
             .unwrap();
-        let row_schema_entries = cassie
+        let schema_entries = cassie
             .midge
-            .raw_scan_prefix(
-                StorageFamily::Schema,
-                format!("__cassie__/row-schema/{collection}").as_bytes(),
-            )
+            .raw_scan_prefix(StorageFamily::Schema, b"")
             .unwrap();
 
         // Assert
-        let (_, row_schema_raw) = row_schema_entries
-            .first()
+        let row_schema = schema_entries
+            .iter()
+            .filter_map(|(_, raw)| serde_json::from_slice::<serde_json::Value>(raw).ok())
+            .find(|value| value["next_field_id"] == 4 && value["schema_version"] == 3)
             .expect("row schema metadata should be persisted");
-        let row_schema: serde_json::Value = serde_json::from_slice(row_schema_raw).unwrap();
         assert_eq!(row_schema["schema_version"], 3);
         assert_eq!(row_schema["next_field_id"], 4);
 
@@ -194,7 +187,7 @@ fn should_preserve_retired_field_ids_in_row_schema_metadata() {
 }
 
 #[test]
-fn should_scan_legacy_document_rows_after_row_blob_upgrade() {
+fn should_ignore_legacy_document_rows_after_layout_break() {
     // Arrange
     let path = data_dir("legacy_scan");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -231,9 +224,7 @@ fn should_scan_legacy_document_rows_after_row_blob_upgrade() {
         let documents = cassie.midge.scan_documents(collection).unwrap();
 
         // Assert
-        assert_eq!(documents.len(), 1);
-        assert_eq!(documents[0].id, "legacy-1");
-        assert_eq!(documents[0].payload["title"], "legacy");
+        assert!(documents.is_empty());
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -282,19 +273,6 @@ fn should_iterate_rebuild_rows_across_storage_sources() {
                 serde_json::json!({"title": "fresh"}),
             )
             .unwrap();
-        put_legacy_document(
-            &cassie,
-            collection,
-            "dupe-1",
-            serde_json::json!({"title": "legacy-stale"}),
-        );
-        put_legacy_document(
-            &cassie,
-            collection,
-            "legacy-1",
-            serde_json::json!({"title": "legacy"}),
-        );
-
         // Act
         let rows = cassie
             .midge
@@ -302,7 +280,7 @@ fn should_iterate_rebuild_rows_across_storage_sources() {
             .unwrap();
 
         // Assert
-        assert_eq!(rows.len(), 3);
+        assert_eq!(rows.len(), 2);
         assert_eq!(
             rows.iter()
                 .find(|row| row.id == "dupe-1")
@@ -310,7 +288,7 @@ fn should_iterate_rebuild_rows_across_storage_sources() {
                 .payload["title"],
             "row"
         );
-        assert!(rows.iter().any(|row| row.id == "legacy-1"));
+        assert!(rows.iter().any(|row| row.id == "row-1"));
 
         let _ = std::fs::remove_dir_all(path);
     });

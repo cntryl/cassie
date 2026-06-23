@@ -14,6 +14,7 @@ parking_lot = "0.12"
 thiserror = "2.0"
 uuid = { version = "1.23", features = ["v4", "serde"] }
 cntryl-midge = { package = "cntryl-midge", git = "https://github.com/cntryl/midge" }
+cntryl-lexkey = { package = "cntryl-lexkey", git = "https://github.com/cntryl/lexkey-rs", rev = "9e75be255d73261b88dfd1d273a55fb9eb177e40" }
 hyper = { version = "1.10", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }

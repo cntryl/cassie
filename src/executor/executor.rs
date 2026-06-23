@@ -332,6 +332,8 @@ mod dml_command;
 mod materialized_projection;
 #[path = "execution/projection_diff.rs"]
 mod projection_diff;
+#[path = "execution/projection_repair.rs"]
+mod projection_repair;
 #[path = "execution/retention.rs"]
 mod retention;
 #[path = "execution/rollups.rs"]

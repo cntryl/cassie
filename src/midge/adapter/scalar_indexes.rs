@@ -146,8 +146,12 @@ impl Midge {
 
         let tx = self.begin_data_readonly_tx()?;
         let data_prefix = Self::scalar_index_data_prefix(&index.collection, &index.name);
-        let seek_prefix = Self::scalar_index_seek_prefix(&data_prefix, &request.equality_prefix)?;
-        let (start_key, end_key) = Self::scalar_index_query_bounds(
+        let seek_prefix = key_encoding::scalar_index_seek_prefix(
+            &index.collection,
+            &index.name,
+            &request.equality_prefix,
+        )?;
+        let (start_key, end_key) = key_encoding::scalar_index_query_bounds(
             &seek_prefix,
             request.lower_bound.as_ref(),
             request.upper_bound.as_ref(),
@@ -206,7 +210,8 @@ impl Midge {
         }
 
         let key_values = Self::scalar_index_key_values(index, payload)?;
-        let key = Self::scalar_index_entry_key(&index.collection, &index.name, &key_values, id)?;
+        let key =
+            key_encoding::scalar_index_entry_key(&index.collection, &index.name, &key_values, id)?;
         let value = serde_json::to_vec(&ScalarIndexStoredRow {
             id: id.to_string(),
             fields: Self::scalar_index_stored_fields(index, payload),
@@ -245,147 +250,6 @@ impl Midge {
             }
         }
         fields
-    }
-
-    fn scalar_index_entry_key(
-        collection: &str,
-        index_name: &str,
-        values: &[serde_json::Value],
-        id: &str,
-    ) -> Result<Vec<u8>, CassieError> {
-        let mut key = Self::scalar_index_data_prefix(collection, index_name);
-        for value in values {
-            Self::append_scalar_index_value(&mut key, value)?;
-        }
-        key.push(b'/');
-        Self::append_scalar_index_component(&mut key, id.as_bytes());
-        Ok(key)
-    }
-
-    fn scalar_index_seek_prefix(
-        prefix: &[u8],
-        equality_prefix: &[serde_json::Value],
-    ) -> Result<Vec<u8>, CassieError> {
-        let mut seek_prefix = prefix.to_vec();
-        for value in equality_prefix {
-            Self::append_scalar_index_value(&mut seek_prefix, value)?;
-        }
-        Ok(seek_prefix)
-    }
-
-    fn scalar_index_query_bounds(
-        seek_prefix: &[u8],
-        lower_bound: Option<&ScalarIndexBound>,
-        upper_bound: Option<&ScalarIndexBound>,
-    ) -> Result<(Option<Vec<u8>>, Option<Vec<u8>>), CassieError> {
-        if lower_bound.is_none() && upper_bound.is_none() && seek_prefix.is_empty() {
-            return Ok((None, None));
-        }
-
-        let start_key = match lower_bound {
-            Some(bound) => Some(Self::scalar_index_bound_key(
-                seek_prefix,
-                &bound.value,
-                bound.inclusive,
-                true,
-            )?),
-            None if seek_prefix.is_empty() => None,
-            None => Some(seek_prefix.to_vec()),
-        };
-        let end_key = match upper_bound {
-            Some(bound) => Some(Self::scalar_index_bound_key(
-                seek_prefix,
-                &bound.value,
-                bound.inclusive,
-                false,
-            )?),
-            None if seek_prefix.is_empty() => None,
-            None => Some(Self::scalar_index_prefix_upper_bound(seek_prefix)),
-        };
-        Ok((start_key, end_key))
-    }
-
-    fn scalar_index_bound_key(
-        seek_prefix: &[u8],
-        value: &serde_json::Value,
-        inclusive: bool,
-        lower: bool,
-    ) -> Result<Vec<u8>, CassieError> {
-        let mut key = seek_prefix.to_vec();
-        Self::append_scalar_index_value(&mut key, value)?;
-        if (lower && !inclusive) || (!lower && inclusive) {
-            key.push(0xff);
-        }
-        Ok(key)
-    }
-
-    fn scalar_index_prefix_upper_bound(prefix: &[u8]) -> Vec<u8> {
-        let mut end_key = prefix.to_vec();
-        end_key.push(0xff);
-        end_key
-    }
-
-    fn append_scalar_index_value(
-        key: &mut Vec<u8>,
-        value: &serde_json::Value,
-    ) -> Result<(), CassieError> {
-        match value {
-            serde_json::Value::Null => key.extend_from_slice(&[0x10, 0x00]),
-            serde_json::Value::Bool(false) => key.extend_from_slice(&[0x20, 0x00]),
-            serde_json::Value::Bool(true) => key.extend_from_slice(&[0x21, 0x00]),
-            serde_json::Value::Number(number) => {
-                if let Some(integer) = number
-                    .as_i64()
-                    .or_else(|| number.as_u64().and_then(|value| i64::try_from(value).ok()))
-                {
-                    key.push(0x30);
-                    key.extend_from_slice(
-                        &(u64::from_be_bytes(integer.to_be_bytes()) ^ (1_u64 << 63)).to_be_bytes(),
-                    );
-                    key.push(0x00);
-                } else if let Some(float) = number.as_f64() {
-                    if !float.is_finite() {
-                        return Err(CassieError::Unsupported(
-                            "non-finite scalar index values are not supported".to_string(),
-                        ));
-                    }
-                    let bits = float.to_bits();
-                    let ordered = if (bits >> 63) == 0 {
-                        bits ^ (1_u64 << 63)
-                    } else {
-                        !bits
-                    };
-                    key.push(0x40);
-                    key.extend_from_slice(&ordered.to_be_bytes());
-                    key.push(0x00);
-                } else {
-                    return Err(CassieError::Unsupported(
-                        "scalar index number is not representable".to_string(),
-                    ));
-                }
-            }
-            serde_json::Value::String(value) => {
-                key.push(0x50);
-                Self::append_scalar_index_component(key, value.as_bytes());
-            }
-            other => {
-                return Err(CassieError::Unsupported(format!(
-                    "scalar index does not support key value '{}'",
-                    other
-                )));
-            }
-        }
-        Ok(())
-    }
-
-    fn append_scalar_index_component(key: &mut Vec<u8>, bytes: &[u8]) {
-        for byte in bytes {
-            match byte {
-                0x00 => key.extend_from_slice(&[0x00, 0xff]),
-                value => key.push(*value),
-            }
-        }
-        key.push(0x00);
     }
 
     fn payload_matches_scalar_index_predicate(

@@ -321,15 +321,13 @@ impl Midge {
         &self,
     ) -> Result<std::collections::HashMap<String, CollectionCardinalityStats>, CassieError> {
         let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::cardinality_prefix())?;
+        let prefix = Self::cardinality_prefix();
         let mut out = std::collections::HashMap::new();
         for (key, raw_value) in entries {
             let Ok(stats) = serde_json::from_slice::<CollectionCardinalityStats>(&raw_value) else {
                 continue;
             };
-            let collection = String::from_utf8(key)
-                .ok()
-                .and_then(|key| key.strip_prefix(CARDINALITY_KEY_PREFIX).map(str::to_string));
-            if let Some(collection) = collection {
+            if let Some(collection) = key_encoding::utf8_suffix_after_prefix(&key, &prefix) {
                 out.insert(collection, stats);
             }
         }
@@ -510,25 +508,17 @@ impl Midge {
         id: &str,
     ) -> Result<usize, CassieError> {
         let prefix = Self::normalized_vector_collection_prefix(collection);
-        let prefix_text =
-            std::str::from_utf8(&prefix).map_err(|error| CassieError::Parse(error.to_string()))?;
         let mut scan = tx
             .scan(&Query::new().prefix(prefix.clone().into()))
             .map_err(CassieError::from)?;
         let mut keys = Vec::new();
 
-        while let Some((raw_key, _)) = scan.next() {
-            let key = String::from_utf8(raw_key).map_err(|error| {
-                CassieError::Parse(format!("invalid normalized vector key in storage: {error}"))
-            })?;
-            let Some(remainder) = key.strip_prefix(prefix_text) else {
+        while let Some((raw_key, raw_value)) = scan.next() {
+            let Ok(record) = serde_json::from_slice::<NormalizedVectorRecord>(&raw_value) else {
                 continue;
             };
-            let matches_document = remainder
-                .rsplit_once('/')
-                .is_some_and(|(_field, key_id)| key_id == id);
-            if matches_document {
-                keys.push(key.into_bytes());
+            if record.id == id {
+                keys.push(raw_key);
             }
         }
 
@@ -931,13 +921,9 @@ impl Midge {
         };
 
         let mut collections = Vec::new();
+        let prefix = Self::schema_collection_prefix();
         while let Some((raw_key, _raw_value)) = scan.next() {
-            let key = String::from_utf8(raw_key).unwrap_or_default();
-            let name = key
-                .strip_prefix(SCHEMA_COLLECTION_KEY_PREFIX)
-                .unwrap_or("")
-                .to_string();
-            if !name.is_empty() {
+            if let Some(name) = key_encoding::utf8_suffix_after_prefix(&raw_key, &prefix) {
                 collections.push(name);
             }
         }

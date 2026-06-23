@@ -173,7 +173,7 @@ fn should_report_zero_rows_for_delete_without_matches() {
 }
 
 #[test]
-fn should_delete_legacy_fallback_key_for_sql_delete() {
+fn should_ignore_legacy_fallback_key_for_sql_delete() {
     // Arrange
     with_fallback();
     let path = data_dir("delete_legacy_cleanup");

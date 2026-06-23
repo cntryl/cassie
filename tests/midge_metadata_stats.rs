@@ -314,10 +314,9 @@ fn should_cleanup_column_store_keys_after_collection_rename_then_drop() {
             )
             .unwrap();
 
-        let original_prefix = format!("__cassie__/column-store/v1/{collection}/");
-        assert!(!cassie
+        assert!(cassie
             .midge
-            .raw_scan_prefix(StorageFamily::Data, original_prefix.as_bytes())
+            .raw_scan_prefix(StorageFamily::Data, b"__cassie__/column-store/v1/")
             .unwrap()
             .is_empty());
 
@@ -328,7 +327,6 @@ fn should_cleanup_column_store_keys_after_collection_rename_then_drop() {
             .collection_metadata(renamed)
             .unwrap()
             .expect("collection metadata");
-        let renamed_prefix = format!("__cassie__/column-store/v1/{renamed}/");
         let moved = cassie.midge.get_document(renamed, "doc-1").unwrap();
         cassie.midge.drop_collection(renamed).unwrap();
 
@@ -337,12 +335,7 @@ fn should_cleanup_column_store_keys_after_collection_rename_then_drop() {
         assert!(moved.is_some());
         assert!(cassie
             .midge
-            .raw_scan_prefix(StorageFamily::Data, original_prefix.as_bytes())
-            .unwrap()
-            .is_empty());
-        assert!(cassie
-            .midge
-            .raw_scan_prefix(StorageFamily::Data, renamed_prefix.as_bytes())
+            .raw_scan_prefix(StorageFamily::Data, b"__cassie__/column-store/v1/")
             .unwrap()
             .is_empty());
         assert!(cassie.midge.collection_metadata(renamed).unwrap().is_none());
@@ -385,12 +378,9 @@ fn should_persist_projection_metadata_in_schema_family() {
             .projection_metadata(collection)
             .unwrap()
             .expect("projection metadata should exist");
-        let raw_entries = cassie
+        let legacy_entries = cassie
             .midge
-            .raw_scan_prefix(
-                StorageFamily::Schema,
-                format!("__cassie__/projection/{collection}").as_bytes(),
-            )
+            .raw_scan_prefix(StorageFamily::Schema, b"__cassie__/projection/")
             .unwrap();
 
         // Assert
@@ -399,7 +389,7 @@ fn should_persist_projection_metadata_in_schema_family() {
         assert_eq!(metadata.offset, 0);
         assert_eq!(metadata.lag, 0);
         assert_eq!(metadata.rebuild_state, ProjectionRebuildState::Idle);
-        assert_eq!(raw_entries.len(), 1);
+        assert!(legacy_entries.is_empty());
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -449,7 +439,7 @@ fn should_hydrate_projection_metadata_during_startup() {
 }
 
 #[test]
-fn should_hydrate_legacy_projection_metadata_with_unknown_freshness() {
+fn should_reject_legacy_projection_metadata_on_reopen() {
     // Arrange
     let path = data_dir("projection_metadata_legacy");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -458,52 +448,38 @@ fn should_hydrate_legacy_projection_metadata_with_unknown_freshness() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.midge.ensure_families_ready().unwrap();
-        let collection = "legacy_projection_metadata";
-        cassie
-            .midge
-            .create_collection(
-                collection,
-                Schema {
-                    fields: vec![FieldSchema {
-                        name: "title".to_string(),
-                        data_type: DataType::Text,
-                        nullable: true,
-                    }],
-                },
+        {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.midge.ensure_families_ready().unwrap();
+            let legacy = serde_json::json!({
+                "collection": "legacy_projection_metadata",
+                "schema_version": 1,
+                "offset": 9,
+                "lag": 2,
+                "rebuild_state": "idle"
+            });
+            let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
+            tx.put(
+                b"__cassie__/projection/legacy_projection_metadata".to_vec(),
+                legacy.to_string().into_bytes(),
+                None,
             )
             .unwrap();
-        let legacy = serde_json::json!({
-            "collection": collection,
-            "schema_version": 1,
-            "offset": 9,
-            "lag": 2,
-            "rebuild_state": "idle"
-        });
-        let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
-        tx.put(
-            format!("__cassie__/projection/{collection}").into_bytes(),
-            legacy.to_string().into_bytes(),
-            None,
-        )
-        .unwrap();
-        tx.commit(cntryl_midge::WriteOptions::sync()).unwrap();
+            tx.commit(cntryl_midge::WriteOptions::sync()).unwrap();
+        }
 
         // Act
-        let metadata = cassie
-            .midge
-            .projection_metadata(collection)
-            .unwrap()
-            .expect("legacy projection metadata");
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        let result = restarted.startup();
 
         // Assert
-        assert_eq!(metadata.collection, collection);
-        assert_eq!(metadata.offset, 9);
-        assert_eq!(metadata.lag, 2);
-        assert_eq!(metadata.freshness, ProjectionFreshness::Unknown);
-        assert!(metadata.source_identity.is_none());
-        assert!(metadata.last_error.is_none());
+        let error = result.expect_err("legacy projection metadata should reject v2 startup");
+        assert!(
+            error
+                .to_string()
+                .contains("incompatible lexkey v2 storage layout"),
+            "unexpected error: {error}"
+        );
 
         let _ = std::fs::remove_dir_all(path);
     });

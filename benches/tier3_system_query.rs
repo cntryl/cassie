@@ -4,14 +4,30 @@ use criterion::{
 
 #[path = "support/criterion_config.rs"]
 mod criterion_config;
+#[path = "support/performance_benchmarks.rs"]
+mod performance_benchmarks;
 #[path = "support/workloads.rs"]
 mod workloads;
 
 fn bench_query(c: &mut Criterion) {
+    const BENCHMARK: &str = "tier3_system_query";
+
     let runtime = workloads::runtime();
-    let ctx = runtime
+    let ctx_10k = runtime
         .block_on(workloads::context("tier3-query", 10_000))
         .expect("benchmark context");
+    let ctx_100k = runtime
+        .block_on(workloads::unindexed_context("tier3-query-100k", 100_000))
+        .expect("100k benchmark context");
+    let time_series_ctx_10k = runtime
+        .block_on(workloads::time_series_context("tier3-query-ts", 10_000))
+        .expect("time-series benchmark context");
+    let time_series_ctx_100k = runtime
+        .block_on(workloads::time_series_context(
+            "tier3-query-ts-100k",
+            100_000,
+        ))
+        .expect("100k time-series benchmark context");
 
     let mut group = c.benchmark_group("tier3_system_query");
     group.sampling_mode(SamplingMode::Flat);
@@ -21,7 +37,7 @@ fn bench_query(c: &mut Criterion) {
         (
             "simple_sql_query",
             "10k",
-            "SELECT id, title FROM bench_documents WHERE title = 'title-1'",
+            "SELECT id, title FROM bench_documents WHERE id = 'doc-1'",
         ),
         (
             "indexed_filter_query",
@@ -56,10 +72,37 @@ fn bench_query(c: &mut Criterion) {
     ];
 
     for (name, dataset, sql) in cases {
+        if name == "simple_sql_query" {
+            performance_benchmarks::expect_benchmark(BENCHMARK, name, dataset);
+        }
         group.bench_function(BenchmarkId::new(name, dataset), |b| {
-            b.iter(|| runtime.block_on(workloads::execute_sql(&ctx, sql)))
+            b.iter(|| runtime.block_on(workloads::execute_sql(&ctx_10k, sql)))
         });
     }
+    let benchmark = performance_benchmarks::expect_benchmark(BENCHMARK, "simple_sql_query", "100k");
+    group.bench_function(
+        BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
+        |b| {
+            b.iter(|| {
+                runtime.block_on(workloads::execute_sql(
+                    &ctx_100k,
+                    "SELECT id, title FROM bench_documents WHERE id = 'doc-1'",
+                ))
+            })
+        },
+    );
+    let ts_10k =
+        performance_benchmarks::expect_benchmark(BENCHMARK, "time_series_window_scan", "10k");
+    group.bench_function(
+        BenchmarkId::new(ts_10k.workload, ts_10k.fixture_scale),
+        |b| b.iter(|| runtime.block_on(workloads::time_series_window_scan(&time_series_ctx_10k))),
+    );
+    let ts_100k =
+        performance_benchmarks::expect_benchmark(BENCHMARK, "time_series_window_scan", "100k");
+    group.bench_function(
+        BenchmarkId::new(ts_100k.workload, ts_100k.fixture_scale),
+        |b| b.iter(|| runtime.block_on(workloads::time_series_window_scan(&time_series_ctx_100k))),
+    );
 
     group.finish();
 }

@@ -7,8 +7,9 @@ use parking_lot::RwLock;
 use crate::catalog::{
     normalize_role_name, CollectionCardinalityStats, CollectionMeta, CollectionSchema,
     CollectionStorageMode, FieldConstraint, FieldMeta, FunctionMeta, IndexKind, IndexMeta,
-    NamespaceMeta, ProcedureMeta, ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta,
-    ProjectionKind, ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
+    NamespaceMeta, OperationalAssignmentMeta, ProcedureMeta, ProjectionComparisonReportMeta,
+    ProjectionConsistencyReportMeta, ProjectionKind, ProjectionMeta, ProjectionRepairReportMeta,
+    RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
@@ -32,6 +33,8 @@ pub struct Catalog {
     pub projection_comparison_reports: Arc<RwLock<HashMap<String, ProjectionComparisonReportMeta>>>,
     pub projection_consistency_reports:
         Arc<RwLock<HashMap<String, ProjectionConsistencyReportMeta>>>,
+    pub projection_repair_reports: Arc<RwLock<HashMap<String, ProjectionRepairReportMeta>>>,
+    pub operational_assignments: Arc<RwLock<HashMap<String, OperationalAssignmentMeta>>>,
     version: Arc<AtomicU64>,
 }
 
@@ -54,6 +57,8 @@ impl Catalog {
             cardinality: Arc::new(RwLock::new(HashMap::new())),
             projection_comparison_reports: Arc::new(RwLock::new(HashMap::new())),
             projection_consistency_reports: Arc::new(RwLock::new(HashMap::new())),
+            projection_repair_reports: Arc::new(RwLock::new(HashMap::new())),
+            operational_assignments: Arc::new(RwLock::new(HashMap::new())),
             version: Arc::new(AtomicU64::new(0)),
         }
     }
@@ -417,6 +422,8 @@ impl Catalog {
         self.cardinality.write().clear();
         self.projection_comparison_reports.write().clear();
         self.projection_consistency_reports.write().clear();
+        self.projection_repair_reports.write().clear();
+        self.operational_assignments.write().clear();
         self.bump_version();
     }
 
@@ -444,6 +451,9 @@ impl Catalog {
         self.projection_consistency_reports
             .write()
             .retain(|_, report| report.projection_id != collection);
+        self.projection_repair_reports
+            .write()
+            .retain(|_, report| report.projection_name != collection);
         self.bump_version();
     }
 

@@ -17,67 +17,80 @@ use uuid::Uuid;
 mod support;
 use support::*;
 
-#[tokio::test]
-async fn execute_query_supports_projection_aliases_for_function_columns() {
+#[test]
+fn should_support_projection_aliases_for_function_columns() {
+    // Arrange
     with_fallback();
-    let cassie = Cassie::new().unwrap();
-    let collection = "exec_function_alias";
+    let path = data_dir("function_alias");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
 
-    let schema = Schema {
-        fields: vec![
-            FieldSchema {
-                name: "title".to_string(),
-                data_type: DataType::Text,
-                nullable: true,
-            },
-            FieldSchema {
-                name: "body".to_string(),
-                data_type: DataType::Text,
-                nullable: true,
-            },
-        ],
-    };
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "exec_function_alias";
 
-    cassie
-        .midge
-        .create_collection(collection, schema.clone())
-        .unwrap();
-    cassie.register_collection(
-        collection,
-        schema
-            .fields
-            .iter()
-            .map(|field| (field.name.clone(), field.data_type.clone()))
-            .collect(),
-    );
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        };
 
-    cassie
-        .midge
-        .put_document(
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(
             collection,
-            Some("d1".to_string()),
-            serde_json::json!({"title": "alpha", "body": "lorem world"}),
-        )
-        .unwrap();
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
 
-    let session = cassie.create_session("tester", None);
-    let result = cassie
-        .execute_sql(
-            &session,
-            "SELECT search_score(body, 'world') AS score FROM exec_function_alias WHERE title = 'alpha'",
-            vec![],
-        )
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"title": "alpha", "body": "lorem world"}),
+            )
+            .unwrap();
 
-.expect("query should execute");
+        let session = cassie.create_session("tester", None);
 
-    assert_eq!(result.columns.len(), 1);
-    assert_eq!(result.columns[0].name, "score");
-    assert_eq!(result.rows.len(), 1);
-    assert_eq!(result.rows[0].len(), 1);
-    match &result.rows[0][0] {
-        cassie::types::Value::Float64(score) => assert!(*score > 0.0),
-        _ => panic!("expected float score"),
-    }
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT search_score(body, 'world') AS score FROM exec_function_alias WHERE title = 'alpha'",
+                vec![],
+            )
+            .expect("query should execute");
+
+        // Assert
+        assert_eq!(result.columns.len(), 1);
+        assert_eq!(result.columns[0].name, "score");
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0].len(), 1);
+        match &result.rows[0][0] {
+            cassie::types::Value::Float64(score) => assert!(*score > 0.0),
+            _ => panic!("expected float score"),
+        }
+
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
 #[test]
@@ -90,7 +103,7 @@ fn should_project_function_columns() {
 
     runtime.block_on(async {
         with_fallback();
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_projection_mix";
 
         let schema = Schema {
@@ -176,7 +189,7 @@ fn should_fail_unknown_function_during_execution() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new().unwrap();
+        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_unknown_function";
 
         let schema = Schema {

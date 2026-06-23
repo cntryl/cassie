@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -80,12 +81,108 @@ impl CompatibilityServer {
         let _ = self.server.await;
         let _ = std::fs::remove_dir_all(self.data_dir);
     }
+
+    async fn shutdown_without_client(self) {
+        self.server.abort();
+        let _ = self.server.await;
+        let _ = std::fs::remove_dir_all(self.data_dir);
+    }
 }
 
 fn db_error(error: &tokio_postgres::Error) -> &DbError {
     error
         .as_db_error()
         .expect("tokio-postgres should return a database error")
+}
+
+#[test]
+fn should_document_read_model_client_matrix() {
+    // Arrange
+    let docs = std::fs::read_to_string("docs/postgres-compatibility.md")
+        .expect("read PostgreSQL compatibility docs");
+    let required_clients = [
+        "tokio-postgres",
+        "psql",
+        "sqlx",
+        "diesel",
+        "prisma",
+        "SQLAlchemy",
+        "migration tools",
+    ];
+
+    // Act
+    let missing = required_clients
+        .into_iter()
+        .filter(|client| !docs.contains(client))
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert!(
+        missing.is_empty(),
+        "missing client matrix rows: {missing:?}"
+    );
+    assert!(docs.contains("read-model workflows"));
+    assert!(docs.contains("not full PostgreSQL server equivalence"));
+}
+
+#[test]
+#[ignore = "requires local psql; run with CASSIE_RUN_PSQL_COMPAT=1 cargo test --locked --test compatibility_matrix should_validate_psql_read_model_probe_when_enabled -- --ignored --nocapture"]
+fn should_validate_psql_read_model_probe_when_enabled() {
+    // Arrange
+    if std::env::var("CASSIE_RUN_PSQL_COMPAT").ok().as_deref() != Some("1") {
+        eprintln!("set CASSIE_RUN_PSQL_COMPAT=1 to run the optional psql probe");
+        return;
+    }
+    let psql_bin = std::env::var("CASSIE_PSQL_BIN").unwrap_or_else(|_| "psql".to_string());
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("psql_probe").await;
+        let connection = format!("postgresql://postgres@127.0.0.1:{}/postgres", server.addr.port());
+
+        // Act
+        let output = Command::new(psql_bin)
+            .args([
+                "-X",
+                "--tuples-only",
+                "--no-align",
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-d",
+                &connection,
+                "-c",
+                "CREATE TABLE compat_psql_probe (title TEXT); INSERT INTO compat_psql_probe (title) VALUES ('alpha'); SELECT title FROM compat_psql_probe ORDER BY title;",
+            ])
+            .output();
+        let output = match output {
+            Ok(output) => output,
+            Err(error) => {
+                server.shutdown_without_client().await;
+                panic!("run psql compatibility probe: {error}");
+            }
+        };
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let success = output.status.success();
+        let status_code = output.status.code();
+        let returned_alpha = stdout.lines().any(|line| line.trim() == "alpha");
+        let stdout = stdout.to_string();
+        let stderr = stderr.to_string();
+        server.shutdown_without_client().await;
+
+        // Assert
+        assert!(
+            success,
+            "psql failed with status {:?}\nstdout:\n{}\nstderr:\n{}",
+            status_code,
+            stdout,
+            stderr
+        );
+        assert!(returned_alpha);
+    });
 }
 
 #[test]

@@ -224,6 +224,74 @@ fn should_enforce_retention_idempotently() {
 }
 
 #[test]
+fn should_mark_materialized_projection_stale_after_retention() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("retention_projection_stale");
+
+    runtime().block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE retention_projection_events (event_at TEXT, title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        for sql in [
+            "INSERT INTO retention_projection_events (event_at, title) VALUES ('2026-01-01T00:00:00Z', 'old')",
+            "INSERT INTO retention_projection_events (event_at, title) VALUES ('2026-01-02T12:00:00Z', 'fresh')",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).unwrap();
+        }
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE MATERIALIZED PROJECTION retention_projection_view AS SELECT title FROM retention_projection_events",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE RETENTION POLICY retention_projection_policy ON retention_projection_events USING event_at RETAIN FOR '1 day'",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "ENFORCE RETENTION POLICY retention_projection_policy AT '2026-01-03T00:00:00Z'",
+                vec![],
+            )
+            .unwrap();
+        let operations = cassie
+            .execute_sql(
+                &session,
+                "SELECT freshness, rebuild_state, verification_state FROM pg_catalog.pg_projection_operations WHERE projection_name = 'retention_projection_view'",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            operations.rows,
+            vec![vec![
+                Value::String("stale".to_string()),
+                Value::String("idle".to_string()),
+                Value::String("pending".to_string()),
+            ]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_refresh_rollup_after_retention_enforcement() {
     // Arrange
     with_fallback();

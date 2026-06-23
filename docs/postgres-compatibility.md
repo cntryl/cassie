@@ -29,7 +29,8 @@ Supported:
 - row_number, rank, dense_rank, lag, lead, first_value, and last_value.
 - INSERT, UPDATE, DELETE, and RETURNING.
 - BEGIN, COMMIT, ROLLBACK, SAVEPOINT, ROLLBACK TO, and RELEASE SAVEPOINT.
-- CREATE TABLE, ALTER TABLE, DROP TABLE, CREATE SCHEMA, DROP SCHEMA, CREATE INDEX, DROP INDEX, CREATE VIEW, DROP VIEW, CREATE PROCEDURE, and CALL.
+- CREATE TABLE, ALTER TABLE, DROP TABLE, CREATE SCHEMA, DROP SCHEMA, CREATE INDEX, DROP INDEX, CREATE VIEW, and DROP VIEW.
+- Limited experimental CREATE PROCEDURE and CALL support for compatibility/admin workflows.
 - CAST(x AS type) and PostgreSQL-style x::type casts.
 
 Cassie-specific read-model commands:
@@ -43,6 +44,7 @@ Unsupported or not yet guaranteed:
 
 - Full PostgreSQL grammar parity.
 - PostgreSQL table inheritance, partitions, storage parameters, operator classes, collations, deferrable constraints, security-barrier views, updatable views, and procedural language parity.
+- Stored-procedure business-logic platforms, triggers, PL/pgSQL, dynamic SQL, exception blocks, procedure-local transaction control, recursive procedure workflows, and trigger-driven application behavior.
 - Full PostgreSQL system catalog parity.
 - PostgreSQL optimizer hint behavior or EXPLAIN output parity.
 
@@ -51,6 +53,7 @@ Intentional differences:
 - Cassie stores tables as Midge-backed collections and row blobs.
 - Cassie materialized projections are read-only projection outputs with Cassie-specific lifecycle and versioning commands.
 - Cassie treats DML and transactions as projection-state mutation and operational correction tools, not a general OLTP workload contract.
+- Cassie procedure support executes supported Cassie SQL with Cassie semantics; it is not PostgreSQL procedural-language compatibility.
 - Cassie planner and executor may choose index, full-text, vector, hybrid, column-batch, or aggregate-acceleration paths that PostgreSQL does not have.
 - Some catalog rows are compatibility shims over Cassie metadata.
 
@@ -90,14 +93,28 @@ Unsupported or not yet guaranteed:
 - Complete `information_schema` parity.
 - All ORM-specific introspection probes.
 
-The compatibility matrix should grow around real read-model client workflows:
+## Client Compatibility Matrix
 
-- psql query, describe, and operational inspection flows.
-- sqlx prepared-query and catalog-probe flows.
-- diesel schema/query flows for supported projection tables.
-- prisma introspection and read/query flows where compatible.
-- SQLAlchemy reflection and query flows.
-- Common migration tools for supported schema and projection metadata operations.
+The matrix tracks read-model workflows, not full PostgreSQL server equivalence. A client is supported only for the specific connection, query, catalog, projection, and error-handling behavior listed here.
+
+| Client/workflow | Status | Validated read-model workflows | Validation |
+| --- | --- | --- | --- |
+| `tokio-postgres` | Supported baseline | Startup without password, simple query, extended prepared query, DDL/DML round trip, `ON CONFLICT`, foreign-key errors, NOT NULL/unique SQLSTATE metadata, recursive CTEs, syntax-error recovery, selected catalog metadata | Default `cargo test --locked --test compatibility_matrix` |
+| `psql` | Experimental opt-in | Non-interactive connection, simple DDL/DML, simple SELECT output, and operational smoke usage against pgwire | Ignored `should_validate_psql_read_model_probe_when_enabled`; run `CASSIE_RUN_PSQL_COMPAT=1 cargo test --locked --test compatibility_matrix should_validate_psql_read_model_probe_when_enabled -- --ignored --nocapture` with local `psql` installed. Set `CASSIE_PSQL_BIN` to override the binary. |
+| `sqlx` | Untested/planned | Prepared read queries, connection pooling, compile-time or offline query checks for supported SQL, catalog probes used by migrations | No automated probe yet |
+| `diesel` | Untested/planned | Projection-table reads and supported schema metadata where Diesel does not require unsupported PostgreSQL catalog parity | No automated probe yet |
+| `prisma` | Untested/planned | Introspection and read queries for compatible projection tables where Prisma does not require unsupported catalog/DDL features | No automated probe yet |
+| `SQLAlchemy` | Untested/planned | Reflection and read queries over supported tables/views; SQLAlchemy Core query execution where generated SQL stays inside Cassie's supported surface | No automated probe yet |
+| Common migration tools | Experimental/documented | Supported DDL through pgwire: schemas, tables, constraints, indexes, and views that map to Cassie SQL | Use tool-specific dry runs against a disposable Cassie node; advanced PostgreSQL migration features remain unsupported unless documented separately |
+
+Unsupported or out-of-scope for client compatibility:
+
+- PostgreSQL server parity checks that require complete `pg_catalog` or `information_schema` behavior.
+- Client workflows requiring extensions, triggers, PL/pgSQL, stored-procedure business logic, LISTEN/NOTIFY, COPY, table inheritance, partitions, logical replication, advisory locks, two-phase commit, or PostgreSQL storage parameters.
+- ORM-generated OLTP workloads that depend on distributed transactions, row-locking semantics, trigger business logic, or PostgreSQL optimizer behavior.
+- Migration diffs that assume PostgreSQL-owned physical storage, operator classes, collations, or extension-managed metadata.
+
+Future client probes should stay isolated from the default suite unless the dependency is lightweight, deterministic, and available without external services.
 
 ## Cassie-Specific SQL and APIs
 

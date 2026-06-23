@@ -1,0 +1,204 @@
+#![allow(unused_imports, dead_code)]
+
+use cassie::app::{Cassie, CassieSnapshotManifest, CassieSnapshotOptions};
+use cassie::app::{ProjectionReplayBatch, ProjectionReplayEvent};
+use cassie::types::Value;
+
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
+
+fn seed_replayed_projection(path: &str, table: &str) {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                &format!("CREATE TABLE {table} (title TEXT, score INT)"),
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .replay_projection_batch(ProjectionReplayBatch {
+                projection: table.to_string(),
+                source_identity: "orders-stream".to_string(),
+                batch_id: "batch-1".to_string(),
+                lag: 0,
+                events: vec![ProjectionReplayEvent {
+                    event_id: "event-1".to_string(),
+                    checkpoint: "checkpoint-1".to_string(),
+                    position: Some(1),
+                    document_id: "doc-1".to_string(),
+                    payload: Some(serde_json::json!({"title": "alpha", "score": 10})),
+                }],
+            })
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                &format!("VERIFY PROJECTION {table} MODE full"),
+                vec![],
+            )
+            .unwrap();
+        drop(cassie);
+    });
+}
+
+#[test]
+fn should_create_snapshot_manifest_with_projection_checkpoint_hash_metadata() {
+    // Arrange
+    with_fallback();
+    let source = data_dir("snapshot_manifest_source");
+    let snapshot = data_dir("snapshot_manifest_bundle");
+    seed_replayed_projection(&source, "snapshot_manifest_docs");
+
+    // Act
+    let manifest = Cassie::create_snapshot_from_data_dir(
+        &source,
+        &snapshot,
+        CassieSnapshotOptions {
+            generated_ms: Some(1_234),
+        },
+    )
+    .unwrap();
+    let manifest_path = std::path::Path::new(&snapshot).join("cassie-snapshot-manifest.json");
+    let manifest_file: CassieSnapshotManifest =
+        serde_json::from_slice(&std::fs::read(manifest_path).unwrap()).unwrap();
+
+    // Assert
+    assert_eq!(manifest, manifest_file);
+    assert_eq!(manifest.format_version, 1);
+    assert_eq!(manifest.cassie_version, env!("CARGO_PKG_VERSION"));
+    assert_eq!(manifest.generated_ms, 1_234);
+    assert_eq!(manifest.compatibility_status, "compatible");
+    assert_eq!(manifest.midge_data_path, "midge");
+    assert!(manifest.schema_epoch >= 1);
+    let projection = manifest
+        .projections
+        .iter()
+        .find(|projection| projection.projection_id == "snapshot_manifest_docs")
+        .expect("projection manifest");
+    assert_eq!(projection.source_identity.as_deref(), Some("orders-stream"));
+    assert_eq!(
+        projection.source_checkpoint.as_deref(),
+        Some("checkpoint-1")
+    );
+    assert_eq!(projection.source_position, Some(1));
+    assert_eq!(projection.hash.algorithm, "cassie-fnv128");
+    assert_eq!(projection.hash.digest_length, 16);
+    assert!(projection.hash.root_digest.is_some());
+    assert_eq!(projection.hash.root_state, "current");
+
+    let _ = std::fs::remove_dir_all(source);
+    let _ = std::fs::remove_dir_all(snapshot);
+}
+
+#[test]
+fn should_restore_snapshot_to_new_data_dir_for_startup_query() {
+    // Arrange
+    with_fallback();
+    let source = data_dir("snapshot_restore_source");
+    let snapshot = data_dir("snapshot_restore_bundle");
+    let restored = data_dir("snapshot_restore_restored");
+    seed_replayed_projection(&source, "snapshot_restore_docs");
+    Cassie::create_snapshot_from_data_dir(
+        &source,
+        &snapshot,
+        CassieSnapshotOptions {
+            generated_ms: Some(2_468),
+        },
+    )
+    .unwrap();
+
+    // Act
+    let restored_manifest = Cassie::restore_snapshot(&snapshot, &restored).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&restored).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT title, score FROM snapshot_restore_docs ORDER BY title",
+                vec![],
+            )
+            .unwrap();
+        let checkpoint = cassie
+            .execute_sql(
+                &session,
+                "SELECT source_checkpoint, last_applied_event_id, freshness FROM pg_catalog.pg_projection_checkpoints WHERE collection = 'snapshot_restore_docs'",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(restored_manifest.generated_ms, 2_468);
+        assert_eq!(
+            selected.rows,
+            vec![vec![Value::String("alpha".to_string()), Value::Int64(10)]]
+        );
+        assert_eq!(
+            checkpoint.rows,
+            vec![vec![
+                Value::String("checkpoint-1".to_string()),
+                Value::String("event-1".to_string()),
+                Value::String("fresh".to_string()),
+            ]]
+        );
+
+        let _ = std::fs::remove_dir_all(source);
+        let _ = std::fs::remove_dir_all(snapshot);
+        let _ = std::fs::remove_dir_all(restored);
+    });
+}
+
+#[test]
+fn should_reject_incompatible_snapshot_manifest_before_restore() {
+    // Arrange
+    with_fallback();
+    let source = data_dir("snapshot_incompatible_source");
+    let snapshot = data_dir("snapshot_incompatible_bundle");
+    let restored = data_dir("snapshot_incompatible_restored");
+    seed_replayed_projection(&source, "snapshot_incompatible_docs");
+    Cassie::create_snapshot_from_data_dir(
+        &source,
+        &snapshot,
+        CassieSnapshotOptions {
+            generated_ms: Some(3_579),
+        },
+    )
+    .unwrap();
+    let manifest_path = std::path::Path::new(&snapshot).join("cassie-snapshot-manifest.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["format_version"] = serde_json::json!(99);
+    std::fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
+
+    // Act
+    let error = Cassie::restore_snapshot(&snapshot, &restored).unwrap_err();
+
+    // Assert
+    assert!(error
+        .to_string()
+        .contains("snapshot manifest version 99 is unsupported"));
+    assert!(!std::path::Path::new(&restored).exists());
+
+    let _ = std::fs::remove_dir_all(source);
+    let _ = std::fs::remove_dir_all(snapshot);
+}

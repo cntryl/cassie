@@ -64,6 +64,8 @@ pub enum LogicalCommand {
     VerifyProjection(VerifyProjectionStatement),
     DiffProjection(crate::sql::ast::DiffProjectionStatement),
     CompareProjection(crate::sql::ast::CompareProjectionStatement),
+    PlanRepairProjection(crate::sql::ast::PlanRepairProjectionStatement),
+    RepairProjection(crate::sql::ast::RepairProjectionStatement),
     CreateRetentionPolicy(crate::sql::ast::CreateRetentionPolicyStatement),
     AlterRetentionPolicy(AlterRetentionPolicyStatement),
     DropRetentionPolicy(DropRetentionPolicyStatement),
@@ -227,6 +229,16 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
             &statement.target.name,
             "COMPARE PROJECTION requires a name",
             LogicalCommand::CompareProjection(statement.clone()),
+        ),
+        QueryStatement::PlanRepairProjection(statement) => plan_named_command(
+            &statement.target.name,
+            "PLAN REPAIR PROJECTION requires a name",
+            LogicalCommand::PlanRepairProjection(statement.clone()),
+        ),
+        QueryStatement::RepairProjection(statement) => plan_named_command(
+            &statement.target.name,
+            "REPAIR PROJECTION requires a name",
+            LogicalCommand::RepairProjection(statement.clone()),
         ),
         QueryStatement::CreateRetentionPolicy(statement) => plan_named_command(
             &statement.name,

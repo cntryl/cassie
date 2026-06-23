@@ -145,7 +145,7 @@ fn should_execute_query_respects_boolean_precedence() {
     // Act
     // Assert
     with_fallback();
-    let cassie = Cassie::new().unwrap();
+    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_precedence";
 
     let schema = Schema {
@@ -238,7 +238,7 @@ fn should_execute_query_parentheses_override_precedence() {
     // Act
     // Assert
     with_fallback();
-    let cassie = Cassie::new().unwrap();
+    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_precedence_paren";
 
     let schema = Schema {
@@ -331,7 +331,7 @@ fn should_execute_query_with_non_recursive_cte() {
     // Act
     // Assert
     with_fallback();
-    let cassie = Cassie::new().unwrap();
+    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_cte_simple";
 
     let schema = Schema {
@@ -401,7 +401,7 @@ fn should_execute_query_with_ordered_cte_dependencies() {
     // Act
     // Assert
     with_fallback();
-    let cassie = Cassie::new().unwrap();
+    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_cte_dependency";
 
     let schema = Schema {
@@ -462,7 +462,7 @@ fn should_execute_query_passes_params_to_cte_main_query() {
     // Act
     // Assert
     with_fallback();
-    let cassie = Cassie::new().unwrap();
+    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_cte_params";
 
     let schema = Schema {
@@ -523,7 +523,7 @@ fn should_execute_recursive_cte_until_stabilization() {
     // Act
     // Assert
     with_fallback();
-    let cassie = Cassie::new().unwrap();
+    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_cte_recursive";
 
     let schema = Schema {
@@ -583,7 +583,7 @@ fn should_execute_recursive_cte_enforces_depth_limit_when_no_stabilization() {
     // Act
     // Assert
     with_fallback();
-    let cassie = Cassie::new().unwrap();
+    let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_cte_infinite";
 
     let schema = Schema {

@@ -120,6 +120,27 @@ impl Cassie {
             self.catalog.register_projection_consistency_report(report);
         }
 
+        let repair_reports = self
+            .midge
+            .list_projection_repair_reports()
+            .map_err(|error| {
+                self.runtime.record_storage_access("schema", false, false);
+                CassieError::Storage(format!("list projection repair reports: {error}"))
+            })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for report in repair_reports {
+            self.catalog.register_projection_repair_report(report);
+        }
+
+        let assignments = self.midge.list_operational_assignments().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list operational assignments: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for assignment in assignments {
+            self.catalog.register_operational_assignment(assignment);
+        }
+
         let indexes = self.midge.list_vector_indexes().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list vector indexes: {error}"))

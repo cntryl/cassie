@@ -48,13 +48,10 @@ impl Midge {
         };
 
         let mut namespaces = Vec::new();
+        let namespace_prefix = Self::namespace_prefix();
         while let Some((raw_key, _raw_value)) = scan.next() {
-            let key = String::from_utf8(raw_key).unwrap_or_default();
-            let name = key
-                .strip_prefix(SCHEMA_NAMESPACE_KEY_PREFIX)
-                .unwrap_or("")
-                .to_string();
-            if !name.is_empty() {
+            if let Some(name) = key_encoding::utf8_suffix_after_prefix(&raw_key, &namespace_prefix)
+            {
                 namespaces.push(name);
             }
         }
@@ -110,13 +107,11 @@ impl Midge {
             let mut scan = tx
                 .scan(&Query::new().prefix(Self::namespace_prefix().into()))
                 .map_err(CassieError::from)?;
+            let namespace_prefix = Self::namespace_prefix();
             while let Some((raw_key, _raw_value)) = scan.next() {
-                let key = String::from_utf8(raw_key).unwrap_or_default();
-                let name = key
-                    .strip_prefix(SCHEMA_NAMESPACE_KEY_PREFIX)
-                    .unwrap_or("")
-                    .to_string();
-                if !name.is_empty() {
+                if let Some(name) =
+                    key_encoding::utf8_suffix_after_prefix(&raw_key, &namespace_prefix)
+                {
                     namespaces.push(name);
                 }
             }
@@ -814,32 +809,46 @@ impl Midge {
             .map_err(CassieError::from)?;
 
         let mut data_tx = self.begin_data_rw_tx()?;
-        for (current_prefix, next_prefix) in [
-            (Self::row_prefix(current_name), Self::row_prefix(next_name)),
-            (Self::doc_prefix(current_name), Self::doc_prefix(next_name)),
+        for (current_prefix, next_prefix, is_normalized_vector) in [
+            (
+                Self::row_prefix(current_name),
+                Self::row_prefix(next_name),
+                false,
+            ),
+            (
+                Self::doc_prefix(current_name),
+                Self::doc_prefix(next_name),
+                false,
+            ),
             (
                 Self::scalar_index_collection_prefix(current_name),
                 Self::scalar_index_collection_prefix(next_name),
+                false,
             ),
             (
                 Self::normalized_vector_collection_prefix(current_name),
                 Self::normalized_vector_collection_prefix(next_name),
+                true,
             ),
             (
                 Self::column_store_collection_prefix(current_name),
                 Self::column_store_collection_prefix(next_name),
+                false,
             ),
             (
                 Self::column_batch_collection_prefix(current_name),
                 Self::column_batch_collection_prefix(next_name),
+                false,
             ),
             (
                 Self::row_hash_prefix(current_name),
                 Self::row_hash_prefix(next_name),
+                false,
             ),
             (
                 Self::range_hash_prefix(current_name),
                 Self::range_hash_prefix(next_name),
+                false,
             ),
         ] {
             let mut documents = data_tx
@@ -854,7 +863,7 @@ impl Midge {
                 if let Some(id) = key.strip_prefix(current_prefix.as_slice()) {
                     data_tx.delete(key.clone()).map_err(CassieError::from)?;
 
-                    if current_prefix.starts_with(NORMALIZED_VECTOR_PREFIX.as_bytes()) {
+                    if is_normalized_vector {
                         let mut record: NormalizedVectorRecord =
                             serde_json::from_slice(&value).map_err(|error| {
                                 CassieError::Parse(format!(

@@ -15,6 +15,8 @@ Feature priority is determined by read-model need. If users need a capability to
 | Planned | Feature area is accepted on the roadmap but not fully implemented. |
 | Production-ready | Implemented, tested, documented, benchmarked where performance-sensitive, and compatibility boundaries are explicit. |
 
+See [Production Readiness](production-readiness.md) for feature-family readiness, evidence, operational signals, restart coverage, and blockers. Roadmap implementation status does not by itself promote a feature to production-ready.
+
 ## Projection Lifecycle & Replay Safety
 
 Goal: make projection construction, replay, rebuilds, freshness, and activation deterministic and observable.
@@ -41,6 +43,7 @@ Goal: prove rebuilt read models and derived state are internally consistent befo
 | Rebuild verification | Implemented | Experimental Cassie-specific |
 | Integrity verification | Implemented | Experimental Cassie-specific |
 | Projection diffing and manifest comparison | Implemented baseline | Experimental Cassie-specific |
+| Projection repair planning and local repair audit | Implemented baseline | Experimental Cassie-specific admin workflow |
 | Multi-instance consistency checks | Implemented baseline | Cassie-specific |
 
 ## SQL Foundation
@@ -69,7 +72,7 @@ Goal: make schema definition, metadata, and introspection predictable for users 
 | Tables and schemas | Implemented | Stable |
 | Constraints and defaults | Implemented | Stable |
 | Views and nested views | Implemented | Stable |
-| Procedures and CALL | Implemented | Experimental |
+| Limited procedures and CALL | Implemented | Experimental compatibility/admin surface |
 | Catalog metadata and virtual views | Implemented | Experimental |
 | Client catalog probes | Implemented | Experimental |
 
@@ -116,7 +119,8 @@ Goal: provide analytical read acceleration and operational visibility while keep
 | Rollups | Implemented | Experimental |
 | Retention policies | Implemented | Experimental explicit enforcement |
 | Time-series index metadata and range planning | Implemented baseline | Experimental |
-| Time-series index storage maintenance and bucket scans | Planned | Experimental |
+| Time-series row-backed range scans and bucket diagnostics | Implemented baseline | Experimental |
+| Persisted bucket-native time-series index storage | Planned by depth | Experimental |
 | Analytical projection options and covered-query routing | Implemented | Experimental Cassie-specific |
 | EXPLAIN, EXPLAIN ANALYZE, metrics | Implemented | Experimental output format |
 
@@ -164,12 +168,13 @@ Goal: compile supported read-model query patterns into Midge-native access paths
 
 | Feature Area | Status | Compatibility |
 | --- | --- | --- |
-| Read-path performance contracts | Implemented/Planned by depth | Experimental documentation plus benchmark enforcement |
-| Access-path assertions and EXPLAIN guarantees | Planned | Experimental |
-| Predicate/order/limit pushdown to storage-native scans | Planned | Experimental |
-| Keyset pagination and bounded continuation scans | Planned | Experimental |
-| Top-K, early-stop, and bounded candidate execution | Planned | Experimental |
-| Projection-shaped read layouts for latency-sensitive patterns | Planned | Cassie-specific |
+| Read-path performance contracts | Implemented baseline | Experimental documentation plus benchmark feedback |
+| 10k/100k manual benchmark scenarios | Implemented baseline | Criterion-backed developer feedback loop |
+| Access-path assertions and EXPLAIN guarantees | Implemented baseline/Planned by depth | Experimental |
+| Predicate/order/limit pushdown to storage-native scans | Implemented baseline/Planned by depth | Experimental |
+| Keyset pagination and bounded continuation scans | Implemented baseline | Experimental |
+| Top-K, early-stop, and bounded candidate execution | Implemented baseline | Experimental |
+| Projection-shaped read layouts for latency-sensitive patterns | Documented baseline/Planned by depth | Cassie-specific |
 
 ## Postgres Compatibility
 
@@ -183,19 +188,35 @@ Goal: support practical PostgreSQL client interoperability for read-model access
 | Prepared statements and portals | Implemented | Stable |
 | SQLSTATE-style error responses | Implemented | Experimental mapping completeness |
 | Catalog probes | Implemented | Experimental |
-| psql, sqlx, diesel, prisma, SQLAlchemy matrix | Planned | Experimental |
+| psql, sqlx, diesel, prisma, SQLAlchemy matrix | Implemented baseline | Experimental |
+
+## Operational Scale
+
+Goal: support horizontal expansion through externally orchestrated independent Cassie read nodes without adding distributed SQL semantics.
+
+| Feature Area | Status | Compatibility |
+| --- | --- | --- |
+| Local node/projection/tenant/partition assignment metadata | Implemented baseline | Experimental Cassie-specific |
+| Assignment catalog diagnostics | Implemented baseline | Experimental Cassie-specific |
+| External routing and projection ownership orchestration | Documented contract | External system contract |
+| Snapshot and restore | Implemented baseline | Experimental Cassie-specific local recovery |
+| Capacity management guidance | Documented baseline | Experimental operational documentation |
 
 ## Remaining Roadmap Themes
 
-- Harden verification gates and repair workflows beyond local read-only integrity reports.
-- Promote performance targets for replay ingestion, projection rebuilds, verification, swaps, and lag catch-up from baseline benchmarks to measured thresholds.
+- Keep projection repair admin-only, audited, local, and verification-led as unsupported repair scopes mature.
+- Keep operational scale local and externally orchestrated: Cassie exposes assignment metadata and a router/drain/move contract, but does not perform distributed query planning, cross-node routing, replication, quorum reads, or consensus.
+- Use [Capacity Management](capacity-management.md) as the current advisory sizing baseline; byte-accurate storage-family reports, automatic admission control, and capacity movement remain future depth.
+- Improve manual performance scenarios as benchmark evidence stabilizes and larger fixtures become practical.
 - Prioritize query patterns required by real read models over feature parity with any general-purpose database.
 - Treat the archived phase 04 contract surface as the reference for explicit async transport boundaries, synchronous engine paths, blocking offload, runtime-boundary diagnostics, and read access-path contracts.
 - Keep future write-path changes aligned with the archived phase 05 contracts in `docs/performance-contracts.md`.
-- Build phase 06 around Midge-native read implementation, access-path assertions, and projection-shaped reads using the archived phase 04 read access-path contract surface.
-- Keep phase 07 parked for advanced query and distributed backlog work until the required archived phase 04 and phase 06 gates are complete.
+- Treat the archived phase 06 surface in `issues/phase-06/README.md` as the reference for implemented Midge-native read paths, access-path assertions, and projection-shaped read diagnostics. Remaining read-optimization depth is limited to explicit follow-on slices such as mixed-direction secondary ordering and richer expression-index lowering.
+- Treat the archived phase 07 surface in `issues/phase-07/README.md` as the reference for advanced query, adaptive execution, column-store table mode, and offline consistency-comparison behavior.
+- Treat `issues/phase-08/README.md` as the archived README-goal closure surface for operational metadata, snapshot/restore, repair, read optimization, time-series, client compatibility, production classification, and capacity-management documentation.
+- Work Phase 09 from `issues/phase-09/README.md` for production-depth follow-up: production evidence, read-path depth, time-series storage depth, client probes, capacity diagnostics, repair depth, adaptive planning depth, experimental promotion criteria, and extraction guardrails.
 - Tighten PostgreSQL compatibility documentation for already-implemented SQL features through the read-model access lens.
 - Expand client compatibility probes for psql, sqlx, diesel, prisma, and SQLAlchemy read-model workflows.
-- Promote experimental catalog, procedure, rollup, HNSW, and embedding surfaces as their compatibility guarantees settle.
+- Promote experimental catalog, limited procedure, rollup, HNSW, and embedding surfaces as their compatibility guarantees settle.
 - Add performance evidence for production-ready claims on planner, index, search, vector, and analytics paths.
 - Continue splitting large legacy modules before adding broad feature work in those areas.

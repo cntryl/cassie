@@ -35,11 +35,20 @@ fn projection_counter_delta(
     before: &serde_json::Value,
     key: &str,
 ) -> usize {
+    counter_delta(after, before, "projections", key)
+}
+
+fn counter_delta(
+    after: &serde_json::Value,
+    before: &serde_json::Value,
+    section: &str,
+    key: &str,
+) -> usize {
     usize::try_from(
-        after["projections"][key]
+        after[section][key]
             .as_u64()
             .unwrap_or_default()
-            .saturating_sub(before["projections"][key].as_u64().unwrap_or_default()),
+            .saturating_sub(before[section][key].as_u64().unwrap_or_default()),
     )
     .unwrap_or_default()
 }
@@ -382,6 +391,95 @@ pub async fn ten_million_row_query_shape(ctx: &BenchContext) -> usize {
         "SELECT id FROM bench_documents WHERE score >= 10 ORDER BY score DESC LIMIT 100",
     )
     .await
+}
+
+pub async fn time_series_window_scan(ctx: &BenchContext) -> usize {
+    let sql = format!(
+        "SELECT tenant, amount FROM {} WHERE event_at >= '2026-01-10T00:00:00Z' AND event_at < '2026-01-12T00:00:00Z' ORDER BY event_at LIMIT 512",
+        ctx.collection
+    );
+    let result = ctx
+        .cassie
+        .execute_sql(&ctx.session, &sql, vec![])
+        .expect("time-series window scan");
+    let metrics = ctx.cassie.metrics();
+    let buckets = metrics["time_series"]["buckets_scanned"]
+        .as_u64()
+        .unwrap_or_default();
+    std::hint::black_box(buckets);
+    std::hint::black_box(result.rows.len())
+}
+
+pub async fn time_series_retention_enforcement(ctx: &BenchContext, nonce: usize) -> usize {
+    put_time_series_event(
+        ctx,
+        "ts-retention-expired",
+        "tenant-retention",
+        "2026-01-01T00:00:00Z",
+        nonce,
+    );
+    let before = ctx.cassie.metrics();
+    let command_len = ctx
+        .cassie
+        .execute_sql(
+            &ctx.session,
+            "ENFORCE RETENTION POLICY bench_time_series_retention AT '2026-01-10T00:00:00Z'",
+            vec![],
+        )
+        .expect("time-series retention enforcement")
+        .command
+        .len();
+    let after = ctx.cassie.metrics();
+    let deleted = counter_delta(&after, &before, "retention", "deleted_rows");
+    std::hint::black_box(deleted + command_len)
+}
+
+pub async fn time_series_rollup_refresh(ctx: &BenchContext, nonce: usize) -> usize {
+    put_time_series_event(
+        ctx,
+        "ts-rollup-refresh",
+        "tenant-rollup",
+        "2026-01-12T12:00:00Z",
+        nonce,
+    );
+    let before = ctx.cassie.metrics();
+    let command_len = ctx
+        .cassie
+        .execute_sql(
+            &ctx.session,
+            "REFRESH ROLLUP bench_time_series_hourly",
+            vec![],
+        )
+        .expect("time-series rollup refresh")
+        .command
+        .len();
+    let after = ctx.cassie.metrics();
+    let refreshes = counter_delta(&after, &before, "rollups", "refreshes");
+    std::hint::black_box(refreshes + command_len)
+}
+
+fn put_time_series_event(
+    ctx: &BenchContext,
+    id: &str,
+    tenant: &str,
+    event_at: &str,
+    amount: usize,
+) {
+    ctx.cassie
+        .midge
+        .put_documents(
+            &ctx.collection,
+            vec![(
+                Some(id.to_string()),
+                json!({
+                    "tenant": tenant,
+                    "event_at": event_at,
+                    "amount": (amount % 100) as i64,
+                    "status": "bench",
+                }),
+            )],
+        )
+        .expect("put time-series benchmark event");
 }
 
 pub async fn timed_ingest_document(ctx: &BenchContext) -> Duration {

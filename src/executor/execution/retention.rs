@@ -164,6 +164,12 @@ fn enforce(
         }
     }
 
+    if deleted > 0 {
+        super::materialized_projection::mark_source_projections_stale(
+            cassie,
+            &metadata.collection,
+        )?;
+    }
     super::rollups::refresh_rollups_for_source(
         cassie,
         &metadata.collection,

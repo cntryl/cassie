@@ -161,7 +161,8 @@ fn should_cast_string_to_uuid() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new().unwrap();
+        let path = data_dir("cast_uuid");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -178,6 +179,8 @@ fn should_cast_string_to_uuid() {
             casted_uuid.rows[0][0],
             Value::String("550e8400-e29b-41d4-a716-446655440000".to_string())
         );
+
+        let _ = std::fs::remove_dir_all(path);
     });
 }
 
@@ -190,7 +193,8 @@ fn should_cast_null_to_text() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new().unwrap();
+        let path = data_dir("cast_null_text");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -201,6 +205,8 @@ fn should_cast_null_to_text() {
 
         // Assert
         assert_eq!(casted_text.rows[0][0], Value::Null);
+
+        let _ = std::fs::remove_dir_all(path);
     });
 }
 
@@ -213,7 +219,8 @@ fn should_fail_when_casting_scalar_to_unsupported_type_family() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new().unwrap();
+        let path = data_dir("cast_unsupported_family");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -240,5 +247,7 @@ fn should_fail_when_casting_scalar_to_unsupported_type_family() {
                 "unexpected array cast error: {error}"
             );
         }
+
+        let _ = std::fs::remove_dir_all(path);
     });
 }

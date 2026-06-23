@@ -2,7 +2,7 @@
 
 use cassie::app::Cassie;
 use cassie::catalog::ProjectionVerificationState;
-use cassie::midge::adapter::StorageFamily;
+use cassie::midge::adapter::{RowHashRecord, StorageFamily};
 use cassie::sql::ast::{ProjectionVerificationMode, QueryStatement};
 use cassie::types::Value;
 use cntryl_midge::{TransactionMode, WriteOptions};
@@ -291,18 +291,12 @@ fn should_report_integrity_failure_for_corrupt_row_hash() {
             .list_row_hashes("projection_corrupt_docs")
             .unwrap()[0]
             .clone();
+        let row_hash_key =
+            row_hash_storage_key(&cassie, "projection_corrupt_docs", &row_hash.row_id);
         row_hash.digest = "00000000000000000000000000000000".to_string();
         let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
-        tx.put(
-            format!(
-                "__cassie__/row-hash/v1/{}/{}",
-                row_hash.collection, row_hash.row_id
-            )
-            .into_bytes(),
-            serde_json::to_vec(&row_hash).unwrap(),
-            None,
-        )
-        .unwrap();
+        tx.put(row_hash_key, serde_json::to_vec(&row_hash).unwrap(), None)
+            .unwrap();
         tx.commit(WriteOptions::sync()).unwrap();
 
         // Act
@@ -323,6 +317,19 @@ fn should_report_integrity_failure_for_corrupt_row_hash() {
 
         let _ = std::fs::remove_dir_all(path);
     });
+}
+
+fn row_hash_storage_key(cassie: &Cassie, collection: &str, row_id: &str) -> Vec<u8> {
+    cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, b"")
+        .unwrap()
+        .into_iter()
+        .find_map(|(key, value)| {
+            let record = serde_json::from_slice::<RowHashRecord>(&value).ok()?;
+            (record.collection == collection && record.row_id == row_id).then_some(key)
+        })
+        .expect("row hash key should exist")
 }
 
 #[test]

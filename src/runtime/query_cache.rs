@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use cntryl_lexkey::{Encoder, LexKey};
 use cntryl_midge::{TransactionMode, WriteOptions};
 use serde::{Deserialize, Serialize};
 
@@ -10,8 +11,12 @@ use crate::midge::adapter::{Midge, StorageFamily};
 use crate::planner::physical::PhysicalPlan;
 use crate::runtime::{stable_fingerprint, PlanCacheKey, RuntimeState};
 
-const PLAN_ENTRY_PREFIX: &str = "__cassie__/cf2/plan/entry/";
-const FULLTEXT_STATS_PREFIX: &str = "__cassie__/cf2/stats/fulltext/";
+const TEMP_ROOT: &[u8] = b"cassie";
+const TEMP_LEXKEY: &[u8] = b"lexkey";
+const TEMP_VERSION: &[u8] = b"v2";
+const TEMP_FAMILY: &[u8] = b"temp";
+const PLAN_ENTRY_FAMILY: &[u8] = b"plan-entry";
+const FULLTEXT_STATS_FAMILY: &[u8] = b"fulltext-stats";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CachedPlanEntry {
@@ -58,7 +63,7 @@ fn fingerprint<T: Serialize>(value: &T) -> u64 {
 }
 
 fn plan_entry_key(key: &PlanCacheKey) -> Result<Vec<u8>, CassieError> {
-    Ok(format!("{PLAN_ENTRY_PREFIX}{:016x}", fingerprint(key)).into_bytes())
+    Ok(temp_key(PLAN_ENTRY_FAMILY, fingerprint(key)))
 }
 
 fn fulltext_stats_key(
@@ -75,7 +80,23 @@ fn fulltext_stats_key(
         schema_epoch,
         data_epoch,
     };
-    Ok(format!("{FULLTEXT_STATS_PREFIX}{:016x}", fingerprint(&key)).into_bytes())
+    Ok(temp_key(FULLTEXT_STATS_FAMILY, fingerprint(&key)))
+}
+
+fn temp_key(family: &[u8], fingerprint: u64) -> Vec<u8> {
+    let encoded_fingerprint = LexKey::encode_u64(fingerprint);
+    let parts = [
+        TEMP_ROOT,
+        TEMP_LEXKEY,
+        TEMP_VERSION,
+        TEMP_FAMILY,
+        family,
+        encoded_fingerprint.as_bytes(),
+    ];
+    let capacity = parts.iter().map(|part| part.len()).sum::<usize>() + parts.len();
+    let mut encoder = Encoder::with_capacity(capacity);
+    encoder.encode_composite_into_buf(&parts);
+    encoder.into_vec()
 }
 
 fn put_temp_json<T: Serialize>(

@@ -5,6 +5,8 @@ pub type VirtualRow = Vec<(String, Value)>;
 
 #[path = "virtual_views_consistency.rs"]
 mod virtual_views_consistency;
+#[path = "virtual_views_repair.rs"]
+mod virtual_views_repair;
 #[path = "virtual_views_storage.rs"]
 mod virtual_views_storage;
 
@@ -150,6 +152,18 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             text("last_error"),
         ],
         "pg_catalog.pg_projection_consistency_reports" => virtual_views_consistency::schema(),
+        "pg_catalog.pg_projection_repair_reports" => virtual_views_repair::schema(),
+        "pg_catalog.pg_operational_assignments" => vec![
+            text("assignment_id"),
+            text("node_id"),
+            text("projection_id"),
+            text("tenant"),
+            text("partition_key"),
+            int("generation"),
+            text("state"),
+            text("routing_hint"),
+            int("updated_ms"),
+        ],
         "pg_catalog.pg_retention_policies" => vec![
             text("policy_name"),
             text("collection"),
@@ -409,6 +423,27 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
             })
             .collect(),
         "pg_catalog.pg_projection_consistency_reports" => virtual_views_consistency::rows(catalog),
+        "pg_catalog.pg_projection_repair_reports" => virtual_views_repair::rows(catalog),
+        "pg_catalog.pg_operational_assignments" => catalog
+            .list_operational_assignments()
+            .into_iter()
+            .map(|assignment| {
+                vec![
+                    string("assignment_id", assignment.assignment_id),
+                    string("node_id", assignment.node_id),
+                    string("projection_id", assignment.projection_id),
+                    string("tenant", assignment.tenant.unwrap_or_default()),
+                    string(
+                        "partition_key",
+                        assignment.partition_key.unwrap_or_default(),
+                    ),
+                    int_value("generation", assignment.generation as i64),
+                    string("state", assignment.state.as_str()),
+                    string("routing_hint", assignment.routing_hint.unwrap_or_default()),
+                    int_value("updated_ms", assignment.updated_ms as i64),
+                ]
+            })
+            .collect(),
         "pg_catalog.pg_retention_policies" => catalog
             .list_retention_policies()
             .into_iter()

@@ -14,7 +14,7 @@ use crate::catalog::{
     ColumnBatchColumn, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchPayload,
     ColumnBatchRow, ColumnBatchSegmentMeta, ColumnBatchValueRun, FieldCardinalityStats,
     FieldConstraint, FieldHeavyHitter, FieldHistogramBucket, IndexKind, IndexMeta, NamespaceMeta,
-    ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta,
+    OperationalAssignmentMeta, ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord};
 use crate::midge::row_blob::{
@@ -38,32 +38,6 @@ const SCHEMA_FAMILY_NAME: &str = "cf0";
 const DATA_FAMILY_NAME: &str = "cf1";
 const TEMP_FAMILY_NAME: &str = "cf2";
 const DEFAULT_FAMILY_NAME: &str = "default";
-const VECTOR_INDEX_PREFIX: &str = "__cassie__/vector-index/";
-const INDEX_PREFIX: &str = "__cassie__/index/";
-const SCALAR_INDEX_PREFIX: &str = "__cassie__/scalar-index/v1/";
-const COLUMN_BATCH_PREFIX: &str = "__cassie__/column-batch/v1/";
-const CONSTRAINTS_PREFIX: &str = "__cassie__/constraints/";
-const FUNCTION_PREFIX: &str = "__cassie__/function/";
-const PROCEDURE_PREFIX: &str = "__cassie__/procedure/";
-const VIEW_PREFIX: &str = "__cassie__/view/";
-const ROLE_PREFIX: &str = "__cassie__/role/";
-const ROLLUP_PREFIX: &str = "__cassie__/rollup/v1/";
-const RETENTION_PREFIX: &str = "__cassie__/retention/v1/";
-const SCHEMA_COLLECTION_KEY_PREFIX: &str = "__cassie__/schema/";
-const ROW_SCHEMA_KEY_PREFIX: &str = "__cassie__/row-schema/";
-const PROJECTION_KEY_PREFIX: &str = "__cassie__/projection/";
-const PROJECTION_COMPARISON_REPORT_PREFIX: &str = "__cassie__/projection-comparison-report/v1/";
-const PROJECTION_CONSISTENCY_REPORT_PREFIX: &str = "__cassie__/projection-consistency-report/v1/";
-const PROJECTION_EVENT_PREFIX: &str = "__cassie__/projection-event/v1/";
-const ROW_HASH_PREFIX: &str = "__cassie__/row-hash/v1/";
-const RANGE_HASH_PREFIX: &str = "__cassie__/range-hash/v1/";
-const ROOT_HASH_PREFIX: &str = "__cassie__/root-hash/v1/";
-const CARDINALITY_KEY_PREFIX: &str = "__cassie__/cardinality/v1/";
-const OPERATOR_FEEDBACK_PREFIX: &str = "__cassie__/operator-feedback/v1/";
-const NORMALIZED_VECTOR_PREFIX: &str = "__cassie__/normalized-vector/";
-const SCHEMA_NAMESPACE_KEY_PREFIX: &str = "__cassie__/namespace/";
-const NAMESPACES_KEY: &str = "__cassie__/namespaces";
-const SCHEMA_EPOCH_KEY: &str = "__cassie__/schema-epoch";
 
 type RawStorageEntry = (Vec<u8>, Vec<u8>);
 
@@ -276,12 +250,18 @@ mod column_batches;
 mod column_store;
 #[path = "adapter/documents.rs"]
 pub(crate) mod documents;
+#[path = "adapter/key_encoding.rs"]
+mod key_encoding;
 #[path = "adapter/metadata.rs"]
 mod metadata;
+#[path = "adapter/operational.rs"]
+mod operational;
 #[path = "adapter/operator_feedback.rs"]
 mod operator_feedback;
 #[path = "adapter/projections.rs"]
 mod projections;
+#[path = "adapter/repair.rs"]
+mod repair;
 #[path = "adapter/scalar_indexes.rs"]
 mod scalar_indexes;
 pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
@@ -323,6 +303,14 @@ impl Midge {
         })
     }
 
+    pub fn new_strict_with_data_dir(data_dir: impl AsRef<Path>) -> Result<Self, CassieError> {
+        let options = cntryl_midge::OpenOptions::local(data_dir.as_ref()).build();
+        Ok(Self {
+            engine: Engine::open(options).map_err(CassieError::from)?,
+            storage_layout: OnceLock::new(),
+        })
+    }
+
     pub fn bootstrap_families(&self) -> Result<StorageLayout, CassieError> {
         let schema = self.get_or_create_family(StorageFamily::Schema)?;
         let data = self.get_or_create_family(StorageFamily::Data)?;
@@ -340,12 +328,74 @@ impl Midge {
     pub fn ensure_families_ready(&self) -> Result<&StorageLayout, CassieError> {
         if self.storage_layout.get().is_none() {
             let layout = self.bootstrap_families()?;
+            self.ensure_lexkey_layout_ready(&layout)?;
             let _ = self.storage_layout.set(layout);
         }
 
         self.storage_layout.get().ok_or_else(|| {
             CassieError::StorageBootstrap("failed to initialize midge storage families".to_string())
         })
+    }
+
+    fn ensure_lexkey_layout_ready(&self, layout: &StorageLayout) -> Result<(), CassieError> {
+        self.reject_legacy_layout_prefixes(layout)?;
+
+        let marker_key = key_encoding::layout_marker_key();
+        let mut tx = self
+            .engine
+            .begin_tx(layout.schema.id(), TransactionMode::ReadWrite)
+            .map_err(CassieError::from)?;
+        match tx.get(&marker_key).map_err(CassieError::from)? {
+            Some(value) if value == key_encoding::LAYOUT_MARKER_VALUE => Ok(()),
+            Some(value) => Err(CassieError::StorageBootstrap(format!(
+                "incompatible lexkey v{} storage layout marker: {:?}",
+                key_encoding::LAYOUT_VERSION,
+                String::from_utf8_lossy(&value)
+            ))),
+            None => {
+                tx.put(marker_key, key_encoding::LAYOUT_MARKER_VALUE.to_vec(), None)
+                    .map_err(CassieError::from)?;
+                tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+            }
+        }
+    }
+
+    fn reject_legacy_layout_prefixes(&self, layout: &StorageLayout) -> Result<(), CassieError> {
+        for (family_name, family_id, prefixes) in [
+            (
+                SCHEMA_FAMILY_NAME,
+                layout.schema.id(),
+                key_encoding::LEGACY_SCHEMA_PREFIXES,
+            ),
+            (
+                DATA_FAMILY_NAME,
+                layout.data.id(),
+                key_encoding::LEGACY_DATA_PREFIXES,
+            ),
+            (
+                TEMP_FAMILY_NAME,
+                layout.temp.id(),
+                key_encoding::LEGACY_TEMP_PREFIXES,
+            ),
+        ] {
+            let tx = self
+                .engine
+                .begin_tx(family_id, TransactionMode::ReadOnly)
+                .map_err(CassieError::from)?;
+            for prefix in prefixes {
+                let mut scan = tx
+                    .scan(&Query::new().prefix(prefix.to_vec().into()))
+                    .map_err(CassieError::from)?;
+                if scan.next().is_some() {
+                    return Err(CassieError::StorageBootstrap(format!(
+                        "incompatible lexkey v{} storage layout: found v1 key prefix '{}' in {family_name}; recreate the Midge data directory",
+                        key_encoding::LAYOUT_VERSION,
+                        String::from_utf8_lossy(prefix)
+                    )));
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn storage_layout(&self) -> Option<StorageLayout> {
@@ -441,216 +491,223 @@ impl Midge {
     }
 
     fn collection_schema_key(collection: &str) -> Vec<u8> {
-        format!("{SCHEMA_COLLECTION_KEY_PREFIX}{collection}").into_bytes()
+        key_encoding::collection_schema_key(collection)
     }
 
     fn row_schema_key(collection: &str) -> Vec<u8> {
-        format!("{ROW_SCHEMA_KEY_PREFIX}{collection}").into_bytes()
+        key_encoding::row_schema_key(collection)
     }
 
     fn projection_key(collection: &str) -> Vec<u8> {
-        format!("{PROJECTION_KEY_PREFIX}{collection}").into_bytes()
+        key_encoding::projection_key(collection)
     }
 
     fn projection_prefix() -> Vec<u8> {
-        PROJECTION_KEY_PREFIX.as_bytes().to_vec()
+        key_encoding::projection_prefix()
     }
 
     fn projection_comparison_report_key(report_id: &str) -> Vec<u8> {
-        format!("{PROJECTION_COMPARISON_REPORT_PREFIX}{report_id}").into_bytes()
+        key_encoding::projection_comparison_report_key(report_id)
     }
 
     fn projection_comparison_report_prefix() -> Vec<u8> {
-        PROJECTION_COMPARISON_REPORT_PREFIX.as_bytes().to_vec()
+        key_encoding::projection_comparison_report_prefix()
     }
 
     fn projection_consistency_report_key(report_id: &str) -> Vec<u8> {
-        format!("{PROJECTION_CONSISTENCY_REPORT_PREFIX}{report_id}").into_bytes()
+        key_encoding::projection_consistency_report_key(report_id)
     }
 
     fn projection_consistency_report_prefix() -> Vec<u8> {
-        PROJECTION_CONSISTENCY_REPORT_PREFIX.as_bytes().to_vec()
+        key_encoding::projection_consistency_report_prefix()
     }
 
     fn projection_event_key(projection: &str, source_identity: &str, event_id: &str) -> Vec<u8> {
-        format!("{PROJECTION_EVENT_PREFIX}{projection}/{source_identity}/{event_id}").into_bytes()
+        key_encoding::projection_event_key(projection, source_identity, event_id)
     }
 
     fn projection_event_prefix(projection: &str) -> Vec<u8> {
-        format!("{PROJECTION_EVENT_PREFIX}{projection}/").into_bytes()
+        key_encoding::projection_event_prefix(projection)
+    }
+
+    fn operational_assignment_key(assignment_id: &str) -> Vec<u8> {
+        key_encoding::operational_assignment_key(assignment_id)
+    }
+
+    fn operational_assignment_prefix() -> Vec<u8> {
+        key_encoding::operational_assignment_prefix()
     }
 
     fn row_hash_key(collection: &str, row_id: &str) -> Vec<u8> {
-        format!("{ROW_HASH_PREFIX}{collection}/{row_id}").into_bytes()
+        key_encoding::row_hash_key(collection, row_id)
     }
 
     fn row_hash_prefix(collection: &str) -> Vec<u8> {
-        format!("{ROW_HASH_PREFIX}{collection}/").into_bytes()
+        key_encoding::row_hash_prefix(collection)
     }
 
     fn range_hash_key(collection: &str, range_id: u64) -> Vec<u8> {
-        format!("{RANGE_HASH_PREFIX}{collection}/{range_id:020}").into_bytes()
+        key_encoding::range_hash_key(collection, range_id)
     }
 
     fn range_hash_prefix(collection: &str) -> Vec<u8> {
-        format!("{RANGE_HASH_PREFIX}{collection}/").into_bytes()
+        key_encoding::range_hash_prefix(collection)
     }
 
     fn root_hash_key(collection: &str) -> Vec<u8> {
-        format!("{ROOT_HASH_PREFIX}{collection}").into_bytes()
+        key_encoding::root_hash_key(collection)
     }
 
     fn schema_collection_prefix() -> Vec<u8> {
-        SCHEMA_COLLECTION_KEY_PREFIX.as_bytes().to_vec()
+        key_encoding::schema_collection_prefix()
     }
 
     fn vector_index_key(collection: &str, field: &str) -> Vec<u8> {
-        format!("{VECTOR_INDEX_PREFIX}{collection}/{field}").into_bytes()
+        key_encoding::vector_index_key(collection, field)
     }
 
     fn vector_index_prefix() -> Vec<u8> {
-        VECTOR_INDEX_PREFIX.as_bytes().to_vec()
+        key_encoding::vector_index_prefix()
     }
 
     fn vector_index_collection_prefix(collection: &str) -> Vec<u8> {
-        format!("{VECTOR_INDEX_PREFIX}{collection}/").into_bytes()
+        key_encoding::vector_index_collection_prefix(collection)
     }
 
     fn normalized_vector_key(collection: &str, field: &str, id: &str) -> Vec<u8> {
-        format!("{NORMALIZED_VECTOR_PREFIX}{collection}/{field}/{id}").into_bytes()
+        key_encoding::normalized_vector_key(collection, field, id)
     }
 
     fn normalized_vector_prefix(collection: &str, field: &str) -> Vec<u8> {
-        format!("{NORMALIZED_VECTOR_PREFIX}{collection}/{field}/").into_bytes()
+        key_encoding::normalized_vector_prefix(collection, field)
     }
 
     fn normalized_vector_collection_prefix(collection: &str) -> Vec<u8> {
-        format!("{NORMALIZED_VECTOR_PREFIX}{collection}/").into_bytes()
+        key_encoding::normalized_vector_collection_prefix(collection)
     }
 
     fn index_key(collection: &str, name: &str) -> Vec<u8> {
-        format!("{INDEX_PREFIX}{collection}/{name}").into_bytes()
+        key_encoding::index_key(collection, name)
     }
 
     fn rollup_prefix() -> Vec<u8> {
-        ROLLUP_PREFIX.as_bytes().to_vec()
+        key_encoding::rollup_prefix()
     }
 
     fn rollup_key(name: &str) -> Vec<u8> {
-        format!("{ROLLUP_PREFIX}{}", name.trim().to_ascii_lowercase()).into_bytes()
+        key_encoding::rollup_key(name)
     }
 
     fn retention_prefix() -> Vec<u8> {
-        RETENTION_PREFIX.as_bytes().to_vec()
+        key_encoding::retention_prefix()
     }
 
     fn retention_key(name: &str) -> Vec<u8> {
-        format!("{RETENTION_PREFIX}{}", name.trim().to_ascii_lowercase()).into_bytes()
+        key_encoding::retention_key(name)
     }
 
     fn index_prefix() -> Vec<u8> {
-        INDEX_PREFIX.as_bytes().to_vec()
+        key_encoding::index_prefix()
     }
 
     fn index_collection_prefix(collection: &str) -> Vec<u8> {
-        format!("{INDEX_PREFIX}{collection}/").into_bytes()
+        key_encoding::index_collection_prefix(collection)
     }
 
     fn scalar_index_collection_prefix(collection: &str) -> Vec<u8> {
-        format!("{SCALAR_INDEX_PREFIX}{collection}/").into_bytes()
+        key_encoding::scalar_index_collection_prefix(collection)
     }
 
     fn scalar_index_data_prefix(collection: &str, index_name: &str) -> Vec<u8> {
-        format!("{SCALAR_INDEX_PREFIX}{collection}/{index_name}/").into_bytes()
+        key_encoding::scalar_index_data_prefix(collection, index_name)
     }
 
     fn column_batch_metadata_key(collection: &str, index_name: &str) -> Vec<u8> {
-        format!("{COLUMN_BATCH_PREFIX}{collection}/{index_name}/metadata").into_bytes()
+        key_encoding::column_batch_metadata_key(collection, index_name)
     }
 
     fn column_batch_segment_key(collection: &str, index_name: &str, segment_id: u64) -> Vec<u8> {
-        format!("{COLUMN_BATCH_PREFIX}{collection}/{index_name}/segment/{segment_id:020}")
-            .into_bytes()
+        key_encoding::column_batch_segment_key(collection, index_name, segment_id)
     }
 
     fn column_batch_index_prefix(collection: &str, index_name: &str) -> Vec<u8> {
-        format!("{COLUMN_BATCH_PREFIX}{collection}/{index_name}/").into_bytes()
+        key_encoding::column_batch_index_prefix(collection, index_name)
     }
 
     fn column_batch_collection_prefix(collection: &str) -> Vec<u8> {
-        format!("{COLUMN_BATCH_PREFIX}{collection}/").into_bytes()
+        key_encoding::column_batch_collection_prefix(collection)
     }
 
     fn function_key(name: &str) -> Vec<u8> {
-        format!("{FUNCTION_PREFIX}{}", name.to_ascii_lowercase()).into_bytes()
+        key_encoding::function_key(name)
     }
 
     fn function_prefix() -> Vec<u8> {
-        FUNCTION_PREFIX.as_bytes().to_vec()
+        key_encoding::function_prefix()
     }
 
     fn procedure_key(name: &str) -> Vec<u8> {
-        format!("{PROCEDURE_PREFIX}{}", name.to_ascii_lowercase()).into_bytes()
+        key_encoding::procedure_key(name)
     }
 
     fn procedure_prefix() -> Vec<u8> {
-        PROCEDURE_PREFIX.as_bytes().to_vec()
+        key_encoding::procedure_prefix()
     }
 
     fn view_key(name: &str) -> Vec<u8> {
-        format!("{VIEW_PREFIX}{name}").into_bytes()
+        key_encoding::view_key(name)
     }
 
     fn view_prefix() -> Vec<u8> {
-        VIEW_PREFIX.as_bytes().to_vec()
+        key_encoding::view_prefix()
     }
 
     fn role_key(name: &str) -> Vec<u8> {
-        format!("{ROLE_PREFIX}{}", name.to_ascii_lowercase()).into_bytes()
+        key_encoding::role_key(name)
     }
 
     fn role_prefix() -> Vec<u8> {
-        ROLE_PREFIX.as_bytes().to_vec()
+        key_encoding::role_prefix()
     }
 
     fn constraints_key(collection: &str) -> Vec<u8> {
-        format!("{CONSTRAINTS_PREFIX}{collection}").into_bytes()
+        key_encoding::constraints_key(collection)
     }
 
     fn namespace_key(namespace: &str) -> Vec<u8> {
-        format!("{SCHEMA_NAMESPACE_KEY_PREFIX}{namespace}").into_bytes()
+        key_encoding::namespace_key(namespace)
     }
 
     fn namespace_prefix() -> Vec<u8> {
-        SCHEMA_NAMESPACE_KEY_PREFIX.as_bytes().to_vec()
+        key_encoding::namespace_prefix()
     }
 
     fn namespaces_key() -> Vec<u8> {
-        NAMESPACES_KEY.as_bytes().to_vec()
+        key_encoding::namespaces_key()
     }
 
     fn schema_epoch_key() -> Vec<u8> {
-        SCHEMA_EPOCH_KEY.as_bytes().to_vec()
+        key_encoding::schema_epoch_key()
     }
 
     fn collections_key() -> Vec<u8> {
-        b"__cassie__/collections".to_vec()
+        key_encoding::collections_key()
     }
 
     fn row_prefix(collection: &str) -> Vec<u8> {
-        format!("r/{collection}/").into_bytes()
+        key_encoding::row_prefix(collection)
     }
 
     fn row_key(collection: &str, id: &str) -> Vec<u8> {
-        format!("r/{collection}/{id}").into_bytes()
+        key_encoding::row_key(collection, id)
     }
 
     fn doc_prefix(collection: &str) -> Vec<u8> {
-        format!("doc:{collection}:").into_bytes()
+        key_encoding::doc_prefix(collection)
     }
 
     fn doc_key(collection: &str, id: &str) -> Vec<u8> {
-        format!("doc:{collection}:{id}").into_bytes()
+        key_encoding::doc_key(collection, id)
     }
 
     fn begin_schema_readonly_tx(&self) -> Result<cntryl_midge::Transaction, CassieError> {
@@ -879,23 +936,19 @@ impl Midge {
     }
 
     fn cardinality_key(collection: &str) -> Vec<u8> {
-        format!("{CARDINALITY_KEY_PREFIX}{collection}").into_bytes()
+        key_encoding::cardinality_key(collection)
     }
 
     fn cardinality_prefix() -> Vec<u8> {
-        CARDINALITY_KEY_PREFIX.as_bytes().to_vec()
+        key_encoding::cardinality_prefix()
     }
 
     fn runtime_feedback_key(key: &crate::runtime::RuntimeFeedbackKey) -> Vec<u8> {
-        format!(
-            "{OPERATOR_FEEDBACK_PREFIX}{:016x}",
-            crate::runtime::stable_fingerprint(key)
-        )
-        .into_bytes()
+        key_encoding::runtime_feedback_key(crate::runtime::stable_fingerprint(key))
     }
 
     fn runtime_feedback_prefix() -> Vec<u8> {
-        OPERATOR_FEEDBACK_PREFIX.as_bytes().to_vec()
+        key_encoding::runtime_feedback_prefix()
     }
 
     fn load_cardinality_stats_from_tx(

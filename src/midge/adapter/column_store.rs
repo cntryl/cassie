@@ -1,8 +1,5 @@
 use super::*;
 
-const COLLECTION_METADATA_PREFIX: &str = "__cassie__/collection-meta/v1/";
-const COLUMN_STORE_PREFIX: &str = "__cassie__/column-store/v1/";
-
 impl Midge {
     pub fn create_collection_with_meta(
         &self,
@@ -261,21 +258,15 @@ impl Midge {
 
         let mut current = Vec::with_capacity(batch_size.max(1));
         let mut emitted = 0usize;
+        let row_prefix = Self::column_store_row_prefix(collection);
         let mut scan = tx
-            .scan(&Query::new().prefix(Self::column_store_row_prefix(collection).into()))
+            .scan(&Query::new().prefix(row_prefix.clone().into()))
             .map_err(CassieError::from)?;
 
         while let Some((raw_key, _raw_value)) = scan.next() {
-            let raw_key = String::from_utf8(raw_key).map_err(|error| {
-                CassieError::Parse(format!("invalid column-store row key in storage: {error}"))
-            })?;
-            let id = raw_key
-                .strip_prefix(&Self::column_store_row_prefix_string(collection))
-                .unwrap_or("")
-                .to_string();
-            if id.is_empty() {
+            let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &row_prefix) else {
                 continue;
-            }
+            };
 
             let decode_started = Instant::now();
             let payload = Self::project_column_store_document(
@@ -344,20 +335,17 @@ impl Midge {
             ));
         }
 
-        let prefix = Self::column_store_row_prefix_string(collection);
+        let row_prefix = Self::column_store_row_prefix(collection);
         let mut ids = Vec::new();
         let mut scan = tx
-            .scan(&Query::new().prefix(Self::column_store_row_prefix(collection).into()))
+            .scan(&Query::new().prefix(row_prefix.clone().into()))
             .map_err(CassieError::from)?;
         while let Some((raw_key, _raw_value)) = scan.next() {
-            let Ok(raw_key) = String::from_utf8(raw_key) else {
+            let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &row_prefix) else {
                 continue;
             };
-            let Some(id) = raw_key.strip_prefix(&prefix) else {
-                continue;
-            };
-            if Self::within_ordered_bounds(id, start_bound.as_ref(), end_bound.as_ref()) {
-                ids.push(id.to_string());
+            if Self::within_ordered_bounds(&id, start_bound.as_ref(), end_bound.as_ref()) {
+                ids.push(id);
             }
         }
         ids.sort();
@@ -480,30 +468,26 @@ impl Midge {
     }
 
     fn collection_metadata_key(name: &str) -> Vec<u8> {
-        format!("{COLLECTION_METADATA_PREFIX}{name}").into_bytes()
+        key_encoding::collection_metadata_key(name)
     }
 
     pub(crate) fn column_store_collection_prefix(collection: &str) -> Vec<u8> {
-        format!("{COLUMN_STORE_PREFIX}{collection}/").into_bytes()
+        key_encoding::column_store_collection_prefix(collection)
     }
 
     fn column_store_row_prefix(collection: &str) -> Vec<u8> {
-        format!("{COLUMN_STORE_PREFIX}{collection}/row/").into_bytes()
-    }
-
-    fn column_store_row_prefix_string(collection: &str) -> String {
-        format!("{COLUMN_STORE_PREFIX}{collection}/row/")
+        key_encoding::column_store_row_prefix(collection)
     }
 
     pub(crate) fn column_store_row_key(collection: &str, id: &str) -> Vec<u8> {
-        format!("{COLUMN_STORE_PREFIX}{collection}/row/{id}").into_bytes()
+        key_encoding::column_store_row_key(collection, id)
     }
 
     fn column_store_deleted_key(collection: &str, id: &str) -> Vec<u8> {
-        format!("{COLUMN_STORE_PREFIX}{collection}/deleted/{id}").into_bytes()
+        key_encoding::column_store_deleted_key(collection, id)
     }
 
     fn column_store_field_key(collection: &str, field: &str, id: &str) -> Vec<u8> {
-        format!("{COLUMN_STORE_PREFIX}{collection}/field/{field}/{id}").into_bytes()
+        key_encoding::column_store_field_key(collection, field, id)
     }
 }

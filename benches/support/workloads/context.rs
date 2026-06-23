@@ -4,6 +4,7 @@ use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -64,9 +65,76 @@ pub fn runtime() -> tokio::runtime::Runtime {
 }
 
 pub async fn context(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
+    context_with_index_options(label, dataset_rows, BenchIndexOptions::full()).await
+}
+
+pub async fn scalar_context(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
+    context_with_index_options(label, dataset_rows, BenchIndexOptions::scalar()).await
+}
+
+pub async fn unindexed_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Result<BenchContext, CassieError> {
+    context_with_index_options(label, dataset_rows, BenchIndexOptions::none()).await
+}
+
+pub async fn time_series_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Result<BenchContext, CassieError> {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
-    let mut dir = std::env::temp_dir();
-    dir.push(format!("cassie-bench-{label}-{}", Uuid::new_v4()));
+    let dir = benchmark_data_dir(label);
+
+    let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
+    cassie.startup()?;
+    let session = cassie.create_session("benchmark", None);
+    let ctx = BenchContext {
+        cassie,
+        session,
+        collection: "bench_time_series_events".to_string(),
+        _embedding_server: None,
+    };
+    prepare_time_series_collection(&ctx, dataset_rows).await?;
+    Ok(ctx)
+}
+
+#[derive(Debug, Clone, Copy)]
+struct BenchIndexOptions {
+    include_scalar_indexes: bool,
+    include_fulltext_index: bool,
+}
+
+impl BenchIndexOptions {
+    fn full() -> Self {
+        Self {
+            include_scalar_indexes: true,
+            include_fulltext_index: true,
+        }
+    }
+
+    fn scalar() -> Self {
+        Self {
+            include_scalar_indexes: true,
+            include_fulltext_index: false,
+        }
+    }
+
+    fn none() -> Self {
+        Self {
+            include_scalar_indexes: false,
+            include_fulltext_index: false,
+        }
+    }
+}
+
+async fn context_with_index_options(
+    label: &str,
+    dataset_rows: usize,
+    index_options: BenchIndexOptions,
+) -> Result<BenchContext, CassieError> {
+    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    let dir = benchmark_data_dir(label);
 
     let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
     cassie.startup()?;
@@ -77,14 +145,13 @@ pub async fn context(label: &str, dataset_rows: usize) -> Result<BenchContext, C
         collection: "bench_documents".to_string(),
         _embedding_server: None,
     };
-    prepare_collection(&ctx, dataset_rows).await?;
+    prepare_collection(&ctx, dataset_rows, index_options).await?;
     Ok(ctx)
 }
 
 pub async fn empty_context(label: &str) -> Result<BenchContext, CassieError> {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
-    let mut dir = std::env::temp_dir();
-    dir.push(format!("cassie-bench-{label}-{}", Uuid::new_v4()));
+    let dir = benchmark_data_dir(label);
 
     let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
     cassie.startup()?;
@@ -113,8 +180,7 @@ pub async fn context_with_mock_tei_embeddings(
         max_retries: 1,
     });
 
-    let mut dir = std::env::temp_dir();
-    dir.push(format!("cassie-bench-{label}-{}", Uuid::new_v4()));
+    let dir = benchmark_data_dir(label);
 
     let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir, config)?);
     cassie.startup()?;
@@ -125,13 +191,25 @@ pub async fn context_with_mock_tei_embeddings(
         collection: "bench_documents".to_string(),
         _embedding_server: Some(server),
     };
-    prepare_collection(&ctx, dataset_rows).await?;
+    prepare_collection(&ctx, dataset_rows, BenchIndexOptions::full()).await?;
     let statement = format!(
         "CREATE INDEX {}_embedding_idx ON {} USING vector (embedding) WITH (source_field = body, metric = cosine)",
         ctx.collection, ctx.collection
     );
     let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
     Ok(ctx)
+}
+
+fn benchmark_data_dir(label: &str) -> PathBuf {
+    let mut path = std::env::temp_dir();
+    path.push(format!("cassie-bench-{label}-{}", Uuid::new_v4()));
+    if std::env::var("BENCH_MIDGE_DISK").ok().as_deref() == Some("1") {
+        return path;
+    }
+
+    std::fs::write(&path, b"force benchmark in-memory fallback")
+        .expect("write benchmark fallback marker");
+    path
 }
 
 impl MockTeiEmbeddingServer {
@@ -194,7 +272,11 @@ impl Drop for MockTeiEmbeddingServer {
     }
 }
 
-async fn prepare_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(), CassieError> {
+async fn prepare_collection(
+    ctx: &BenchContext,
+    dataset_rows: usize,
+    index_options: BenchIndexOptions,
+) -> Result<(), CassieError> {
     if ctx.cassie.catalog.exists(&ctx.collection) {
         return Ok(());
     }
@@ -246,26 +328,16 @@ async fn prepare_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(
             .collect(),
     );
 
-    let statements = [
-        format!(
-            "CREATE INDEX {}_title_idx ON {} USING btree (title)",
-            ctx.collection, ctx.collection
-        ),
-        format!(
-            "CREATE INDEX {}_score_idx ON {} USING btree (score)",
-            ctx.collection, ctx.collection
-        ),
-        format!(
+    if index_options.include_fulltext_index {
+        let statement = format!(
             "CREATE INDEX {}_body_idx ON {} USING fulltext (body)",
             ctx.collection, ctx.collection
-        ),
-    ];
-
-    for statement in statements {
+        );
         let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
     }
 
-    for index in 0..dataset_rows.min(1024) {
+    let mut documents = Vec::with_capacity(dataset_rows);
+    for index in 0..dataset_rows {
         let title = format!("title-{}", index % 16);
         let body = if index % 3 == 0 {
             format!("alpha beta gamma {index}")
@@ -278,8 +350,7 @@ async fn prepare_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(
             "pending"
         };
 
-        ctx.cassie.midge.put_document(
-            &ctx.collection,
+        documents.push((
             Some(format!("doc-{index}")),
             json!({
                 "title": title,
@@ -292,7 +363,83 @@ async fn prepare_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(
                     (index % 13) as f32,
                 ],
             }),
-        )?;
+        ));
+    }
+    if !documents.is_empty() {
+        ctx.cassie.midge.put_documents(&ctx.collection, documents)?;
+    }
+
+    if index_options.include_scalar_indexes {
+        let statements = [
+            format!(
+                "CREATE INDEX {}_title_idx ON {} USING btree (title)",
+                ctx.collection, ctx.collection
+            ),
+            format!(
+                "CREATE INDEX {}_score_idx ON {} USING btree (score)",
+                ctx.collection, ctx.collection
+            ),
+        ];
+
+        for statement in statements {
+            let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn prepare_time_series_collection(
+    ctx: &BenchContext,
+    dataset_rows: usize,
+) -> Result<(), CassieError> {
+    if ctx.cassie.catalog.exists(&ctx.collection) {
+        return Ok(());
+    }
+
+    let create = format!(
+        "CREATE TABLE {} (tenant TEXT, event_at TIMESTAMP, amount INT, status TEXT)",
+        ctx.collection
+    );
+    ctx.cassie.execute_sql(&ctx.session, &create, vec![])?;
+
+    let tenants = ["tenant-a", "tenant-b", "tenant-c", "tenant-d"];
+    let mut documents = Vec::with_capacity(dataset_rows);
+    for index in 0..dataset_rows {
+        let day = 9 + ((index / 24) % 7);
+        let hour = index % 24;
+        let tenant = tenants[index % tenants.len()];
+        documents.push((
+            Some(format!("ts-doc-{index}")),
+            json!({
+                "tenant": tenant,
+                "event_at": format!("2026-01-{day:02}T{hour:02}:00:00Z"),
+                "amount": (index % 100) as i64,
+                "status": if index % 2 == 0 { "open" } else { "closed" },
+            }),
+        ));
+    }
+    if !documents.is_empty() {
+        ctx.cassie.midge.put_documents(&ctx.collection, documents)?;
+    }
+
+    let statements = [
+        format!(
+            "CREATE INDEX bench_time_series_time_idx ON {} USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)",
+            ctx.collection
+        ),
+        format!(
+            "CREATE ROLLUP bench_time_series_hourly ON {} USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total, SUM(amount) AS amount_sum",
+            ctx.collection
+        ),
+        format!(
+            "CREATE RETENTION POLICY bench_time_series_retention ON {} USING event_at RETAIN FOR '2 days'",
+            ctx.collection
+        ),
+    ];
+
+    for statement in statements {
+        let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
     }
 
     Ok(())

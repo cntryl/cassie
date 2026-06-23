@@ -84,6 +84,10 @@ expose `join_strategy`, `join_keys`, `join_sort_required`, `join_fallback_reason
 For the current scalar and ordered-read scope, that vocabulary includes
 `point_lookup`, `index_seek`, `prefix_scan`, `range_scan`, `ordered_bounded_scan`,
 `storage_top_k`, `keyset`, and degraded `offset` paths.
+The implemented filtered-page baseline includes composite scalar indexes with equality prefixes
+and a single range/order field, such as tenant/status filters ordered by a timestamp. Mixed-direction
+multi-column secondary ordering and expression-index lowering require separate proof before they can
+be claimed as optimized paths.
 
 This is necessary because a query can look fast at 10k rows while already using the wrong execution model.
 The contract should fail before that mistake reaches larger scales.
@@ -584,8 +588,103 @@ Initial targets are comparative rather than SLA-grade: verification and swap cos
 
 ## Pattern Contracts
 
-The targets below are deliberately framed as contract placeholders.
-They should be replaced with measured thresholds once the owning benchmark is stable at the relevant fixture size.
+The first 10k/100k performance slice is a manual developer feedback loop, not a CI gate or SLA table.
+Each scenario below has a stable Criterion owner, fixture scale, scenario id, and evidence labels so a developer can run the relevant benchmark while working on a read-model path and compare local p50, p95, p99, and throughput movement over time.
+
+Manual benchmark runs are opt-in so default `cargo test` does not execute expensive fixtures:
+
+```sh
+cargo bench --locked --bench tier3_system_query
+cargo bench --locked --bench tier2_subsystem_ingest
+cargo bench --locked --bench tier3_system_rebuild
+cargo bench --locked --bench tier2_subsystem_search
+cargo bench --locked --bench tier2_subsystem_vector
+cargo bench --locked --bench tier2_subsystem_hybrid
+cargo bench --locked --bench tier4_integration_pgwire
+cargo bench --locked --bench tier4_integration_http
+cargo test --locked --test performance_benchmarks -- --ignored --nocapture
+```
+
+For CI jobs or quick local checks that only need to confirm benchmark ownership still compiles without executing fixtures:
+
+```sh
+cargo bench --locked --bench tier3_system_query --no-run
+cargo bench --locked --bench tier2_subsystem_ingest --no-run
+cargo bench --locked --bench tier3_system_rebuild --no-run
+cargo bench --locked --bench tier2_subsystem_search --no-run
+cargo bench --locked --bench tier2_subsystem_vector --no-run
+cargo bench --locked --bench tier2_subsystem_hybrid --no-run
+cargo bench --locked --bench tier4_integration_pgwire --no-run
+cargo bench --locked --bench tier4_integration_http --no-run
+```
+
+The benchmark fixture uses `CASSIE_MIDGE_ALLOW_FALLBACK=1` and forces Midge's in-memory fallback by default so local results are repeatable and do not measure host disk sync behavior.
+Set `BENCH_MIDGE_DISK=1` before the `cargo bench` commands when collecting disk-backed exploratory numbers.
+
+The ignored `performance_benchmarks` test reads Criterion `sample.json` files from `target/criterion` and prints one line per scenario:
+
+```text
+perf.core_read.simple.10k profile=local-dev-fallback-10k benchmark=tier3_system_query workload=simple_sql_query scale=10k storage=in_memory_midge_fallback p50=...us p95=...us p99=...us throughput=...ops/s fallback_evidence=fallback_reason cache_evidence=plan_cache.entries storage_evidence=storage.data.reads feature_evidence=query.latency_ms_total non_goals=not_sla|not_ci_gate|not_production_ready_promotion|not_disk_sync_unless_bench_midge_disk
+```
+
+### Deployment Profile Evidence
+
+Benchmark output is evidence collection, not a production-ready promotion or SLA claim.
+A deployment profile records enough context for a future reviewer to compare benchmark output against a declared environment and workload.
+
+| Profile | Host shape | Storage mode | Data shape | Workload mix | Fixture scale | Benchmark command | Metrics captured | Known non-goals |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `local-dev-fallback-10k` | Local developer workstation | `in_memory_midge_fallback` | Deterministic generated read-model fixture | Single benchmark owner workload | 10k | `cargo bench --locked --bench <owner-benchmark>` | p50, p95, p99, throughput, fallback counters, cache occupancy, storage-family operations, feature-family metrics | Not SLA, not CI gate, not production-ready promotion, not disk sync unless `BENCH_MIDGE_DISK=1` |
+| `local-dev-fallback-100k` | Local developer workstation | `in_memory_midge_fallback` | Deterministic generated read-model fixture | Single benchmark owner workload | 100k | `cargo bench --locked --bench <owner-benchmark>` | p50, p95, p99, throughput, fallback counters, cache occupancy, storage-family operations, feature-family metrics | Not SLA, not CI gate, not production-ready promotion, not disk sync unless `BENCH_MIDGE_DISK=1` |
+| `future-1m-placeholder` | Declared deployment profile | `profile-defined` | Future generated read-model fixture | Single benchmark owner workload | 1M | `cargo bench --locked --bench <owner-benchmark> --no-run` | p50, p95, p99, throughput, fallback counters, cache occupancy, storage-family operations, feature-family metrics | Not SLA, not CI gate, not production-ready promotion, not a default fixture, not required by current benchmarks |
+
+The 1M profile is a compile-validated placeholder only.
+It reserves representative future scenario ids without requiring 1M fixture generation or Criterion output in the default manual workflow:
+`perf.core_read.simple.1m`, `perf.replay.lag_catchup.1m`, `perf.rebuild.refresh.1m`, `perf.verification.full.1m`, `perf.search.fulltext.1m`, `perf.vector.executor.1m`, `perf.hybrid.executor.1m`, `perf.time_series.window_scan.1m`, `perf.pgwire.simple_query.1m`, and `perf.http.document_create_get.1m`.
+
+### Manual Benchmark Scenarios
+
+| Scenario | Family | Owner benchmark | Workload | Scale |
+| --- | --- | --- | --- | --- |
+| `perf.core_read.simple.10k` | Core read | `tier3_system_query` | `simple_sql_query` | 10k |
+| `perf.core_read.simple.100k` | Core read | `tier3_system_query` | `simple_sql_query` | 100k |
+| `perf.replay.lag_catchup.10k` | Replay | `tier2_subsystem_ingest` | `projection_lag_catchup` | 10k |
+| `perf.replay.lag_catchup.100k` | Replay | `tier2_subsystem_ingest` | `projection_lag_catchup` | 100k |
+| `perf.rebuild.refresh.10k` | Rebuild | `tier3_system_rebuild` | `projection_refresh` | 10k |
+| `perf.rebuild.refresh.100k` | Rebuild | `tier3_system_rebuild` | `projection_refresh` | 100k |
+| `perf.verification.full.10k` | Verification | `tier3_system_rebuild` | `projection_verify` | 10k |
+| `perf.verification.full.100k` | Verification | `tier3_system_rebuild` | `projection_verify` | 100k |
+| `perf.search.fulltext.10k` | Search | `tier2_subsystem_search` | `full_text_executor` | 10k |
+| `perf.search.fulltext.100k` | Search | `tier2_subsystem_search` | `full_text_executor` | 100k |
+| `perf.vector.executor.10k` | Vector | `tier2_subsystem_vector` | `vector_executor` | 10k |
+| `perf.vector.executor.100k` | Vector | `tier2_subsystem_vector` | `vector_executor` | 100k |
+| `perf.hybrid.executor.10k` | Hybrid | `tier2_subsystem_hybrid` | `hybrid_executor` | 10k |
+| `perf.hybrid.executor.100k` | Hybrid | `tier2_subsystem_hybrid` | `hybrid_executor` | 100k |
+| `perf.time_series.window_scan.10k` | Time series | `tier3_system_query` | `time_series_window_scan` | 10k |
+| `perf.time_series.window_scan.100k` | Time series | `tier3_system_query` | `time_series_window_scan` | 100k |
+| `perf.time_series.retention.10k` | Time series | `tier3_system_rebuild` | `time_series_retention_enforcement` | 10k |
+| `perf.time_series.retention.100k` | Time series | `tier3_system_rebuild` | `time_series_retention_enforcement` | 100k |
+| `perf.time_series.rollup_refresh.10k` | Time series | `tier3_system_rebuild` | `time_series_rollup_refresh` | 10k |
+| `perf.time_series.rollup_refresh.100k` | Time series | `tier3_system_rebuild` | `time_series_rollup_refresh` | 100k |
+| `perf.pgwire.simple_query.10k` | pgwire | `tier4_integration_pgwire` | `pgwire_simple_query` | 10k |
+| `perf.pgwire.simple_query.100k` | pgwire | `tier4_integration_pgwire` | `pgwire_simple_query` | 100k |
+| `perf.http.document_create_get.10k` | HTTP | `tier4_integration_http` | `http_document_create_get` | 10k |
+| `perf.http.document_create_get.100k` | HTTP | `tier4_integration_http` | `http_document_create_get` | 100k |
+
+### Evidence Labels
+
+| Contract family | Memory/fallback evidence | EXPLAIN or metrics evidence |
+| --- | --- | --- |
+| Core read | `storage.data.reads`, `fallback_reason` | `access_path=point_lookup`, `query.latency_ms_total` |
+| Replay | `projections.write_batch_flushes`, `projections.replay_duplicates_skipped` | `replay_checkpoint`, `projections.replay_events_applied` |
+| Rebuild | `projections.write_rebuild_target_puts`, `rebuild_fallback` | `materialized_projection_refresh`, `projections.refreshes` |
+| Verification | `projection_hash_rows`, `verification_mismatch_count` | `VERIFY PROJECTION`, `projections.verifications` |
+| Search | `search.candidate_count_total`, `search_fallback` | `access_path=fulltext`, `search.latency_ms_total` |
+| Vector | `vector.candidate_count_total`, `vector.normalized_fallback_count_total` | `access_path=vector`, `vector.latency_ms_total` |
+| Hybrid | `hybrid.candidate_count_total`, `hybrid.prefilter_fallback_count_total` | `mixed_execution`, `hybrid.latency_ms_total` |
+| Time series | `time_series.buckets_scanned`, `time_series.fallback_reason`, `retention.skipped_rows`, `retention.errors`, `rollups.refreshes`, `rollups.stale_fallbacks` | `time_series=bucket_width:1 hour`, `time_series.scans`, `ENFORCE RETENTION`, `retention.deleted_rows`, `REFRESH ROLLUP`, `rollups.rewrite_hits` |
+| pgwire | `pgwire.blocking_elapsed_ms_total`, `pgwire.protocol_errors_total` | `pgwire_simple_query`, `pgwire.simple_queries_total` |
+| HTTP | `storage.data.writes`, `rest.blocking_error_total` | `documents::create/get`, `rest.requests_total` |
 
 ## Example Discipline
 
@@ -814,13 +913,17 @@ LIMIT 50;
 
 ### Required execution strategy
 Composite filtering path with index support or direct projection materialization.
+The baseline optimized path is a composite scalar index with equality-prefix filters followed by a
+single range/order field, for example `(tenant_id, status, created_at)`.
 
 ### Non-goals
 Ad hoc combinations without supporting index/layout are not guaranteed to meet the contract.
+Mixed-direction secondary ordering and expression-index filtered pages remain explicit follow-on
+scope until planner proof and executor coverage exist.
 
 ### Validation
-- Benchmarks: extend `benches/tier2_subsystem_executor.rs`
-- Tests: `tests/integration_sql_predicates.rs`, `tests/planner_indexes.rs`
+- Benchmarks: `perf.core_read.filtered_page.10k` and `perf.core_read.filtered_page.100k`
+- Tests: `tests/integration_sql_scalar_indexes.rs`, `tests/integration_sql_predicates.rs`, `tests/planner_indexes.rs`
 
 ### Required access-path assertions
 - Required plan shape: composite filter/order access path or equivalent projection-local shape
@@ -1069,18 +1172,20 @@ ORDER BY day;
 
 ### Required execution strategy
 Time-bucket-aware aggregate path or materialized rollup with fallback semantics.
+Time-series range indexes currently provide a row-backed scan baseline with bucket diagnostics;
+persisted bucket-native storage scans remain planned depth work.
 
 ### Non-goals
 Arbitrary ad hoc bucket widths over large unprepared datasets are not guaranteed interactive.
 
 ### Validation
-- Benchmarks: extend analytical/system query benches
-- Tests: `tests/time_series_rollups.rs`
+- Benchmarks: `perf.time_series.window_scan.10k`, `perf.time_series.window_scan.100k`, `perf.time_series.retention.10k`, `perf.time_series.retention.100k`, `perf.time_series.rollup_refresh.10k`, and `perf.time_series.rollup_refresh.100k`
+- Tests: `tests/time_series_indexes.rs`, `tests/time_series_retention.rs`, `tests/time_series_rollups.rs`
 
 ### Required access-path assertions
 - Required plan shape: rollup or bucket-aware aggregate path when the contract depends on it
 - Forbidden plan shape: large raw-row scan when a declared rollup path should apply
-- Explain/assertion coverage: tests must show freshness, fallback, and selected rollup behavior
+- Explain/assertion coverage: tests must show freshness, fallback, selected rollup behavior, selected time-series index, scanned/skipped bucket counts, and retention freshness effects
 
 ### Query Pattern: Column batch
 
@@ -1186,7 +1291,7 @@ A query pattern is not considered optimized until:
 - the intended execution strategy is implemented or the projection-materialization requirement is explicit
 - required and forbidden access paths are documented
 - a deterministic benchmark exists for the pattern
-- regression thresholds are defined for the owning benchmark
+- the owning benchmark produces useful manual p50, p95, p99, throughput, fallback, and evidence signals
 - plan-shape or behavior tests protect the execution path
 
 Unsupported patterns should be documented as non-goals rather than left as ambiguous slow paths.

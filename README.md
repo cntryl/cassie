@@ -28,6 +28,10 @@ Performance is not an afterthought. Query patterns should be benchmarked, measur
 
 Cassie assumes an event-sourced architecture. Data is projection data, projections can be rebuilt, and recovery is achieved through replay, snapshots, and rebuilds rather than complex database recovery procedures.
 
+### Midge storage layout
+
+Cassie uses a lexkey v2 Midge key layout for all Cassie-owned storage keys. This is a breaking on-disk layout: data directories created with the earlier slash-delimited or `__cassie__` v1 keys are rejected at startup and must be discarded, restored from a compatible snapshot, or rebuilt from projection sources.
+
 ### Simplicity wins
 
 Simplicity is a competitive advantage. A system that is easy to understand, operate, debug, and evolve will outperform a more sophisticated one that constantly demands operational attention.
@@ -66,7 +70,9 @@ Simplicity is a competitive advantage. A system that is easy to understand, oper
 
 ## Non-goals
 
-Cassie is not pursuing full PostgreSQL feature parity, distributed SQL execution, distributed transactions, multi-node query planning, stored procedures, trigger-based business logic, OLTP optimization, or consensus-heavy clustering. Those concerns belong elsewhere in the architecture.
+Cassie is not pursuing full PostgreSQL feature parity, distributed SQL execution, distributed transactions, multi-node query planning, stored-procedure business-logic platforms, trigger-based business logic, OLTP optimization, or consensus-heavy clustering. Those concerns belong elsewhere in the architecture.
+
+Limited `CREATE PROCEDURE`/`CALL` support may exist for compatibility and administrative workflows, but procedures are not a product direction for application business logic.
 
 ## Vision
 

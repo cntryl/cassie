@@ -10,8 +10,12 @@ This directory is the product-facing source of truth for what Cassie supports, w
 - [Product Roadmap](product-roadmap.md): feature-area milestones and remaining roadmap themes.
 - [Read-Model Gap Analysis](read-model-gap-analysis.md): strategic gaps against Cassie's event-sourced read-model mission.
 - [Performance Contracts](performance-contracts.md): read-model query-pattern contracts, execution expectations, and benchmark ownership.
-- [Read-Model Autopilot Plan](read-model-autopilot-plan.md): ordered execution path for closing the read-model gaps.
+- [Capacity Management](capacity-management.md): advisory sizing signals, thresholds, and operator actions for single-node read-model deployments.
+- [Read-Model Autopilot Plan](read-model-autopilot-plan.md): archived execution rules from the gap-closure rebaseline.
 - [PostgreSQL Compatibility](postgres-compatibility.md): compatibility guarantees, supported client surfaces, and intentional differences.
+- [Production Readiness](production-readiness.md): feature-family readiness, evidence, operational signals, restart coverage, and blockers.
+- [Operational Scale](operational-scale.md): local assignment metadata and external router/drain/move contracts for independent read nodes.
+- [Snapshot And Restore](snapshot-restore.md): local Midge-directory snapshots with Cassie compatibility manifests.
 - [Definition of Done](definition-of-done.md): completion standards for implemented, experimental, and production-ready features.
 - [Feature Ownership](feature-ownership.md): owning subsystems and default review boundaries for feature areas.
 - [Indexes and Constraints](indexes-and-constraints.md): index, constraint, and analytical overlay behavior.
@@ -29,11 +33,14 @@ Current supported areas include:
 
 - Core SQL reads and projection-state mutation workflows.
 - Projection checkpoints, replay diagnostics, materialized projections, versioned builds, and active-version swaps.
-- Table, schema, constraint, view, procedure, and catalog metadata.
+- Table, schema, constraint, view, limited procedure, and catalog metadata.
 - Scalar, composite, partial, expression, covering, full-text, vector, hybrid, and column-batch indexing surfaces.
 - Full-text search, vector search, hybrid scoring, and embedding-provider integration.
 - Column-batch scans, aggregate acceleration, time bucketing, rollups, EXPLAIN, metrics, and runtime diagnostics.
 - PostgreSQL wire protocol basics, extended query flow, prepared statements, SQLSTATE-style errors, and catalog probes.
+- Local operational assignment metadata plus external route, drain, move, failure, and rollback contracts for node, tenant, partition, and projection routing.
+- Local snapshot and restore workflow for single-node Midge-backed recovery.
+- Advisory capacity-management guidance using metrics, EXPLAIN, catalog diagnostics, host disk measurements, and manual benchmark scenarios.
 
 ## Compatibility Language
 
@@ -51,5 +58,6 @@ When feature behavior changes, update the relevant docs in the same change:
 - User-visible SQL or API behavior: update [Feature Support](feature-support.md).
 - PostgreSQL/client compatibility behavior: update [PostgreSQL Compatibility](postgres-compatibility.md).
 - Completion or support-level changes: update [Product Roadmap](product-roadmap.md) and [Definition of Done](definition-of-done.md).
+- Capacity, sizing, threshold, or operational-signal changes: update [Capacity Management](capacity-management.md) and [Production Readiness](production-readiness.md).
 - Index, constraint, or analytical overlay behavior: update [Indexes and Constraints](indexes-and-constraints.md).
 - New subsystem ownership or file-layout decisions: update [Feature Ownership](feature-ownership.md) and [Module Organization](module-organization.md).

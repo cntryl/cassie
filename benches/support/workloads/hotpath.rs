@@ -21,6 +21,7 @@ use cassie::runtime::ExecutionMode;
 use cassie::search::{bm25, tokenizer};
 use cassie::sql::{binder, parameter_count, parameter_type_oids, parse_statement};
 use cassie::types::{DataType, FieldSchema, Schema, Value};
+use cntryl_lexkey::Encoder;
 use serde_json::json;
 use uuid::Uuid;
 
@@ -34,11 +35,34 @@ pub fn row_encode_decode() -> usize {
 }
 
 pub fn key_encode_decode() -> usize {
-    let key = format!("__cassie__/schema/{}", Uuid::new_v4());
-    let decoded = key.strip_prefix("__cassie__/schema/").expect("key prefix");
-    let reencoded = format!("__cassie__/schema/{decoded}");
+    let id = Uuid::new_v4().to_string();
+    let prefix = lexkey_prefix(b"schema");
+    let mut encoder = Encoder::with_capacity(prefix.len() + id.len());
+    encoder.encode_bytes_into(&prefix);
+    encoder.encode_string_into(&id);
+    let key = encoder.into_vec();
+    let decoded = std::str::from_utf8(key.strip_prefix(prefix.as_slice()).expect("key prefix"))
+        .expect("utf8 suffix");
+    let mut reencoder = Encoder::with_capacity(prefix.len() + decoded.len());
+    reencoder.encode_bytes_into(&prefix);
+    reencoder.encode_string_into(decoded);
+    let reencoded = reencoder.into_vec();
     std::hint::black_box(reencoded);
     1
+}
+
+fn lexkey_prefix(family: &[u8]) -> Vec<u8> {
+    let parts = [
+        b"cassie".as_slice(),
+        b"lexkey".as_slice(),
+        b"v2".as_slice(),
+        family,
+    ];
+    let capacity = parts.iter().map(|part| part.len()).sum::<usize>() + parts.len();
+    let mut encoder = Encoder::with_capacity(capacity);
+    encoder.encode_composite_into_buf(&parts);
+    encoder.push_separator();
+    encoder.into_vec()
 }
 
 pub fn field_lookup() -> usize {

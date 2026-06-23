@@ -213,6 +213,16 @@ pub(super) fn execute_command(
         LogicalCommand::CompareProjection(statement) => {
             super::projection_diff::compare_projection(cassie, statement)
         }
+        LogicalCommand::PlanRepairProjection(statement) => {
+            super::projection_repair::plan_repair_projection(
+                cassie,
+                &statement.target,
+                statement.scope,
+            )
+        }
+        LogicalCommand::RepairProjection(statement) => {
+            super::projection_repair::repair_projection(cassie, statement)
+        }
         LogicalCommand::CreateRetentionPolicy(statement) => {
             invalidate_plan_cache = true;
             super::retention::create_retention_policy(cassie, statement)

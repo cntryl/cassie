@@ -333,6 +333,66 @@ pub(super) fn parse_compare_projection_statement(
     })
 }
 
+pub(super) fn parse_plan_repair_projection_statement(
+    trimmed: &str,
+) -> Result<ParsedStatement, SqlError> {
+    let statement = parse_projection_repair_statement(trimmed, "PLAN REPAIR PROJECTION")?;
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::PlanRepairProjection(
+            crate::sql::ast::PlanRepairProjectionStatement {
+                target: statement.target,
+                scope: statement.scope,
+            },
+        ),
+    })
+}
+
+pub(super) fn parse_repair_projection_statement(
+    trimmed: &str,
+) -> Result<ParsedStatement, SqlError> {
+    let statement = parse_projection_repair_statement(trimmed, "REPAIR PROJECTION")?;
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::RepairProjection(crate::sql::ast::RepairProjectionStatement {
+            target: statement.target,
+            scope: statement.scope,
+        }),
+    })
+}
+
+struct ParsedProjectionRepair {
+    target: crate::sql::ast::ProjectionDiffTarget,
+    scope: crate::sql::ast::ProjectionRepairScope,
+}
+
+fn parse_projection_repair_statement(
+    trimmed: &str,
+    command: &str,
+) -> Result<ParsedProjectionRepair, SqlError> {
+    let rest = trimmed[command.len()..].trim().trim_end_matches(';').trim();
+    let tokens = rest.split_whitespace().collect::<Vec<_>>();
+    let mut index = 0;
+    let target = parse_projection_diff_target(tokens.as_slice(), &mut index, command)?;
+    let Some(scope_keyword) = tokens.get(index) else {
+        return Err(SqlError(format!("{command} requires SCOPE")));
+    };
+    if !scope_keyword.eq_ignore_ascii_case("scope") {
+        return Err(SqlError(format!("{command} requires SCOPE")));
+    }
+    let Some(scope) = tokens.get(index + 1) else {
+        return Err(SqlError(format!("{command} SCOPE requires a value")));
+    };
+    index += 2;
+    if index != tokens.len() {
+        return Err(SqlError(format!("unsupported {command} option")));
+    }
+    Ok(ParsedProjectionRepair {
+        target,
+        scope: parse_projection_repair_scope(scope)?,
+    })
+}
+
 fn parse_projection_diff_target(
     tokens: &[&str],
     index: &mut usize,
@@ -357,6 +417,21 @@ fn parse_projection_diff_target(
         *index += 2;
     }
     Ok(target)
+}
+
+fn parse_projection_repair_scope(
+    raw: &str,
+) -> Result<crate::sql::ast::ProjectionRepairScope, SqlError> {
+    match raw.to_ascii_lowercase().replace('-', "_").as_str() {
+        "row" => Ok(crate::sql::ast::ProjectionRepairScope::Row),
+        "range" => Ok(crate::sql::ast::ProjectionRepairScope::Range),
+        "index" => Ok(crate::sql::ast::ProjectionRepairScope::Index),
+        "projection_version" => Ok(crate::sql::ast::ProjectionRepairScope::ProjectionVersion),
+        "full_rebuild" => Ok(crate::sql::ast::ProjectionRepairScope::FullRebuild),
+        _ => Err(SqlError(format!(
+            "unsupported projection repair scope '{raw}'"
+        ))),
+    }
 }
 
 fn parse_projection_verification_mode(

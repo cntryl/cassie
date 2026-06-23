@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 pub fn with_fallback() {
     env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    env::set_var("CASSIE_MIDGE_DATA_DIR", data_dir("fallback"));
 }
 
 pub fn data_dir(label: &str) -> String {

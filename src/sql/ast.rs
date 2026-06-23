@@ -127,6 +127,8 @@ pub enum QueryStatement {
     VerifyProjection(VerifyProjectionStatement),
     DiffProjection(DiffProjectionStatement),
     CompareProjection(CompareProjectionStatement),
+    PlanRepairProjection(PlanRepairProjectionStatement),
+    RepairProjection(RepairProjectionStatement),
     CreateRetentionPolicy(CreateRetentionPolicyStatement),
     AlterRetentionPolicy(AlterRetentionPolicyStatement),
     DropRetentionPolicy(DropRetentionPolicyStatement),
@@ -323,6 +325,39 @@ pub struct DiffProjectionStatement {
 pub struct CompareProjectionStatement {
     pub target: ProjectionDiffTarget,
     pub manifest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanRepairProjectionStatement {
+    pub target: ProjectionDiffTarget,
+    pub scope: ProjectionRepairScope,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RepairProjectionStatement {
+    pub target: ProjectionDiffTarget,
+    pub scope: ProjectionRepairScope,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProjectionRepairScope {
+    Row,
+    Range,
+    Index,
+    ProjectionVersion,
+    FullRebuild,
+}
+
+impl ProjectionRepairScope {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Row => "row",
+            Self::Range => "range",
+            Self::Index => "index",
+            Self::ProjectionVersion => "projection_version",
+            Self::FullRebuild => "full_rebuild",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -34,7 +34,7 @@ fn put_legacy_document(cassie: &Cassie, collection: &str, id: &str, payload: ser
 }
 
 #[test]
-fn should_hydrate_from_schema_records_when_collections_index_is_missing() {
+fn should_reject_legacy_collections_index_on_reopen() {
     // Arrange
     let path = data_dir("schema_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -57,24 +57,31 @@ fn should_hydrate_from_schema_records_when_collections_index_is_missing() {
 
         cassie.midge.create_collection(collection, schema).unwrap();
 
-        let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
-        tx.delete(b"__cassie__/collections".to_vec()).unwrap();
-        tx.commit(cntryl_midge::WriteOptions::sync()).unwrap();
+        {
+            let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
+            tx.put(
+                b"__cassie__/collections".to_vec(),
+                serde_json::to_vec(&vec![collection]).unwrap(),
+                None,
+            )
+            .unwrap();
+            tx.commit(cntryl_midge::WriteOptions::sync()).unwrap();
+        }
 
         drop(cassie);
 
         // Act
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
-        restarted.startup().unwrap();
-        let collections = restarted
-            .catalog
-            .list_collections()
-            .into_iter()
-            .map(|collection| collection.name)
-            .collect::<Vec<_>>();
+        let result = restarted.startup();
 
         // Assert
-        assert!(collections.iter().any(|value| value == collection));
+        let error = result.expect_err("legacy collections index should be rejected");
+        assert!(
+            error
+                .to_string()
+                .contains("incompatible lexkey v2 storage layout"),
+            "unexpected error: {error}"
+        );
 
         let _ = std::fs::remove_dir_all(path);
     });

@@ -1,6 +1,7 @@
 #![allow(unused_imports, dead_code)]
 use cassie::app::Cassie;
 use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
+use cassie::embeddings::NormalizedVectorRecord;
 use cassie::embeddings::{openai::OpenAiConfig, DEFAULT_EMBEDDING_MODEL};
 use cassie::midge::adapter::StorageFamily;
 use cntryl_midge::{TransactionMode, WriteOptions};
@@ -8,6 +9,7 @@ use uuid::Uuid;
 
 pub fn with_fallback() {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_MIDGE_DATA_DIR", data_dir("fallback"));
 }
 
 pub fn data_dir(label: &str) -> String {
@@ -48,14 +50,18 @@ pub fn put_legacy_document(
 }
 
 pub fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str) {
-    let prefix = format!("__cassie__/normalized-vector/{collection}/{field}/");
     let entries = cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Data, prefix.as_bytes())
+        .raw_scan_prefix(StorageFamily::Data, b"")
         .unwrap();
     let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
-    for (key, _value) in entries {
-        tx.delete(key).unwrap();
+    for (key, value) in entries {
+        let Ok(record) = serde_json::from_slice::<NormalizedVectorRecord>(&value) else {
+            continue;
+        };
+        if record.collection == collection && record.field == field {
+            tx.delete(key).unwrap();
+        }
     }
     tx.commit(WriteOptions::sync()).unwrap();
 }

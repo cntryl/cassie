@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 
 #[path = "workloads/context.rs"]
 mod context;
@@ -14,7 +14,8 @@ mod sql;
 mod system;
 
 pub use context::{
-    context, context_with_mock_tei_embeddings, empty_context, runtime, BenchContext,
+    context, context_with_mock_tei_embeddings, empty_context, runtime, scalar_context,
+    time_series_context, unindexed_context, BenchContext,
 };
 pub use hotpath::*;
 pub use http::*;

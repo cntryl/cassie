@@ -434,6 +434,8 @@ mod documents;
 mod embeddings;
 #[path = "app/lifecycle.rs"]
 mod lifecycle;
+#[path = "app/operational.rs"]
+mod operational;
 #[path = "app/query.rs"]
 mod query;
 #[path = "app/query_explain.rs"]
@@ -446,6 +448,8 @@ mod registry;
 mod replay;
 #[path = "app/roles.rs"]
 mod roles;
+#[path = "app/snapshots.rs"]
+mod snapshots;
 #[path = "app/vector_helpers.rs"]
 mod vector_helpers;
 #[path = "app/vector_search.rs"]
@@ -462,6 +466,7 @@ impl Cassie {}
 
 pub use consistency::ProjectionManifestExportOptions;
 pub use replay::{ProjectionReplayBatch, ProjectionReplayEvent, ProjectionReplayReport};
+pub use snapshots::{CassieSnapshotManifest, CassieSnapshotOptions};
 
 impl From<QueryError> for CassieError {
     fn from(value: QueryError) -> Self {

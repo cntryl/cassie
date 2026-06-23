@@ -49,7 +49,7 @@ The largest remaining gaps are now production evidence and operational depth gap
 | Operational scale over distributed SQL | Offline manifests explicitly avoid distributed query/replication semantics; local assignment metadata, external routing contracts, local snapshot/restore, and capacity guidance are available. | Deployment-specific router integrations, fleet monitoring thresholds, and production evidence remain outside Cassie. | P1 |
 | Purpose-built read models | Primary/secondary lookups, range queries, tenant filtered pages, narrow mixed-order equality-prefix scans, exact expression-index equality seeks, aggregations, search, vector, hybrid, projections, and analytics exist. | Remaining depth is focused on broader read-path combinations, persisted bucket-native time-series storage, and deeper projection-shaped layout guidance. | P1 |
 | Performance is a feature | Broad benchmark suite, performance contracts, manifest-owned 10k/100k manual scenarios, and capacity signal guidance exist. | Future work should improve scenario quality, capture repeatable local evidence, add byte-accurate capacity data, and add larger scale points. | P1 |
-| Event-sourcing native | Replay batches, checkpoint metadata, duplicate skip ledger, materialized projection builds, verification, repair plans, local hash repair, swaps, and local snapshot/restore exist. | Projection handler/determinism contracts and production-readiness evidence remain classification work. | P1 |
+| Event-sourcing native | Replay batches, checkpoint metadata, duplicate skip ledger, materialized projection builds, handler determinism contracts, replay failure guidance, verification, repair plans, local hash repair, swaps, and local snapshot/restore exist. | Production replay capacity evidence remains classification work. | P1 |
 | Simplicity wins | Docs now frame Cassie as a read-model database, reject distributed SQL, and define procedures as limited compatibility/admin support rather than application business logic. | Feature surface is broad and can read like PostgreSQL parity unless non-goals and experimental boundaries stay explicit. | P1 |
 | Practical PostgreSQL access | pgwire startup, auth, simple/extended query, prepared statements, catalog probes, SQLSTATE-style errors, a maintained client matrix, default tokio-postgres coverage, and an opt-in psql probe exist. | sqlx/diesel/prisma/SQLAlchemy automation remains future probe depth. | P1 |
 
@@ -303,10 +303,10 @@ Closed baseline:
 - [Performance Contracts](performance-contracts.md): deployment-profile benchmark reports, larger fixture placeholders, and production-readiness evidence boundaries without unsupported SLA claims.
 - [Module Organization](module-organization.md): extraction gate lowered the immediate Midge, executor, and schema-parser touch points below the 1,000-line file limit before read-path, projection, and time-series depth work.
 - [Read-path depth](performance-contracts.md): narrow equality-prefix mixed ordering and exact expression-index equality seeks with EXPLAIN proof, metrics, restart coverage, and manual benchmark ownership.
+- [Projection replay contracts](projection-replay-contracts.md): handler-owned determinism, Cassie-owned replay metadata, duplicate/conflict handling, failure observability, restart hydration, and safe rebuild/verify/swap guidance.
 
 Remaining sequence:
 
-- [Projection determinism](../issues/phase-09/issue-05.md): handler determinism, replay failure modes, and Cassie-owned versus application-owned responsibilities.
 - [Persisted bucket-native time-series storage](../issues/phase-09/issue-06.md): bucket-native metadata, mutation/restart correctness, retention interactions, and fallback proof.
 - [Pgwire client probes](../issues/phase-09/issue-07.md): opt-in non-tokio client probes while keeping the default suite deterministic.
 - [Byte-accurate capacity diagnostics](../issues/phase-09/issue-08.md): local byte accounting for storage families, indexes, sidecars, and rebuild artifacts where feasible.

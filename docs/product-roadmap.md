@@ -26,6 +26,7 @@ Goal: make projection construction, replay, rebuilds, freshness, and activation 
 | Projection metadata, schema version, offset, lag, rebuild state | Implemented | Experimental Cassie-specific |
 | Projection source checkpoints and replay metadata | Implemented | Experimental Cassie-specific |
 | Idempotent replay ingestion | Implemented | Experimental Cassie-specific internal API |
+| Projection handler determinism and replay failure contracts | Implemented | Experimental Cassie-specific internal API |
 | Materialized projections | Implemented | Experimental Cassie-specific |
 | Projection versioning | Implemented | Experimental Cassie-specific |
 | Projection active-version swaps | Implemented | Experimental Cassie-specific |

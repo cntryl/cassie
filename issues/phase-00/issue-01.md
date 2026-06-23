@@ -62,12 +62,12 @@ Phase 08 issue 08 is closed for the procedure non-goal boundary; see `docs/featu
 Phase 08 issue 09 is closed for production-ready classification; see `docs/production-readiness.md`.
 Phase 08 issue 10 is closed for capacity management and docs reconciliation; see `docs/capacity-management.md`.
 Phase 09 issue 04 is closed for narrow mixed-order and expression-index read-path depth; see `docs/performance-contracts.md`.
+Phase 09 issue 05 is closed for projection handler determinism and replay contracts; see `docs/projection-replay-contracts.md`.
 
 ### P1 Next
 
-1. [Phase 09 Issue 05: Projection Handler Determinism And Replay Contracts](../phase-09/issue-05.md)
-2. [Phase 09 Issue 06: Persisted Bucket-Native Time-Series Storage](../phase-09/issue-06.md)
-3. [Phase 09 Issue 07: Pgwire Client Probe Expansion](../phase-09/issue-07.md)
+1. [Phase 09 Issue 06: Persisted Bucket-Native Time-Series Storage](../phase-09/issue-06.md)
+2. [Phase 09 Issue 07: Pgwire Client Probe Expansion](../phase-09/issue-07.md)
 
 ### P2 Follow-Up
 

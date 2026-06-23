@@ -201,6 +201,98 @@ fn should_report_failed_freshness_for_out_of_order_replay() {
 }
 
 #[test]
+fn should_fail_duplicate_event_id_in_batch_without_partial_replay() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projection_replay_duplicate_in_batch");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE projection_replay_conflict_docs (title TEXT)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let error = cassie
+            .replay_projection_batch(ProjectionReplayBatch {
+                projection: "projection_replay_conflict_docs".to_string(),
+                source_identity: "orders-stream".to_string(),
+                batch_id: "batch-conflict".to_string(),
+                lag: 2,
+                events: vec![
+                    ProjectionReplayEvent {
+                        event_id: "event-1".to_string(),
+                        checkpoint: "checkpoint-1".to_string(),
+                        position: Some(1),
+                        document_id: "doc-1".to_string(),
+                        payload: Some(serde_json::json!({"title": "alpha"})),
+                    },
+                    ProjectionReplayEvent {
+                        event_id: "event-1".to_string(),
+                        checkpoint: "checkpoint-2".to_string(),
+                        position: Some(2),
+                        document_id: "doc-2".to_string(),
+                        payload: Some(serde_json::json!({"title": "bravo"})),
+                    },
+                ],
+            })
+            .unwrap_err();
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM projection_replay_conflict_docs ORDER BY title",
+                vec![],
+            )
+            .unwrap();
+        let checkpoint = cassie
+            .execute_sql(
+                &session,
+                "SELECT freshness, replay_batch_id, source_checkpoint, last_applied_event_id, last_error FROM pg_catalog.pg_projection_checkpoints WHERE collection = 'projection_replay_conflict_docs'",
+                vec![],
+            )
+            .unwrap();
+        drop(cassie);
+
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().unwrap();
+        let restarted_session = restarted.create_session("tester", None);
+        let restarted_checkpoint = restarted
+            .execute_sql(
+                &restarted_session,
+                "SELECT freshness, replay_batch_id, source_checkpoint, last_applied_event_id, last_error FROM pg_catalog.pg_projection_checkpoints WHERE collection = 'projection_replay_conflict_docs'",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert!(error.to_string().contains("duplicate projection replay event"));
+        assert_eq!(selected.rows, Vec::<Vec<Value>>::new());
+        assert_eq!(checkpoint.rows.len(), 1);
+        assert_eq!(checkpoint.rows[0][0], Value::String("failed".to_string()));
+        assert_eq!(
+            checkpoint.rows[0][1],
+            Value::String("batch-conflict".to_string())
+        );
+        assert_eq!(checkpoint.rows[0][2], Value::String(String::new()));
+        assert_eq!(checkpoint.rows[0][3], Value::String(String::new()));
+        assert!(matches!(&checkpoint.rows[0][4], Value::String(message) if message.contains("duplicate projection replay event")));
+        assert_eq!(restarted_checkpoint.rows, checkpoint.rows);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_refresh_materialized_projection_after_source_write() {
     // Arrange
     with_fallback();

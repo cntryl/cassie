@@ -14,7 +14,6 @@ Every implementation slice must remain tied to read-model workloads, Midge-nativ
 
 P1 next:
 
-5. Projection handler determinism and replay contracts.
 6. Persisted bucket-native time-series storage.
 7. Pgwire client probe expansion.
 
@@ -36,6 +35,7 @@ P3 parked:
 - Phase 07 advanced query contracts are archived in `issues/phase-07/README.md`.
 - Phase 08 README-goal closure is archived in `issues/phase-08/README.md`.
 - Phase 09 issue 04 read-path depth is archived in `docs/performance-contracts.md`.
+- Phase 09 issue 05 projection replay contracts are archived in `docs/projection-replay-contracts.md`.
 
 ## Non-Goals
 

@@ -10,6 +10,7 @@ This directory is the product-facing source of truth for what Cassie supports, w
 - [Product Roadmap](product-roadmap.md): feature-area milestones and remaining roadmap themes.
 - [Read-Model Gap Analysis](read-model-gap-analysis.md): strategic gaps against Cassie's event-sourced read-model mission.
 - [Performance Contracts](performance-contracts.md): read-model query-pattern contracts, execution expectations, and benchmark ownership.
+- [Projection Replay Contracts](projection-replay-contracts.md): deterministic handler, replay failure, and operator recovery boundaries.
 - [Capacity Management](capacity-management.md): advisory sizing signals, thresholds, and operator actions for single-node read-model deployments.
 - [Read-Model Autopilot Plan](read-model-autopilot-plan.md): archived execution rules from the gap-closure rebaseline.
 - [PostgreSQL Compatibility](postgres-compatibility.md): compatibility guarantees, supported client surfaces, and intentional differences.

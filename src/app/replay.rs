@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use serde::{Deserialize, Serialize};
 
 use crate::midge::adapter::DocumentWriteOp;
@@ -75,6 +77,7 @@ impl Cassie {
         let mut duplicate_checks = 0u64;
         let mut write_ops = Vec::new();
         let mut replay_event_ids = Vec::new();
+        let mut batch_event_ids = BTreeSet::new();
 
         let mut position_cursor = metadata.source_position;
         let mut source_checkpoint = metadata.source_checkpoint.clone();
@@ -97,6 +100,16 @@ impl Cassie {
             )? {
                 skipped = skipped.saturating_add(1);
                 continue;
+            }
+            if !batch_event_ids.insert(event.event_id.clone()) {
+                return self.fail_replay_metadata(
+                    metadata,
+                    &batch,
+                    format!(
+                        "duplicate projection replay event '{}' in batch '{}'",
+                        event.event_id, batch.batch_id
+                    ),
+                );
             }
             if let (Some(previous), Some(next)) = (position_cursor, event.position) {
                 if next <= previous {

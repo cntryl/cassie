@@ -233,6 +233,7 @@ Apply event-driven projection updates efficiently while preserving checkpoint in
 
 ### Required write strategy
 - group duplicate checks and mutation writes before checkpoint updates
+- fail preflight conflicts before applying any row or index writes
 - apply grouped row/index writes before checkpoint commit
 
 ### Required read-shape compatibility
@@ -244,7 +245,7 @@ Apply event-driven projection updates efficiently while preserving checkpoint in
 
 ### Validation
 - Benchmarks: `projection_lag_catchup` and `projection_write_path` in `tier2_subsystem_ingest`
-- Assertions: checkpoint progression and bounded duplicate check overhead
+- Assertions: checkpoint progression, preflight conflict isolation, and bounded duplicate check overhead
 
 ### Interactive or bulk?
 Bulk replay path.
@@ -273,6 +274,7 @@ Replay input with repeated event IDs, sequence pairs, or checkpoint values.
 
 ### Required write strategy
 - detect duplicates before row/index mutation
+- reject duplicate new event ids inside the same replay batch as a conflict
 - emit duplicate skip counters before moving cursor
 
 ### Required read-shape compatibility

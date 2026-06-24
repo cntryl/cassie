@@ -15,10 +15,10 @@ Every implementation slice must remain tied to read-model workloads, Midge-nativ
 Closed baseline:
 
 - Issue 07 pgwire client probe expansion: SQLAlchemy Core is covered by an opt-in non-tokio probe, psql remains opt-in, tokio-postgres remains the deterministic default baseline, and sqlx/diesel/prisma/migration-tool automation remains planned depth.
+- Issue 08 byte-accurate capacity diagnostics: `/metrics.capacity` reports advisory local key/value bytes by Midge family and by major Cassie read-model category without adding a second storage abstraction or automatic capacity action.
 
 P2 follow-up:
 
-8. Byte-accurate capacity diagnostics.
 9. Repair scope depth and operator runbooks.
 10. Adaptive planning depth and promotion gates.
 

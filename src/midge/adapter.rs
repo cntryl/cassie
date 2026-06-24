@@ -143,6 +143,8 @@ pub struct ColumnBatchScanOutcome {
     pub decoded_columns: usize,
 }
 
+#[path = "adapter/capacity.rs"]
+mod capacity;
 #[path = "adapter/cardinality_stats.rs"]
 mod cardinality_stats;
 #[path = "adapter/column_batches.rs"]

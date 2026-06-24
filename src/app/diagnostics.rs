@@ -44,6 +44,7 @@ impl Cassie {
             "projections": snapshot.projections,
             "retention": snapshot.retention,
             "read_paths": snapshot.read_paths,
+            "capacity": self.midge.capacity_report(),
         })
     }
 }

@@ -51,6 +51,66 @@ pub(super) const LEGACY_DATA_PREFIXES: &[&[u8]] = &[b"__cassie__/", b"r/", b"doc
 
 pub(super) const LEGACY_TEMP_PREFIXES: &[&[u8]] = &[b"__cassie__/"];
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CapacityKeyKind {
+    RowBlob,
+    ScalarIndex,
+    IndexMetadata,
+    VectorSidecar,
+    ColumnBatch,
+    ProjectionMetadata,
+    TempArtifact,
+    Other,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct CapacityKeyPrefix {
+    pub kind: CapacityKeyKind,
+    pub prefix: Vec<u8>,
+}
+
+pub(super) fn capacity_key_prefixes() -> Vec<CapacityKeyPrefix> {
+    [
+        (CapacityKeyKind::RowBlob, FAMILY_ROW),
+        (CapacityKeyKind::RowBlob, FAMILY_LEGACY_DOC),
+        (CapacityKeyKind::ScalarIndex, FAMILY_SCALAR_INDEX),
+        (CapacityKeyKind::ScalarIndex, FAMILY_TIME_SERIES_INDEX),
+        (CapacityKeyKind::IndexMetadata, FAMILY_INDEX),
+        (CapacityKeyKind::VectorSidecar, FAMILY_VECTOR_INDEX),
+        (CapacityKeyKind::VectorSidecar, FAMILY_NORMALIZED_VECTOR),
+        (CapacityKeyKind::ColumnBatch, FAMILY_COLUMN_BATCH),
+        (CapacityKeyKind::ColumnBatch, FAMILY_COLUMN_STORE),
+        (CapacityKeyKind::ProjectionMetadata, FAMILY_PROJECTION),
+        (
+            CapacityKeyKind::ProjectionMetadata,
+            FAMILY_PROJECTION_COMPARISON_REPORT,
+        ),
+        (
+            CapacityKeyKind::ProjectionMetadata,
+            FAMILY_PROJECTION_CONSISTENCY_REPORT,
+        ),
+        (CapacityKeyKind::ProjectionMetadata, FAMILY_PROJECTION_EVENT),
+        (
+            CapacityKeyKind::ProjectionMetadata,
+            FAMILY_PROJECTION_REPAIR_REPORT,
+        ),
+        (
+            CapacityKeyKind::ProjectionMetadata,
+            FAMILY_OPERATIONAL_ASSIGNMENT,
+        ),
+        (CapacityKeyKind::ProjectionMetadata, FAMILY_ROW_HASH),
+        (CapacityKeyKind::ProjectionMetadata, FAMILY_RANGE_HASH),
+        (CapacityKeyKind::ProjectionMetadata, FAMILY_ROOT_HASH),
+        (CapacityKeyKind::TempArtifact, FAMILY_OPERATOR_FEEDBACK),
+    ]
+    .into_iter()
+    .map(|(kind, family)| CapacityKeyPrefix {
+        kind,
+        prefix: prefix(family, &[]),
+    })
+    .collect()
+}
+
 pub(super) fn layout_marker_key() -> Vec<u8> {
     key(FAMILY_LAYOUT, &[b"version"])
 }

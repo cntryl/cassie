@@ -11,7 +11,7 @@ Current sources of truth:
 - [Production Readiness](production-readiness.md): readiness evidence, blockers, and promotion rules.
 - [Read-Model Gap Analysis](read-model-gap-analysis.md): current delta against the README goals.
 - [Capacity Management](capacity-management.md): advisory sizing signals and operator actions.
-- [Phase 00 Issue Index](../issues/phase-00/issue-01.md): active issue coverage index.
+- [Phase 09 Archive](../issues/phase-09/README.md): closed production-depth rebaseline.
 
 ## Archived Operating Rules
 
@@ -28,9 +28,9 @@ Current sources of truth:
 ## Rebaseline Result
 
 Phase 08 closed the README-goal baseline around local operational assignments, local snapshot/restore, manual benchmark feedback loops, repair planning and local repair, read optimization, time-series, client compatibility, procedure boundaries, production-readiness classification, and capacity-management documentation.
+Phase 09 closed the current production-depth rebaseline around client probes, capacity diagnostics, projection repair runbooks, adaptive confidence gates, and experimental promotion criteria.
 
-Future work should start from the active issue index, not from this archived plan.
-If product docs and issue coverage disagree, update the issue index first so implementation remains mechanical.
+Future work should start from the current product docs and a new issue slice, not from this archived plan.
 
 ## Stop Conditions
 

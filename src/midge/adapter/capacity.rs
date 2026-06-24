@@ -5,7 +5,7 @@ use serde::Serialize;
 use crate::catalog::{IndexKind, IndexMeta};
 
 use super::key_encoding::{self, CapacityKeyKind, CapacityKeyPrefix};
-use super::{Midge, StorageFamily, DEFAULT_FAMILY_NAME};
+use super::{Midge, RawStorageEntry, StorageFamily, DEFAULT_FAMILY_NAME};
 
 const FAMILY_SCHEMA: &str = "schema";
 const FAMILY_DATA: &str = "data";
@@ -31,6 +31,8 @@ const CATEGORY_NAMES: &[&str] = &[
     CATEGORY_TEMP_ARTIFACTS,
     CATEGORY_OTHER,
 ];
+
+type CapacityScanEntries = Vec<RawStorageEntry>;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CapacityReport {
@@ -171,7 +173,7 @@ impl<'a> CapacityFamily<'a> {
         }
     }
 
-    fn scan(&self, midge: &Midge) -> Result<Vec<(Vec<u8>, Vec<u8>)>, crate::app::CassieError> {
+    fn scan(&self, midge: &Midge) -> Result<CapacityScanEntries, crate::app::CassieError> {
         match self {
             Self::Storage(_, family) => midge.raw_scan_prefix(*family, b""),
             Self::Named(_, family) => midge.raw_scan_prefix_named(family, b""),

@@ -79,6 +79,23 @@ pub async fn unindexed_context(
     context_with_index_options(label, dataset_rows, BenchIndexOptions::none()).await
 }
 
+pub async fn replay_context(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
+    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    let dir = benchmark_data_dir(label);
+
+    let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
+    cassie.startup()?;
+    let session = cassie.create_session("benchmark", None);
+    let ctx = BenchContext {
+        cassie,
+        session,
+        collection: "bench_documents".to_string(),
+        _embedding_server: None,
+    };
+    prepare_replay_collection(&ctx, dataset_rows).await?;
+    Ok(ctx)
+}
+
 pub async fn time_series_context(
     label: &str,
     dataset_rows: usize,
@@ -409,6 +426,90 @@ async fn prepare_collection(
         for statement in statements {
             let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
         }
+    }
+
+    Ok(())
+}
+
+async fn prepare_replay_collection(
+    ctx: &BenchContext,
+    dataset_rows: usize,
+) -> Result<(), CassieError> {
+    if ctx.cassie.catalog.exists(&ctx.collection) {
+        return Ok(());
+    }
+
+    let schema = Schema {
+        fields: vec![
+            FieldSchema {
+                name: "id".to_string(),
+                data_type: DataType::Text,
+                nullable: false,
+            },
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "score".to_string(),
+                data_type: DataType::Int,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "status".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    };
+
+    ctx.cassie
+        .midge
+        .create_collection(&ctx.collection, schema.clone())?;
+    ctx.cassie.register_collection(
+        &ctx.collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
+
+    let mut documents = Vec::with_capacity(dataset_rows);
+    for index in 0..dataset_rows {
+        documents.push((
+            Some(format!("doc-{index}")),
+            json!({
+                "title": format!("title-{}", index % 16),
+                "body": if index % 3 == 0 { "alpha beta gamma" } else { "delta epsilon" },
+                "score": (index % 100) as i64,
+                "status": if index % 2 == 0 { "approved" } else { "pending" },
+            }),
+        ));
+    }
+    if !documents.is_empty() {
+        ctx.cassie.midge.put_documents(&ctx.collection, documents)?;
+    }
+
+    let statements = [
+        format!(
+            "CREATE INDEX {}_score_idx ON {} USING btree (score)",
+            ctx.collection, ctx.collection
+        ),
+        format!(
+            "CREATE INDEX {}_status_score_idx ON {} USING btree (status, score)",
+            ctx.collection, ctx.collection
+        ),
+    ];
+
+    for statement in statements {
+        let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
     }
 
     Ok(())

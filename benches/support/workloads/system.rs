@@ -122,13 +122,13 @@ pub async fn timed_http_document_create_get_batch(
         std::hint::black_box(loaded);
         ids.push(id);
     }
-    let elapsed = started.elapsed();
     for id in ids {
         ctx.cassie
             .midge
             .delete_document(&ctx.collection, &id)
             .expect("cleanup document");
     }
+    let elapsed = started.elapsed();
     elapsed / batch_size as u32
 }
 
@@ -264,25 +264,24 @@ pub async fn projection_version_swap(ctx: &BenchContext, _nonce: usize) -> usize
     command_len
 }
 
-pub async fn projection_duplicate_replay(ctx: &BenchContext) -> usize {
+pub async fn projection_duplicate_replay(ctx: &BenchContext, nonce: usize) -> usize {
     let before = ctx.cassie.metrics();
     let batch = ProjectionReplayBatch {
         projection: ctx.collection.clone(),
-        source_identity: "bench-stream".to_string(),
-        batch_id: "bench-duplicate-batch".to_string(),
+        source_identity: format!("bench-stream-{nonce}"),
+        batch_id: format!("bench-duplicate-batch-{nonce}"),
         lag: 0,
         events: vec![ProjectionReplayEvent {
-            event_id: "bench-duplicate-event".to_string(),
-            checkpoint: "bench-duplicate-checkpoint".to_string(),
-            position: Some(1),
-            document_id: "bench-duplicate-doc".to_string(),
+            event_id: format!("bench-duplicate-event-{nonce}"),
+            checkpoint: format!("bench-duplicate-checkpoint-{nonce}"),
+            position: Some(nonce as u64),
+            document_id: format!("bench-duplicate-doc-{nonce}"),
             payload: Some(json!({
-                "id": "bench-duplicate-doc",
+                "id": format!("bench-duplicate-doc-{nonce}"),
                 "title": "duplicate-title",
                 "body": "alpha beta",
                 "score": 1,
                 "status": "approved",
-                "embedding": [1.0, 0.0, 0.0],
             })),
         }],
     };
@@ -302,28 +301,27 @@ pub async fn projection_duplicate_replay(ctx: &BenchContext) -> usize {
     std::hint::black_box((first.applied_event_count + second.skipped_duplicate_count) as usize)
 }
 
-pub async fn projection_lag_catchup(ctx: &BenchContext) -> usize {
+pub async fn projection_lag_catchup(ctx: &BenchContext, nonce: usize) -> usize {
     let before = ctx.cassie.metrics();
     let events = (0..64)
         .map(|index| ProjectionReplayEvent {
-            event_id: format!("bench-catchup-event-{index}"),
-            checkpoint: format!("bench-catchup-checkpoint-{index}"),
-            position: Some(index),
-            document_id: format!("bench-catchup-doc-{index}"),
+            event_id: format!("bench-catchup-event-{nonce}-{index}"),
+            checkpoint: format!("bench-catchup-checkpoint-{nonce}-{index}"),
+            position: Some((nonce * 64 + index) as u64),
+            document_id: format!("bench-catchup-doc-{nonce}-{index}"),
             payload: Some(json!({
-                "id": format!("bench-catchup-doc-{index}"),
-                "title": format!("catchup-title-{index}"),
+                "id": format!("bench-catchup-doc-{nonce}-{index}"),
+                "title": format!("catchup-title-{nonce}-{index}"),
                 "body": "alpha beta gamma",
                 "score": index as i64,
                 "status": "approved",
-                "embedding": [1.0, 0.0, 0.0],
             })),
         })
         .collect();
     let batch = ProjectionReplayBatch {
         projection: ctx.collection.clone(),
-        source_identity: "bench-catchup-stream".to_string(),
-        batch_id: "bench-catchup-batch".to_string(),
+        source_identity: format!("bench-catchup-stream-{nonce}"),
+        batch_id: format!("bench-catchup-batch-{nonce}"),
         lag: 0,
         events,
     };
@@ -405,7 +403,7 @@ pub async fn time_series_window_scan(ctx: &BenchContext) -> usize {
 pub async fn time_series_retention_enforcement(ctx: &BenchContext, nonce: usize) -> usize {
     put_time_series_event(
         ctx,
-        "ts-retention-expired",
+        &format!("ts-retention-expired-{nonce}"),
         "tenant-retention",
         "2026-01-01T00:00:00Z",
         nonce,
@@ -429,7 +427,7 @@ pub async fn time_series_retention_enforcement(ctx: &BenchContext, nonce: usize)
 pub async fn time_series_rollup_refresh(ctx: &BenchContext, nonce: usize) -> usize {
     put_time_series_event(
         ctx,
-        "ts-rollup-refresh",
+        &format!("ts-rollup-refresh-{nonce}"),
         "tenant-rollup",
         "2026-01-12T12:00:00Z",
         nonce,
@@ -497,12 +495,12 @@ pub async fn timed_ingest_document_batch(ctx: &BenchContext, batch_size: usize) 
         std::hint::black_box(&id);
         ids.push(id);
     }
-    let elapsed = started.elapsed();
     for id in ids {
         ctx.cassie
             .midge
             .delete_document(&ctx.collection, &id)
             .expect("cleanup ingested document");
     }
+    let elapsed = started.elapsed();
     elapsed / batch_size as u32
 }

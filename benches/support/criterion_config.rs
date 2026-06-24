@@ -50,7 +50,7 @@ pub fn criterion_config_for_tier2() -> Criterion {
 pub fn criterion_config_for_tier2_write() -> Criterion {
     Criterion::default()
         .warm_up_time(env_duration_ms("BENCH_TIER2_WRITE_WARMUP_MS", 250))
-        .measurement_time(env_duration_ms("BENCH_TIER2_WRITE_MEASUREMENT_MS", 20_000))
+        .measurement_time(env_duration_ms("BENCH_TIER2_WRITE_MEASUREMENT_MS", 2_500))
         .sample_size(env_usize("BENCH_TIER2_WRITE_SAMPLE_SIZE", 10))
         .noise_threshold(env_f64("BENCH_TIER2_WRITE_NOISE_THRESHOLD", 0.05))
         .without_plots()

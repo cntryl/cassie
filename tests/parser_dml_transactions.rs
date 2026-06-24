@@ -182,6 +182,26 @@ fn should_parse_savepoint_transaction_control_statement() {
 }
 
 #[test]
+fn should_parse_quoted_savepoint_transaction_control_statement() {
+    // Arrange
+    let sql = r#"SAVEPOINT "_pg3_1""#;
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Transaction(statement) = parsed.statement else {
+        panic!("expected transaction statement");
+    };
+    match statement.action {
+        cassie::sql::ast::TransactionAction::Savepoint { name } => {
+            assert_eq!(name, "_pg3_1");
+        }
+        _ => panic!("expected savepoint action"),
+    }
+}
+
+#[test]
 fn should_parse_rollback_to_savepoint_transaction_control_statement() {
     // Arrange
     let sql = "ROLLBACK TO SAVEPOINT sp";

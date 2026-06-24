@@ -116,6 +116,11 @@ pub fn registry() -> Vec<ScalarFunction> {
             arity: FunctionArity::Exact(0),
         },
         ScalarFunction {
+            id: FunctionId::Version,
+            name: "pg_catalog.version",
+            arity: FunctionArity::Exact(0),
+        },
+        ScalarFunction {
             id: FunctionId::CurrentSchema,
             name: "current_schema",
             arity: FunctionArity::Exact(0),

@@ -196,6 +196,17 @@ async fn read_wire_frame(
     (tag[0], payload)
 }
 
+async fn read_until_ready(
+    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
+) -> Vec<u8> {
+    loop {
+        let frame = read_wire_frame(reader).await;
+        if frame.0 == b'Z' {
+            return frame.1;
+        }
+    }
+}
+
 fn read_cstring(payload: &[u8], cursor: &mut usize) -> String {
     let tail = payload
         .get(*cursor..)
@@ -365,9 +376,8 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
             .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_wire_frame(&mut reader).await;
-        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
-        assert_eq!(startup_ready.1, vec![b'I']);
+        let startup_ready = read_until_ready(&mut reader).await;
+        assert_eq!(startup_ready, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,
@@ -416,29 +426,31 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
         // Assert
         assert_eq!(
             frames.len(),
-            8,
-            "reused prepared statements should return eight frames"
+            10,
+            "reused prepared statements should return ten frames"
         );
         assert_eq!(frames[0].0, b'1', "parse should complete first");
         assert_eq!(frames[1].0, b'2', "first bind should complete");
-        assert_eq!(frames[2].0, b'D', "first execute should return a data row");
+        assert_eq!(frames[2].0, b'T', "first execute should describe rows");
+        assert_eq!(frames[3].0, b'D', "first execute should return a data row");
         assert_eq!(
-            frames[3].0, b'C',
+            frames[4].0, b'C',
             "first execute should finish with command complete"
         );
         assert_eq!(
-            frames[4].0, b'2',
+            frames[5].0, b'2',
             "second bind should reuse the prepared statement"
         );
-        assert_eq!(frames[5].0, b'D', "second execute should return a data row");
+        assert_eq!(frames[6].0, b'T', "second execute should describe rows");
+        assert_eq!(frames[7].0, b'D', "second execute should return a data row");
         assert_eq!(
-            frames[6].0, b'C',
+            frames[8].0, b'C',
             "second execute should finish with command complete"
         );
-        assert_eq!(frames[7].0, b'Z', "sync should finish with ready-for-query");
+        assert_eq!(frames[9].0, b'Z', "sync should finish with ready-for-query");
 
-        let first_values = parse_data_row(&frames[2].1);
-        let second_values = parse_data_row(&frames[5].1);
+        let first_values = parse_data_row(&frames[3].1);
+        let second_values = parse_data_row(&frames[7].1);
         assert_eq!(first_values, vec![Some("1".to_string())]);
         assert_eq!(second_values, vec![Some("2".to_string())]);
 
@@ -520,9 +532,8 @@ fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
             .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_wire_frame(&mut reader).await;
-        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
-        assert_eq!(startup_ready.1, vec![b'I']);
+        let startup_ready = read_until_ready(&mut reader).await;
+        assert_eq!(startup_ready, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,

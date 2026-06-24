@@ -45,6 +45,38 @@ fn should_return_version_function() {
 }
 
 #[test]
+fn should_return_postgres_shaped_pg_catalog_version_function() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let path = data_dir("pg_catalog_version");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", Some("catalogdb".to_string()));
+
+        // Act
+        let result = cassie
+            .execute_sql(&session, "SELECT pg_catalog.version()", vec![])
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.columns[0].name, "pg_catalog.version");
+        assert_eq!(result.rows.len(), 1);
+        let Value::String(version) = &result.rows[0][0] else {
+            panic!("pg_catalog.version should return text");
+        };
+        assert!(version.starts_with("PostgreSQL 16.0"));
+        assert!(version.contains(env!("CARGO_PKG_VERSION")));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_return_current_schema_function() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -132,6 +164,41 @@ fn should_return_search_path_from_show_statement() {
             }]
         );
         assert_eq!(result.rows, vec![vec![Value::String("public".to_string())]]);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_return_sqlalchemy_dialect_show_metadata() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        with_fallback();
+        let path = data_dir("show_sqlalchemy_metadata");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", Some("catalogdb".to_string()));
+
+        // Act
+        let isolation = cassie
+            .execute_sql(&session, "SHOW transaction isolation level", vec![])
+            .unwrap();
+        let strings = cassie
+            .execute_sql(&session, "SHOW standard_conforming_strings", vec![])
+            .unwrap();
+
+        // Assert
+        assert_eq!(isolation.columns[0].name, "transaction_isolation");
+        assert_eq!(
+            isolation.rows,
+            vec![vec![Value::String("read committed".to_string())]]
+        );
+        assert_eq!(strings.columns[0].name, "standard_conforming_strings");
+        assert_eq!(strings.rows, vec![vec![Value::String("on".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });

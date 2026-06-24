@@ -1,7 +1,8 @@
 use std::net::SocketAddr;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
-use std::time::Duration;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
@@ -95,6 +96,57 @@ fn db_error(error: &tokio_postgres::Error) -> &DbError {
         .expect("tokio-postgres should return a database error")
 }
 
+struct ProbeOutput {
+    success: bool,
+    timed_out: bool,
+    status_code: Option<i32>,
+    stdout: String,
+    stderr: String,
+}
+
+fn run_external_probe(mut command: Command, timeout: Duration) -> Result<ProbeOutput, String> {
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("spawn external probe: {error}"))?;
+    let started = Instant::now();
+
+    loop {
+        if child
+            .try_wait()
+            .map_err(|error| format!("poll external probe: {error}"))?
+            .is_some()
+        {
+            let output = child
+                .wait_with_output()
+                .map_err(|error| format!("collect external probe output: {error}"))?;
+            return Ok(ProbeOutput {
+                success: output.status.success(),
+                timed_out: false,
+                status_code: output.status.code(),
+                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            });
+        }
+
+        if started.elapsed() >= timeout {
+            let _ = child.kill();
+            let output = child
+                .wait_with_output()
+                .map_err(|error| format!("collect timed-out external probe output: {error}"))?;
+            return Ok(ProbeOutput {
+                success: false,
+                timed_out: true,
+                status_code: output.status.code(),
+                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            });
+        }
+
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
 #[test]
 fn should_document_read_model_client_matrix() {
     // Arrange
@@ -123,6 +175,8 @@ fn should_document_read_model_client_matrix() {
     );
     assert!(docs.contains("read-model workflows"));
     assert!(docs.contains("not full PostgreSQL server equivalence"));
+    assert!(docs.contains("should_validate_sqlalchemy_read_model_probe_when_enabled"));
+    assert!(docs.contains("CASSIE_RUN_SQLALCHEMY_COMPAT=1"));
 }
 
 #[test]
@@ -144,8 +198,9 @@ fn should_validate_psql_read_model_probe_when_enabled() {
         let connection = format!("postgresql://postgres@127.0.0.1:{}/postgres", server.addr.port());
 
         // Act
-        let output = Command::new(psql_bin)
-            .args([
+        let output = tokio::task::spawn_blocking(move || {
+            let mut command = Command::new(psql_bin);
+            command.args([
                 "-X",
                 "--tuples-only",
                 "--no-align",
@@ -155,8 +210,11 @@ fn should_validate_psql_read_model_probe_when_enabled() {
                 &connection,
                 "-c",
                 "CREATE TABLE compat_psql_probe (title TEXT); INSERT INTO compat_psql_probe (title) VALUES ('alpha'); SELECT title FROM compat_psql_probe ORDER BY title;",
-            ])
-            .output();
+            ]);
+            run_external_probe(command, Duration::from_secs(20))
+        })
+        .await
+        .expect("psql probe blocking task should complete");
         let output = match output {
             Ok(output) => output,
             Err(error) => {
@@ -164,22 +222,21 @@ fn should_validate_psql_read_model_probe_when_enabled() {
                 panic!("run psql compatibility probe: {error}");
             }
         };
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let success = output.status.success();
-        let status_code = output.status.code();
-        let returned_alpha = stdout.lines().any(|line| line.trim() == "alpha");
-        let stdout = stdout.to_string();
-        let stderr = stderr.to_string();
+        let returned_alpha = output.stdout.lines().any(|line| line.trim() == "alpha");
         server.shutdown_without_client().await;
 
         // Assert
         assert!(
-            success,
+            !output.timed_out,
+            "psql timed out\nstdout:\n{}\nstderr:\n{}",
+            output.stdout, output.stderr
+        );
+        assert!(
+            output.success,
             "psql failed with status {:?}\nstdout:\n{}\nstderr:\n{}",
-            status_code,
-            stdout,
-            stderr
+            output.status_code,
+            output.stdout,
+            output.stderr
         );
         assert!(returned_alpha);
     });

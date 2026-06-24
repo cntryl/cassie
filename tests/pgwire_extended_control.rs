@@ -196,6 +196,17 @@ async fn read_wire_frame(
     (tag[0], payload)
 }
 
+async fn read_until_ready(
+    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
+) -> Vec<u8> {
+    loop {
+        let frame = read_wire_frame(reader).await;
+        if frame.0 == b'Z' {
+            return frame.1;
+        }
+    }
+}
+
 fn read_cstring(payload: &[u8], cursor: &mut usize) -> String {
     let tail = payload
         .get(*cursor..)
@@ -399,9 +410,8 @@ fn should_reject_copy_data_message_with_unsupported_error() {
             .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_wire_frame(&mut reader).await;
-        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
-        assert_eq!(startup_ready.1, vec![b'I']);
+        let startup_ready = read_until_ready(&mut reader).await;
+        assert_eq!(startup_ready, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,
@@ -506,9 +516,8 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
             .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_wire_frame(&mut reader).await;
-        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
-        assert_eq!(startup_ready.1, vec![b'I']);
+        let startup_ready = read_until_ready(&mut reader).await;
+        assert_eq!(startup_ready, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,
@@ -595,15 +604,16 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
             }
         }
 
-        assert_eq!(frames.len(), 5, "recovered query should execute normally");
+        assert_eq!(frames.len(), 6, "recovered query should execute normally");
         assert_eq!(frames[0].0, b'1');
         assert_eq!(frames[1].0, b'2');
-        assert_eq!(frames[2].0, b'D');
-        assert_eq!(frames[3].0, b'C');
-        assert_eq!(frames[4].0, b'Z');
-        assert_eq!(frames[4].1, vec![b'I']);
+        assert_eq!(frames[2].0, b'T');
+        assert_eq!(frames[3].0, b'D');
+        assert_eq!(frames[4].0, b'C');
+        assert_eq!(frames[5].0, b'Z');
+        assert_eq!(frames[5].1, vec![b'I']);
 
-        let values = parse_data_row(&frames[2].1);
+        let values = parse_data_row(&frames[3].1);
         assert_eq!(values, vec![Some("alpha".to_string())]);
 
         drop(socket);
@@ -654,9 +664,8 @@ fn should_return_unsupported_error_for_copy_statement() {
             .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_wire_frame(&mut reader).await;
-        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
-        assert_eq!(startup_ready.1, vec![b'I']);
+        let startup_ready = read_until_ready(&mut reader).await;
+        assert_eq!(startup_ready, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,

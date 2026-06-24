@@ -17,6 +17,10 @@ fn data_dir(label: &str) -> String {
 }
 
 fn startup_frame(user: &str, database: &str) -> Vec<u8> {
+    startup_frame_with_params(user, database, &[])
+}
+
+fn startup_frame_with_params(user: &str, database: &str, params: &[(&str, &str)]) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(&0x0003_0000_i32.to_be_bytes());
     payload.extend_from_slice(b"user\0");
@@ -25,6 +29,12 @@ fn startup_frame(user: &str, database: &str) -> Vec<u8> {
     payload.extend_from_slice(b"database\0");
     payload.extend_from_slice(database.as_bytes());
     payload.push(0);
+    for (key, value) in params {
+        payload.extend_from_slice(key.as_bytes());
+        payload.push(0);
+        payload.extend_from_slice(value.as_bytes());
+        payload.push(0);
+    }
     payload.push(0);
 
     let mut frame = Vec::new();
@@ -111,6 +121,13 @@ fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
     fields
 }
 
+fn parse_parameter_status(payload: &[u8]) -> (String, String) {
+    let mut cursor = 0usize;
+    let key = read_cstring(payload, &mut cursor);
+    let value = read_cstring(payload, &mut cursor);
+    (key, value)
+}
+
 #[test]
 fn should_support_binary_startup_without_password() {
     // Arrange
@@ -155,6 +172,134 @@ fn should_support_binary_startup_without_password() {
 
         // Assert
         assert_eq!(tag, b'R', "authentication response should use R tag");
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_emit_startup_parameter_statuses_without_password() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("parameter_statuses");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+
+        let mut config = cassie::config::CassieRuntimeConfig::from_env();
+        config.password.clear();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener address");
+        drop(listener);
+
+        let server = tokio::spawn(cassie::pgwire::server::run(
+            addr.to_string(),
+            std::sync::Arc::new(cassie.clone()),
+            config,
+        ));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+
+        // Act
+        let startup = startup_frame("postgres", "postgres");
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
+            .await
+            .expect("write startup");
+        let (auth_tag, _auth_len, _auth_payload) = read_wire_frame(&mut reader).await;
+        let mut statuses = Vec::new();
+        loop {
+            let (tag, _len, payload) = read_wire_frame(&mut reader).await;
+            if tag == b'Z' {
+                break;
+            }
+            if tag == b'S' {
+                statuses.push(parse_parameter_status(&payload));
+            }
+        }
+
+        // Assert
+        assert_eq!(auth_tag, b'R', "startup should authenticate first");
+        assert!(statuses.contains(&("server_version".to_string(), "16.0".to_string())));
+        assert!(statuses.contains(&("server_encoding".to_string(), "UTF8".to_string())));
+        assert!(statuses.contains(&("client_encoding".to_string(), "UTF8".to_string())));
+        assert!(statuses.contains(&("DateStyle".to_string(), "ISO, MDY".to_string())));
+        assert!(statuses.contains(&("integer_datetimes".to_string(), "on".to_string())));
+        assert!(statuses.contains(&("TimeZone".to_string(), "UTC".to_string())));
+        assert!(statuses.contains(&("standard_conforming_strings".to_string(), "on".to_string())));
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_accept_libpq_startup_hints_without_password() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("libpq_hints");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+
+        let mut config = cassie::config::CassieRuntimeConfig::from_env();
+        config.password.clear();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener address");
+        drop(listener);
+
+        let server = tokio::spawn(cassie::pgwire::server::run(
+            addr.to_string(),
+            std::sync::Arc::new(cassie.clone()),
+            config,
+        ));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+
+        // Act
+        let startup = startup_frame_with_params(
+            "postgres",
+            "postgres",
+            &[
+                ("_pq_.libpq_version", "170000"),
+                ("application_name", "sqlalchemy"),
+            ],
+        );
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
+            .await
+            .expect("write startup");
+        let (tag, _len, _payload) = read_wire_frame(&mut reader).await;
+
+        // Assert
+        assert_eq!(tag, b'R', "libpq hints should not fail startup");
 
         drop(socket);
         server.abort();

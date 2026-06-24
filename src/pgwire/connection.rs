@@ -124,11 +124,14 @@ mod codecs;
 mod errors;
 #[path = "connection/readers.rs"]
 mod readers;
+#[path = "connection/startup_params.rs"]
+mod startup_params;
 #[path = "connection/writers.rs"]
 mod writers;
 
 use errors::{PgWireError, PgWireSeverity};
 use readers::*;
+use startup_params::validate_startup_parameters;
 use writers::*;
 
 pub async fn run_connection(
@@ -189,6 +192,9 @@ pub async fn run_connection(
                         if write_auth_ok(&mut write_half).await.is_err() {
                             break;
                         }
+                        if write_parameter_statuses(&mut write_half).await.is_err() {
+                            break;
+                        }
                         if write_ready_for_query(&mut write_half, &session)
                             .await
                             .is_err()
@@ -240,6 +246,9 @@ pub async fn run_connection(
                                 state.ready = ReadyState::Idle;
                                 runtime.record_pgwire_auth_ok();
                                 if write_auth_ok(&mut write_half).await.is_err() {
+                                    break;
+                                }
+                                if write_parameter_statuses(&mut write_half).await.is_err() {
                                     break;
                                 }
                                 if write_ready_for_query(&mut write_half, &session)
@@ -513,6 +522,7 @@ pub async fn run_connection(
                                             sql_fingerprint,
                                             parameter_count,
                                             parameter_types,
+                                            described: false,
                                         },
                                     );
                                     if existed.is_none() {
@@ -588,6 +598,7 @@ pub async fn run_connection(
                                     statement_name,
                                     params,
                                     result_formats,
+                                    described: false,
                                 },
                             );
                             if existed.is_none() {
@@ -602,9 +613,13 @@ pub async fn run_connection(
                         }
                         FrontendMessage::Describe { target, name } => {
                             runtime.record_pgwire_message("describe");
+                            let describe_statement = matches!(&target, DescribeTarget::Statement);
                             let prepared = match target {
-                                DescribeTarget::Statement => match state.prepared.get(&name) {
-                                    Some(prepared) => prepared.clone(),
+                                DescribeTarget::Statement => match state.prepared.get_mut(&name) {
+                                    Some(prepared) => {
+                                        prepared.described = true;
+                                        prepared.clone()
+                                    }
                                     None => {
                                         runtime.record_pgwire_protocol_error();
                                         awaiting_sync = true;
@@ -620,41 +635,45 @@ pub async fn run_connection(
                                         continue;
                                     }
                                 },
-                                DescribeTarget::Portal => match state.portals.get(&name) {
-                                    Some(portal) => {
-                                        match state.prepared.get(&portal.statement_name) {
-                                            Some(prepared) => prepared.clone(),
-                                            None => {
-                                                runtime.record_pgwire_protocol_error();
-                                                awaiting_sync = true;
-                                                if write_error_response(
-                                                    &mut write_half,
-                                                    &PgWireError::invalid_portal(&name),
-                                                )
-                                                .await
-                                                .is_err()
-                                                {
-                                                    break;
-                                                }
-                                                continue;
+                                DescribeTarget::Portal => {
+                                    let statement_name = match state.portals.get_mut(&name) {
+                                        Some(portal) => {
+                                            portal.described = true;
+                                            portal.statement_name.clone()
+                                        }
+                                        None => {
+                                            runtime.record_pgwire_protocol_error();
+                                            awaiting_sync = true;
+                                            if write_error_response(
+                                                &mut write_half,
+                                                &PgWireError::invalid_portal(&name),
+                                            )
+                                            .await
+                                            .is_err()
+                                            {
+                                                break;
                                             }
+                                            continue;
+                                        }
+                                    };
+                                    match state.prepared.get(&statement_name) {
+                                        Some(prepared) => prepared.clone(),
+                                        None => {
+                                            runtime.record_pgwire_protocol_error();
+                                            awaiting_sync = true;
+                                            if write_error_response(
+                                                &mut write_half,
+                                                &PgWireError::invalid_portal(&name),
+                                            )
+                                            .await
+                                            .is_err()
+                                            {
+                                                break;
+                                            }
+                                            continue;
                                         }
                                     }
-                                    None => {
-                                        runtime.record_pgwire_protocol_error();
-                                        awaiting_sync = true;
-                                        if write_error_response(
-                                            &mut write_half,
-                                            &PgWireError::invalid_portal(&name),
-                                        )
-                                        .await
-                                        .is_err()
-                                        {
-                                            break;
-                                        }
-                                        continue;
-                                    }
-                                },
+                                }
                             };
 
                             let parsed = prepared.parsed.clone();
@@ -670,14 +689,16 @@ pub async fn run_connection(
 
                             match describe_result {
                                 Ok(columns) => {
-                                    if write_parameter_description(
-                                        &mut write_half,
-                                        &prepared.parameter_types,
-                                    )
-                                    .await
-                                    .is_err()
-                                    {
-                                        break;
+                                    if describe_statement {
+                                        if write_parameter_description(
+                                            &mut write_half,
+                                            &prepared.parameter_types,
+                                        )
+                                        .await
+                                        .is_err()
+                                        {
+                                            break;
+                                        }
                                     }
                                     if columns.is_empty() {
                                         if write_backend_frame(&mut write_half, b'n', &[])
@@ -709,7 +730,7 @@ pub async fn run_connection(
                         FrontendMessage::Execute { portal_name, limit } => {
                             runtime.record_pgwire_message("execute");
                             runtime.record_pgwire_extended_query();
-                            let Some(portal) = state.portals.get(&portal_name) else {
+                            let Some(portal) = state.portals.get(&portal_name).cloned() else {
                                 runtime.record_pgwire_protocol_error();
                                 awaiting_sync = true;
                                 if write_error_response(
@@ -723,7 +744,9 @@ pub async fn run_connection(
                                 }
                                 continue;
                             };
-                            let Some(prepared) = state.prepared.get(&portal.statement_name) else {
+                            let Some(prepared) =
+                                state.prepared.get(&portal.statement_name).cloned()
+                            else {
                                 runtime.record_pgwire_protocol_error();
                                 awaiting_sync = true;
                                 if write_error_response(
@@ -742,6 +765,7 @@ pub async fn run_connection(
                             let query_parsed = prepared.parsed.clone();
                             let query_sql_fingerprint = prepared.sql_fingerprint;
                             let query_params = portal.params.clone();
+                            let should_describe_execute = !prepared.described && !portal.described;
                             let query_result = run_pgwire_blocking(
                                 cassie.clone(),
                                 "pgwire_execute",
@@ -762,6 +786,14 @@ pub async fn run_connection(
                                     if let Some(limit) = limit {
                                         let limit = limit.max(0) as usize;
                                         result.rows = result.rows.into_iter().take(limit).collect();
+                                    }
+                                    if should_describe_execute && !result.columns.is_empty() {
+                                        if write_row_description(&mut write_half, &result.columns)
+                                            .await
+                                            .is_err()
+                                        {
+                                            break;
+                                        }
                                     }
                                     for row in result.rows {
                                         if write_data_row(
@@ -903,33 +935,6 @@ where
 
 fn cassie_pg_error(error: &CassieError) -> PgWireError {
     PgWireError::from_cassie_error(PgWireSeverity::Error, error)
-}
-
-fn validate_startup_parameters(parameters: &HashMap<String, String>) -> Result<(), String> {
-    if parameters.get("user").is_some_and(String::is_empty) {
-        return Ok(());
-    }
-
-    if let Some(value) = parameters.get("user") {
-        if value.trim().is_empty() {
-            return Err("invalid startup option 'user'".to_string());
-        }
-    }
-
-    if parameters.get("database").is_some_and(String::is_empty) {
-        return Err("invalid startup option 'database'".to_string());
-    }
-
-    for key in parameters.keys() {
-        if key.starts_with("_pq_") {
-            return Err(format!("unsupported startup option: {key}"));
-        }
-        if key == "replication" {
-            return Err(format!("unsupported startup option: {key}"));
-        }
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]

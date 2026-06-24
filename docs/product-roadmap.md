@@ -217,7 +217,7 @@ Goal: support horizontal expansion through externally orchestrated independent C
 - Treat `issues/phase-08/README.md` as the archived README-goal closure surface for operational metadata, snapshot/restore, repair, read optimization, time-series, client compatibility, production classification, and capacity-management documentation.
 - Work Phase 09 from `issues/phase-09/README.md` for production-depth follow-up: production evidence, read-path depth, client probes, capacity diagnostics, repair depth, adaptive planning depth, experimental promotion criteria, and extraction guardrails.
 - Tighten PostgreSQL compatibility documentation for already-implemented SQL features through the read-model access lens.
-- Expand client compatibility probes for psql, sqlx, diesel, prisma, and SQLAlchemy read-model workflows.
+- Expand remaining client compatibility probes for sqlx, diesel, prisma, broader SQLAlchemy reflection, and migration-tool read-model workflows.
 - Promote experimental catalog, limited procedure, rollup, HNSW, and embedding surfaces as their compatibility guarantees settle.
 - Add performance evidence for production-ready claims on planner, index, search, vector, and analytics paths.
 - Continue splitting large legacy modules before adding broad feature work in those areas.

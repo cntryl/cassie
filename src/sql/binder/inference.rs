@@ -283,8 +283,8 @@ pub(super) fn infer_function_return_type(
             .or(Some(DataType::Float)),
         "search" | "search_score" | "vector_distance" | "vector_score" | "cosine_distance"
         | "dot_product" | "hybrid_score" => Some(DataType::Float),
-        "snippet" | "version" | "current_schema" | "current_database" | "current_user"
-        | "session_user" | "current_role" => Some(DataType::Text),
+        "snippet" | "version" | "pg_catalog.version" | "current_schema" | "current_database"
+        | "current_user" | "session_user" | "current_role" => Some(DataType::Text),
         _ => None,
     }
 }

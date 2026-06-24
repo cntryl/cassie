@@ -95,6 +95,17 @@ async fn read_wire_frame(
     (tag[0], payload)
 }
 
+async fn read_until_ready(
+    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
+) -> Vec<u8> {
+    loop {
+        let frame = read_wire_frame(reader).await;
+        if frame.0 == b'Z' {
+            return frame.1;
+        }
+    }
+}
+
 fn read_boundary_counter(
     metrics: &serde_json::Value,
     interface: &str,
@@ -168,7 +179,7 @@ fn should_record_pgwire_blocking_boundary_metrics_for_simple_query() {
             .await
             .expect("startup write");
         let _auth_frame = read_auth_frame(&mut reader).await;
-        let _ready = read_wire_frame(&mut reader).await;
+        let _ready = read_until_ready(&mut reader).await;
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,

@@ -175,6 +175,17 @@ async fn read_wire_frame(
     (tag[0], payload)
 }
 
+async fn read_until_ready(
+    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
+) -> Vec<u8> {
+    loop {
+        let frame = read_wire_frame(reader).await;
+        if frame.0 == b'Z' {
+            return frame.1;
+        }
+    }
+}
+
 #[test]
 fn should_report_plan_cache_metrics() {
     // Arrange
@@ -299,9 +310,8 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
             auth_frame.0, b'R',
             "startup should return an authentication response"
         );
-        let startup_ready = read_wire_frame(&mut reader).await;
-        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
-        assert_eq!(startup_ready.1, vec![b'I']);
+        let startup_ready = read_until_ready(&mut reader).await;
+        assert_eq!(startup_ready, vec![b'I']);
 
         // Act
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &describe_statement_frame("missing"))

@@ -100,6 +100,7 @@ pub struct PreparedStatement {
     pub sql_fingerprint: u64,
     pub parameter_count: usize,
     pub parameter_types: Vec<i32>,
+    pub described: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -108,6 +109,7 @@ pub struct Portal {
     pub statement_name: String,
     pub params: Vec<crate::types::Value>,
     pub result_formats: Vec<i16>,
+    pub described: bool,
 }
 
 impl ServerMessage {

@@ -28,6 +28,16 @@ pub(super) fn execute_command(
                     rows: vec![vec![Value::String(env!("CARGO_PKG_VERSION").to_string())]],
                     command: "SHOW".to_string(),
                 }),
+                "transaction isolation level" => Ok(QueryResult {
+                    columns: vec![ColumnMeta::text("transaction_isolation")],
+                    rows: vec![vec![Value::String("read committed".to_string())]],
+                    command: "SHOW".to_string(),
+                }),
+                "standard_conforming_strings" => Ok(QueryResult {
+                    columns: vec![ColumnMeta::text("standard_conforming_strings")],
+                    rows: vec![vec![Value::String("on".to_string())]],
+                    command: "SHOW".to_string(),
+                }),
                 _ => Err(QueryError::General(format!(
                     "unsupported SHOW variable '{}'",
                     statement.variable

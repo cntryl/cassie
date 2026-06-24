@@ -156,7 +156,12 @@ pub(super) fn parse_transaction_statement(sql: &str) -> Result<ParsedStatement, 
 }
 
 pub(super) fn parse_savepoint_name(raw: &str, command: &str) -> Result<String, SqlError> {
-    let name = raw.trim();
+    let raw_name = raw.trim();
+    let name = if raw_name.starts_with('"') && raw_name.ends_with('"') && raw_name.len() >= 2 {
+        &raw_name[1..raw_name.len() - 1]
+    } else {
+        raw_name
+    };
     if name.is_empty() {
         return Err(SqlError(format!("{command} requires a savepoint name")));
     }
@@ -188,15 +193,10 @@ pub(super) fn parse_show_statement(trimmed: &str) -> Result<ParsedStatement, Sql
         return Err(SqlError("SHOW requires a parameter".into()));
     }
 
-    let variable = argument
-        .split_whitespace()
-        .next()
-        .ok_or_else(|| SqlError("invalid SHOW statement".into()))?;
-
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::Show(ShowStatement {
-            variable: variable.to_string(),
+            variable: argument.to_string(),
         }),
     })
 }

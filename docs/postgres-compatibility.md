@@ -104,14 +104,14 @@ The matrix tracks read-model workflows, not full PostgreSQL server equivalence. 
 | `sqlx` | Untested/planned | Prepared read queries, connection pooling, compile-time or offline query checks for supported SQL, catalog probes used by migrations | No automated probe yet |
 | `diesel` | Untested/planned | Projection-table reads and supported schema metadata where Diesel does not require unsupported PostgreSQL catalog parity | No automated probe yet |
 | `prisma` | Untested/planned | Introspection and read queries for compatible projection tables where Prisma does not require unsupported catalog/DDL features | No automated probe yet |
-| `SQLAlchemy` | Untested/planned | Reflection and read queries over supported tables/views; SQLAlchemy Core query execution where generated SQL stays inside Cassie's supported surface | No automated probe yet |
+| `SQLAlchemy` | Experimental opt-in | SQLAlchemy Core connection startup, dialect metadata probes, catalog query, simple SELECT, bound-parameter read query, DDL/DML smoke, unique-violation SQLSTATE, and missing-relation SQLSTATE where generated SQL stays inside Cassie's supported surface and native hstore integration is disabled | Ignored `should_validate_sqlalchemy_read_model_probe_when_enabled`; install Python packages `SQLAlchemy` and `psycopg`, then run `CASSIE_RUN_SQLALCHEMY_COMPAT=1 cargo test --locked --test compatibility_sqlalchemy should_validate_sqlalchemy_read_model_probe_when_enabled -- --ignored --nocapture`. Set `CASSIE_SQLALCHEMY_PYTHON` to override the Python binary. The probe uses `use_native_hstore=False`. |
 | Common migration tools | Experimental/documented | Supported DDL through pgwire: schemas, tables, constraints, indexes, and views that map to Cassie SQL | Use tool-specific dry runs against a disposable Cassie node; advanced PostgreSQL migration features remain unsupported unless documented separately |
 
 Unsupported or out-of-scope for client compatibility:
 
 - PostgreSQL server parity checks that require complete `pg_catalog` or `information_schema` behavior.
-- Client workflows requiring extensions, triggers, PL/pgSQL, stored-procedure business logic, LISTEN/NOTIFY, COPY, table inheritance, partitions, logical replication, advisory locks, two-phase commit, or PostgreSQL storage parameters.
-- ORM-generated OLTP workloads that depend on distributed transactions, row-locking semantics, trigger business logic, or PostgreSQL optimizer behavior.
+- Client workflows requiring extensions, native hstore integration, triggers, PL/pgSQL, stored-procedure business logic, LISTEN/NOTIFY, COPY, table inheritance, partitions, logical replication, advisory locks, two-phase commit, or PostgreSQL storage parameters.
+- ORM-generated OLTP workloads that depend on distributed transactions, row-locking semantics, trigger business logic, broad reflection parity, or PostgreSQL optimizer behavior.
 - Migration diffs that assume PostgreSQL-owned physical storage, operator classes, collations, or extension-managed metadata.
 
 Future client probes should stay isolated from the default suite unless the dependency is lightweight, deterministic, and available without external services.

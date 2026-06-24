@@ -63,6 +63,15 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
             }
             Ok(Value::String(env!("CARGO_PKG_VERSION").to_string()))
         }
+        "pg_catalog.version" => {
+            if !args.is_empty() {
+                return Err(QueryError::General(format!("{} requires 0 args", name)));
+            }
+            Ok(Value::String(format!(
+                "PostgreSQL 16.0 compatible Cassie {}",
+                env!("CARGO_PKG_VERSION")
+            )))
+        }
         "current_schema" => {
             if !args.is_empty() {
                 return Err(QueryError::General(format!("{} requires 0 args", name)));

@@ -79,6 +79,17 @@ async fn read_wire_frame(
     (tag[0], payload)
 }
 
+async fn read_until_ready(
+    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
+) -> Vec<u8> {
+    loop {
+        let frame = read_wire_frame(reader).await;
+        if frame.0 == b'Z' {
+            return frame.1;
+        }
+    }
+}
+
 fn read_cstring(payload: &[u8], cursor: &mut usize) -> String {
     let tail = payload
         .get(*cursor..)
@@ -233,9 +244,8 @@ fn should_execute_binary_simple_query_return_backend_frames() {
             0,
             "passwordless auth should succeed"
         );
-        let startup_ready = read_wire_frame(&mut reader).await;
-        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
-        assert_eq!(startup_ready.1, vec![b'I']);
+        let startup_ready = read_until_ready(&mut reader).await;
+        assert_eq!(startup_ready, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,
@@ -345,8 +355,8 @@ fn should_return_row_description_for_empty_simple_query_result() {
             .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_wire_frame(&mut reader).await;
-        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
+        let startup_ready = read_until_ready(&mut reader).await;
+        assert_eq!(startup_ready, vec![b'I']);
 
         // Act
         tokio::io::AsyncWriteExt::write_all(
@@ -427,9 +437,8 @@ fn should_recover_ready_after_simple_query_error() {
             .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_wire_frame(&mut reader).await;
-        assert_eq!(startup_ready.0, b'Z', "startup should end ready-for-query");
-        assert_eq!(startup_ready.1, vec![b'I']);
+        let startup_ready = read_until_ready(&mut reader).await;
+        assert_eq!(startup_ready, vec![b'I']);
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,

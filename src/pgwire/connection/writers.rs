@@ -24,6 +24,28 @@ pub(super) async fn write_auth_cleartext(
     Ok(())
 }
 
+pub(super) async fn write_parameter_statuses(
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> io::Result<()> {
+    for (key, value) in [
+        ("server_version", "16.0"),
+        ("server_encoding", "UTF8"),
+        ("client_encoding", "UTF8"),
+        ("DateStyle", "ISO, MDY"),
+        ("integer_datetimes", "on"),
+        ("TimeZone", "UTC"),
+        ("standard_conforming_strings", "on"),
+    ] {
+        let mut payload = Vec::new();
+        payload.extend_from_slice(key.as_bytes());
+        payload.push(0);
+        payload.extend_from_slice(value.as_bytes());
+        payload.push(0);
+        write_backend_frame(write_half, b'S', &payload).await?;
+    }
+    Ok(())
+}
+
 pub(super) async fn write_ssl_not_supported(
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> io::Result<()> {

@@ -64,10 +64,11 @@ Phase 08 issue 10 is closed for capacity management and docs reconciliation; see
 Phase 09 issue 04 is closed for narrow mixed-order and expression-index read-path depth; see `docs/performance-contracts.md`.
 Phase 09 issue 05 is closed for projection handler determinism and replay contracts; see `docs/projection-replay-contracts.md`.
 Phase 09 issue 06 is closed for persisted bucket-native time-series index storage; see `docs/indexes-and-constraints.md` and `docs/performance-contracts.md`.
+Phase 09 issue 07 is closed for opt-in SQLAlchemy Core pgwire client probe depth; see `docs/postgres-compatibility.md`.
 
 ### P1 Next
 
-1. [Phase 09 Issue 07: Pgwire Client Probe Expansion](../phase-09/issue-07.md)
+- None.
 
 ### P2 Follow-Up
 

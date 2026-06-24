@@ -107,6 +107,10 @@ The matrix tracks read-model workflows, not full PostgreSQL server equivalence. 
 | `SQLAlchemy` | Experimental opt-in | SQLAlchemy Core connection startup, dialect metadata probes, catalog query, simple SELECT, bound-parameter read query, DDL/DML smoke, unique-violation SQLSTATE, and missing-relation SQLSTATE where generated SQL stays inside Cassie's supported surface and native hstore integration is disabled | Ignored `should_validate_sqlalchemy_read_model_probe_when_enabled`; install Python packages `SQLAlchemy` and `psycopg`, then run `CASSIE_RUN_SQLALCHEMY_COMPAT=1 cargo test --locked --test compatibility_sqlalchemy should_validate_sqlalchemy_read_model_probe_when_enabled -- --ignored --nocapture`. Set `CASSIE_SQLALCHEMY_PYTHON` to override the Python binary. The probe uses `use_native_hstore=False`. |
 | Common migration tools | Experimental/documented | Supported DDL through pgwire: schemas, tables, constraints, indexes, and views that map to Cassie SQL | Use tool-specific dry runs against a disposable Cassie node; advanced PostgreSQL migration features remain unsupported unless documented separately |
 
+Phase 09 client-probe depth is closed for the current slice with the SQLAlchemy Core opt-in probe.
+The default suite remains deterministic and dependency-free beyond Rust dependencies; psql and SQLAlchemy probes require explicit environment variables and local tools.
+sqlx, diesel, prisma, broader reflection, native extension integration, and migration-tool automation remain planned compatibility depth rather than implied support.
+
 Unsupported or out-of-scope for client compatibility:
 
 - PostgreSQL server parity checks that require complete `pg_catalog` or `information_schema` behavior.

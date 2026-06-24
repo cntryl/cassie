@@ -12,9 +12,9 @@ Every implementation slice must remain tied to read-model workloads, Midge-nativ
 
 ## Phase Sequence
 
-P1 next:
+Closed baseline:
 
-7. Pgwire client probe expansion.
+- Issue 07 pgwire client probe expansion: SQLAlchemy Core is covered by an opt-in non-tokio probe, psql remains opt-in, tokio-postgres remains the deterministic default baseline, and sqlx/diesel/prisma/migration-tool automation remains planned depth.
 
 P2 follow-up:
 

@@ -316,7 +316,6 @@ Closed baseline:
 
 Remaining sequence:
 
-- [Pgwire client probes](../issues/phase-09/issue-07.md): opt-in non-tokio client probes while keeping the default suite deterministic.
 - [Byte-accurate capacity diagnostics](../issues/phase-09/issue-08.md): local byte accounting for storage families, indexes, sidecars, and rebuild artifacts where feasible.
 - [Repair depth and runbooks](../issues/phase-09/issue-09.md): operator runbooks and the next safe local repair scope.
 - [Adaptive planning depth](../issues/phase-09/issue-10.md): guarded adaptive planning improvements with promotion gates and fallback diagnostics.

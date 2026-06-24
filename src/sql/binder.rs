@@ -69,7 +69,7 @@ fn source_collection(source: &QuerySource) -> Option<String> {
         QuerySource::Collection(collection) => Some(collection.clone()),
         QuerySource::Subquery { select, .. } => source_collection(&select.source),
         QuerySource::Join { left, .. } => source_collection(left),
-        QuerySource::Cte(_) | QuerySource::SingleRow => None,
+        QuerySource::Cte(_) | QuerySource::TableFunction { .. } | QuerySource::SingleRow => None,
     }
 }
 
@@ -119,6 +119,13 @@ fn bind_statement(
             Ok(ParsedStatement {
                 raw_sql,
                 statement: QueryStatement::CreateTable(statement),
+            })
+        }
+        QueryStatement::CreateGraph(statement) => {
+            let statement = bind_create_graph(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::CreateGraph(statement),
             })
         }
         QueryStatement::DropTable(statement) => {

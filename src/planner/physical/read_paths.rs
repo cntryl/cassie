@@ -9,6 +9,10 @@ pub(super) fn determine_read_access_path(
         return ReadAccessPath::RuntimeJoin;
     }
 
+    if matches!(plan.source, QuerySource::TableFunction { .. }) {
+        return ReadAccessPath::GraphAdjacency;
+    }
+
     if is_row_id_lookup_query(plan) {
         return ReadAccessPath::PointLookup;
     }
@@ -174,6 +178,7 @@ pub(super) fn read_access_path_reason(plan: &LogicalPlan, access_path: &ReadAcce
         ReadAccessPath::PrefixScan => "scalar-index-prefix".to_string(),
         ReadAccessPath::RangeScan => "scalar-index-range".to_string(),
         ReadAccessPath::OrderedBoundedScan => "scalar-index-ordered-bounded".to_string(),
+        ReadAccessPath::GraphAdjacency => "graph-table-function".to_string(),
         ReadAccessPath::RuntimeJoin => "runtime-join".to_string(),
     }
 }
@@ -201,6 +206,7 @@ pub(super) fn read_access_path_fallback_reason(
             }
         }
         ReadAccessPath::RuntimeJoin => Some("runtime-join-required".to_string()),
+        ReadAccessPath::GraphAdjacency => None,
         _ => None,
     }
 }

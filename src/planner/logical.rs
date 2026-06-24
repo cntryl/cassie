@@ -3,14 +3,14 @@ use crate::sql::{
     ast::{
         AlterRetentionPolicyStatement, AlterRoleStatement, AlterSchemaStatement,
         AlterTableOperation, AlterTableStatement, CommonTableExpression, CreateFunctionStatement,
-        CreateIndexStatement, CreateProcedureStatement, CreateRoleStatement, CreateSchemaStatement,
-        CreateTableStatement, CreateViewStatement, DeleteStatement, DropFunctionStatement,
-        DropIndexStatement, DropMaterializedProjectionStatement, DropProcedureStatement,
-        DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement, DropSchemaStatement,
-        DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement, Expr,
-        InsertStatement, OrderExpr, QuerySource, QueryStatement, RefreshRollupStatement,
-        SelectItem, SelectStatement, SetStatement, ShowStatement, UpdateStatement,
-        VerifyProjectionStatement,
+        CreateGraphStatement, CreateIndexStatement, CreateProcedureStatement, CreateRoleStatement,
+        CreateSchemaStatement, CreateTableStatement, CreateViewStatement, DeleteStatement,
+        DropFunctionStatement, DropIndexStatement, DropMaterializedProjectionStatement,
+        DropProcedureStatement, DropRetentionPolicyStatement, DropRoleStatement,
+        DropRollupStatement, DropSchemaStatement, DropTableStatement, DropViewStatement,
+        EnforceRetentionPolicyStatement, Expr, InsertStatement, OrderExpr, QuerySource,
+        QueryStatement, RefreshRollupStatement, SelectItem, SelectStatement, SetStatement,
+        ShowStatement, UpdateStatement, VerifyProjectionStatement,
     },
     binder::BoundStatement,
 };
@@ -37,6 +37,7 @@ pub struct LogicalPlan {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LogicalCommand {
     CreateTable(CreateTableStatement),
+    CreateGraph(CreateGraphStatement),
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
     CreateRole(CreateRoleStatement),
@@ -106,6 +107,11 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
             LogicalCommand::Delete(statement.clone()),
         ),
         QueryStatement::CreateTable(statement) => plan_create_table(statement),
+        QueryStatement::CreateGraph(statement) => plan_named_command(
+            &statement.name,
+            "CREATE GRAPH requires a name",
+            LogicalCommand::CreateGraph(statement.clone()),
+        ),
         QueryStatement::DropTable(statement) => plan_table_command(
             &statement.table,
             "DROP TABLE requires a table name",
@@ -413,6 +419,7 @@ fn require_name(value: &str, message: &'static str) -> Result<(), CassieError> {
 fn source_name(source: &QuerySource) -> String {
     match source {
         QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
+        QuerySource::TableFunction { name, .. } => name.clone(),
         QuerySource::SingleRow => "single_row".to_string(),
         QuerySource::Subquery { alias, .. } => alias.clone(),
         QuerySource::Join { .. } => "join".to_string(),

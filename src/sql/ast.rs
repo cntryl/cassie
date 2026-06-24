@@ -44,6 +44,11 @@ pub enum CteQuery {
 pub enum QuerySource {
     Collection(String),
     Cte(String),
+    TableFunction {
+        name: String,
+        function: FunctionCall,
+        lateral: bool,
+    },
     Subquery {
         alias: String,
         select: Box<SelectStatement>,
@@ -63,6 +68,9 @@ impl PartialEq for QuerySource {
         match (self, other) {
             (Self::Collection(left), Self::Collection(right)) => left == right,
             (Self::Cte(left), Self::Cte(right)) => left == right,
+            (Self::TableFunction { name: left, .. }, Self::TableFunction { name: right, .. }) => {
+                left == right
+            }
             (Self::SingleRow, Self::SingleRow) => true,
             _ => false,
         }
@@ -106,6 +114,7 @@ pub enum QueryStatement {
     Delete(DeleteStatement),
     Transaction(TransactionStatement),
     CreateTable(CreateTableStatement),
+    CreateGraph(CreateGraphStatement),
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
     CreateSchema(CreateSchemaStatement),
@@ -222,6 +231,14 @@ pub struct CreateTableStatement {
     pub fields: Vec<FieldDefinition>,
     pub if_not_exists: bool,
     pub storage_mode: crate::catalog::CollectionStorageMode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateGraphStatement {
+    pub name: String,
+    pub if_not_exists: bool,
+    pub node_fields: Vec<FieldDefinition>,
+    pub edge_fields: Vec<FieldDefinition>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

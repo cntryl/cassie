@@ -478,7 +478,7 @@ fn source_reads_materialized_projection(cassie: &Cassie, source: &QuerySource) -
             source_reads_materialized_projection(cassie, left)
                 || source_reads_materialized_projection(cassie, right)
         }
-        QuerySource::Cte(_) | QuerySource::SingleRow => false,
+        QuerySource::Cte(_) | QuerySource::TableFunction { .. } | QuerySource::SingleRow => false,
     }
 }
 
@@ -839,6 +839,8 @@ fn bounded_exists_logical(mut logical: LogicalPlan) -> LogicalPlan {
 #[path = "execution/fulltext_options.rs"]
 mod fulltext_options;
 pub(crate) use fulltext_options::load_fulltext_index_options;
+#[path = "execution/graph.rs"]
+mod graph;
 #[path = "execution/plan_inspection.rs"]
 mod plan_inspection;
 pub(crate) use plan_inspection::plan_needs_user_functions;

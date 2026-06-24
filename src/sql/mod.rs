@@ -111,6 +111,7 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         QueryStatement::Delete(statement) => parameter_count_delete(statement),
         QueryStatement::Transaction(_) => 0,
         QueryStatement::CreateTable(_) => 0,
+        QueryStatement::CreateGraph(_) => 0,
         QueryStatement::DropTable(_) => 0,
         QueryStatement::AlterTable(_) => 0,
         QueryStatement::CreateSchema(_) => 0,
@@ -196,6 +197,7 @@ fn parameter_count_query_source(source: &ast::QuerySource) -> usize {
         ast::QuerySource::Collection(_)
         | ast::QuerySource::Cte(_)
         | ast::QuerySource::SingleRow => 0,
+        ast::QuerySource::TableFunction { function, .. } => parameter_count_function(function),
         ast::QuerySource::Subquery { select, .. } => parameter_count_select(select),
         ast::QuerySource::Join {
             left, right, on, ..

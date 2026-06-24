@@ -142,6 +142,7 @@ struct RuntimeMetricsState {
     projections: ProjectionSnapshot,
     retention: RetentionSnapshot,
     read_paths: ReadPathSnapshot,
+    graph: GraphSnapshot,
 }
 
 #[derive(Debug, Clone)]
@@ -962,6 +963,7 @@ impl RuntimeState {
             projections: metrics.projections.clone(),
             retention: metrics.retention.clone(),
             read_paths: metrics.read_paths.clone(),
+            graph: metrics.graph.clone(),
         };
         snapshot.runtime.uptime_seconds = uptime_seconds;
         snapshot.runtime.running_queries = metrics.runtime.running_queries;

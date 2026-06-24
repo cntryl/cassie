@@ -2,7 +2,7 @@ use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, Index
 use crate::sql::ast::{
     AlterRetentionPolicyStatement, AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement,
     AlterTableOperation, AlterTableStatement, BinaryOp, CallProcedureStatement,
-    CommonTableExpression, CreateFunctionStatement, CreateIndexStatement,
+    CommonTableExpression, CreateFunctionStatement, CreateGraphStatement, CreateIndexStatement,
     CreateMaterializedProjectionStatement, CreateProcedureStatement,
     CreateRetentionPolicyStatement, CreateRoleStatement, CreateRollupStatement,
     CreateSchemaStatement, CreateTableStatement, CreateViewStatement, CteQuery,
@@ -217,6 +217,8 @@ fn parse_table_or_schema_statement(
 ) -> Result<Option<ParsedStatement>, SqlError> {
     if starts_statement(lower, "create table") {
         Ok(Some(parse_create_table_statement(trimmed)?))
+    } else if starts_statement(lower, "create graph") {
+        Ok(Some(parse_create_graph_statement(trimmed)?))
     } else if starts_statement(lower, "drop table") {
         Ok(Some(parse_drop_table_statement(trimmed)?))
     } else if starts_statement(lower, "alter table") {

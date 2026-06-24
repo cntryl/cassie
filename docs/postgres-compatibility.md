@@ -129,6 +129,7 @@ These features are intentionally Cassie-specific:
 - `vector_score`, `vector_distance`, `cosine_distance`, `dot_product`, and `l2_distance`.
 - pgvector-style operators implemented by Cassie, including `<=>`, `<->`, and `<#>`.
 - `hybrid_score(text_score, vector_score)`.
+- `CREATE GRAPH`, `graph_neighbors`, `graph_expand`, and `graph_shortest_path`.
 - Embedding provider configuration and validation.
 - Column-batch indexes and acceleration diagnostics.
 - Rollup metadata and rewrite diagnostics.

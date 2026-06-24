@@ -104,6 +104,23 @@ pub(super) fn execute_query_source<'a>(
             ensure_temp_budget(env.controls, &batches)?;
             Ok((batches, Vec::new()))
         }
+        QuerySource::TableFunction {
+            name,
+            function,
+            lateral,
+        } => {
+            let rows = graph::execute_table_function(
+                env,
+                function,
+                if *lateral { outer_row } else { None },
+            )?;
+            let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
+            if qualify {
+                batches = qualify_batches(batches, name);
+            }
+            ensure_temp_budget(env.controls, &batches)?;
+            Ok((batches, Vec::new()))
+        }
         QuerySource::Cte(name) => {
             let key = name.to_ascii_lowercase();
             let rows = cte_context
@@ -215,6 +232,7 @@ fn source_contains_lateral(source: &QuerySource) -> bool {
         QuerySource::Join { left, right, .. } => {
             source_contains_lateral(left) || source_contains_lateral(right)
         }
+        QuerySource::TableFunction { lateral, .. } => *lateral,
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
     }
 }

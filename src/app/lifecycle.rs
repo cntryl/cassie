@@ -160,6 +160,15 @@ impl Cassie {
             self.catalog.register_index(index);
         }
 
+        let graphs = self.midge.list_graphs().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list graphs: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for graph in graphs {
+            self.catalog.register_graph(graph);
+        }
+
         for collection in self.catalog.list_collections() {
             self.hydrate_cardinality_stats(&collection.name)?;
         }

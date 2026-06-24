@@ -117,6 +117,10 @@ fn select_needs_user_functions(select: &SelectStatement) -> bool {
 fn query_source_needs_user_functions(source: &QuerySource) -> bool {
     match source {
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
+        QuerySource::TableFunction { function, .. } => function
+            .args
+            .iter()
+            .any(|arg| expr_needs_user_functions(arg)),
         QuerySource::Subquery { select, .. } => select_needs_user_functions(select),
         QuerySource::Join {
             left, right, on, ..
@@ -466,6 +470,7 @@ pub(super) fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan 
 fn execution_source_name(source: &QuerySource) -> String {
     match source {
         QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
+        QuerySource::TableFunction { name, .. } => name.clone(),
         QuerySource::Subquery { alias, .. } => alias.clone(),
         QuerySource::SingleRow => "single_row".to_string(),
         QuerySource::Join { .. } => "join".to_string(),

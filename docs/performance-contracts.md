@@ -647,7 +647,7 @@ A deployment profile records enough context for a future reviewer to compare ben
 
 The 1M profile is a compile-validated placeholder only.
 It reserves representative future scenario ids without requiring 1M fixture generation or Criterion output in the default manual workflow:
-`perf.core_read.simple.1m`, `perf.replay.lag_catchup.1m`, `perf.rebuild.refresh.1m`, `perf.verification.full.1m`, `perf.search.fulltext.1m`, `perf.vector.executor.1m`, `perf.hybrid.executor.1m`, `perf.time_series.window_scan.1m`, `perf.pgwire.simple_query.1m`, and `perf.http.document_create_get.1m`.
+`perf.core_read.simple.1m`, `perf.replay.lag_catchup.1m`, `perf.rebuild.refresh.1m`, `perf.verification.full.1m`, `perf.search.fulltext.1m`, `perf.vector.executor.1m`, `perf.hybrid.executor.1m`, `perf.graph.expand.1m`, `perf.time_series.window_scan.1m`, `perf.pgwire.simple_query.1m`, and `perf.http.document_create_get.1m`.
 
 ### Manual Benchmark Scenarios
 
@@ -671,6 +671,8 @@ It reserves representative future scenario ids without requiring 1M fixture gene
 | `perf.vector.executor.100k` | Vector | `tier2_subsystem_vector` | `vector_executor` | 100k |
 | `perf.hybrid.executor.10k` | Hybrid | `tier2_subsystem_hybrid` | `hybrid_executor` | 10k |
 | `perf.hybrid.executor.100k` | Hybrid | `tier2_subsystem_hybrid` | `hybrid_executor` | 100k |
+| `perf.graph.expand.10k` | Graph | `tier3_system_query` | `graph_expand_query` | 10k |
+| `perf.graph.expand.100k` | Graph | `tier3_system_query` | `graph_expand_query` | 100k |
 | `perf.time_series.window_scan.10k` | Time series | `tier3_system_query` | `time_series_window_scan` | 10k |
 | `perf.time_series.window_scan.100k` | Time series | `tier3_system_query` | `time_series_window_scan` | 100k |
 | `perf.time_series.retention.10k` | Time series | `tier3_system_rebuild` | `time_series_retention_enforcement` | 10k |

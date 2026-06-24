@@ -201,6 +201,25 @@ pub(super) fn bind_query_source_with_lateral_fields(
         }
         QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
         QuerySource::SingleRow => Ok(QuerySource::SingleRow),
+        QuerySource::TableFunction {
+            name,
+            function,
+            lateral,
+        } => {
+            validate_graph_table_function(&function, lateral_fields)?;
+            if let Some(graph_name) = literal_string_arg(&function, 0) {
+                if !catalog.graph_exists(&graph_name) {
+                    return Err(CassieError::Planner(format!(
+                        "graph '{graph_name}' does not exist"
+                    )));
+                }
+            }
+            Ok(QuerySource::TableFunction {
+                name,
+                function,
+                lateral,
+            })
+        }
         QuerySource::Subquery {
             alias,
             select,
@@ -290,6 +309,12 @@ pub(super) fn source_fields(
             .map(|fields| qualified_fields(name, fields))
             .ok_or_else(|| CassieError::CollectionNotFound(name.clone())),
         QuerySource::SingleRow => Ok(HashSet::new()),
+        QuerySource::TableFunction { name, .. } => Ok(qualified_fields(
+            name,
+            graph_table_function_columns()
+                .into_iter()
+                .map(|(name, _)| name),
+        )),
         QuerySource::Subquery { alias, select, .. } => Ok(qualified_fields(
             alias,
             projected_column_names(&select.projection),
@@ -300,4 +325,55 @@ pub(super) fn source_fields(
             Ok(fields)
         }
     }
+}
+
+fn validate_graph_table_function(
+    function: &FunctionCall,
+    lateral_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    let expected = match function.name.to_ascii_lowercase().as_str() {
+        "graph_neighbors" => 6,
+        "graph_expand" => 7,
+        "graph_shortest_path" => 9,
+        other => {
+            return Err(CassieError::Planner(format!(
+                "unsupported table function '{other}'"
+            )))
+        }
+    };
+    if function.args.len() != expected {
+        return Err(CassieError::Planner(format!(
+            "{} requires {} arguments",
+            function.name, expected
+        )));
+    }
+    for arg in &function.args {
+        validate_expression(arg, lateral_fields, &HashSet::new(), false)?;
+    }
+    Ok(())
+}
+
+fn literal_string_arg(function: &FunctionCall, index: usize) -> Option<String> {
+    match function.args.get(index)? {
+        Expr::StringLiteral(value) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+pub(super) fn graph_table_function_columns() -> Vec<(String, DataType)> {
+    vec![
+        ("depth".to_string(), DataType::BigInt),
+        ("path_rank".to_string(), DataType::BigInt),
+        ("cost".to_string(), DataType::Float),
+        ("node_type".to_string(), DataType::Text),
+        ("node_id".to_string(), DataType::Text),
+        ("edge_id".to_string(), DataType::Text),
+        ("edge_type".to_string(), DataType::Text),
+        ("source_type".to_string(), DataType::Text),
+        ("source_id".to_string(), DataType::Text),
+        ("target_type".to_string(), DataType::Text),
+        ("target_id".to_string(), DataType::Text),
+        ("path_nodes".to_string(), DataType::Json),
+        ("path_edges".to_string(), DataType::Json),
+    ]
 }

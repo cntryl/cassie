@@ -52,6 +52,7 @@ Experimental surfaces require the evidence gates in [Experimental Promotion Crit
 | Vector | vector_score, vector_distance, cosine_distance, dot_product, l2_distance | Stable | Cassie-specific |
 | pgvector syntax | `<=>`, `<->`, `<#>`, vector(n) | Stable/Experimental | pgvector-style, not full extension parity |
 | Hybrid | hybrid_score(text_score, vector_score) | Stable | Cassie-specific |
+| Graph | CREATE GRAPH, graph_neighbors, graph_expand, graph_shortest_path | Experimental | Cassie-specific graph retrieval over read-model projections |
 | Embeddings | provider, model, dimensions, metric validation | Experimental | Cassie-specific |
 | Projections | projection metadata, source checkpoints, freshness, replay batch diagnostics, schema version, offset, lag, rebuild state | Experimental | Cassie-specific |
 | Projection lifecycle | internal idempotent replay ingestion, materialized projections, analytical projection options, versioned builds, verification-aware active-version swaps, operations views | Experimental | Cassie-specific |
@@ -86,6 +87,7 @@ Unsupported procedural expectations include:
 | Full-text | inverted index | Stable | Cassie-specific |
 | Vector | brute force, HNSW, IVFFlat | Stable/Experimental | Cassie-specific with pgvector-style operators |
 | Hybrid | text candidate plus vector rerank metadata | Stable | Cassie-specific |
+| Graph | outbound/inbound adjacency sidecars for graph edge tables | Experimental | Cassie-specific |
 | Column-store | USING column indexes, compressed column batches, covered scan acceleration, segment pruning | Stable | Cassie-specific |
 | Time-series | timestamp range index metadata and planner selection | Experimental | Cassie-specific |
 | Merkle | integrity index | Planned | Cassie-specific |
@@ -159,7 +161,7 @@ Unsupported procedural expectations include:
 - `pg_catalog.pg_operational_assignments` exposes local assignment metadata for external node, tenant, partition, and projection routing. Cassie stores and reports this metadata and documents route/drain/move semantics, but does not route, forward, fan out, or filter queries from it.
 - `Cassie::create_snapshot_from_data_dir` and `Cassie::restore_snapshot` provide local snapshot/restore admin APIs around a Cassie manifest and copied Midge data directory. External tooling owns scheduling, transport, retention, encryption, and failover routing.
 - Repair is admin-only and never automatic in query planning or execution. It is local to the Cassie instance and does not imply distributed replication, quorum, remote mutation, or cross-node reconciliation.
-- EXPLAIN includes `cost_model`, `selected_cost`, `rejected_alternatives`, `operator_feedback`, `operator_feedback_reason`, `operator_feedback_base_candidate`, `operator_feedback_selected_candidate`, `operator_feedback_base_cost`, `operator_feedback_adjusted_cost`, `operator_feedback_confidence_bps`, `operator_feedback_age_ms`, `operator_feedback_samples`, `operator_feedback_outliers`, `adaptive_plan_enabled`, `adaptive_decision_point`, `adaptive_candidates`, `adaptive_base_alternative`, `adaptive_selected_alternative`, `adaptive_guard`, `adaptive_guard_passed`, `adaptive_reason`, `adaptive_diagnostic`, `operator_switch_candidate`, `operator_switch_enabled`, `operator_switch_pair`, `operator_switch_threshold`, `operator_switch_reason`, `join_strategy`, `join_keys`, `join_sort_required`, `join_fallback_reason`, `vectorized_join_candidate`, `vectorized_join_enabled`, `vectorized_join_batch_size`, `vectorized_join_fallback_reason`, `mixed_execution`, `mixed_stages`, `exact_baseline`, `analytical_projection`, and `projection_freshness` diagnostics for mixed search/vector/analytical plans.
+- EXPLAIN includes `cost_model`, `selected_cost`, `rejected_alternatives`, `operator_feedback`, `operator_feedback_reason`, `operator_feedback_base_candidate`, `operator_feedback_selected_candidate`, `operator_feedback_base_cost`, `operator_feedback_adjusted_cost`, `operator_feedback_confidence_bps`, `operator_feedback_age_ms`, `operator_feedback_samples`, `operator_feedback_outliers`, `adaptive_plan_enabled`, `adaptive_decision_point`, `adaptive_candidates`, `adaptive_base_alternative`, `adaptive_selected_alternative`, `adaptive_guard`, `adaptive_guard_passed`, `adaptive_reason`, `adaptive_diagnostic`, `operator_switch_candidate`, `operator_switch_enabled`, `operator_switch_pair`, `operator_switch_threshold`, `operator_switch_reason`, `join_strategy`, `join_keys`, `join_sort_required`, `join_fallback_reason`, `vectorized_join_candidate`, `vectorized_join_enabled`, `vectorized_join_batch_size`, `vectorized_join_fallback_reason`, `mixed_execution`, `mixed_stages`, `exact_baseline`, `analytical_projection`, `projection_freshness`, and graph `access_path=graph_adjacency` diagnostics for mixed search/vector/analytical/graph plans.
 
 ## Compatibility Notes
 

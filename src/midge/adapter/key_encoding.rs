@@ -44,6 +44,8 @@ const FAMILY_COLLECTION_METADATA: &[u8] = b"collection-meta";
 const FAMILY_COLUMN_STORE: &[u8] = b"column-store";
 const FAMILY_ROLLUP: &[u8] = b"rollup";
 const FAMILY_RETENTION: &[u8] = b"retention";
+const FAMILY_GRAPH: &[u8] = b"graph";
+const FAMILY_GRAPH_ADJACENCY: &[u8] = b"graph-adjacency";
 
 pub(super) const LEGACY_SCHEMA_PREFIXES: &[&[u8]] = &[b"__cassie__/", b"r/", b"doc:"];
 
@@ -461,6 +463,86 @@ pub(super) fn retention_key(name: &str) -> Vec<u8> {
     key(
         FAMILY_RETENTION,
         &[name.trim().to_ascii_lowercase().as_bytes()],
+    )
+}
+
+pub(super) fn graph_prefix() -> Vec<u8> {
+    prefix(FAMILY_GRAPH, &[])
+}
+
+pub(super) fn graph_key(name: &str) -> Vec<u8> {
+    key(FAMILY_GRAPH, &[name.trim().to_ascii_lowercase().as_bytes()])
+}
+
+pub(super) fn graph_outbound_prefix(graph: &str, source_type: &str, source_id: &str) -> Vec<u8> {
+    prefix(
+        FAMILY_GRAPH_ADJACENCY,
+        &[
+            graph.as_bytes(),
+            b"out",
+            source_type.as_bytes(),
+            source_id.as_bytes(),
+        ],
+    )
+}
+
+pub(super) fn graph_inbound_prefix(graph: &str, target_type: &str, target_id: &str) -> Vec<u8> {
+    prefix(
+        FAMILY_GRAPH_ADJACENCY,
+        &[
+            graph.as_bytes(),
+            b"in",
+            target_type.as_bytes(),
+            target_id.as_bytes(),
+        ],
+    )
+}
+
+pub(super) fn graph_outbound_edge_key(
+    graph: &str,
+    source_type: &str,
+    source_id: &str,
+    edge_type: &str,
+    target_type: &str,
+    target_id: &str,
+    edge_id: &str,
+) -> Vec<u8> {
+    key(
+        FAMILY_GRAPH_ADJACENCY,
+        &[
+            graph.as_bytes(),
+            b"out",
+            source_type.as_bytes(),
+            source_id.as_bytes(),
+            edge_type.as_bytes(),
+            target_type.as_bytes(),
+            target_id.as_bytes(),
+            edge_id.as_bytes(),
+        ],
+    )
+}
+
+pub(super) fn graph_inbound_edge_key(
+    graph: &str,
+    target_type: &str,
+    target_id: &str,
+    edge_type: &str,
+    source_type: &str,
+    source_id: &str,
+    edge_id: &str,
+) -> Vec<u8> {
+    key(
+        FAMILY_GRAPH_ADJACENCY,
+        &[
+            graph.as_bytes(),
+            b"in",
+            target_type.as_bytes(),
+            target_id.as_bytes(),
+            edge_type.as_bytes(),
+            source_type.as_bytes(),
+            source_id.as_bytes(),
+            edge_id.as_bytes(),
+        ],
     )
 }
 

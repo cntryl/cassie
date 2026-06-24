@@ -247,6 +247,11 @@ pub(super) fn mark_source_lateral(source: QuerySource) -> QuerySource {
             kind,
             on,
         },
+        QuerySource::TableFunction { name, function, .. } => QuerySource::TableFunction {
+            name,
+            function,
+            lateral: true,
+        },
         other => other,
     }
 }
@@ -288,6 +293,20 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
             select: Box::new(select),
             lateral,
         });
+    }
+
+    if let Some(function) = parse_function(raw)? {
+        let lower_name = function.name.to_ascii_lowercase();
+        if matches!(
+            lower_name.as_str(),
+            "graph_neighbors" | "graph_expand" | "graph_shortest_path"
+        ) {
+            return Ok(QuerySource::TableFunction {
+                name: lower_name,
+                function,
+                lateral,
+            });
+        }
     }
 
     let tokens = split_csv_quoted_by_space(raw);

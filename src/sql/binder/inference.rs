@@ -103,6 +103,19 @@ pub(super) fn infer_source_schema(
             .cloned()
             .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?,
         QuerySource::SingleRow => Schema { fields: Vec::new() },
+        QuerySource::TableFunction { name, .. } => {
+            let schema = Schema {
+                fields: super::select::graph_table_function_columns()
+                    .into_iter()
+                    .map(|(name, data_type)| FieldSchema {
+                        name,
+                        data_type,
+                        nullable: true,
+                    })
+                    .collect(),
+            };
+            qualify_schema(&schema, name)
+        }
         QuerySource::Subquery { alias, select, .. } => {
             let inner =
                 infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions)?;
@@ -120,9 +133,10 @@ pub(super) fn infer_source_schema(
     if qualify {
         Ok(match source {
             QuerySource::Collection(name) | QuerySource::Cte(name) => qualify_schema(&schema, name),
-            QuerySource::SingleRow | QuerySource::Subquery { .. } | QuerySource::Join { .. } => {
-                schema
-            }
+            QuerySource::SingleRow
+            | QuerySource::TableFunction { .. }
+            | QuerySource::Subquery { .. }
+            | QuerySource::Join { .. } => schema,
         })
     } else {
         Ok(schema)

@@ -91,6 +91,108 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
     })
 }
 
+pub(super) fn parse_create_graph_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed["create graph".len()..].trim();
+    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+    if rest.is_empty() {
+        return Err(SqlError("CREATE GRAPH requires a graph name".into()));
+    }
+
+    let (name, body) = if let Some(open) = rest.find('(') {
+        let close = find_matching_paren(rest, open)
+            .ok_or_else(|| SqlError("CREATE GRAPH requires closing ')'".into()))?;
+        let name = rest[..open].trim();
+        let trailing = rest[(close + 1)..].trim();
+        if !trailing.is_empty() {
+            return Err(SqlError("unexpected tokens after CREATE GRAPH body".into()));
+        }
+        (name, Some(rest[(open + 1)..close].trim()))
+    } else {
+        (rest.trim(), None)
+    };
+
+    if name.is_empty() || name.split_whitespace().count() != 1 {
+        return Err(SqlError("CREATE GRAPH requires one graph name".into()));
+    }
+
+    let mut node_fields = Vec::new();
+    let mut edge_fields = Vec::new();
+    if let Some(body) = body {
+        for section in split_csv(body) {
+            let section = section.trim();
+            if section.is_empty() {
+                continue;
+            }
+            let lower = section.to_ascii_lowercase();
+            let (target, raw_fields) = if lower.starts_with("nodes") {
+                ("nodes", section["nodes".len()..].trim())
+            } else if lower.starts_with("edges") {
+                ("edges", section["edges".len()..].trim())
+            } else {
+                return Err(SqlError(format!(
+                    "unsupported CREATE GRAPH section '{section}'"
+                )));
+            };
+            let fields_body = parse_enclosed_parenthesized(raw_fields).ok_or_else(|| {
+                SqlError(format!(
+                    "CREATE GRAPH {target} requires fields in parentheses"
+                ))
+            })?;
+            let fields = parse_graph_fields(&fields_body, target)?;
+            if target == "nodes" {
+                node_fields = fields;
+            } else {
+                edge_fields = fields;
+            }
+        }
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CreateGraph(CreateGraphStatement {
+            name: name.to_string(),
+            if_not_exists,
+            node_fields,
+            edge_fields,
+        }),
+    })
+}
+
+fn parse_graph_fields(raw: &str, section: &str) -> Result<Vec<FieldDefinition>, SqlError> {
+    let reserved = match section {
+        "nodes" => &["node_type", "node_id"][..],
+        "edges" => &[
+            "edge_id",
+            "source_type",
+            "source_id",
+            "target_type",
+            "target_id",
+            "edge_type",
+            "weight",
+        ][..],
+        _ => &[][..],
+    };
+    let mut fields = Vec::new();
+    if raw.trim().is_empty() {
+        return Ok(fields);
+    }
+    for field in split_csv(raw) {
+        let parsed = parse_field_definition(field.trim())?;
+        if reserved
+            .iter()
+            .any(|reserved| parsed.name.eq_ignore_ascii_case(reserved))
+        {
+            return Err(SqlError(format!(
+                "CREATE GRAPH {section} field '{}' is reserved",
+                parsed.name
+            )));
+        }
+        fields.push(parsed);
+    }
+    Ok(fields)
+}
+
 pub(super) fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let lower = trimmed.to_lowercase();

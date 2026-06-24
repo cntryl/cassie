@@ -262,6 +262,9 @@ fn collect_relation_names(source: &QuerySource, relations: &mut BTreeSet<String>
         QuerySource::Cte(name) => {
             relations.insert(format!("cte:{}", name.to_ascii_lowercase()));
         }
+        QuerySource::TableFunction { name, .. } => {
+            relations.insert(format!("table_function:{}", name.to_ascii_lowercase()));
+        }
         QuerySource::Subquery { alias, select, .. } => {
             relations.insert(format!("subquery:{}", alias.to_ascii_lowercase()));
             collect_relation_names(&select.source, relations);

@@ -171,6 +171,58 @@ pub(super) fn bind_drop_view(
     Ok(statement)
 }
 
+pub(super) fn bind_create_graph(
+    mut statement: crate::sql::ast::CreateGraphStatement,
+    catalog: &Catalog,
+) -> Result<crate::sql::ast::CreateGraphStatement, CassieError> {
+    statement.name = statement.name.trim().to_string();
+    if statement.name.is_empty() {
+        return Err(CassieError::Planner(
+            "CREATE GRAPH requires a graph name".into(),
+        ));
+    }
+
+    let node_table = format!("{}_nodes", statement.name);
+    let edge_table = format!("{}_edges", statement.name);
+    if !statement.if_not_exists
+        && (catalog.graph_exists(&statement.name)
+            || catalog.relation_exists(&node_table)
+            || catalog.relation_exists(&edge_table)
+            || virtual_views::schema(&node_table).is_some()
+            || virtual_views::schema(&edge_table).is_some())
+    {
+        return Err(CassieError::Planner(format!(
+            "graph '{}' already exists or its backing tables are unavailable",
+            statement.name
+        )));
+    }
+
+    validate_graph_fields("nodes", &statement.node_fields)?;
+    validate_graph_fields("edges", &statement.edge_fields)?;
+    Ok(statement)
+}
+
+fn validate_graph_fields(
+    section: &str,
+    fields: &[crate::sql::ast::FieldDefinition],
+) -> Result<(), CassieError> {
+    let mut seen = HashSet::new();
+    for field in fields {
+        let field_name = field.name.trim();
+        if field_name.is_empty() {
+            return Err(CassieError::Planner(format!(
+                "CREATE GRAPH {section} field names cannot be empty"
+            )));
+        }
+        if !seen.insert(field_name.to_ascii_lowercase()) {
+            return Err(CassieError::Planner(format!(
+                "CREATE GRAPH {section} field '{field_name}' is defined more than once"
+            )));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn bind_create_index(
     mut statement: CreateIndexStatement,
     catalog: &Catalog,

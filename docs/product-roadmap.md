@@ -105,6 +105,7 @@ Goal: expose document-native search, vector, hybrid, and embedding workflows thr
 | IVFFlat vector index metadata/options | Implemented | Experimental |
 | IVFFlat trained candidate execution | Implemented | Experimental exact re-rank |
 | Hybrid scoring | Implemented | Cassie-specific |
+| Graph retrieval table functions | Implemented baseline | Experimental Cassie-specific |
 | Embedding providers and validation | Implemented | Experimental |
 
 ## Analytics

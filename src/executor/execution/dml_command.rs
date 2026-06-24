@@ -334,6 +334,47 @@ pub(super) fn execute_command(
                 command: "CREATE TABLE".to_string(),
             })
         }
+        LogicalCommand::CreateGraph(statement) => {
+            let graph = catalog::GraphMeta::new(&statement.name);
+            if statement.if_not_exists && cassie.catalog.graph_exists(&statement.name) {
+                return Ok(QueryResult {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    command: "CREATE GRAPH".to_string(),
+                });
+            }
+
+            create_graph_collection(
+                cassie,
+                &graph.node_collection,
+                graph.node_builtin_fields(),
+                &statement.node_fields,
+            )?;
+            create_graph_collection(
+                cassie,
+                &graph.edge_collection,
+                graph.edge_builtin_fields(),
+                &statement.edge_fields,
+            )?;
+            cassie
+                .midge
+                .put_graph(graph.clone())
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.register_graph(graph);
+            cassie
+                .refresh_cardinality_stats(&format!("{}_nodes", statement.name))
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie
+                .refresh_cardinality_stats(&format!("{}_edges", statement.name))
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            invalidate_plan_cache = true;
+
+            Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                command: "CREATE GRAPH".to_string(),
+            })
+        }
         LogicalCommand::CreateView(statement) => {
             if statement.if_not_exists
                 && (cassie.catalog.relation_exists(&statement.name)
@@ -917,4 +958,52 @@ pub(super) fn execute_command(
     }
 
     result
+}
+
+fn create_graph_collection(
+    cassie: &Cassie,
+    collection: &str,
+    builtin_fields: Vec<(String, DataType)>,
+    user_fields: &[crate::sql::ast::FieldDefinition],
+) -> Result<(), QueryError> {
+    let mut schema_fields = builtin_fields
+        .into_iter()
+        .map(|(name, data_type)| FieldSchema {
+            name,
+            data_type,
+            nullable: true,
+        })
+        .collect::<Vec<_>>();
+    schema_fields.extend(user_fields.iter().map(|field| FieldSchema {
+        name: field.name.clone(),
+        data_type: field.data_type.clone(),
+        nullable: true,
+    }));
+
+    let schema = Schema {
+        fields: schema_fields,
+    };
+    let metadata = catalog::CollectionMeta::new(collection, None);
+    cassie
+        .midge
+        .create_collection_with_meta(collection, schema.clone(), metadata.clone())
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let constraints = user_fields
+        .iter()
+        .flat_map(|field| field.constraints.iter().cloned())
+        .collect::<Vec<_>>();
+    cassie
+        .midge
+        .save_constraints(collection, constraints.as_slice())
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie.catalog.register_collection_meta_with_constraints(
+        metadata,
+        schema
+            .fields
+            .into_iter()
+            .map(|field| (field.name, field.data_type))
+            .collect(),
+        constraints,
+    );
+    Ok(())
 }

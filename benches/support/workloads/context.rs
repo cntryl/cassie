@@ -99,6 +99,23 @@ pub async fn time_series_context(
     Ok(ctx)
 }
 
+pub async fn graph_context(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
+    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    let dir = benchmark_data_dir(label);
+
+    let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
+    cassie.startup()?;
+    let session = cassie.create_session("benchmark", None);
+    let ctx = BenchContext {
+        cassie,
+        session,
+        collection: "bench_graph".to_string(),
+        _embedding_server: None,
+    };
+    prepare_graph(&ctx, dataset_rows).await?;
+    Ok(ctx)
+}
+
 #[derive(Debug, Clone, Copy)]
 struct BenchIndexOptions {
     include_scalar_indexes: bool,
@@ -448,6 +465,59 @@ async fn prepare_time_series_collection(
 
     for statement in statements {
         let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
+    }
+
+    Ok(())
+}
+
+async fn prepare_graph(ctx: &BenchContext, dataset_rows: usize) -> Result<(), CassieError> {
+    if ctx.cassie.catalog.graph_exists(&ctx.collection) {
+        return Ok(());
+    }
+
+    let create = format!(
+        "CREATE GRAPH {} (NODES (label TEXT), EDGES (source TEXT))",
+        ctx.collection
+    );
+    ctx.cassie.execute_sql(&ctx.session, &create, vec![])?;
+
+    let mut nodes = Vec::with_capacity(dataset_rows);
+    for index in 0..dataset_rows {
+        nodes.push((
+            Some(format!("node-{index}")),
+            json!({
+                "node_type": "doc",
+                "node_id": format!("node-{index}"),
+                "label": format!("Node {index}"),
+            }),
+        ));
+    }
+    if !nodes.is_empty() {
+        ctx.cassie
+            .midge
+            .put_documents(&format!("{}_nodes", ctx.collection), nodes)?;
+    }
+
+    let mut edges = Vec::with_capacity(dataset_rows.saturating_sub(1));
+    for index in 0..dataset_rows.saturating_sub(1) {
+        edges.push((
+            Some(format!("edge-{index}")),
+            json!({
+                "edge_id": format!("edge-{index}"),
+                "source_type": "doc",
+                "source_id": format!("node-{index}"),
+                "target_type": "doc",
+                "target_id": format!("node-{}", index + 1),
+                "edge_type": "links",
+                "weight": 1,
+                "source": "bench",
+            }),
+        ));
+    }
+    if !edges.is_empty() {
+        ctx.cassie
+            .midge
+            .put_documents(&format!("{}_edges", ctx.collection), edges)?;
     }
 
     Ok(())

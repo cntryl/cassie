@@ -44,6 +44,7 @@ pub(super) fn parsed_statement_contains_parameters(statement: &ParsedStatement) 
         | QueryStatement::Delete(_)
         | QueryStatement::Transaction(_)
         | QueryStatement::CreateTable(_)
+        | QueryStatement::CreateGraph(_)
         | QueryStatement::DropTable(_)
         | QueryStatement::AlterTable(_)
         | QueryStatement::CreateSchema(_)
@@ -101,6 +102,9 @@ pub(super) fn select_item_contains_parameters(item: &SelectItem) -> bool {
 pub(super) fn source_contains_parameters(source: &QuerySource) -> bool {
     match source {
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
+        QuerySource::TableFunction { function, .. } => {
+            function.args.iter().any(expr_contains_parameters)
+        }
         QuerySource::Subquery { select, .. } => select_contains_parameters(select),
         QuerySource::Join {
             left, right, on, ..
@@ -201,6 +205,12 @@ pub(super) fn validate_function_calls(
     }
 
     for function in functions {
+        if matches!(
+            function.name.to_ascii_lowercase().as_str(),
+            "graph_neighbors" | "graph_expand" | "graph_shortest_path"
+        ) {
+            continue;
+        }
         if function.name.eq_ignore_ascii_case("cast") {
             if function.args.len() != 2 {
                 return Err(CassieError::Planner(format!(
@@ -484,6 +494,7 @@ pub(super) fn validate_aggregate_function_args(
 }
 
 pub(super) fn collect_functions(statement: &SelectStatement, out: &mut Vec<FunctionCall>) {
+    collect_source_functions(&statement.source, out);
     for item in &statement.projection {
         collect_item(item, out);
     }
@@ -521,6 +532,26 @@ pub(super) fn collect_functions(statement: &SelectStatement, out: &mut Vec<Funct
                 }
             }
         }
+    }
+}
+
+fn collect_source_functions(source: &QuerySource, out: &mut Vec<FunctionCall>) {
+    match source {
+        QuerySource::TableFunction { function, .. } => {
+            out.push(function.clone());
+            for arg in &function.args {
+                collect_expr(arg, out);
+            }
+        }
+        QuerySource::Subquery { select, .. } => collect_functions(select, out),
+        QuerySource::Join {
+            left, right, on, ..
+        } => {
+            collect_source_functions(left, out);
+            collect_source_functions(right, out);
+            collect_expr(on, out);
+        }
+        QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => {}
     }
 }
 
@@ -598,6 +629,7 @@ pub(super) fn source_references_cte(source: &QuerySource, cte_name: &str) -> boo
         QuerySource::Cte(name) | QuerySource::Collection(name) => {
             name.eq_ignore_ascii_case(cte_name)
         }
+        QuerySource::TableFunction { .. } => false,
         QuerySource::SingleRow => false,
         QuerySource::Subquery { select, .. } => source_references_cte(&select.source, cte_name),
         QuerySource::Join { left, right, .. } => {

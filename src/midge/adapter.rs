@@ -153,6 +153,8 @@ mod column_batches;
 mod column_store;
 #[path = "adapter/documents.rs"]
 pub(crate) mod documents;
+#[path = "adapter/graphs.rs"]
+mod graphs;
 #[path = "adapter/key_encoding.rs"]
 mod key_encoding;
 #[path = "adapter/layout.rs"]
@@ -183,6 +185,7 @@ mod time_series_indexes;
 mod verification;
 
 pub(crate) use documents::DocumentWriteOp;
+pub(crate) use graphs::GraphEdgeRecord;
 pub use verification::{
     IntegrityCheckReport, RangeHashRecord, RootHashRecord, RowHashRecord, StoredHashState,
 };
@@ -516,6 +519,62 @@ impl Midge {
 
     fn retention_key(name: &str) -> Vec<u8> {
         key_encoding::retention_key(name)
+    }
+
+    fn graph_prefix() -> Vec<u8> {
+        key_encoding::graph_prefix()
+    }
+
+    fn graph_key(name: &str) -> Vec<u8> {
+        key_encoding::graph_key(name)
+    }
+
+    fn graph_outbound_prefix(graph: &str, source_type: &str, source_id: &str) -> Vec<u8> {
+        key_encoding::graph_outbound_prefix(graph, source_type, source_id)
+    }
+
+    fn graph_inbound_prefix(graph: &str, target_type: &str, target_id: &str) -> Vec<u8> {
+        key_encoding::graph_inbound_prefix(graph, target_type, target_id)
+    }
+
+    fn graph_outbound_edge_key(
+        graph: &str,
+        source_type: &str,
+        source_id: &str,
+        edge_type: &str,
+        target_type: &str,
+        target_id: &str,
+        edge_id: &str,
+    ) -> Vec<u8> {
+        key_encoding::graph_outbound_edge_key(
+            graph,
+            source_type,
+            source_id,
+            edge_type,
+            target_type,
+            target_id,
+            edge_id,
+        )
+    }
+
+    fn graph_inbound_edge_key(
+        graph: &str,
+        target_type: &str,
+        target_id: &str,
+        edge_type: &str,
+        source_type: &str,
+        source_id: &str,
+        edge_id: &str,
+    ) -> Vec<u8> {
+        key_encoding::graph_inbound_edge_key(
+            graph,
+            target_type,
+            target_id,
+            edge_type,
+            source_type,
+            source_id,
+            edge_id,
+        )
     }
 
     fn index_prefix() -> Vec<u8> {

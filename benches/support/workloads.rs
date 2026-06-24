@@ -14,8 +14,8 @@ mod sql;
 mod system;
 
 pub use context::{
-    context, context_with_mock_tei_embeddings, empty_context, runtime, scalar_context,
-    time_series_context, unindexed_context, BenchContext,
+    context, context_with_mock_tei_embeddings, empty_context, graph_context, runtime,
+    scalar_context, time_series_context, unindexed_context, BenchContext,
 };
 pub use hotpath::*;
 pub use http::*;

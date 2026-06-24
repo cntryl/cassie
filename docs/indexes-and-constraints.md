@@ -20,6 +20,7 @@ Cassie keeps row blobs as the source of truth and uses indexes, constraints, and
 | Expression indexes | Experimental | Deterministic expression matching |
 | Full-text indexes | Stable | Cassie inverted index and BM25 support |
 | Vector indexes | Stable/Experimental | Brute force, HNSW, and IVFFlat surfaces by support level |
+| Graph adjacency sidecars | Experimental | Outbound/inbound edge traversal for `CREATE GRAPH` backing tables |
 | Time-series indexes | Experimental | Timestamp range planning, bucket-native membership, row-backed fallback, bucket diagnostics, restart-safe metadata |
 | Column-batch indexes | Stable | Covered scans, segment pruning, aggregate acceleration |
 | Retention policies | Experimental | Explicit timestamp-based cleanup with catalog and metrics diagnostics |
@@ -160,6 +161,29 @@ Current IVFFlat support:
 - Cassie persists and hydrates IVFFlat metadata/options plus deterministic training state.
 - IVFFlat top-k queries over compatible L2 vector-distance shapes probe trained lists, then fetch row vectors and re-rank exactly before returning SQL-visible rows.
 - Document writes and deletes refresh IVFFlat training state for affected collections. IVFFlat remains experimental; unsupported shapes fall back to the exact row/vector path.
+
+## Graph Adjacency Sidecars
+
+`CREATE GRAPH` creates normal node and edge backing tables plus persisted graph metadata.
+Edge writes maintain outbound and inbound adjacency sidecars keyed by typed source and target ids.
+
+```sql
+CREATE GRAPH social (NODES (label TEXT), EDGES (source TEXT));
+SELECT node_id
+FROM graph_expand('social', 'person', 'alice', 2, 'out', 'knows', 10);
+```
+
+Current guarantee:
+
+- Node identity is `(node_type, node_id)`.
+- Edge rows use typed source/target ids, `edge_type`, and non-negative numeric `weight`.
+- `graph_neighbors`, `graph_expand`, and `graph_shortest_path` are SQL table functions.
+- Adjacency sidecars are accelerators; edge row blobs remain authoritative.
+- EXPLAIN reports `access_path=graph_adjacency`, and `/metrics` reports graph traversal counters.
+
+Current limitation:
+
+- Graph support is Cassie-specific and experimental; Cypher, Gremlin, distributed traversal, and graph mutation languages are not supported.
 
 ## Time-Series Indexes
 

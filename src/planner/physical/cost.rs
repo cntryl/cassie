@@ -263,7 +263,7 @@ fn estimated_source_rows(
             .and_then(|limit| usize::try_from(limit.max(0)).ok())
             .map(|limit| limit as u64)
             .unwrap_or(PlanEstimates::DEFAULT_ROWS),
-        QuerySource::Cte(_) => PlanEstimates::DEFAULT_ROWS,
+        QuerySource::Cte(_) | QuerySource::TableFunction { .. } => PlanEstimates::DEFAULT_ROWS,
         QuerySource::SingleRow => 1,
     }
 }

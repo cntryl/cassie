@@ -106,4 +106,21 @@ impl RuntimeState {
         let _ = rows;
         update(&mut metrics);
     }
+
+    pub fn record_graph_traversal(
+        &self,
+        graph: &str,
+        strategy: &str,
+        max_depth: usize,
+        rows: usize,
+        stop_reason: &str,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.graph.traversals += 1;
+        metrics.graph.rows = metrics.graph.rows.saturating_add(rows as u64);
+        metrics.graph.max_depth = metrics.graph.max_depth.max(max_depth as u64);
+        metrics.graph.last_graph = graph.to_string();
+        metrics.graph.last_strategy = strategy.to_string();
+        metrics.graph.last_stop_reason = stop_reason.to_string();
+    }
 }

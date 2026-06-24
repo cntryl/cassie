@@ -312,6 +312,7 @@ fn insert_source_rows(
                 source: select.source.clone(),
                 collection: match &select.source {
                     QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
+                    QuerySource::TableFunction { name, .. } => name.clone(),
                     QuerySource::Subquery { alias, .. } => alias.clone(),
                     QuerySource::SingleRow => "single_row".to_string(),
                     QuerySource::Join { .. } => "join".to_string(),

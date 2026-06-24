@@ -117,6 +117,53 @@ fn should_parse_create_table_with_if_not_exists() {
 }
 
 #[test]
+fn should_parse_create_graph_field_sections() {
+    // Arrange
+    let sql = "CREATE GRAPH IF NOT EXISTS knowledge (NODES (label TEXT, embedding VECTOR(2)), EDGES (source TEXT))";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::CreateGraph(statement) = parsed.statement else {
+        panic!("expected create graph statement");
+    };
+    assert_eq!(statement.name, "knowledge");
+    assert!(statement.if_not_exists);
+    assert_eq!(statement.node_fields.len(), 2);
+    assert_eq!(statement.node_fields[0].name, "label");
+    assert_eq!(statement.node_fields[1].data_type, DataType::Vector(2));
+    assert_eq!(statement.edge_fields.len(), 1);
+    assert_eq!(statement.edge_fields[0].name, "source");
+}
+
+#[test]
+fn should_parse_graph_table_function_source() {
+    // Arrange
+    let sql =
+        "SELECT node_id FROM graph_expand('knowledge', 'person', 'alice', 2, 'out', 'knows', 10)";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    let QuerySource::TableFunction {
+        name,
+        function,
+        lateral,
+    } = statement.source
+    else {
+        panic!("expected table function source");
+    };
+    assert_eq!(name, "graph_expand");
+    assert_eq!(function.args.len(), 7);
+    assert!(!lateral);
+}
+
+#[test]
 fn should_parse_create_table_with_column_store_storage_mode() {
     // Arrange
     let sql = "CREATE TABLE analytics_docs (id TEXT, title TEXT) WITH (storage = column_store)";

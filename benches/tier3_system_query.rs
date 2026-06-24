@@ -34,6 +34,12 @@ fn bench_query(c: &mut Criterion) {
             100_000,
         ))
         .expect("100k time-series benchmark context");
+    let graph_ctx_10k = runtime
+        .block_on(workloads::graph_context("tier3-query-graph", 10_000))
+        .expect("graph benchmark context");
+    let graph_ctx_100k = runtime
+        .block_on(workloads::graph_context("tier3-query-graph-100k", 100_000))
+        .expect("100k graph benchmark context");
 
     let mut group = c.benchmark_group("tier3_system_query");
     group.sampling_mode(SamplingMode::Flat);
@@ -138,6 +144,32 @@ fn bench_query(c: &mut Criterion) {
     group.bench_function(
         BenchmarkId::new(ts_100k.workload, ts_100k.fixture_scale),
         |b| b.iter(|| runtime.block_on(workloads::time_series_window_scan(&time_series_ctx_100k))),
+    );
+    let graph_10k =
+        performance_benchmarks::expect_benchmark(BENCHMARK, "graph_expand_query", "10k");
+    group.bench_function(
+        BenchmarkId::new(graph_10k.workload, graph_10k.fixture_scale),
+        |b| {
+            b.iter(|| {
+                runtime.block_on(workloads::execute_sql(
+                    &graph_ctx_10k,
+                    "SELECT node_id FROM graph_expand('bench_graph', 'doc', 'node-0', 4, 'out', 'links', 64)",
+                ))
+            })
+        },
+    );
+    let graph_100k =
+        performance_benchmarks::expect_benchmark(BENCHMARK, "graph_expand_query", "100k");
+    group.bench_function(
+        BenchmarkId::new(graph_100k.workload, graph_100k.fixture_scale),
+        |b| {
+            b.iter(|| {
+                runtime.block_on(workloads::execute_sql(
+                    &graph_ctx_100k,
+                    "SELECT node_id FROM graph_expand('bench_graph', 'doc', 'node-0', 4, 'out', 'links', 64)",
+                ))
+            })
+        },
     );
 
     group.finish();

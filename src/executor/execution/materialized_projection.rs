@@ -823,7 +823,7 @@ fn collect_source_collections_into(source: &QuerySource, out: &mut Vec<String>) 
             collect_source_collections_into(left, out);
             collect_source_collections_into(right, out);
         }
-        QuerySource::Cte(_) | QuerySource::SingleRow => {}
+        QuerySource::Cte(_) | QuerySource::TableFunction { .. } | QuerySource::SingleRow => {}
     }
 }
 

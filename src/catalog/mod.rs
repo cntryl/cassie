@@ -2,6 +2,7 @@ pub mod cardinality;
 pub mod collections;
 pub mod consistency;
 pub mod constraints;
+pub mod graphs;
 pub mod indexes;
 pub mod metadata;
 pub mod operational;
@@ -34,6 +35,7 @@ pub use consistency::{
 pub use constraints::{
     generated_constraint_name, ConstraintCheck, ConstraintOperator, FieldConstraint,
 };
+pub use graphs::GraphMeta;
 pub use indexes::{
     ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchFieldSummary, ColumnBatchMetadata,
     ColumnBatchPayload, ColumnBatchRow, ColumnBatchSegmentMeta, ColumnBatchValueRun, IndexKind,

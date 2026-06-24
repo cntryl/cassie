@@ -6,10 +6,11 @@ use parking_lot::RwLock;
 
 use crate::catalog::{
     normalize_role_name, CollectionCardinalityStats, CollectionMeta, CollectionSchema,
-    CollectionStorageMode, FieldConstraint, FieldMeta, FunctionMeta, IndexKind, IndexMeta,
-    NamespaceMeta, OperationalAssignmentMeta, ProcedureMeta, ProjectionComparisonReportMeta,
-    ProjectionConsistencyReportMeta, ProjectionKind, ProjectionMeta, ProjectionRepairReportMeta,
-    RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
+    CollectionStorageMode, FieldConstraint, FieldMeta, FunctionMeta, GraphMeta, IndexKind,
+    IndexMeta, NamespaceMeta, OperationalAssignmentMeta, ProcedureMeta,
+    ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta, ProjectionKind,
+    ProjectionMeta, ProjectionRepairReportMeta, RetentionPolicyMeta, RoleMeta, RollupMeta,
+    ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
@@ -22,6 +23,7 @@ pub struct Catalog {
     pub projections: Arc<RwLock<HashMap<String, ProjectionMeta>>>,
     pub constraints: Arc<RwLock<HashMap<String, Vec<FieldConstraint>>>>,
     pub indexes: Arc<RwLock<HashMap<String, IndexMeta>>>,
+    pub graphs: Arc<RwLock<HashMap<String, GraphMeta>>>,
     pub functions: Arc<RwLock<HashMap<String, FunctionMeta>>>,
     pub procedures: Arc<RwLock<HashMap<String, ProcedureMeta>>>,
     pub views: Arc<RwLock<HashMap<String, ViewMeta>>>,
@@ -47,6 +49,7 @@ impl Catalog {
             projections: Arc::new(RwLock::new(HashMap::new())),
             constraints: Arc::new(RwLock::new(HashMap::new())),
             indexes: Arc::new(RwLock::new(HashMap::new())),
+            graphs: Arc::new(RwLock::new(HashMap::new())),
             functions: Arc::new(RwLock::new(HashMap::new())),
             procedures: Arc::new(RwLock::new(HashMap::new())),
             views: Arc::new(RwLock::new(HashMap::new())),
@@ -158,6 +161,35 @@ impl Catalog {
         let collections = self.collections.read();
         let mut out = collections.values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|entry| entry.name.to_ascii_lowercase());
+        out
+    }
+
+    pub fn register_graph(&self, metadata: GraphMeta) {
+        self.graphs
+            .write()
+            .insert(metadata.name.to_ascii_lowercase(), metadata);
+        self.bump_version();
+    }
+
+    pub fn get_graph(&self, name: &str) -> Option<GraphMeta> {
+        self.graphs.read().get(&name.to_ascii_lowercase()).cloned()
+    }
+
+    pub fn graph_exists(&self, name: &str) -> bool {
+        self.graphs.read().contains_key(&name.to_ascii_lowercase())
+    }
+
+    pub fn graph_for_edge_collection(&self, collection: &str) -> Option<GraphMeta> {
+        self.graphs
+            .read()
+            .values()
+            .find(|graph| graph.edge_collection.eq_ignore_ascii_case(collection))
+            .cloned()
+    }
+
+    pub fn list_graphs(&self) -> Vec<GraphMeta> {
+        let mut out = self.graphs.read().values().cloned().collect::<Vec<_>>();
+        out.sort_by_key(|graph| graph.name.to_ascii_lowercase());
         out
     }
 
@@ -418,6 +450,7 @@ impl Catalog {
         self.rollups.write().clear();
         self.retention_policies.write().clear();
         self.indexes.write().clear();
+        self.graphs.write().clear();
         self.vector_indexes.write().clear();
         self.cardinality.write().clear();
         self.projection_comparison_reports.write().clear();

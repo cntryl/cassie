@@ -26,7 +26,7 @@ The largest remaining gaps are production evidence and operational depth gaps, n
 
 - Tier 4 operational-scale metadata now covers local assignment inspection, external router/drain/move contracts, local snapshot/restore, and advisory capacity guidance. Actual traffic routing and node movement remain outside Cassie.
 - Performance has broad benchmark coverage and an initial 10k/100k manual feedback loop, but larger-scale claims and production-grade capacity thresholds still need follow-up evidence.
-- The active Phase 09 gap surface is production-depth work: repair runbooks and safe repair depth, adaptive planning promotion gates, and experimental-surface promotion criteria.
+- The active Phase 09 gap surface is production-depth work: adaptive planning promotion gates and experimental-surface promotion criteria.
 - The product boundary around procedures is now explicit: limited experimental compatibility/admin support is allowed, while stored-procedure and trigger-based business-logic platforms remain out of scope.
 - Phase 08 README-goal closure is archived.
 - Phase 09 is the active execution gate and must not reopen distributed SQL, replication, quorum, consensus, or second-storage-abstraction work.
@@ -50,7 +50,7 @@ The largest remaining gaps are production evidence and operational depth gaps, n
 | Operational scale over distributed SQL | Offline manifests explicitly avoid distributed query/replication semantics; local assignment metadata, external routing contracts, local snapshot/restore, and capacity guidance are available. | Deployment-specific router integrations, fleet monitoring thresholds, and production evidence remain outside Cassie. | P2 |
 | Purpose-built read models | Primary/secondary lookups, range queries, tenant filtered pages, narrow mixed-order equality-prefix scans, exact expression-index equality seeks, aggregations, search, vector, hybrid, projections, time-series bucket membership, and analytics exist. | Remaining depth is focused on guarded adaptive planning, larger analytical fixtures, and projection-shaped layout guidance. | P2 |
 | Performance is a feature | Broad benchmark suite, performance contracts, manifest-owned 10k/100k manual scenarios, capacity signal guidance, and advisory capacity byte data exist. | Future work should improve scenario quality, capture repeatable local evidence, and add larger scale points. | P2 |
-| Event-sourcing native | Replay batches, checkpoint metadata, duplicate skip ledger, materialized projection builds, handler determinism contracts, replay failure guidance, verification, repair plans, local hash repair, swaps, and local snapshot/restore exist. | Operator runbooks and the next safe local repair scope remain production-depth work. | P2 |
+| Event-sourcing native | Replay batches, checkpoint metadata, duplicate skip ledger, materialized projection builds, handler determinism contracts, replay failure guidance, verification, repair plans, local hash repair, repair runbooks, swaps, and local snapshot/restore exist. | Executable index/projection-version/full-rebuild repair semantics remain production-depth blockers until a safe mutation spec exists. | P2 |
 | Simplicity wins | Docs now frame Cassie as a read-model database, reject distributed SQL, and define procedures as limited compatibility/admin support rather than application business logic. | Experimental surfaces need explicit promotion, retention, or narrowing criteria so broad feature support does not imply PostgreSQL parity. | P3 |
 | Practical PostgreSQL access | pgwire startup, auth, simple/extended query, prepared statements, catalog probes, SQLSTATE-style errors, a maintained client matrix, default tokio-postgres coverage, plus opt-in psql and SQLAlchemy Core probes exist. | sqlx/diesel/prisma automation, broader ORM reflection behavior, and native extension integration remain future probe depth. | P1 |
 
@@ -103,10 +103,11 @@ Evidence:
 - Verification, diffing, manifest comparison, and consistency reports exist.
 - `PLAN REPAIR PROJECTION` returns deterministic dry-run plans for row, range, index, projection-version, and full-rebuild scopes.
 - `REPAIR PROJECTION` executes the safe local row/range hash-rebuild path when the latest integrity report is repairable, audits the action, and immediately verifies the projection.
+- [Projection Repair Runbook](projection-repair-runbook.md) documents plan, execute, verify, audit, rollback/escalate, and unsupported-scope procedures.
 
 Impact:
 
-Operators can detect divergence or stale materialization and use Cassie-defined admin commands for repair planning and safe local hash repair.
+Operators can detect divergence or stale materialization and use Cassie-defined admin commands plus a runbook for repair planning and safe local hash repair.
 Index, projection-version, and full-rebuild repair scopes remain deterministic dry-run/error surfaces until their safe mutation behavior is implemented.
 
 Recommendation:
@@ -119,7 +120,7 @@ Recommendation:
 
 Active remaining work now lives in Phase 09:
 
-- P2: repair depth and runbooks, adaptive planning depth and promotion gates.
+- P2: adaptive planning depth and promotion gates.
 - P3: experimental surface promotion criteria.
 
 ### 4. Read-Path Optimization Has An MVP Baseline
@@ -273,7 +274,7 @@ Evidence:
 
 Impact:
 
-Capacity diagnostics, repair depth, adaptive planning, and client probes can still touch broad modules.
+Adaptive planning and future read-path proof work can still touch broad modules.
 Future work must preserve small, domain-specific files so production-depth slices stay reviewable.
 
 Recommendation:
@@ -315,10 +316,10 @@ Closed baseline:
 - [Time-series bucket-native storage](indexes-and-constraints.md): persisted bucket membership, row-backed fallback, mutation/restart/retention correctness, EXPLAIN storage diagnostics, and manual benchmark ownership.
 - [PostgreSQL Compatibility](postgres-compatibility.md): opt-in SQLAlchemy Core pgwire client probe coverage with default deterministic tokio-postgres baseline preserved.
 - [Capacity Management](capacity-management.md): advisory local key/value byte accounting by Midge family and major Cassie read-model category through `/metrics.capacity`.
+- [Projection Repair Runbook](projection-repair-runbook.md): admin-only local plan, execute, verify, audit, rollback/escalate, and unsupported-scope procedures for projection repair.
 
 Remaining sequence:
 
-- [Repair depth and runbooks](../issues/phase-09/issue-09.md): operator runbooks and the next safe local repair scope.
 - [Adaptive planning depth](../issues/phase-09/issue-10.md): guarded adaptive planning improvements with promotion gates and fallback diagnostics.
 - [Experimental promotion criteria](../issues/phase-09/issue-11.md): evidence requirements for catalog, procedure, rollup, HNSW, embedding, and related experimental surfaces.
 

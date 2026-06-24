@@ -205,9 +205,9 @@ Goal: support horizontal expansion through externally orchestrated independent C
 
 ## Remaining Roadmap Themes
 
-- Keep projection repair admin-only, audited, local, and verification-led as unsupported repair scopes mature.
+- Keep projection repair admin-only, audited, local, verification-led, and aligned with the [Projection Repair Runbook](projection-repair-runbook.md) as unsupported repair scopes mature.
 - Keep operational scale local and externally orchestrated: Cassie exposes assignment metadata and a router/drain/move contract, but does not perform distributed query planning, cross-node routing, replication, quorum reads, or consensus.
-- Use [Capacity Management](capacity-management.md) as the current advisory sizing baseline; byte-accurate storage-family reports, automatic admission control, and capacity movement remain future depth.
+- Use [Capacity Management](capacity-management.md) as the current advisory sizing baseline; `/metrics.capacity` reports local logical key/value bytes, while automatic admission control and capacity movement remain future depth.
 - Improve manual performance scenarios as benchmark evidence stabilizes and larger fixtures become practical.
 - Prioritize query patterns required by real read models over feature parity with any general-purpose database.
 - Treat the archived phase 04 contract surface as the reference for explicit async transport boundaries, synchronous engine paths, blocking offload, runtime-boundary diagnostics, and read access-path contracts.
@@ -215,7 +215,7 @@ Goal: support horizontal expansion through externally orchestrated independent C
 - Treat the archived phase 06 surface in `issues/phase-06/README.md` plus the Phase 09 read-path depth in `docs/performance-contracts.md` as the reference for implemented Midge-native read paths, access-path assertions, and projection-shaped read diagnostics. Remaining read-optimization depth is limited to explicit follow-on slices such as broader mixed-direction suffix ordering and expression range/order lowering.
 - Treat the archived phase 07 surface in `issues/phase-07/README.md` as the reference for advanced query, adaptive execution, column-store table mode, and offline consistency-comparison behavior.
 - Treat `issues/phase-08/README.md` as the archived README-goal closure surface for operational metadata, snapshot/restore, repair, read optimization, time-series, client compatibility, production classification, and capacity-management documentation.
-- Work Phase 09 from `issues/phase-09/README.md` for production-depth follow-up: production evidence, read-path depth, client probes, capacity diagnostics, repair depth, adaptive planning depth, experimental promotion criteria, and extraction guardrails.
+- Use `issues/phase-09/README.md` as the archive/current gate for production-depth follow-up; the remaining active items are adaptive planning depth and experimental promotion criteria.
 - Tighten PostgreSQL compatibility documentation for already-implemented SQL features through the read-model access lens.
 - Expand remaining client compatibility probes for sqlx, diesel, prisma, broader SQLAlchemy reflection, and migration-tool read-model workflows.
 - Promote experimental catalog, limited procedure, rollup, HNSW, and embedding surfaces as their compatibility guarantees settle.

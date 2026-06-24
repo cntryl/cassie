@@ -11,6 +11,7 @@ This directory is the product-facing source of truth for what Cassie supports, w
 - [Read-Model Gap Analysis](read-model-gap-analysis.md): strategic gaps against Cassie's event-sourced read-model mission.
 - [Performance Contracts](performance-contracts.md): read-model query-pattern contracts, execution expectations, and benchmark ownership.
 - [Projection Replay Contracts](projection-replay-contracts.md): deterministic handler, replay failure, and operator recovery boundaries.
+- [Projection Repair Runbook](projection-repair-runbook.md): admin-only local repair planning, execution, verification, audit, and escalation workflow.
 - [Capacity Management](capacity-management.md): advisory sizing signals, thresholds, and operator actions for single-node read-model deployments.
 - [Read-Model Autopilot Plan](read-model-autopilot-plan.md): archived execution rules from the gap-closure rebaseline.
 - [PostgreSQL Compatibility](postgres-compatibility.md): compatibility guarantees, supported client surfaces, and intentional differences.
@@ -34,6 +35,7 @@ Current supported areas include:
 
 - Core SQL reads and projection-state mutation workflows.
 - Projection checkpoints, replay diagnostics, materialized projections, versioned builds, and active-version swaps.
+- Verification, repair planning, local hash repair, and repair audit reporting.
 - Table, schema, constraint, view, limited procedure, and catalog metadata.
 - Scalar, composite, partial, expression, covering, full-text, vector, hybrid, and column-batch indexing surfaces.
 - Full-text search, vector search, hybrid scoring, and embedding-provider integration.

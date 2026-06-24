@@ -26,7 +26,7 @@ The largest remaining gaps are production evidence and operational depth gaps, n
 
 - Tier 4 operational-scale metadata now covers local assignment inspection, external router/drain/move contracts, local snapshot/restore, and advisory capacity guidance. Actual traffic routing and node movement remain outside Cassie.
 - Performance has broad benchmark coverage and an initial 10k/100k manual feedback loop, but larger-scale claims and production-grade capacity thresholds still need follow-up evidence.
-- The active Phase 09 gap surface is production-depth work: experimental-surface promotion criteria.
+- Phase 09 production-depth work now defines the remaining evidence gates; future promotions should proceed one surface at a time instead of reopening broad feature families.
 - The product boundary around procedures is now explicit: limited experimental compatibility/admin support is allowed, while stored-procedure and trigger-based business-logic platforms remain out of scope.
 - Phase 08 README-goal closure is archived.
 - Phase 09 is the active execution gate and must not reopen distributed SQL, replication, quorum, consensus, or second-storage-abstraction work.
@@ -51,7 +51,7 @@ The largest remaining gaps are production evidence and operational depth gaps, n
 | Purpose-built read models | Primary/secondary lookups, range queries, tenant filtered pages, narrow mixed-order equality-prefix scans, exact expression-index equality seeks, guarded adaptive planning, aggregations, search, vector, hybrid, projections, time-series bucket membership, and analytics exist. | Remaining depth is focused on larger analytical fixtures and projection-shaped layout guidance. | P2 |
 | Performance is a feature | Broad benchmark suite, performance contracts, manifest-owned 10k/100k manual scenarios, capacity signal guidance, and advisory capacity byte data exist. | Future work should improve scenario quality, capture repeatable local evidence, and add larger scale points. | P2 |
 | Event-sourcing native | Replay batches, checkpoint metadata, duplicate skip ledger, materialized projection builds, handler determinism contracts, replay failure guidance, verification, repair plans, local hash repair, repair runbooks, swaps, and local snapshot/restore exist. | Executable index/projection-version/full-rebuild repair semantics remain production-depth blockers until a safe mutation spec exists. | P2 |
-| Simplicity wins | Docs now frame Cassie as a read-model database, reject distributed SQL, and define procedures as limited compatibility/admin support rather than application business logic. | Experimental surfaces need explicit promotion, retention, or narrowing criteria so broad feature support does not imply PostgreSQL parity. | P3 |
+| Simplicity wins | Docs now frame Cassie as a read-model database, reject distributed SQL, define procedures as limited compatibility/admin support rather than application business logic, and provide experimental promotion criteria. | Individual experimental surfaces still need surface-specific evidence before any future promotion. | P3 |
 | Practical PostgreSQL access | pgwire startup, auth, simple/extended query, prepared statements, catalog probes, SQLSTATE-style errors, a maintained client matrix, default tokio-postgres coverage, plus opt-in psql and SQLAlchemy Core probes exist. | sqlx/diesel/prisma automation, broader ORM reflection behavior, and native extension integration remain future probe depth. | P1 |
 
 ## Archived README-Goal Baselines
@@ -118,9 +118,7 @@ Recommendation:
 
 ## Active Production-Depth Gaps
 
-Active remaining work now lives in Phase 09:
-
-- P3: experimental surface promotion criteria.
+No active Phase 09 execution issue remains after the current rebaseline. Remaining production-readiness work is evidence collection or future surface-specific promotion, not a broad phase gate.
 
 ### 4. Read-Path Optimization Has An MVP Baseline
 
@@ -317,10 +315,11 @@ Closed baseline:
 - [Capacity Management](capacity-management.md): advisory local key/value byte accounting by Midge family and major Cassie read-model category through `/metrics.capacity`.
 - [Projection Repair Runbook](projection-repair-runbook.md): admin-only local plan, execute, verify, audit, rollback/escalate, and unsupported-scope procedures for projection repair.
 - [Feature Support](feature-support.md): adaptive read-operator selection confidence and cost-savings gates with EXPLAIN fallback diagnostics.
+- [Experimental Promotion Criteria](experimental-promotion-criteria.md): evidence gates for catalog, procedure, rollup, HNSW, embedding, and related experimental surfaces.
 
 Remaining sequence:
 
-- [Experimental promotion criteria](../issues/phase-09/issue-11.md): evidence requirements for catalog, procedure, rollup, HNSW, embedding, and related experimental surfaces.
+- None for Phase 09 production-depth rebaseline.
 
 ## Acceptance Criteria For README Alignment
 

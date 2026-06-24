@@ -8,7 +8,7 @@ Production-readiness evidence is tracked in [Production Readiness](production-re
 | Status | Required Bar |
 | --- | --- |
 | Implemented | Code path exists and has targeted tests. Documentation and compatibility may still be incomplete. |
-| Experimental | Feature is usable for supported cases, but compatibility or output shape may change. |
+| Experimental | Feature is usable for supported cases, but compatibility or output shape may change; promotion requires [Experimental Promotion Criteria](experimental-promotion-criteria.md). |
 | Stable | Feature has tests, documentation, known compatibility boundaries, and deterministic failure behavior. |
 | Production-ready | Stable plus benchmark or operational evidence for performance-sensitive paths. |
 

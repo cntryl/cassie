@@ -68,6 +68,7 @@ Phase 09 issue 07 is closed for opt-in SQLAlchemy Core pgwire client probe depth
 Phase 09 issue 08 is closed for advisory local capacity byte diagnostics; see `docs/capacity-management.md`.
 Phase 09 issue 09 is closed for projection repair operator runbooks; see `docs/projection-repair-runbook.md`.
 Phase 09 issue 10 is closed for adaptive planning confidence gates; see `docs/feature-support.md`.
+Phase 09 issue 11 is closed for experimental surface promotion criteria; see `docs/experimental-promotion-criteria.md`.
 
 ### P1 Next
 
@@ -79,7 +80,7 @@ Phase 09 issue 10 is closed for adaptive planning confidence gates; see `docs/fe
 
 ### P3 Parked
 
-1. [Phase 09 Issue 11: Experimental Surface Promotion Criteria](../phase-09/issue-11.md)
+- None.
 
 ## Acceptance Criteria
 

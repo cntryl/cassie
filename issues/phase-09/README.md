@@ -1,7 +1,7 @@
 # Phase 09: Production Depth And Operational Orchestration
 
-Phase 09 is the active follow-on gate after Phase 08 README-goal closure.
-It archives completed production-depth work after the MVP baseline and tracks the remaining experimental-promotion follow-up.
+Phase 09 is closed for the current production-depth rebaseline after Phase 08 README-goal closure.
+It archives the completed production-depth work after the MVP baseline.
 
 This phase must preserve the Phase 08 boundary: Cassie exposes local metadata, diagnostics, and admin workflows for independent read-model nodes, but it does not become distributed SQL.
 
@@ -18,6 +18,7 @@ Closed baseline:
 - Issue 08 byte-accurate capacity diagnostics: `/metrics.capacity` reports advisory local key/value bytes by Midge family and by major Cassie read-model category without adding a second storage abstraction or automatic capacity action.
 - Issue 09 repair scope depth and operator runbooks: projection repair now has an admin-only local runbook for plan, execute, verify, audit, rollback/escalate, and unsupported-scope handling; row/range remain the only executable repair scopes until a future safe mutation spec exists.
 - Issue 10 adaptive planning depth and promotion gates: adaptive read-operator selection now has an optional `CASSIE_ADAPTIVE_MIN_CONFIDENCE_BPS` guard, EXPLAIN fallback diagnostics, and focused metrics coverage for selected, disabled, stale/ignored, and guard-failed paths.
+- Issue 11 experimental surface promotion criteria: `docs/experimental-promotion-criteria.md` defines evidence gates for catalog, limited procedures, rollups, HNSW/IVFFlat, embeddings, time-series, analytical storage, adaptive planning, and operational diagnostics without promoting any surface prematurely.
 
 P2 follow-up:
 
@@ -25,7 +26,7 @@ P2 follow-up:
 
 P3 parked:
 
-11. Experimental surface promotion criteria.
+- None.
 
 ## Required Gates
 

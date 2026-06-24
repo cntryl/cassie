@@ -15,7 +15,7 @@ Feature priority is determined by read-model need. If users need a capability to
 | Planned | Feature area is accepted on the roadmap but not fully implemented. |
 | Production-ready | Implemented, tested, documented, benchmarked where performance-sensitive, and compatibility boundaries are explicit. |
 
-See [Production Readiness](production-readiness.md) for feature-family readiness, evidence, operational signals, restart coverage, and blockers. Roadmap implementation status does not by itself promote a feature to production-ready.
+See [Production Readiness](production-readiness.md) for feature-family readiness, evidence, operational signals, restart coverage, and blockers. See [Experimental Promotion Criteria](experimental-promotion-criteria.md) for the evidence gates required before a future issue promotes or narrows an experimental surface. Roadmap implementation status does not by itself promote a feature to production-ready.
 
 ## Projection Lifecycle & Replay Safety
 
@@ -215,9 +215,9 @@ Goal: support horizontal expansion through externally orchestrated independent C
 - Treat the archived phase 06 surface in `issues/phase-06/README.md` plus the Phase 09 read-path depth in `docs/performance-contracts.md` as the reference for implemented Midge-native read paths, access-path assertions, and projection-shaped read diagnostics. Remaining read-optimization depth is limited to explicit follow-on slices such as broader mixed-direction suffix ordering and expression range/order lowering.
 - Treat the archived phase 07 surface in `issues/phase-07/README.md` as the reference for advanced query, adaptive execution, column-store table mode, and offline consistency-comparison behavior.
 - Treat `issues/phase-08/README.md` as the archived README-goal closure surface for operational metadata, snapshot/restore, repair, read optimization, time-series, client compatibility, production classification, and capacity-management documentation.
-- Use `issues/phase-09/README.md` as the archive/current gate for production-depth follow-up; the remaining active item is experimental promotion criteria.
+- Use `issues/phase-09/README.md` as the archive/current gate for production-depth follow-up; experimental promotion now follows [Experimental Promotion Criteria](experimental-promotion-criteria.md).
 - Tighten PostgreSQL compatibility documentation for already-implemented SQL features through the read-model access lens.
 - Expand remaining client compatibility probes for sqlx, diesel, prisma, broader SQLAlchemy reflection, and migration-tool read-model workflows.
-- Promote experimental catalog, limited procedure, rollup, HNSW, and embedding surfaces as their compatibility guarantees settle.
+- Promote experimental catalog, limited procedure, rollup, HNSW, and embedding surfaces only through surface-specific future issues that satisfy [Experimental Promotion Criteria](experimental-promotion-criteria.md).
 - Add performance evidence for production-ready claims on planner, index, search, vector, and analytics paths.
 - Continue splitting large legacy modules before adding broad feature work in those areas.

@@ -36,6 +36,7 @@ Deployment-profile benchmark output is evidence collection only; it does not cre
 
 ## Promotion Rules
 
+- Experimental surfaces must satisfy [Experimental Promotion Criteria](experimental-promotion-criteria.md) before a future issue promotes or narrows them.
 - Do not mark a feature family production-ready unless this document links to tests, benchmark or operational evidence, restart/hydration evidence when metadata persists, and explicit blockers are closed.
 - Do not promote experimental surfaces solely because they are implemented or covered by integration tests.
 - Performance-sensitive paths need benchmark scenario ownership, recorded deployment-profile evidence, and metrics evidence before promotion.

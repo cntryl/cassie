@@ -11,6 +11,8 @@ Status terms:
 - `Planned`: accepted roadmap area without a production guarantee.
 - `Cassie-specific`: intentionally exposes Cassie behavior rather than PostgreSQL parity.
 
+Experimental surfaces require the evidence gates in [Experimental Promotion Criteria](experimental-promotion-criteria.md) before they can be promoted or narrowed.
+
 ## SQL Query Features
 
 | Category | Supported Items | Status | Compatibility |

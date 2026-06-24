@@ -16,6 +16,7 @@ This directory is the product-facing source of truth for what Cassie supports, w
 - [Read-Model Autopilot Plan](read-model-autopilot-plan.md): archived execution rules from the gap-closure rebaseline.
 - [PostgreSQL Compatibility](postgres-compatibility.md): compatibility guarantees, supported client surfaces, and intentional differences.
 - [Production Readiness](production-readiness.md): feature-family readiness, evidence, operational signals, restart coverage, and blockers.
+- [Experimental Promotion Criteria](experimental-promotion-criteria.md): evidence gates for promoting or narrowing experimental surfaces.
 - [Operational Scale](operational-scale.md): local assignment metadata and external router/drain/move contracts for independent read nodes.
 - [Snapshot And Restore](snapshot-restore.md): local Midge-directory snapshots with Cassie compatibility manifests.
 - [Definition of Done](definition-of-done.md): completion standards for implemented, experimental, and production-ready features.
@@ -53,6 +54,8 @@ Docs use these terms consistently:
 - `Experimental`: implemented or partially implemented, but behavior or compatibility may still change.
 - `Planned`: roadmap item with no production compatibility guarantee yet.
 - `Cassie-specific`: intentionally not PostgreSQL-compatible because the feature exposes Cassie storage, search, vector, AI, or analytics behavior.
+
+Experimental surfaces promote only through the evidence gates in [Experimental Promotion Criteria](experimental-promotion-criteria.md).
 
 ## Updating Docs
 

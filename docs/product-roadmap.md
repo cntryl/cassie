@@ -90,7 +90,7 @@ Goal: provide predictable index behavior and visible planner decisions without a
 | Partial indexes | Implemented | Experimental predicate implication |
 | Expression indexes | Implemented | Experimental expression equivalence |
 | Planner optimization | Implemented | Stable result semantics |
-| Adaptive feedback and cost-informed planning | Implemented baseline/Planned by depth | Experimental |
+| Adaptive feedback and cost-informed planning | Implemented guarded baseline/Planned by depth | Experimental |
 
 ## Search & AI
 
@@ -215,7 +215,7 @@ Goal: support horizontal expansion through externally orchestrated independent C
 - Treat the archived phase 06 surface in `issues/phase-06/README.md` plus the Phase 09 read-path depth in `docs/performance-contracts.md` as the reference for implemented Midge-native read paths, access-path assertions, and projection-shaped read diagnostics. Remaining read-optimization depth is limited to explicit follow-on slices such as broader mixed-direction suffix ordering and expression range/order lowering.
 - Treat the archived phase 07 surface in `issues/phase-07/README.md` as the reference for advanced query, adaptive execution, column-store table mode, and offline consistency-comparison behavior.
 - Treat `issues/phase-08/README.md` as the archived README-goal closure surface for operational metadata, snapshot/restore, repair, read optimization, time-series, client compatibility, production classification, and capacity-management documentation.
-- Use `issues/phase-09/README.md` as the archive/current gate for production-depth follow-up; the remaining active items are adaptive planning depth and experimental promotion criteria.
+- Use `issues/phase-09/README.md` as the archive/current gate for production-depth follow-up; the remaining active item is experimental promotion criteria.
 - Tighten PostgreSQL compatibility documentation for already-implemented SQL features through the read-model access lens.
 - Expand remaining client compatibility probes for sqlx, diesel, prisma, broader SQLAlchemy reflection, and migration-tool read-model workflows.
 - Promote experimental catalog, limited procedure, rollup, HNSW, and embedding surfaces as their compatibility guarantees settle.

@@ -31,6 +31,7 @@ pub struct CassieRuntimeLimits {
     pub vectorized_join_batch_size: usize,
     pub adaptive_execution_enabled: bool,
     pub adaptive_min_cost_savings_bps: usize,
+    pub adaptive_min_confidence_bps: u16,
     pub operator_switching_enabled: bool,
     pub operator_switch_join_row_threshold: usize,
     pub adaptive_candidate_min: usize,
@@ -115,6 +116,7 @@ impl Default for CassieRuntimeLimits {
             vectorized_join_batch_size: 1024,
             adaptive_execution_enabled: false,
             adaptive_min_cost_savings_bps: 500,
+            adaptive_min_confidence_bps: 0,
             operator_switching_enabled: false,
             operator_switch_join_row_threshold: 4096,
             adaptive_candidate_min: 16,
@@ -224,6 +226,10 @@ impl CassieRuntimeConfig {
             adaptive_min_cost_savings_bps: parse_usize(
                 "CASSIE_ADAPTIVE_MIN_COST_SAVINGS_BPS",
                 config.limits.adaptive_min_cost_savings_bps,
+            ),
+            adaptive_min_confidence_bps: parse_u16(
+                "CASSIE_ADAPTIVE_MIN_CONFIDENCE_BPS",
+                config.limits.adaptive_min_confidence_bps,
             ),
             operator_switching_enabled: parse_bool(
                 "CASSIE_OPERATOR_SWITCHING_ENABLED",
@@ -343,6 +349,13 @@ fn parse_usize(key: &str, fallback: usize) -> usize {
     env::var(key)
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(fallback)
+}
+
+fn parse_u16(key: &str, fallback: u16) -> u16 {
+    env::var(key)
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
         .unwrap_or(fallback)
 }
 

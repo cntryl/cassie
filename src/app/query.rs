@@ -33,6 +33,7 @@ impl Cassie {
         crate::runtime::stable_fingerprint(&(
             limits.adaptive_execution_enabled,
             limits.adaptive_min_cost_savings_bps,
+            limits.adaptive_min_confidence_bps,
             limits.operator_feedback_enabled,
             limits.operator_switching_enabled,
             limits.operator_switch_join_row_threshold,

@@ -100,6 +100,17 @@ pub(crate) fn select_adaptive_read_operator(
         return (base_candidate.selected_index.clone(), diagnostics);
     }
 
+    let confidence_threshold_bps = limits.adaptive_min_confidence_bps.min(10_000);
+    if operator_feedback.confidence_bps < confidence_threshold_bps {
+        diagnostics.guard = format!(
+            "operator_feedback_confidence_bps:{}>={confidence_threshold_bps}",
+            operator_feedback.confidence_bps
+        );
+        diagnostics.selected_alternative = base_candidate.label.clone();
+        diagnostics.reason = "confidence_guard_failed".to_string();
+        return (base_candidate.selected_index.clone(), diagnostics);
+    }
+
     let savings_bps = cost_savings_bps(
         operator_feedback.base_selected_cost,
         operator_feedback.adjusted_selected_cost,

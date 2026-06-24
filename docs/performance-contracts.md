@@ -73,8 +73,10 @@ Current EXPLAIN and metrics contracts should make the path explicit through labe
 `access_path`, `fallback_reason`, `pagination_strategy`, `top_k_mode`, `early_stop`, and
 `projection_freshness` when applicable. Adaptive read-operator plans also expose
 `adaptive_plan_enabled`, `adaptive_decision_point`, `adaptive_candidates`,
-`adaptive_selected_alternative`, `adaptive_guard`, and `adaptive_reason` so prevalidated
-alternative selection remains auditable. Runtime operator switching exposes
+`adaptive_selected_alternative`, `adaptive_guard`, `adaptive_guard_passed`, and
+`adaptive_reason` so prevalidated alternative selection remains auditable. The guard must name
+whether adaptive selection passed because of cost savings or failed because operator-feedback
+confidence or savings did not meet the configured threshold. Runtime operator switching exposes
 `operator_switch_candidate`, `operator_switch_enabled`, `operator_switch_pair`,
 `operator_switch_threshold`, and `operator_switch_reason`; supported switch pairs must define a
 replay or transfer state that prevents duplicate or skipped emitted rows. Join-sensitive plans also

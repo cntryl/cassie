@@ -67,6 +67,7 @@ Phase 09 issue 06 is closed for persisted bucket-native time-series index storag
 Phase 09 issue 07 is closed for opt-in SQLAlchemy Core pgwire client probe depth; see `docs/postgres-compatibility.md`.
 Phase 09 issue 08 is closed for advisory local capacity byte diagnostics; see `docs/capacity-management.md`.
 Phase 09 issue 09 is closed for projection repair operator runbooks; see `docs/projection-repair-runbook.md`.
+Phase 09 issue 10 is closed for adaptive planning confidence gates; see `docs/feature-support.md`.
 
 ### P1 Next
 
@@ -74,7 +75,7 @@ Phase 09 issue 09 is closed for projection repair operator runbooks; see `docs/p
 
 ### P2 Follow-Up
 
-1. [Phase 09 Issue 10: Adaptive Planning Depth And Promotion Gates](../phase-09/issue-10.md)
+- None.
 
 ### P3 Parked
 

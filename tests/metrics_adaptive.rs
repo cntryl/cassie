@@ -59,6 +59,16 @@ fn adaptive_execution_config(
     config
 }
 
+fn adaptive_execution_confidence_config(
+    enabled: bool,
+    min_cost_savings_bps: usize,
+    min_confidence_bps: u16,
+) -> cassie::config::CassieRuntimeConfig {
+    let mut config = adaptive_execution_config(enabled, min_cost_savings_bps);
+    config.limits.adaptive_min_confidence_bps = min_confidence_bps;
+    config
+}
+
 fn operator_switch_config(enabled: bool, threshold: usize) -> cassie::config::CassieRuntimeConfig {
     let mut config = cassie::config::CassieRuntimeConfig::from_env();
     config.limits.vectorized_joins_enabled = true;
@@ -544,6 +554,62 @@ fn should_keep_base_alternative_when_adaptive_guard_fails() {
         );
         assert!(plan.contains("adaptive_guard_passed=false"), "plan={plan}");
         assert!(plan.contains("adaptive_reason=guard_failed"), "plan={plan}");
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_keep_base_alternative_when_confidence_guard_fails() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("adaptive_read_operator_confidence");
+    let config = adaptive_execution_confidence_config(true, 100, 900);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let collection = "metrics_adaptive_read_operator_confidence";
+        let base_index = "metrics_adaptive_read_operator_confidence_body_idx_a";
+        let preferred_index = "metrics_adaptive_read_operator_confidence_title_idx_b";
+        register_feedback_collection(&cassie, collection);
+        register_operator_feedback_indexes(&cassie, collection, base_index, preferred_index);
+        let session = cassie.create_session("tester", None);
+        let shape_sql = "SELECT title FROM metrics_adaptive_read_operator_confidence WHERE title = 'alpha' AND body = 'one'";
+        let explain_sql = "EXPLAIN SELECT title FROM metrics_adaptive_read_operator_confidence WHERE title = 'alpha' AND body = 'one'";
+        let base_key = feedback_key(&cassie, &session, shape_sql, Some(base_index));
+        let preferred_key = feedback_key(&cassie, &session, shape_sql, Some(preferred_index));
+        for _ in 0..3 {
+            cassie
+                .seed_feedback_for_diagnostics(base_key.clone(), confident_feedback(90, 24))
+                .expect("seed base feedback");
+            cassie
+                .seed_feedback_for_diagnostics(preferred_key.clone(), confident_feedback(5, 1))
+                .expect("seed preferred feedback");
+        }
+
+        // Act
+        let explain = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
+        let plan = explain.rows[0][0].as_str().unwrap().to_string();
+
+        // Assert
+        assert!(plan.contains(base_index), "plan={plan}");
+        assert!(
+            plan.contains(&format!("adaptive_selected_alternative=index:{base_index}")),
+            "plan={plan}"
+        );
+        assert!(
+            plan.contains("adaptive_guard=operator_feedback_confidence_bps:750>=900"),
+            "plan={plan}"
+        );
+        assert!(plan.contains("adaptive_guard_passed=false"), "plan={plan}");
+        assert!(
+            plan.contains("adaptive_reason=confidence_guard_failed"),
+            "plan={plan}"
+        );
 
         let _ = std::fs::remove_dir_all(path);
     });

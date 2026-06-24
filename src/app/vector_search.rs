@@ -40,6 +40,7 @@ impl Cassie {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn execute_projected_vector_search(
         &self,
         index: &VectorIndexRecord,

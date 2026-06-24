@@ -196,6 +196,7 @@ impl Midge {
             && (!index.normalized_fields().is_empty() || !index.normalized_expressions().is_empty())
     }
 
+    #[allow(clippy::type_complexity)]
     fn scalar_index_entry(
         index: &IndexMeta,
         id: &str,

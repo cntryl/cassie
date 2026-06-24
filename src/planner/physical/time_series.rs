@@ -37,12 +37,11 @@ fn collect_range_filter_fields(expr: &Expr, fields: &mut BTreeSet<String>) {
             collect_range_filter_fields(left, fields);
             collect_range_filter_fields(right, fields);
         }
-        Expr::Binary { left, op, right }
-            if matches!(
-                op,
-                BinaryOp::Lt | BinaryOp::Lte | BinaryOp::Gt | BinaryOp::Gte
-            ) =>
-        {
+        Expr::Binary {
+            left,
+            op: BinaryOp::Lt | BinaryOp::Lte | BinaryOp::Gt | BinaryOp::Gte,
+            right,
+        } => {
             if let Expr::Column(name) = left.as_ref() {
                 fields.insert(name.to_ascii_lowercase());
             }

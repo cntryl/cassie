@@ -17,18 +17,13 @@ pub struct CollectionMeta {
     pub storage_version: u16,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum CollectionStorageMode {
+    #[default]
     RowStore,
     ColumnIndexed,
     ColumnStore,
-}
-
-impl Default for CollectionStorageMode {
-    fn default() -> Self {
-        Self::RowStore
-    }
 }
 
 impl CollectionStorageMode {
@@ -72,9 +67,10 @@ impl ProjectionRebuildState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectionFreshness {
+    #[default]
     Unknown,
     Fresh,
     Stale,
@@ -82,9 +78,10 @@ pub enum ProjectionFreshness {
     Failed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectionVerificationState {
+    #[default]
     Unknown,
     Current,
     Stale,
@@ -98,12 +95,6 @@ pub enum ProjectionVerificationState {
     Failed,
     Unverifiable,
     Skipped,
-}
-
-impl Default for ProjectionVerificationState {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 impl ProjectionVerificationState {
@@ -157,7 +148,7 @@ pub struct ProjectionHashCoverageMeta {
     pub last_error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProjectionHashMeta {
     #[serde(default)]
     pub algorithm: ProjectionHashAlgorithmMeta,
@@ -167,17 +158,6 @@ pub struct ProjectionHashMeta {
     pub ranges: ProjectionHashCoverageMeta,
     #[serde(default)]
     pub root: ProjectionHashCoverageMeta,
-}
-
-impl Default for ProjectionHashMeta {
-    fn default() -> Self {
-        Self {
-            algorithm: ProjectionHashAlgorithmMeta::default(),
-            rows: ProjectionHashCoverageMeta::default(),
-            ranges: ProjectionHashCoverageMeta::default(),
-            root: ProjectionHashCoverageMeta::default(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -223,12 +203,6 @@ pub struct ProjectionComparisonReportMeta {
     pub last_error: Option<String>,
 }
 
-impl Default for ProjectionFreshness {
-    fn default() -> Self {
-        Self::Unknown
-    }
-}
-
 impl ProjectionFreshness {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -241,17 +215,12 @@ impl ProjectionFreshness {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectionKind {
+    #[default]
     Collection,
     Materialized,
-}
-
-impl Default for ProjectionKind {
-    fn default() -> Self {
-        Self::Collection
-    }
 }
 
 impl ProjectionKind {
@@ -449,6 +418,7 @@ impl ProjectionMeta {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn materialized(
         name: impl Into<String>,
         query: impl Into<String>,

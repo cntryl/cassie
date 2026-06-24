@@ -97,7 +97,7 @@ fn execute_ordered_row_id_page(
     }
 
     let schema = cassie.catalog.get_schema(&spec.collection);
-    let scan_limit = spec.limit.checked_add(spec.offset).unwrap_or(usize::MAX);
+    let scan_limit = spec.limit.saturating_add(spec.offset);
     let (documents, _timings) = cassie
         .midge
         .scan_ordered_rows_batched_by_id_limit_with_timings(

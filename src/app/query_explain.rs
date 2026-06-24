@@ -342,7 +342,7 @@ fn time_series_bucket_width_supported(raw: Option<&str>) -> bool {
     let Some(raw) = raw else {
         return false;
     };
-    let mut parts = raw.trim().split_whitespace();
+    let mut parts = raw.split_whitespace();
     let amount = parts.next().and_then(|value| value.parse::<u64>().ok());
     let unit = parts.next().map(str::to_ascii_lowercase);
     amount.is_some_and(|value| value > 0)

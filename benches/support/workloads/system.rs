@@ -44,13 +44,10 @@ fn counter_delta(
     section: &str,
     key: &str,
 ) -> usize {
-    usize::try_from(
-        after[section][key]
-            .as_u64()
-            .unwrap_or_default()
-            .saturating_sub(before[section][key].as_u64().unwrap_or_default()),
-    )
-    .unwrap_or_default()
+    after[section][key]
+        .as_u64()
+        .unwrap_or_default()
+        .saturating_sub(before[section][key].as_u64().unwrap_or_default()) as usize
 }
 
 pub async fn protocol_comparison_sql(ctx: &BenchContext) -> usize {
@@ -301,14 +298,8 @@ pub async fn projection_duplicate_replay(ctx: &BenchContext) -> usize {
     let duplicate_checks = projection_counter_delta(&after, &before, "write_duplicate_checks");
     let replay_batches = projection_counter_delta(&after, &before, "replay_batches");
     let event_delta = projection_counter_delta(&after, &before, "replay_events_applied");
-    std::hint::black_box(
-        usize::try_from(duplicate_checks + replay_batches + event_delta)
-            .expect("metric delta fits usize"),
-    );
-    std::hint::black_box(
-        usize::try_from(first.applied_event_count + second.skipped_duplicate_count)
-            .expect("benchmark replay count fits usize"),
-    )
+    std::hint::black_box(duplicate_checks + replay_batches + event_delta);
+    std::hint::black_box((first.applied_event_count + second.skipped_duplicate_count) as usize)
 }
 
 pub async fn projection_lag_catchup(ctx: &BenchContext) -> usize {
@@ -345,10 +336,7 @@ pub async fn projection_lag_catchup(ctx: &BenchContext) -> usize {
     let duplicates = projection_counter_delta(&after, &before, "replay_duplicates_skipped");
     let batch_count = projection_counter_delta(&after, &before, "replay_batches");
     std::hint::black_box(applied + duplicates + batch_count);
-    std::hint::black_box(
-        usize::try_from(result.applied_event_count + result.skipped_duplicate_count)
-            .expect("benchmark replay count fits usize"),
-    )
+    std::hint::black_box((result.applied_event_count + result.skipped_duplicate_count) as usize)
 }
 
 pub async fn index_rebuild_ddl(ctx: &BenchContext, nonce: usize) -> usize {

@@ -417,6 +417,7 @@ fn execute_plan_with_outer_row(
     )
 }
 
+#[allow(clippy::nonminimal_bool)]
 fn mixed_execution_summary(plan: &LogicalPlan) -> Option<String> {
     let uses_fulltext = !plan_inspection::fulltext_query_fields(plan).is_empty();
     let uses_vector = plan_inspection::plan_uses_vector_operator(plan)
@@ -428,7 +429,7 @@ fn mixed_execution_summary(plan: &LogicalPlan) -> Option<String> {
         || plan.projection.iter().any(select_item_is_aggregate);
     let mixed = (uses_fulltext && uses_vector)
         || (uses_hybrid && uses_aggregate)
-        || ((uses_fulltext || uses_vector || uses_hybrid) && uses_aggregate);
+        || (uses_aggregate && (uses_fulltext || uses_vector || uses_hybrid));
     mixed.then(|| {
         let mut stages = Vec::new();
         if uses_fulltext || uses_vector || uses_hybrid {

@@ -455,6 +455,7 @@ pub(super) fn scalar_index_seek_prefix(
     Ok(seek_prefix)
 }
 
+#[allow(clippy::type_complexity)]
 pub(super) fn scalar_index_query_bounds(
     seek_prefix: &[u8],
     lower_bound: Option<&super::ScalarIndexBound>,

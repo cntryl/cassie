@@ -184,12 +184,22 @@ pub(crate) fn recompute_feedback_confidence(record: &mut RuntimeFeedbackRecord) 
     let consistency_factor = if record.executions == 0 {
         0
     } else {
-        ((record.stable_samples.saturating_mul(1_000)) / record.executions).min(1_000) as u16
+        record
+            .stable_samples
+            .saturating_mul(1_000)
+            .checked_div(record.executions)
+            .unwrap_or(1_000) as u16
     };
     let error_penalty = if record.executions == 0 {
         1_000
     } else {
-        1_000u64.saturating_sub((record.errors_total.saturating_mul(1_000)) / record.executions)
+        1_000u64.saturating_sub(
+            record
+                .errors_total
+                .saturating_mul(1_000)
+                .checked_div(record.executions)
+                .unwrap_or(1_000),
+        )
     };
     record.confidence_bps = sample_factor
         .min(consistency_factor)
@@ -228,7 +238,10 @@ fn average(total: u64, samples: u64) -> u64 {
     if samples == 0 {
         0
     } else {
-        total.saturating_add(samples - 1) / samples
+        total
+            .saturating_add(samples.saturating_sub(1))
+            .checked_div(samples)
+            .unwrap_or(0)
     }
 }
 
@@ -270,10 +283,7 @@ fn index_shape_hash(index: &IndexMeta) -> u64 {
         fields: index.normalized_fields(),
         expressions: index.normalized_expressions(),
         include_fields: index.normalized_include_fields(),
-        predicate_hash: index
-            .predicate
-            .as_ref()
-            .map(|predicate| stable_fingerprint(predicate)),
+        predicate_hash: index.predicate.as_ref().map(stable_fingerprint),
     })
 }
 

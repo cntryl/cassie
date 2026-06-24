@@ -612,9 +612,8 @@ impl Cassie {
                     let report = self
                         .midge
                         .apply_document_write_batch(&collection, write_ops)
-                        .map_err(|error| {
+                        .inspect_err(|_| {
                             session.mark_transaction_failed();
-                            CassieError::from(error)
                         })?;
                     self.runtime
                         .record_projection_write_batch(collection.to_string(), &report.stats);

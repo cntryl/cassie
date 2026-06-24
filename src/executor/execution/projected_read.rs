@@ -99,6 +99,7 @@ pub(super) fn execute_projected_filtered_read(
     )?))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn finalize_projected_filtered_read(
     cassie: &Cassie,
     session: Option<&CassieSession>,

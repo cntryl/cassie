@@ -1,6 +1,6 @@
 # README Goal Gap Analysis
 
-Report date: 2026-06-23
+Report date: 2026-06-24
 
 ## Mission Baseline
 
@@ -22,13 +22,14 @@ The relevant product promises are:
 Cassie is much closer to the README mission than the previous gap analysis suggested.
 The core SQL engine, projection lifecycle, replay metadata, verification, search, vector, hybrid, analytics, pgwire, metrics, and advanced planner/executor surfaces are implemented and tested at least at baseline or experimental level.
 
-The largest remaining gaps are now production evidence and operational depth gaps, not basic feature-existence gaps:
+The largest remaining gaps are production evidence and operational depth gaps, not basic feature-existence gaps:
 
 - Tier 4 operational-scale metadata now covers local assignment inspection, external router/drain/move contracts, local snapshot/restore, and advisory capacity guidance. Actual traffic routing and node movement remain outside Cassie.
 - Performance has broad benchmark coverage and an initial 10k/100k manual feedback loop, but larger-scale claims and production-grade capacity thresholds still need follow-up evidence.
-- Several important read-model capabilities remain experimental or planned by depth, especially broader read-path combinations beyond the Phase 09 narrow mixed-order/expression-index proof, byte-accurate capacity reporting, and non-tokio PostgreSQL client probe depth.
+- The active Phase 09 gap surface is production-depth work: non-tokio PostgreSQL client probes, byte-accurate capacity diagnostics, repair runbooks and safe repair depth, adaptive planning promotion gates, and experimental-surface promotion criteria.
 - The product boundary around procedures is now explicit: limited experimental compatibility/admin support is allowed, while stored-procedure and trigger-based business-logic platforms remain out of scope.
-- The issue backlog has an archived phase surface and Phase 08 now records the README-goal closure baseline.
+- Phase 08 README-goal closure is archived.
+- Phase 09 is the active execution gate and must not reopen distributed SQL, replication, quorum, consensus, or second-storage-abstraction work.
 
 ## Current Strengths
 
@@ -45,17 +46,17 @@ The largest remaining gaps are now production evidence and operational depth gap
 
 | README Goal | Current State | Gap | Priority |
 | --- | --- | --- | --- |
-| Single-node first | Midge remains the direct storage layer; read/write contracts, benchmarks, 10k/100k manual benchmark scenarios, and advisory capacity guidance exist. | Production claims still need byte-accurate capacity reports, deployment-profile thresholds, and larger-scale evidence. | P1 |
-| Operational scale over distributed SQL | Offline manifests explicitly avoid distributed query/replication semantics; local assignment metadata, external routing contracts, local snapshot/restore, and capacity guidance are available. | Deployment-specific router integrations, fleet monitoring thresholds, and production evidence remain outside Cassie. | P1 |
-| Purpose-built read models | Primary/secondary lookups, range queries, tenant filtered pages, narrow mixed-order equality-prefix scans, exact expression-index equality seeks, aggregations, search, vector, hybrid, projections, time-series bucket membership, and analytics exist. | Remaining depth is focused on broader read-path combinations, larger analytical fixtures, and deeper projection-shaped layout guidance. | P1 |
-| Performance is a feature | Broad benchmark suite, performance contracts, manifest-owned 10k/100k manual scenarios, and capacity signal guidance exist. | Future work should improve scenario quality, capture repeatable local evidence, add byte-accurate capacity data, and add larger scale points. | P1 |
-| Event-sourcing native | Replay batches, checkpoint metadata, duplicate skip ledger, materialized projection builds, handler determinism contracts, replay failure guidance, verification, repair plans, local hash repair, swaps, and local snapshot/restore exist. | Production replay capacity evidence remains classification work. | P1 |
-| Simplicity wins | Docs now frame Cassie as a read-model database, reject distributed SQL, and define procedures as limited compatibility/admin support rather than application business logic. | Feature surface is broad and can read like PostgreSQL parity unless non-goals and experimental boundaries stay explicit. | P1 |
+| Single-node first | Midge remains the direct storage layer; read/write contracts, benchmarks, 10k/100k manual benchmark scenarios, and advisory capacity guidance exist. | Production claims still need byte-accurate capacity reports, deployment-profile thresholds, and larger-scale evidence. | P2 |
+| Operational scale over distributed SQL | Offline manifests explicitly avoid distributed query/replication semantics; local assignment metadata, external routing contracts, local snapshot/restore, and capacity guidance are available. | Deployment-specific router integrations, fleet monitoring thresholds, and production evidence remain outside Cassie. | P2 |
+| Purpose-built read models | Primary/secondary lookups, range queries, tenant filtered pages, narrow mixed-order equality-prefix scans, exact expression-index equality seeks, aggregations, search, vector, hybrid, projections, time-series bucket membership, and analytics exist. | Remaining depth is focused on guarded adaptive planning, larger analytical fixtures, and projection-shaped layout guidance. | P2 |
+| Performance is a feature | Broad benchmark suite, performance contracts, manifest-owned 10k/100k manual scenarios, and capacity signal guidance exist. | Future work should improve scenario quality, capture repeatable local evidence, add byte-accurate capacity data, and add larger scale points. | P2 |
+| Event-sourcing native | Replay batches, checkpoint metadata, duplicate skip ledger, materialized projection builds, handler determinism contracts, replay failure guidance, verification, repair plans, local hash repair, swaps, and local snapshot/restore exist. | Operator runbooks and the next safe local repair scope remain production-depth work. | P2 |
+| Simplicity wins | Docs now frame Cassie as a read-model database, reject distributed SQL, and define procedures as limited compatibility/admin support rather than application business logic. | Experimental surfaces need explicit promotion, retention, or narrowing criteria so broad feature support does not imply PostgreSQL parity. | P3 |
 | Practical PostgreSQL access | pgwire startup, auth, simple/extended query, prepared statements, catalog probes, SQLSTATE-style errors, a maintained client matrix, default tokio-postgres coverage, plus opt-in psql and SQLAlchemy Core probes exist. | sqlx/diesel/prisma automation, broader ORM reflection behavior, and native extension integration remain future probe depth. | P1 |
 
-## P0 Gaps
+## Archived README-Goal Baselines
 
-### 1. Operational-Scale Orchestration Is Still Incomplete
+### 1. Operational-Scale Orchestration Has A Baseline
 
 Evidence:
 
@@ -76,7 +77,7 @@ Recommendation:
 - Keep docs clear that external orchestrators consume Cassie metadata and make routing decisions outside Cassie.
 - Treat production router integrations, fleet monitoring thresholds, and deployment-specific evidence as follow-on production-depth work.
 
-### 2. Performance Benchmarks Need Capacity Evidence
+### 2. Performance Benchmarks Have A Developer Feedback Baseline
 
 Evidence:
 
@@ -114,7 +115,13 @@ Recommendation:
 - Keep repair local, explicit, idempotent, audited, and post-verified.
 - Do not add distributed replication, quorum, remote mutation, or query-path repair semantics.
 
-## P1 Gaps
+## Active Production-Depth Gaps
+
+Active remaining work now lives in Phase 09:
+
+- P1: pgwire client probe expansion.
+- P2: byte-accurate capacity diagnostics, repair depth and runbooks, adaptive planning depth and promotion gates.
+- P3: experimental surface promotion criteria.
 
 ### 4. Read-Path Optimization Has An MVP Baseline
 
@@ -175,7 +182,7 @@ The baseline now prevents broad unsupported claims, while deeper client-specific
 Recommendation:
 
 - Keep default compatibility tests centered on deterministic tokio-postgres coverage.
-- Add sqlx, diesel, prisma, broader SQLAlchemy reflection, and native extension probes only when they can be isolated from default-suite brittleness.
+- Add sqlx, diesel, prisma, broader SQLAlchemy reflection, and native extension probes through Phase 09 issue 07 only when they can be isolated from default-suite brittleness.
 - Keep unsupported OLTP or PostgreSQL-server features intentionally out of scope.
 
 ### 7. Procedure Non-Goal Boundary Is Resolved
@@ -195,7 +202,7 @@ Recommendation:
 
 - Keep procedures experimental and limited.
 - Do not add triggers, procedural languages, dynamic SQL, transaction control inside procedures, recursive procedure workflows, or OLTP business-logic semantics.
-- Revisit behavior only if Issue 09 production-readiness classification decides to deprecate, narrow, or promote the surface.
+- Revisit behavior only through explicit experimental-surface promotion or narrowing criteria.
 
 ### 8. Production-Ready Classification Has A Baseline
 
@@ -214,9 +221,9 @@ Recommendation:
 
 - Keep production-ready classification separate from implementation status.
 - Promote feature families only when the linked evidence and blockers in `docs/production-readiness.md` support the claim.
-- Use Issue 10 to add capacity guidance and reconcile stale documentation before making stronger production claims.
+- Use Phase 09 issue 11 to define promotion criteria for experimental surfaces before making stronger production claims.
 
-## P2 Gaps
+## P2 Follow-Up Gaps
 
 ### 9. Capacity Management Has A Documented Baseline
 
@@ -257,26 +264,26 @@ Recommendation:
 - Keep `README.md` as product mission, `feature-support.md` as feature truth, `product-roadmap.md` as status, `production-readiness.md` as evidence classification, and gap analysis as the current delta.
 - Avoid phase-history language in product-facing docs unless it explains an archived contract.
 
-### 11. Large Files Limit Future Work
+### 11. Module Organization Remains A Guardrail
 
 Evidence:
 
-- The file-size audit shows several source and test files near or over the 1,000-line limit, including `src/app/documents.rs`, `src/executor/executor.rs`, and `src/sql/parser/schema.rs`.
-- `AGENTS.md` requires extraction before adding substantial feature work to oversized files.
+- Phase 09 module-organization work lowered immediate Midge, executor, and schema-parser touch points below the 1,000-line file limit before read-path, projection, and time-series depth work.
+- `AGENTS.md` still requires extraction before adding substantial feature work to any oversized file.
 
 Impact:
 
-Operational-scale, snapshot/restore, read-path, and capacity work will touch broad modules.
-Without extraction, implementation work will either violate repo rules or become harder to review.
+Capacity diagnostics, repair depth, adaptive planning, and client probes can still touch broad modules.
+Future work must preserve small, domain-specific files so production-depth slices stay reviewable.
 
 Recommendation:
 
-- Add extraction issues before broad operational-scale or snapshot/restore implementation.
-- Split by ownership: routing/ownership metadata, snapshot/restore admin flows, capacity diagnostics, and read-path proof modules.
+- Add extraction work before any future production-depth slice needs substantial changes in an oversized file.
+- Split by ownership: client probes, capacity diagnostics, repair execution, adaptive planning, and read-path proof modules.
 
-## Phase 08 Issue Backlog
+## Archived Phase 08 Backlog
 
-Phase 08 tracks the README-goal gaps in execution order:
+Phase 08 closed the README-goal gaps in execution order and is now archived:
 
 Closed baseline:
 

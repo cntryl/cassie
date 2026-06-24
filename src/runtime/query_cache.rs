@@ -261,6 +261,7 @@ pub(crate) fn lookup_fulltext_stats(
     Ok(Some(record.context))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn store_fulltext_stats(
     midge: &Midge,
     runtime: &RuntimeState,

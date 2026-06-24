@@ -18,6 +18,7 @@ struct AggregateSpec {
     output_names: Vec<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn aggregate_query_batches(
     cassie: &Cassie,
     batches: Vec<Batch>,
@@ -439,26 +440,24 @@ impl AggregateAccumulator {
             (
                 Self::MinMax { selected, max },
                 Self::MinMax {
-                    selected: other,
+                    selected: Some(value),
                     max: _,
                 },
             ) => {
-                if let Some(value) = other {
-                    let replace = selected
-                        .as_ref()
-                        .map(|current| {
-                            let current_key = value_sort_key(current);
-                            let value_key = value_sort_key(value);
-                            if *max {
-                                value_key > current_key
-                            } else {
-                                value_key < current_key
-                            }
-                        })
-                        .unwrap_or(true);
-                    if replace {
-                        *selected = Some(value.clone());
-                    }
+                let replace = selected
+                    .as_ref()
+                    .map(|current| {
+                        let current_key = value_sort_key(current);
+                        let value_key = value_sort_key(value);
+                        if *max {
+                            value_key > current_key
+                        } else {
+                            value_key < current_key
+                        }
+                    })
+                    .unwrap_or(true);
+                if replace {
+                    *selected = Some(value.clone());
                 }
             }
             _ => {}

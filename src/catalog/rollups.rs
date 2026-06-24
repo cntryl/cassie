@@ -53,6 +53,7 @@ pub struct RollupRefreshCursor {
 }
 
 impl RollupMeta {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         name: String,
         source_collection: String,

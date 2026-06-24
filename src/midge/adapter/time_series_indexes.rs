@@ -172,6 +172,7 @@ impl Midge {
             && bucket_width_duration(index).is_some()
     }
 
+    #[allow(clippy::type_complexity)]
     fn time_series_index_entry(
         index: &IndexMeta,
         id: &str,

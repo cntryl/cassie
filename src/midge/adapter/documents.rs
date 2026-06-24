@@ -482,6 +482,7 @@ impl Midge {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn scan_ordered_rows_batched_by_id_limit_with_timings(
         &self,
         collection: &str,
@@ -620,6 +621,7 @@ impl Midge {
         ))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn scan_ordered_rows_batched_by_id(
         &self,
         collection: &str,

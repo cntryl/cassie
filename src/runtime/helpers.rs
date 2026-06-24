@@ -241,9 +241,8 @@ pub(super) fn prune_feedback_by_age(
     let expired = feedback
         .entries
         .iter()
-        .filter_map(|(key, record)| {
-            (now_ms.saturating_sub(record.last_seen_ms) > ttl_ms).then(|| key.clone())
-        })
+        .filter(|(_, record)| now_ms.saturating_sub(record.last_seen_ms) > ttl_ms)
+        .map(|(key, _)| key.clone())
         .collect::<Vec<_>>();
 
     for key in expired {

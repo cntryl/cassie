@@ -444,8 +444,7 @@ fn execute_merge_join(
 
 fn keyed_rows(rows: Vec<BatchRow>, key_column: &str) -> Vec<KeyedRow> {
     rows.into_iter()
-        .enumerate()
-        .map(|(_index, row)| {
+        .map(|row| {
             let key = row
                 .get(key_column)
                 .map(value_sort_key)

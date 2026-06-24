@@ -96,6 +96,7 @@ where
     index.candidate_documents(query_terms)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cached_search_context<D>(
     cassie: &Cassie,
     collection: &str,
@@ -222,6 +223,7 @@ fn execute_fulltext_top_k(
     Ok(rows)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn score_fulltext_top_k_candidates(
     cassie: &Cassie,
     documents: &[TokenizedFulltextDocument],

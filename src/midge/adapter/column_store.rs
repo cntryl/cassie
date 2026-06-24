@@ -233,6 +233,7 @@ impl Midge {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn scan_column_store_rows_batched(
         &self,
         tx: &cntryl_midge::Transaction,
@@ -310,6 +311,7 @@ impl Midge {
         ))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn scan_ordered_column_store_rows_batched_by_id(
         &self,
         tx: &cntryl_midge::Transaction,
@@ -450,14 +452,14 @@ impl Midge {
         start_bound: Option<&OrderedRowBound>,
         end_bound: Option<&OrderedRowBound>,
     ) -> bool {
-        let start_ok = start_bound.map_or(true, |bound| {
+        let start_ok = start_bound.is_none_or(|bound| {
             if bound.inclusive {
                 id >= bound.id.as_str()
             } else {
                 id > bound.id.as_str()
             }
         });
-        let end_ok = end_bound.map_or(true, |bound| {
+        let end_ok = end_bound.is_none_or(|bound| {
             if bound.inclusive {
                 id <= bound.id.as_str()
             } else {

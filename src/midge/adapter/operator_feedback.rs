@@ -27,7 +27,7 @@ impl Midge {
             };
             out.push((record.key, record.record));
         }
-        out.sort_by(|left, right| left.1.last_seen_ms.cmp(&right.1.last_seen_ms));
+        out.sort_by_key(|entry| entry.1.last_seen_ms);
         Ok(out)
     }
 

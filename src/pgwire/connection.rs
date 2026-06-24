@@ -689,16 +689,15 @@ pub async fn run_connection(
 
                             match describe_result {
                                 Ok(columns) => {
-                                    if describe_statement {
-                                        if write_parameter_description(
+                                    if describe_statement
+                                        && write_parameter_description(
                                             &mut write_half,
                                             &prepared.parameter_types,
                                         )
                                         .await
                                         .is_err()
-                                        {
-                                            break;
-                                        }
+                                    {
+                                        break;
                                     }
                                     if columns.is_empty() {
                                         if write_backend_frame(&mut write_half, b'n', &[])
@@ -787,13 +786,13 @@ pub async fn run_connection(
                                         let limit = limit.max(0) as usize;
                                         result.rows = result.rows.into_iter().take(limit).collect();
                                     }
-                                    if should_describe_execute && !result.columns.is_empty() {
-                                        if write_row_description(&mut write_half, &result.columns)
+                                    if should_describe_execute
+                                        && !result.columns.is_empty()
+                                        && write_row_description(&mut write_half, &result.columns)
                                             .await
                                             .is_err()
-                                        {
-                                            break;
-                                        }
+                                    {
+                                        break;
                                     }
                                     for row in result.rows {
                                         if write_data_row(

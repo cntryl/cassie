@@ -97,7 +97,7 @@ pub(super) fn determine_early_stop(
         access_path,
         ReadAccessPath::IndexSeek | ReadAccessPath::PrefixScan | ReadAccessPath::RangeScan
     ) && plan.limit.is_some()
-        && !plan.offset.is_some_and(|offset| offset > 0)
+        && plan.offset.is_none_or(|offset| offset <= 0)
     {
         return EarlyStopMode::ScanLimit;
     }
@@ -242,7 +242,7 @@ fn is_row_id_lookup_query(plan: &LogicalPlan) -> bool {
 
     is_id_point_lookup_filter(filter)
         && is_row_projection(plan)
-        && !plan.offset.is_some_and(|offset| offset > 0)
+        && plan.offset.is_none_or(|offset| offset <= 0)
 }
 
 fn is_row_id_ordering(plan: &LogicalPlan) -> bool {
@@ -299,13 +299,13 @@ fn is_row_id_ordered_page_candidate(plan: &LogicalPlan) -> bool {
 fn is_row_id_keyset_candidate(plan: &LogicalPlan) -> bool {
     is_row_id_ordered_page_candidate(plan)
         && plan.filter.as_ref().is_some_and(is_row_id_range_filter)
-        && !plan.offset.is_some_and(|offset| offset > 0)
+        && plan.offset.is_none_or(|offset| offset <= 0)
 }
 
 fn is_row_id_storage_top_k_candidate(plan: &LogicalPlan) -> bool {
     is_row_id_ordered_page_candidate(plan)
         && plan.filter.is_none()
-        && !plan.offset.is_some_and(|offset| offset > 0)
+        && plan.offset.is_none_or(|offset| offset <= 0)
 }
 
 fn is_id_point_lookup_filter(expr: &Expr) -> bool {
@@ -346,7 +346,7 @@ fn is_heap_top_k_candidate(plan: &LogicalPlan) -> bool {
 fn is_storage_top_k_candidate(plan: &LogicalPlan) -> bool {
     is_heap_top_k_candidate(plan)
         && plan.filter.is_none()
-        && !plan.offset.is_some_and(|offset| offset > 0)
+        && plan.offset.is_none_or(|offset| offset <= 0)
         && !plan.distinct
         && plan.distinct_on.is_empty()
         && plan.group_by.is_empty()

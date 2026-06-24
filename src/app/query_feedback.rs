@@ -41,11 +41,7 @@ impl Cassie {
             (crate::planner::physical::Operator::Join, "join"),
             (crate::planner::physical::Operator::Aggregate, "aggregate"),
         ] {
-            if physical
-                .operators
-                .iter()
-                .any(|candidate| *candidate == operator)
-            {
+            if physical.operators.contains(&operator) {
                 keys.push(crate::runtime::normalized_feedback_key(
                     database.clone(),
                     schema_epoch,

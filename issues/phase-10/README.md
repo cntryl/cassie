@@ -34,3 +34,7 @@ Optimize only proven read-model bottlenecks. Do not broaden SQL semantics, add d
 - No replication, quorum reads, consensus, or automatic remote repair.
 - No second storage abstraction above Midge.
 - No production-ready promotion without deployment-profile evidence and explicit readiness updates.
+
+## Archived Issue Summaries
+
+- Issue 01, baseline evidence and bottleneck ranking, closed 2026-06-25. Baseline evidence was collected for tier-1 hot paths, tier-2 subsystems, mixed load, startup, pgwire, and HTTP. The remaining blockers were assigned to Issue 03 for projection refresh and replay catch-up, Issue 04 for graph 100k fixture setup, and Issue 05 for time-series 100k window scans. Harness fixes kept replay source identities stable, staged tier-3 fixture setup by benchmark section, and created time-series metadata before setup row loading.

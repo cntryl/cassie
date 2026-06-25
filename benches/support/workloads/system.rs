@@ -268,7 +268,7 @@ pub async fn projection_duplicate_replay(ctx: &BenchContext, nonce: usize) -> us
     let before = ctx.cassie.metrics();
     let batch = ProjectionReplayBatch {
         projection: ctx.collection.clone(),
-        source_identity: format!("bench-stream-{nonce}"),
+        source_identity: "bench-replay-stream".to_string(),
         batch_id: format!("bench-duplicate-batch-{nonce}"),
         lag: 0,
         events: vec![ProjectionReplayEvent {
@@ -320,7 +320,7 @@ pub async fn projection_lag_catchup(ctx: &BenchContext, nonce: usize) -> usize {
         .collect();
     let batch = ProjectionReplayBatch {
         projection: ctx.collection.clone(),
-        source_identity: "bench-catchup-stream".to_string(),
+        source_identity: "bench-replay-stream".to_string(),
         batch_id: format!("bench-catchup-batch-{nonce}"),
         lag: 0,
         events,

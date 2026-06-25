@@ -552,6 +552,25 @@ async fn prepare_time_series_collection(
     );
     ctx.cassie.execute_sql(&ctx.session, &create, vec![])?;
 
+    let statements = [
+        format!(
+            "CREATE INDEX bench_time_series_time_idx ON {} USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)",
+            ctx.collection
+        ),
+        format!(
+            "CREATE ROLLUP bench_time_series_hourly ON {} USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total, SUM(amount) AS amount_sum",
+            ctx.collection
+        ),
+        format!(
+            "CREATE RETENTION POLICY bench_time_series_retention ON {} USING event_at RETAIN FOR '2 days'",
+            ctx.collection
+        ),
+    ];
+
+    for statement in statements {
+        let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
+    }
+
     let tenants = ["tenant-a", "tenant-b", "tenant-c", "tenant-d"];
     let mut documents = Vec::with_capacity(dataset_rows);
     for index in 0..dataset_rows {
@@ -570,25 +589,6 @@ async fn prepare_time_series_collection(
     }
     if !documents.is_empty() {
         ctx.cassie.midge.put_documents(&ctx.collection, documents)?;
-    }
-
-    let statements = [
-        format!(
-            "CREATE INDEX bench_time_series_time_idx ON {} USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)",
-            ctx.collection
-        ),
-        format!(
-            "CREATE ROLLUP bench_time_series_hourly ON {} USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total, SUM(amount) AS amount_sum",
-            ctx.collection
-        ),
-        format!(
-            "CREATE RETENTION POLICY bench_time_series_retention ON {} USING event_at RETAIN FOR '2 days'",
-            ctx.collection
-        ),
-    ];
-
-    for statement in statements {
-        let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
     }
 
     Ok(())

@@ -241,6 +241,53 @@ impl Midge {
         Ok(root)
     }
 
+    pub(crate) fn write_fresh_projection_output_rows(
+        &self,
+        collection: &str,
+        documents: Vec<(String, serde_json::Value)>,
+    ) -> Result<(super::documents::DocumentWriteBatchReport, RootHashRecord), CassieError> {
+        let row_schema = self.row_schema(collection)?;
+        let mut tx = self.begin_data_rw_tx()?;
+        let mut report = super::documents::DocumentWriteBatchReport::default();
+        let mut records = Vec::with_capacity(documents.len());
+
+        for (id, payload) in documents {
+            let row_blob = encode_row(&row_schema, &payload)?;
+            tx.put(Self::row_key(collection, &id), row_blob, None)
+                .map_err(CassieError::from)?;
+            let record =
+                compute_row_hash_record(collection, collection, None, &row_schema, &id, &payload);
+            write_row_hash_record_to_tx(&mut tx, &record)?;
+
+            report.ids.push(id);
+            report.row_delta = report.row_delta.saturating_add(1);
+            report.stats.row_puts = report.stats.row_puts.saturating_add(1);
+            report.stats.metadata_puts = report.stats.metadata_puts.saturating_add(1);
+            records.push(record);
+        }
+
+        records.sort_by_key(|record| record.row_id.clone());
+        let ranges =
+            build_range_hash_records(collection, None, row_schema.schema_version, &records);
+        let root = build_root_hash_record(
+            collection,
+            None,
+            row_schema.schema_version,
+            &records,
+            &ranges,
+        );
+
+        for record in &ranges {
+            write_range_hash_record_to_tx(&mut tx, record)?;
+        }
+        write_root_hash_record_to_tx(&mut tx, &root)?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
+
+        self.update_projection_hash_metadata(collection, &records, &ranges, &root)?;
+        Ok((report, root))
+    }
+
     pub fn refresh_projection_hashes_after_write(
         &self,
         collection: &str,

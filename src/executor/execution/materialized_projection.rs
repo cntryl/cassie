@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::*;
-use crate::midge::adapter::{DocumentWriteBatchOptions, DocumentWriteOp};
+use crate::midge::adapter::RootHashRecord;
 
 pub(super) fn reject_write(cassie: &Cassie, relation: &str) -> Result<(), QueryError> {
     if cassie.catalog.is_materialized_projection(relation)
@@ -529,11 +529,7 @@ fn build_specific_version(
         &[],
         controls,
     )?;
-    replace_output_rows(cassie, &output_collection, &build.schema, rows)?;
-    let root = cassie
-        .midge
-        .rebuild_projection_hashes(&output_collection)
-        .map_err(|error| QueryError::General(error.to_string()))?;
+    let root = replace_output_rows(cassie, &output_collection, &build.schema, rows)?;
     cassie
         .runtime
         .record_materialized_projection_build(metadata.collection.clone());
@@ -746,7 +742,7 @@ fn replace_output_rows(
     output_collection: &str,
     schema: &Schema,
     rows: Vec<BatchRow>,
-) -> Result<(), QueryError> {
+) -> Result<RootHashRecord, QueryError> {
     if cassie.midge.collection_schema(output_collection).is_some() {
         let _ = cassie.midge.drop_collection(output_collection);
         cassie.catalog.unregister_collection(output_collection);
@@ -764,7 +760,7 @@ fn replace_output_rows(
             .collect(),
     );
 
-    let mut output_ops = Vec::with_capacity(rows.len());
+    let mut output_rows = Vec::with_capacity(rows.len());
     for (index, row) in rows.into_iter().enumerate() {
         let entries = row.into_entries();
         let payload = serde_json::Value::Object(
@@ -774,25 +770,19 @@ fn replace_output_rows(
                 .collect(),
         );
         let id = deterministic_row_id(index, &payload);
-        output_ops.push(DocumentWriteOp::Put { id, payload });
+        output_rows.push((id, payload));
     }
 
-    if !output_ops.is_empty() {
-        let report = cassie
-            .midge
-            .apply_document_write_batch_with_options(
-                output_collection,
-                output_ops,
-                DocumentWriteBatchOptions::sync_without_post_commit_refresh(),
-            )
-            .map_err(|error| QueryError::General(error.to_string()))?;
-        cassie.runtime.record_projection_rebuild_writes(
-            output_collection.to_string(),
-            report.stats.row_puts,
-            report.stats.batch_flushes,
-        );
-    }
-    Ok(())
+    let (report, root) = cassie
+        .midge
+        .write_fresh_projection_output_rows(output_collection, output_rows)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie.runtime.record_projection_rebuild_writes(
+        output_collection.to_string(),
+        report.stats.row_puts,
+        report.stats.batch_flushes,
+    );
+    Ok(root)
 }
 
 fn value_to_json(value: Value) -> serde_json::Value {

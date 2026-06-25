@@ -38,13 +38,6 @@ impl DocumentWriteBatchOptions {
             refresh_after_commit: true,
         }
     }
-
-    pub(crate) fn sync_without_post_commit_refresh() -> Self {
-        Self {
-            commit: WriteOptions::sync(),
-            refresh_after_commit: false,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]

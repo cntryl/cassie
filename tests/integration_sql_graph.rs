@@ -2,6 +2,7 @@
 
 use cassie::app::Cassie;
 use cassie::types::Value;
+use serde_json::json;
 
 #[path = "support/sql.rs"]
 mod support;
@@ -145,6 +146,103 @@ fn should_reject_negative_graph_edge_weight() {
 
         // Assert
         assert!(error.to_string().contains("non-negative"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_bulk_load_fresh_graph_documents_for_adjacency_reads() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("graph_fresh_bulk_load");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE GRAPH social (NODES (label TEXT), EDGES (source TEXT))",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_fresh_graph_documents(
+                "social_nodes",
+                vec![
+                    (
+                        Some("alice".to_string()),
+                        json!({"node_type": "person", "node_id": "alice", "label": "Alice"}),
+                    ),
+                    (
+                        Some("bob".to_string()),
+                        json!({"node_type": "person", "node_id": "bob", "label": "Bob"}),
+                    ),
+                    (
+                        Some("carol".to_string()),
+                        json!({"node_type": "person", "node_id": "carol", "label": "Carol"}),
+                    ),
+                ],
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_fresh_graph_documents(
+                "social_edges",
+                vec![
+                    (
+                        Some("e1".to_string()),
+                        json!({
+                            "edge_id": "e1",
+                            "source_type": "person",
+                            "source_id": "alice",
+                            "target_type": "person",
+                            "target_id": "bob",
+                            "edge_type": "knows",
+                            "weight": 1,
+                            "source": "bulk",
+                        }),
+                    ),
+                    (
+                        Some("e2".to_string()),
+                        json!({
+                            "edge_id": "e2",
+                            "source_type": "person",
+                            "source_id": "bob",
+                            "target_type": "person",
+                            "target_id": "carol",
+                            "edge_type": "knows",
+                            "weight": 1,
+                            "source": "bulk",
+                        }),
+                    ),
+                ],
+            )
+            .unwrap();
+
+        // Act
+        let expanded = cassie
+            .execute_sql(
+                &session,
+                "SELECT node_id, depth FROM graph_expand('social', 'person', 'alice', 2, 'out', 'knows', 10) ORDER BY depth, node_id",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            expanded.rows,
+            vec![
+                vec![Value::String("bob".to_string()), Value::Int64(1)],
+                vec![Value::String("carol".to_string()), Value::Int64(2)],
+            ]
+        );
 
         let _ = std::fs::remove_dir_all(path);
     });

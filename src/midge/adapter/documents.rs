@@ -953,7 +953,10 @@ impl Midge {
             .map(|docs| docs.into_iter().map(|doc| (doc.id, doc.payload)).collect())
     }
 
-    fn validate_document(schema: &Schema, payload: &serde_json::Value) -> Result<(), CassieError> {
+    pub(super) fn validate_document(
+        schema: &Schema,
+        payload: &serde_json::Value,
+    ) -> Result<(), CassieError> {
         let map = payload
             .as_object()
             .ok_or_else(|| CassieError::InvalidVector("document must be object".to_string()))?;

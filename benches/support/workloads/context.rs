@@ -619,7 +619,7 @@ async fn prepare_graph(ctx: &BenchContext, dataset_rows: usize) -> Result<(), Ca
     if !nodes.is_empty() {
         ctx.cassie
             .midge
-            .put_documents(&format!("{}_nodes", ctx.collection), nodes)?;
+            .put_fresh_graph_documents(&format!("{}_nodes", ctx.collection), nodes)?;
     }
 
     let mut edges = Vec::with_capacity(dataset_rows.saturating_sub(1));
@@ -641,7 +641,7 @@ async fn prepare_graph(ctx: &BenchContext, dataset_rows: usize) -> Result<(), Ca
     if !edges.is_empty() {
         ctx.cassie
             .midge
-            .put_documents(&format!("{}_edges", ctx.collection), edges)?;
+            .put_fresh_graph_documents(&format!("{}_edges", ctx.collection), edges)?;
     }
 
     Ok(())

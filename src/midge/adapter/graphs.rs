@@ -15,6 +15,69 @@ pub(crate) struct GraphEdgeRecord {
 }
 
 impl Midge {
+    /// Load documents for a newly-created graph fixture collection.
+    ///
+    /// This intentionally skips replacement checks and secondary-index maintenance; callers must
+    /// only use it for fresh row-store graph node/edge collections.
+    pub fn put_fresh_graph_documents(
+        &self,
+        collection: &str,
+        documents: Vec<(Option<String>, serde_json::Value)>,
+    ) -> Result<Vec<String>, CassieError> {
+        if documents.is_empty() {
+            return Ok(Vec::new());
+        }
+        if self.collection_uses_column_store(collection)? {
+            return Err(CassieError::Unsupported(
+                "fresh graph document load requires row storage".to_string(),
+            ));
+        }
+        if self
+            .list_indexes()?
+            .iter()
+            .any(|index| index.collection.eq_ignore_ascii_case(collection))
+            || self
+                .list_vector_indexes()?
+                .iter()
+                .any(|index| index.collection.eq_ignore_ascii_case(collection))
+        {
+            return Err(CassieError::Unsupported(
+                "fresh graph document load does not maintain secondary indexes".to_string(),
+            ));
+        }
+
+        let schema = self
+            .collection_schema(collection)
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+        let row_schema = self.row_schema(collection)?;
+        let graph = self.graph_for_edge_collection(collection)?;
+        let mut tx = self.begin_data_rw_tx()?;
+        let mut ids = Vec::with_capacity(documents.len());
+
+        for (id, payload) in documents {
+            Self::validate_document(&schema, &payload)?;
+            let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+            let row_blob = encode_row(&row_schema, &payload)?;
+            tx.put(Self::row_key(collection, &id), row_blob, None)
+                .map_err(CassieError::from)?;
+            Self::write_document_hash_to_tx(&mut tx, collection, &id, &row_schema, &payload)?;
+
+            if let Some(graph) = graph.as_ref() {
+                let record = graph_edge_record_from_payload(graph, &id, &payload, true)?
+                    .ok_or_else(|| {
+                        CassieError::Unsupported("graph edge payload is incomplete".into())
+                    })?;
+                self.put_graph_edge_record(&mut tx, &record)?;
+            }
+            ids.push(id);
+        }
+
+        let row_delta = i64::try_from(ids.len()).unwrap_or(i64::MAX);
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        self.refresh_projection_hashes_after_write(collection, row_delta)?;
+        Ok(ids)
+    }
+
     pub(crate) fn graph_for_edge_collection(
         &self,
         collection: &str,

@@ -10,16 +10,16 @@ Phase 10 is the active execution gate.
 
 Resolve Phase 10 issues in order:
 
-1. `issues/phase-10/issue-04.md`
-2. `issues/phase-10/issue-05.md`
-3. `issues/phase-10/issue-06.md`
-4. `issues/phase-10/issue-07.md`
+1. `issues/phase-10/issue-05.md`
+2. `issues/phase-10/issue-06.md`
+3. `issues/phase-10/issue-07.md`
 
 Completed Phase 10 issues:
 
 - `issues/phase-10/issue-01.md` is archived in `issues/phase-10/README.md`.
 - `issues/phase-10/issue-02.md` is archived in `issues/phase-10/README.md`.
 - `issues/phase-10/issue-03.md` is archived in `issues/phase-10/README.md`.
+- `issues/phase-10/issue-04.md` is archived in `issues/phase-10/README.md`.
 
 Do not start a later Phase 10 issue while an earlier issue remains open unless the later issue explicitly names the earlier issue as complete or unnecessary.
 

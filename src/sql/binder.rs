@@ -7,11 +7,11 @@ use crate::embeddings::DistanceMetric;
 use crate::search::bm25;
 use crate::sql::ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
-    CallProcedureStatement, CommonTableExpression, CreateFunctionStatement, CreateIndexStatement,
-    CreateProcedureStatement, CreateSchemaStatement, CreateViewStatement, CteQuery,
-    DropFunctionStatement, DropIndexStatement, DropProcedureStatement, DropSchemaStatement,
-    DropViewStatement, Expr, FunctionCall, InsertSource, OrderExpr, ParsedStatement, QuerySource,
-    QueryStatement, SelectItem, SelectSet, SelectStatement,
+    CallProcedureStatement, CommonTableExpression, CopyStatement, CreateFunctionStatement,
+    CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement, CreateViewStatement,
+    CteQuery, DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
+    DropSchemaStatement, DropViewStatement, Expr, FunctionCall, InsertSource, OrderExpr,
+    ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement,
 };
 use crate::types::{DataType, FieldSchema, Schema};
 
@@ -112,6 +112,13 @@ fn bind_statement(
             Ok(ParsedStatement {
                 raw_sql,
                 statement: QueryStatement::Set(clone),
+            })
+        }
+        QueryStatement::Copy(statement) => {
+            let statement = bind_copy(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::Copy(statement),
             })
         }
         QueryStatement::CreateTable(statement) => {
@@ -409,4 +416,54 @@ fn bind_statement(
             statement: QueryStatement::Transaction(statement),
         }),
     }
+}
+
+fn bind_copy(
+    mut statement: CopyStatement,
+    catalog: &Catalog,
+) -> Result<CopyStatement, CassieError> {
+    statement.table = statement.table.trim().to_string();
+    if statement.table.is_empty() {
+        return Err(CassieError::Planner("COPY requires a target table".into()));
+    }
+    let schema = catalog.get_schema(&statement.table).ok_or_else(|| {
+        CassieError::Planner(format!("collection '{}' not found", statement.table))
+    })?;
+
+    if statement.columns.is_empty() {
+        return Ok(statement);
+    }
+
+    for column in &mut statement.columns {
+        *column = column.trim().to_string();
+        if column.is_empty() {
+            return Err(CassieError::Planner(
+                "COPY column list cannot include empty columns".into(),
+            ));
+        }
+        if column.eq_ignore_ascii_case("_id") {
+            continue;
+        }
+        if schema
+            .fields
+            .iter()
+            .any(|field| field.name.eq_ignore_ascii_case(column))
+        {
+            continue;
+        }
+        if column.eq_ignore_ascii_case("id")
+            && !schema
+                .fields
+                .iter()
+                .any(|field| field.name.eq_ignore_ascii_case("id"))
+        {
+            continue;
+        }
+        return Err(CassieError::Planner(format!(
+            "COPY target column '{column}' does not exist in '{}'",
+            statement.table
+        )));
+    }
+
+    Ok(statement)
 }

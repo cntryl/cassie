@@ -424,6 +424,8 @@ enum PlanCacheProvenance {
 
 #[path = "app/auth.rs"]
 mod auth;
+#[path = "app/bulk_ingest.rs"]
+mod bulk_ingest;
 #[path = "app/consistency.rs"]
 mod consistency;
 #[path = "app/diagnostics.rs"]

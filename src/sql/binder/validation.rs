@@ -39,6 +39,7 @@ pub(super) fn parsed_statement_contains_parameters(statement: &ParsedStatement) 
         QueryStatement::Select(select) => select_contains_parameters(select),
         QueryStatement::Show(_)
         | QueryStatement::Set(_)
+        | QueryStatement::Copy(_)
         | QueryStatement::Insert(_)
         | QueryStatement::Update(_)
         | QueryStatement::Delete(_)

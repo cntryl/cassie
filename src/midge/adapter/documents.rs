@@ -18,6 +18,28 @@ pub(crate) struct DocumentWriteBatchReport {
     pub stats: crate::runtime::ProjectionWriteStats,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct DocumentWriteBatchOptions {
+    pub commit: WriteOptions,
+    pub refresh_after_commit: bool,
+}
+
+impl DocumentWriteBatchOptions {
+    pub(crate) fn sync() -> Self {
+        Self {
+            commit: WriteOptions::sync(),
+            refresh_after_commit: true,
+        }
+    }
+
+    pub(crate) fn buffered() -> Self {
+        Self {
+            commit: WriteOptions::buffered(),
+            refresh_after_commit: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct OrderedScanEntry {
     id: String,
@@ -149,6 +171,19 @@ impl Midge {
         collection: &str,
         operations: Vec<DocumentWriteOp>,
     ) -> Result<DocumentWriteBatchReport, CassieError> {
+        self.apply_document_write_batch_with_options(
+            collection,
+            operations,
+            DocumentWriteBatchOptions::sync(),
+        )
+    }
+
+    pub(crate) fn apply_document_write_batch_with_options(
+        &self,
+        collection: &str,
+        operations: Vec<DocumentWriteOp>,
+        options: DocumentWriteBatchOptions,
+    ) -> Result<DocumentWriteBatchReport, CassieError> {
         if operations.is_empty() {
             return Ok(DocumentWriteBatchReport::default());
         }
@@ -162,6 +197,10 @@ impl Midge {
             .list_vector_indexes()?
             .into_iter()
             .filter(|index| index.collection == collection)
+            .collect::<Vec<_>>();
+        let vector_fields = vector_indexes
+            .iter()
+            .map(|index| index.field.clone())
             .collect::<Vec<_>>();
         let scalar_indexes = self
             .list_indexes()?
@@ -259,6 +298,7 @@ impl Midge {
                     &mut tx,
                     collection,
                     &prepared.id,
+                    &vector_fields,
                 )?;
                 report.stats.index_deletes = report
                     .stats
@@ -369,6 +409,7 @@ impl Midge {
                     &mut tx,
                     collection,
                     &prepared.id,
+                    &vector_fields,
                 )?;
                 let (scalar_deleted, scalar_puts) = self.sync_scalar_indexes_for_document(
                     &mut tx,
@@ -423,13 +464,22 @@ impl Midge {
             return Ok(report);
         }
 
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(options.commit).map_err(CassieError::from)?;
         report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
 
-        let _ = self.rebuild_column_batches_for_collection(collection)?;
-        self.refresh_ivfflat_indexes_for_collection(collection)?;
-        self.refresh_projection_hashes_after_write(collection, report.row_delta)?;
+        if options.refresh_after_commit {
+            let _ = self.rebuild_column_batches_for_collection(collection)?;
+            self.refresh_ivfflat_indexes_for_collection(collection)?;
+            self.refresh_projection_hashes_after_write(collection, report.row_delta)?;
+        }
         Ok(report)
+    }
+
+    pub(crate) fn flush_data_family(&self) -> Result<(), CassieError> {
+        let layout = self.ensure_families_ready()?;
+        self.engine
+            .flush_cf(&layout.data)
+            .map_err(CassieError::from)
     }
 
     fn load_document_payload_from_tx(

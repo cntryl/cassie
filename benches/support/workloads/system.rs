@@ -320,7 +320,7 @@ pub async fn projection_lag_catchup(ctx: &BenchContext, nonce: usize) -> usize {
         .collect();
     let batch = ProjectionReplayBatch {
         projection: ctx.collection.clone(),
-        source_identity: format!("bench-catchup-stream-{nonce}"),
+        source_identity: "bench-catchup-stream".to_string(),
         batch_id: format!("bench-catchup-batch-{nonce}"),
         lag: 0,
         events,

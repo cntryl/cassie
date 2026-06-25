@@ -236,6 +236,13 @@ pub(crate) fn refresh_rollups_for_source_external(
     rollups::refresh_rollups_for_source(cassie, source, &user_functions, controls)
 }
 
+pub(crate) fn mark_source_projections_stale_external(
+    cassie: &Cassie,
+    source: &str,
+) -> Result<(), QueryError> {
+    materialized_projection::mark_source_projections_stale(cassie, source)
+}
+
 pub(crate) fn rollup_rewrite_name_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Option<String> {
     rollups::rewrite_name_for_plan(cassie, plan)
 }
@@ -254,6 +261,8 @@ mod projection_repair;
 mod retention;
 #[path = "execution/rollups.rs"]
 mod rollups;
+#[path = "execution/session_command.rs"]
+mod session_command;
 #[path = "execution/vector_index_command.rs"]
 mod vector_index_command;
 

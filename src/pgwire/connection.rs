@@ -71,9 +71,9 @@ enum FrontendMessage {
         target: CloseTarget,
         name: String,
     },
-    CopyData,
+    CopyData(Vec<u8>),
     CopyDone,
-    CopyFail,
+    CopyFail(String),
     FunctionCall,
     Sync,
     Flush,
@@ -120,12 +120,17 @@ impl SessionState {
 
 #[path = "connection/codecs.rs"]
 mod codecs;
+#[path = "connection/copy.rs"]
+mod copy;
 #[path = "connection/errors.rs"]
 mod errors;
 #[path = "connection/readers.rs"]
 mod readers;
 #[path = "connection/startup_params.rs"]
 mod startup_params;
+#[cfg(test)]
+#[path = "connection/tests.rs"]
+mod tests;
 #[path = "connection/writers.rs"]
 mod writers;
 
@@ -393,6 +398,21 @@ pub async fn run_connection(
 
                     let session_for_query = session.clone();
                     let sql_for_query = sql.clone();
+                    match copy::try_handle_simple_copy_query(
+                        cassie.clone(),
+                        session.clone(),
+                        &sql,
+                        &mut reader,
+                        &mut write_half,
+                    )
+                    .await
+                    {
+                        copy::SimpleCopyOutcome::Handled => {
+                            continue;
+                        }
+                        copy::SimpleCopyOutcome::NotCopy => {}
+                        copy::SimpleCopyOutcome::ConnectionClosed => break,
+                    }
                     let query_result =
                         run_pgwire_blocking(cassie.clone(), "pgwire_simple_query", move |cassie| {
                             cassie.execute_sql(&session_for_query, &sql_for_query, Vec::new())
@@ -451,9 +471,9 @@ pub async fn run_connection(
                         continue;
                     }
                     FrontendMessage::Terminate => break,
-                    FrontendMessage::CopyData
+                    FrontendMessage::CopyData(_)
                     | FrontendMessage::CopyDone
-                    | FrontendMessage::CopyFail => {
+                    | FrontendMessage::CopyFail(_) => {
                         runtime.record_pgwire_message("copy");
                         runtime.record_pgwire_protocol_error();
                         awaiting_sync = true;
@@ -887,9 +907,9 @@ pub async fn run_connection(
                             }
                         }
                         FrontendMessage::Flush | FrontendMessage::Terminate => unreachable!(),
-                        FrontendMessage::CopyData
+                        FrontendMessage::CopyData(_)
                         | FrontendMessage::CopyDone
-                        | FrontendMessage::CopyFail
+                        | FrontendMessage::CopyFail(_)
                         | FrontendMessage::FunctionCall => unreachable!(),
                     },
                 }
@@ -934,71 +954,4 @@ where
 
 fn cassie_pg_error(error: &CassieError) -> PgWireError {
     PgWireError::from_cassie_error(PgWireSeverity::Error, error)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::executor::{ColumnMeta, QueryResult};
-    use crate::types::{DataType, Value};
-    use std::pin::Pin;
-    use std::task::{Context, Poll};
-
-    #[derive(Default)]
-    struct CountingWrite {
-        bytes: Vec<u8>,
-        flushes: usize,
-    }
-
-    impl AsyncWrite for CountingWrite {
-        fn poll_write(
-            mut self: Pin<&mut Self>,
-            _cx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<io::Result<usize>> {
-            self.bytes.extend_from_slice(buf);
-            Poll::Ready(Ok(buf.len()))
-        }
-
-        fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-            self.flushes += 1;
-            Poll::Ready(Ok(()))
-        }
-
-        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
-    }
-
-    #[test]
-    fn should_flush_pgwire_simple_query_result_once_for_multiple_rows() {
-        // Arrange
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("runtime");
-        let result = QueryResult {
-            columns: vec![ColumnMeta::from_data_type("id", DataType::Text)],
-            rows: vec![
-                vec![Value::String("doc-1".to_string())],
-                vec![Value::String("doc-2".to_string())],
-            ],
-            command: "SELECT".to_string(),
-        };
-
-        runtime.block_on(async {
-            let mut writer = CountingWrite::default();
-
-            // Act
-            write_simple_query_result(&mut writer, result)
-                .await
-                .expect("write simple query result");
-
-            // Assert
-            assert_eq!(writer.flushes, 1);
-            assert_eq!(writer.bytes[0], b'T');
-            assert!(writer.bytes.contains(&b'D'));
-            assert!(writer.bytes.contains(&b'C'));
-        });
-    }
 }

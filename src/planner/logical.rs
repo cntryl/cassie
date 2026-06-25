@@ -74,6 +74,7 @@ pub enum LogicalCommand {
     CallProcedure(crate::sql::ast::CallProcedureStatement),
     Show(ShowStatement),
     Set(SetStatement),
+    Copy(crate::sql::ast::CopyStatement),
     Insert(InsertStatement),
     Update(UpdateStatement),
     Delete(DeleteStatement),
@@ -91,6 +92,11 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
         QueryStatement::Set(statement) => Ok(single_row_command_plan(LogicalCommand::Set(
             statement.clone(),
         ))),
+        QueryStatement::Copy(statement) => plan_table_command(
+            &statement.table,
+            "COPY requires a target table",
+            LogicalCommand::Copy(statement.clone()),
+        ),
         QueryStatement::Insert(statement) => plan_table_command(
             &statement.table,
             "INSERT requires a target table",

@@ -537,25 +537,15 @@ impl Midge {
         tx: &mut cntryl_midge::Transaction,
         collection: &str,
         id: &str,
+        fields: &[String],
     ) -> Result<usize, CassieError> {
-        let prefix = Self::normalized_vector_collection_prefix(collection);
-        let mut scan = tx
-            .scan(&Query::new().prefix(prefix.clone().into()))
-            .map_err(CassieError::from)?;
-        let mut keys = Vec::new();
-
-        while let Some((raw_key, raw_value)) = scan.next() {
-            let Ok(record) = serde_json::from_slice::<NormalizedVectorRecord>(&raw_value) else {
-                continue;
-            };
-            if record.id == id {
-                keys.push(raw_key);
+        let mut deleted_keys = 0usize;
+        for field in fields {
+            let key = Self::normalized_vector_key(collection, field, id);
+            if tx.get(&key).map_err(CassieError::from)?.is_some() {
+                tx.delete(key).map_err(CassieError::from)?;
+                deleted_keys = deleted_keys.saturating_add(1);
             }
-        }
-
-        let deleted_keys = keys.len();
-        for key in keys {
-            tx.delete(key).map_err(CassieError::from)?;
         }
 
         Ok(deleted_keys)

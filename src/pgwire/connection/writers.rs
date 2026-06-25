@@ -264,6 +264,23 @@ pub(super) async fn write_command_complete(
     Ok(())
 }
 
+pub(super) async fn write_copy_in_response(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    column_count: usize,
+) -> io::Result<()> {
+    let mut payload = Vec::new();
+    payload.push(0);
+    payload.extend_from_slice(
+        &i16::try_from(column_count)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "too many columns"))?
+            .to_be_bytes(),
+    );
+    for _ in 0..column_count {
+        payload.extend_from_slice(&0_i16.to_be_bytes());
+    }
+    write_backend_frame(write_half, b'G', &payload).await
+}
+
 pub(super) fn append_command_complete_frame(frame: &mut Vec<u8>, command: &str) -> io::Result<()> {
     let mut payload = Vec::new();
     payload.extend_from_slice(command.as_bytes());

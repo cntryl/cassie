@@ -20,6 +20,7 @@ use cassie::planner::{logical, physical};
 use cassie::rest::{documents, search};
 use cassie::runtime::ExecutionMode;
 use cassie::search::{bm25, tokenizer};
+use cassie::sql::ast::{CopyFormat, CopyStatement};
 use cassie::sql::{binder, parameter_count, parameter_type_oids, parse_statement};
 use cassie::types::{DataType, FieldSchema, Schema, Value};
 use serde_json::json;
@@ -481,20 +482,42 @@ async fn prepare_replay_collection(
             .collect(),
     );
 
-    let mut documents = Vec::with_capacity(dataset_rows);
+    let mut csv = String::new();
     for index in 0..dataset_rows {
-        documents.push((
-            Some(format!("doc-{index}")),
-            json!({
-                "title": format!("title-{}", index % 16),
-                "body": if index % 3 == 0 { "alpha beta gamma" } else { "delta epsilon" },
-                "score": (index % 100) as i64,
-                "status": if index % 2 == 0 { "approved" } else { "pending" },
-            }),
+        let body = if index % 3 == 0 {
+            "alpha beta gamma"
+        } else {
+            "delta epsilon"
+        };
+        let status = if index % 2 == 0 {
+            "approved"
+        } else {
+            "pending"
+        };
+        csv.push_str(&format!(
+            "doc-{index},title-{},{body},{},{}\n",
+            index % 16,
+            index % 100,
+            status
         ));
     }
-    if !documents.is_empty() {
-        ctx.cassie.midge.put_documents(&ctx.collection, documents)?;
+    if !csv.is_empty() {
+        ctx.cassie.copy_from_csv_stdin(
+            &ctx.session,
+            &CopyStatement {
+                table: ctx.collection.clone(),
+                columns: vec![
+                    "_id".to_string(),
+                    "title".to_string(),
+                    "body".to_string(),
+                    "score".to_string(),
+                    "status".to_string(),
+                ],
+                format: CopyFormat::Csv,
+                header: false,
+            },
+            csv.as_bytes(),
+        )?;
     }
 
     let statements = [

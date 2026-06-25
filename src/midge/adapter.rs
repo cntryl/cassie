@@ -184,7 +184,7 @@ mod time_series_indexes;
 #[path = "adapter/verification.rs"]
 mod verification;
 
-pub(crate) use documents::DocumentWriteOp;
+pub(crate) use documents::{DocumentWriteBatchOptions, DocumentWriteOp};
 pub(crate) use graphs::GraphEdgeRecord;
 pub use verification::{
     IntegrityCheckReport, RangeHashRecord, RootHashRecord, RowHashRecord, StoredHashState,

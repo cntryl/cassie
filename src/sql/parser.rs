@@ -24,6 +24,8 @@ pub struct SqlError(pub String);
 
 #[path = "parser/clauses.rs"]
 mod clauses;
+#[path = "parser/copy.rs"]
+mod copy;
 #[path = "parser/dml.rs"]
 mod dml;
 #[path = "parser/expr.rs"]
@@ -42,6 +44,7 @@ mod schema;
 mod statements;
 
 use clauses::*;
+use copy::*;
 use dml::*;
 pub(crate) use expr::parse_expression;
 use materialized_projection::*;
@@ -82,6 +85,8 @@ fn parse_query_or_dml_statement(
         Ok(Some(parse_explain_statement(trimmed)?))
     } else if starts_statement(lower, "with") {
         Ok(Some(parse_with_statement(trimmed)?))
+    } else if starts_statement(lower, "copy") {
+        Ok(Some(parse_copy_statement(trimmed)?))
     } else if starts_statement(lower, "insert") {
         Ok(Some(parse_insert_statement(trimmed)?))
     } else if starts_statement(lower, "update") {

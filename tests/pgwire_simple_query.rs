@@ -56,6 +56,25 @@ fn simple_query_frame(sql: &str) -> Vec<u8> {
     frame
 }
 
+fn copy_data_frame(payload: &[u8]) -> Vec<u8> {
+    let mut frame = Vec::new();
+    frame.push(b'd');
+    frame.extend_from_slice(
+        &i32::try_from(payload.len() + 4)
+            .expect("copy payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(payload);
+    frame
+}
+
+fn copy_done_frame() -> Vec<u8> {
+    let mut frame = Vec::new();
+    frame.push(b'c');
+    frame.extend_from_slice(&4_i32.to_be_bytes());
+    frame
+}
+
 async fn read_wire_frame(
     reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
 ) -> (u8, Vec<u8>) {
@@ -174,6 +193,149 @@ fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
     }
 
     fields
+}
+
+#[test]
+fn should_copy_csv_from_stdin_rows() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("copy_stdin");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+
+        let collection = "simple_copy_docs";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: false,
+                },
+                FieldSchema {
+                    name: "score".to_string(),
+                    data_type: DataType::Int,
+                    nullable: true,
+                },
+            ],
+        };
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(collection, schema);
+
+        let mut config = CassieRuntimeConfig::from_env();
+        config.password.clear();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener address");
+        drop(listener);
+
+        let server = tokio::spawn(cassie::pgwire::server::run(
+            addr.to_string(),
+            std::sync::Arc::new(cassie.clone()),
+            config,
+        ));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+
+        // Act
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
+            .await
+            .expect("write startup");
+        let auth = read_wire_frame(&mut reader).await;
+        assert_eq!(auth.0, b'R', "startup should return an auth response");
+        let startup_ready = read_until_ready(&mut reader).await;
+        assert_eq!(startup_ready, vec![b'I']);
+
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &simple_query_frame(
+                "COPY simple_copy_docs (_id, title, score) FROM STDIN WITH (FORMAT csv, HEADER true)",
+            ),
+        )
+        .await
+        .expect("write copy query");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("flush copy query");
+
+        let copy_in = read_wire_frame(&mut reader).await;
+        assert_eq!(copy_in.0, b'G', "copy should return CopyInResponse");
+        assert_eq!(copy_in.1[0], 0, "COPY should use text format");
+        assert_eq!(
+            i16::from_be_bytes(copy_in.1[1..3].try_into().expect("copy column count")),
+            3
+        );
+
+        let copy_payload = b"_id,title,score\ncopy-1,alpha,7\ncopy-2,beta,9\n";
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &copy_data_frame(copy_payload))
+            .await
+            .expect("write copy data");
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &copy_done_frame())
+            .await
+            .expect("write copy done");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("flush copy data");
+
+        let complete = read_wire_frame(&mut reader).await;
+        let ready = read_wire_frame(&mut reader).await;
+
+        // Assert
+        assert_eq!(complete.0, b'C', "copy should complete command");
+        let mut command_cursor = 0usize;
+        assert_eq!(read_cstring(&complete.1, &mut command_cursor), "COPY 2");
+        assert_eq!(ready.0, b'Z');
+        assert_eq!(ready.1, vec![b'I']);
+
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &simple_query_frame("SELECT title, score FROM simple_copy_docs ORDER BY score"),
+        )
+        .await
+        .expect("write select");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("flush select");
+
+        let description = read_wire_frame(&mut reader).await;
+        let first = read_wire_frame(&mut reader).await;
+        let second = read_wire_frame(&mut reader).await;
+        let select_complete = read_wire_frame(&mut reader).await;
+        let select_ready = read_wire_frame(&mut reader).await;
+
+        assert_eq!(description.0, b'T');
+        assert_eq!(first.0, b'D');
+        assert_eq!(second.0, b'D');
+        assert_eq!(
+            parse_data_row(&first.1),
+            vec![Some("alpha".to_string()), Some("7".to_string())]
+        );
+        assert_eq!(
+            parse_data_row(&second.1),
+            vec![Some("beta".to_string()), Some("9".to_string())]
+        );
+        assert_eq!(select_complete.0, b'C');
+        assert_eq!(select_ready.0, b'Z');
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
 #[test]

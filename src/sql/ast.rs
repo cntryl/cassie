@@ -109,6 +109,7 @@ pub enum QueryStatement {
     Select(SelectStatement),
     Show(ShowStatement),
     Set(SetStatement),
+    Copy(CopyStatement),
     Insert(InsertStatement),
     Update(UpdateStatement),
     Delete(DeleteStatement),
@@ -149,6 +150,19 @@ pub enum QueryStatement {
     CallProcedure(CallProcedureStatement),
     DropSchema(DropSchemaStatement),
     AlterSchema(AlterSchemaStatement),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CopyFormat {
+    Csv,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CopyStatement {
+    pub table: String,
+    pub columns: Vec<String>,
+    pub format: CopyFormat,
+    pub header: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

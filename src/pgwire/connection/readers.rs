@@ -106,6 +106,7 @@ pub(super) async fn read_frontend_message(
     })?;
 
     let mut cursor = 0usize;
+    let payload_len = payload.len();
     let message = match tag[0] {
         b'P' => {
             let name = read_null_terminated(&payload, &mut cursor)?;
@@ -263,15 +264,15 @@ pub(super) async fn read_frontend_message(
         }
         b'd' => {
             cursor = payload.len();
-            FrontendMessage::CopyData
+            FrontendMessage::CopyData(payload)
         }
         b'c' => {
             cursor = payload.len();
             FrontendMessage::CopyDone
         }
         b'f' => {
-            cursor = payload.len();
-            FrontendMessage::CopyFail
+            let message = read_null_terminated(&payload, &mut cursor)?;
+            FrontendMessage::CopyFail(message)
         }
         b'F' => {
             cursor = payload.len();
@@ -296,7 +297,7 @@ pub(super) async fn read_frontend_message(
         other => FrontendMessage::Unknown(other),
     };
 
-    if cursor != payload.len() {
+    if cursor != payload_len {
         return Err(HandshakeError::Invalid(
             "invalid frontend message payload".to_string(),
         ));

@@ -3,8 +3,8 @@
 use cassie::app::Cassie;
 use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::sql::ast::{
-    BinaryOp, CteQuery, Expr, InsertSource, JoinKind, QuerySource, QueryStatement, SelectItem,
-    SetOperator, SortDirection,
+    BinaryOp, CopyFormat, CteQuery, Expr, InsertSource, JoinKind, QuerySource, QueryStatement,
+    SelectItem, SetOperator, SortDirection,
 };
 use cassie::sql::parse_statement;
 use cassie::types::{DataType, FieldSchema, Schema};
@@ -118,6 +118,36 @@ fn should_parse_non_select_statement() {
 
     // Assert
     assert!(matches!(parsed.statement, QueryStatement::Insert(_)));
+}
+
+#[test]
+fn should_parse_copy_from_stdin_csv_column_header_shape() {
+    // Arrange
+    let sql = "COPY docs (_id, title, score) FROM STDIN WITH (FORMAT csv, HEADER true)";
+
+    // Act
+    let parsed = parse_statement(sql).expect("copy statements should parse");
+
+    // Assert
+    let QueryStatement::Copy(statement) = parsed.statement else {
+        panic!("expected copy statement");
+    };
+    assert_eq!(statement.table, "docs");
+    assert_eq!(statement.columns, vec!["_id", "title", "score"]);
+    assert_eq!(statement.format, CopyFormat::Csv);
+    assert!(statement.header);
+}
+
+#[test]
+fn should_reject_copy_from_stdin_non_csv_format() {
+    // Arrange
+    let sql = "COPY docs FROM STDIN WITH (FORMAT binary)";
+
+    // Act
+    let parsed = parse_statement(sql);
+
+    // Assert
+    assert!(parsed.is_err());
 }
 
 #[test]

@@ -5,10 +5,10 @@ pub mod parser;
 
 pub use ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
-    CommonTableExpression, CreateSchemaStatement, CreateTableStatement, CreateViewStatement,
-    DeleteStatement, DropSchemaStatement, DropTableStatement, DropViewStatement, FieldDefinition,
-    InsertStatement, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
-    UpdateStatement,
+    CommonTableExpression, CopyFormat, CopyStatement, CreateSchemaStatement, CreateTableStatement,
+    CreateViewStatement, DeleteStatement, DropSchemaStatement, DropTableStatement,
+    DropViewStatement, FieldDefinition, InsertStatement, ParsedStatement, QuerySource,
+    QueryStatement, SelectItem, SelectStatement, UpdateStatement,
 };
 pub use binder::{bind, BoundStatement};
 pub use functions::registry;
@@ -106,6 +106,7 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         QueryStatement::Select(statement) => parameter_count_select(statement),
         QueryStatement::Show(_) => 0,
         QueryStatement::Set(_) => 0,
+        QueryStatement::Copy(_) => 0,
         QueryStatement::Insert(statement) => parameter_count_insert(statement),
         QueryStatement::Update(statement) => parameter_count_update(statement),
         QueryStatement::Delete(statement) => parameter_count_delete(statement),

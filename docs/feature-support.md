@@ -35,7 +35,7 @@ Experimental surfaces require the evidence gates in [Experimental Promotion Crit
 | CTEs | WITH, WITH RECURSIVE | Stable | PostgreSQL-like |
 | Set operations | UNION, UNION ALL, INTERSECT, EXCEPT | Stable | PostgreSQL-like |
 | Window functions | row_number, rank, dense_rank, lag, lead, first_value, last_value, supported frames | Stable | PostgreSQL-like with documented frame limits |
-| DML | INSERT, UPDATE, DELETE, RETURNING | Stable | PostgreSQL-like |
+| DML | INSERT, UPDATE, DELETE, RETURNING, `COPY ... FROM STDIN WITH (FORMAT csv)` | Stable/Experimental | PostgreSQL-like plus simple-query CSV bulk load |
 | DDL | CREATE TABLE, ALTER TABLE, DROP TABLE, CREATE SCHEMA, DROP SCHEMA, CREATE INDEX, DROP INDEX, CREATE ROLLUP, REFRESH ROLLUP, DROP ROLLUP, CREATE/ALTER/DROP/ENFORCE RETENTION POLICY | Stable/Experimental by object type | PostgreSQL-like plus Cassie-specific analytics |
 | Transactions | BEGIN, COMMIT, ROLLBACK, savepoints | Stable | PostgreSQL-like with Cassie/Midge durability notes |
 | Views | CREATE VIEW, DROP VIEW, nested views | Stable | PostgreSQL-like read-only view behavior |
@@ -125,7 +125,7 @@ Unsupported procedural expectations include:
 
 | Category | Supported Items | Status | Compatibility |
 | --- | --- | --- | --- |
-| PostgreSQL wire | startup, auth, simple query, extended query, parse, bind, describe, execute, sync, close | Stable | PostgreSQL-compatible subset |
+| PostgreSQL wire | startup, auth, simple query, extended query, parse, bind, describe, execute, sync, close, simple-query COPY FROM STDIN CSV | Stable/Experimental | PostgreSQL-compatible subset |
 | Pgwire results | row description, data row, command complete, error response, ready for query | Stable | PostgreSQL-compatible subset |
 | Pgwire compatibility | prepared statements, portals, text/binary formats, catalog introspection | Stable/Experimental | PostgreSQL-compatible subset |
 | HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin manifest export and consistency-check APIs | Stable/Experimental | Cassie REST API |

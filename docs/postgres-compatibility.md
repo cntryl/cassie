@@ -28,6 +28,7 @@ Supported:
 - UNION, UNION ALL, INTERSECT, and EXCEPT.
 - row_number, rank, dense_rank, lag, lead, first_value, and last_value.
 - INSERT, UPDATE, DELETE, and RETURNING.
+- COPY FROM STDIN over pgwire simple query with CSV payloads and optional HEADER.
 - BEGIN, COMMIT, ROLLBACK, SAVEPOINT, ROLLBACK TO, and RELEASE SAVEPOINT.
 - CREATE TABLE, ALTER TABLE, DROP TABLE, CREATE SCHEMA, DROP SCHEMA, CREATE INDEX, DROP INDEX, CREATE VIEW, and DROP VIEW.
 - Limited experimental CREATE PROCEDURE and CALL support for compatibility/admin workflows.
@@ -45,6 +46,7 @@ Unsupported or not yet guaranteed:
 - Full PostgreSQL grammar parity.
 - PostgreSQL table inheritance, partitions, storage parameters, operator classes, collations, deferrable constraints, security-barrier views, updatable views, and procedural language parity.
 - Stored-procedure business-logic platforms, triggers, PL/pgSQL, dynamic SQL, exception blocks, procedure-local transaction control, recursive procedure workflows, and trigger-driven application behavior.
+- COPY TO STDOUT, binary COPY, server-side COPY files or programs, and extended-query COPY streaming.
 - Full PostgreSQL system catalog parity.
 - PostgreSQL optimizer hint behavior or EXPLAIN output parity.
 
@@ -114,7 +116,7 @@ sqlx, diesel, prisma, broader reflection, native extension integration, and migr
 Unsupported or out-of-scope for client compatibility:
 
 - PostgreSQL server parity checks that require complete `pg_catalog` or `information_schema` behavior.
-- Client workflows requiring extensions, native hstore integration, triggers, PL/pgSQL, stored-procedure business logic, LISTEN/NOTIFY, COPY, table inheritance, partitions, logical replication, advisory locks, two-phase commit, or PostgreSQL storage parameters.
+- Client workflows requiring extensions, native hstore integration, triggers, PL/pgSQL, stored-procedure business logic, LISTEN/NOTIFY, unsupported COPY variants, table inheritance, partitions, logical replication, advisory locks, two-phase commit, or PostgreSQL storage parameters.
 - ORM-generated OLTP workloads that depend on distributed transactions, row-locking semantics, trigger business logic, broad reflection parity, or PostgreSQL optimizer behavior.
 - Migration diffs that assume PostgreSQL-owned physical storage, operator classes, collations, or extension-managed metadata.
 

@@ -6,6 +6,13 @@ use super::{
 };
 
 pub(super) fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlError> {
+    parse_field_definition_for_table(raw, None)
+}
+
+pub(super) fn parse_field_definition_for_table(
+    raw: &str,
+    table: Option<&str>,
+) -> Result<FieldDefinition, SqlError> {
     let mut parts = tokenize_schema_field(raw).into_iter();
     let name = parts
         .next()
@@ -22,10 +29,18 @@ pub(super) fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlEr
     if type_token.is_empty() {
         return Err(SqlError(format!("missing data type for column '{name}'")));
     }
-    let data_type = parse_data_type(&type_token)?;
+    let (data_type, serial_sequence) = parse_field_data_type(&type_token, table, &name)?;
 
     let mut constraint = FieldConstraint::new(name.clone());
     let mut saw_constraint = false;
+    if let Some(sequence) = serial_sequence {
+        saw_constraint = true;
+        constraint.not_null = true;
+        constraint.default_sequence = Some(sequence.clone());
+        constraint.default_sequence_owned = true;
+        constraint.default_expression =
+            Some(crate::catalog::canonical_nextval_expression(&sequence));
+    }
     let mut pending_constraint_name: Option<String> = None;
     while let Some(token) = parts.next() {
         match token.to_lowercase().as_str() {
@@ -74,7 +89,7 @@ pub(super) fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlEr
                 let value = parts
                     .next()
                     .ok_or_else(|| SqlError("DEFAULT requires a value".into()))?;
-                constraint.default_value = Some(parse_constraint_literal(&value)?);
+                apply_default_constraint(&mut constraint, &value)?;
             }
             "check" => {
                 saw_constraint = true;
@@ -124,4 +139,47 @@ pub(super) fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlEr
         data_type,
         constraints: vec![constraint],
     })
+}
+
+pub(super) fn apply_default_constraint(
+    constraint: &mut FieldConstraint,
+    raw: &str,
+) -> Result<(), SqlError> {
+    if let Some(sequence) = crate::catalog::parse_nextval_default_expression(raw) {
+        constraint.default_value = None;
+        constraint.default_sequence = Some(sequence.clone());
+        constraint.default_sequence_owned = false;
+        constraint.default_expression =
+            Some(crate::catalog::canonical_nextval_expression(&sequence));
+        return Ok(());
+    }
+
+    constraint.default_value = Some(parse_constraint_literal(raw)?);
+    constraint.default_expression = None;
+    constraint.default_sequence = None;
+    Ok(())
+}
+
+fn parse_field_data_type(
+    raw: &str,
+    table: Option<&str>,
+    field: &str,
+) -> Result<(crate::types::DataType, Option<String>), SqlError> {
+    match raw.to_ascii_lowercase().as_str() {
+        "serial" | "serial4" => {
+            let table = table.ok_or_else(|| SqlError("SERIAL requires a table name".into()))?;
+            Ok((
+                crate::types::DataType::Int,
+                Some(crate::catalog::serial_sequence_name(table, field)),
+            ))
+        }
+        "bigserial" | "serial8" => {
+            let table = table.ok_or_else(|| SqlError("BIGSERIAL requires a table name".into()))?;
+            Ok((
+                crate::types::DataType::BigInt,
+                Some(crate::catalog::serial_sequence_name(table, field)),
+            ))
+        }
+        _ => parse_data_type(raw).map(|data_type| (data_type, None)),
+    }
 }

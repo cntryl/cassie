@@ -253,6 +253,8 @@ mod dml;
 mod dml_command;
 #[path = "execution/dml_referential_actions.rs"]
 mod dml_referential_actions;
+#[path = "execution/graph_command.rs"]
+mod graph_command;
 #[path = "execution/materialized_projection.rs"]
 mod materialized_projection;
 #[path = "execution/projection_diff.rs"]
@@ -263,6 +265,8 @@ mod projection_repair;
 mod retention;
 #[path = "execution/rollups.rs"]
 mod rollups;
+#[path = "execution/sequence_command.rs"]
+mod sequence_command;
 #[path = "execution/session_command.rs"]
 mod session_command;
 #[path = "execution/vector_index_command.rs"]

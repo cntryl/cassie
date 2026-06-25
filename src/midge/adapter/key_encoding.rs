@@ -31,6 +31,7 @@ const FAMILY_FUNCTION: &[u8] = b"function";
 const FAMILY_PROCEDURE: &[u8] = b"procedure";
 const FAMILY_VIEW: &[u8] = b"view";
 const FAMILY_ROLE: &[u8] = b"role";
+const FAMILY_SEQUENCE: &[u8] = b"sequence";
 const FAMILY_CONSTRAINTS: &[u8] = b"constraints";
 const FAMILY_NAMESPACE: &[u8] = b"namespace";
 const FAMILY_NAMESPACES: &[u8] = b"namespaces";
@@ -347,6 +348,14 @@ pub(super) fn role_key(name: &str) -> Vec<u8> {
 
 pub(super) fn role_prefix() -> Vec<u8> {
     prefix(FAMILY_ROLE, &[])
+}
+
+pub(super) fn sequence_key(name: &str) -> Vec<u8> {
+    key(FAMILY_SEQUENCE, &[name.as_bytes()])
+}
+
+pub(super) fn sequence_prefix() -> Vec<u8> {
+    prefix(FAMILY_SEQUENCE, &[])
 }
 
 pub(super) fn constraints_key(collection: &str) -> Vec<u8> {

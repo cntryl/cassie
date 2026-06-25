@@ -89,6 +89,7 @@ Supported:
 - Compatibility probes for supported table, schema, column, default, index, constraint, type, and view metadata.
 - Virtual catalog views backed by Cassie metadata.
 - `information_schema.columns` exposes ordinal position, nullability, type name, UDT name, simple defaults, character length, numeric precision/scale, and datetime precision for supported Cassie types.
+- `information_schema.sequences` exposes supported sequence metadata for migration-tool introspection.
 - `pg_catalog.pg_attribute`, `pg_catalog.pg_attrdef`, and `pg_catalog.pg_index` expose table/view column metadata, simple default expressions, index uniqueness, primary-index status, and index key ordinals for supported row-store schemas.
 
 Unsupported or not yet guaranteed:
@@ -110,7 +111,7 @@ The matrix tracks read-model workflows, not full PostgreSQL server equivalence. 
 | `prisma` | Untested/planned | Introspection and read queries for compatible projection tables where Prisma does not require unsupported catalog/DDL features | No automated probe yet |
 | `SQLAlchemy` | Experimental opt-in | SQLAlchemy Core connection startup, dialect metadata probes, catalog query, simple SELECT, bound-parameter read query, DDL/DML smoke, unique-violation SQLSTATE, and missing-relation SQLSTATE where generated SQL stays inside Cassie's supported surface and native hstore integration is disabled | Ignored `should_validate_sqlalchemy_read_model_probe_when_enabled`; install Python packages `SQLAlchemy` and `psycopg`, then run `CASSIE_RUN_SQLALCHEMY_COMPAT=1 cargo test --locked --test compatibility_sqlalchemy should_validate_sqlalchemy_read_model_probe_when_enabled -- --ignored --nocapture`. Set `CASSIE_SQLALCHEMY_PYTHON` to override the Python binary. The probe uses `use_native_hstore=False`. |
 | `pgAdmin4` | Untested/planned | Connection registration, database/schema browser, table metadata inspection, and table-data browsing for supported schemas through PostgreSQL-compatible pgwire and catalog behavior | No automated probe yet |
-| Common migration tools | Experimental/documented | Supported DDL through pgwire: schemas, tables, constraints, indexes, and views that map to Cassie SQL | Use tool-specific dry runs against a disposable Cassie node; advanced PostgreSQL migration features remain unsupported unless documented separately |
+| Common migration tools | Experimental/documented | Supported DDL through pgwire: schemas, tables, constraints, indexes, views, simple sequences, `SERIAL`/`BIGSERIAL`, `nextval(...)` defaults, and basic `ALTER COLUMN` default/nullability changes that map to Cassie SQL | Use tool-specific dry runs against a disposable Cassie node; advanced PostgreSQL migration features remain unsupported unless documented separately |
 
 Phase 09 client-probe depth is closed for the current slice with the SQLAlchemy Core opt-in probe.
 The default suite remains deterministic and dependency-free beyond Rust dependencies; psql and SQLAlchemy probes require explicit environment variables and local tools.
@@ -174,6 +175,7 @@ Current foundation fixture:
 - Simple named primary-key, unique, check, and foreign-key constraints are persisted in constraint metadata and exposed through `information_schema.table_constraints`, `information_schema.key_column_usage`, `information_schema.referential_constraints`, and `pg_catalog.pg_constraint`.
 - Direct foreign-key `CASCADE`, `SET NULL`, `SET DEFAULT`, `NO ACTION`, and `RESTRICT` actions are enforced for parent deletes and key updates when those actions are captured in constraint metadata.
 - ORM introspection metadata now includes simple column defaults and pg-catalog attribute/default/index rows for supported tables.
+- Migration DDL now includes bare `CREATE SEQUENCE`/`DROP SEQUENCE`, sequence-backed `nextval(...)` defaults, `SERIAL`/`BIGSERIAL` table-column sugar, and `ALTER TABLE ... ALTER COLUMN` set/drop default and set/drop not-null behavior for rows that already satisfy the constraint.
 - Composite constraint fidelity, deferrable constraints, match types, and advanced cyclic/deferred referential-action behavior remain compatibility gaps for full ORM migration diffing.
 
 ## Cassie-Specific SQL and APIs

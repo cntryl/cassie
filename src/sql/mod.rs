@@ -115,6 +115,8 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         QueryStatement::CreateGraph(_) => 0,
         QueryStatement::DropTable(_) => 0,
         QueryStatement::AlterTable(_) => 0,
+        QueryStatement::CreateSequence(_) => 0,
+        QueryStatement::DropSequence(_) => 0,
         QueryStatement::CreateSchema(_) => 0,
         QueryStatement::CreateView(_) => 0,
         QueryStatement::CreateRole(_) => 0,

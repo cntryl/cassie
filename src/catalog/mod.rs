@@ -12,6 +12,7 @@ pub mod retention;
 pub mod roles;
 pub mod rollups;
 pub mod schemas;
+pub mod sequences;
 pub mod virtual_views;
 
 pub use cardinality::{
@@ -52,3 +53,7 @@ pub use rollups::{
     output_collection_name, RollupAggregateMeta, RollupMeta, RollupRefreshCursor, RollupState,
 };
 pub use schemas::{CollectionSchema, FieldMeta};
+pub use sequences::{
+    canonical_nextval_expression, parse_nextval_default_expression, serial_sequence_name,
+    SequenceMeta,
+};

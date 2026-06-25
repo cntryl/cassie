@@ -7,10 +7,14 @@ mod schema_fields;
 mod schema_identifiers;
 #[path = "schema_references.rs"]
 mod schema_references;
+#[path = "schema_sequences.rs"]
+mod schema_sequences;
 #[path = "schema_table_constraints.rs"]
 mod schema_table_constraints;
 use schema_fields::parse_field_definition;
+use schema_fields::parse_field_definition_for_table;
 use schema_identifiers::parse_identifier;
+use schema_sequences::parse_alter_column_operation;
 use schema_table_constraints::{
     apply_table_constraints, parse_named_add_constraint, parse_table_constraint,
 };
@@ -54,7 +58,7 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
             if let Some(constraints) = parse_table_constraint(raw)? {
                 apply_table_constraints(&mut fields, constraints)?;
             } else {
-                let field = parse_field_definition(raw)?;
+                let field = parse_field_definition_for_table(raw, Some(&table))?;
                 fields.push(field);
             }
         }
@@ -378,7 +382,7 @@ pub(super) fn parse_alter_table_statement(sql: &str) -> Result<ParsedStatement, 
         return Err(SqlError("missing alter operation".into()));
     }
 
-    let operation = parse_alter_table_operation(op_clause)?;
+    let operation = parse_alter_table_operation(&table, op_clause)?;
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
@@ -386,15 +390,21 @@ pub(super) fn parse_alter_table_statement(sql: &str) -> Result<ParsedStatement, 
     })
 }
 
-pub(super) fn parse_alter_table_operation(raw: &str) -> Result<AlterTableOperation, SqlError> {
+pub(super) fn parse_alter_table_operation(
+    table: &str,
+    raw: &str,
+) -> Result<AlterTableOperation, SqlError> {
     let lower = raw.to_lowercase();
     if lower.starts_with("add column") {
         let field_def = raw["add column".len()..].trim();
-        let definition = parse_field_definition(field_def)?;
+        let definition = parse_field_definition_for_table(field_def, Some(table))?;
         return Ok(AlterTableOperation::AddColumn {
             field: definition.name,
             data_type: definition.data_type,
         });
+    }
+    if lower.starts_with("alter column") {
+        return parse_alter_column_operation(raw["alter column".len()..].trim());
     }
     if lower.starts_with("add constraint") {
         return Ok(AlterTableOperation::AddConstraint {
@@ -443,6 +453,14 @@ pub(super) fn parse_alter_table_operation(raw: &str) -> Result<AlterTableOperati
     }
 
     Err(SqlError("unsupported ALTER TABLE operation".into()))
+}
+
+pub(super) fn parse_create_sequence_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    schema_sequences::parse_create_sequence_statement(sql)
+}
+
+pub(super) fn parse_drop_sequence_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    schema_sequences::parse_drop_sequence_statement(sql)
 }
 
 pub(super) fn parse_create_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError> {

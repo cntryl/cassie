@@ -10,14 +10,14 @@ Phase 11 is the active execution gate.
 
 Resolve Phase 11 issues in order:
 
-1. `issues/phase-11/issue-02.md`
-2. `issues/phase-11/issue-03.md`
-3. `issues/phase-11/issue-04.md`
-4. `issues/phase-11/issue-05.md`
+1. `issues/phase-11/issue-03.md`
+2. `issues/phase-11/issue-04.md`
+3. `issues/phase-11/issue-05.md`
 
 Completed Phase 11 issues:
 
 - `issues/phase-11/issue-01.md` is archived in `issues/phase-11/README.md`.
+- `issues/phase-11/issue-02.md` is archived in `issues/phase-11/README.md`.
 
 Completed Phase 10 issues:
 

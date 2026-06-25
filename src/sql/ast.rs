@@ -118,6 +118,8 @@ pub enum QueryStatement {
     CreateGraph(CreateGraphStatement),
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
+    CreateSequence(CreateSequenceStatement),
+    DropSequence(DropSequenceStatement),
     CreateSchema(CreateSchemaStatement),
     CreateView(CreateViewStatement),
     DropView(DropViewStatement),
@@ -498,6 +500,19 @@ pub struct DropTableStatement {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateSequenceStatement {
+    pub name: String,
+    pub if_not_exists: bool,
+    pub data_type: DataType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DropSequenceStatement {
+    pub name: String,
+    pub if_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlterTableStatement {
     pub table: String,
     pub operation: AlterTableOperation,
@@ -505,11 +520,38 @@ pub struct AlterTableStatement {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AlterTableOperation {
-    AddColumn { field: String, data_type: DataType },
-    AddConstraint { constraints: Vec<FieldConstraint> },
-    DropColumn { field: String },
-    RenameColumn { from: String, to: String },
-    RenameTo { table: String },
+    AddColumn {
+        field: String,
+        data_type: DataType,
+    },
+    AddConstraint {
+        constraints: Vec<FieldConstraint>,
+    },
+    DropColumn {
+        field: String,
+    },
+    RenameColumn {
+        from: String,
+        to: String,
+    },
+    RenameTo {
+        table: String,
+    },
+    AlterColumnSetDefault {
+        field: String,
+        default_value: Option<serde_json::Value>,
+        default_expression: Option<String>,
+        default_sequence: Option<String>,
+    },
+    AlterColumnDropDefault {
+        field: String,
+    },
+    AlterColumnSetNotNull {
+        field: String,
+    },
+    AlterColumnDropNotNull {
+        field: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -49,6 +49,12 @@ pub struct FieldConstraint {
     #[serde(default)]
     pub default_value: Option<serde_json::Value>,
     #[serde(default)]
+    pub default_expression: Option<String>,
+    #[serde(default)]
+    pub default_sequence: Option<String>,
+    #[serde(default)]
+    pub default_sequence_owned: bool,
+    #[serde(default)]
     pub check: Option<ConstraintCheck>,
     #[serde(default)]
     pub references_table: Option<String>,
@@ -73,6 +79,9 @@ impl FieldConstraint {
             unique: false,
             primary_key: false,
             default_value: None,
+            default_expression: None,
+            default_sequence: None,
+            default_sequence_owned: false,
             check: None,
             references_table: None,
             references_field: None,
@@ -113,6 +122,8 @@ fn is_constraint_populated(constraint: &FieldConstraint) -> bool {
         || constraint.unique
         || constraint.not_null
         || constraint.default_value.is_some()
+        || constraint.default_expression.is_some()
+        || constraint.default_sequence.is_some()
         || constraint.check.is_some()
         || constraint.references_table.is_some()
 }
@@ -136,6 +147,13 @@ fn merge_constraint(existing: &mut FieldConstraint, next: FieldConstraint) {
     if next.default_value.is_some() {
         existing.default_value = next.default_value;
     }
+    if next.default_expression.is_some() {
+        existing.default_expression = next.default_expression;
+    }
+    if next.default_sequence.is_some() {
+        existing.default_sequence = next.default_sequence;
+    }
+    existing.default_sequence_owned |= next.default_sequence_owned;
     if next.check.is_some() {
         existing.check = next.check;
     }

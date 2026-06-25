@@ -10,7 +10,7 @@ use crate::catalog::{
     IndexMeta, NamespaceMeta, OperationalAssignmentMeta, ProcedureMeta,
     ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta, ProjectionKind,
     ProjectionMeta, ProjectionRepairReportMeta, RetentionPolicyMeta, RoleMeta, RollupMeta,
-    ViewMeta,
+    SequenceMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
@@ -28,6 +28,7 @@ pub struct Catalog {
     pub procedures: Arc<RwLock<HashMap<String, ProcedureMeta>>>,
     pub views: Arc<RwLock<HashMap<String, ViewMeta>>>,
     pub roles: Arc<RwLock<HashMap<String, RoleMeta>>>,
+    pub sequences: Arc<RwLock<HashMap<String, SequenceMeta>>>,
     pub rollups: Arc<RwLock<HashMap<String, RollupMeta>>>,
     pub retention_policies: Arc<RwLock<HashMap<String, RetentionPolicyMeta>>>,
     pub vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
@@ -54,6 +55,7 @@ impl Catalog {
             procedures: Arc::new(RwLock::new(HashMap::new())),
             views: Arc::new(RwLock::new(HashMap::new())),
             roles: Arc::new(RwLock::new(HashMap::new())),
+            sequences: Self::sequence_store(),
             rollups: Arc::new(RwLock::new(HashMap::new())),
             retention_policies: Arc::new(RwLock::new(HashMap::new())),
             vector_indexes: Arc::new(RwLock::new(HashMap::new())),
@@ -447,6 +449,7 @@ impl Catalog {
         self.procedures.write().clear();
         self.views.write().clear();
         self.roles.write().clear();
+        self.sequences.write().clear();
         self.rollups.write().clear();
         self.retention_policies.write().clear();
         self.indexes.write().clear();
@@ -986,6 +989,8 @@ impl Catalog {
             || constraint.unique
             || constraint.not_null
             || constraint.default_value.is_some()
+            || constraint.default_expression.is_some()
+            || constraint.default_sequence.is_some()
             || constraint.check.is_some()
             || constraint.references_table.is_some()
     }

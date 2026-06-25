@@ -40,6 +40,8 @@ pub enum LogicalCommand {
     CreateGraph(CreateGraphStatement),
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
+    CreateSequence(crate::sql::ast::CreateSequenceStatement),
+    DropSequence(crate::sql::ast::DropSequenceStatement),
     CreateRole(CreateRoleStatement),
     AlterRole(AlterRoleStatement),
     DropRole(DropRoleStatement),
@@ -124,6 +126,16 @@ pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
             LogicalCommand::DropTable(statement.clone()),
         ),
         QueryStatement::AlterTable(statement) => plan_alter_table(statement),
+        QueryStatement::CreateSequence(statement) => plan_named_command(
+            &statement.name,
+            "CREATE SEQUENCE requires a name",
+            LogicalCommand::CreateSequence(statement.clone()),
+        ),
+        QueryStatement::DropSequence(statement) => plan_named_command(
+            &statement.name,
+            "DROP SEQUENCE requires a name",
+            LogicalCommand::DropSequence(statement.clone()),
+        ),
         QueryStatement::CreateSchema(statement) => plan_named_command(
             &statement.schema,
             "CREATE SCHEMA requires a name",
@@ -485,6 +497,16 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
             if table.trim().is_empty() {
                 return Err(CassieError::Planner(
                     "ALTER TABLE RENAME TO requires a table name".into(),
+                ));
+            }
+        }
+        AlterTableOperation::AlterColumnSetDefault { field, .. }
+        | AlterTableOperation::AlterColumnDropDefault { field }
+        | AlterTableOperation::AlterColumnSetNotNull { field }
+        | AlterTableOperation::AlterColumnDropNotNull { field } => {
+            if field.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE ALTER COLUMN requires a field".into(),
                 ));
             }
         }

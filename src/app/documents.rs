@@ -65,7 +65,7 @@ impl Cassie {
     ) -> Result<serde_json::Value, CassieError> {
         let constraints = self.catalog.get_constraints(collection);
         if apply_defaults && !constraints.is_empty() {
-            self.apply_default_values(&mut payload, &constraints)?;
+            super::defaults::apply_default_values(self, &mut payload, &constraints)?;
         }
 
         self.validate_payload_schema(collection, &payload)?;
@@ -572,28 +572,6 @@ impl Cassie {
             b'A'..=b'F' => Some(byte - b'A' + 10),
             _ => None,
         }
-    }
-
-    fn apply_default_values(
-        &self,
-        payload: &mut serde_json::Value,
-        constraints: &[FieldConstraint],
-    ) -> Result<(), CassieError> {
-        let object = payload.as_object_mut().ok_or_else(|| {
-            CassieError::InvalidVector("document payload must be a JSON object".to_string())
-        })?;
-
-        for constraint in constraints {
-            if object.contains_key(&constraint.field) {
-                continue;
-            }
-
-            if let Some(default) = &constraint.default_value {
-                object.insert(constraint.field.clone(), default.clone());
-            }
-        }
-
-        Ok(())
     }
 
     fn validate_constraints_for_session(

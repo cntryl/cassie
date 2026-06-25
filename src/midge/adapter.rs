@@ -179,6 +179,8 @@ mod scalar_indexes;
 pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
 #[path = "adapter/schema_ops.rs"]
 mod schema_ops;
+#[path = "adapter/sequences.rs"]
+mod sequences;
 #[path = "adapter/time_series_indexes.rs"]
 pub(crate) mod time_series_indexes;
 #[path = "adapter/verification.rs"]

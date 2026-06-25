@@ -95,6 +95,13 @@ pub(super) fn pg_class(catalog: &Catalog) -> Vec<VirtualRow> {
             string("relnamespace", "public"),
         ]
     }));
+    rows.extend(catalog.list_sequences().into_iter().map(|sequence| {
+        vec![
+            string("relname", sequence.name),
+            string("relkind", "S"),
+            string("relnamespace", "public"),
+        ]
+    }));
     rows.extend(pg_indexes(catalog).into_iter().map(|index| {
         let indexname = lookup_string(&index, "indexname");
         vec![
@@ -181,13 +188,13 @@ pub(super) fn pg_attrdef(catalog: &Catalog) -> Vec<VirtualRow> {
             let Some(constraint) = constraint_for_field(&constraints, &field.name) else {
                 continue;
             };
-            let Some(default) = constraint.default_value.as_ref() else {
+            let Some(default) = constraint_default_expression(constraint) else {
                 continue;
             };
             rows.push(vec![
                 string("adrelid", &schema.collection),
                 int_value("adnum", (index + 1) as i64),
-                string("adsrc", default_expression(default)),
+                string("adsrc", default),
             ]);
         }
     }
@@ -215,12 +222,7 @@ fn attribute_row(
         int_value("atttypid", data_type.type_oid()),
         bool_value("attnotnull", is_not_null(constraint)),
         int_value("atttypmod", data_type.atttypmod() as i64),
-        bool_value(
-            "atthasdef",
-            constraint
-                .and_then(|constraint| constraint.default_value.as_ref())
-                .is_some(),
-        ),
+        bool_value("atthasdef", constraint_has_default(constraint)),
     ]
 }
 
@@ -315,7 +317,22 @@ fn is_not_null(constraint: Option<&FieldConstraint>) -> bool {
         .unwrap_or(false)
 }
 
-pub(super) fn default_expression(value: &serde_json::Value) -> String {
+fn constraint_has_default(constraint: Option<&FieldConstraint>) -> bool {
+    constraint
+        .map(|constraint| {
+            constraint.default_expression.is_some() || constraint.default_value.is_some()
+        })
+        .unwrap_or(false)
+}
+
+pub(super) fn constraint_default_expression(constraint: &FieldConstraint) -> Option<String> {
+    if let Some(expression) = constraint.default_expression.as_ref() {
+        return Some(expression.clone());
+    }
+    constraint.default_value.as_ref().map(default_expression)
+}
+
+fn default_expression(value: &serde_json::Value) -> String {
     if value.is_null() {
         return "NULL".to_string();
     }

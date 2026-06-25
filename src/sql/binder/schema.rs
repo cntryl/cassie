@@ -4,6 +4,7 @@ use super::*;
 mod schema_alter_constraints;
 #[path = "schema_index_options.rs"]
 mod schema_index_options;
+use super::schema_sequences::validate_alter_column_operation;
 use schema_alter_constraints::validate_alter_constraint_targets;
 
 pub(super) fn bind_create_table(
@@ -841,7 +842,7 @@ pub(super) fn bind_alter_table(
         .map(|field| field.name.to_ascii_lowercase())
         .collect::<HashSet<_>>();
 
-    validate_alter_schema(&table, &statement.operation, &existing_fields)?;
+    validate_alter_schema(&table, &statement.operation, &existing_fields, catalog)?;
     validate_alter_constraint_targets(&statement.operation, catalog)?;
 
     statement.table = table;
@@ -852,6 +853,7 @@ pub(super) fn validate_alter_schema(
     table: &str,
     operation: &AlterTableOperation,
     existing_fields: &HashSet<String>,
+    catalog: &Catalog,
 ) -> Result<(), CassieError> {
     match operation {
         AlterTableOperation::AddColumn {
@@ -950,6 +952,12 @@ pub(super) fn validate_alter_schema(
                     "ALTER TABLE cannot rename collection to same name".into(),
                 ));
             }
+        }
+        AlterTableOperation::AlterColumnSetDefault { .. }
+        | AlterTableOperation::AlterColumnDropDefault { .. }
+        | AlterTableOperation::AlterColumnSetNotNull { .. }
+        | AlterTableOperation::AlterColumnDropNotNull { .. } => {
+            validate_alter_column_operation(table, operation, existing_fields, catalog)?;
         }
     }
 

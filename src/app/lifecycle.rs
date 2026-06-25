@@ -172,6 +172,15 @@ impl Cassie {
             self.catalog.register_graph(graph);
         }
 
+        let sequences = self.midge.list_sequences().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list sequences: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for sequence in sequences {
+            self.catalog.register_sequence(sequence);
+        }
+
         for collection in self.catalog.list_collections() {
             self.hydrate_cardinality_stats(&collection.name)?;
         }

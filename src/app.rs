@@ -473,6 +473,8 @@ mod auth;
 mod bulk_ingest;
 #[path = "app/consistency.rs"]
 mod consistency;
+#[path = "app/defaults.rs"]
+mod defaults;
 #[path = "app/diagnostics.rs"]
 mod diagnostics;
 #[path = "app/documents.rs"]

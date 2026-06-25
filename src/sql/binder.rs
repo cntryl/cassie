@@ -8,10 +8,11 @@ use crate::search::bm25;
 use crate::sql::ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
     CallProcedureStatement, CommonTableExpression, CopyStatement, CreateFunctionStatement,
-    CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement, CreateViewStatement,
-    CteQuery, DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
-    DropSchemaStatement, DropViewStatement, Expr, FunctionCall, InsertSource, OrderExpr,
-    ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement,
+    CreateIndexStatement, CreateProcedureStatement, CreateSchemaStatement, CreateSequenceStatement,
+    CreateViewStatement, CteQuery, DropFunctionStatement, DropIndexStatement,
+    DropProcedureStatement, DropSchemaStatement, DropSequenceStatement, DropViewStatement, Expr,
+    FunctionCall, InsertSource, OrderExpr, ParsedStatement, QuerySource, QueryStatement,
+    SelectItem, SelectSet, SelectStatement,
 };
 use crate::types::{DataType, FieldSchema, Schema};
 
@@ -25,6 +26,8 @@ mod inference;
 mod routines;
 #[path = "binder/schema.rs"]
 mod schema;
+#[path = "binder/schema_sequences.rs"]
+mod schema_sequences;
 #[path = "binder/select.rs"]
 mod select;
 #[path = "binder/validation.rs"]
@@ -34,6 +37,7 @@ use commands::*;
 pub use inference::infer_select_schema;
 use routines::*;
 use schema::*;
+use schema_sequences::*;
 use select::*;
 use validation::*;
 
@@ -147,6 +151,20 @@ fn bind_statement(
             Ok(ParsedStatement {
                 raw_sql,
                 statement: QueryStatement::AlterTable(statement),
+            })
+        }
+        QueryStatement::CreateSequence(statement) => {
+            let statement = bind_create_sequence(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::CreateSequence(statement),
+            })
+        }
+        QueryStatement::DropSequence(statement) => {
+            let statement = bind_drop_sequence(statement, catalog)?;
+            Ok(ParsedStatement {
+                raw_sql,
+                statement: QueryStatement::DropSequence(statement),
             })
         }
         QueryStatement::CreateIndex(statement) => {

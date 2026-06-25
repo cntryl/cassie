@@ -5,15 +5,15 @@ use crate::sql::ast::{
     CommonTableExpression, CreateFunctionStatement, CreateGraphStatement, CreateIndexStatement,
     CreateMaterializedProjectionStatement, CreateProcedureStatement,
     CreateRetentionPolicyStatement, CreateRoleStatement, CreateRollupStatement,
-    CreateSchemaStatement, CreateTableStatement, CreateViewStatement, CteQuery,
-    DropFunctionStatement, DropIndexStatement, DropMaterializedProjectionStatement,
+    CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement, CreateViewStatement,
+    CteQuery, DropFunctionStatement, DropIndexStatement, DropMaterializedProjectionStatement,
     DropProcedureStatement, DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement,
-    DropSchemaStatement, DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement,
-    ExplainStatement, Expr, FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind,
-    NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement, RefreshRollupStatement,
-    SelectItem, SelectSet, SelectStatement, SetOperator, SetStatement, ShowStatement,
-    SortDirection, TransactionAction, TransactionIsolation, TransactionStatement,
-    VerifyProjectionStatement, Volatility, WindowFunctionCall,
+    DropSchemaStatement, DropSequenceStatement, DropTableStatement, DropViewStatement,
+    EnforceRetentionPolicyStatement, ExplainStatement, Expr, FieldDefinition, FunctionArg,
+    FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement, QuerySource,
+    QueryStatement, RefreshRollupStatement, SelectItem, SelectSet, SelectStatement, SetOperator,
+    SetStatement, ShowStatement, SortDirection, TransactionAction, TransactionIsolation,
+    TransactionStatement, VerifyProjectionStatement, Volatility, WindowFunctionCall,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -224,8 +224,12 @@ fn parse_table_or_schema_statement(
         Ok(Some(parse_create_table_statement(trimmed)?))
     } else if starts_statement(lower, "create graph") {
         Ok(Some(parse_create_graph_statement(trimmed)?))
+    } else if starts_statement(lower, "create sequence") {
+        Ok(Some(parse_create_sequence_statement(trimmed)?))
     } else if starts_statement(lower, "drop table") {
         Ok(Some(parse_drop_table_statement(trimmed)?))
+    } else if starts_statement(lower, "drop sequence") {
+        Ok(Some(parse_drop_sequence_statement(trimmed)?))
     } else if starts_statement(lower, "alter table") {
         Ok(Some(parse_alter_table_statement(trimmed)?))
     } else if starts_statement(lower, "create schema") {

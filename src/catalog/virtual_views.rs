@@ -11,6 +11,8 @@ mod virtual_views_constraints;
 mod virtual_views_pg;
 #[path = "virtual_views_repair.rs"]
 mod virtual_views_repair;
+#[path = "virtual_views_sequences.rs"]
+mod virtual_views_sequences;
 #[path = "virtual_views_storage.rs"]
 mod virtual_views_storage;
 
@@ -39,6 +41,9 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             text("table_name"),
             text("view_definition"),
         ],
+        "information_schema.sequences" => {
+            virtual_views_sequences::information_schema_sequences_schema()
+        }
         "information_schema.table_constraints" => {
             virtual_views_constraints::table_constraints_schema()
         }
@@ -187,6 +192,9 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
         "information_schema.tables" => information_schema_tables(catalog),
         "information_schema.columns" => information_schema_columns(catalog),
         "information_schema.views" => information_schema_views(catalog),
+        "information_schema.sequences" => {
+            virtual_views_sequences::information_schema_sequences(catalog)
+        }
         "information_schema.table_constraints" => {
             virtual_views_constraints::table_constraints(catalog)
         }
@@ -565,9 +573,7 @@ fn information_schema_column_row(
         ),
         optional_string(
             "column_default",
-            constraint
-                .and_then(|constraint| constraint.default_value.as_ref())
-                .map(virtual_views_pg::default_expression),
+            constraint.and_then(virtual_views_pg::constraint_default_expression),
         ),
         string("udt_name", udt_name(data_type)),
         optional_i64("character_maximum_length", character_length(data_type)),

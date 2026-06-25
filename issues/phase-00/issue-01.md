@@ -6,14 +6,15 @@ Open.
 
 ## Priority Source Of Truth
 
-Phase 10 is closed and archived in `issues/phase-10/README.md`.
-The active next step is to create the Phase 11 ORM and database-tooling compatibility backlog before additional implementation work.
+Phase 11 is the active execution gate.
 
-Create the Phase 11 gate in this order:
+Resolve Phase 11 issues in order:
 
-1. Add `issues/phase-11/README.md` with the ORM/tooling compatibility goal, principles, non-goals, and ordered slice list.
-2. Add `issues/phase-11/issue-01.md` for Prisma and pgAdmin4-facing catalog metadata baseline work.
-3. Update this file to point at the first open Phase 11 issue.
+1. `issues/phase-11/issue-01.md`
+2. `issues/phase-11/issue-02.md`
+3. `issues/phase-11/issue-03.md`
+4. `issues/phase-11/issue-04.md`
+5. `issues/phase-11/issue-05.md`
 
 Completed Phase 10 issues:
 
@@ -25,7 +26,7 @@ Completed Phase 10 issues:
 - `issues/phase-10/issue-06.md` is archived in `issues/phase-10/README.md`.
 - `issues/phase-10/issue-07.md` is archived in `issues/phase-10/README.md`.
 
-Do not start Phase 11 implementation before the Phase 11 backlog exists and this file points at the first open Phase 11 issue.
+Do not start a later Phase 11 issue while an earlier issue remains open unless the later issue explicitly names that dependency as complete or unnecessary.
 
 ## Dependencies
 
@@ -33,6 +34,7 @@ Do not start Phase 11 implementation before the Phase 11 backlog exists and this
 - `docs/performance-contracts.md` is the contract surface.
 - `docs/production-readiness.md` and `docs/capacity-management.md` are the production evidence surfaces.
 - `docs/postgres-compatibility.md` is the client and tooling compatibility surface.
+- `issues/phase-11/README.md` is the Phase 11 compatibility backlog surface.
 
 ## Close-Out
 

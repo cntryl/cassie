@@ -180,7 +180,7 @@ pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
 #[path = "adapter/schema_ops.rs"]
 mod schema_ops;
 #[path = "adapter/time_series_indexes.rs"]
-mod time_series_indexes;
+pub(crate) mod time_series_indexes;
 #[path = "adapter/verification.rs"]
 mod verification;
 

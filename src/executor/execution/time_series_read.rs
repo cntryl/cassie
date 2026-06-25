@@ -43,6 +43,12 @@ pub(super) fn try_execute_time_series_read(
     }
 
     let schema = cassie.catalog.get_schema(&spec.collection);
+    let range = plan
+        .filter
+        .as_ref()
+        .map(|filter| timestamp_range_from_filter(filter, &timestamp_field))
+        .unwrap_or_default();
+    let mut indexed_total_buckets = None;
     let mut documents = match cassie.midge.scan_time_series_index(&index) {
         Ok(report) if report.hits.is_empty() => {
             cassie
@@ -51,24 +57,25 @@ pub(super) fn try_execute_time_series_read(
             scan_row_backed_documents(cassie, &spec.collection, scan_fields.clone())?
         }
         Ok(report) => {
-            let mut documents = Vec::with_capacity(report.hits.len());
-            for hit in report.hits {
-                if let Some(document) = cassie
-                    .midge
-                    .get_document(&spec.collection, &hit.id)
-                    .map_err(|error| QueryError::General(error.to_string()))?
-                {
-                    documents.push(document);
-                }
-            }
-            if documents.is_empty() {
-                cassie
-                    .runtime
-                    .record_time_series_fallback("stale-bucket-metadata");
-                scan_row_backed_documents(cassie, &spec.collection, scan_fields.clone())?
-            } else {
+            indexed_total_buckets = Some(hit_bucket_keys(report.hits.as_slice()).len());
+            let hits = prune_hits_for_range(report.hits, &range);
+            if hits.is_empty() {
                 cassie.runtime.record_time_series_bucket_native_hit();
-                documents
+                Vec::new()
+            } else {
+                let documents = cassie
+                    .midge
+                    .scan_time_series_hit_documents(&spec.collection, &hits, &scan_fields)
+                    .map_err(|error| QueryError::General(error.to_string()))?;
+                if documents.is_empty() {
+                    cassie
+                        .runtime
+                        .record_time_series_fallback("stale-bucket-metadata");
+                    scan_row_backed_documents(cassie, &spec.collection, scan_fields.clone())?
+                } else {
+                    cassie.runtime.record_time_series_bucket_native_hit();
+                    documents
+                }
             }
         }
         Err(error) => {
@@ -81,7 +88,8 @@ pub(super) fn try_execute_time_series_read(
             scan_row_backed_documents(cassie, &spec.collection, scan_fields.clone())?
         }
     };
-    let total_buckets = bucket_keys(documents.as_slice(), &timestamp_field, &index).len();
+    let total_buckets = indexed_total_buckets
+        .unwrap_or_else(|| bucket_keys(documents.as_slice(), &timestamp_field, &index).len());
     documents.sort_by(|left, right| {
         timestamp_sort_key(&left.payload, &timestamp_field)
             .cmp(&timestamp_sort_key(&right.payload, &timestamp_field))
@@ -149,6 +157,130 @@ pub(super) fn try_execute_time_series_read(
         skipped_buckets,
     );
     Ok(Some(rows))
+}
+
+fn prune_hits_for_range(
+    hits: Vec<crate::midge::adapter::time_series_indexes::TimeSeriesIndexScanHit>,
+    range: &TimestampRange,
+) -> Vec<crate::midge::adapter::time_series_indexes::TimeSeriesIndexScanHit> {
+    hits.into_iter()
+        .filter(|hit| {
+            range
+                .lower
+                .as_ref()
+                .is_none_or(|lower| hit.timestamp.as_str() >= lower.as_str())
+                && range
+                    .upper
+                    .as_ref()
+                    .is_none_or(|upper| hit.timestamp.as_str() <= upper.as_str())
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone, Default)]
+struct TimestampRange {
+    lower: Option<String>,
+    upper: Option<String>,
+}
+
+fn timestamp_range_from_filter(expr: &Expr, timestamp_field: &str) -> TimestampRange {
+    match expr {
+        Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } => {
+            let left = timestamp_range_from_filter(left, timestamp_field);
+            let right = timestamp_range_from_filter(right, timestamp_field);
+            TimestampRange {
+                lower: max_bound(left.lower, right.lower),
+                upper: min_bound(left.upper, right.upper),
+            }
+        }
+        Expr::Binary { left, op, right } => {
+            comparison_timestamp_range(left, op, right, timestamp_field).unwrap_or_default()
+        }
+        Expr::Between {
+            expr,
+            low,
+            high,
+            negated: false,
+        } if is_timestamp_column(expr, timestamp_field) => TimestampRange {
+            lower: timestamp_literal(low),
+            upper: timestamp_literal(high),
+        },
+        _ => TimestampRange::default(),
+    }
+}
+
+fn comparison_timestamp_range(
+    left: &Expr,
+    op: &BinaryOp,
+    right: &Expr,
+    timestamp_field: &str,
+) -> Option<TimestampRange> {
+    if is_timestamp_column(left, timestamp_field) {
+        let value = timestamp_literal(right)?;
+        return match op {
+            BinaryOp::Gt | BinaryOp::Gte => Some(TimestampRange {
+                lower: Some(value),
+                upper: None,
+            }),
+            BinaryOp::Lt | BinaryOp::Lte => Some(TimestampRange {
+                lower: None,
+                upper: Some(value),
+            }),
+            _ => None,
+        };
+    }
+    if is_timestamp_column(right, timestamp_field) {
+        let value = timestamp_literal(left)?;
+        return match op {
+            BinaryOp::Gt | BinaryOp::Gte => Some(TimestampRange {
+                lower: None,
+                upper: Some(value),
+            }),
+            BinaryOp::Lt | BinaryOp::Lte => Some(TimestampRange {
+                lower: Some(value),
+                upper: None,
+            }),
+            _ => None,
+        };
+    }
+    None
+}
+
+fn is_timestamp_column(expr: &Expr, timestamp_field: &str) -> bool {
+    matches!(expr, Expr::Column(field) if field.eq_ignore_ascii_case(timestamp_field))
+}
+
+fn timestamp_literal(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::StringLiteral(value) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn max_bound(left: Option<String>, right: Option<String>) -> Option<String> {
+    match (left, right) {
+        (Some(left), Some(right)) => Some(left.max(right)),
+        (Some(value), None) | (None, Some(value)) => Some(value),
+        (None, None) => None,
+    }
+}
+
+fn min_bound(left: Option<String>, right: Option<String>) -> Option<String> {
+    match (left, right) {
+        (Some(left), Some(right)) => Some(left.min(right)),
+        (Some(value), None) | (None, Some(value)) => Some(value),
+        (None, None) => None,
+    }
+}
+
+fn hit_bucket_keys(
+    hits: &[crate::midge::adapter::time_series_indexes::TimeSeriesIndexScanHit],
+) -> std::collections::BTreeSet<String> {
+    hits.iter().map(|hit| hit.bucket_key.clone()).collect()
 }
 
 fn scan_row_backed_documents(

@@ -4,6 +4,7 @@ use cassie::app::Cassie;
 use cassie::catalog::IndexKind;
 use cassie::sql::ast::QueryStatement;
 use cassie::types::Value;
+use serde_json::json;
 
 #[path = "support/sql.rs"]
 mod support;
@@ -162,6 +163,97 @@ fn should_execute_timestamp_range_with_time_series_metrics() {
             metrics["time_series"]["last_index"].as_str(),
             Some("idx_ts_execute_time")
         );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_bulk_load_fresh_time_series_documents_for_bucket_reads() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("time_series_fresh_bulk_load");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE ts_fresh_events (tenant TEXT, event_at TIMESTAMP, amount INT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_ts_fresh_time ON ts_fresh_events USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_fresh_time_series_documents(
+                "ts_fresh_events",
+                vec![
+                    (
+                        Some("event-1".to_string()),
+                        json!({
+                            "tenant": "acme",
+                            "event_at": "2026-01-01T00:00:00Z",
+                            "amount": 10,
+                        }),
+                    ),
+                    (
+                        Some("event-2".to_string()),
+                        json!({
+                            "tenant": "acme",
+                            "event_at": "2026-01-01T01:00:00Z",
+                            "amount": 20,
+                        }),
+                    ),
+                    (
+                        Some("event-3".to_string()),
+                        json!({
+                            "tenant": "globex",
+                            "event_at": "2026-01-01T01:00:00Z",
+                            "amount": 30,
+                        }),
+                    ),
+                ],
+            )
+            .unwrap();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT tenant, amount FROM ts_fresh_events WHERE event_at >= '2026-01-01T01:00:00Z' ORDER BY tenant, amount",
+                vec![],
+            )
+            .unwrap();
+        let sidecars = time_series_sidecar_records(
+            &cassie,
+            "ts_fresh_events",
+            "idx_ts_fresh_time",
+        );
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("acme".to_string()), Value::Int64(20)],
+                vec![Value::String("globex".to_string()), Value::Int64(30)],
+            ]
+        );
+        assert_eq!(sidecars.len(), 3);
+        assert_eq!(metrics["time_series"]["bucket_native_hits"].as_u64(), Some(1));
 
         let _ = std::fs::remove_dir_all(path);
     });

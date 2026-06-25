@@ -8,6 +8,8 @@ use crate::catalog::{IndexKind, IndexMeta};
 #[derive(Debug, Clone)]
 pub(crate) struct TimeSeriesIndexScanHit {
     pub id: String,
+    pub bucket_key: String,
+    pub timestamp: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -25,6 +27,77 @@ struct TimeSeriesIndexRecord {
 }
 
 impl Midge {
+    /// Load documents for a newly-created time-series fixture collection.
+    ///
+    /// This skips replacement checks and non-time-series secondary-index maintenance; callers must
+    /// only use it for fresh row-store collections whose secondary indexes are time-series indexes.
+    pub fn put_fresh_time_series_documents(
+        &self,
+        collection: &str,
+        documents: Vec<(Option<String>, serde_json::Value)>,
+    ) -> Result<Vec<String>, CassieError> {
+        if documents.is_empty() {
+            return Ok(Vec::new());
+        }
+        if self.collection_uses_column_store(collection)? {
+            return Err(CassieError::Unsupported(
+                "fresh time-series document load requires row storage".to_string(),
+            ));
+        }
+        if self
+            .list_vector_indexes()?
+            .iter()
+            .any(|index| index.collection.eq_ignore_ascii_case(collection))
+        {
+            return Err(CassieError::Unsupported(
+                "fresh time-series document load does not maintain vector indexes".to_string(),
+            ));
+        }
+
+        let indexes = self
+            .list_indexes()?
+            .into_iter()
+            .filter(|index| index.collection.eq_ignore_ascii_case(collection))
+            .collect::<Vec<_>>();
+        if indexes
+            .iter()
+            .any(|index| index.kind != IndexKind::TimeSeries)
+        {
+            return Err(CassieError::Unsupported(
+                "fresh time-series document load only maintains time-series indexes".to_string(),
+            ));
+        }
+
+        let schema = self
+            .collection_schema(collection)
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+        let row_schema = self.row_schema(collection)?;
+        let mut tx = self.begin_data_rw_tx()?;
+        let mut ids = Vec::with_capacity(documents.len());
+
+        for (id, payload) in documents {
+            Self::validate_document(&schema, &payload)?;
+            let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+            let row_blob = encode_row(&row_schema, &payload)?;
+            tx.put(Self::row_key(collection, &id), row_blob, None)
+                .map_err(CassieError::from)?;
+            Self::write_document_hash_to_tx(&mut tx, collection, &id, &row_schema, &payload)?;
+            self.sync_time_series_indexes_for_document(
+                &mut tx,
+                &id,
+                None,
+                Some(&payload),
+                &indexes,
+            )?;
+            ids.push(id);
+        }
+
+        let row_delta = i64::try_from(ids.len()).unwrap_or(i64::MAX);
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        self.refresh_projection_hashes_after_write(collection, row_delta)?;
+        Ok(ids)
+    }
+
     pub(crate) fn sync_time_series_indexes_for_document(
         &self,
         tx: &mut cntryl_midge::Transaction,
@@ -159,11 +232,64 @@ impl Midge {
                 )));
             }
             if seen_ids.insert(record.id.clone()) {
-                hits.push(TimeSeriesIndexScanHit { id: record.id });
+                hits.push(TimeSeriesIndexScanHit {
+                    id: record.id,
+                    bucket_key: record.bucket_key,
+                    timestamp: record.timestamp,
+                });
             }
         }
 
         Ok(TimeSeriesIndexScanReport { hits })
+    }
+
+    pub(crate) fn scan_time_series_hit_documents(
+        &self,
+        collection: &str,
+        hits: &[TimeSeriesIndexScanHit],
+        fields: &[String],
+    ) -> Result<Vec<DocumentRef>, CassieError> {
+        if hits.is_empty() {
+            return Ok(Vec::new());
+        }
+        let row_schema = self.row_schema(collection)?;
+        let projection = fields
+            .iter()
+            .map(|field| field.to_ascii_lowercase())
+            .collect::<std::collections::HashSet<_>>();
+        let mut wanted = hits
+            .iter()
+            .map(|hit| hit.id.clone())
+            .collect::<std::collections::HashSet<_>>();
+        let tx = self.begin_data_readonly_tx()?;
+        let mut documents = Vec::with_capacity(wanted.len());
+        let mut seen = std::collections::HashSet::new();
+
+        for (prefix, include_seen) in [
+            (Self::row_prefix(collection), true),
+            (Self::doc_prefix(collection), false),
+        ] {
+            let mut iter = tx
+                .scan(&Query::new().prefix(prefix.clone().into()))
+                .map_err(CassieError::from)?;
+            while let Some((raw_key, raw_value)) = iter.next() {
+                let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &prefix) else {
+                    continue;
+                };
+                if id.is_empty() || !wanted.contains(&id) || (!include_seen && seen.contains(&id)) {
+                    continue;
+                }
+                let payload = decode_projected_row(&row_schema, &raw_value, &projection)?;
+                seen.insert(id.clone());
+                wanted.remove(&id);
+                documents.push(DocumentRef { id, payload });
+                if wanted.is_empty() {
+                    return Ok(documents);
+                }
+            }
+        }
+
+        Ok(documents)
     }
 
     fn time_series_index_supports_storage(index: &IndexMeta) -> bool {

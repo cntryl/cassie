@@ -60,7 +60,7 @@ CASSIE_MIDGE_ALLOW_FALLBACK=1 cargo bench --locked --bench tier4_integration_htt
 | `tier2_subsystem_search` | Completed with high variance | Full-text executor p95 `178.8 us` at 10k and `176.3 us` at 100k; both runs showed high outliers but emitted samples. |
 | `tier2_subsystem_vector` | Completed | Vector executor p95 `14.9 us` at 10k and `246.2 us` at 100k. |
 | `tier2_subsystem_hybrid` | Completed with high variance | Hybrid executor p95 `216.0 us` at 10k and `216.2 us` at 100k. |
-| `tier3_system_query` | Partial, graph blocker resolved | Core/scalar 10k and 100k sampled; time-series window 10k p95 `23.7 ms`; graph expand 10k p95 `7.8 us`. Graph 100k initially did not emit a benchmark label after more than 6 minutes; after Issue 04 fresh graph fixture loading, focused graph 100k sampling completed with p50 `8.542 us`, p95 `253.167 us`. Time-series window 100k reached warmup in an earlier run and then ran for more than 8 minutes without a sample. |
+| `tier3_system_query` | Completed after graph and time-series fixes | Core/scalar 10k and 100k sampled; time-series window 10k p95 `23.7 ms`; graph expand 10k p95 `7.8 us`. Graph 100k initially did not emit a benchmark label after more than 6 minutes; after Issue 04 fresh graph fixture loading, focused graph 100k sampling completed with p50 `8.542 us`, p95 `253.167 us`. Time-series window 100k initially reached warmup and then ran for more than 8 minutes without a sample; after Issue 05 bucket-sidecar pruning and batched hit materialization, focused time-series 100k sampling completed with p50 `282.283 ms`, p95 `295.009 ms`. |
 | `tier3_system_rebuild` | Partial, refresh blocker resolved | Projection rebuild query 10k p95 `46.3 us`. Projection refresh 10k initially reached warmup and Criterion estimated `2658.7 s` for 10 samples, about `265.9 s` per iteration; after Issue 03 fresh-output writes, the focused diagnostic run completed with p50 `426.146 ms` and p95 `619.251 ms`. |
 | `tier3_system_mixed_load` | Completed | Mixed ingest/query p95 `92.2 ms`; large result set p95 `89.5 us`; scaled query shape p95 `15.2 us`. |
 | `tier3_system_concurrency` | Completed with high variance | Concurrent queries p50 `111.4 us`, p95 `880.8 us`. |
@@ -82,7 +82,7 @@ Issue 01 allowed harness fixes only when a benchmark mutated shared state across
 
 | Command | Blocker | Owner |
 | --- | --- | --- |
-| `CASSIE_MIDGE_ALLOW_FALLBACK=1 cargo bench --locked --bench tier3_system_query` | `time_series_window_scan/100k` reached warmup, then ran for more than 8 minutes without a completed sample. This is measured query runtime, not setup. | Issue 05 |
+| `CASSIE_MIDGE_ALLOW_FALLBACK=1 cargo bench --locked --bench tier3_system_query` | Resolved for `time_series_window_scan/100k`: focused diagnostic sampling now completes after timestamp range pruning and batched sidecar-hit document materialization. | Issue 05 |
 | `CASSIE_MIDGE_ALLOW_FALLBACK=1 cargo bench --locked --bench tier3_system_query` | Resolved for `graph_expand_query/100k`: focused diagnostic sampling now reaches the benchmark label and completes samples after fresh graph fixture loading. | Issue 04 |
 | `CASSIE_MIDGE_ALLOW_FALLBACK=1 cargo bench --locked --bench tier3_system_rebuild` | Resolved for `projection_refresh/10k`: the focused diagnostic run now completes samples after fresh projection-output writes avoid generic row-existence probes and the second hash rebuild scan. | Issue 03 |
 
@@ -91,7 +91,7 @@ Issue 01 allowed harness fixes only when a benchmark mutated shared state across
 | Rank | Bottleneck | Evidence | Next owner |
 | --- | --- | --- | --- |
 | 1 | Projection refresh workflow | Resolved from no completed sample / estimated `265.9 s` per iteration to focused diagnostic p50 `426.146 ms`, p95 `619.251 ms`. | Issue 03 |
-| 2 | Time-series 100k window scan | `time_series_window_scan/100k` reached warmup but produced no sample after more than 8 minutes. | Issue 05 |
+| 2 | Time-series 100k window scan | Resolved from no completed sample after more than 8 minutes to focused diagnostic p50 `282.283 ms`, p95 `295.009 ms`. | Issue 05 |
 | 3 | Graph 100k fixture setup | Resolved from no benchmark label after more than 6 minutes to focused diagnostic p50 `8.542 us`, p95 `253.167 us`. | Issue 04 |
 | 4 | Replay lag catch-up at 100k | p95 `9.428 s`. | Issue 03 |
 | 5 | Replay lag catch-up at 10k | p95 `1.071 s`. | Issue 03 |
@@ -99,7 +99,7 @@ Issue 01 allowed harness fixes only when a benchmark mutated shared state across
 | 7 | Duplicate replay handling | p95 `121.2 ms` despite duplicate skip semantics. | Issue 03 |
 | 8 | HTTP vector search route | p95 `107.5 ms`, while direct vector executor p95 is microsecond-scale. | Issue 06 |
 | 9 | Mixed ingest/query workflow | p95 `92.2 ms`. | Issue 06, with write-path dependency on Issue 03 |
-| 10 | Time-series 10k window scan | p95 `23.7 ms`; 100k path is worse and blocked. | Issue 05 |
+| 10 | Time-series 10k window scan | p95 `23.7 ms`; 100k path now samples locally with diagnostic p50 `282.283 ms`, p95 `295.009 ms`. | Issue 05 |
 
 ## Issue 03 Optimization Evidence
 
@@ -124,6 +124,16 @@ Issue 04 graph work on 2026-06-25 added a fresh graph document load path for new
 | `tier3_system_query/graph_expand_query/100k` | No benchmark label after more than 6 minutes of fixture setup. | Diagnostic p50 `8.542 us`, p95 `253.167 us`. | Blocker resolved; graph 100k now samples locally. |
 
 The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER3_WARMUP_MS=50 BENCH_TIER3_MEASUREMENT_MS=200 BENCH_TIER3_SAMPLE_SIZE=10 cargo bench --locked --bench tier3_system_query -- graph_expand_query/100k` now completes 10 local fallback samples.
+
+## Issue 05 Optimization Evidence
+
+Issue 05 time-series work on 2026-06-25 added a fresh time-series fixture load path for newly-created row-store collections whose secondary indexes are time-series indexes. The path writes row blobs, row hashes, and time-series bucket sidecars in one data transaction while rejecting column-store, vector, and non-time-series index maintenance. The query path now prunes bucket sidecar hits by timestamp range before row materialization and scans matching row blobs in one pass instead of issuing one document lookup per sidecar hit.
+
+| Owner | Before | After | Result |
+| --- | --- | --- | --- |
+| `tier3_system_query/time_series_window_scan/100k` | Reached warmup but produced no completed sample after more than 8 minutes. | Diagnostic p50 `282.283 ms`, p95 `295.009 ms`. | Blocker resolved; time-series 100k now samples locally. |
+
+The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER3_WARMUP_MS=50 BENCH_TIER3_MEASUREMENT_MS=200 BENCH_TIER3_SAMPLE_SIZE=10 cargo bench --locked --bench tier3_system_query -- time_series_window_scan/100k` now completes 10 local fallback samples.
 
 ## Deferred Paths
 

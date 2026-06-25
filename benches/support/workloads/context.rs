@@ -588,7 +588,9 @@ async fn prepare_time_series_collection(
         ));
     }
     if !documents.is_empty() {
-        ctx.cassie.midge.put_documents(&ctx.collection, documents)?;
+        ctx.cassie
+            .midge
+            .put_fresh_time_series_documents(&ctx.collection, documents)?;
     }
 
     Ok(())

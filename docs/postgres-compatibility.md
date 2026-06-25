@@ -86,8 +86,10 @@ Intentional differences:
 Supported:
 
 - Catalog introspection required by current Cassie tests.
-- Compatibility probes for supported table, schema, index, constraint, and view metadata.
+- Compatibility probes for supported table, schema, column, default, index, constraint, type, and view metadata.
 - Virtual catalog views backed by Cassie metadata.
+- `information_schema.columns` exposes ordinal position, nullability, type name, UDT name, simple defaults, character length, numeric precision/scale, and datetime precision for supported Cassie types.
+- `pg_catalog.pg_attribute`, `pg_catalog.pg_attrdef`, and `pg_catalog.pg_index` expose table/view column metadata, simple default expressions, index uniqueness, primary-index status, and index key ordinals for supported row-store schemas.
 
 Unsupported or not yet guaranteed:
 
@@ -171,6 +173,7 @@ Current foundation fixture:
 - Cassie accepts the pipeline application schema used for the first ORM compatibility slice, including quoted identifiers, `JSONB`, `TIMESTAMP(n)`, named table primary-key constraints, composite indexes, and `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY ... REFERENCES ...`.
 - Simple named primary-key, unique, check, and foreign-key constraints are persisted in constraint metadata and exposed through `information_schema.table_constraints`, `information_schema.key_column_usage`, `information_schema.referential_constraints`, and `pg_catalog.pg_constraint`.
 - Direct foreign-key `CASCADE`, `SET NULL`, `SET DEFAULT`, `NO ACTION`, and `RESTRICT` actions are enforced for parent deletes and key updates when those actions are captured in constraint metadata.
+- ORM introspection metadata now includes simple column defaults and pg-catalog attribute/default/index rows for supported tables.
 - Composite constraint fidelity, deferrable constraints, match types, and advanced cyclic/deferred referential-action behavior remain compatibility gaps for full ORM migration diffing.
 
 ## Cassie-Specific SQL and APIs

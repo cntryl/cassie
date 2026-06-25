@@ -1,4 +1,4 @@
-use crate::catalog::Catalog;
+use crate::catalog::{Catalog, FieldConstraint};
 use crate::types::{DataType, Value};
 
 pub type VirtualRow = Vec<(String, Value)>;
@@ -7,6 +7,8 @@ pub type VirtualRow = Vec<(String, Value)>;
 mod virtual_views_consistency;
 #[path = "virtual_views_constraints.rs"]
 mod virtual_views_constraints;
+#[path = "virtual_views_pg.rs"]
+mod virtual_views_pg;
 #[path = "virtual_views_repair.rs"]
 mod virtual_views_repair;
 #[path = "virtual_views_storage.rs"]
@@ -25,6 +27,12 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             text("data_type"),
             int("ordinal_position"),
             text("is_nullable"),
+            text("column_default"),
+            text("udt_name"),
+            int("character_maximum_length"),
+            int("numeric_precision"),
+            int("numeric_scale"),
+            int("datetime_precision"),
         ],
         "information_schema.views" => vec![
             text("table_schema"),
@@ -40,20 +48,12 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
         "information_schema.referential_constraints" => {
             virtual_views_constraints::referential_constraints_schema()
         }
-        "pg_catalog.pg_namespace" => vec![text("nspname")],
-        "pg_catalog.pg_class" => vec![text("relname"), text("relkind"), text("relnamespace")],
-        "pg_catalog.pg_attribute" => vec![
-            text("attrelid"),
-            text("attname"),
-            int("attnum"),
-            int("atttypid"),
-        ],
-        "pg_catalog.pg_indexes" => vec![
-            text("schemaname"),
-            text("tablename"),
-            text("indexname"),
-            text("indexdef"),
-        ],
+        "pg_catalog.pg_namespace" => virtual_views_pg::namespace_schema(),
+        "pg_catalog.pg_class" => virtual_views_pg::class_schema(),
+        "pg_catalog.pg_attribute" => virtual_views_pg::attribute_schema(),
+        "pg_catalog.pg_indexes" => virtual_views_pg::indexes_schema(),
+        "pg_catalog.pg_index" => virtual_views_pg::index_schema(),
+        "pg_catalog.pg_attrdef" => virtual_views_pg::attrdef_schema(),
         "pg_catalog.pg_table_storage" => virtual_views_storage::schema(),
         "pg_catalog.pg_constraint" => virtual_views_constraints::pg_constraint_schema(),
         "pg_catalog.pg_roles" => vec![text("rolname"), bool("rolcanlogin"), bool("rolsuper")],
@@ -175,16 +175,7 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             int("last_skipped_rows"),
             text("last_error"),
         ],
-        "pg_catalog.pg_type" => vec![
-            int("oid"),
-            text("typname"),
-            text("typnamespace"),
-            int("typlen"),
-            bool("typbyval"),
-            text("typtype"),
-            text("typcategory"),
-            int("typelem"),
-        ],
+        "pg_catalog.pg_type" => virtual_views_pg::type_schema(),
         _ => return None,
     };
     Some(fields)
@@ -205,13 +196,15 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
         "information_schema.referential_constraints" => {
             virtual_views_constraints::referential_constraints(catalog)
         }
-        "pg_catalog.pg_namespace" => pg_namespace(catalog),
-        "pg_catalog.pg_class" => pg_class(catalog),
-        "pg_catalog.pg_attribute" => pg_attribute(catalog),
-        "pg_catalog.pg_indexes" => pg_indexes(catalog),
+        "pg_catalog.pg_namespace" => virtual_views_pg::pg_namespace(catalog),
+        "pg_catalog.pg_class" => virtual_views_pg::pg_class(catalog),
+        "pg_catalog.pg_attribute" => virtual_views_pg::pg_attribute(catalog),
+        "pg_catalog.pg_indexes" => virtual_views_pg::pg_indexes(catalog),
+        "pg_catalog.pg_index" => virtual_views_pg::pg_index(catalog),
+        "pg_catalog.pg_attrdef" => virtual_views_pg::pg_attrdef(catalog),
         "pg_catalog.pg_table_storage" => virtual_views_storage::rows(catalog),
         "pg_catalog.pg_constraint" => virtual_views_constraints::pg_constraint(catalog),
-        "pg_catalog.pg_type" => pg_type(catalog),
+        "pg_catalog.pg_type" => virtual_views_pg::pg_type(catalog),
         "pg_catalog.pg_roles" => catalog
             .list_roles()
             .into_iter()
@@ -492,140 +485,6 @@ fn bool(name: &str) -> (String, DataType) {
     (name.to_string(), DataType::Boolean)
 }
 
-fn pg_type(_catalog: &Catalog) -> Vec<VirtualRow> {
-    let mut rows = builtin_type_rows();
-    rows.sort_by_key(row_sort_key);
-    rows
-}
-
-fn builtin_type_rows() -> Vec<VirtualRow> {
-    let namespace = "pg_catalog";
-    let mut rows = vec![
-        type_row(DataType::Null, namespace),
-        type_row(DataType::Boolean, namespace),
-        type_row(DataType::SmallInt, namespace),
-        type_row(DataType::Int, namespace),
-        type_row(DataType::BigInt, namespace),
-        type_row(DataType::Float, namespace),
-        type_row(DataType::Text, namespace),
-        type_row(DataType::Char { length: Some(1) }, namespace),
-        type_row(DataType::Varchar { length: Some(8) }, namespace),
-        type_row(DataType::Bytea, namespace),
-        type_row(DataType::Uuid, namespace),
-        type_row(DataType::Date, namespace),
-        type_row(DataType::Time, namespace),
-        type_row(DataType::Timestamp, namespace),
-        type_row(DataType::Json, namespace),
-        type_row(DataType::Vector(2), namespace),
-    ];
-
-    rows.extend([
-        type_row(DataType::Array(Box::new(DataType::Boolean)), namespace),
-        type_row(DataType::Array(Box::new(DataType::SmallInt)), namespace),
-        type_row(DataType::Array(Box::new(DataType::Int)), namespace),
-        type_row(DataType::Array(Box::new(DataType::BigInt)), namespace),
-        type_row(DataType::Array(Box::new(DataType::Float)), namespace),
-        type_row(DataType::Array(Box::new(DataType::Text)), namespace),
-        type_row(
-            DataType::Array(Box::new(DataType::Char { length: Some(1) })),
-            namespace,
-        ),
-        type_row(
-            DataType::Array(Box::new(DataType::Varchar { length: Some(8) })),
-            namespace,
-        ),
-        type_row(DataType::Array(Box::new(DataType::Bytea)), namespace),
-        type_row(DataType::Array(Box::new(DataType::Uuid)), namespace),
-        type_row(DataType::Array(Box::new(DataType::Json)), namespace),
-    ]);
-
-    rows
-}
-
-fn type_row(data_type: DataType, namespace: &str) -> VirtualRow {
-    let typname = data_type.type_name();
-    vec![
-        int_value("oid", data_type.type_oid()),
-        string("typname", typname),
-        string("typnamespace", namespace),
-        int_value("typlen", type_length(&data_type)),
-        bool_value("typbyval", is_type_passed_by_value(&data_type)),
-        string("typtype", type_kind(&data_type)),
-        string("typcategory", type_category(&data_type)),
-        int_value("typelem", element_type_oid(&data_type)),
-    ]
-}
-
-fn type_length(data_type: &DataType) -> i64 {
-    match data_type {
-        DataType::Null => -1,
-        DataType::Boolean => 1,
-        DataType::SmallInt => 2,
-        DataType::Int => 4,
-        DataType::BigInt => 8,
-        DataType::Float => 8,
-        DataType::Uuid => 16,
-        DataType::Char { .. } => -1,
-        DataType::Varchar { .. } => -1,
-        DataType::Date => 4,
-        DataType::Time => 8,
-        DataType::Timestamp => 8,
-        DataType::Text => -1,
-        DataType::Bytea => -1,
-        DataType::Json => -1,
-        DataType::Vector(_) => -1,
-        DataType::Array(_) => -1,
-    }
-}
-
-fn is_type_passed_by_value(data_type: &DataType) -> bool {
-    matches!(
-        data_type,
-        DataType::Boolean
-            | DataType::SmallInt
-            | DataType::Int
-            | DataType::BigInt
-            | DataType::Float
-            | DataType::Date
-            | DataType::Time
-    )
-}
-
-fn type_kind(data_type: &DataType) -> String {
-    if matches!(data_type, DataType::Array(_)) {
-        "a".to_string()
-    } else {
-        "b".to_string()
-    }
-}
-
-fn type_category(data_type: &DataType) -> String {
-    match data_type {
-        DataType::Null => "Z".to_string(),
-        DataType::Boolean => "B".to_string(),
-        DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float => "N".to_string(),
-        DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } | DataType::Json => {
-            "S".to_string()
-        }
-        DataType::Bytea => "U".to_string(),
-        DataType::Uuid => "U".to_string(),
-        DataType::Date | DataType::Time | DataType::Timestamp => "D".to_string(),
-        DataType::Vector(_) => "V".to_string(),
-        DataType::Array(_) => "A".to_string(),
-    }
-}
-
-fn element_type_oid(data_type: &DataType) -> i64 {
-    match data_type {
-        DataType::Array(inner) => inner.type_oid(),
-        _ => 0,
-    }
-}
-
-fn bool_value(name: &str, value: bool) -> (String, Value) {
-    (name.to_string(), Value::Bool(value))
-}
-
 fn information_schema_tables(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = catalog
         .list_collections()
@@ -657,30 +516,134 @@ fn information_schema_columns(catalog: &Catalog) -> Vec<VirtualRow> {
         let Some(schema) = catalog.get_schema(&collection.name) else {
             continue;
         };
+        let constraints = catalog.get_constraints(&collection.name);
         for (index, field) in schema.fields.iter().enumerate() {
-            rows.push(vec![
-                string("table_schema", "public"),
-                string("table_name", &schema.collection),
-                string("column_name", &field.name),
-                string("data_type", data_type_name(&field.data_type)),
-                int_value("ordinal_position", (index + 1) as i64),
-                string("is_nullable", "YES"),
-            ]);
+            rows.push(information_schema_column_row(
+                &schema.collection,
+                &field.name,
+                &field.data_type,
+                index,
+                constraint_for_field(&constraints, &field.name),
+            ));
         }
     }
     for view in catalog.list_views() {
         for (index, field) in view.schema.fields.iter().enumerate() {
-            rows.push(vec![
-                string("table_schema", "public"),
-                string("table_name", &view.name),
-                string("column_name", &field.name),
-                string("data_type", data_type_name(&field.data_type)),
-                int_value("ordinal_position", (index + 1) as i64),
-                string("is_nullable", "YES"),
-            ]);
+            rows.push(information_schema_column_row(
+                &view.name,
+                &field.name,
+                &field.data_type,
+                index,
+                None,
+            ));
         }
     }
+    rows.sort_by_key(row_sort_key);
     rows
+}
+
+fn information_schema_column_row(
+    relation: &str,
+    field_name: &str,
+    data_type: &DataType,
+    index: usize,
+    constraint: Option<&FieldConstraint>,
+) -> VirtualRow {
+    vec![
+        string("table_schema", "public"),
+        string("table_name", relation),
+        string("column_name", field_name),
+        string("data_type", data_type_name(data_type)),
+        int_value("ordinal_position", (index + 1) as i64),
+        string(
+            "is_nullable",
+            if is_not_nullable(constraint) {
+                "NO"
+            } else {
+                "YES"
+            },
+        ),
+        optional_string(
+            "column_default",
+            constraint
+                .and_then(|constraint| constraint.default_value.as_ref())
+                .map(virtual_views_pg::default_expression),
+        ),
+        string("udt_name", udt_name(data_type)),
+        optional_i64("character_maximum_length", character_length(data_type)),
+        optional_i64("numeric_precision", numeric_precision(data_type)),
+        optional_i64("numeric_scale", numeric_scale(data_type)),
+        optional_i64("datetime_precision", datetime_precision(data_type)),
+    ]
+}
+
+fn constraint_for_field<'a>(
+    constraints: &'a [FieldConstraint],
+    field: &str,
+) -> Option<&'a FieldConstraint> {
+    constraints
+        .iter()
+        .find(|constraint| constraint.field.eq_ignore_ascii_case(field))
+}
+
+fn is_not_nullable(constraint: Option<&FieldConstraint>) -> bool {
+    constraint
+        .map(|constraint| constraint.not_null || constraint.primary_key)
+        .unwrap_or(false)
+}
+
+fn udt_name(data_type: &DataType) -> String {
+    match data_type {
+        DataType::Null => "unknown".to_string(),
+        DataType::SmallInt => "int2".to_string(),
+        DataType::Int => "int4".to_string(),
+        DataType::BigInt => "int8".to_string(),
+        DataType::Float => "float8".to_string(),
+        DataType::Boolean => "bool".to_string(),
+        DataType::Text => "text".to_string(),
+        DataType::Char { .. } => "bpchar".to_string(),
+        DataType::Varchar { .. } => "varchar".to_string(),
+        DataType::Uuid => "uuid".to_string(),
+        DataType::Bytea => "bytea".to_string(),
+        DataType::Date => "date".to_string(),
+        DataType::Time => "time".to_string(),
+        DataType::Timestamp => "timestamp".to_string(),
+        DataType::Vector(_) => "vector".to_string(),
+        DataType::Json => "json".to_string(),
+        DataType::Array(inner) => format!("_{}", udt_name(inner)),
+    }
+}
+
+fn character_length(data_type: &DataType) -> Option<i64> {
+    match data_type {
+        DataType::Char { length } => Some(i64::from(length.unwrap_or(1))),
+        DataType::Varchar { length } => length.map(i64::from),
+        _ => None,
+    }
+}
+
+fn numeric_precision(data_type: &DataType) -> Option<i64> {
+    match data_type {
+        DataType::SmallInt => Some(16),
+        DataType::Int => Some(32),
+        DataType::BigInt => Some(64),
+        DataType::Float => Some(53),
+        _ => None,
+    }
+}
+
+fn numeric_scale(data_type: &DataType) -> Option<i64> {
+    match data_type {
+        DataType::SmallInt | DataType::Int | DataType::BigInt => Some(0),
+        _ => None,
+    }
+}
+
+fn datetime_precision(data_type: &DataType) -> Option<i64> {
+    match data_type {
+        DataType::Time | DataType::Timestamp => Some(6),
+        _ => None,
+    }
 }
 
 fn information_schema_views(catalog: &Catalog) -> Vec<VirtualRow> {
@@ -697,129 +660,6 @@ fn information_schema_views(catalog: &Catalog) -> Vec<VirtualRow> {
         .collect::<Vec<_>>();
     rows.sort_by_key(row_sort_key);
     rows
-}
-
-fn pg_namespace(catalog: &Catalog) -> Vec<VirtualRow> {
-    let mut rows = vec![
-        vec![string("nspname", "information_schema")],
-        vec![string("nspname", "pg_catalog")],
-        vec![string("nspname", "public")],
-    ];
-    rows.extend(
-        catalog
-            .list_namespaces()
-            .into_iter()
-            .map(|namespace| vec![string("nspname", namespace.name)]),
-    );
-    rows.sort_by_key(row_sort_key);
-    rows.dedup_by_key(|row| row_sort_key(row));
-    rows
-}
-
-fn pg_class(catalog: &Catalog) -> Vec<VirtualRow> {
-    let mut rows = catalog
-        .list_collections()
-        .into_iter()
-        .map(|collection| {
-            vec![
-                string("relname", collection.name),
-                string("relkind", "r"),
-                string("relnamespace", "public"),
-            ]
-        })
-        .collect::<Vec<_>>();
-    rows.extend(catalog.list_views().into_iter().map(|view| {
-        vec![
-            string("relname", view.name),
-            string("relkind", "v"),
-            string("relnamespace", "public"),
-        ]
-    }));
-    rows.extend(pg_indexes(catalog).into_iter().map(|index| {
-        let indexname = lookup_string(&index, "indexname");
-        vec![
-            string("relname", indexname),
-            string("relkind", "i"),
-            string("relnamespace", "public"),
-        ]
-    }));
-    rows.sort_by_key(row_sort_key);
-    rows
-}
-
-fn pg_attribute(catalog: &Catalog) -> Vec<VirtualRow> {
-    let mut rows = Vec::new();
-    for collection in catalog.list_collections() {
-        let Some(schema) = catalog.get_schema(&collection.name) else {
-            continue;
-        };
-        for (index, field) in schema.fields.iter().enumerate() {
-            rows.push(vec![
-                string("attrelid", &schema.collection),
-                string("attname", &field.name),
-                int_value("attnum", (index + 1) as i64),
-                int_value("atttypid", field.data_type.type_oid()),
-            ]);
-        }
-    }
-    for view in catalog.list_views() {
-        for (index, field) in view.schema.fields.iter().enumerate() {
-            rows.push(vec![
-                string("attrelid", &view.name),
-                string("attname", &field.name),
-                int_value("attnum", (index + 1) as i64),
-                int_value("atttypid", field.data_type.type_oid()),
-            ]);
-        }
-    }
-    rows
-}
-
-fn pg_indexes(catalog: &Catalog) -> Vec<VirtualRow> {
-    let mut indexes = catalog.indexes.read().values().cloned().collect::<Vec<_>>();
-    indexes.sort_by_key(|index| {
-        (
-            index.collection.to_ascii_lowercase(),
-            index.name.to_ascii_lowercase(),
-        )
-    });
-
-    indexes
-        .into_iter()
-        .map(|index| {
-            vec![
-                string("schemaname", "public"),
-                string("tablename", &index.collection),
-                string("indexname", &index.name),
-                string("indexdef", {
-                    let include = if index.include_fields.is_empty() {
-                        String::new()
-                    } else {
-                        format!(" INCLUDE ({})", index.include_fields.join(", "))
-                    };
-                    let predicate = index
-                        .predicate
-                        .as_ref()
-                        .map(|predicate| format!(" WHERE {predicate}"))
-                        .unwrap_or_default();
-                    let keys = index
-                        .normalized_fields()
-                        .into_iter()
-                        .chain(index.normalized_expressions())
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    format!(
-                        "CREATE {}INDEX {} ON {} ({})",
-                        if index.unique { "UNIQUE " } else { "" },
-                        index.name,
-                        index.collection,
-                        keys
-                    ) + &include
-                        + &predicate
-                }),
-            ]
-        })
-        .collect()
 }
 
 fn data_type_name(data_type: &DataType) -> String {
@@ -858,17 +698,22 @@ fn int_value(name: &str, value: i64) -> (String, Value) {
     (name.to_string(), Value::Int64(value))
 }
 
-fn lookup_string(row: &[(String, Value)], name: &str) -> String {
-    row.iter()
-        .find_map(|(column, value)| {
-            if column == name {
-                if let Value::String(value) = value {
-                    return Some(value.clone());
-                }
-            }
-            None
-        })
-        .unwrap_or_default()
+fn bool_value(name: &str, value: bool) -> (String, Value) {
+    (name.to_string(), Value::Bool(value))
+}
+
+fn optional_string(name: &str, value: Option<String>) -> (String, Value) {
+    (
+        name.to_string(),
+        value.map(Value::String).unwrap_or(Value::Null),
+    )
+}
+
+fn optional_i64(name: &str, value: Option<i64>) -> (String, Value) {
+    (
+        name.to_string(),
+        value.map(Value::Int64).unwrap_or(Value::Null),
+    )
 }
 
 fn row_sort_key(row: &VirtualRow) -> String {

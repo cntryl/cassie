@@ -5,6 +5,8 @@ pub type VirtualRow = Vec<(String, Value)>;
 
 #[path = "virtual_views_consistency.rs"]
 mod virtual_views_consistency;
+#[path = "virtual_views_constraints.rs"]
+mod virtual_views_constraints;
 #[path = "virtual_views_repair.rs"]
 mod virtual_views_repair;
 #[path = "virtual_views_storage.rs"]
@@ -29,18 +31,15 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             text("table_name"),
             text("view_definition"),
         ],
-        "information_schema.table_constraints" => vec![
-            text("table_schema"),
-            text("table_name"),
-            text("constraint_name"),
-            text("constraint_type"),
-        ],
-        "information_schema.key_column_usage" => vec![
-            text("table_schema"),
-            text("table_name"),
-            text("column_name"),
-            text("constraint_name"),
-        ],
+        "information_schema.table_constraints" => {
+            virtual_views_constraints::table_constraints_schema()
+        }
+        "information_schema.key_column_usage" => {
+            virtual_views_constraints::key_column_usage_schema()
+        }
+        "information_schema.referential_constraints" => {
+            virtual_views_constraints::referential_constraints_schema()
+        }
         "pg_catalog.pg_namespace" => vec![text("nspname")],
         "pg_catalog.pg_class" => vec![text("relname"), text("relkind"), text("relnamespace")],
         "pg_catalog.pg_attribute" => vec![
@@ -56,7 +55,7 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             text("indexdef"),
         ],
         "pg_catalog.pg_table_storage" => virtual_views_storage::schema(),
-        "pg_catalog.pg_constraint" => vec![text("conname"), text("conrelid"), text("contype")],
+        "pg_catalog.pg_constraint" => virtual_views_constraints::pg_constraint_schema(),
         "pg_catalog.pg_roles" => vec![text("rolname"), bool("rolcanlogin"), bool("rolsuper")],
         "pg_catalog.pg_rollups" => vec![
             text("rollup_name"),
@@ -197,14 +196,21 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
         "information_schema.tables" => information_schema_tables(catalog),
         "information_schema.columns" => information_schema_columns(catalog),
         "information_schema.views" => information_schema_views(catalog),
-        "information_schema.table_constraints" => information_schema_table_constraints(catalog),
-        "information_schema.key_column_usage" => information_schema_key_column_usage(catalog),
+        "information_schema.table_constraints" => {
+            virtual_views_constraints::table_constraints(catalog)
+        }
+        "information_schema.key_column_usage" => {
+            virtual_views_constraints::key_column_usage(catalog)
+        }
+        "information_schema.referential_constraints" => {
+            virtual_views_constraints::referential_constraints(catalog)
+        }
         "pg_catalog.pg_namespace" => pg_namespace(catalog),
         "pg_catalog.pg_class" => pg_class(catalog),
         "pg_catalog.pg_attribute" => pg_attribute(catalog),
         "pg_catalog.pg_indexes" => pg_indexes(catalog),
         "pg_catalog.pg_table_storage" => virtual_views_storage::rows(catalog),
-        "pg_catalog.pg_constraint" => pg_constraint(catalog),
+        "pg_catalog.pg_constraint" => virtual_views_constraints::pg_constraint(catalog),
         "pg_catalog.pg_type" => pg_type(catalog),
         "pg_catalog.pg_roles" => catalog
             .list_roles()
@@ -693,76 +699,6 @@ fn information_schema_views(catalog: &Catalog) -> Vec<VirtualRow> {
     rows
 }
 
-fn information_schema_table_constraints(catalog: &Catalog) -> Vec<VirtualRow> {
-    let mut rows = Vec::new();
-    for collection in catalog.list_collections() {
-        for constraint in catalog.get_constraints(&collection.name) {
-            if constraint.primary_key {
-                rows.push(table_constraint_row(
-                    &collection.name,
-                    &constraint.field,
-                    "PRIMARY KEY",
-                ));
-            }
-            if constraint.unique {
-                rows.push(table_constraint_row(
-                    &collection.name,
-                    &constraint.field,
-                    "UNIQUE",
-                ));
-            }
-            if constraint.check.is_some() {
-                rows.push(table_constraint_row(
-                    &collection.name,
-                    &constraint.field,
-                    "CHECK",
-                ));
-            }
-            if constraint.references_table.is_some() && constraint.references_field.is_some() {
-                rows.push(table_constraint_row(
-                    &collection.name,
-                    &constraint.field,
-                    "FOREIGN KEY",
-                ));
-            }
-        }
-    }
-    rows.sort_by_key(row_sort_key);
-    rows
-}
-
-fn information_schema_key_column_usage(catalog: &Catalog) -> Vec<VirtualRow> {
-    let mut rows = Vec::new();
-    for collection in catalog.list_collections() {
-        for constraint in catalog.get_constraints(&collection.name) {
-            if constraint.primary_key || constraint.unique || constraint.references_table.is_some()
-            {
-                rows.push(vec![
-                    string("table_schema", "public"),
-                    string("table_name", &collection.name),
-                    string("column_name", &constraint.field),
-                    string(
-                        "constraint_name",
-                        crate::catalog::generated_constraint_name(
-                            &collection.name,
-                            &constraint.field,
-                            if constraint.primary_key {
-                                "primary_key"
-                            } else if constraint.references_table.is_some() {
-                                "foreign_key"
-                            } else {
-                                "unique"
-                            },
-                        ),
-                    ),
-                ]);
-            }
-        }
-    }
-    rows.sort_by_key(row_sort_key);
-    rows
-}
-
 fn pg_namespace(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = vec![
         vec![string("nspname", "information_schema")],
@@ -884,54 +820,6 @@ fn pg_indexes(catalog: &Catalog) -> Vec<VirtualRow> {
             ]
         })
         .collect()
-}
-
-fn pg_constraint(catalog: &Catalog) -> Vec<VirtualRow> {
-    let mut rows = Vec::new();
-    for collection in catalog.list_collections() {
-        for constraint in catalog.get_constraints(&collection.name) {
-            if constraint.primary_key {
-                rows.push(pg_constraint_row(&collection.name, &constraint.field, "p"));
-            }
-            if constraint.unique {
-                rows.push(pg_constraint_row(&collection.name, &constraint.field, "u"));
-            }
-            if constraint.check.is_some() {
-                rows.push(pg_constraint_row(&collection.name, &constraint.field, "c"));
-            }
-            if constraint.not_null {
-                rows.push(pg_constraint_row(&collection.name, &constraint.field, "n"));
-            }
-            if constraint.references_table.is_some() && constraint.references_field.is_some() {
-                rows.push(pg_constraint_row(&collection.name, &constraint.field, "f"));
-            }
-        }
-    }
-    rows.sort_by_key(row_sort_key);
-    rows
-}
-
-fn table_constraint_row(collection: &str, field: &str, constraint_type: &str) -> VirtualRow {
-    vec![
-        string("table_schema", "public"),
-        string("table_name", collection),
-        string(
-            "constraint_name",
-            crate::catalog::generated_constraint_name(collection, field, constraint_type),
-        ),
-        string("constraint_type", constraint_type),
-    ]
-}
-
-fn pg_constraint_row(collection: &str, field: &str, constraint_type: &str) -> VirtualRow {
-    vec![
-        string(
-            "conname",
-            crate::catalog::generated_constraint_name(collection, field, constraint_type),
-        ),
-        string("conrelid", collection),
-        string("contype", constraint_type),
-    ]
 }
 
 fn data_type_name(data_type: &DataType) -> String {

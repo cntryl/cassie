@@ -447,6 +447,18 @@ pub(super) fn execute_command(
                         .map_err(|error| QueryError::General(error.to_string()))?;
                     invalidate_plan_cache = true;
                 }
+                crate::sql::ast::AlterTableOperation::AddConstraint { constraints } => {
+                    let mut merged = cassie.catalog.get_constraints(&statement.table);
+                    crate::catalog::merge_constraint_set(&mut merged, constraints.clone());
+                    cassie
+                        .midge
+                        .save_constraints(&statement.table, merged.as_slice())
+                        .map_err(|error| QueryError::General(error.to_string()))?;
+                    cassie
+                        .catalog
+                        .register_constraints(&statement.table, merged);
+                    invalidate_plan_cache = true;
+                }
                 crate::sql::ast::AlterTableOperation::DropColumn { field } => {
                     if is_column_store {
                         return Err(QueryError::General(

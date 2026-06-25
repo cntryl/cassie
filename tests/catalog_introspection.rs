@@ -445,6 +445,142 @@ fn should_list_constraints_through_information_schema() {
 }
 
 #[test]
+fn should_list_named_foreign_key_metadata_through_catalog_views() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("named_fk_metadata");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                r#"CREATE TABLE "catalog_named_fk_parents" (
+                    "id" INT,
+                    CONSTRAINT "catalog_named_fk_parents_pkey" PRIMARY KEY ("id")
+                )"#,
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                r#"CREATE TABLE "catalog_named_fk_children" (
+                    "id" INT,
+                    "parent_id" INT,
+                    CONSTRAINT "catalog_named_fk_children_pkey" PRIMARY KEY ("id")
+                )"#,
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                r#"ALTER TABLE "catalog_named_fk_children"
+                    ADD CONSTRAINT "catalog_named_fk_children_parent_fkey"
+                    FOREIGN KEY ("parent_id") REFERENCES "catalog_named_fk_parents"("id")
+                    ON DELETE CASCADE ON UPDATE CASCADE"#,
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let table_constraints = cassie
+            .execute_sql(
+                &session,
+                "SELECT constraint_name, constraint_type FROM information_schema.table_constraints WHERE table_name = 'catalog_named_fk_children' ORDER BY constraint_name",
+                vec![],
+            )
+            .unwrap();
+        let key_usage = cassie
+            .execute_sql(
+                &session,
+                "SELECT constraint_name, column_name, ordinal_position FROM information_schema.key_column_usage WHERE table_name = 'catalog_named_fk_children' ORDER BY constraint_name",
+                vec![],
+            )
+            .unwrap();
+        let referential = cassie
+            .execute_sql(
+                &session,
+                "SELECT constraint_name, unique_constraint_name, update_rule, delete_rule FROM information_schema.referential_constraints WHERE constraint_name = 'catalog_named_fk_children_parent_fkey'",
+                vec![],
+            )
+            .unwrap();
+        let pg_constraint = cassie
+            .execute_sql(
+                &session,
+                "SELECT conname, contype FROM pg_catalog.pg_constraint WHERE conrelid = 'catalog_named_fk_children' ORDER BY conname",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            table_constraints.rows,
+            vec![
+                vec![
+                    Value::String("catalog_named_fk_children_parent_fkey".to_string()),
+                    Value::String("FOREIGN KEY".to_string())
+                ],
+                vec![
+                    Value::String("catalog_named_fk_children_pkey".to_string()),
+                    Value::String("PRIMARY KEY".to_string())
+                ],
+            ]
+        );
+        assert_eq!(
+            key_usage.rows,
+            vec![
+                vec![
+                    Value::String("catalog_named_fk_children_parent_fkey".to_string()),
+                    Value::String("parent_id".to_string()),
+                    Value::Int64(1)
+                ],
+                vec![
+                    Value::String("catalog_named_fk_children_pkey".to_string()),
+                    Value::String("id".to_string()),
+                    Value::Int64(1)
+                ],
+            ]
+        );
+        assert_eq!(
+            referential.rows,
+            vec![vec![
+                Value::String("catalog_named_fk_children_parent_fkey".to_string()),
+                Value::String("catalog_named_fk_parents_pkey".to_string()),
+                Value::String("CASCADE".to_string()),
+                Value::String("CASCADE".to_string())
+            ]]
+        );
+        assert_eq!(
+            pg_constraint.rows,
+            vec![
+                vec![
+                    Value::String("catalog_named_fk_children_id_n".to_string()),
+                    Value::String("n".to_string())
+                ],
+                vec![
+                    Value::String("catalog_named_fk_children_parent_fkey".to_string()),
+                    Value::String("f".to_string())
+                ],
+                vec![
+                    Value::String("catalog_named_fk_children_pkey".to_string()),
+                    Value::String("p".to_string())
+                ],
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_return_admin_role_for_pg_roles_catalog_view() {
     // Arrange
     with_fallback();

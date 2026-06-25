@@ -1,3 +1,4 @@
+use super::dml_referential_actions;
 use super::*;
 
 pub(super) fn execute_insert(
@@ -595,111 +596,6 @@ fn json_to_value(value: &serde_json::Value) -> Value {
     Value::Json(value.clone())
 }
 
-fn referencing_constraints(
-    cassie: &Cassie,
-    referenced_table: &str,
-) -> Vec<(String, crate::catalog::FieldConstraint)> {
-    let mut out = Vec::new();
-    for collection in cassie.catalog.list_collections() {
-        for constraint in cassie.catalog.get_constraints(&collection.name) {
-            if constraint
-                .references_table
-                .as_deref()
-                .is_some_and(|table| table.eq_ignore_ascii_case(referenced_table))
-            {
-                out.push((collection.name.clone(), constraint));
-            }
-        }
-    }
-    out
-}
-
-fn assert_no_referencing_rows(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    table: &str,
-    payload: &serde_json::Value,
-) -> Result<(), QueryError> {
-    let Some(object) = payload.as_object() else {
-        return Ok(());
-    };
-
-    for (child_table, constraint) in referencing_constraints(cassie, table) {
-        let Some(reference_field) = constraint.references_field.as_deref() else {
-            continue;
-        };
-        let Some(parent_value) = object.get(reference_field) else {
-            continue;
-        };
-        if parent_value.is_null() {
-            continue;
-        }
-        if cassie
-            .value_exists_for_collection_field(
-                session,
-                &child_table,
-                &constraint.field,
-                parent_value,
-                None,
-            )
-            .map_err(QueryError::from)?
-        {
-            return Err(QueryError::General(format!(
-                "foreign key constraint '{}' on '{}' still references '{}.{}'",
-                constraint.field, child_table, table, reference_field
-            )));
-        }
-    }
-
-    Ok(())
-}
-
-fn assert_referenced_values_unchanged(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    table: &str,
-    before: &serde_json::Value,
-    after: &serde_json::Value,
-) -> Result<(), QueryError> {
-    let (Some(before), Some(after)) = (before.as_object(), after.as_object()) else {
-        return Ok(());
-    };
-
-    for (child_table, constraint) in referencing_constraints(cassie, table) {
-        let Some(reference_field) = constraint.references_field.as_deref() else {
-            continue;
-        };
-        let old_value = before.get(reference_field);
-        let new_value = after.get(reference_field);
-        if old_value == new_value {
-            continue;
-        }
-        let Some(old_value) = old_value else {
-            continue;
-        };
-        if old_value.is_null() {
-            continue;
-        }
-        if cassie
-            .value_exists_for_collection_field(
-                session,
-                &child_table,
-                &constraint.field,
-                old_value,
-                None,
-            )
-            .map_err(QueryError::from)?
-        {
-            return Err(QueryError::General(format!(
-                "foreign key constraint '{}' on '{}' still references '{}.{}'",
-                constraint.field, child_table, table, reference_field
-            )));
-        }
-    }
-
-    Ok(())
-}
-
 pub(super) fn execute_update(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -764,32 +660,39 @@ pub(super) fn execute_update(
                 Some(&row_id),
             )
             .map_err(QueryError::from)?;
-        assert_referenced_values_unchanged(
+        dml_referential_actions::assert_referenced_values_can_change(
             cassie,
             session,
             &statement.table,
             &current.payload,
             &payload,
         )?;
-        prepared_rows.push((row_id, payload));
+        prepared_rows.push((row_id, current.payload, payload));
     }
 
     let mut returning_rows = Vec::new();
-    for (row_id, payload) in prepared_rows {
+    for (row_id, before_payload, payload) in prepared_rows {
         cassie
             .put_prepared_document_for_session(session, &statement.table, row_id.clone(), payload)
             .map_err(QueryError::from)?;
+        let document = cassie
+            .get_document_for_session(session, &statement.table, &row_id)
+            .map_err(QueryError::from)?
+            .ok_or_else(|| {
+                QueryError::General(format!(
+                    "updated row '{row_id}' was not found in '{}'",
+                    statement.table
+                ))
+            })?;
+        dml_referential_actions::apply_referenced_update_actions(
+            cassie,
+            session,
+            &statement.table,
+            &before_payload,
+            &document.payload,
+        )?;
 
         if !statement.returning.is_empty() {
-            let document = cassie
-                .get_document_for_session(session, &statement.table, &row_id)
-                .map_err(QueryError::from)?
-                .ok_or_else(|| {
-                    QueryError::General(format!(
-                        "updated row '{row_id}' was not found in '{}'",
-                        statement.table
-                    ))
-                })?;
             returning_rows.push(inserted_row_to_batch_row(
                 &row_id,
                 &schema,
@@ -875,7 +778,12 @@ pub(super) fn execute_delete(
                     statement.table
                 ))
             })?;
-        assert_no_referencing_rows(cassie, session, &statement.table, &current.payload)?;
+        dml_referential_actions::assert_no_referencing_rows(
+            cassie,
+            session,
+            &statement.table,
+            &current.payload,
+        )?;
         if !statement.returning.is_empty() {
             returning_rows.push(inserted_row_to_batch_row(
                 &row_id,

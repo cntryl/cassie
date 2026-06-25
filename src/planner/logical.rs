@@ -446,6 +446,17 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
                 ));
             }
         }
+        AlterTableOperation::AddConstraint { constraints } => {
+            if constraints.is_empty()
+                || constraints
+                    .iter()
+                    .any(|constraint| constraint.field.trim().is_empty())
+            {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE ADD CONSTRAINT requires a field".into(),
+                ));
+            }
+        }
         AlterTableOperation::DropColumn { field } => {
             if field.trim().is_empty() {
                 return Err(CassieError::Planner(

@@ -312,10 +312,55 @@ pub struct Cassie {
     pub catalog: Catalog,
     pub embedding_provider: Arc<dyn EmbeddingProvider>,
     pub(crate) runtime: Arc<RuntimeState>,
+    normalized_vector_cache:
+        Arc<Mutex<BTreeMap<NormalizedVectorCacheKey, Arc<NormalizedVectorCacheEntry>>>>,
+    query_embedding_cache: Arc<Mutex<BTreeMap<QueryEmbeddingCacheKey, Arc<Vec<f32>>>>>,
+    vector_search_result_cache: Arc<Mutex<BTreeMap<VectorSearchResultCacheKey, Arc<QueryResult>>>>,
     pub(crate) auth_user: String,
     pub(crate) auth_password: String,
     pub(crate) default_database: String,
     pub started: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct NormalizedVectorCacheKey {
+    catalog_version: u64,
+    collection: String,
+    field: String,
+    cardinality: usize,
+}
+
+#[derive(Debug)]
+struct NormalizedVectorCacheEntry {
+    ids: Vec<String>,
+    values: Vec<f32>,
+    magnitudes: Vec<f64>,
+    dimensions: usize,
+    metric: DistanceMetric,
+    first_record: Option<NormalizedVectorRecord>,
+    last_record: Option<NormalizedVectorRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct QueryEmbeddingCacheKey {
+    provider: String,
+    model: String,
+    dimensions: usize,
+    query: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct VectorSearchResultCacheKey {
+    catalog_version: u64,
+    provider: String,
+    model: String,
+    dimensions: usize,
+    collection: String,
+    field: String,
+    metric: String,
+    limit: usize,
+    offset: usize,
+    query: String,
 }
 
 #[derive(Debug, thiserror::Error)]

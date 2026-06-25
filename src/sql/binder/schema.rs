@@ -1,7 +1,10 @@
 use super::*;
 
+#[path = "schema_alter_constraints.rs"]
+mod schema_alter_constraints;
 #[path = "schema_index_options.rs"]
 mod schema_index_options;
+use schema_alter_constraints::validate_alter_constraint_targets;
 
 pub(super) fn bind_create_table(
     mut statement: crate::sql::ast::CreateTableStatement,
@@ -839,6 +842,7 @@ pub(super) fn bind_alter_table(
         .collect::<HashSet<_>>();
 
     validate_alter_schema(&table, &statement.operation, &existing_fields)?;
+    validate_alter_constraint_targets(&statement.operation, catalog)?;
 
     statement.table = table;
     Ok(statement)
@@ -865,6 +869,26 @@ pub(super) fn validate_alter_schema(
                 return Err(CassieError::Planner(format!(
                     "cannot add existing column '{name}' on collection '{table}'"
                 )));
+            }
+        }
+        AlterTableOperation::AddConstraint { constraints } => {
+            if constraints.is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE ADD CONSTRAINT requires a constraint".into(),
+                ));
+            }
+            for constraint in constraints {
+                let name = constraint.field.trim();
+                if name.is_empty() {
+                    return Err(CassieError::Planner(
+                        "ALTER TABLE ADD CONSTRAINT requires a field".into(),
+                    ));
+                }
+                if !existing_fields.contains(&name.to_ascii_lowercase()) {
+                    return Err(CassieError::Planner(format!(
+                        "ALTER TABLE '{table}' has no field '{name}'"
+                    )));
+                }
             }
         }
         AlterTableOperation::DropColumn { field } => {

@@ -22,7 +22,9 @@ fn should_parse_supported_scalar_sql_types() {
     let bigint = DataType::parse_sql("BIGINT").unwrap();
     let vector = DataType::parse_sql("vector(2)").unwrap();
     let json = DataType::parse_sql("json").unwrap();
+    let jsonb = DataType::parse_sql("jsonb").unwrap();
     let uuid = DataType::parse_sql("uuid").unwrap();
+    let timestamp_precision = DataType::parse_sql("timestamp(3)").unwrap();
     let char = DataType::parse_sql("char(3)").unwrap();
     let varchar = DataType::parse_sql("varchar(12)").unwrap();
     let bytea = DataType::parse_sql("bytea").unwrap();
@@ -33,7 +35,9 @@ fn should_parse_supported_scalar_sql_types() {
     assert_eq!(bigint, DataType::BigInt);
     assert_eq!(vector, DataType::Vector(2));
     assert_eq!(json, DataType::Json);
+    assert_eq!(jsonb, DataType::Json);
     assert_eq!(uuid, DataType::Uuid);
+    assert_eq!(timestamp_precision, DataType::Timestamp);
     assert_eq!(char, DataType::Char { length: Some(3) });
     assert_eq!(varchar, DataType::Varchar { length: Some(12) });
     assert_eq!(bytea, DataType::Bytea);

@@ -170,6 +170,14 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
         return length;
     }
 
+    if parse_type_with_ignored_precision(&lower, "timestamp")? {
+        return Ok(DataType::Timestamp);
+    }
+
+    if parse_type_with_ignored_precision(&lower, "time")? {
+        return Ok(DataType::Time);
+    }
+
     match lower.as_str() {
         "null" => Ok(DataType::Null),
         "smallint" | "int2" => Ok(DataType::SmallInt),
@@ -183,9 +191,26 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
         "date" => Ok(DataType::Date),
         "time" => Ok(DataType::Time),
         "timestamp" => Ok(DataType::Timestamp),
-        "json" => Ok(DataType::Json),
+        "json" | "jsonb" => Ok(DataType::Json),
         _ => Err(format!("unsupported data type '{raw}'")),
     }
+}
+
+fn parse_type_with_ignored_precision(raw: &str, kind: &str) -> Result<bool, String> {
+    let Some(rest) = raw.strip_prefix(&format!("{kind}(")) else {
+        return Ok(false);
+    };
+    let Some(rest) = rest.strip_suffix(')') else {
+        return Err(format!("unsupported modifier in '{raw}'"));
+    };
+    let precision = rest
+        .trim()
+        .parse::<u32>()
+        .map_err(|_| format!("invalid {kind} precision '{raw}'"))?;
+    if precision > 6 {
+        return Err(format!("{kind} precision cannot exceed 6"));
+    }
+    Ok(true)
 }
 
 fn parse_string_type_with_length(raw: &str, kind: &str) -> Option<Result<DataType, String>> {

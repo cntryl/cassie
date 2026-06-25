@@ -251,6 +251,8 @@ pub(crate) fn rollup_rewrite_name_for_plan(cassie: &Cassie, plan: &LogicalPlan) 
 mod dml;
 #[path = "execution/dml_command.rs"]
 mod dml_command;
+#[path = "execution/dml_referential_actions.rs"]
+mod dml_referential_actions;
 #[path = "execution/materialized_projection.rs"]
 mod materialized_projection;
 #[path = "execution/projection_diff.rs"]

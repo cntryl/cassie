@@ -557,10 +557,6 @@ fn should_fall_back_to_raw_vector_search_when_normalized_sidecars_are_missing() 
             status: 200,
             body: tei_response_body(&[vec![3.0, 4.0, 0.0]]),
         },
-        MockResponse {
-            status: 200,
-            body: tei_response_body(&[vec![3.0, 4.0, 0.0]]),
-        },
     ]);
 
     let cassie = Cassie::new_with_data_dir_and_config(

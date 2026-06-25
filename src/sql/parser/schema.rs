@@ -1,9 +1,19 @@
 use super::expr::*;
 use super::*;
 
+#[path = "schema_fields.rs"]
+mod schema_fields;
+#[path = "schema_identifiers.rs"]
+mod schema_identifiers;
 #[path = "schema_references.rs"]
 mod schema_references;
-use schema_references::parse_references_target;
+#[path = "schema_table_constraints.rs"]
+mod schema_table_constraints;
+use schema_fields::parse_field_definition;
+use schema_identifiers::parse_identifier;
+use schema_table_constraints::{
+    apply_table_constraints, parse_named_add_constraint, parse_table_constraint,
+};
 
 pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
@@ -20,7 +30,7 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
         return Err(SqlError("invalid CREATE TABLE definition".into()));
     }
 
-    let table = rest[..open_paren].trim();
+    let table = parse_identifier(rest[..open_paren].trim())?;
     let body = rest[(open_paren + 1)..close_paren].trim();
     let trailing = rest[(close_paren + 1)..].trim();
     if table.is_empty() {
@@ -41,8 +51,12 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
             if raw.is_empty() {
                 return Err(SqlError("empty column definition".into()));
             }
-            let field = parse_field_definition(raw)?;
-            fields.push(field);
+            if let Some(constraints) = parse_table_constraint(raw)? {
+                apply_table_constraints(&mut fields, constraints)?;
+            } else {
+                let field = parse_field_definition(raw)?;
+                fields.push(field);
+            }
         }
     }
 
@@ -83,7 +97,7 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::CreateTable(CreateTableStatement {
-            table: table.to_string(),
+            table,
             fields,
             if_not_exists,
             storage_mode,
@@ -218,7 +232,7 @@ pub(super) fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement,
     let on_pos = find_top_level_keyword(remainder, 0, "on")
         .ok_or_else(|| SqlError("CREATE INDEX requires 'ON' clause".to_string()))?;
 
-    let name = remainder[..on_pos].trim();
+    let name = parse_identifier(remainder[..on_pos].trim())?;
     if name.is_empty() {
         return Err(SqlError("CREATE INDEX missing index name".to_string()));
     }
@@ -251,7 +265,7 @@ pub(super) fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement,
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::CreateIndex(CreateIndexStatement {
-            name: name.to_string(),
+            name,
             table: table.to_string(),
             fields,
             expressions,
@@ -352,22 +366,14 @@ pub(super) fn parse_alter_table_statement(sql: &str) -> Result<ParsedStatement, 
     if if_exists {
         return Err(SqlError("ALTER TABLE IF EXISTS is not supported".into()));
     }
-    let mut table_and_op = rest.splitn(2, char::is_whitespace);
-    let table = table_and_op
-        .next()
-        .ok_or_else(|| SqlError("missing table name in ALTER TABLE".into()))?
-        .trim();
+    let (table, op_clause) = split_first_token(rest)
+        .ok_or_else(|| SqlError("missing table name in ALTER TABLE".into()))?;
+    let table = parse_identifier(&table)?;
     if table.is_empty() {
         return Err(SqlError("missing table name in ALTER TABLE".into()));
     }
-    if table.contains(' ') {
-        return Err(SqlError("invalid table name in ALTER TABLE".into()));
-    }
 
-    let op_clause = table_and_op
-        .next()
-        .ok_or_else(|| SqlError("missing alter operation".into()))?
-        .trim();
+    let op_clause = op_clause.trim();
     if op_clause.is_empty() {
         return Err(SqlError("missing alter operation".into()));
     }
@@ -376,10 +382,7 @@ pub(super) fn parse_alter_table_statement(sql: &str) -> Result<ParsedStatement, 
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
-        statement: QueryStatement::AlterTable(AlterTableStatement {
-            table: table.to_string(),
-            operation,
-        }),
+        statement: QueryStatement::AlterTable(AlterTableStatement { table, operation }),
     })
 }
 
@@ -393,17 +396,17 @@ pub(super) fn parse_alter_table_operation(raw: &str) -> Result<AlterTableOperati
             data_type: definition.data_type,
         });
     }
+    if lower.starts_with("add constraint") {
+        return Ok(AlterTableOperation::AddConstraint {
+            constraints: parse_named_add_constraint(raw)?,
+        });
+    }
     if lower.starts_with("drop column") {
-        let field = raw["drop column".len()..].trim();
+        let field = parse_identifier(raw["drop column".len()..].trim())?;
         if field.is_empty() {
             return Err(SqlError("DROP COLUMN requires a column name".into()));
         }
-        if field.split_whitespace().count() != 1 {
-            return Err(SqlError("DROP COLUMN supports only one column".into()));
-        }
-        return Ok(AlterTableOperation::DropColumn {
-            field: field.to_string(),
-        });
+        return Ok(AlterTableOperation::DropColumn { field });
     }
     if lower.starts_with("rename column") {
         let rest = raw["rename column".len()..].trim();
@@ -420,8 +423,8 @@ pub(super) fn parse_alter_table_operation(raw: &str) -> Result<AlterTableOperati
             ));
         }
         return Ok(AlterTableOperation::RenameColumn {
-            from: from.to_string(),
-            to: to.to_string(),
+            from: parse_identifier(from)?,
+            to: parse_identifier(to)?,
         });
     }
     if lower.starts_with("rename to") {
@@ -435,7 +438,7 @@ pub(super) fn parse_alter_table_operation(raw: &str) -> Result<AlterTableOperati
             ));
         }
         return Ok(AlterTableOperation::RenameTo {
-            table: table.to_string(),
+            table: parse_identifier(table)?,
         });
     }
 
@@ -643,121 +646,6 @@ pub(super) fn split_first_token(raw: &str) -> Option<(String, &str)> {
     Some((first.to_string(), parts.next().unwrap_or("").trim_start()))
 }
 
-pub(super) fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlError> {
-    let mut parts = tokenize_schema_field(raw).into_iter();
-    let name = parts
-        .next()
-        .ok_or_else(|| SqlError("invalid column definition".into()))?;
-    let name = name.trim().to_string();
-    if name.is_empty() {
-        return Err(SqlError("invalid column definition".into()));
-    }
-    let type_token = parts
-        .next()
-        .ok_or_else(|| SqlError(format!("missing data type for column '{name}'")))?
-        .trim()
-        .to_string();
-    if type_token.is_empty() {
-        return Err(SqlError(format!("missing data type for column '{name}'")));
-    }
-    let data_type = parse_data_type(&type_token)?;
-
-    let mut constraint = FieldConstraint {
-        field: name.clone(),
-        not_null: false,
-        unique: false,
-        primary_key: false,
-        default_value: None,
-        check: None,
-        references_table: None,
-        references_field: None,
-    };
-
-    let mut saw_constraint = false;
-    while let Some(token) = parts.next() {
-        match token.to_lowercase().as_str() {
-            "not" => {
-                let next = parts
-                    .next()
-                    .ok_or_else(|| SqlError("NOT must be followed by NULL".into()))?;
-                if !next.eq_ignore_ascii_case("null") {
-                    return Err(SqlError(format!("unsupported constraint '{token} {next}'")));
-                }
-                saw_constraint = true;
-                constraint.not_null = true;
-            }
-            "null" => {
-                return Err(SqlError("unexpected NULL constraint".to_string()));
-            }
-            "unique" => {
-                saw_constraint = true;
-                constraint.unique = true;
-            }
-            "primary" => {
-                let next = parts
-                    .next()
-                    .ok_or_else(|| SqlError("PRIMARY must be followed by KEY".into()))?;
-                if !next.eq_ignore_ascii_case("key") {
-                    return Err(SqlError(format!("unsupported constraint '{token} {next}'")));
-                }
-                saw_constraint = true;
-                constraint.primary_key = true;
-            }
-            "key" => {
-                return Err(SqlError("KEY without PRIMARY".to_string()));
-            }
-            "default" => {
-                saw_constraint = true;
-                let value = parts
-                    .next()
-                    .ok_or_else(|| SqlError("DEFAULT requires a value".into()))?;
-                constraint.default_value = Some(parse_constraint_literal(&value)?);
-            }
-            "check" => {
-                saw_constraint = true;
-                let expression = parts
-                    .next()
-                    .ok_or_else(|| SqlError("CHECK requires an expression".into()))?;
-                let remaining = parts.collect::<Vec<_>>().join(" ");
-                let expression = if remaining.is_empty() {
-                    expression
-                } else {
-                    format!("{expression} {remaining}")
-                };
-                let constraint_check = parse_check_constraint(&expression)?;
-                constraint.check = Some(constraint_check);
-                break;
-            }
-            "references" => {
-                saw_constraint = true;
-                let reference = parts.next().ok_or_else(|| {
-                    SqlError("REFERENCES requires target table and column".into())
-                })?;
-                let (table, field) = parse_references_target(&reference)?;
-                constraint.references_table = Some(table);
-                constraint.references_field = Some(field);
-            }
-            other => {
-                return Err(SqlError(format!("unsupported constraint '{other}'")));
-            }
-        }
-    }
-
-    if !saw_constraint {
-        return Ok(FieldDefinition {
-            name: name.to_string(),
-            data_type,
-            constraints: Vec::new(),
-        });
-    }
-
-    Ok(FieldDefinition {
-        name: name.to_string(),
-        data_type,
-        constraints: vec![constraint],
-    })
-}
-
 pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlError> {
     let expression = raw.trim();
     if !expression.starts_with('(') || !expression.ends_with(')') {
@@ -891,18 +779,17 @@ pub(super) fn tokenize_schema_field(raw: &str) -> Vec<String> {
 }
 
 pub(super) fn parse_index_target(raw: &str) -> Result<(String, &str), SqlError> {
-    let tokens: Vec<&str> = raw.split_whitespace().collect();
-    if tokens.is_empty() {
+    let raw = raw.trim_start();
+    if raw.is_empty() {
         return Err(SqlError("missing table name in CREATE INDEX".to_string()));
     }
 
-    let table = tokens[0];
-    if table.contains('(') || table.contains(')') {
-        return Err(SqlError("invalid table name in CREATE INDEX".to_string()));
-    }
-
-    let remainder = raw[table.len()..].trim_start();
-    Ok((table.to_string(), remainder))
+    let split = raw
+        .char_indices()
+        .find_map(|(idx, ch)| (ch.is_whitespace() || ch == '(').then_some(idx))
+        .unwrap_or(raw.len());
+    let table = parse_identifier(&raw[..split])?;
+    Ok((table, raw[split..].trim_start()))
 }
 
 pub(super) fn parse_index_kind(raw: &str) -> Result<(IndexKind, &str), SqlError> {
@@ -962,8 +849,8 @@ pub(super) fn parse_index_fields(raw: &str) -> Result<(Vec<String>, Vec<Expr>, &
         if field.is_empty() {
             return Err(SqlError("CREATE INDEX field cannot be empty".to_string()));
         }
-        if is_index_field_identifier(field) {
-            fields.push(field.to_string());
+        if field.starts_with('"') || is_index_field_identifier(field) {
+            fields.push(parse_identifier(field)?);
         } else {
             if field.contains(';') {
                 return Err(SqlError("invalid expression index definition".to_string()));

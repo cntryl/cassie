@@ -506,6 +506,7 @@ pub struct AlterTableStatement {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AlterTableOperation {
     AddColumn { field: String, data_type: DataType },
+    AddConstraint { constraints: Vec<FieldConstraint> },
     DropColumn { field: String },
     RenameColumn { from: String, to: String },
     RenameTo { table: String },

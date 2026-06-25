@@ -33,7 +33,8 @@ pub use consistency::{
     ProjectionManifestRowHashSummary, ProjectionVerificationManifest,
 };
 pub use constraints::{
-    generated_constraint_name, ConstraintCheck, ConstraintOperator, FieldConstraint,
+    generated_constraint_name, merge_constraint_set, ConstraintCheck, ConstraintOperator,
+    FieldConstraint,
 };
 pub use graphs::GraphMeta;
 pub use indexes::{

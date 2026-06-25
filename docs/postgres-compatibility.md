@@ -107,20 +107,71 @@ The matrix tracks read-model workflows, not full PostgreSQL server equivalence. 
 | `diesel` | Untested/planned | Projection-table reads and supported schema metadata where Diesel does not require unsupported PostgreSQL catalog parity | No automated probe yet |
 | `prisma` | Untested/planned | Introspection and read queries for compatible projection tables where Prisma does not require unsupported catalog/DDL features | No automated probe yet |
 | `SQLAlchemy` | Experimental opt-in | SQLAlchemy Core connection startup, dialect metadata probes, catalog query, simple SELECT, bound-parameter read query, DDL/DML smoke, unique-violation SQLSTATE, and missing-relation SQLSTATE where generated SQL stays inside Cassie's supported surface and native hstore integration is disabled | Ignored `should_validate_sqlalchemy_read_model_probe_when_enabled`; install Python packages `SQLAlchemy` and `psycopg`, then run `CASSIE_RUN_SQLALCHEMY_COMPAT=1 cargo test --locked --test compatibility_sqlalchemy should_validate_sqlalchemy_read_model_probe_when_enabled -- --ignored --nocapture`. Set `CASSIE_SQLALCHEMY_PYTHON` to override the Python binary. The probe uses `use_native_hstore=False`. |
+| `pgAdmin4` | Untested/planned | Connection registration, database/schema browser, table metadata inspection, and table-data browsing for supported schemas through PostgreSQL-compatible pgwire and catalog behavior | No automated probe yet |
 | Common migration tools | Experimental/documented | Supported DDL through pgwire: schemas, tables, constraints, indexes, and views that map to Cassie SQL | Use tool-specific dry runs against a disposable Cassie node; advanced PostgreSQL migration features remain unsupported unless documented separately |
 
 Phase 09 client-probe depth is closed for the current slice with the SQLAlchemy Core opt-in probe.
 The default suite remains deterministic and dependency-free beyond Rust dependencies; psql and SQLAlchemy probes require explicit environment variables and local tools.
-sqlx, diesel, prisma, broader reflection, native extension integration, and migration-tool automation remain planned compatibility depth rather than implied support.
+sqlx, diesel, prisma, pgAdmin4, broader reflection, native extension integration, database-tool automation, and migration-tool automation remain planned compatibility depth rather than implied support.
 
 Unsupported or out-of-scope for client compatibility:
 
 - PostgreSQL server parity checks that require complete `pg_catalog` or `information_schema` behavior.
 - Client workflows requiring extensions, native hstore integration, triggers, PL/pgSQL, stored-procedure business logic, LISTEN/NOTIFY, unsupported COPY variants, table inheritance, partitions, logical replication, advisory locks, two-phase commit, or PostgreSQL storage parameters.
+- Administrative tool workflows requiring PostgreSQL maintenance, extension-management, server-log, replication, tablespace, role-management, or monitoring catalog parity beyond Cassie's documented virtual catalog surface.
 - ORM-generated OLTP workloads that depend on distributed transactions, row-locking semantics, trigger business logic, broad reflection parity, or PostgreSQL optimizer behavior.
 - Migration diffs that assume PostgreSQL-owned physical storage, operator classes, collations, or extension-managed metadata.
 
 Future client probes should stay isolated from the default suite unless the dependency is lightweight, deterministic, and available without external services.
+
+## ORM And Toolkit Compatibility Contract
+
+Cassie compatibility work targets PostgreSQL behavior, not per-client detection or adapters. A driver, ORM, migration tool, query builder, or database utility is considered compatible only when it works against Cassie through the PostgreSQL wire protocol by changing the connection string.
+
+Repository-owned compatibility coverage:
+
+- Rust tests for SQL parsing, binding, planning, execution, catalog metadata, pgwire protocol behavior, SQLSTATEs, and transaction semantics.
+- Lightweight smoke fixtures for representative ecosystem workflows when dependencies are deterministic enough for local validation.
+- Documentation of supported, partial, unsupported, and Cassie-specific behavior.
+
+External-suite coverage:
+
+- Full ORM/toolkit integration suites may live outside this repository.
+- External suites must start Cassie over pgwire, provide the exact Cassie build/version, pin client/tool versions, and report failures as PostgreSQL behavior gaps.
+- Cassie should not add client-name detection, query-shape hacks, or framework-specific compatibility branches to satisfy external suites.
+
+## Ecosystem Compatibility Matrix
+
+Status definitions:
+
+| Status | Meaning |
+| --- | --- |
+| Supported | Covered by automated Cassie-owned tests and expected to remain stable. |
+| Smoke | A narrow representative workflow is covered; broader official suites are external or pending. |
+| Partial | Cassie implements some PostgreSQL behavior required by this ecosystem, but known gaps remain. |
+| Planned | Compatibility is not validated yet. |
+
+| Ecosystem | Clients/tools | Status | Primary gaps before support |
+| --- | --- | --- | --- |
+| TypeScript/JavaScript | Prisma, Drizzle, Kysely, Knex, TypeORM, MikroORM, Sequelize, node-postgres, postgres.js | Partial | Full catalog parity, migration DDL breadth, generated/default metadata, sequence/identity support, broader extended-protocol validation |
+| .NET | Npgsql, EF Core, Dapper, RepoDB, Linq2Db | Planned | Npgsql protocol probes, EF catalog/scaffolding metadata, migration DDL, binary encodings |
+| Python | SQLAlchemy, Alembic, psycopg, asyncpg, Django ORM, Tortoise ORM | Partial | Broader reflection metadata, Alembic/Django migration DDL, asyncpg protocol coverage |
+| Go | pgx, database/sql, GORM, sqlc, Bun, Ent, SQLBoiler, Jet | Planned | pgx protocol matrix, scanner type mappings, migration/reflection metadata |
+| Java | Hibernate, jOOQ, Spring Data JDBC, Spring Data JPA, MyBatis | Planned | JDBC metadata, generated schema DDL, identifier/case behavior, transaction edge cases |
+| Ruby | ActiveRecord, Sequel, pg | Planned | Rails schema dumps/migrations, catalog/reflection metadata, association queries |
+| PHP | Laravel Eloquent, Doctrine ORM, PDO PostgreSQL | Planned | PDO smoke, Doctrine metadata, Laravel migration DDL |
+| Rust | tokio-postgres, sqlx, diesel, sea-orm | Partial | sqlx/diesel/sea-orm migration and metadata probes beyond tokio-postgres baseline |
+| Elixir | Ecto, Postgrex | Planned | Postgrex protocol smoke, Ecto migrations/reflection |
+| C/C++ | libpq, libpqxx | Planned | libpq/libpqxx connection, prepared statements, result metadata, error handling |
+| Database tools | psql, pgAdmin4, pg_dump, pg_restore, pgbench, schema diff and monitoring tools | Partial | pgAdmin4 browser probes, dump/restore format support, pgbench workload compatibility, deeper system catalog parity |
+| Migration tools | Flyway, Liquibase, Goose, Atlas, Alembic, Prisma Migrate, EF Core Migrations, Rails Migrations, Django Migrations | Partial | `ALTER TABLE` breadth, sequence/identity/default behavior, constraint/index metadata, shadow/reflection workflows |
+
+Current foundation fixture:
+
+- Cassie accepts the pipeline application schema used for the first ORM compatibility slice, including quoted identifiers, `JSONB`, `TIMESTAMP(n)`, named table primary-key constraints, composite indexes, and `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY ... REFERENCES ...`.
+- Simple named primary-key, unique, check, and foreign-key constraints are persisted in constraint metadata and exposed through `information_schema.table_constraints`, `information_schema.key_column_usage`, `information_schema.referential_constraints`, and `pg_catalog.pg_constraint`.
+- Direct foreign-key `CASCADE`, `SET NULL`, `SET DEFAULT`, `NO ACTION`, and `RESTRICT` actions are enforced for parent deletes and key updates when those actions are captured in constraint metadata.
+- Composite constraint fidelity, deferrable constraints, match types, and advanced cyclic/deferred referential-action behavior remain compatibility gaps for full ORM migration diffing.
 
 ## Cassie-Specific SQL and APIs
 

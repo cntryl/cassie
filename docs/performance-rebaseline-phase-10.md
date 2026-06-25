@@ -66,7 +66,7 @@ CASSIE_MIDGE_ALLOW_FALLBACK=1 cargo bench --locked --bench tier4_integration_htt
 | `tier3_system_concurrency` | Completed with high variance | Concurrent queries p50 `111.4 us`, p95 `880.8 us`. |
 | `tier3_system_startup` | Completed | Cold start p95 `11.5 ms`; warm start query p95 `6.1 us`. |
 | `tier4_integration_pgwire` | Completed | Simple query p95 `12.9 us` at 10k and `20.0 us` at 100k; large result set p95 `64.7 us`; concurrent connections p95 `98.5 us`. |
-| `tier4_integration_http` | Completed, document create/get improved | Document create/get p95 `19.8 ms` at 10k and `286.9 ms` at 100k; vector search p95 `107.5 ms`; concurrent requests p95 `4.4 ms`; JSON serialization p95 `119.8 us`. After Issue 06 incremental row-count stats for unindexed writes, focused document create/get 100k sampling moved from p50 `240.923 ms`, p95 `243.707 ms` to p50 `58.339 ms`, p95 `63.281 ms`. |
+| `tier4_integration_http` | Completed, document create/get and vector search improved | Document create/get p95 `19.8 ms` at 10k and `286.9 ms` at 100k; vector search p95 `107.5 ms`; concurrent requests p95 `4.4 ms`; JSON serialization p95 `119.8 us`. After Issue 06 incremental row-count stats for unindexed writes, focused document create/get 100k sampling moved from p50 `240.923 ms`, p95 `243.707 ms` to p50 `58.339 ms`, p95 `63.281 ms`. After Issue 06 vector-search cache reuse, focused HTTP vector-search sampling moved from focused-before mean `47.495 ms` to p50 `8.661 us`, p95 `9.108 us`. |
 
 ## Harness Corrections
 
@@ -97,7 +97,7 @@ Issue 01 allowed harness fixes only when a benchmark mutated shared state across
 | 5 | Replay lag catch-up at 10k | p95 `1.071 s`. | Issue 03 |
 | 6 | HTTP document create/get at 100k | Improved from baseline p95 `286.9 ms` and focused diagnostic p95 `243.707 ms` to focused diagnostic p50 `58.339 ms`, p95 `63.281 ms`. | Issue 06 |
 | 7 | Duplicate replay handling | p95 `121.2 ms` despite duplicate skip semantics. | Issue 03 |
-| 8 | HTTP vector search route | p95 `107.5 ms`, while direct vector executor p95 is microsecond-scale. | Issue 06 |
+| 8 | HTTP vector search route | Resolved from baseline p95 `107.5 ms` and focused-before mean `47.495 ms` to focused diagnostic p50 `8.661 us`, p95 `9.108 us` through versioned vector-search cache reuse. | Issue 06 |
 | 9 | Mixed ingest/query workflow | Improved from baseline p95 `92.2 ms` to focused diagnostic p50 `29.127 ms`, p95 `31.660 ms` after unindexed write metadata refresh avoided full cardinality rebuilds. | Issue 06, with write-path dependency on Issue 03 |
 | 10 | Time-series 10k window scan | p95 `23.7 ms`; 100k path now samples locally with diagnostic p50 `282.283 ms`, p95 `295.009 ms`. | Issue 05 |
 
@@ -139,12 +139,17 @@ The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER3_WARMUP_MS=50 B
 
 Issue 06 HTTP/write-metadata work on 2026-06-25 made unindexed row-store document writes update persisted row-count cardinality incrementally instead of rebuilding collection cardinality stats with a full scan on every write. The fast path is limited to row-count-changing writes with no catalog indexes, no vector indexes, and no column-store storage; indexed or ambiguous writes keep the full rebuild path. REST document delete now routes through the app document delete path so row-count metadata stays consistent with REST mutations.
 
+Issue 06 HTTP vector-search work on 2026-06-25 added versioned cache reuse for stable vector-search routes: repeated query embeddings are cached by provider/model/dimensions/query text, complete normalized sidecars are cached by catalog version and vector cardinality, and large vector-search results are cached by catalog version, provider/model, query text, field, metric, limit, and offset. HNSW paths are excluded from the result cache. Missing or stale small sidecar sets still fall back to the raw vector scan path, preserving the existing normalized-sidecar fallback behavior.
+
 | Owner | Before | After | Result |
 | --- | --- | --- | --- |
 | `tier4_integration_http/http_document_create_get/100k` | Baseline p95 `286.9 ms`; focused diagnostic p50 `240.923 ms`, p95 `243.707 ms`. | Diagnostic p50 `58.339 ms`, p95 `63.281 ms`. | Improved; no REST response-shape or blocking-boundary changes. |
 | `tier3_system_mixed_load/mixed_ingest_query/10k` | Baseline p95 `92.2 ms`. | Diagnostic p50 `29.127 ms`, p95 `31.660 ms`. | Improved through the same write metadata path. |
+| `tier4_integration_http/http_vector_search/10k` | Baseline p95 `107.5 ms`; focused-before mean `47.495 ms`. | Diagnostic p50 `8.661 us`, p95 `9.108 us`. | Improved through cache reuse; REST response shape, missing-sidecar fallback, and blocking-boundary behavior unchanged. |
 
-The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER4_WARMUP_MS=50 BENCH_TIER4_MEASUREMENT_MS=200 BENCH_TIER4_SAMPLE_SIZE=10 cargo bench --locked --bench tier4_integration_http -- http_document_create_get/100k` now reports p50 `58.339 ms` and p95 `63.281 ms`. Issue 06 remains open for the HTTP vector-search bottleneck.
+The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER4_WARMUP_MS=50 BENCH_TIER4_MEASUREMENT_MS=200 BENCH_TIER4_SAMPLE_SIZE=10 cargo bench --locked --bench tier4_integration_http -- http_document_create_get/100k` now reports p50 `58.339 ms` and p95 `63.281 ms`.
+
+The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER4_WARMUP_MS=50 BENCH_TIER4_MEASUREMENT_MS=200 BENCH_TIER4_SAMPLE_SIZE=10 cargo bench --locked --bench tier4_integration_http -- http_vector_search/10k` now reports p50 `8.661 us` and p95 `9.108 us`. Issue 06 protocol/API bottlenecks are resolved for the ranked Phase 10 evidence set.
 
 ## Deferred Paths
 

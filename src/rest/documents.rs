@@ -22,7 +22,7 @@ pub fn get(cassie: &Cassie, collection: &str, id: &str) -> Result<Value, CassieE
 }
 
 pub fn delete(cassie: &Cassie, collection: &str, id: &str) -> Result<Value, CassieError> {
-    let removed = cassie.midge.delete_document(collection, id)?;
+    let removed = cassie.delete_document_for_session(None, collection, id)?;
 
     Ok(serde_json::json!({"deleted": removed}))
 }

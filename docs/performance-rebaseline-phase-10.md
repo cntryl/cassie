@@ -62,11 +62,11 @@ CASSIE_MIDGE_ALLOW_FALLBACK=1 cargo bench --locked --bench tier4_integration_htt
 | `tier2_subsystem_hybrid` | Completed with high variance | Hybrid executor p95 `216.0 us` at 10k and `216.2 us` at 100k. |
 | `tier3_system_query` | Completed after graph and time-series fixes | Core/scalar 10k and 100k sampled; time-series window 10k p95 `23.7 ms`; graph expand 10k p95 `7.8 us`. Graph 100k initially did not emit a benchmark label after more than 6 minutes; after Issue 04 fresh graph fixture loading, focused graph 100k sampling completed with p50 `8.542 us`, p95 `253.167 us`. Time-series window 100k initially reached warmup and then ran for more than 8 minutes without a sample; after Issue 05 bucket-sidecar pruning and batched hit materialization, focused time-series 100k sampling completed with p50 `282.283 ms`, p95 `295.009 ms`. |
 | `tier3_system_rebuild` | Partial, refresh blocker resolved | Projection rebuild query 10k p95 `46.3 us`. Projection refresh 10k initially reached warmup and Criterion estimated `2658.7 s` for 10 samples, about `265.9 s` per iteration; after Issue 03 fresh-output writes, the focused diagnostic run completed with p50 `426.146 ms` and p95 `619.251 ms`. |
-| `tier3_system_mixed_load` | Completed | Mixed ingest/query p95 `92.2 ms`; large result set p95 `89.5 us`; scaled query shape p95 `15.2 us`. |
+| `tier3_system_mixed_load` | Completed, mixed write path improved | Mixed ingest/query p95 `92.2 ms`; large result set p95 `89.5 us`; scaled query shape p95 `15.2 us`. After Issue 06 incremental row-count stats for unindexed writes, focused mixed ingest/query sampling completed with p50 `29.127 ms`, p95 `31.660 ms`. |
 | `tier3_system_concurrency` | Completed with high variance | Concurrent queries p50 `111.4 us`, p95 `880.8 us`. |
 | `tier3_system_startup` | Completed | Cold start p95 `11.5 ms`; warm start query p95 `6.1 us`. |
 | `tier4_integration_pgwire` | Completed | Simple query p95 `12.9 us` at 10k and `20.0 us` at 100k; large result set p95 `64.7 us`; concurrent connections p95 `98.5 us`. |
-| `tier4_integration_http` | Completed | Document create/get p95 `19.8 ms` at 10k and `286.9 ms` at 100k; vector search p95 `107.5 ms`; concurrent requests p95 `4.4 ms`; JSON serialization p95 `119.8 us`. |
+| `tier4_integration_http` | Completed, document create/get improved | Document create/get p95 `19.8 ms` at 10k and `286.9 ms` at 100k; vector search p95 `107.5 ms`; concurrent requests p95 `4.4 ms`; JSON serialization p95 `119.8 us`. After Issue 06 incremental row-count stats for unindexed writes, focused document create/get 100k sampling moved from p50 `240.923 ms`, p95 `243.707 ms` to p50 `58.339 ms`, p95 `63.281 ms`. |
 
 ## Harness Corrections
 
@@ -95,10 +95,10 @@ Issue 01 allowed harness fixes only when a benchmark mutated shared state across
 | 3 | Graph 100k fixture setup | Resolved from no benchmark label after more than 6 minutes to focused diagnostic p50 `8.542 us`, p95 `253.167 us`. | Issue 04 |
 | 4 | Replay lag catch-up at 100k | p95 `9.428 s`. | Issue 03 |
 | 5 | Replay lag catch-up at 10k | p95 `1.071 s`. | Issue 03 |
-| 6 | HTTP document create/get at 100k | p95 `286.9 ms`. | Issue 06 |
+| 6 | HTTP document create/get at 100k | Improved from baseline p95 `286.9 ms` and focused diagnostic p95 `243.707 ms` to focused diagnostic p50 `58.339 ms`, p95 `63.281 ms`. | Issue 06 |
 | 7 | Duplicate replay handling | p95 `121.2 ms` despite duplicate skip semantics. | Issue 03 |
 | 8 | HTTP vector search route | p95 `107.5 ms`, while direct vector executor p95 is microsecond-scale. | Issue 06 |
-| 9 | Mixed ingest/query workflow | p95 `92.2 ms`. | Issue 06, with write-path dependency on Issue 03 |
+| 9 | Mixed ingest/query workflow | Improved from baseline p95 `92.2 ms` to focused diagnostic p50 `29.127 ms`, p95 `31.660 ms` after unindexed write metadata refresh avoided full cardinality rebuilds. | Issue 06, with write-path dependency on Issue 03 |
 | 10 | Time-series 10k window scan | p95 `23.7 ms`; 100k path now samples locally with diagnostic p50 `282.283 ms`, p95 `295.009 ms`. | Issue 05 |
 
 ## Issue 03 Optimization Evidence
@@ -134,6 +134,17 @@ Issue 05 time-series work on 2026-06-25 added a fresh time-series fixture load p
 | `tier3_system_query/time_series_window_scan/100k` | Reached warmup but produced no completed sample after more than 8 minutes. | Diagnostic p50 `282.283 ms`, p95 `295.009 ms`. | Blocker resolved; time-series 100k now samples locally. |
 
 The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER3_WARMUP_MS=50 BENCH_TIER3_MEASUREMENT_MS=200 BENCH_TIER3_SAMPLE_SIZE=10 cargo bench --locked --bench tier3_system_query -- time_series_window_scan/100k` now completes 10 local fallback samples.
+
+## Issue 06 Optimization Evidence
+
+Issue 06 HTTP/write-metadata work on 2026-06-25 made unindexed row-store document writes update persisted row-count cardinality incrementally instead of rebuilding collection cardinality stats with a full scan on every write. The fast path is limited to row-count-changing writes with no catalog indexes, no vector indexes, and no column-store storage; indexed or ambiguous writes keep the full rebuild path. REST document delete now routes through the app document delete path so row-count metadata stays consistent with REST mutations.
+
+| Owner | Before | After | Result |
+| --- | --- | --- | --- |
+| `tier4_integration_http/http_document_create_get/100k` | Baseline p95 `286.9 ms`; focused diagnostic p50 `240.923 ms`, p95 `243.707 ms`. | Diagnostic p50 `58.339 ms`, p95 `63.281 ms`. | Improved; no REST response-shape or blocking-boundary changes. |
+| `tier3_system_mixed_load/mixed_ingest_query/10k` | Baseline p95 `92.2 ms`. | Diagnostic p50 `29.127 ms`, p95 `31.660 ms`. | Improved through the same write metadata path. |
+
+The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER4_WARMUP_MS=50 BENCH_TIER4_MEASUREMENT_MS=200 BENCH_TIER4_SAMPLE_SIZE=10 cargo bench --locked --bench tier4_integration_http -- http_document_create_get/100k` now reports p50 `58.339 ms` and p95 `63.281 ms`. Issue 06 remains open for the HTTP vector-search bottleneck.
 
 ## Deferred Paths
 

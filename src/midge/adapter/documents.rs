@@ -142,7 +142,7 @@ impl Midge {
         collection: &str,
         id: Option<String>,
         payload: serde_json::Value,
-    ) -> Result<(String, crate::runtime::ProjectionWriteStats), CassieError> {
+    ) -> Result<(String, crate::runtime::ProjectionWriteStats, i64), CassieError> {
         let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
         let report = self.apply_document_write_batch(
             collection,
@@ -151,19 +151,19 @@ impl Midge {
                 payload,
             }],
         )?;
-        Ok((doc_id, report.stats))
+        Ok((doc_id, report.stats, report.row_delta))
     }
 
     pub(crate) fn delete_document_with_stats(
         &self,
         collection: &str,
         id: &str,
-    ) -> Result<(bool, crate::runtime::ProjectionWriteStats), CassieError> {
+    ) -> Result<(bool, crate::runtime::ProjectionWriteStats, i64), CassieError> {
         let report = self.apply_document_write_batch(
             collection,
             vec![DocumentWriteOp::Delete { id: id.to_string() }],
         )?;
-        Ok((report.row_delta < 0, report.stats))
+        Ok((report.row_delta < 0, report.stats, report.row_delta))
     }
 
     pub(crate) fn apply_document_write_batch(

@@ -456,6 +456,8 @@ mod snapshots;
 mod vector_helpers;
 #[path = "app/vector_search.rs"]
 mod vector_search;
+#[path = "app/write_refresh.rs"]
+mod write_refresh;
 
 fn current_time_millis() -> u64 {
     std::time::SystemTime::now()

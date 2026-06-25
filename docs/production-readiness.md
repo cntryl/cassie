@@ -6,6 +6,7 @@ It is separate from implementation status: a feature can be implemented or stabl
 No feature family is currently classified as production-ready by default.
 Stable areas are production-ready candidates only after their benchmark, operational, restart, compatibility, and blocker evidence is complete for a declared deployment profile.
 Deployment-profile benchmark output is evidence collection only; it does not create a production SLA or production-ready promotion by itself.
+The Phase 10 local fallback rebaseline closed the ranked local blockers for projection refresh, graph setup, time-series scans, HTTP document writes, mixed ingest/query, and HTTP vector search; those results are advisory evidence, not production-ready promotion.
 
 ## Readiness Levels
 

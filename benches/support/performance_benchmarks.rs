@@ -470,6 +470,17 @@ pub const BENCHMARK_SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         "documents::create/get",
         "rest.requests_total",
     ),
+    benchmark(
+        "perf.http.vector_search.10k",
+        "http",
+        "tier4_integration_http",
+        "http_vector_search",
+        "10k",
+        "vector.candidate_count_total",
+        "vector.normalized_fallback_count_total",
+        "http_vector_search",
+        "rest.requests_total",
+    ),
 ];
 
 pub const BENCHMARK_SCENARIO_PLACEHOLDERS: &[PerformanceBenchmarkScenario] = &[

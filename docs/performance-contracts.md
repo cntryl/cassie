@@ -683,6 +683,7 @@ It reserves representative future scenario ids without requiring 1M fixture gene
 | `perf.pgwire.simple_query.100k` | pgwire | `tier4_integration_pgwire` | `pgwire_simple_query` | 100k |
 | `perf.http.document_create_get.10k` | HTTP | `tier4_integration_http` | `http_document_create_get` | 10k |
 | `perf.http.document_create_get.100k` | HTTP | `tier4_integration_http` | `http_document_create_get` | 100k |
+| `perf.http.vector_search.10k` | HTTP | `tier4_integration_http` | `http_vector_search` | 10k |
 
 `time_series_window_scan` owns developer feedback for the bucket-native range path and its row-backed fallback.
 
@@ -699,7 +700,7 @@ It reserves representative future scenario ids without requiring 1M fixture gene
 | Hybrid | `hybrid.candidate_count_total`, `hybrid.prefilter_fallback_count_total` | `mixed_execution`, `hybrid.latency_ms_total` |
 | Time series | `time_series.bucket_native_hits`, `time_series.fallback_reason`, `retention.skipped_rows`, `retention.errors`, `rollups.refreshes`, `rollups.stale_fallbacks` | `time_series_storage=bucket-native-v1`, `time_series.buckets_scanned`, `time_series.scans`, `ENFORCE RETENTION`, `retention.deleted_rows`, `REFRESH ROLLUP`, `rollups.rewrite_hits` |
 | pgwire | `pgwire.blocking_elapsed_ms_total`, `pgwire.protocol_errors_total` | `pgwire_simple_query`, `pgwire.simple_queries_total` |
-| HTTP | `storage.data.writes`, `rest.blocking_error_total` | `documents::create/get`, `rest.requests_total` |
+| HTTP | `storage.data.writes`, `vector.normalized_fallback_count_total`, `rest.blocking_error_total` | `documents::create/get`, `http_vector_search`, `rest.requests_total` |
 
 ## Example Discipline
 

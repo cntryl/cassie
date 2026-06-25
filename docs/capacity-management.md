@@ -38,6 +38,7 @@ Deployment-profile evidence is advisory until a production owner records targets
 These thresholds are starting points for manual operations and local development feedback.
 Tune them per deployment profile before using them as alerts.
 The current `local-dev-fallback-10k` and `local-dev-fallback-100k` profiles provide repeatable developer feedback, not admission control or SLA evidence.
+The Phase 10 rebaseline moved several local blockers into measurable ranges, including projection refresh, graph 100k setup, time-series 100k scans, HTTP document create/get at 100k, mixed ingest/query, and HTTP vector search. Treat those numbers as the current local comparison baseline when judging regressions, not as production thresholds.
 
 | Signal | Advisory threshold | Response |
 | --- | --- | --- |

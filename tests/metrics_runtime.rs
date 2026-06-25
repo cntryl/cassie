@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 use cassie::app::{Cassie, ProjectionReplayBatch, ProjectionReplayEvent};
-use cassie::catalog::{IndexKind, IndexMeta};
+use cassie::catalog::{IndexKind, IndexMeta, ProjectionVerificationState};
 use cassie::runtime::RuntimeFeedbackKey;
 use cassie::sql::parser;
 use cassie::types::{DataType, FieldSchema, Schema};
@@ -837,6 +837,85 @@ fn should_record_projection_rebuild_write_categories() {
         assert_eq!(
             projection_metric_delta(&after_refresh, &after_create, "write_batch_flushes"),
             1
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_leave_projection_rebuild_hashes_current_after_refresh() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projection_rebuild_current_hashes");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE projection_rebuild_hash_source (title TEXT, score INT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO projection_rebuild_hash_source (title, score) VALUES ('alpha', 1), ('bravo', 2)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE MATERIALIZED PROJECTION projection_rebuild_hash_projection AS SELECT title, score FROM projection_rebuild_hash_source ORDER BY title",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO projection_rebuild_hash_source (title, score) VALUES ('charlie', 3)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "REFRESH MATERIALIZED PROJECTION projection_rebuild_hash_projection",
+                vec![],
+            )
+            .unwrap();
+        let metadata = cassie
+            .catalog
+            .get_materialized_projection("projection_rebuild_hash_projection")
+            .unwrap();
+        let verification = cassie
+            .execute_sql(
+                &session,
+                "VERIFY PROJECTION projection_rebuild_hash_projection MODE full",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            metadata.hashes.root.state,
+            ProjectionVerificationState::Current
+        );
+        assert_eq!(metadata.hashes.root.row_count, 3);
+        assert_eq!(metadata.verification.state, ProjectionVerificationState::Verified);
+        assert_eq!(
+            verification.rows[0][0],
+            cassie::types::Value::String("verified".to_string())
         );
 
         let _ = std::fs::remove_dir_all(path);

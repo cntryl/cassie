@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::*;
-use crate::midge::adapter::DocumentWriteOp;
+use crate::midge::adapter::{DocumentWriteBatchOptions, DocumentWriteOp};
 
 pub(super) fn reject_write(cassie: &Cassie, relation: &str) -> Result<(), QueryError> {
     if cassie.catalog.is_materialized_projection(relation)
@@ -780,7 +780,11 @@ fn replace_output_rows(
     if !output_ops.is_empty() {
         let report = cassie
             .midge
-            .apply_document_write_batch(output_collection, output_ops)
+            .apply_document_write_batch_with_options(
+                output_collection,
+                output_ops,
+                DocumentWriteBatchOptions::sync_without_post_commit_refresh(),
+            )
             .map_err(|error| QueryError::General(error.to_string()))?;
         cassie.runtime.record_projection_rebuild_writes(
             output_collection.to_string(),

@@ -46,6 +46,28 @@ impl Midge {
         .map_err(CassieError::from)
     }
 
+    pub fn projection_events_seen(
+        &self,
+        projection: &str,
+        source_identity: &str,
+        event_ids: &[&str],
+    ) -> Result<Vec<bool>, CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        let mut out = Vec::with_capacity(event_ids.len());
+        for event_id in event_ids {
+            let seen = tx
+                .get(&Self::projection_event_key(
+                    projection,
+                    source_identity,
+                    event_id,
+                ))
+                .map_err(CassieError::from)?
+                .is_some();
+            out.push(seen);
+        }
+        Ok(out)
+    }
+
     pub fn record_projection_event(
         &self,
         projection: &str,

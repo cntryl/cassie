@@ -130,6 +130,91 @@ fn should_replay_projection_batch_idempotently_with_checkpoint_metadata() {
 }
 
 #[test]
+fn should_skip_existing_projection_events_while_applying_new_replay_events() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projection_replay_mixed_duplicate_batch");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE projection_replay_mixed_docs (title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .replay_projection_batch(ProjectionReplayBatch {
+                projection: "projection_replay_mixed_docs".to_string(),
+                source_identity: "orders-stream".to_string(),
+                batch_id: "batch-1".to_string(),
+                lag: 0,
+                events: vec![ProjectionReplayEvent {
+                    event_id: "event-1".to_string(),
+                    checkpoint: "checkpoint-1".to_string(),
+                    position: Some(1),
+                    document_id: "doc-1".to_string(),
+                    payload: Some(serde_json::json!({"title": "alpha"})),
+                }],
+            })
+            .unwrap();
+
+        // Act
+        let replay = cassie
+            .replay_projection_batch(ProjectionReplayBatch {
+                projection: "projection_replay_mixed_docs".to_string(),
+                source_identity: "orders-stream".to_string(),
+                batch_id: "batch-2".to_string(),
+                lag: 0,
+                events: vec![
+                    ProjectionReplayEvent {
+                        event_id: "event-1".to_string(),
+                        checkpoint: "checkpoint-1".to_string(),
+                        position: Some(1),
+                        document_id: "doc-1".to_string(),
+                        payload: Some(serde_json::json!({"title": "alpha-updated"})),
+                    },
+                    ProjectionReplayEvent {
+                        event_id: "event-2".to_string(),
+                        checkpoint: "checkpoint-2".to_string(),
+                        position: Some(2),
+                        document_id: "doc-2".to_string(),
+                        payload: Some(serde_json::json!({"title": "bravo"})),
+                    },
+                ],
+            })
+            .unwrap();
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM projection_replay_mixed_docs ORDER BY title",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(replay.applied_event_count, 1);
+        assert_eq!(replay.skipped_duplicate_count, 1);
+        assert_eq!(
+            selected.rows,
+            vec![
+                vec![Value::String("alpha".to_string())],
+                vec![Value::String("bravo".to_string())],
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_report_failed_freshness_for_out_of_order_replay() {
     // Arrange
     with_fallback();

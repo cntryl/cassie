@@ -38,6 +38,13 @@ impl DocumentWriteBatchOptions {
             refresh_after_commit: true,
         }
     }
+
+    pub(crate) fn sync_without_post_commit_refresh() -> Self {
+        Self {
+            commit: WriteOptions::sync(),
+            refresh_after_commit: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -213,6 +220,8 @@ impl Midge {
             .filter(|index| index.collection == collection && index.kind == IndexKind::TimeSeries)
             .collect::<Vec<_>>();
         let graph = self.graph_for_edge_collection(collection)?;
+        let needs_existing_payload =
+            !scalar_indexes.is_empty() || !time_series_indexes.is_empty() || graph.is_some();
 
         #[derive(Debug)]
         struct PreparedWrite {
@@ -269,7 +278,9 @@ impl Midge {
         for prepared in prepared {
             let row_key = Self::row_key(collection, &prepared.id);
             let legacy_key = Self::doc_key(collection, &prepared.id);
-            let existing_payload = if uses_column_store {
+            let existing_payload = if !needs_existing_payload {
+                None
+            } else if uses_column_store {
                 Self::load_column_store_document_from_tx(
                     &tx,
                     collection,

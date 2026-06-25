@@ -100,6 +100,19 @@ Issue 01 allowed harness fixes only when a benchmark mutated shared state across
 | 9 | Mixed ingest/query workflow | p95 `92.2 ms`. | Issue 06, with write-path dependency on Issue 03 |
 | 10 | Time-series 10k window scan | p95 `23.7 ms`; 100k path is worse and blocked. | Issue 05 |
 
+## Issue 03 Optimization Evidence
+
+Issue 03 replay work on 2026-06-25 batched duplicate-ledger reads and avoided existing-row payload decodes when a write batch has no scalar, time-series, or graph indexes that need old values. Materialized projection rebuild writes also skip generic post-commit maintenance and rely on the explicit rebuild hash pass already required by refresh verification.
+
+| Owner | Before | After | Result |
+| --- | --- | --- | --- |
+| `tier2_subsystem_ingest/projection_write_path` | p95 `46.9 ms` | p50 `36.315 ms`, p95 `44.787 ms` | Slight improvement. |
+| `tier2_subsystem_ingest/projection_duplicate_replay` | p95 `121.2 ms` | p50 `117.916 ms`, p95 `121.589 ms` | No material p95 change. |
+| `tier2_subsystem_ingest/projection_lag_catchup/10k` | p95 `1.071 s` | p50 `851.417 ms`, p95 `909.458 ms` | Improved. |
+| `tier2_subsystem_ingest/projection_lag_catchup/100k` | p95 `9.428 s` | p50 `8.584 s`, p95 `8.703 s` | Improved but still a top write-side bottleneck. |
+
+The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER3_WARMUP_MS=50 BENCH_TIER3_MEASUREMENT_MS=200 BENCH_TIER3_SAMPLE_SIZE=10 cargo bench --locked --bench tier3_system_rebuild -- projection_refresh/10k` still produced no completed sample after more than 90 seconds past warmup. `projection_refresh` remains the highest-priority Issue 03 blocker.
+
 ## Deferred Paths
 
 These paths emitted local fallback samples and should not be optimized first unless later evidence changes:

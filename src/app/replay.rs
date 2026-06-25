@@ -92,12 +92,22 @@ impl Cassie {
                     "projection replay event id cannot be empty".to_string(),
                 );
             }
+        }
+
+        let event_ids = batch
+            .events
+            .iter()
+            .map(|event| event.event_id.as_str())
+            .collect::<Vec<_>>();
+        let event_seen = self.midge.projection_events_seen(
+            &batch.projection,
+            &batch.source_identity,
+            &event_ids,
+        )?;
+
+        for (event, already_seen) in batch.events.iter().zip(event_seen) {
             duplicate_checks = duplicate_checks.saturating_add(1);
-            if self.midge.has_projection_event(
-                &batch.projection,
-                &batch.source_identity,
-                &event.event_id,
-            )? {
+            if already_seen {
                 skipped = skipped.saturating_add(1);
                 continue;
             }

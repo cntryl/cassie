@@ -67,6 +67,10 @@ Supported:
 - Simple query flow.
 - Extended query flow: parse, bind, describe, execute, sync, and close.
 - Prepared statements and portals.
+- Statement descriptions include parameter metadata for explicit type OIDs and supported inferred CRUD parameters.
+- Row descriptions are covered for prepared SELECT plus INSERT/UPDATE/DELETE RETURNING flows.
+- Named and unnamed statement/portal lifecycle reuse is covered by pgwire tests.
+- Extended-query protocol errors enter sync-drain mode and return deterministic PostgreSQL-style error fields before ReadyForQuery.
 - Row description, data row, command complete, error response, and ready-for-query messages.
 - Text and binary format paths covered by tests.
 
@@ -104,7 +108,7 @@ The matrix tracks read-model workflows, not full PostgreSQL server equivalence. 
 
 | Client/workflow | Status | Validated read-model workflows | Validation |
 | --- | --- | --- | --- |
-| `tokio-postgres` | Supported baseline | Startup without password, simple query, extended prepared query, DDL/DML round trip, `ON CONFLICT`, foreign-key errors, NOT NULL/unique SQLSTATE metadata, recursive CTEs, syntax-error recovery, selected catalog metadata | Default `cargo test --locked --test compatibility_matrix` |
+| `tokio-postgres` | Supported baseline | Startup without password, simple query, extended prepared query, inferred parameter metadata for supported CRUD shapes, DDL/DML round trip, `ON CONFLICT`, foreign-key errors, NOT NULL/unique SQLSTATE metadata, recursive CTEs, syntax-error recovery, selected catalog metadata | Default `cargo test --locked --test compatibility_matrix` |
 | `psql` | Experimental opt-in | Non-interactive connection, simple DDL/DML, simple SELECT output, and operational smoke usage against pgwire | Ignored `should_validate_psql_read_model_probe_when_enabled`; run `CASSIE_RUN_PSQL_COMPAT=1 cargo test --locked --test compatibility_matrix should_validate_psql_read_model_probe_when_enabled -- --ignored --nocapture` with local `psql` installed. Set `CASSIE_PSQL_BIN` to override the binary. |
 | `sqlx` | Untested/planned | Prepared read queries, connection pooling, compile-time or offline query checks for supported SQL, catalog probes used by migrations | No automated probe yet |
 | `diesel` | Untested/planned | Projection-table reads and supported schema metadata where Diesel does not require unsupported PostgreSQL catalog parity | No automated probe yet |
@@ -156,7 +160,7 @@ Status definitions:
 
 | Ecosystem | Clients/tools | Status | Primary gaps before support |
 | --- | --- | --- | --- |
-| TypeScript/JavaScript | Prisma, Drizzle, Kysely, Knex, TypeORM, MikroORM, Sequelize, node-postgres, postgres.js | Partial | Full catalog parity, migration DDL breadth, generated/default metadata, sequence/identity support, broader extended-protocol validation |
+| TypeScript/JavaScript | Prisma, Drizzle, Kysely, Knex, TypeORM, MikroORM, Sequelize, node-postgres, postgres.js | Partial | Full catalog parity, migration DDL breadth, generated/default metadata, identity support, broader client-specific workflow validation |
 | .NET | Npgsql, EF Core, Dapper, RepoDB, Linq2Db | Planned | Npgsql protocol probes, EF catalog/scaffolding metadata, migration DDL, binary encodings |
 | Python | SQLAlchemy, Alembic, psycopg, asyncpg, Django ORM, Tortoise ORM | Partial | Broader reflection metadata, Alembic/Django migration DDL, asyncpg protocol coverage |
 | Go | pgx, database/sql, GORM, sqlc, Bun, Ent, SQLBoiler, Jet | Planned | pgx protocol matrix, scanner type mappings, migration/reflection metadata |
@@ -176,6 +180,7 @@ Current foundation fixture:
 - Direct foreign-key `CASCADE`, `SET NULL`, `SET DEFAULT`, `NO ACTION`, and `RESTRICT` actions are enforced for parent deletes and key updates when those actions are captured in constraint metadata.
 - ORM introspection metadata now includes simple column defaults and pg-catalog attribute/default/index rows for supported tables.
 - Migration DDL now includes bare `CREATE SEQUENCE`/`DROP SEQUENCE`, sequence-backed `nextval(...)` defaults, `SERIAL`/`BIGSERIAL` table-column sugar, and `ALTER TABLE ... ALTER COLUMN` set/drop default and set/drop not-null behavior for rows that already satisfy the constraint.
+- Extended-query metadata now includes explicit and inferred parameter OIDs for supported CRUD shapes, row descriptions for prepared SELECT and DML RETURNING statements, named/unnamed statement lifecycle coverage, and sync-drain recovery after statement errors.
 - Composite constraint fidelity, deferrable constraints, match types, and advanced cyclic/deferred referential-action behavior remain compatibility gaps for full ORM migration diffing.
 
 ## Cassie-Specific SQL and APIs

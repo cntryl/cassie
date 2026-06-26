@@ -696,7 +696,7 @@ fn should_run_recursive_cte_with_tokio_postgres() {
             .await
             .expect("seed table should be created");
         client
-            .execute("INSERT INTO compat_recursive_seed (n) VALUES ($1)", &[&"1"])
+            .execute("INSERT INTO compat_recursive_seed (n) VALUES ($1)", &[&1_i32])
             .await
             .expect("seed row should be inserted");
         let rows = client

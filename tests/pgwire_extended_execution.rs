@@ -445,7 +445,7 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
         assert_eq!(frames[6].0, b'Z', "sync should finish with ready-for-query");
 
         let parameters = parse_parameter_description(&frames[1].1);
-        assert_eq!(parameters, vec![705]);
+        assert_eq!(parameters, vec![25]);
 
         let fields = parse_row_description(&frames[2].1);
         assert_eq!(fields.len(), 1);

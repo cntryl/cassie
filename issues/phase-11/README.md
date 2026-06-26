@@ -36,11 +36,11 @@ Every slice must benefit more than one PostgreSQL client when practical, preserv
 
 Resolve Phase 11 issues in order:
 
-1. `issues/phase-11/issue-03.md`
-2. `issues/phase-11/issue-04.md`
-3. `issues/phase-11/issue-05.md`
+1. `issues/phase-11/issue-04.md`
+2. `issues/phase-11/issue-05.md`
 
 ## Archived Issue Summaries
 
 - Issue 01, catalog metadata baseline for ORM introspection, closed 2026-06-25. `information_schema.columns` now exposes nullability, UDT names, simple defaults, character lengths, numeric precision/scale, and datetime precision; `pg_catalog.pg_attribute`, `pg_catalog.pg_attrdef`, and `pg_catalog.pg_index` now expose supported attribute/default/index metadata for ORM and database-tooling introspection without client-specific behavior.
 - Issue 02, migration DDL compatibility basics, closed 2026-06-25. Cassie now supports bare `CREATE SEQUENCE`/`DROP SEQUENCE`, durable sequence-backed `nextval(...)` defaults, `SERIAL`/`BIGSERIAL` table-column sugar, and basic `ALTER TABLE ... ALTER COLUMN` set/drop default and set/drop not-null operations, with sequence metadata exposed through PostgreSQL-compatible catalog views and unsupported sequence options rejected deterministically.
+- Issue 03, prepared statement and parameter metadata depth, closed 2026-06-25. Extended-query pgwire coverage now verifies explicit and inferred parameter descriptions, prepared SELECT and DML RETURNING row descriptions, named and unnamed statement/portal lifecycle behavior, deterministic SQLSTATE/error fields, and ReadyForQuery recovery after extended-query errors without client-specific protocol branches.

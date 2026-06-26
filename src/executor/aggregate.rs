@@ -78,8 +78,30 @@ fn function_return_type(
         "min" | "max" => Some(DataType::Text),
         "search" | "search_score" | "vector_distance" | "vector_score" | "cosine_distance"
         | "dot_product" | "hybrid_score" => Some(DataType::Float),
-        "snippet" | "version" | "pg_catalog.version" | "current_schema" | "current_database"
-        | "current_user" | "session_user" | "current_role" => Some(DataType::Text),
+        "snippet"
+        | "version"
+        | "pg_catalog.version"
+        | "current_schema"
+        | "current_database"
+        | "current_user"
+        | "session_user"
+        | "current_role"
+        | "quote_ident"
+        | "pg_catalog.quote_ident"
+        | "format_type"
+        | "pg_catalog.format_type"
+        | "pg_get_expr"
+        | "pg_catalog.pg_get_expr"
+        | "pg_get_userbyid"
+        | "pg_catalog.pg_get_userbyid"
+        | "obj_description"
+        | "pg_catalog.obj_description" => Some(DataType::Text),
+        "has_schema_privilege"
+        | "pg_catalog.has_schema_privilege"
+        | "has_table_privilege"
+        | "pg_catalog.has_table_privilege"
+        | "pg_table_is_visible"
+        | "pg_catalog.pg_table_is_visible" => Some(DataType::Boolean),
         "time_bucket" => Some(DataType::Timestamp),
         "cast" => Some(DataType::Text),
         _ => None,

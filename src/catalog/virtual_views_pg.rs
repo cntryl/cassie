@@ -4,22 +4,38 @@ use crate::types::{DataType, Value};
 use super::VirtualRow;
 
 pub(super) fn namespace_schema() -> Vec<(String, DataType)> {
-    vec![text("nspname")]
+    vec![int("oid"), text("nspname"), int("nspowner"), text("nspacl")]
 }
 
 pub(super) fn class_schema() -> Vec<(String, DataType)> {
-    vec![text("relname"), text("relkind"), text("relnamespace")]
+    vec![
+        int("oid"),
+        text("relname"),
+        text("relkind"),
+        text("relnamespace"),
+        int("relnamespace_oid"),
+        int("relowner"),
+        bool("relhasindex"),
+        text("relpersistence"),
+        int("reltuples"),
+        text("relacl"),
+    ]
 }
 
 pub(super) fn attribute_schema() -> Vec<(String, DataType)> {
     vec![
         text("attrelid"),
+        int("attrelid_oid"),
         text("attname"),
         int("attnum"),
         int("atttypid"),
         bool("attnotnull"),
         int("atttypmod"),
         bool("atthasdef"),
+        bool("attisdropped"),
+        text("attidentity"),
+        text("attgenerated"),
+        int("attcollation"),
     ]
 }
 
@@ -36,9 +52,17 @@ pub(super) fn index_schema() -> Vec<(String, DataType)> {
     vec![
         text("indexrelid"),
         text("indrelid"),
+        int("indexrelid_oid"),
+        int("indrelid_oid"),
         bool("indisunique"),
         bool("indisprimary"),
         text("indkey"),
+        int("indnatts"),
+        int("indnkeyatts"),
+        bool("indisvalid"),
+        bool("indisready"),
+        text("indpred"),
+        text("indexprs"),
     ]
 }
 
@@ -61,15 +85,15 @@ pub(super) fn type_schema() -> Vec<(String, DataType)> {
 
 pub(super) fn pg_namespace(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = vec![
-        vec![string("nspname", "information_schema")],
-        vec![string("nspname", "pg_catalog")],
-        vec![string("nspname", "public")],
+        namespace_row("information_schema"),
+        namespace_row("pg_catalog"),
+        namespace_row("public"),
     ];
     rows.extend(
         catalog
             .list_namespaces()
             .into_iter()
-            .map(|namespace| vec![string("nspname", namespace.name)]),
+            .map(|namespace| namespace_row(&namespace.name)),
     );
     rows.sort_by_key(row_sort_key);
     rows.dedup_by_key(|row| row_sort_key(row));
@@ -80,35 +104,23 @@ pub(super) fn pg_class(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = catalog
         .list_collections()
         .into_iter()
-        .map(|collection| {
-            vec![
-                string("relname", collection.name),
-                string("relkind", "r"),
-                string("relnamespace", "public"),
-            ]
-        })
+        .map(|collection| class_row(catalog, &collection.name, "r"))
         .collect::<Vec<_>>();
-    rows.extend(catalog.list_views().into_iter().map(|view| {
-        vec![
-            string("relname", view.name),
-            string("relkind", "v"),
-            string("relnamespace", "public"),
-        ]
-    }));
-    rows.extend(catalog.list_sequences().into_iter().map(|sequence| {
-        vec![
-            string("relname", sequence.name),
-            string("relkind", "S"),
-            string("relnamespace", "public"),
-        ]
-    }));
+    rows.extend(
+        catalog
+            .list_views()
+            .into_iter()
+            .map(|view| class_row(catalog, &view.name, "v")),
+    );
+    rows.extend(
+        catalog
+            .list_sequences()
+            .into_iter()
+            .map(|sequence| class_row(catalog, &sequence.name, "S")),
+    );
     rows.extend(pg_indexes(catalog).into_iter().map(|index| {
         let indexname = lookup_string(&index, "indexname");
-        vec![
-            string("relname", indexname),
-            string("relkind", "i"),
-            string("relnamespace", "public"),
-        ]
+        class_row(catalog, &indexname, "i")
     }));
     rows.sort_by_key(row_sort_key);
     rows
@@ -169,9 +181,17 @@ pub(super) fn pg_index(catalog: &Catalog) -> Vec<VirtualRow> {
             vec![
                 string("indexrelid", &index.name),
                 string("indrelid", &index.collection),
+                int_value("indexrelid_oid", index_oid(&index.name)),
+                int_value("indrelid_oid", relation_oid(&index.collection)),
                 bool_value("indisunique", index.unique),
                 bool_value("indisprimary", primary),
                 string("indkey", index_keys(catalog, &index)),
+                int_value("indnatts", index_key_count(catalog, &index) as i64),
+                int_value("indnkeyatts", index_key_count(catalog, &index) as i64),
+                bool_value("indisvalid", true),
+                bool_value("indisready", true),
+                string("indpred", index.predicate.clone().unwrap_or_default()),
+                string("indexprs", index.normalized_expressions().join(", ")),
             ]
         })
         .collect()
@@ -217,13 +237,48 @@ fn attribute_row(
 ) -> VirtualRow {
     vec![
         string("attrelid", relation),
+        int_value("attrelid_oid", relation_oid(relation)),
         string("attname", field_name),
         int_value("attnum", (index + 1) as i64),
         int_value("atttypid", data_type.type_oid()),
         bool_value("attnotnull", is_not_null(constraint)),
         int_value("atttypmod", data_type.atttypmod() as i64),
         bool_value("atthasdef", constraint_has_default(constraint)),
+        bool_value("attisdropped", false),
+        string("attidentity", ""),
+        string("attgenerated", ""),
+        int_value("attcollation", 0),
     ]
+}
+
+fn namespace_row(name: &str) -> VirtualRow {
+    vec![
+        int_value("oid", namespace_oid(name)),
+        string("nspname", name),
+        int_value("nspowner", postgres_role_oid()),
+        string("nspacl", ""),
+    ]
+}
+
+fn class_row(catalog: &Catalog, name: &str, kind: &str) -> VirtualRow {
+    vec![
+        int_value("oid", relation_kind_oid(kind, name)),
+        string("relname", name),
+        string("relkind", kind),
+        string("relnamespace", "public"),
+        int_value("relnamespace_oid", namespace_oid("public")),
+        int_value("relowner", postgres_role_oid()),
+        bool_value("relhasindex", relation_has_indexes(catalog, name)),
+        string("relpersistence", "p"),
+        int_value("reltuples", 0),
+        string("relacl", ""),
+    ]
+}
+
+fn relation_has_indexes(catalog: &Catalog, name: &str) -> bool {
+    sorted_indexes(catalog)
+        .into_iter()
+        .any(|index| index.collection.eq_ignore_ascii_case(name))
 }
 
 fn sorted_indexes(catalog: &Catalog) -> Vec<IndexMeta> {
@@ -300,6 +355,19 @@ fn index_keys(catalog: &Catalog, index: &IndexMeta) -> String {
         )
         .collect::<Vec<_>>();
     keys.join(" ")
+}
+
+fn index_key_count(catalog: &Catalog, index: &IndexMeta) -> usize {
+    let field_count = index.normalized_fields().len();
+    let expression_count = index.normalized_expressions().len();
+    if field_count + expression_count > 0 {
+        field_count + expression_count
+    } else {
+        index_keys(catalog, index)
+            .split_whitespace()
+            .filter(|key| !key.is_empty())
+            .count()
+    }
 }
 
 fn constraint_for_field<'a>(
@@ -463,6 +531,52 @@ fn element_type_oid(data_type: &DataType) -> i64 {
         DataType::Array(inner) => inner.type_oid(),
         _ => 0,
     }
+}
+
+pub(super) fn postgres_role_oid() -> i64 {
+    10
+}
+
+pub(super) fn namespace_oid(name: &str) -> i64 {
+    match name.to_ascii_lowercase().as_str() {
+        "pg_catalog" => 11,
+        "public" => 2200,
+        "information_schema" => 13428,
+        other => stable_catalog_oid("namespace", other, 50_000),
+    }
+}
+
+pub(super) fn relation_oid(name: &str) -> i64 {
+    stable_catalog_oid("relation", name, 100_000)
+}
+
+pub(super) fn index_oid(name: &str) -> i64 {
+    stable_catalog_oid("index", name, 200_000)
+}
+
+pub(super) fn constraint_oid(collection: &str, constraint: &str) -> i64 {
+    stable_catalog_oid("constraint", &format!("{collection}.{constraint}"), 300_000)
+}
+
+fn relation_kind_oid(kind: &str, name: &str) -> i64 {
+    if kind == "i" {
+        index_oid(name)
+    } else {
+        relation_oid(name)
+    }
+}
+
+fn stable_catalog_oid(kind: &str, name: &str, base: i64) -> i64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in kind
+        .bytes()
+        .chain([b':'])
+        .chain(name.to_ascii_lowercase().bytes())
+    {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    base + i64::try_from(hash % 800_000).unwrap_or(0)
 }
 
 fn text(name: &str) -> (String, DataType) {

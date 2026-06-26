@@ -98,6 +98,68 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
                     .unwrap_or_else(|| "postgres".to_string()),
             ))
         }
+        "quote_ident" | "pg_catalog.quote_ident" => {
+            if args.len() != 1 {
+                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+            }
+            match text_arg(&name, &args[0])? {
+                Some(text) => Ok(Value::String(quote_identifier(&text))),
+                None => Ok(Value::Null),
+            }
+        }
+        "format_type" | "pg_catalog.format_type" => {
+            if args.len() != 2 {
+                return Err(QueryError::General(format!("{} requires 2 args", name)));
+            }
+            let oid = signed_integer_arg(&name, &args[0])?;
+            let typmod = signed_integer_arg(&name, &args[1])?;
+            match (oid, typmod) {
+                (Some(oid), Some(typmod)) => Ok(Value::String(format_type_oid(oid, typmod))),
+                _ => Ok(Value::Null),
+            }
+        }
+        "pg_get_expr" | "pg_catalog.pg_get_expr" => {
+            if args.len() != 2 {
+                return Err(QueryError::General(format!("{} requires 2 args", name)));
+            }
+            match text_arg(&name, &args[0])? {
+                Some(text) => Ok(Value::String(text)),
+                None => Ok(Value::Null),
+            }
+        }
+        "pg_get_userbyid" | "pg_catalog.pg_get_userbyid" => {
+            if args.len() != 1 {
+                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+            }
+            Ok(Value::String("postgres".to_string()))
+        }
+        "obj_description" | "pg_catalog.obj_description" => {
+            if !(1..=2).contains(&args.len()) {
+                return Err(QueryError::General(format!(
+                    "{} requires 1 or 2 args",
+                    name
+                )));
+            }
+            Ok(Value::Null)
+        }
+        "has_schema_privilege"
+        | "pg_catalog.has_schema_privilege"
+        | "has_table_privilege"
+        | "pg_catalog.has_table_privilege" => {
+            if !(2..=3).contains(&args.len()) {
+                return Err(QueryError::General(format!(
+                    "{} requires 2 or 3 args",
+                    name
+                )));
+            }
+            Ok(Value::Bool(true))
+        }
+        "pg_table_is_visible" | "pg_catalog.pg_table_is_visible" => {
+            if args.len() != 1 {
+                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+            }
+            Ok(Value::Bool(true))
+        }
         "length" | "len" => {
             if args.len() != 1 {
                 return Err(QueryError::General(format!("{} requires 1 arg", name)));
@@ -396,6 +458,73 @@ pub(super) fn integer_arg(name: &str, value: &Value) -> Result<Option<usize>, Qu
             "function '{}' expects a non-negative integer input",
             name
         ))),
+    }
+}
+
+fn signed_integer_arg(name: &str, value: &Value) -> Result<Option<i64>, QueryError> {
+    match value {
+        Value::Null => Ok(None),
+        Value::Int64(value) => Ok(Some(*value)),
+        Value::Float64(value) if value.is_finite() && value.fract().abs() < f64::EPSILON => {
+            Ok(Some(*value as i64))
+        }
+        _ => Err(QueryError::General(format!(
+            "function '{}' expects an integer input",
+            name
+        ))),
+    }
+}
+
+fn quote_identifier(value: &str) -> String {
+    let simple = value
+        .chars()
+        .next()
+        .is_some_and(|ch| ch == '_' || ch.is_ascii_lowercase())
+        && value
+            .chars()
+            .all(|ch| ch == '_' || ch.is_ascii_lowercase() || ch.is_ascii_digit());
+    if simple && !is_reserved_identifier(value) {
+        return value.to_string();
+    }
+    format!("\"{}\"", value.replace('"', "\"\""))
+}
+
+fn is_reserved_identifier(value: &str) -> bool {
+    matches!(
+        value,
+        "select" | "from" | "where" | "table" | "view" | "index" | "user" | "role" | "schema"
+    )
+}
+
+fn format_type_oid(oid: i64, typmod: i64) -> String {
+    match oid {
+        16 => "boolean".to_string(),
+        17 => "bytea".to_string(),
+        20 => "bigint".to_string(),
+        21 => "smallint".to_string(),
+        23 => "integer".to_string(),
+        25 => "text".to_string(),
+        114 => "json".to_string(),
+        701 => "double precision".to_string(),
+        1042 => format_character_type("character", typmod),
+        1043 => format_character_type("character varying", typmod),
+        1082 => "date".to_string(),
+        1083 => "time without time zone".to_string(),
+        1114 => "timestamp without time zone".to_string(),
+        2950 => "uuid".to_string(),
+        oid if (33_000..34_000).contains(&oid) => {
+            format!("vector({})", oid.saturating_sub(33_000))
+        }
+        oid if (34_000..50_000).contains(&oid) => "array".to_string(),
+        _ => oid.to_string(),
+    }
+}
+
+fn format_character_type(name: &str, typmod: i64) -> String {
+    if typmod >= 4 {
+        format!("{name}({})", typmod - 4)
+    } else {
+        name.to_string()
     }
 }
 

@@ -38,7 +38,21 @@ pub(super) fn referential_constraints_schema() -> Vec<(String, DataType)> {
 }
 
 pub(super) fn pg_constraint_schema() -> Vec<(String, DataType)> {
-    vec![text("conname"), text("conrelid"), text("contype")]
+    vec![
+        int("oid"),
+        text("conname"),
+        text("conrelid"),
+        int("conrelid_oid"),
+        text("contype"),
+        int("connamespace_oid"),
+        text("conkey"),
+        text("confrelid"),
+        int("confrelid_oid"),
+        text("confkey"),
+        bool("convalidated"),
+        bool("condeferrable"),
+        bool("condeferred"),
+    ]
 }
 
 pub(super) fn table_constraints(catalog: &Catalog) -> Vec<VirtualRow> {
@@ -172,41 +186,61 @@ pub(super) fn pg_constraint(catalog: &Catalog) -> Vec<VirtualRow> {
         for constraint in catalog.get_constraints(&collection.name) {
             if constraint.primary_key {
                 rows.push(pg_constraint_row(
+                    catalog,
                     &collection.name,
+                    &constraint.field,
                     constraint_name(&collection.name, &constraint, ConstraintKind::PrimaryKey),
                     "p",
+                    None,
+                    None,
                 ));
             }
             if constraint.unique && !constraint.primary_key {
                 rows.push(pg_constraint_row(
+                    catalog,
                     &collection.name,
+                    &constraint.field,
                     constraint_name(&collection.name, &constraint, ConstraintKind::Unique),
                     "u",
+                    None,
+                    None,
                 ));
             }
             if constraint.check.is_some() {
                 rows.push(pg_constraint_row(
+                    catalog,
                     &collection.name,
+                    &constraint.field,
                     constraint_name(&collection.name, &constraint, ConstraintKind::Check),
                     "c",
+                    None,
+                    None,
                 ));
             }
             if constraint.not_null {
                 rows.push(pg_constraint_row(
+                    catalog,
                     &collection.name,
+                    &constraint.field,
                     crate::catalog::generated_constraint_name(
                         &collection.name,
                         &constraint.field,
                         "n",
                     ),
                     "n",
+                    None,
+                    None,
                 ));
             }
             if constraint.references_table.is_some() && constraint.references_field.is_some() {
                 rows.push(pg_constraint_row(
+                    catalog,
                     &collection.name,
+                    &constraint.field,
                     constraint_name(&collection.name, &constraint, ConstraintKind::ForeignKey),
                     "f",
+                    constraint.references_table.as_deref(),
+                    constraint.references_field.as_deref(),
                 ));
             }
         }
@@ -259,15 +293,64 @@ fn key_column_usage_row(
 }
 
 fn pg_constraint_row(
+    catalog: &Catalog,
     collection: &str,
+    field: &str,
     constraint_name: String,
     constraint_type: &str,
+    referenced_table: Option<&str>,
+    referenced_field: Option<&str>,
 ) -> VirtualRow {
+    let referenced_table = referenced_table.unwrap_or_default();
     vec![
+        int_value(
+            "oid",
+            super::virtual_views_pg::constraint_oid(collection, &constraint_name),
+        ),
         string("conname", constraint_name),
         string("conrelid", collection),
+        int_value(
+            "conrelid_oid",
+            super::virtual_views_pg::relation_oid(collection),
+        ),
         string("contype", constraint_type),
+        int_value(
+            "connamespace_oid",
+            super::virtual_views_pg::namespace_oid("public"),
+        ),
+        string("conkey", field_number(catalog, collection, field)),
+        string("confrelid", referenced_table),
+        int_value(
+            "confrelid_oid",
+            if referenced_table.is_empty() {
+                0
+            } else {
+                super::virtual_views_pg::relation_oid(referenced_table)
+            },
+        ),
+        string(
+            "confkey",
+            referenced_field
+                .map(|field| field_number(catalog, referenced_table, field))
+                .unwrap_or_default(),
+        ),
+        bool_value("convalidated", true),
+        bool_value("condeferrable", false),
+        bool_value("condeferred", false),
     ]
+}
+
+fn field_number(catalog: &Catalog, collection: &str, field: &str) -> String {
+    catalog
+        .get_schema(collection)
+        .and_then(|schema| {
+            schema
+                .fields
+                .iter()
+                .position(|candidate| candidate.name.eq_ignore_ascii_case(field))
+                .map(|index| (index + 1).to_string())
+        })
+        .unwrap_or_default()
 }
 
 #[derive(Clone, Copy)]
@@ -347,6 +430,14 @@ fn string(name: &str, value: impl Into<String>) -> (String, Value) {
 
 fn int_value(name: &str, value: i64) -> (String, Value) {
     (name.to_string(), Value::Int64(value))
+}
+
+fn bool(name: &str) -> (String, DataType) {
+    (name.to_string(), DataType::Boolean)
+}
+
+fn bool_value(name: &str, value: bool) -> (String, Value) {
+    (name.to_string(), Value::Bool(value))
 }
 
 fn row_sort_key(row: &VirtualRow) -> String {

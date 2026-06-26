@@ -767,3 +767,258 @@ fn should_list_user_defined_views_through_catalog_views() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_support_pgadmin_browser_workflow_catalog_queries() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("pgadmin_browser");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", Some("catalogdb".to_string()));
+        cassie
+            .execute_sql(
+                &session,
+                r#"CREATE TABLE "catalog_pgadmin_docs" (
+                    "id" INT DEFAULT 1,
+                    "title" VARCHAR(32) NOT NULL,
+                    "score" INT,
+                    CONSTRAINT "catalog_pgadmin_docs_pkey" PRIMARY KEY ("id"),
+                    CONSTRAINT "catalog_pgadmin_docs_score_check" CHECK (score >= 0)
+                )"#,
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                r#"CREATE INDEX "catalog_pgadmin_docs_title_idx"
+                    ON "catalog_pgadmin_docs" ("title")"#,
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE VIEW catalog_pgadmin_ready AS SELECT title, score FROM catalog_pgadmin_docs",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO catalog_pgadmin_docs (id, title, score) VALUES (1, 'alpha', 9)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let namespace = cassie
+            .execute_sql(
+                &session,
+                "SELECT oid, nspname, pg_catalog.pg_get_userbyid(nspowner), pg_catalog.has_schema_privilege(nspname, 'USAGE') FROM pg_catalog.pg_namespace WHERE nspname = 'public'",
+                vec![],
+            )
+            .unwrap();
+        let classes = cassie
+            .execute_sql(
+                &session,
+                "SELECT relname, relkind, relnamespace_oid, relhasindex, relpersistence, pg_catalog.quote_ident(relname), pg_catalog.has_table_privilege(relname, 'SELECT'), pg_catalog.pg_table_is_visible(oid) FROM pg_catalog.pg_class WHERE relname IN ('catalog_pgadmin_docs', 'catalog_pgadmin_docs_title_idx', 'catalog_pgadmin_ready') ORDER BY relname",
+                vec![],
+            )
+            .unwrap();
+        let columns = cassie
+            .execute_sql(
+                &session,
+                "SELECT attname, attnum, pg_catalog.format_type(atttypid, atttypmod), attnotnull, atthasdef, attrelid_oid, attisdropped FROM pg_catalog.pg_attribute WHERE attrelid = 'catalog_pgadmin_docs' ORDER BY attnum",
+                vec![],
+            )
+            .unwrap();
+        let defaults = cassie
+            .execute_sql(
+                &session,
+                "SELECT pg_catalog.pg_get_expr(adsrc, adrelid) FROM pg_catalog.pg_attrdef WHERE adrelid = 'catalog_pgadmin_docs' ORDER BY adnum",
+                vec![],
+            )
+            .unwrap();
+        let indexes = cassie
+            .execute_sql(
+                &session,
+                "SELECT indexrelid, indrelid, indexrelid_oid, indrelid_oid, indisunique, indisprimary, indisvalid FROM pg_catalog.pg_index WHERE indrelid = 'catalog_pgadmin_docs' ORDER BY indexrelid",
+                vec![],
+            )
+            .unwrap();
+        let constraints = cassie
+            .execute_sql(
+                &session,
+                "SELECT conname, conrelid, conrelid_oid, contype, conkey, convalidated FROM pg_catalog.pg_constraint WHERE conrelid = 'catalog_pgadmin_docs' ORDER BY conname",
+                vec![],
+            )
+            .unwrap();
+        let view = cassie
+            .execute_sql(
+                &session,
+                "SELECT table_name, view_definition FROM information_schema.views WHERE table_name = 'catalog_pgadmin_ready'",
+                vec![],
+            )
+            .unwrap();
+        let table_data = cassie
+            .execute_sql(
+                &session,
+                "SELECT title, score FROM catalog_pgadmin_docs ORDER BY title",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(namespace.rows.len(), 1);
+        assert_eq!(namespace.rows[0][1], Value::String("public".to_string()));
+        assert_eq!(namespace.rows[0][2], Value::String("postgres".to_string()));
+        assert_eq!(namespace.rows[0][3], Value::Bool(true));
+        let Value::Int64(public_oid) = namespace.rows[0][0] else {
+            panic!("public namespace oid should be numeric");
+        };
+
+        assert_eq!(
+            classes.rows,
+            vec![
+                vec![
+                    Value::String("catalog_pgadmin_docs".to_string()),
+                    Value::String("r".to_string()),
+                    Value::Int64(public_oid),
+                    Value::Bool(true),
+                    Value::String("p".to_string()),
+                    Value::String("catalog_pgadmin_docs".to_string()),
+                    Value::Bool(true),
+                    Value::Bool(true),
+                ],
+                vec![
+                    Value::String("catalog_pgadmin_docs_title_idx".to_string()),
+                    Value::String("i".to_string()),
+                    Value::Int64(public_oid),
+                    Value::Bool(false),
+                    Value::String("p".to_string()),
+                    Value::String("catalog_pgadmin_docs_title_idx".to_string()),
+                    Value::Bool(true),
+                    Value::Bool(true),
+                ],
+                vec![
+                    Value::String("catalog_pgadmin_ready".to_string()),
+                    Value::String("v".to_string()),
+                    Value::Int64(public_oid),
+                    Value::Bool(false),
+                    Value::String("p".to_string()),
+                    Value::String("catalog_pgadmin_ready".to_string()),
+                    Value::Bool(true),
+                    Value::Bool(true),
+                ],
+            ]
+        );
+        let Value::Int64(table_oid) = columns.rows[0][5] else {
+            panic!("table oid should be numeric");
+        };
+        assert!(table_oid > 0);
+        assert_eq!(
+            columns.rows,
+            vec![
+                vec![
+                    Value::String("id".to_string()),
+                    Value::Int64(1),
+                    Value::String("integer".to_string()),
+                    Value::Bool(true),
+                    Value::Bool(true),
+                    Value::Int64(table_oid),
+                    Value::Bool(false),
+                ],
+                vec![
+                    Value::String("title".to_string()),
+                    Value::Int64(2),
+                    Value::String("character varying(32)".to_string()),
+                    Value::Bool(true),
+                    Value::Bool(false),
+                    Value::Int64(table_oid),
+                    Value::Bool(false),
+                ],
+                vec![
+                    Value::String("score".to_string()),
+                    Value::Int64(3),
+                    Value::String("integer".to_string()),
+                    Value::Bool(false),
+                    Value::Bool(false),
+                    Value::Int64(table_oid),
+                    Value::Bool(false),
+                ],
+            ]
+        );
+        assert_eq!(defaults.rows, vec![vec![Value::String("1".to_string())]]);
+        assert_eq!(indexes.rows.len(), 2);
+        assert_eq!(
+            indexes.rows.iter().map(|row| row[0].clone()).collect::<Vec<_>>(),
+            vec![
+                Value::String("catalog_pgadmin_docs_pkey".to_string()),
+                Value::String("catalog_pgadmin_docs_title_idx".to_string()),
+            ]
+        );
+        assert!(indexes.rows.iter().all(|row| row[2].as_i64().is_some()));
+        assert!(indexes.rows.iter().all(|row| row[3] == Value::Int64(table_oid)));
+        assert!(indexes.rows.iter().all(|row| row[6] == Value::Bool(true)));
+        assert_eq!(
+            constraints.rows,
+            vec![
+                vec![
+                    Value::String("catalog_pgadmin_docs_id_n".to_string()),
+                    Value::String("catalog_pgadmin_docs".to_string()),
+                    Value::Int64(table_oid),
+                    Value::String("n".to_string()),
+                    Value::String("1".to_string()),
+                    Value::Bool(true),
+                ],
+                vec![
+                    Value::String("catalog_pgadmin_docs_pkey".to_string()),
+                    Value::String("catalog_pgadmin_docs".to_string()),
+                    Value::Int64(table_oid),
+                    Value::String("p".to_string()),
+                    Value::String("1".to_string()),
+                    Value::Bool(true),
+                ],
+                vec![
+                    Value::String("catalog_pgadmin_docs_score_check".to_string()),
+                    Value::String("catalog_pgadmin_docs".to_string()),
+                    Value::Int64(table_oid),
+                    Value::String("c".to_string()),
+                    Value::String("3".to_string()),
+                    Value::Bool(true),
+                ],
+                vec![
+                    Value::String("catalog_pgadmin_docs_title_n".to_string()),
+                    Value::String("catalog_pgadmin_docs".to_string()),
+                    Value::Int64(table_oid),
+                    Value::String("n".to_string()),
+                    Value::String("2".to_string()),
+                    Value::Bool(true),
+                ],
+            ]
+        );
+        assert_eq!(
+            view.rows,
+            vec![vec![
+                Value::String("catalog_pgadmin_ready".to_string()),
+                Value::String(
+                    "SELECT title, score FROM catalog_pgadmin_docs".to_string()
+                ),
+            ]]
+        );
+        assert_eq!(
+            table_data.rows,
+            vec![vec![Value::String("alpha".to_string()), Value::Int64(9)]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

@@ -95,6 +95,8 @@ Supported:
 - `information_schema.columns` exposes ordinal position, nullability, type name, UDT name, simple defaults, character length, numeric precision/scale, and datetime precision for supported Cassie types.
 - `information_schema.sequences` exposes supported sequence metadata for migration-tool introspection.
 - `pg_catalog.pg_attribute`, `pg_catalog.pg_attrdef`, and `pg_catalog.pg_index` expose table/view column metadata, simple default expressions, index uniqueness, primary-index status, and index key ordinals for supported row-store schemas.
+- `pg_catalog.pg_namespace`, `pg_catalog.pg_class`, `pg_catalog.pg_attribute`, `pg_catalog.pg_index`, and `pg_catalog.pg_constraint` expose deterministic OID-shaped companion metadata for generic database browser navigation.
+- PostgreSQL metadata helper functions used by browser/catalog tools are supported where Cassie can answer deterministically: `pg_get_userbyid`, `quote_ident`, `format_type`, `pg_get_expr`, `has_schema_privilege`, `has_table_privilege`, `pg_table_is_visible`, and `obj_description`.
 
 Unsupported or not yet guaranteed:
 
@@ -114,12 +116,12 @@ The matrix tracks read-model workflows, not full PostgreSQL server equivalence. 
 | `diesel` | Untested/planned | Projection-table reads and supported schema metadata where Diesel does not require unsupported PostgreSQL catalog parity | No automated probe yet |
 | `prisma` | Untested/planned | Introspection and read queries for compatible projection tables where Prisma does not require unsupported catalog/DDL features | No automated probe yet |
 | `SQLAlchemy` | Experimental opt-in | SQLAlchemy Core connection startup, dialect metadata probes, catalog query, simple SELECT, bound-parameter read query, DDL/DML smoke, unique-violation SQLSTATE, and missing-relation SQLSTATE where generated SQL stays inside Cassie's supported surface and native hstore integration is disabled | Ignored `should_validate_sqlalchemy_read_model_probe_when_enabled`; install Python packages `SQLAlchemy` and `psycopg`, then run `CASSIE_RUN_SQLALCHEMY_COMPAT=1 cargo test --locked --test compatibility_sqlalchemy should_validate_sqlalchemy_read_model_probe_when_enabled -- --ignored --nocapture`. Set `CASSIE_SQLALCHEMY_PYTHON` to override the Python binary. The probe uses `use_native_hstore=False`. |
-| `pgAdmin4` | Untested/planned | Connection registration, database/schema browser, table metadata inspection, and table-data browsing for supported schemas through PostgreSQL-compatible pgwire and catalog behavior | No automated probe yet |
+| `pgAdmin4` | Experimental/manual smoke | Connection registration, database/schema browser, table/view/index/constraint metadata inspection, and table-data browsing for supported schemas through PostgreSQL-compatible pgwire and catalog behavior | Automated Rust coverage validates generic pgAdmin-style catalog/browser queries. Manual smoke: start Cassie with pgwire, register a PostgreSQL server in pgAdmin4 using the Cassie host/port/database/user, browse `Databases` -> `postgres` -> `Schemas` -> `public`, inspect `Tables`, `Views`, `Indexes`, `Constraints`, and run table-data browsing for a supported table. |
 | Common migration tools | Experimental/documented | Supported DDL through pgwire: schemas, tables, constraints, indexes, views, simple sequences, `SERIAL`/`BIGSERIAL`, `nextval(...)` defaults, and basic `ALTER COLUMN` default/nullability changes that map to Cassie SQL | Use tool-specific dry runs against a disposable Cassie node; advanced PostgreSQL migration features remain unsupported unless documented separately |
 
 Phase 09 client-probe depth is closed for the current slice with the SQLAlchemy Core opt-in probe.
 The default suite remains deterministic and dependency-free beyond Rust dependencies; psql and SQLAlchemy probes require explicit environment variables and local tools.
-sqlx, diesel, prisma, pgAdmin4, broader reflection, native extension integration, database-tool automation, and migration-tool automation remain planned compatibility depth rather than implied support.
+sqlx, diesel, prisma, broader reflection, native extension integration, database-tool automation, and migration-tool automation remain planned compatibility depth rather than implied support.
 
 Unsupported or out-of-scope for client compatibility:
 
@@ -181,6 +183,7 @@ Current foundation fixture:
 - ORM introspection metadata now includes simple column defaults and pg-catalog attribute/default/index rows for supported tables.
 - Migration DDL now includes bare `CREATE SEQUENCE`/`DROP SEQUENCE`, sequence-backed `nextval(...)` defaults, `SERIAL`/`BIGSERIAL` table-column sugar, and `ALTER TABLE ... ALTER COLUMN` set/drop default and set/drop not-null behavior for rows that already satisfy the constraint.
 - Extended-query metadata now includes explicit and inferred parameter OIDs for supported CRUD shapes, row descriptions for prepared SELECT and DML RETURNING statements, named/unnamed statement lifecycle coverage, and sync-drain recovery after statement errors.
+- Generic database-browser support now includes pgAdmin4-style schema/table/view/index/constraint catalog browsing and supported table-data inspection without client detection.
 - Composite constraint fidelity, deferrable constraints, match types, and advanced cyclic/deferred referential-action behavior remain compatibility gaps for full ORM migration diffing.
 
 ## Cassie-Specific SQL and APIs

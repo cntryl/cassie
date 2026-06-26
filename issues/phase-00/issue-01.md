@@ -6,11 +6,9 @@ Open.
 
 ## Priority Source Of Truth
 
-Phase 11 is the active execution gate.
+Phase 11 is complete.
 
-Resolve Phase 11 issues in order:
-
-1. `issues/phase-11/issue-05.md`
+There are no open Phase 11 issues.
 
 Completed Phase 11 issues:
 
@@ -18,6 +16,7 @@ Completed Phase 11 issues:
 - `issues/phase-11/issue-02.md` is archived in `issues/phase-11/README.md`.
 - `issues/phase-11/issue-03.md` is archived in `issues/phase-11/README.md`.
 - `issues/phase-11/issue-04.md` is archived in `issues/phase-11/README.md`.
+- `issues/phase-11/issue-05.md` is archived in `issues/phase-11/README.md`.
 
 Completed Phase 10 issues:
 
@@ -29,7 +28,7 @@ Completed Phase 10 issues:
 - `issues/phase-10/issue-06.md` is archived in `issues/phase-10/README.md`.
 - `issues/phase-10/issue-07.md` is archived in `issues/phase-10/README.md`.
 
-Do not start a later Phase 11 issue while an earlier issue remains open unless the later issue explicitly names that dependency as complete or unnecessary.
+Do not start a later compatibility gate until a new source-of-truth issue replaces this closed Phase 11 gate.
 
 ## Dependencies
 

@@ -3,6 +3,7 @@ use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
+use std::{fs, path::PathBuf};
 
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
@@ -21,6 +22,12 @@ fn data_dir(label: &str) -> String {
         Uuid::new_v4()
     ));
     path.to_string_lossy().to_string()
+}
+
+fn temp_dir(label: &str) -> PathBuf {
+    let mut path = std::env::temp_dir();
+    path.push(format!("cassie-compatibility-{}-{}", label, Uuid::new_v4()));
+    path
 }
 
 struct CompatibilityServer {
@@ -177,6 +184,8 @@ fn should_document_read_model_client_matrix() {
     assert!(docs.contains("not full PostgreSQL server equivalence"));
     assert!(docs.contains("should_validate_sqlalchemy_read_model_probe_when_enabled"));
     assert!(docs.contains("CASSIE_RUN_SQLALCHEMY_COMPAT=1"));
+    assert!(docs.contains("should_validate_prisma_introspection_probe_when_enabled"));
+    assert!(docs.contains("CASSIE_RUN_PRISMA_COMPAT=1"));
 }
 
 #[test]
@@ -239,6 +248,96 @@ fn should_validate_psql_read_model_probe_when_enabled() {
             output.stderr
         );
         assert!(returned_alpha);
+    });
+}
+
+#[test]
+#[ignore = "requires local Prisma CLI; run with CASSIE_RUN_PRISMA_COMPAT=1 cargo test --locked --test compatibility_matrix should_validate_prisma_introspection_probe_when_enabled -- --ignored --nocapture"]
+fn should_validate_prisma_introspection_probe_when_enabled() {
+    // Arrange
+    if std::env::var("CASSIE_RUN_PRISMA_COMPAT").ok().as_deref() != Some("1") {
+        eprintln!("set CASSIE_RUN_PRISMA_COMPAT=1 to run the optional Prisma probe");
+        return;
+    }
+    let prisma_bin = std::env::var("CASSIE_PRISMA_BIN").unwrap_or_else(|_| "prisma".to_string());
+    let schema_dir = temp_dir("prisma_probe");
+    fs::create_dir_all(&schema_dir).expect("create Prisma probe directory");
+    let schema_path = schema_dir.join("schema.prisma");
+    fs::write(
+        &schema_path,
+        r#"generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+"#,
+    )
+    .expect("write Prisma schema");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("prisma_probe").await;
+        let (client, connection_task) =
+            tokio::time::timeout(Duration::from_secs(5), server.connect())
+                .await
+                .expect("connect should complete within the timeout");
+        client
+            .batch_execute(
+                "CREATE TABLE compat_prisma_items (id INT PRIMARY KEY, title TEXT NOT NULL UNIQUE, created_at TIMESTAMP)",
+            )
+            .await
+            .expect("Prisma probe fixture table should be created");
+        drop(client);
+        connection_task.abort();
+        let _ = connection_task.await;
+
+        let connection = format!("postgresql://postgres@127.0.0.1:{}/postgres", server.addr.port());
+        let schema_arg = schema_path
+            .to_str()
+            .expect("Prisma schema path should be UTF-8")
+            .to_string();
+
+        // Act
+        let output = tokio::task::spawn_blocking(move || {
+            let mut command = Command::new(prisma_bin);
+            command
+                .current_dir(&schema_dir)
+                .env("DATABASE_URL", &connection)
+                .args(["db", "pull", "--schema", &schema_arg, "--url", &connection, "--print"]);
+            let output = run_external_probe(command, Duration::from_secs(45));
+            let _ = fs::remove_dir_all(&schema_dir);
+            output
+        })
+        .await
+        .expect("Prisma probe blocking task should complete");
+        let output = match output {
+            Ok(output) => output,
+            Err(error) => {
+                server.shutdown_without_client().await;
+                panic!("run Prisma compatibility probe: {error}");
+            }
+        };
+        server.shutdown_without_client().await;
+
+        // Assert
+        assert!(
+            !output.timed_out,
+            "Prisma probe timed out\nstdout:\n{}\nstderr:\n{}",
+            output.stdout, output.stderr
+        );
+        assert!(
+            output.success,
+            "Prisma probe failed with status {:?}\nstdout:\n{}\nstderr:\n{}",
+            output.status_code, output.stdout, output.stderr
+        );
+        assert!(output.stdout.contains("compat_prisma_items"));
+        assert!(output.stdout.contains("title"));
     });
 }
 

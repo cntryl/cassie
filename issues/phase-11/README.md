@@ -34,9 +34,7 @@ Every slice must benefit more than one PostgreSQL client when practical, preserv
 
 ## Open Issues
 
-Resolve Phase 11 issues in order:
-
-1. `issues/phase-11/issue-05.md`
+No open Phase 11 issues remain.
 
 ## Archived Issue Summaries
 
@@ -44,3 +42,4 @@ Resolve Phase 11 issues in order:
 - Issue 02, migration DDL compatibility basics, closed 2026-06-25. Cassie now supports bare `CREATE SEQUENCE`/`DROP SEQUENCE`, durable sequence-backed `nextval(...)` defaults, `SERIAL`/`BIGSERIAL` table-column sugar, and basic `ALTER TABLE ... ALTER COLUMN` set/drop default and set/drop not-null operations, with sequence metadata exposed through PostgreSQL-compatible catalog views and unsupported sequence options rejected deterministically.
 - Issue 03, prepared statement and parameter metadata depth, closed 2026-06-25. Extended-query pgwire coverage now verifies explicit and inferred parameter descriptions, prepared SELECT and DML RETURNING row descriptions, named and unnamed statement/portal lifecycle behavior, deterministic SQLSTATE/error fields, and ReadyForQuery recovery after extended-query errors without client-specific protocol branches.
 - Issue 04, pgAdmin4 browser workflow support, closed 2026-06-26. Generic PostgreSQL catalog/browser support now exposes deterministic OID-shaped companion metadata, browser helper functions, pgAdmin4-style schema/table/view/index/constraint queries, and supported table-data inspection without client-specific detection; unsupported PostgreSQL administrative areas remain documented.
+- Issue 05, opt-in ORM and tooling smoke probes, closed 2026-06-26. Default tests remain dependency-light while opt-in Prisma CLI introspection coverage joins the existing psql and SQLAlchemy probes; pgAdmin4 has a documented manual smoke workflow, and docs identify probe failures as PostgreSQL compatibility gaps rather than client-specific workarounds.

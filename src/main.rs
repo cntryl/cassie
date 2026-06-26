@@ -6,7 +6,7 @@ use tokio::sync::Notify;
 async fn main() -> Result<(), CassieError> {
     tracing_subscriber::fmt().with_env_filter("info").init();
 
-    let config = CassieRuntimeConfig::from_env();
+    let config = CassieRuntimeConfig::from_env()?;
     let cassie = Arc::new(Cassie::new()?);
     cassie.startup()?;
 

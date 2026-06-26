@@ -92,7 +92,7 @@ fn register_feedback_collection(cassie: &Cassie, collection: &str) {
 }
 
 fn adaptive_candidate_config(min: usize, max: usize) -> cassie::config::CassieRuntimeConfig {
-    let mut config = cassie::config::CassieRuntimeConfig::from_env();
+    let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.adaptive_candidate_min = min;
     config.limits.adaptive_candidate_max = max;
     config

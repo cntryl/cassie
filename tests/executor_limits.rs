@@ -17,135 +17,155 @@ use uuid::Uuid;
 mod support;
 use support::*;
 
-#[tokio::test]
-async fn should_fail_query_when_query_timeout_is_exceeded() {
-    // Arrange
-    with_fallback();
-    let mut config = CassieRuntimeConfig::from_env();
-    config.limits.query_timeout_ms = 0;
-    let path = data_dir("timeout");
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+#[test]
+fn should_fail_query_when_query_timeout_is_exceeded() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
 
-    let collection = "exec_timeout";
-    let schema = Schema {
-        fields: vec![FieldSchema {
-            name: "title".to_string(),
-            data_type: DataType::Text,
-            nullable: true,
-        }],
-    };
+    runtime.block_on(async {
+        // Arrange
+        with_fallback();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.limits.query_timeout_ms = 0;
+        let path = data_dir("timeout");
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
 
-    cassie
-        .midge
-        .create_collection(collection, schema.clone())
-        .unwrap();
-    cassie.register_collection(
-        collection,
-        schema
-            .fields
-            .iter()
-            .map(|field| (field.name.clone(), field.data_type.clone()))
-            .collect(),
-    );
-    cassie
-        .midge
-        .put_document(
+        let collection = "exec_timeout";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(
             collection,
-            Some("doc-1".to_string()),
-            serde_json::json!({"title": "alpha"}),
-        )
-        .unwrap();
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .unwrap();
 
-    let session = cassie.create_session("tester", None);
+        let session = cassie.create_session("tester", None);
 
-    // Act
-    let result = cassie.execute_sql(&session, "SELECT title FROM exec_timeout", vec![]);
+        // Act
+        let result = cassie.execute_sql(&session, "SELECT title FROM exec_timeout", vec![]);
 
-    // Assert
-    let message = result
-        .expect_err("query should fail when timeout is configured to 0")
-        .to_string();
-    assert!(
-        message.contains("query timeout exceeded"),
-        "expected timeout error, got {message}"
-    );
+        // Assert
+        let message = result
+            .expect_err("query should fail when timeout is configured to 0")
+            .to_string();
+        assert!(
+            message.contains("query timeout exceeded"),
+            "expected timeout error, got {message}"
+        );
 
-    let _ = std::fs::remove_dir_all(path);
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
-#[tokio::test]
-async fn should_fail_query_when_result_limit_is_exceeded() {
-    // Arrange
-    with_fallback();
-    let mut config = CassieRuntimeConfig::from_env();
-    config.limits.max_result_rows = 1;
-    let path = data_dir("max_rows");
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+#[test]
+fn should_fail_query_when_result_limit_is_exceeded() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
 
-    let collection = "exec_max_rows";
-    let schema = Schema {
-        fields: vec![FieldSchema {
-            name: "title".to_string(),
-            data_type: DataType::Text,
-            nullable: true,
-        }],
-    };
+    runtime.block_on(async {
+        // Arrange
+        with_fallback();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.limits.max_result_rows = 1;
+        let path = data_dir("max_rows");
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
 
-    cassie
-        .midge
-        .create_collection(collection, schema.clone())
-        .unwrap();
-    cassie.register_collection(
-        collection,
-        schema
-            .fields
-            .iter()
-            .map(|field| (field.name.clone(), field.data_type.clone()))
-            .collect(),
-    );
-    cassie
-        .midge
-        .put_document(
+        let collection = "exec_max_rows";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(
             collection,
-            Some("doc-1".to_string()),
-            serde_json::json!({"title": "alpha"}),
-        )
-        .unwrap();
-    cassie
-        .midge
-        .put_document(
-            collection,
-            Some("doc-2".to_string()),
-            serde_json::json!({"title": "beta"}),
-        )
-        .unwrap();
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-2".to_string()),
+                serde_json::json!({"title": "beta"}),
+            )
+            .unwrap();
 
-    let session = cassie.create_session("tester", None);
+        let session = cassie.create_session("tester", None);
 
-    // Act
-    let result = cassie.execute_sql(
-        &session,
-        "SELECT title FROM exec_max_rows ORDER BY title",
-        vec![],
-    );
+        // Act
+        let result = cassie.execute_sql(
+            &session,
+            "SELECT title FROM exec_max_rows ORDER BY title",
+            vec![],
+        );
 
-    // Assert
-    let message = result
-        .expect_err("query should fail when row limit is configured too low")
-        .to_string();
-    assert!(
-        message.contains("query result row limit exceeded"),
-        "expected row limit error, got {message}"
-    );
+        // Assert
+        let message = result
+            .expect_err("query should fail when row limit is configured too low")
+            .to_string();
+        assert!(
+            message.contains("query result row limit exceeded"),
+            "expected row limit error, got {message}"
+        );
 
-    let _ = std::fs::remove_dir_all(path);
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
-#[tokio::test]
-async fn should_fail_query_when_cte_recursion_depth_is_exceeded() {
+#[test]
+fn should_fail_query_when_cte_recursion_depth_is_exceeded() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
     // Arrange
     with_fallback();
-    let mut config = CassieRuntimeConfig::from_env();
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.cte_recursion_depth = 0;
     let path = data_dir("cte_depth");
     let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
@@ -201,62 +221,70 @@ async fn should_fail_query_when_cte_recursion_depth_is_exceeded() {
     );
 
     let _ = std::fs::remove_dir_all(path);
+    });
 }
 
-#[tokio::test]
-async fn should_fail_query_when_temporary_spill_budget_is_exceeded() {
-    // Arrange
-    with_fallback();
-    let mut config = CassieRuntimeConfig::from_env();
-    config.limits.temp_spill_budget_bytes = 16;
-    let path = data_dir("spill_budget");
-    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+#[test]
+fn should_fail_query_when_temporary_spill_budget_is_exceeded() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
 
-    let collection = "exec_spill";
-    let schema = Schema {
-        fields: vec![FieldSchema {
-            name: "payload".to_string(),
-            data_type: DataType::Text,
-            nullable: true,
-        }],
-    };
+    runtime.block_on(async {
+        // Arrange
+        with_fallback();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.limits.temp_spill_budget_bytes = 16;
+        let path = data_dir("spill_budget");
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
 
-    cassie
-        .midge
-        .create_collection(collection, schema.clone())
-        .unwrap();
-    cassie.register_collection(
-        collection,
-        schema
-            .fields
-            .iter()
-            .map(|field| (field.name.clone(), field.data_type.clone()))
-            .collect(),
-    );
-    cassie
-        .midge
-        .put_document(
+        let collection = "exec_spill";
+        let schema = Schema {
+            fields: vec![FieldSchema {
+                name: "payload".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            }],
+        };
+
+        cassie
+            .midge
+            .create_collection(collection, schema.clone())
+            .unwrap();
+        cassie.register_collection(
             collection,
-            Some("doc-1".to_string()),
-            serde_json::json!({"payload": "very long payload data for spill budget test"}),
-        )
-        .unwrap();
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"payload": "very long payload data for spill budget test"}),
+            )
+            .unwrap();
 
-    let session = cassie.create_session("tester", None);
+        let session = cassie.create_session("tester", None);
 
-    // Act
-    let result = cassie.execute_sql(&session, "SELECT payload FROM exec_spill", vec![]);
+        // Act
+        let result = cassie.execute_sql(&session, "SELECT payload FROM exec_spill", vec![]);
 
-    // Assert
-    let message = result
-        .expect_err("query should fail when temp spill budget is exhausted")
-        .to_string();
-    assert!(
-        message.contains("temporary storage budget exceeded"),
-        "expected spill budget error, got {message}"
-    );
+        // Assert
+        let message = result
+            .expect_err("query should fail when temp spill budget is exhausted")
+            .to_string();
+        assert!(
+            message.contains("temporary storage budget exceeded"),
+            "expected spill budget error, got {message}"
+        );
 
-    let _ = std::fs::remove_dir_all(path);
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
 #[test]
@@ -447,7 +475,7 @@ fn should_cleanup_parallel_aggregation_workers_on_timeout() {
     // Arrange
     with_fallback();
     let path = data_dir("parallel_aggregation_timeout");
-    let mut config = CassieRuntimeConfig::from_env();
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
     config.limits.query_timeout_ms = 0;
     let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();

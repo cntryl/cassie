@@ -3,7 +3,10 @@ use cassie::types::{DataType, FieldSchema, Schema};
 use cassie::{app::CassieError, Cassie, CassieRuntimeConfig};
 use std::env;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use uuid::Uuid;
+
+static CONFIG_ENV_LOCK: Mutex<()> = Mutex::new(());
 
 fn without_fallback() {
     env::remove_var("CASSIE_MIDGE_ALLOW_FALLBACK");
@@ -13,6 +16,30 @@ fn data_dir(label: &str) -> String {
     let mut dir = env::temp_dir();
     dir.push(format!("cassie-v1-runtime-{}-{}", label, Uuid::new_v4()));
     dir.to_string_lossy().to_string()
+}
+
+struct EnvGuard {
+    values: Vec<(&'static str, Option<String>)>,
+}
+
+impl EnvGuard {
+    fn capture(keys: &[&'static str]) -> Self {
+        Self {
+            values: keys.iter().map(|key| (*key, env::var(key).ok())).collect(),
+        }
+    }
+}
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        for (key, value) in &self.values {
+            if let Some(value) = value {
+                env::set_var(key, value);
+            } else {
+                env::remove_var(key);
+            }
+        }
+    }
 }
 
 #[test]
@@ -213,6 +240,7 @@ fn should_clear_ready_state_after_shutdown() {
 #[test]
 fn should_startup_respects_runtime_config_defaults() {
     // Arrange
+    let _env_lock = CONFIG_ENV_LOCK.lock().expect("config env lock");
     let keys = [
         "CASSIE_PGWIRE_LISTEN",
         "CASSIE_REST_LISTEN",
@@ -222,17 +250,14 @@ fn should_startup_respects_runtime_config_defaults() {
         "CASSIE_ADMIN_PASSWORD_FILE",
         "CASSIE_EMBEDDINGS_PROVIDER",
     ];
-    let backup: Vec<(String, Option<String>)> = keys
-        .iter()
-        .map(|key| (key.to_string(), env::var(key).ok()))
-        .collect();
+    let _guard = EnvGuard::capture(&keys);
 
     for key in keys {
         env::remove_var(key);
     }
 
     // Act
-    let config = CassieRuntimeConfig::from_env();
+    let config = CassieRuntimeConfig::from_env().expect("runtime config");
 
     // Assert
     assert_eq!(config.pgwire_listen, "127.0.0.1:5432");
@@ -243,14 +268,6 @@ fn should_startup_respects_runtime_config_defaults() {
         config.embeddings,
         EmbeddingsRuntimeConfig::Disabled
     ));
-
-    for (key, value) in backup {
-        if let Some(value) = value {
-            env::set_var(key, value);
-        } else {
-            env::remove_var(key);
-        }
-    }
 }
 
 #[test]

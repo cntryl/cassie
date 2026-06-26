@@ -6,11 +6,11 @@ impl Cassie {
     pub fn new() -> Result<Self, CassieError> {
         let data_dir = std::env::var("CASSIE_MIDGE_DATA_DIR")
             .unwrap_or_else(|_| "./.cassie/midge".to_string());
-        Self::new_with_data_dir_and_config(data_dir, CassieRuntimeConfig::from_env())
+        Self::new_with_data_dir_and_config(data_dir, CassieRuntimeConfig::from_env()?)
     }
 
     pub fn new_with_data_dir(data_dir: impl AsRef<Path>) -> Result<Self, CassieError> {
-        Self::new_with_data_dir_and_config(data_dir, CassieRuntimeConfig::from_env())
+        Self::new_with_data_dir_and_config(data_dir, CassieRuntimeConfig::from_env()?)
     }
 
     pub fn new_with_data_dir_and_config(

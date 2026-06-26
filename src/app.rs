@@ -413,6 +413,9 @@ pub enum CassieError {
     #[error("execution error: {0}")]
     Execution(String),
 
+    #[error("configuration error: {0}")]
+    Configuration(String),
+
     #[error("invalid vector: {0}")]
     InvalidVector(String),
 
@@ -525,6 +528,12 @@ impl From<QueryError> for CassieError {
             QueryError::General(message) => CassieError::Execution(message),
             QueryError::Cassie(error) => error,
         }
+    }
+}
+
+impl From<crate::config::CassieRuntimeConfigError> for CassieError {
+    fn from(value: crate::config::CassieRuntimeConfigError) -> Self {
+        CassieError::Configuration(value.to_string())
     }
 }
 

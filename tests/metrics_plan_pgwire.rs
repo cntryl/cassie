@@ -81,7 +81,7 @@ fn register_feedback_collection(cassie: &Cassie, collection: &str) {
 }
 
 fn adaptive_candidate_config(min: usize, max: usize) -> cassie::config::CassieRuntimeConfig {
-    let mut config = cassie::config::CassieRuntimeConfig::from_env();
+    let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.adaptive_candidate_min = min;
     config.limits.adaptive_candidate_max = max;
     config
@@ -285,7 +285,7 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
         let addr = listener.local_addr().expect("listener address");
         drop(listener);
 
-        let mut config = cassie::config::CassieRuntimeConfig::from_env();
+        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
         let server = tokio::spawn(cassie::pgwire::server::run(
             addr.to_string(),

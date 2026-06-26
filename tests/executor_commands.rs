@@ -285,366 +285,410 @@ fn should_fail_unknown_function_during_execution() {
     });
 }
 
-#[tokio::test]
-async fn should_execute_create_alter_and_drop_table_commands() {
-    // Arrange
-    with_fallback();
-    let path = data_dir("ddl_command");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let session = cassie.create_session("tester", None);
-    let table_name = "ddl_table";
+#[test]
+fn should_execute_table_lifecycle_commands() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
 
-    // Act
-    let create = cassie
-        .execute_sql(
-            &session,
-            "CREATE TABLE ddl_table (id TEXT, title TEXT)",
-            vec![],
-        )
-        .unwrap();
-    assert_eq!(create.command, "CREATE TABLE");
-    assert_eq!(create.columns.len(), 0);
-    assert!(cassie.catalog.exists(table_name));
+    runtime.block_on(async {
+        // Arrange
+        with_fallback();
+        let path = data_dir("ddl_command");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+        let table_name = "ddl_table";
 
-    cassie
-        .midge
-        .put_document(
-            table_name,
-            Some("d1".to_string()),
-            serde_json::json!({"id": "d1", "title": "alpha"}),
-        )
-        .unwrap();
+        // Act
+        let create = cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE ddl_table (id TEXT, title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        assert_eq!(create.command, "CREATE TABLE");
+        assert_eq!(create.columns.len(), 0);
+        assert!(cassie.catalog.exists(table_name));
 
-    let alter_add = cassie
-        .execute_sql(
-            &session,
-            "ALTER TABLE ddl_table ADD COLUMN status TEXT",
-            vec![],
-        )
-        .unwrap();
-    let alter_rename = cassie
-        .execute_sql(
-            &session,
-            "ALTER TABLE ddl_table RENAME TO ddl_table_archive",
-            vec![],
-        )
-        .unwrap();
-    let rename_rows = cassie
-        .execute_sql(
-            &session,
-            "SELECT id, status FROM ddl_table_archive ORDER BY id",
-            vec![],
-        )
-        .unwrap();
-    let drop = cassie
-        .execute_sql(&session, "DROP TABLE ddl_table_archive", vec![])
-        .unwrap();
+        cassie
+            .midge
+            .put_document(
+                table_name,
+                Some("d1".to_string()),
+                serde_json::json!({"id": "d1", "title": "alpha"}),
+            )
+            .unwrap();
 
-    // Assert
-    assert_eq!(alter_add.command, "ALTER TABLE");
-    assert_eq!(alter_rename.command, "ALTER TABLE");
-    assert!(!cassie.catalog.exists(table_name));
-    assert_eq!(rename_rows.columns.len(), 2);
-    assert_eq!(rename_rows.rows.len(), 1);
-    assert_eq!(rename_rows.rows[0][0], Value::String("d1".to_string()));
-    assert_eq!(drop.command, "DROP TABLE");
-    assert!(!cassie.catalog.exists("ddl_table_archive"));
+        let alter_add = cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE ddl_table ADD COLUMN status TEXT",
+                vec![],
+            )
+            .unwrap();
+        let alter_rename = cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE ddl_table RENAME TO ddl_table_archive",
+                vec![],
+            )
+            .unwrap();
+        let rename_rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, status FROM ddl_table_archive ORDER BY id",
+                vec![],
+            )
+            .unwrap();
+        let drop = cassie
+            .execute_sql(&session, "DROP TABLE ddl_table_archive", vec![])
+            .unwrap();
 
-    let _ = std::fs::remove_dir_all(path);
+        // Assert
+        assert_eq!(alter_add.command, "ALTER TABLE");
+        assert_eq!(alter_rename.command, "ALTER TABLE");
+        assert!(!cassie.catalog.exists(table_name));
+        assert_eq!(rename_rows.columns.len(), 2);
+        assert_eq!(rename_rows.rows.len(), 1);
+        assert_eq!(rename_rows.rows[0][0], Value::String("d1".to_string()));
+        assert_eq!(drop.command, "DROP TABLE");
+        assert!(!cassie.catalog.exists("ddl_table_archive"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
-#[tokio::test]
-async fn should_execute_alter_table_rename_column_command() {
-    // Arrange
-    with_fallback();
-    let path = data_dir("ddl_rename_column_command");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let session = cassie.create_session("tester", None);
+#[test]
+fn should_execute_alter_table_rename_column_command() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
 
-    cassie
-        .execute_sql(
-            &session,
-            "CREATE TABLE rename_column_docs (id TEXT, title TEXT)",
-            vec![],
-        )
-        .unwrap();
-    cassie
-        .midge
-        .put_document(
-            "rename_column_docs",
-            Some("d1".to_string()),
-            serde_json::json!({"id": "d1", "title": "alpha"}),
-        )
-        .unwrap();
+    runtime.block_on(async {
+        // Arrange
+        with_fallback();
+        let path = data_dir("ddl_rename_column_command");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
 
-    // Act
-    let rename = cassie
-        .execute_sql(
-            &session,
-            "ALTER TABLE rename_column_docs RENAME COLUMN title TO headline",
-            vec![],
-        )
-        .unwrap();
-    let rows = cassie
-        .execute_sql(
-            &session,
-            "SELECT id, headline FROM rename_column_docs ORDER BY id",
-            vec![],
-        )
-        .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE rename_column_docs (id TEXT, title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                "rename_column_docs",
+                Some("d1".to_string()),
+                serde_json::json!({"id": "d1", "title": "alpha"}),
+            )
+            .unwrap();
 
-    let schema = cassie
-        .catalog
-        .get_schema("rename_column_docs")
-        .expect("schema should exist");
+        // Act
+        let rename = cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE rename_column_docs RENAME COLUMN title TO headline",
+                vec![],
+            )
+            .unwrap();
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, headline FROM rename_column_docs ORDER BY id",
+                vec![],
+            )
+            .unwrap();
 
-    // Assert
-    assert_eq!(rename.command, "ALTER TABLE");
-    assert_eq!(rows.rows.len(), 1);
-    assert_eq!(rows.rows[0][0], Value::String("d1".to_string()));
-    assert_eq!(rows.rows[0][1], Value::String("alpha".to_string()));
-    assert!(schema.fields.iter().any(|field| field.name == "headline"));
-    assert!(!schema.fields.iter().any(|field| field.name == "title"));
+        let schema = cassie
+            .catalog
+            .get_schema("rename_column_docs")
+            .expect("schema should exist");
 
-    let _ = std::fs::remove_dir_all(path);
+        // Assert
+        assert_eq!(rename.command, "ALTER TABLE");
+        assert_eq!(rows.rows.len(), 1);
+        assert_eq!(rows.rows[0][0], Value::String("d1".to_string()));
+        assert_eq!(rows.rows[0][1], Value::String("alpha".to_string()));
+        assert!(schema.fields.iter().any(|field| field.name == "headline"));
+        assert!(!schema.fields.iter().any(|field| field.name == "title"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
-#[tokio::test]
-async fn should_execute_create_and_drop_index_commands() {
-    // Arrange
-    with_fallback();
-    let path = data_dir("ddl_index_command");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let session = cassie.create_session("tester", None);
+#[test]
+fn should_execute_index_lifecycle_commands() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
 
-    // Act
-    cassie
-        .execute_sql(
-            &session,
-            "CREATE TABLE idx_commands (id TEXT, title TEXT)",
-            vec![],
-        )
-        .unwrap();
+    runtime.block_on(async {
+        // Arrange
+        with_fallback();
+        let path = data_dir("ddl_index_command");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
 
-    let create_index = cassie
-        .execute_sql(
-            &session,
-            "CREATE INDEX idx_title ON idx_commands USING btree (title)",
-            vec![],
-        )
-        .unwrap();
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE idx_commands (id TEXT, title TEXT)",
+                vec![],
+            )
+            .unwrap();
 
-    let catalog_index = cassie
-        .catalog
-        .get_index("idx_commands", "idx_title")
-        .expect("index should be in catalog");
-    let stored_index = cassie
-        .midge
-        .get_index("idx_commands", "idx_title")
-        .unwrap()
-        .expect("index should be persisted");
+        let create_index = cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_title ON idx_commands USING btree (title)",
+                vec![],
+            )
+            .unwrap();
 
-    let drop_index = cassie
-        .execute_sql(
-            &session,
-            "DROP INDEX IF EXISTS idx_title ON idx_commands",
-            vec![],
-        )
-        .unwrap();
+        let catalog_index = cassie
+            .catalog
+            .get_index("idx_commands", "idx_title")
+            .expect("index should be in catalog");
+        let stored_index = cassie
+            .midge
+            .get_index("idx_commands", "idx_title")
+            .unwrap()
+            .expect("index should be persisted");
 
-    // Assert
-    assert_eq!(create_index.command, "CREATE INDEX");
-    assert_eq!(create_index.columns.len(), 0);
-    assert!(!catalog_index.unique);
-    assert_eq!(catalog_index.field, "title");
-    assert_eq!(stored_index.field, "title");
-    assert_eq!(drop_index.command, "DROP INDEX");
-    assert!(cassie
-        .catalog
-        .get_index("idx_commands", "idx_title")
-        .is_none());
+        let drop_index = cassie
+            .execute_sql(
+                &session,
+                "DROP INDEX IF EXISTS idx_title ON idx_commands",
+                vec![],
+            )
+            .unwrap();
 
-    let _ = std::fs::remove_dir_all(path);
+        // Assert
+        assert_eq!(create_index.command, "CREATE INDEX");
+        assert_eq!(create_index.columns.len(), 0);
+        assert!(!catalog_index.unique);
+        assert_eq!(catalog_index.field, "title");
+        assert_eq!(stored_index.field, "title");
+        assert_eq!(drop_index.command, "DROP INDEX");
+        assert!(cassie
+            .catalog
+            .get_index("idx_commands", "idx_title")
+            .is_none());
+
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
-#[tokio::test]
-async fn should_execute_create_composite_index_command() {
-    // Arrange
-    with_fallback();
-    let path = data_dir("ddl_composite_index_command");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let session = cassie.create_session("tester", None);
+#[test]
+fn should_execute_create_composite_index_command() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
 
-    cassie
-        .execute_sql(
-            &session,
-            "CREATE TABLE composite_index_docs (id TEXT, title TEXT, score INT)",
-            vec![],
-        )
-        .unwrap();
+    runtime.block_on(async {
+        // Arrange
+        with_fallback();
+        let path = data_dir("ddl_composite_index_command");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
 
-    // Act
-    let create_index = cassie
-        .execute_sql(
-            &session,
-            "CREATE INDEX idx_title_score ON composite_index_docs USING btree (title, score)",
-            vec![],
-        )
-        .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE composite_index_docs (id TEXT, title TEXT, score INT)",
+                vec![],
+            )
+            .unwrap();
 
-    let catalog_index = cassie
-        .catalog
-        .get_index("composite_index_docs", "idx_title_score")
-        .expect("index should be in catalog");
-    let stored_index = cassie
-        .midge
-        .get_index("composite_index_docs", "idx_title_score")
-        .unwrap()
-        .expect("index should be persisted");
+        // Act
+        let create_index = cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_title_score ON composite_index_docs USING btree (title, score)",
+                vec![],
+            )
+            .unwrap();
 
-    // Assert
-    assert_eq!(create_index.command, "CREATE INDEX");
-    assert_eq!(create_index.columns.len(), 0);
-    assert_eq!(
-        catalog_index.fields,
-        vec!["title".to_string(), "score".to_string()]
-    );
-    assert_eq!(
-        stored_index.fields,
-        vec!["title".to_string(), "score".to_string()]
-    );
-    assert_eq!(catalog_index.field, "title");
-    assert_eq!(stored_index.field, "title");
+        let catalog_index = cassie
+            .catalog
+            .get_index("composite_index_docs", "idx_title_score")
+            .expect("index should be in catalog");
+        let stored_index = cassie
+            .midge
+            .get_index("composite_index_docs", "idx_title_score")
+            .unwrap()
+            .expect("index should be persisted");
 
-    let _ = std::fs::remove_dir_all(path);
+        // Assert
+        assert_eq!(create_index.command, "CREATE INDEX");
+        assert_eq!(create_index.columns.len(), 0);
+        assert_eq!(
+            catalog_index.fields,
+            vec!["title".to_string(), "score".to_string()]
+        );
+        assert_eq!(
+            stored_index.fields,
+            vec!["title".to_string(), "score".to_string()]
+        );
+        assert_eq!(catalog_index.field, "title");
+        assert_eq!(stored_index.field, "title");
+
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
-#[tokio::test]
-async fn should_execute_create_function_and_evaluate_user_body() {
-    // Arrange
-    with_fallback();
-    let path = data_dir("create_function_exec");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let session = cassie.create_session("tester", None);
+#[test]
+fn should_evaluate_user_function_body_after_create() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
 
-    let collection = "udf_eval";
+    runtime.block_on(async {
+        // Arrange
+        with_fallback();
+        let path = data_dir("create_function_exec");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
 
-    cassie
-        .execute_sql(&session, "CREATE TABLE udf_eval (id TEXT, x INT)", vec![])
-        .unwrap();
-    cassie.register_collection(
-        collection,
-        vec![
-            ("id".to_string(), DataType::Text),
-            ("x".to_string(), DataType::Int),
-        ]
-        .into_iter()
-        .collect(),
-    );
+        let collection = "udf_eval";
 
-    cassie
-        .midge
-        .put_document(
+        cassie
+            .execute_sql(&session, "CREATE TABLE udf_eval (id TEXT, x INT)", vec![])
+            .unwrap();
+        cassie.register_collection(
             collection,
-            Some("d1".to_string()),
-            serde_json::json!({"id": "d1", "x": 3}),
-        )
-        .unwrap();
-    cassie
-        .midge
-        .put_document(
-            collection,
-            Some("d2".to_string()),
-            serde_json::json!({"id": "d2", "x": 7}),
-        )
-        .unwrap();
+            vec![
+                ("id".to_string(), DataType::Text),
+                ("x".to_string(), DataType::Int),
+            ]
+            .into_iter()
+            .collect(),
+        );
 
-    cassie
-        .execute_sql(
-            &session,
-            "CREATE FUNCTION double_input(x INT) RETURNS INT AS \"x\"",
-            vec![],
-        )
-        .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"id": "d1", "x": 3}),
+            )
+            .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d2".to_string()),
+                serde_json::json!({"id": "d2", "x": 7}),
+            )
+            .unwrap();
 
-    let query = cassie
-        .execute_sql(
-            &session,
-            "SELECT id, double_input(x) AS doubled FROM udf_eval ORDER BY id ASC",
-            vec![],
-        )
-        .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE FUNCTION double_input(x INT) RETURNS INT AS \"x\"",
+                vec![],
+            )
+            .unwrap();
 
-    // Assert
-    let function = cassie
-        .catalog
-        .get_function("double_input")
-        .expect("function should be registered");
-    assert_eq!(function.name, "double_input");
-    assert_eq!(query.columns[1].name, "doubled");
-    assert_eq!(
-        query.rows[0],
-        vec![Value::String("d1".to_string()), Value::Int64(3),]
-    );
-    assert_eq!(
-        query.rows[1],
-        vec![Value::String("d2".to_string()), Value::Int64(7),]
-    );
+        // Act
+        let query = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, double_input(x) AS doubled FROM udf_eval ORDER BY id ASC",
+                vec![],
+            )
+            .unwrap();
 
-    let _ = std::fs::remove_dir_all(path);
+        // Assert
+        let function = cassie
+            .catalog
+            .get_function("double_input")
+            .expect("function should be registered");
+        assert_eq!(function.name, "double_input");
+        assert_eq!(query.columns[1].name, "doubled");
+        assert_eq!(
+            query.rows[0],
+            vec![Value::String("d1".to_string()), Value::Int64(3),]
+        );
+        assert_eq!(
+            query.rows[1],
+            vec![Value::String("d2".to_string()), Value::Int64(7),]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
-#[tokio::test]
-async fn should_execute_drop_function_and_reject_subsequent_use() {
-    // Arrange
-    with_fallback();
-    let path = data_dir("drop_function_exec");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let session = cassie.create_session("tester", None);
+#[test]
+fn should_reject_function_use_after_drop() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
 
-    let collection = "udf_drop";
+    runtime.block_on(async {
+        // Arrange
+        with_fallback();
+        let path = data_dir("drop_function_exec");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
 
-    cassie
-        .execute_sql(&session, "CREATE TABLE udf_drop (id TEXT, x INT)", vec![])
-        .unwrap();
-    cassie.register_collection(
-        collection,
-        vec![
-            ("id".to_string(), DataType::Text),
-            ("x".to_string(), DataType::Int),
-        ]
-        .into_iter()
-        .collect(),
-    );
+        let collection = "udf_drop";
 
-    cassie
-        .midge
-        .put_document(
+        cassie
+            .execute_sql(&session, "CREATE TABLE udf_drop (id TEXT, x INT)", vec![])
+            .unwrap();
+        cassie.register_collection(
             collection,
-            Some("d1".to_string()),
-            serde_json::json!({"id": "d1", "x": 3}),
-        )
-        .unwrap();
+            vec![
+                ("id".to_string(), DataType::Text),
+                ("x".to_string(), DataType::Int),
+            ]
+            .into_iter()
+            .collect(),
+        );
 
-    cassie
-        .execute_sql(
-            &session,
-            "CREATE FUNCTION square(x INT) RETURNS INT AS \"x\"",
-            vec![],
-        )
-        .unwrap();
-    cassie
-        .execute_sql(&session, "DROP FUNCTION square", vec![])
-        .unwrap();
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("d1".to_string()),
+                serde_json::json!({"id": "d1", "x": 3}),
+            )
+            .unwrap();
 
-    let result = cassie.execute_sql(&session, "SELECT square(x) FROM udf_drop", vec![]);
-    let missing = cassie.catalog.get_function("square").is_none();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE FUNCTION square(x INT) RETURNS INT AS \"x\"",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(&session, "DROP FUNCTION square", vec![])
+            .unwrap();
 
-    // Assert
-    assert!(missing);
-    assert!(result.is_err());
+        // Act
+        let result = cassie.execute_sql(&session, "SELECT square(x) FROM udf_drop", vec![]);
+        let missing = cassie.catalog.get_function("square").is_none();
 
-    let _ = std::fs::remove_dir_all(path);
+        // Assert
+        assert!(missing);
+        assert!(result.is_err());
+
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
 #[test]

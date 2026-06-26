@@ -28,7 +28,7 @@ pub fn data_dir(label: &str) -> String {
 }
 
 pub fn openai_runtime_for_vectors() -> CassieRuntimeConfig {
-    let mut config = CassieRuntimeConfig::from_env();
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::OpenAI(OpenAiRuntimeConfig {
         config: OpenAiConfig {
             api_key: "vector-tests".to_string(),

@@ -112,6 +112,9 @@ fn map_error(error: crate::app::CassieError) -> (StatusCode, String) {
         crate::app::CassieError::EmbeddingUnavailable(_) => {
             (StatusCode::SERVICE_UNAVAILABLE, error.to_string())
         }
+        crate::app::CassieError::Configuration(_) => {
+            (StatusCode::SERVICE_UNAVAILABLE, error.to_string())
+        }
         crate::app::CassieError::Unauthorized => (StatusCode::UNAUTHORIZED, error.to_string()),
         crate::app::CassieError::Unsupported(_) => (StatusCode::NOT_IMPLEMENTED, error.to_string()),
         crate::app::CassieError::StorageBootstrap(_)

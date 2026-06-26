@@ -14,7 +14,7 @@ fn data_dir(label: &str) -> String {
 }
 
 fn vectorized_join_config(batch_size: usize) -> CassieRuntimeConfig {
-    let mut config = CassieRuntimeConfig::from_env();
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.vectorized_joins_enabled = true;
     config.limits.vectorized_join_batch_size = batch_size;
     config

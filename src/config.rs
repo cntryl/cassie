@@ -2,6 +2,19 @@ use std::env;
 
 use crate::embeddings::openai::OpenAiConfig;
 
+#[derive(Debug, thiserror::Error)]
+pub enum CassieRuntimeConfigError {
+    #[error("{key} is set but could not be read from '{path}': {source}")]
+    PasswordFileRead {
+        key: &'static str,
+        path: String,
+        source: std::io::Error,
+    },
+
+    #[error("{key} is set but '{path}' is empty after trimming whitespace")]
+    PasswordFileEmpty { key: &'static str, path: String },
+}
+
 #[derive(Debug, Clone)]
 pub struct CassieRuntimeConfig {
     pub pgwire_listen: String,
@@ -144,135 +157,185 @@ impl Default for OpenAiRuntimeConfig {
 }
 
 impl CassieRuntimeConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> Result<Self, CassieRuntimeConfigError> {
+        Self::from_env_reader(|key| env::var(key).ok())
+    }
+
+    fn from_env_reader(
+        env_reader: impl Fn(&str) -> Option<String>,
+    ) -> Result<Self, CassieRuntimeConfigError> {
         let mut config = Self::default();
-        if let Ok(v) = env::var("CASSIE_PGWIRE_LISTEN") {
+        if let Some(v) = env_reader("CASSIE_PGWIRE_LISTEN") {
             config.pgwire_listen = v;
         }
-        if let Ok(v) = env::var("CASSIE_REST_LISTEN") {
+        if let Some(v) = env_reader("CASSIE_REST_LISTEN") {
             config.rest_listen = v;
         }
-        if let Ok(v) = env::var("CASSIE_ADMIN_USER") {
+        if let Some(v) = env_reader("CASSIE_ADMIN_USER") {
             config.user = v;
         }
-        if let Ok(v) = env::var("CASSIE_DEFAULT_DATABASE") {
+        if let Some(v) = env_reader("CASSIE_DEFAULT_DATABASE") {
             config.database = v;
         }
 
-        if let Some(v) = read_password_from_file() {
+        if let Some(v) = read_password_from_file_from(&env_reader)? {
             config.password = v;
-        } else if let Ok(v) = env::var("CASSIE_ADMIN_PASSWORD") {
+        } else if let Some(v) = env_reader("CASSIE_ADMIN_PASSWORD") {
             config.password = v;
         }
 
         let provider =
-            env::var("CASSIE_EMBEDDINGS_PROVIDER").unwrap_or_else(|_| "disabled".to_string());
-        config.embeddings = parse_provider_config(provider.to_lowercase().as_str());
+            env_reader("CASSIE_EMBEDDINGS_PROVIDER").unwrap_or_else(|| "disabled".to_string());
+        config.embeddings =
+            parse_provider_config_from(provider.to_lowercase().as_str(), &env_reader);
         config.limits = CassieRuntimeLimits {
-            query_timeout_ms: parse_u64("CASSIE_QUERY_TIMEOUT_MS", config.limits.query_timeout_ms),
-            max_result_rows: parse_usize("CASSIE_MAX_RESULT_ROWS", config.limits.max_result_rows),
-            cte_recursion_depth: parse_usize(
+            query_timeout_ms: parse_u64_from(
+                &env_reader,
+                "CASSIE_QUERY_TIMEOUT_MS",
+                config.limits.query_timeout_ms,
+            ),
+            max_result_rows: parse_usize_from(
+                &env_reader,
+                "CASSIE_MAX_RESULT_ROWS",
+                config.limits.max_result_rows,
+            ),
+            cte_recursion_depth: parse_usize_from(
+                &env_reader,
                 "CASSIE_CTE_RECURSION_DEPTH",
                 config.limits.cte_recursion_depth,
             ),
-            temp_spill_budget_bytes: parse_usize(
+            temp_spill_budget_bytes: parse_usize_from(
+                &env_reader,
                 "CASSIE_TEMP_SPILL_BUDGET_BYTES",
                 config.limits.temp_spill_budget_bytes,
             ),
-            plan_cache_entries: parse_usize(
+            plan_cache_entries: parse_usize_from(
+                &env_reader,
                 "CASSIE_PLAN_CACHE_ENTRIES",
                 config.limits.plan_cache_entries,
             ),
-            cf2_plan_ttl_seconds: parse_u64(
+            cf2_plan_ttl_seconds: parse_u64_from(
+                &env_reader,
                 "CASSIE_CF2_PLAN_TTL_SECONDS",
                 config.limits.cf2_plan_ttl_seconds,
             ),
-            cf2_plan_candidate_ttl_seconds: parse_u64(
+            cf2_plan_candidate_ttl_seconds: parse_u64_from(
+                &env_reader,
                 "CASSIE_CF2_PLAN_CANDIDATE_TTL_SECONDS",
                 config.limits.cf2_plan_candidate_ttl_seconds,
             ),
-            cf2_fulltext_stats_ttl_seconds: parse_u64(
+            cf2_fulltext_stats_ttl_seconds: parse_u64_from(
+                &env_reader,
                 "CASSIE_CF2_FULLTEXT_STATS_TTL_SECONDS",
                 config.limits.cf2_fulltext_stats_ttl_seconds,
             ),
-            feedback_entries: parse_usize(
+            feedback_entries: parse_usize_from(
+                &env_reader,
                 "CASSIE_FEEDBACK_ENTRIES",
                 config.limits.feedback_entries,
             ),
-            feedback_ttl_seconds: parse_u64(
+            feedback_ttl_seconds: parse_u64_from(
+                &env_reader,
                 "CASSIE_FEEDBACK_TTL_SECONDS",
                 config.limits.feedback_ttl_seconds,
             ),
-            operator_feedback_enabled: parse_bool(
+            operator_feedback_enabled: parse_bool_from(
+                &env_reader,
                 "CASSIE_OPERATOR_FEEDBACK_ENABLED",
                 config.limits.operator_feedback_enabled,
             ),
-            experimental_column_store_enabled: parse_bool(
+            experimental_column_store_enabled: parse_bool_from(
+                &env_reader,
                 "CASSIE_EXPERIMENTAL_COLUMN_STORE_ENABLED",
                 config.limits.experimental_column_store_enabled,
             ),
-            vectorized_joins_enabled: parse_bool(
+            vectorized_joins_enabled: parse_bool_from(
+                &env_reader,
                 "CASSIE_VECTORIZED_JOINS_ENABLED",
                 config.limits.vectorized_joins_enabled,
             ),
-            vectorized_join_batch_size: parse_usize(
+            vectorized_join_batch_size: parse_usize_from(
+                &env_reader,
                 "CASSIE_VECTORIZED_JOIN_BATCH_SIZE",
                 config.limits.vectorized_join_batch_size,
             ),
-            adaptive_execution_enabled: parse_bool(
+            adaptive_execution_enabled: parse_bool_from(
+                &env_reader,
                 "CASSIE_ADAPTIVE_EXECUTION_ENABLED",
                 config.limits.adaptive_execution_enabled,
             ),
-            adaptive_min_cost_savings_bps: parse_usize(
+            adaptive_min_cost_savings_bps: parse_usize_from(
+                &env_reader,
                 "CASSIE_ADAPTIVE_MIN_COST_SAVINGS_BPS",
                 config.limits.adaptive_min_cost_savings_bps,
             ),
-            adaptive_min_confidence_bps: parse_u16(
+            adaptive_min_confidence_bps: parse_u16_from(
+                &env_reader,
                 "CASSIE_ADAPTIVE_MIN_CONFIDENCE_BPS",
                 config.limits.adaptive_min_confidence_bps,
             ),
-            operator_switching_enabled: parse_bool(
+            operator_switching_enabled: parse_bool_from(
+                &env_reader,
                 "CASSIE_OPERATOR_SWITCHING_ENABLED",
                 config.limits.operator_switching_enabled,
             ),
-            operator_switch_join_row_threshold: parse_usize(
+            operator_switch_join_row_threshold: parse_usize_from(
+                &env_reader,
                 "CASSIE_OPERATOR_SWITCH_JOIN_ROW_THRESHOLD",
                 config.limits.operator_switch_join_row_threshold,
             ),
-            adaptive_candidate_min: parse_usize(
+            adaptive_candidate_min: parse_usize_from(
+                &env_reader,
                 "CASSIE_ADAPTIVE_CANDIDATE_MIN",
                 config.limits.adaptive_candidate_min,
             ),
-            adaptive_candidate_max: parse_usize(
+            adaptive_candidate_max: parse_usize_from(
+                &env_reader,
                 "CASSIE_ADAPTIVE_CANDIDATE_MAX",
                 config.limits.adaptive_candidate_max,
             ),
-            parallel_scan_workers: parse_usize(
+            parallel_scan_workers: parse_usize_from(
+                &env_reader,
                 "CASSIE_PARALLEL_SCAN_WORKERS",
                 config.limits.parallel_scan_workers,
             ),
-            parallel_scoring_workers: parse_usize(
+            parallel_scoring_workers: parse_usize_from(
+                &env_reader,
                 "CASSIE_PARALLEL_SCORING_WORKERS",
                 config.limits.parallel_scoring_workers,
             ),
-            parallel_aggregation_workers: parse_usize(
+            parallel_aggregation_workers: parse_usize_from(
+                &env_reader,
                 "CASSIE_PARALLEL_AGGREGATION_WORKERS",
                 config.limits.parallel_aggregation_workers,
             ),
         };
 
-        config
+        Ok(config)
     }
 }
 
-fn read_password_from_file() -> Option<String> {
-    let path = env::var("CASSIE_ADMIN_PASSWORD_FILE").ok()?;
-    let value = std::fs::read_to_string(path).ok()?;
-    Some(value.trim().to_string())
-}
-
-fn parse_provider_config(provider: &str) -> EmbeddingsRuntimeConfig {
-    parse_provider_config_from(provider, |key| env::var(key).ok())
+fn read_password_from_file_from(
+    env_reader: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<String>, CassieRuntimeConfigError> {
+    let Some(path) = env_reader("CASSIE_ADMIN_PASSWORD_FILE") else {
+        return Ok(None);
+    };
+    let value = std::fs::read_to_string(&path).map_err(|source| {
+        CassieRuntimeConfigError::PasswordFileRead {
+            key: "CASSIE_ADMIN_PASSWORD_FILE",
+            path: path.clone(),
+            source,
+        }
+    })?;
+    let value = value.trim().to_string();
+    if value.is_empty() {
+        return Err(CassieRuntimeConfigError::PasswordFileEmpty {
+            key: "CASSIE_ADMIN_PASSWORD_FILE",
+            path,
+        });
+    }
+    Ok(Some(value))
 }
 
 fn parse_provider_config_from(
@@ -338,38 +401,6 @@ fn parse_provider_config_from(
     }
 }
 
-fn parse_u64(key: &str, fallback: u64) -> u64 {
-    env::var(key)
-        .ok()
-        .and_then(|value| value.parse::<u64>().ok())
-        .unwrap_or(fallback)
-}
-
-fn parse_usize(key: &str, fallback: usize) -> usize {
-    env::var(key)
-        .ok()
-        .and_then(|value| value.parse::<usize>().ok())
-        .unwrap_or(fallback)
-}
-
-fn parse_u16(key: &str, fallback: u16) -> u16 {
-    env::var(key)
-        .ok()
-        .and_then(|value| value.parse::<u16>().ok())
-        .unwrap_or(fallback)
-}
-
-fn parse_bool(key: &str, fallback: bool) -> bool {
-    env::var(key)
-        .ok()
-        .and_then(|value| match value.to_ascii_lowercase().as_str() {
-            "1" | "true" | "yes" | "on" => Some(true),
-            "0" | "false" | "no" | "off" => Some(false),
-            _ => None,
-        })
-        .unwrap_or(fallback)
-}
-
 fn parse_u64_from(env_reader: &impl Fn(&str) -> Option<String>, key: &str, fallback: u64) -> u64 {
     env_reader(key)
         .and_then(|value| value.parse::<u64>().ok())
@@ -386,13 +417,110 @@ fn parse_usize_from(
         .unwrap_or(fallback)
 }
 
+fn parse_u16_from(env_reader: &impl Fn(&str) -> Option<String>, key: &str, fallback: u16) -> u16 {
+    env_reader(key)
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(fallback)
+}
+
+fn parse_bool_from(
+    env_reader: &impl Fn(&str) -> Option<String>,
+    key: &str,
+    fallback: bool,
+) -> bool {
+    env_reader(key)
+        .and_then(|value| match value.to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => Some(true),
+            "0" | "false" | "no" | "off" => Some(false),
+            _ => None,
+        })
+        .unwrap_or(fallback)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::HashMap;
+    use uuid::Uuid;
 
     fn env_reader(values: HashMap<&'static str, &'static str>) -> impl Fn(&str) -> Option<String> {
         move |key| values.get(key).map(|value| value.to_string())
+    }
+
+    fn env_reader_owned(values: HashMap<&'static str, String>) -> impl Fn(&str) -> Option<String> {
+        move |key| values.get(key).cloned()
+    }
+
+    fn temp_file(label: &str) -> std::path::PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push(format!("cassie-config-{label}-{}", Uuid::new_v4()));
+        path
+    }
+
+    #[test]
+    fn should_use_admin_password_file_before_admin_password_env() {
+        // Arrange
+        let path = temp_file("password-file-precedence");
+        std::fs::write(&path, " file-secret \n").expect("write password file");
+        let values = HashMap::from([
+            (
+                "CASSIE_ADMIN_PASSWORD_FILE",
+                path.to_string_lossy().to_string(),
+            ),
+            ("CASSIE_ADMIN_PASSWORD", "env-secret".to_string()),
+        ]);
+
+        // Act
+        let config =
+            CassieRuntimeConfig::from_env_reader(env_reader_owned(values)).expect("runtime config");
+
+        // Assert
+        assert_eq!(config.password, "file-secret");
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn should_reject_missing_admin_password_file_without_fallback() {
+        // Arrange
+        let path = temp_file("missing-password-file");
+        let values = HashMap::from([
+            (
+                "CASSIE_ADMIN_PASSWORD_FILE",
+                path.to_string_lossy().to_string(),
+            ),
+            ("CASSIE_ADMIN_PASSWORD", "env-secret".to_string()),
+        ]);
+
+        // Act
+        let error = CassieRuntimeConfig::from_env_reader(env_reader_owned(values))
+            .expect_err("missing password file should fail");
+
+        // Assert
+        assert!(error.to_string().contains("CASSIE_ADMIN_PASSWORD_FILE"));
+        assert!(error.to_string().contains(path.to_string_lossy().as_ref()));
+    }
+
+    #[test]
+    fn should_reject_empty_admin_password_file_without_fallback() {
+        // Arrange
+        let path = temp_file("empty-password-file");
+        std::fs::write(&path, " \n\t").expect("write password file");
+        let values = HashMap::from([
+            (
+                "CASSIE_ADMIN_PASSWORD_FILE",
+                path.to_string_lossy().to_string(),
+            ),
+            ("CASSIE_ADMIN_PASSWORD", "env-secret".to_string()),
+        ]);
+
+        // Act
+        let error = CassieRuntimeConfig::from_env_reader(env_reader_owned(values))
+            .expect_err("empty password file should fail");
+
+        // Assert
+        assert!(error.to_string().contains("empty"));
+        assert!(error.to_string().contains(path.to_string_lossy().as_ref()));
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]

@@ -118,30 +118,22 @@ GitVersion `ContinuousDeployment` mode, next version `0.2.0`. Branch naming conv
 
 ## Agentic Workflow
 
-Agents must work from the issue backlog, not from ad hoc architectural judgment.
-The prioritized source of truth is `issues/phase-00/issue-01.md`.
-
-For the current rebaseline, work phases stay in this execution gate:
-
-1. Phase 04 foundation contracts are closed; use `docs/performance-contracts.md` and `issues/phase-04/README.md` as the archived reference surface.
-2. Phase 05 write optimization is closed; use `docs/performance-contracts.md` and `issues/phase-05/README.md` as the archived reference surface.
-3. Resolve phase-06 issues in listed order (`issue-01` through `issue-05`).
-4. Move to phase-07 only after the phase-06 gates are complete.
+Agents must work from the current repository source of truth, not from ad hoc architectural judgment.
+When an `issues/` backlog exists, follow its priority order. In this checkout, no issue backlog is present; use the user request plus `docs/product-roadmap.md`, `docs/production-readiness.md`, `docs/performance-contracts.md`, and subsystem docs as the planning surface.
 
 Required loop:
 
-1. Pick the first open issue in priority order from `issues/phase-00/issue-01.md`.
-2. Confirm every dependency named by the issue is complete or already implemented.
-3. Follow the issue's `Implementation Plan` exactly unless repo reality makes a step impossible.
+1. Identify the highest-priority requested or documented slice from the available source of truth.
+2. Confirm every dependency named by the request, docs, or touched subsystem is complete or already implemented.
+3. Follow the requested or documented implementation plan exactly unless repo reality makes a step impossible.
 4. Write the failing test first using `should_` names and `// Arrange / Act / Assert`.
 5. Make the smallest code change that satisfies the failing test and issue requirements.
-6. Refactor only inside the issue scope and without broadening test coverage opportunistically.
-7. Update docs, diagnostics, benchmarks, or roadmap references required by the issue.
+6. Refactor only inside the slice scope and without broadening test coverage opportunistically.
+7. Update docs, diagnostics, benchmarks, or roadmap references required by the slice.
 8. Run validation in the required order: `cargo build` -> `cargo test --locked` -> `cargo fmt --all -- --check` -> `cntryl-tools validate-tests -f <path>` for touched test files.
-9. Confirm every acceptance criterion and close-out step in the issue is complete.
-10. Delete the issue file only after implementation, validation, documentation, and close-out checks are complete.
-11. Commit the completed slice with only the files required for that issue.
+9. Confirm every acceptance criterion and close-out step is complete.
+10. Commit the completed slice with only the files required for that slice when a commit is requested.
 
-Do not start implementation from a later phase while an earlier required phase issue is still open unless the later issue explicitly names that dependency as complete or unnecessary.
-Do not reinterpret an issue as a suggestion; if the plan is wrong, update the issue first so implementation remains mechanical.
-Stop and ask for direction when an issue requires a persistent format decision, storage-layout migration, public API change, or cross-phase dependency that is not already specified.
+Do not start implementation from a later roadmap/readiness item while an earlier documented dependency is still open unless the later item explicitly names that dependency as complete or unnecessary.
+Do not reinterpret documented requirements as suggestions; if the plan is wrong, update the doc or issue first so implementation remains mechanical.
+Stop and ask for direction when a slice requires a persistent format decision, storage-layout migration, public API change, or cross-phase dependency that is not already specified.

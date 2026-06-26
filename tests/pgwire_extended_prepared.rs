@@ -349,7 +349,7 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
             )
             .unwrap();
 
-        let mut config = CassieRuntimeConfig::from_env();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -505,7 +505,7 @@ fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
             )
             .unwrap();
 
-        let mut config = CassieRuntimeConfig::from_env();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

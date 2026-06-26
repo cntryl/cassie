@@ -230,7 +230,7 @@ fn should_copy_csv_from_stdin_rows() {
             .unwrap();
         cassie.register_collection(collection, schema);
 
-        let mut config = CassieRuntimeConfig::from_env();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -374,7 +374,7 @@ fn should_execute_binary_simple_query_return_backend_frames() {
             )
             .unwrap();
 
-        let mut config = CassieRuntimeConfig::from_env();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -491,7 +491,7 @@ fn should_return_row_description_for_empty_simple_query_result() {
             .unwrap();
         cassie.register_collection(collection, schema);
 
-        let mut config = CassieRuntimeConfig::from_env();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -572,7 +572,7 @@ fn should_recover_ready_after_simple_query_error() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
 
-        let mut config = CassieRuntimeConfig::from_env();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

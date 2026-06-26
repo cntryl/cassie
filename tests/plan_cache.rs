@@ -776,7 +776,7 @@ fn should_evict_oldest_plan_when_cache_capacity_is_one() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = CassieRuntimeConfig::from_env();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.plan_cache_entries = 1;
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         let collection = "plan_cache_eviction_docs";

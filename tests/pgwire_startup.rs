@@ -142,7 +142,7 @@ fn should_support_binary_startup_without_password() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
 
-        let mut config = cassie::config::CassieRuntimeConfig::from_env();
+        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -194,7 +194,7 @@ fn should_emit_startup_parameter_statuses_without_password() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
 
-        let mut config = cassie::config::CassieRuntimeConfig::from_env();
+        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -263,7 +263,7 @@ fn should_accept_libpq_startup_hints_without_password() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
 
-        let mut config = cassie::config::CassieRuntimeConfig::from_env();
+        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -322,7 +322,7 @@ fn should_return_not_supported_for_ssl_request() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
 
-        let mut config = cassie::config::CassieRuntimeConfig::from_env();
+        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -375,7 +375,7 @@ fn should_error_when_password_does_not_match_for_cleartext_auth() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
 
-        let mut config = cassie::config::CassieRuntimeConfig::from_env();
+        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "correct-password".to_string();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

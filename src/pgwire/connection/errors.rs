@@ -148,6 +148,7 @@ impl PgWireError {
             | CassieError::StorageRetryable(_)
             | CassieError::Planner(_)
             | CassieError::Execution(_)
+            | CassieError::Configuration(_)
             | CassieError::NotFound(_) => Self::new(severity, "XX000", error.to_string()),
         }
     }

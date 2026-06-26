@@ -18,7 +18,7 @@ fn data_dir(label: &str) -> String {
 }
 
 fn openai_runtime(base_url: String) -> CassieRuntimeConfig {
-    let mut config = CassieRuntimeConfig::from_env();
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::OpenAI(OpenAiRuntimeConfig {
         config: OpenAiConfig {
             api_key: "test-key".to_string(),
@@ -33,7 +33,7 @@ fn openai_runtime(base_url: String) -> CassieRuntimeConfig {
 }
 
 fn voyage_runtime() -> CassieRuntimeConfig {
-    let mut config = CassieRuntimeConfig::from_env();
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::Voyage;
     config
 }

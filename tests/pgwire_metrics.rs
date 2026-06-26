@@ -118,7 +118,7 @@ fn should_record_pgwire_connection_metrics() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = CassieRuntimeConfig::from_env();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();

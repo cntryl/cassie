@@ -52,7 +52,7 @@ fn adaptive_execution_config(
     enabled: bool,
     min_cost_savings_bps: usize,
 ) -> cassie::config::CassieRuntimeConfig {
-    let mut config = cassie::config::CassieRuntimeConfig::from_env();
+    let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.operator_feedback_enabled = true;
     config.limits.adaptive_execution_enabled = enabled;
     config.limits.adaptive_min_cost_savings_bps = min_cost_savings_bps;
@@ -70,7 +70,7 @@ fn adaptive_execution_confidence_config(
 }
 
 fn operator_switch_config(enabled: bool, threshold: usize) -> cassie::config::CassieRuntimeConfig {
-    let mut config = cassie::config::CassieRuntimeConfig::from_env();
+    let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.vectorized_joins_enabled = true;
     config.limits.vectorized_join_batch_size = 2;
     config.limits.operator_switching_enabled = enabled;
@@ -182,7 +182,7 @@ fn create_switch_join_tables(cassie: &Cassie, session: &CassieSession, users: &s
 }
 
 fn adaptive_candidate_config(min: usize, max: usize) -> cassie::config::CassieRuntimeConfig {
-    let mut config = cassie::config::CassieRuntimeConfig::from_env();
+    let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.adaptive_candidate_min = min;
     config.limits.adaptive_candidate_max = max;
     config

@@ -83,7 +83,7 @@ fn data_dir(label: &str) -> String {
 }
 
 fn openai_runtime_with_server(base_url: String) -> CassieRuntimeConfig {
-    let mut config = CassieRuntimeConfig::from_env();
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::OpenAI(OpenAiRuntimeConfig {
         config: OpenAiConfig {
             api_key: "test-key".to_string(),
@@ -98,7 +98,7 @@ fn openai_runtime_with_server(base_url: String) -> CassieRuntimeConfig {
 }
 
 fn tei_runtime_with_server(base_url: String) -> CassieRuntimeConfig {
-    let mut config = CassieRuntimeConfig::from_env();
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::Tei(SelfHostedEmbeddingRuntimeConfig {
         base_url,
         model: "BAAI/bge-small-en-v1.5".to_string(),
@@ -111,7 +111,7 @@ fn tei_runtime_with_server(base_url: String) -> CassieRuntimeConfig {
 }
 
 fn ollama_runtime_with_server(base_url: String) -> CassieRuntimeConfig {
-    let mut config = CassieRuntimeConfig::from_env();
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::Ollama(SelfHostedEmbeddingRuntimeConfig {
         base_url,
         model: "nomic-embed-text".to_string(),

@@ -55,6 +55,7 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::Parse(_) => "parse",
         CassieError::Planner(_) => "planner",
         CassieError::Execution(_) => "execution",
+        CassieError::Configuration(_) => "configuration",
         CassieError::InvalidVector(_) => "invalid_vector",
         CassieError::InvalidEmbedding(_) => "invalid_embedding",
         CassieError::EmbeddingUnavailable(_) => "embedding_unavailable",

@@ -38,7 +38,7 @@ fn startup_frame(user: &str, database: &str) -> Vec<u8> {
 }
 
 fn operator_feedback_config(enabled: bool) -> cassie::config::CassieRuntimeConfig {
-    let mut config = cassie::config::CassieRuntimeConfig::from_env();
+    let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.operator_feedback_enabled = enabled;
     config
 }
@@ -93,7 +93,7 @@ fn register_feedback_collection(cassie: &Cassie, collection: &str) {
 }
 
 fn adaptive_candidate_config(min: usize, max: usize) -> cassie::config::CassieRuntimeConfig {
-    let mut config = cassie::config::CassieRuntimeConfig::from_env();
+    let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.adaptive_candidate_min = min;
     config.limits.adaptive_candidate_max = max;
     config
@@ -446,7 +446,7 @@ fn should_evict_runtime_feedback_when_retention_limit_is_exceeded() {
     // Arrange
     with_fallback();
     let path = data_dir("feedback_eviction");
-    let mut config = cassie::config::CassieRuntimeConfig::from_env();
+    let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.feedback_entries = 1;
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

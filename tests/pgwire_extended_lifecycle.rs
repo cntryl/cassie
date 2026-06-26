@@ -341,7 +341,7 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
             )
             .unwrap();
 
-        let mut config = CassieRuntimeConfig::from_env();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

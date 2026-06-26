@@ -40,7 +40,7 @@ pub fn data_dir(label: &str) -> String {
 }
 
 pub async fn spawn_server(cassie: Cassie) -> PgwireServer {
-    let mut config = CassieRuntimeConfig::from_env();
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.password.clear();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await

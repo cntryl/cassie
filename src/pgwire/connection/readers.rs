@@ -34,7 +34,7 @@ pub(super) async fn read_simple_query_message(
     }
     let size = usize::try_from(size)
         .map_err(|_| HandshakeError::Invalid("invalid simple query frame length".to_string()))?;
-    if size > MAX_SIMPLE_QUERY_MESSAGE_BYTES {
+    if size > MAX_FRONTEND_MESSAGE_BYTES {
         return Err(HandshakeError::Invalid(
             "simple query frame exceeds supported bounds".to_string(),
         ));
@@ -90,7 +90,7 @@ pub(super) async fn read_frontend_message(
     let size = usize::try_from(size).map_err(|_| {
         HandshakeError::Invalid("frontend message length exceeds supported bounds".to_string())
     })?;
-    if size > MAX_SIMPLE_QUERY_MESSAGE_BYTES {
+    if size > MAX_FRONTEND_MESSAGE_BYTES {
         return Err(HandshakeError::Invalid(
             "frontend message exceeds supported bounds".to_string(),
         ));
@@ -141,10 +141,10 @@ pub(super) async fn read_frontend_message(
                 .map_err(|_| HandshakeError::Invalid("invalid bind parameter count".to_string()))?;
 
             let mut params = Vec::with_capacity(parameter_count);
-            for index in 0..parameter_count {
+            for _ in 0..parameter_count {
                 let value_len = read_frontend_i32(&payload, &mut cursor)?;
                 if value_len == -1 {
-                    params.push(Value::Null);
+                    params.push(None);
                     continue;
                 }
                 let value_len = usize::try_from(value_len).map_err(|_| {
@@ -156,26 +156,7 @@ pub(super) async fn read_frontend_message(
                 let value = payload
                     .get(cursor..end)
                     .ok_or_else(|| HandshakeError::Invalid("invalid bind payload".to_string()))?;
-
-                let format_code = match format_codes.as_slice() {
-                    [] => 0,
-                    [single] => *single,
-                    codes if codes.len() == parameter_count => codes[index],
-                    _ => {
-                        return Err(HandshakeError::Invalid(
-                            "unsupported bind format count".to_string(),
-                        ))
-                    }
-                };
-
-                if format_code == 1 {
-                    params.push(parse_binary_bind_param(value)?);
-                } else {
-                    let text = str::from_utf8(value).map_err(|_| {
-                        HandshakeError::Invalid("invalid UTF-8 in bind parameter".to_string())
-                    })?;
-                    params.push(query::parse_bind_param(text));
-                }
+                params.push(Some(value.to_vec()));
                 cursor = end;
             }
 
@@ -190,6 +171,7 @@ pub(super) async fn read_frontend_message(
             FrontendMessage::Bind {
                 portal_name,
                 statement_name,
+                parameter_formats: format_codes,
                 params,
                 result_formats,
             }
@@ -359,6 +341,11 @@ pub(super) async fn read_startup_frame(
             "startup frame too small".to_string(),
         ));
     }
+    if size > MAX_FRONTEND_MESSAGE_BYTES {
+        return Err(HandshakeError::Invalid(
+            "startup frame exceeds supported bounds".to_string(),
+        ));
+    }
 
     let mut payload = vec![0u8; size - 4];
     reader.read_exact(&mut payload).await.map_err(|error| {
@@ -417,8 +404,13 @@ pub(super) async fn read_password_message(
         ));
     }
     let payload_len = usize::try_from(payload_len)
-        .map_err(|_| HandshakeError::Invalid("invalid password frame length".to_string()))?
-        - 4;
+        .map_err(|_| HandshakeError::Invalid("invalid password frame length".to_string()))?;
+    if payload_len > MAX_FRONTEND_MESSAGE_BYTES {
+        return Err(HandshakeError::Invalid(
+            "password frame exceeds supported bounds".to_string(),
+        ));
+    }
+    let payload_len = payload_len - 4;
     let mut payload = vec![0u8; payload_len];
     reader.read_exact(&mut payload).await.map_err(|error| {
         if error.kind() == io::ErrorKind::UnexpectedEof {
@@ -461,7 +453,101 @@ pub(super) fn parse_startup_payload(
     Ok(parameters)
 }
 
-fn parse_binary_bind_param(value: &[u8]) -> Result<Value, HandshakeError> {
+pub(super) fn parse_bind_param_value(
+    value: Option<&[u8]>,
+    format_code: i16,
+    type_oid: i32,
+) -> Result<Value, HandshakeError> {
+    let Some(value) = value else {
+        return Ok(Value::Null);
+    };
+    match format_code {
+        0 => {
+            let text = str::from_utf8(value).map_err(|_| {
+                HandshakeError::Invalid("invalid UTF-8 in bind parameter".to_string())
+            })?;
+            Ok(query::parse_bind_param(text))
+        }
+        1 => parse_binary_bind_param(value, type_oid),
+        _ => Err(HandshakeError::Invalid(
+            "unsupported bind format code".to_string(),
+        )),
+    }
+}
+
+fn parse_binary_bind_param(value: &[u8], type_oid: i32) -> Result<Value, HandshakeError> {
+    match type_oid {
+        16 => {
+            if value.len() != 1 {
+                return Err(HandshakeError::Invalid(
+                    "invalid bool bind parameter".to_string(),
+                ));
+            }
+            return Ok(Value::Bool(value[0] != 0));
+        }
+        17 => return Ok(Value::String(format_bytea_hex(value))),
+        20 => {
+            return value
+                .try_into()
+                .map(i64::from_be_bytes)
+                .map(Value::Int64)
+                .map_err(|_| HandshakeError::Invalid("invalid int8 bind parameter".to_string()));
+        }
+        21 => {
+            return value
+                .try_into()
+                .map(i16::from_be_bytes)
+                .map(|value| Value::Int64(i64::from(value)))
+                .map_err(|_| HandshakeError::Invalid("invalid int2 bind parameter".to_string()));
+        }
+        23 => {
+            return value
+                .try_into()
+                .map(i32::from_be_bytes)
+                .map(|value| Value::Int64(i64::from(value)))
+                .map_err(|_| HandshakeError::Invalid("invalid int4 bind parameter".to_string()));
+        }
+        701 => {
+            return value
+                .try_into()
+                .map(f64::from_be_bytes)
+                .map(Value::Float64)
+                .map_err(|_| HandshakeError::Invalid("invalid float8 bind parameter".to_string()));
+        }
+        25 | 1042 | 1043 | 705 => {
+            let text = str::from_utf8(value).map_err(|_| {
+                HandshakeError::Invalid("invalid UTF-8 in binary text parameter".to_string())
+            })?;
+            return Ok(Value::String(text.to_string()));
+        }
+        114 => {
+            let text = str::from_utf8(value).map_err(|_| {
+                HandshakeError::Invalid("invalid UTF-8 in binary json parameter".to_string())
+            })?;
+            let json = serde_json::from_str(text)
+                .map_err(|_| HandshakeError::Invalid("invalid json bind parameter".to_string()))?;
+            return Ok(Value::Json(json));
+        }
+        3802 => {
+            let json = value.strip_prefix(&[1]).unwrap_or(value);
+            let text = str::from_utf8(json).map_err(|_| {
+                HandshakeError::Invalid("invalid UTF-8 in binary jsonb parameter".to_string())
+            })?;
+            let json = serde_json::from_str(text)
+                .map_err(|_| HandshakeError::Invalid("invalid jsonb bind parameter".to_string()))?;
+            return Ok(Value::Json(json));
+        }
+        2950 => {
+            if value.len() != 16 {
+                return Err(HandshakeError::Invalid(
+                    "invalid uuid bind parameter".to_string(),
+                ));
+            }
+            return Ok(Value::String(format_uuid(value)));
+        }
+        _ => {}
+    }
+
     if let Ok(text) = str::from_utf8(value) {
         if text.chars().all(|character| !character.is_control()) {
             return Ok(query::parse_bind_param(text));
@@ -490,6 +576,32 @@ fn parse_binary_bind_param(value: &[u8]) -> Result<Value, HandshakeError> {
         }
     }
 }
+
+fn format_bytea_hex(value: &[u8]) -> String {
+    let mut out = String::with_capacity(2 + value.len() * 2);
+    out.push_str("\\x");
+    for byte in value {
+        out.push(HEX[usize::from(byte >> 4)]);
+        out.push(HEX[usize::from(byte & 0x0f)]);
+    }
+    out
+}
+
+fn format_uuid(value: &[u8]) -> String {
+    let mut out = String::with_capacity(36);
+    for (index, byte) in value.iter().enumerate() {
+        if matches!(index, 4 | 6 | 8 | 10) {
+            out.push('-');
+        }
+        out.push(HEX[usize::from(byte >> 4)]);
+        out.push(HEX[usize::from(byte & 0x0f)]);
+    }
+    out
+}
+
+const HEX: [char; 16] = [
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
+];
 
 pub(super) fn read_null_terminated(
     payload: &[u8],

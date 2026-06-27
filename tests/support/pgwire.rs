@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -102,27 +104,59 @@ pub fn parse_frame_with_types(statement_name: &str, sql: &str, parameter_types: 
 }
 
 pub fn bind_frame(portal_name: &str, statement_name: &str, params: &[&str]) -> Vec<u8> {
+    let params = params
+        .iter()
+        .map(|param| Some(param.as_bytes()))
+        .collect::<Vec<_>>();
+    bind_frame_with_formats(portal_name, statement_name, &[0], &params, &[])
+}
+
+pub fn bind_frame_with_formats(
+    portal_name: &str,
+    statement_name: &str,
+    parameter_formats: &[i16],
+    params: &[Option<&[u8]>],
+    result_formats: &[i16],
+) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(portal_name.as_bytes());
     payload.push(0);
     payload.extend_from_slice(statement_name.as_bytes());
     payload.push(0);
-    payload.extend_from_slice(&1_i16.to_be_bytes());
-    payload.extend_from_slice(&0_i16.to_be_bytes());
+    payload.extend_from_slice(
+        &i16::try_from(parameter_formats.len())
+            .expect("parameter format count must fit into i16")
+            .to_be_bytes(),
+    );
+    for format in parameter_formats {
+        payload.extend_from_slice(&format.to_be_bytes());
+    }
     payload.extend_from_slice(
         &i16::try_from(params.len())
             .expect("parameter count must fit into i16")
             .to_be_bytes(),
     );
     for param in params {
-        payload.extend_from_slice(
-            &i32::try_from(param.len())
-                .expect("parameter length must fit into i32")
-                .to_be_bytes(),
-        );
-        payload.extend_from_slice(param.as_bytes());
+        match param {
+            Some(param) => {
+                payload.extend_from_slice(
+                    &i32::try_from(param.len())
+                        .expect("parameter length must fit into i32")
+                        .to_be_bytes(),
+                );
+                payload.extend_from_slice(param);
+            }
+            None => payload.extend_from_slice(&(-1_i32).to_be_bytes()),
+        }
     }
-    payload.extend_from_slice(&0_i16.to_be_bytes());
+    payload.extend_from_slice(
+        &i16::try_from(result_formats.len())
+            .expect("result format count must fit into i16")
+            .to_be_bytes(),
+    );
+    for format in result_formats {
+        payload.extend_from_slice(&format.to_be_bytes());
+    }
 
     frontend_frame(b'B', &payload)
 }
@@ -136,10 +170,14 @@ pub fn describe_portal_frame(portal_name: &str) -> Vec<u8> {
 }
 
 pub fn execute_frame(portal_name: &str) -> Vec<u8> {
+    execute_limited_frame(portal_name, 0)
+}
+
+pub fn execute_limited_frame(portal_name: &str, limit: i32) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(portal_name.as_bytes());
     payload.push(0);
-    payload.extend_from_slice(&0_i32.to_be_bytes());
+    payload.extend_from_slice(&limit.to_be_bytes());
     frontend_frame(b'E', &payload)
 }
 

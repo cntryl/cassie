@@ -374,6 +374,7 @@ fn assert_offloaded_calls(
 fn should_forbid_direct_async_transport_calls_without_blocking_helpers() {
     // Arrange
     let pgwire_source = include_str!("../src/pgwire/connection.rs");
+    let pgwire_copy_source = include_str!("../src/pgwire/connection/copy.rs");
     let rest_source = include_str!("../src/rest/router.rs");
 
     // Act
@@ -386,6 +387,17 @@ fn should_forbid_direct_async_transport_calls_without_blocking_helpers() {
             "cassie.execute_sql",
             "cassie.describe_parsed_statement",
             "cassie.execute_preparsed_statement_with_mode",
+        ],
+        10,
+    );
+    assert_offloaded_calls(
+        "src/pgwire/connection/copy.rs",
+        pgwire_copy_source,
+        "run_pgwire_blocking",
+        &[
+            "crate::sql::parser::parse_statement",
+            "crate::sql::binder::bind",
+            "cassie.copy_from_csv_stdin",
         ],
         10,
     );

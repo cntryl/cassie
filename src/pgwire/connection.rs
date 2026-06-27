@@ -3,16 +3,14 @@ use std::convert::TryFrom;
 use std::io;
 use std::str;
 use std::sync::Arc;
-use std::time::Instant;
 
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
-use tokio::task;
 
 use crate::app::{Cassie, CassieError, CassieSession};
 use crate::config::CassieRuntimeConfig;
 use crate::pgwire::handlers::query;
-use crate::pgwire::protocol::{Portal, PreparedStatement, ReadyState, WireError};
+use crate::pgwire::protocol::{Portal, PortalSuspended, PreparedStatement, ReadyState, WireError};
 use crate::runtime::ExecutionMode;
 use crate::types::Value;
 
@@ -21,122 +19,39 @@ const SSL_REQUEST_CODE: i32 = 80_877_103;
 const CANCEL_REQUEST_CODE: i32 = 80_877_102;
 const MIN_STARTUP_MESSAGE_BYTES: usize = 8;
 const PASSWORD_MESSAGE_TAG: u8 = b'p';
-const MAX_SIMPLE_QUERY_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
+const MAX_FRONTEND_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
 
-#[derive(Debug)]
-enum HandshakeState {
-    AwaitStartup,
-    AwaitPassword {
-        user: String,
-        database: Option<String>,
-    },
-    Ready,
-}
-
-#[derive(Debug)]
-enum StartupFrame {
-    SslRequest,
-    CancelRequest,
-    Startup(HashMap<String, String>),
-}
-
-#[derive(Debug)]
-enum HandshakeError {
-    Closed,
-    Invalid(String),
-}
-
-#[derive(Debug)]
-enum FrontendMessage {
-    Parse {
-        name: String,
-        query: String,
-        parameter_types: Vec<i32>,
-    },
-    Bind {
-        portal_name: String,
-        statement_name: String,
-        params: Vec<Value>,
-        result_formats: Vec<i16>,
-    },
-    Describe {
-        target: DescribeTarget,
-        name: String,
-    },
-    Execute {
-        portal_name: String,
-        limit: Option<i64>,
-    },
-    Close {
-        target: CloseTarget,
-        name: String,
-    },
-    CopyData(Vec<u8>),
-    CopyDone,
-    CopyFail(String),
-    FunctionCall,
-    Sync,
-    Flush,
-    Terminate,
-    Unknown(u8),
-}
-
-#[derive(Debug)]
-enum DescribeTarget {
-    Statement,
-    Portal,
-}
-
-#[derive(Debug)]
-enum CloseTarget {
-    Statement,
-    Portal,
-}
-
-#[derive(Debug)]
-struct SessionState {
-    session: Option<CassieSession>,
-    startup_user: Option<String>,
-    startup_database: Option<String>,
-    authenticated: bool,
-    ready: ReadyState,
-    prepared: HashMap<String, PreparedStatement>,
-    portals: HashMap<String, Portal>,
-}
-
-impl SessionState {
-    fn new() -> Self {
-        Self {
-            session: None,
-            startup_user: None,
-            startup_database: None,
-            authenticated: false,
-            ready: ReadyState::InTransaction,
-            prepared: HashMap::new(),
-            portals: HashMap::new(),
-        }
-    }
-}
-
+#[path = "connection/blocking.rs"]
+mod blocking;
 #[path = "connection/codecs.rs"]
 mod codecs;
 #[path = "connection/copy.rs"]
 mod copy;
 #[path = "connection/errors.rs"]
 mod errors;
+#[path = "connection/execute.rs"]
+mod execute;
+#[path = "connection/formats.rs"]
+mod formats;
 #[path = "connection/readers.rs"]
 mod readers;
 #[path = "connection/startup_params.rs"]
 mod startup_params;
+#[path = "connection/state.rs"]
+mod state;
 #[cfg(test)]
 #[path = "connection/tests.rs"]
 mod tests;
 #[path = "connection/writers.rs"]
 mod writers;
 
-use errors::{PgWireError, PgWireSeverity};
+use blocking::run_pgwire_blocking;
+use errors::{cassie_pg_error, PgWireError, PgWireSeverity};
+use execute::*;
+use formats::*;
 use readers::*;
 use startup_params::validate_startup_parameters;
+use state::*;
 use writers::*;
 
 pub async fn run_connection(
@@ -178,7 +93,7 @@ pub async fn run_connection(
                             &PgWireError::fatal_protocol(error),
                         )
                         .await;
-                        continue;
+                        break;
                     }
 
                     let startup_user = state
@@ -227,6 +142,7 @@ pub async fn run_connection(
                         &PgWireError::fatal_protocol("invalid startup packet"),
                     )
                     .await;
+                    break;
                 }
             },
             HandshakeState::AwaitPassword {
@@ -276,6 +192,7 @@ pub async fn run_connection(
                                 {
                                     break;
                                 }
+                                break;
                             }
                             Err(error) => {
                                 runtime.record_pgwire_protocol_error();
@@ -287,6 +204,7 @@ pub async fn run_connection(
                                 {
                                     break;
                                 }
+                                break;
                             }
                         }
                     }
@@ -302,6 +220,7 @@ pub async fn run_connection(
                             )),
                         )
                         .await;
+                        break;
                     }
                 }
             }
@@ -510,6 +429,22 @@ pub async fn run_connection(
                             parameter_types,
                         } => {
                             runtime.record_pgwire_message("parse");
+                            if !name.is_empty() && state.prepared.contains_key(&name) {
+                                runtime.record_pgwire_protocol_error();
+                                awaiting_sync = true;
+                                if write_error_response(
+                                    &mut write_half,
+                                    &PgWireError::protocol(format!(
+                                        "prepared statement '{name}' already exists"
+                                    )),
+                                )
+                                .await
+                                .is_err()
+                                {
+                                    break;
+                                }
+                                continue;
+                            }
                             if let Some(error) = crate::app::unsupported_sql_error(&query) {
                                 runtime.record_pgwire_protocol_error();
                                 awaiting_sync = true;
@@ -525,6 +460,22 @@ pub async fn run_connection(
                             runtime.record_sql_parse();
                             match crate::sql::parser::parse_statement(&query) {
                                 Ok(parsed) => {
+                                    if name.is_empty() {
+                                        if state.prepared.remove(&name).is_some() {
+                                            runtime.record_pgwire_prepared_delta(-1);
+                                        }
+                                        let removed_portals = state
+                                            .portals
+                                            .iter()
+                                            .filter(|(_, portal)| portal.statement_name == name)
+                                            .map(|(portal_name, _)| portal_name.clone())
+                                            .collect::<Vec<_>>();
+                                        for portal_name in removed_portals {
+                                            if state.portals.remove(&portal_name).is_some() {
+                                                runtime.record_pgwire_portal_delta(-1);
+                                            }
+                                        }
+                                    }
                                     let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
                                     let parameter_count = crate::sql::parameter_count(&parsed);
                                     let parameter_types =
@@ -533,9 +484,13 @@ pub async fn run_connection(
                                             &parameter_types,
                                             &cassie.catalog,
                                         );
+                                    let prepared_id = state.next_prepared_id;
+                                    state.next_prepared_id =
+                                        state.next_prepared_id.saturating_add(1);
                                     let existed = state.prepared.insert(
                                         name.clone(),
                                         PreparedStatement {
+                                            id: prepared_id,
                                             name,
                                             query,
                                             parsed,
@@ -573,6 +528,7 @@ pub async fn run_connection(
                         FrontendMessage::Bind {
                             portal_name,
                             statement_name,
+                            parameter_formats,
                             params,
                             result_formats,
                         } => {
@@ -591,6 +547,24 @@ pub async fn run_connection(
                                 }
                                 continue;
                             };
+                            if let Err(error) =
+                                validate_parameter_formats(&parameter_formats, params.len())
+                            {
+                                runtime.record_pgwire_protocol_error();
+                                awaiting_sync = true;
+                                if write_error_response(&mut write_half, &error).await.is_err() {
+                                    break;
+                                }
+                                continue;
+                            }
+                            if let Err(error) = validate_bind_result_formats(&result_formats) {
+                                runtime.record_pgwire_protocol_error();
+                                awaiting_sync = true;
+                                if write_error_response(&mut write_half, &error).await.is_err() {
+                                    break;
+                                }
+                                continue;
+                            }
                             if params.len() != prepared.parameter_count {
                                 runtime.record_pgwire_protocol_error();
                                 awaiting_sync = true;
@@ -610,15 +584,33 @@ pub async fn run_connection(
                                 }
                                 continue;
                             }
+                            let decoded_params = match decode_bind_params(
+                                &params,
+                                &parameter_formats,
+                                &prepared.parameter_types,
+                            ) {
+                                Ok(params) => params,
+                                Err(error) => {
+                                    runtime.record_pgwire_protocol_error();
+                                    awaiting_sync = true;
+                                    if write_error_response(&mut write_half, &error).await.is_err()
+                                    {
+                                        break;
+                                    }
+                                    continue;
+                                }
+                            };
 
                             let existed = state.portals.insert(
                                 portal_name.clone(),
                                 Portal {
                                     name: portal_name,
                                     statement_name,
-                                    params,
+                                    prepared_id: prepared.id,
+                                    params: decoded_params,
                                     result_formats,
                                     described: false,
+                                    suspended: None,
                                 },
                             );
                             if existed.is_none() {
@@ -634,6 +626,7 @@ pub async fn run_connection(
                         FrontendMessage::Describe { target, name } => {
                             runtime.record_pgwire_message("describe");
                             let describe_statement = matches!(&target, DescribeTarget::Statement);
+                            let mut describe_result_formats = Vec::new();
                             let prepared = match target {
                                 DescribeTarget::Statement => match state.prepared.get_mut(&name) {
                                     Some(prepared) => {
@@ -656,29 +649,34 @@ pub async fn run_connection(
                                     }
                                 },
                                 DescribeTarget::Portal => {
-                                    let statement_name = match state.portals.get_mut(&name) {
-                                        Some(portal) => {
-                                            portal.described = true;
-                                            portal.statement_name.clone()
-                                        }
-                                        None => {
-                                            runtime.record_pgwire_protocol_error();
-                                            awaiting_sync = true;
-                                            if write_error_response(
-                                                &mut write_half,
-                                                &PgWireError::invalid_portal(&name),
-                                            )
-                                            .await
-                                            .is_err()
-                                            {
-                                                break;
+                                    let (statement_name, prepared_id) =
+                                        match state.portals.get_mut(&name) {
+                                            Some(portal) => {
+                                                portal.described = true;
+                                                describe_result_formats =
+                                                    portal.result_formats.clone();
+                                                (portal.statement_name.clone(), portal.prepared_id)
                                             }
-                                            continue;
-                                        }
-                                    };
+                                            None => {
+                                                runtime.record_pgwire_protocol_error();
+                                                awaiting_sync = true;
+                                                if write_error_response(
+                                                    &mut write_half,
+                                                    &PgWireError::invalid_portal(&name),
+                                                )
+                                                .await
+                                                .is_err()
+                                                {
+                                                    break;
+                                                }
+                                                continue;
+                                            }
+                                        };
                                     match state.prepared.get(&statement_name) {
-                                        Some(prepared) => prepared.clone(),
-                                        None => {
+                                        Some(prepared) if prepared.id == prepared_id => {
+                                            prepared.clone()
+                                        }
+                                        _ => {
                                             runtime.record_pgwire_protocol_error();
                                             awaiting_sync = true;
                                             if write_error_response(
@@ -726,9 +724,13 @@ pub async fn run_connection(
                                         {
                                             break;
                                         }
-                                    } else if write_row_description(&mut write_half, &columns)
-                                        .await
-                                        .is_err()
+                                    } else if write_row_description(
+                                        &mut write_half,
+                                        &columns,
+                                        &describe_result_formats,
+                                    )
+                                    .await
+                                    .is_err()
                                     {
                                         break;
                                     }
@@ -779,59 +781,118 @@ pub async fn run_connection(
                                 }
                                 continue;
                             };
+                            if prepared.id != portal.prepared_id {
+                                runtime.record_pgwire_protocol_error();
+                                awaiting_sync = true;
+                                if write_error_response(
+                                    &mut write_half,
+                                    &PgWireError::invalid_portal(&portal_name),
+                                )
+                                .await
+                                .is_err()
+                                {
+                                    break;
+                                }
+                                continue;
+                            }
 
-                            let session_for_execute = session.clone();
-                            let query_parsed = prepared.parsed.clone();
-                            let query_sql_fingerprint = prepared.sql_fingerprint;
-                            let query_params = portal.params.clone();
                             let should_describe_execute = !prepared.described && !portal.described;
-                            let query_result = run_pgwire_blocking(
-                                cassie.clone(),
-                                "pgwire_execute",
-                                move |cassie| {
-                                    cassie.execute_preparsed_statement_with_mode(
-                                        &session_for_execute,
-                                        query_parsed,
-                                        query_sql_fingerprint,
-                                        query_params,
-                                        ExecutionMode::ExtendedQuery,
-                                    )
-                                },
-                            )
-                            .await;
+                            let query_result = if let Some(suspended) = portal.suspended.clone() {
+                                Ok(batch_from_suspended(suspended, limit))
+                            } else {
+                                let session_for_execute = session.clone();
+                                let query_parsed = prepared.parsed.clone();
+                                let query_sql_fingerprint = prepared.sql_fingerprint;
+                                let query_params = portal.params.clone();
+                                run_pgwire_blocking(
+                                    cassie.clone(),
+                                    "pgwire_execute",
+                                    move |cassie| {
+                                        cassie.execute_preparsed_statement_with_mode(
+                                            &session_for_execute,
+                                            query_parsed,
+                                            query_sql_fingerprint,
+                                            query_params,
+                                            ExecutionMode::ExtendedQuery,
+                                        )
+                                    },
+                                )
+                                .await
+                                .map(|result| {
+                                    batch_from_query_result(result, limit, should_describe_execute)
+                                })
+                            };
 
                             match query_result {
-                                Ok(mut result) => {
-                                    if let Some(limit) = limit {
-                                        let limit = limit.max(0) as usize;
-                                        result.rows = result.rows.into_iter().take(limit).collect();
-                                    }
-                                    if should_describe_execute
-                                        && !result.columns.is_empty()
-                                        && write_row_description(&mut write_half, &result.columns)
-                                            .await
-                                            .is_err()
+                                Ok(batch) => {
+                                    if validate_result_formats(
+                                        &portal.result_formats,
+                                        batch.columns.len(),
+                                    )
+                                    .is_err()
                                     {
-                                        break;
-                                    }
-                                    for row in result.rows {
-                                        if write_data_row(
+                                        runtime.record_pgwire_protocol_error();
+                                        awaiting_sync = true;
+                                        if write_error_response(
                                             &mut write_half,
-                                            row,
-                                            &result.columns,
-                                            &portal.result_formats,
+                                            &PgWireError::protocol(
+                                                "unsupported result format count",
+                                            ),
                                         )
                                         .await
                                         .is_err()
                                         {
                                             break;
                                         }
+                                        continue;
                                     }
-                                    if write_command_complete(&mut write_half, &result.command)
+                                    if batch.should_write_row_description
+                                        && write_row_description(
+                                            &mut write_half,
+                                            &batch.columns,
+                                            &portal.result_formats,
+                                        )
                                         .await
                                         .is_err()
                                     {
                                         break;
+                                    }
+                                    let mut write_failed = false;
+                                    for row in batch.rows {
+                                        if write_data_row(
+                                            &mut write_half,
+                                            row,
+                                            &batch.columns,
+                                            &portal.result_formats,
+                                        )
+                                        .await
+                                        .is_err()
+                                        {
+                                            write_failed = true;
+                                            break;
+                                        }
+                                    }
+                                    if write_failed {
+                                        break;
+                                    }
+                                    if batch.suspended.is_some() {
+                                        if write_portal_suspended(&mut write_half).await.is_err() {
+                                            break;
+                                        }
+                                    } else if write_command_complete(
+                                        &mut write_half,
+                                        &batch.command,
+                                    )
+                                    .await
+                                    .is_err()
+                                    {
+                                        break;
+                                    }
+                                    if let Some(portal) = state.portals.get_mut(&portal_name) {
+                                        if batch.should_write_row_description {
+                                            portal.described = true;
+                                        }
+                                        portal.suspended = batch.suspended;
                                     }
                                 }
                                 Err(error) => {
@@ -916,42 +977,4 @@ pub async fn run_connection(
             }
         }
     }
-}
-
-async fn run_pgwire_blocking<T>(
-    cassie: Arc<Cassie>,
-    operation_name: &'static str,
-    operation: impl FnOnce(Arc<Cassie>) -> Result<T, CassieError> + Send + 'static,
-) -> Result<T, CassieError>
-where
-    T: Send + 'static,
-{
-    let runtime = cassie.runtime.clone();
-    let started_at = Instant::now();
-    runtime.record_pgwire_boundary_started(operation_name);
-
-    let result = task::spawn_blocking(move || operation(cassie)).await;
-
-    match result {
-        Ok(result) => match result {
-            Ok(value) => {
-                runtime.record_pgwire_boundary_completed(operation_name, started_at.elapsed());
-                Ok(value)
-            }
-            Err(error) => {
-                runtime.record_pgwire_boundary_error(operation_name, started_at.elapsed());
-                Err(error)
-            }
-        },
-        Err(error) => {
-            runtime.record_pgwire_boundary_join_failed(operation_name, started_at.elapsed());
-            Err(CassieError::StorageRetryable(format!(
-                "pgwire blocking boundary '{operation_name}' failed: {error}"
-            )))
-        }
-    }
-}
-
-fn cassie_pg_error(error: &CassieError) -> PgWireError {
-    PgWireError::from_cassie_error(PgWireSeverity::Error, error)
 }

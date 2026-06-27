@@ -110,7 +110,7 @@ pub(super) async fn write_simple_query_result(
 
     if !columns.is_empty() {
         let mut frames = Vec::new();
-        append_row_description_frame(&mut frames, &columns)?;
+        append_row_description_frame(&mut frames, &columns, &[])?;
         for row in rows {
             append_data_row_frame(&mut frames, row, &columns, &[])?;
         }
@@ -127,9 +127,10 @@ pub(super) async fn write_simple_query_result(
 pub(super) async fn write_row_description(
     write_half: &mut (impl AsyncWrite + Unpin),
     columns: &[crate::executor::ColumnMeta],
+    result_formats: &[i16],
 ) -> io::Result<()> {
     let mut frame = Vec::new();
-    append_row_description_frame(&mut frame, columns)?;
+    append_row_description_frame(&mut frame, columns, result_formats)?;
     write_half.write_all(&frame).await?;
     write_half.flush().await?;
     Ok(())
@@ -138,7 +139,9 @@ pub(super) async fn write_row_description(
 pub(super) fn append_row_description_frame(
     frame: &mut Vec<u8>,
     columns: &[crate::executor::ColumnMeta],
+    result_formats: &[i16],
 ) -> io::Result<()> {
+    validate_result_formats(result_formats, columns.len())?;
     let mut payload = Vec::new();
     payload.extend_from_slice(
         &i16::try_from(columns.len())
@@ -146,7 +149,7 @@ pub(super) fn append_row_description_frame(
             .to_be_bytes(),
     );
 
-    for column in columns {
+    for (index, column) in columns.iter().enumerate() {
         payload.extend_from_slice(column.name.as_bytes());
         payload.push(0);
         payload.extend_from_slice(&0_i32.to_be_bytes());
@@ -160,7 +163,8 @@ pub(super) fn append_row_description_frame(
         );
         payload.extend_from_slice(&column.typlen.to_be_bytes());
         payload.extend_from_slice(&column.atttypmod.to_be_bytes());
-        payload.extend_from_slice(&column.format_code.to_be_bytes());
+        let format_code = result_format_for_index(result_formats, index);
+        payload.extend_from_slice(&format_code.to_be_bytes());
     }
 
     append_backend_frame(frame, b'T', &payload)
@@ -202,15 +206,7 @@ pub(super) fn append_data_row_frame(
     columns: &[crate::executor::ColumnMeta],
     result_formats: &[i16],
 ) -> io::Result<()> {
-    if !result_formats.is_empty()
-        && result_formats.len() != 1
-        && result_formats.len() != columns.len()
-    {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "unsupported result format count",
-        ));
-    }
+    validate_result_formats(result_formats, columns.len())?;
 
     let mut payload = Vec::new();
     payload.extend_from_slice(
@@ -262,6 +258,12 @@ pub(super) async fn write_command_complete(
     write_half.write_all(&frame).await?;
     write_half.flush().await?;
     Ok(())
+}
+
+pub(super) async fn write_portal_suspended(
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> io::Result<()> {
+    write_backend_frame(write_half, b's', &[]).await
 }
 
 pub(super) async fn write_copy_in_response(
@@ -323,4 +325,34 @@ pub(super) fn append_backend_frame(frame: &mut Vec<u8>, tag: u8, payload: &[u8])
     );
     frame.extend_from_slice(payload);
     Ok(())
+}
+
+pub(super) fn validate_result_formats(
+    result_formats: &[i16],
+    column_count: usize,
+) -> io::Result<()> {
+    if !result_formats.iter().all(|format| matches!(*format, 0 | 1)) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "unsupported result format",
+        ));
+    }
+    if !result_formats.is_empty()
+        && result_formats.len() != 1
+        && result_formats.len() != column_count
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "unsupported result format count",
+        ));
+    }
+    Ok(())
+}
+
+fn result_format_for_index(result_formats: &[i16], index: usize) -> i16 {
+    match result_formats.len() {
+        0 => 0,
+        1 => result_formats[0],
+        _ => result_formats[index],
+    }
 }

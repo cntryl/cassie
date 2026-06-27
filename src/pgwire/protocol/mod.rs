@@ -94,6 +94,7 @@ pub enum ReadyState {
 
 #[derive(Debug, Clone)]
 pub struct PreparedStatement {
+    pub id: u64,
     pub name: String,
     pub query: String,
     pub parsed: crate::sql::ast::ParsedStatement,
@@ -107,9 +108,20 @@ pub struct PreparedStatement {
 pub struct Portal {
     pub name: String,
     pub statement_name: String,
+    pub prepared_id: u64,
     pub params: Vec<crate::types::Value>,
     pub result_formats: Vec<i16>,
     pub described: bool,
+    pub suspended: Option<PortalSuspended>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PortalSuspended {
+    pub columns: Vec<crate::executor::ColumnMeta>,
+    pub rows: Vec<Vec<crate::types::Value>>,
+    pub command: String,
+    pub next_row: usize,
+    pub row_description_sent: bool,
 }
 
 impl ServerMessage {

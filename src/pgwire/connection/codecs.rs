@@ -23,6 +23,7 @@ pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>
     match type_oid {
         16 => match value {
             Value::Bool(v) => Ok(vec![if v { 1 } else { 0 }]),
+            Value::String(v) => parse_bool_binary(&v),
             other => Ok(value_to_text(other).into_bytes()),
         },
         17 => match value {
@@ -39,25 +40,62 @@ pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>
         },
         21 => match value {
             Value::Int64(v) => Ok((v as i16).to_be_bytes().to_vec()),
+            Value::String(v) => {
+                parse_i64_binary(&v).map(|value| (value as i16).to_be_bytes().to_vec())
+            }
             other => Ok(value_to_text(other).into_bytes()),
         },
         20 => match value {
             Value::Int64(v) => Ok(v.to_be_bytes().to_vec()),
             Value::Float64(v) => Ok((v as i64).to_be_bytes().to_vec()),
+            Value::String(v) => parse_i64_binary(&v).map(|value| value.to_be_bytes().to_vec()),
             other => Ok(value_to_text(other).into_bytes()),
         },
         23 => match value {
             Value::Int64(v) => Ok((v as i32).to_be_bytes().to_vec()),
+            Value::String(v) => {
+                parse_i64_binary(&v).map(|value| (value as i32).to_be_bytes().to_vec())
+            }
             other => Ok(value_to_text(other).into_bytes()),
         },
         701 => match value {
             Value::Float64(v) => Ok(v.to_be_bytes().to_vec()),
             Value::Int64(v) => Ok((v as f64).to_be_bytes().to_vec()),
+            Value::String(v) => parse_f64_binary(&v).map(|value| value.to_be_bytes().to_vec()),
             other => Ok(value_to_text(other).into_bytes()),
         },
         25 | 1042 | 1043 | 705 | 114 => Ok(value_to_text(value).into_bytes()),
         _ => Ok(value_to_text(value).into_bytes()),
     }
+}
+
+fn parse_bool_binary(value: &str) -> io::Result<Vec<u8>> {
+    match value.to_ascii_lowercase().as_str() {
+        "true" | "t" | "1" => Ok(vec![1]),
+        "false" | "f" | "0" => Ok(vec![0]),
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "cannot encode bool value to binary",
+        )),
+    }
+}
+
+fn parse_i64_binary(value: &str) -> io::Result<i64> {
+    value.parse::<i64>().map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "cannot encode integer value to binary",
+        )
+    })
+}
+
+fn parse_f64_binary(value: &str) -> io::Result<f64> {
+    value.parse::<f64>().map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "cannot encode float value to binary",
+        )
+    })
 }
 
 pub(super) fn decode_bytea(value: &str) -> io::Result<Vec<u8>> {

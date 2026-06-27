@@ -14,7 +14,23 @@ pub(super) async fn try_handle_simple_copy_query(
     reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
-    let statement = match parse_simple_copy_statement(&cassie, sql) {
+    let sql = sql.to_string();
+    let statement = match run_pgwire_blocking(cassie.clone(), "pgwire_copy_parse", move |cassie| {
+        if !sql.trim_start().to_ascii_lowercase().starts_with("copy ") {
+            return Ok(None);
+        }
+        let parsed = crate::sql::parser::parse_statement(&sql)?;
+        let QueryStatement::Copy(_) = &parsed.statement else {
+            return Ok(None);
+        };
+        let bound = crate::sql::binder::bind(parsed, &cassie.catalog)?;
+        let QueryStatement::Copy(statement) = bound.statement.statement else {
+            return Ok(None);
+        };
+        Ok(Some(statement))
+    })
+    .await
+    {
         Ok(Some(statement)) => statement,
         Ok(None) => return SimpleCopyOutcome::NotCopy,
         Err(error) => {
@@ -42,25 +58,6 @@ pub(super) async fn try_handle_simple_copy_query(
     }
 }
 
-fn parse_simple_copy_statement(
-    cassie: &Cassie,
-    sql: &str,
-) -> Result<Option<CopyStatement>, CassieError> {
-    if !sql.trim_start().to_ascii_lowercase().starts_with("copy ") {
-        return Ok(None);
-    }
-
-    let parsed = crate::sql::parser::parse_statement(sql)?;
-    let QueryStatement::Copy(_) = &parsed.statement else {
-        return Ok(None);
-    };
-    let bound = crate::sql::binder::bind(parsed, &cassie.catalog)?;
-    let QueryStatement::Copy(statement) = bound.statement.statement else {
-        return Ok(None);
-    };
-    Ok(Some(statement))
-}
-
 fn copy_response_column_count(cassie: &Cassie, statement: &CopyStatement) -> usize {
     if !statement.columns.is_empty() {
         return statement.columns.len();
@@ -83,7 +80,23 @@ async fn handle_simple_copy_from_stdin(
 
     loop {
         match read_frontend_message(reader).await {
-            Ok(FrontendMessage::CopyData(chunk)) => payload.extend_from_slice(&chunk),
+            Ok(FrontendMessage::CopyData(chunk)) => {
+                let Some(next_len) = payload.len().checked_add(chunk.len()) else {
+                    let error = PgWireError::protocol("COPY payload exceeds supported bounds");
+                    if write_error_response(write_half, &error).await.is_err() {
+                        return false;
+                    }
+                    return write_ready_for_query(write_half, &session).await.is_ok();
+                };
+                if next_len > MAX_FRONTEND_MESSAGE_BYTES {
+                    let error = PgWireError::protocol("COPY payload exceeds supported bounds");
+                    if write_error_response(write_half, &error).await.is_err() {
+                        return false;
+                    }
+                    return write_ready_for_query(write_half, &session).await.is_ok();
+                }
+                payload.extend_from_slice(&chunk);
+            }
             Ok(FrontendMessage::CopyDone) => {
                 let session_for_copy = session.clone();
                 let statement_for_copy = statement.clone();

@@ -15,6 +15,10 @@ impl PgWireSeverity {
     }
 }
 
+pub(super) fn cassie_pg_error(error: &CassieError) -> PgWireError {
+    PgWireError::from_cassie_error(PgWireSeverity::Error, error)
+}
+
 #[derive(Debug, Clone)]
 pub(super) struct PgWireError {
     pub(super) severity: PgWireSeverity,

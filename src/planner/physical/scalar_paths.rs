@@ -220,6 +220,33 @@ fn expression_index_plan_shape(
         return None;
     }
 
+    if fields.is_empty() && expressions.len() == 1 {
+        if let Some(constraint) =
+            single_expression_constraint_shape(plan.filter.as_ref(), &expressions[0])
+        {
+            if constraint.equality {
+                return Some(ScalarIndexPlanShape {
+                    path: ScalarIndexPlanPath::IndexSeek,
+                    equality_prefix_len: 1,
+                    range_field_index: None,
+                    order_columns_used: 0,
+                    order_by_row_id: false,
+                    reverse: false,
+                });
+            }
+            if constraint.has_range() {
+                return Some(ScalarIndexPlanShape {
+                    path: ScalarIndexPlanPath::RangeScan,
+                    equality_prefix_len: 0,
+                    range_field_index: Some(0),
+                    order_columns_used: 0,
+                    order_by_row_id: false,
+                    reverse: false,
+                });
+            }
+        }
+    }
+
     let equality = exact_expression_index_equalities(plan.filter.as_ref())?;
     let required_fields = fields
         .iter()
@@ -242,6 +269,87 @@ fn expression_index_plan_shape(
         order_by_row_id: false,
         reverse: false,
     })
+}
+
+fn single_expression_constraint_shape(
+    filter: Option<&Expr>,
+    expression: &str,
+) -> Option<FieldConstraintShape> {
+    let mut constraint = FieldConstraintShape::default();
+    collect_single_expression_constraint_shape(filter?, expression, &mut constraint)?;
+    Some(constraint)
+}
+
+fn collect_single_expression_constraint_shape(
+    expr: &Expr,
+    expression: &str,
+    constraint: &mut FieldConstraintShape,
+) -> Option<()> {
+    match expr {
+        Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } => {
+            collect_single_expression_constraint_shape(left, expression, constraint)?;
+            collect_single_expression_constraint_shape(right, expression, constraint)
+        }
+        Expr::Binary { left, op, right } => {
+            let (candidate, normalized) = expression_constraint_shape(left, op, right)?;
+            if candidate != expression {
+                return None;
+            }
+            match normalized {
+                BinaryOp::Eq => constraint.equality = true,
+                BinaryOp::Gt | BinaryOp::Gte => constraint.lower = true,
+                BinaryOp::Lt | BinaryOp::Lte => constraint.upper = true,
+                _ => return None,
+            }
+            Some(())
+        }
+        Expr::Between {
+            expr,
+            low,
+            high,
+            negated: false,
+        } if super::expr_has_column(expr) && !matches!(expr.as_ref(), Expr::Column(_)) => {
+            if !super::expr_is_constant(low) || !super::expr_is_constant(high) {
+                return None;
+            }
+            let candidate = serde_json::to_string(expr.as_ref()).ok()?;
+            if candidate != expression {
+                return None;
+            }
+            constraint.lower = true;
+            constraint.upper = true;
+            Some(())
+        }
+        _ => None,
+    }
+}
+
+fn expression_constraint_shape(
+    left: &Expr,
+    op: &BinaryOp,
+    right: &Expr,
+) -> Option<(String, BinaryOp)> {
+    match (left, right) {
+        (expr, value)
+            if super::expr_has_column(expr)
+                && !matches!(expr, Expr::Column(_))
+                && super::expr_is_constant(value) =>
+        {
+            Some((serde_json::to_string(expr).ok()?, op.clone()))
+        }
+        (value, expr)
+            if super::expr_has_column(expr)
+                && !matches!(expr, Expr::Column(_))
+                && super::expr_is_constant(value) =>
+        {
+            Some((serde_json::to_string(expr).ok()?, reverse_binary_op(op)?))
+        }
+        _ => None,
+    }
 }
 
 #[derive(Debug, Default)]

@@ -163,7 +163,7 @@ fn scalar_index_matches_plan(
         .normalized_expressions()
         .iter()
         .all(|expression| equality_expressions.contains(expression));
-    field_match && expression_match
+    scalar_index_plan_shape(plan, index).is_some() || (field_match && expression_match)
 }
 
 fn compare_scalar_index_candidates(

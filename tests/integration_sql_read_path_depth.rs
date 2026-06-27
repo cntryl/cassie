@@ -202,3 +202,89 @@ fn should_scan_expression_index_after_restart_with_row_blob_projection() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_scan_expression_index_range_with_row_blob_projection() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("read_path_expression_index_range");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE read_path_expression_index_range (title TEXT, body TEXT)",
+                vec![],
+            )
+            .unwrap();
+        for (id, title, body) in [
+            ("row-1", "Alpha", "below"),
+            ("row-2", "Omega", "inside"),
+            ("row-3", "Zulu", "above"),
+        ] {
+            cassie
+                .midge
+                .put_document(
+                    "read_path_expression_index_range",
+                    Some(id.to_string()),
+                    serde_json::json!({"title": title, "body": body}),
+                )
+                .unwrap();
+        }
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX read_path_expression_index_range_idx \
+                 ON read_path_expression_index_range USING btree (lower(title))",
+                vec![],
+            )
+            .unwrap();
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT body FROM read_path_expression_index_range \
+                 WHERE lower(title) >= 'm' AND lower(title) < 'z'",
+                vec![],
+            )
+            .unwrap();
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT body FROM read_path_expression_index_range \
+                 WHERE lower(title) >= 'm' AND lower(title) < 'z'",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(result.rows, vec![vec![Value::String("inside".to_string())]]);
+        let Value::String(plan) = &explain.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("index=read_path_expression_index_range_idx"));
+        assert!(plan.contains("access_path=range_scan"));
+        assert!(plan.contains("access_path_reason=scalar-index-range"));
+        assert!(plan.contains("fallback_reason=none"));
+        assert!(
+            after["read_paths"]["range_scans"].as_u64().unwrap()
+                > before["read_paths"]["range_scans"].as_u64().unwrap()
+        );
+        assert_eq!(
+            after["read_paths"]["last_index_scan_index"].as_str(),
+            Some("read_path_expression_index_range_idx")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

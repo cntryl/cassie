@@ -91,8 +91,9 @@ and a single range/order field, such as tenant/status filters ordered by a times
 mixed-direction proof is intentionally narrow: ORDER BY terms over equality-bound leading index
 fields may use any direction, and the remaining suffix must match the scalar index order with one
 direction. Exact equality predicates on deterministic scalar expression indexes lower to
-`index_seek`/`prefix_scan`; expression range, ordering, collation, and generic PostgreSQL expression
-equivalence are not claimed.
+`index_seek`/`prefix_scan`; single-key deterministic scalar expression ranges lower to
+`range_scan`; expression ordering, collation, and generic PostgreSQL expression equivalence are not
+claimed.
 
 This is necessary because a query can look fast at 10k rows while already using the wrong execution model.
 The contract should fail before that mistake reaches larger scales.
@@ -661,6 +662,7 @@ Round 01 owns these hot paths:
 
 - tenant/status/time ordered page: `perf.read_path.mixed_order.10k` and `perf.read_path.mixed_order.100k`
 - expression-index equality lookup: `perf.read_path.expression_index.10k` and `perf.read_path.expression_index.100k`
+- expression-index range scan: `perf.read_path.expression_index_range.10k` and `perf.read_path.expression_index_range.100k`
 - column-batch covered projection/filter: `perf.read_path.column_batch.10k` and `perf.read_path.column_batch.100k`
 - vectorized inner/left equi-join when explicitly enabled: `perf.read_path.vectorized_join.10k` and `perf.read_path.vectorized_join.100k`
 - bounded unordered vectorized left join: `perf.read_path.vectorized_left_join_limited.10k` and `perf.read_path.vectorized_left_join_limited.100k`
@@ -675,6 +677,7 @@ Round 01 measured notes from 2026-06-27 local-dev fallback runs:
 - `vectorized_join_equi/100k` now reaches stable Criterion measurement instead of stalling in fixture setup; latest mean was 36.309 us with a 35.909-36.885 us confidence interval.
 - `vectorized_left_join_limited` validates bounded left-source scans: 35.604 us at 10k and 36.037 us at 100k.
 - `vectorized_indexed_inner_join` validates indexed left-source probes for bounded inner joins: 35.745 us at 10k and 35.676 us at 100k.
+- `expression_index_range_query` validates scalar expression range scans: 22.284 us at 10k and 21.667 us at 100k after explicit benchmark warmup.
 - `pgwire_prepared_query` remained scale-flat: 54.234 us at 10k and 55.031 us at 100k.
 - `column_batch_covered_projection` now measures with tight intervals after explicit benchmark warmup: 16.202 us at 10k and 15.354 us at 100k.
 - Remaining executor bottleneck: bounded inner joins without a left-key index still need a proof or streaming source plan before the left input can avoid broad materialization safely.
@@ -689,6 +692,8 @@ Round 01 measured notes from 2026-06-27 local-dev fallback runs:
 | `perf.read_path.mixed_order.100k` | Core read | `tier3_system_query` | `mixed_order_scalar_query` | 100k |
 | `perf.read_path.expression_index.10k` | Core read | `tier3_system_query` | `expression_index_query` | 10k |
 | `perf.read_path.expression_index.100k` | Core read | `tier3_system_query` | `expression_index_query` | 100k |
+| `perf.read_path.expression_index_range.10k` | Core read | `tier3_system_query` | `expression_index_range_query` | 10k |
+| `perf.read_path.expression_index_range.100k` | Core read | `tier3_system_query` | `expression_index_range_query` | 100k |
 | `perf.read_path.column_batch.10k` | Core read | `tier2_subsystem_executor` | `column_batch_covered_projection` | 10k |
 | `perf.read_path.column_batch.100k` | Core read | `tier2_subsystem_executor` | `column_batch_covered_projection` | 100k |
 | `perf.read_path.vectorized_join.10k` | Core read | `tier2_subsystem_executor` | `vectorized_join_equi` | 10k |
@@ -974,11 +979,11 @@ single range/order field, for example `(tenant_id, status, created_at)`.
 
 ### Non-goals
 Ad hoc combinations without supporting index/layout are not guaranteed to meet the contract.
-Mixed-direction suffix ordering beyond the equality-bound-prefix proof, expression range scans, and
-expression ORDER BY lowering remain explicit follow-on scope.
+Mixed-direction suffix ordering beyond the equality-bound-prefix proof and expression ORDER BY
+lowering remain explicit follow-on scope.
 
 ### Validation
-- Benchmarks: `perf.read_path.mixed_order.10k`, `perf.read_path.mixed_order.100k`, `perf.read_path.expression_index.10k`, and `perf.read_path.expression_index.100k`
+- Benchmarks: `perf.read_path.mixed_order.10k`, `perf.read_path.mixed_order.100k`, `perf.read_path.expression_index.10k`, `perf.read_path.expression_index.100k`, `perf.read_path.expression_index_range.10k`, and `perf.read_path.expression_index_range.100k`
 - Tests: `tests/integration_sql_scalar_indexes.rs`, `tests/integration_sql_read_path_depth.rs`, `tests/planner_read_path_depth.rs`, `tests/planner_indexes.rs`
 
 ### Required access-path assertions

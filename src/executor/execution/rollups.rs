@@ -367,8 +367,14 @@ fn build_rollup_rows(
         params: &[],
         controls,
     };
-    let (mut batches, text_fields) =
-        super::source::execute_query_source(&env, &plan.source, &mut HashMap::new(), false, None)?;
+    let (mut batches, text_fields) = super::source::execute_query_source(
+        &env,
+        &plan.source,
+        &mut HashMap::new(),
+        false,
+        None,
+        None,
+    )?;
     let search_context = if text_fields.is_empty() {
         None
     } else {

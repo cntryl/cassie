@@ -22,14 +22,89 @@ use cassie::search::{bm25, tokenizer};
 use cassie::sql::{binder, parameter_count, parameter_type_oids, parse_statement};
 use cassie::types::{DataType, FieldSchema, Schema, Value};
 use serde_json::json;
+use tokio_postgres::NoTls;
 use uuid::Uuid;
 
 use super::context::{BenchContext, QueryBreakdownMicros};
+
+pub struct PgwirePreparedBenchContext {
+    client: tokio_postgres::Client,
+    statement: tokio_postgres::Statement,
+    server: tokio::task::JoinHandle<Result<(), CassieError>>,
+    connection: tokio::task::JoinHandle<()>,
+}
+
+impl Drop for PgwirePreparedBenchContext {
+    fn drop(&mut self) {
+        self.server.abort();
+        self.connection.abort();
+    }
+}
 
 pub async fn pgwire_simple_query(ctx: &BenchContext, sql: &str) -> usize {
     let messages =
         cassie::pgwire::handlers::query::run_simple_query(&ctx.cassie, &ctx.session, sql, vec![]);
     std::hint::black_box(messages.len())
+}
+
+pub async fn pgwire_prepared_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Result<PgwirePreparedBenchContext, CassieError> {
+    let ctx = super::context::context(label, dataset_rows).await?;
+    let mut config = CassieRuntimeConfig::from_env()
+        .map_err(|error| CassieError::Configuration(error.to_string()))?;
+    config.password.clear();
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    let addr = listener
+        .local_addr()
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    drop(listener);
+
+    let server = tokio::spawn(cassie::pgwire::server::run(
+        addr.to_string(),
+        ctx.cassie.clone(),
+        config,
+    ));
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    let mut client_config = tokio_postgres::Config::new();
+    client_config.host("127.0.0.1");
+    client_config.port(addr.port());
+    client_config.user("postgres");
+    client_config.dbname("postgres");
+    let (client, connection) = client_config
+        .connect(NoTls)
+        .await
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    let connection = tokio::spawn(async move {
+        connection
+            .await
+            .expect("tokio-postgres connection should stay healthy");
+    });
+    let statement = client
+        .prepare("SELECT id, title FROM bench_documents WHERE title = $1 ORDER BY id ASC LIMIT 25")
+        .await
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+
+    Ok(PgwirePreparedBenchContext {
+        client,
+        statement,
+        server,
+        connection,
+    })
+}
+
+pub async fn pgwire_prepared_query(ctx: &PgwirePreparedBenchContext) -> usize {
+    let rows = ctx
+        .client
+        .query(&ctx.statement, &[&"title-1"])
+        .await
+        .expect("execute prepared pgwire query");
+    std::hint::black_box(rows.len())
 }
 
 pub fn pgwire_prepared_statement_protocol_loop() -> usize {

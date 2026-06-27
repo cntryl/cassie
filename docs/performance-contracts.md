@@ -607,6 +607,7 @@ cargo bench --locked --bench tier3_system_rebuild
 cargo bench --locked --bench tier2_subsystem_search
 cargo bench --locked --bench tier2_subsystem_vector
 cargo bench --locked --bench tier2_subsystem_hybrid
+cargo bench --locked --bench tier2_subsystem_executor
 cargo bench --locked --bench tier4_integration_pgwire
 cargo bench --locked --bench tier4_integration_http
 cargo test --locked --test performance_benchmarks -- --ignored --nocapture
@@ -621,6 +622,7 @@ cargo bench --locked --bench tier3_system_rebuild --no-run
 cargo bench --locked --bench tier2_subsystem_search --no-run
 cargo bench --locked --bench tier2_subsystem_vector --no-run
 cargo bench --locked --bench tier2_subsystem_hybrid --no-run
+cargo bench --locked --bench tier2_subsystem_executor --no-run
 cargo bench --locked --bench tier4_integration_pgwire --no-run
 cargo bench --locked --bench tier4_integration_http --no-run
 ```
@@ -649,6 +651,30 @@ The 1M profile is a compile-validated placeholder only.
 It reserves representative future scenario ids without requiring 1M fixture generation or Criterion output in the default manual workflow:
 `perf.core_read.simple.1m`, `perf.replay.lag_catchup.1m`, `perf.rebuild.refresh.1m`, `perf.verification.full.1m`, `perf.search.fulltext.1m`, `perf.vector.executor.1m`, `perf.hybrid.executor.1m`, `perf.graph.expand.1m`, `perf.time_series.window_scan.1m`, `perf.pgwire.simple_query.1m`, and `perf.http.document_create_get.1m`.
 
+### TDD Optimization Round 01
+
+This round targets read-model hot paths rather than general OLAP parity. Each change must start with
+a failing or newly guarding test that asserts result correctness plus EXPLAIN/metrics evidence, then
+add or update Criterion ownership before optimizing implementation code.
+
+Round 01 owns these hot paths:
+
+- tenant/status/time ordered page: `perf.read_path.mixed_order.10k` and `perf.read_path.mixed_order.100k`
+- expression-index equality lookup: `perf.read_path.expression_index.10k` and `perf.read_path.expression_index.100k`
+- column-batch covered projection/filter: `perf.read_path.column_batch.10k` and `perf.read_path.column_batch.100k`
+- vectorized inner/left equi-join when explicitly enabled: `perf.read_path.vectorized_join.10k` and `perf.read_path.vectorized_join.100k`
+- pgwire prepared read path: `perf.pgwire.prepared_query.10k` and `perf.pgwire.prepared_query.100k`
+
+The default decision rule is to prefer Midge-native access paths, covering reads, bounded scans,
+column-batch pruning, and selective vectorized operators before broader executor rewrites.
+
+Round 01 measured notes from 2026-06-27 local-dev fallback runs:
+
+- `vectorized_join_equi/100k` now reaches Criterion measurement instead of stalling in fixture setup; latest mean was 58.796 us with a wide 37.046-100.367 us confidence interval.
+- `pgwire_prepared_query` remained scale-flat: 54.234 us at 10k and 55.031 us at 100k.
+- `column_batch_covered_projection/100k` remained too noisy for an optimization claim: 34.146 us mean with a 16.246-67.892 us interval.
+- Next executor bottleneck is full left/right source materialization before a bounded join can finish; Round 01 only pushes an unordered join output budget after source scans complete.
+
 ### Manual Benchmark Scenarios
 
 | Scenario | Family | Owner benchmark | Workload | Scale |
@@ -659,6 +685,10 @@ It reserves representative future scenario ids without requiring 1M fixture gene
 | `perf.read_path.mixed_order.100k` | Core read | `tier3_system_query` | `mixed_order_scalar_query` | 100k |
 | `perf.read_path.expression_index.10k` | Core read | `tier3_system_query` | `expression_index_query` | 10k |
 | `perf.read_path.expression_index.100k` | Core read | `tier3_system_query` | `expression_index_query` | 100k |
+| `perf.read_path.column_batch.10k` | Core read | `tier2_subsystem_executor` | `column_batch_covered_projection` | 10k |
+| `perf.read_path.column_batch.100k` | Core read | `tier2_subsystem_executor` | `column_batch_covered_projection` | 100k |
+| `perf.read_path.vectorized_join.10k` | Core read | `tier2_subsystem_executor` | `vectorized_join_equi` | 10k |
+| `perf.read_path.vectorized_join.100k` | Core read | `tier2_subsystem_executor` | `vectorized_join_equi` | 100k |
 | `perf.replay.lag_catchup.10k` | Replay | `tier2_subsystem_ingest` | `projection_lag_catchup` | 10k |
 | `perf.replay.lag_catchup.100k` | Replay | `tier2_subsystem_ingest` | `projection_lag_catchup` | 100k |
 | `perf.rebuild.refresh.10k` | Rebuild | `tier3_system_rebuild` | `projection_refresh` | 10k |
@@ -681,6 +711,8 @@ It reserves representative future scenario ids without requiring 1M fixture gene
 | `perf.time_series.rollup_refresh.100k` | Time series | `tier3_system_rebuild` | `time_series_rollup_refresh` | 100k |
 | `perf.pgwire.simple_query.10k` | pgwire | `tier4_integration_pgwire` | `pgwire_simple_query` | 10k |
 | `perf.pgwire.simple_query.100k` | pgwire | `tier4_integration_pgwire` | `pgwire_simple_query` | 100k |
+| `perf.pgwire.prepared_query.10k` | pgwire | `tier4_integration_pgwire` | `pgwire_prepared_query` | 10k |
+| `perf.pgwire.prepared_query.100k` | pgwire | `tier4_integration_pgwire` | `pgwire_prepared_query` | 100k |
 | `perf.http.document_create_get.10k` | HTTP | `tier4_integration_http` | `http_document_create_get` | 10k |
 | `perf.http.document_create_get.100k` | HTTP | `tier4_integration_http` | `http_document_create_get` | 100k |
 | `perf.http.vector_search.10k` | HTTP | `tier4_integration_http` | `http_vector_search` | 10k |
@@ -691,7 +723,7 @@ It reserves representative future scenario ids without requiring 1M fixture gene
 
 | Contract family | Memory/fallback evidence | EXPLAIN or metrics evidence |
 | --- | --- | --- |
-| Core read | `storage.data.reads`, `fallback_reason` | `access_path=point_lookup`, `access_path=range_scan`, `access_path=index_seek`, `query.latency_ms_total`, `read_paths.range_scans`, `read_paths.index_seek_scans` |
+| Core read | `storage.data.reads`, `fallback_reason`, `column_batches.row_fetches_avoided`, `joins.vectorized_build_rows_total`, `joins.last_vectorized_fallback_reason` | `access_path=point_lookup`, `access_path=range_scan`, `access_path=index_seek`, `column_batch_index`, `vectorized_join_enabled=true`, `query.latency_ms_total`, `read_paths.range_scans`, `read_paths.index_seek_scans`, `column_batches.scans`, `joins.vectorized_joins` |
 | Replay | `projections.write_batch_flushes`, `projections.replay_duplicates_skipped` | `replay_checkpoint`, `projections.replay_events_applied` |
 | Rebuild | `projections.write_rebuild_target_puts`, `rebuild_fallback` | `materialized_projection_refresh`, `projections.refreshes` |
 | Verification | `projection_hash_rows`, `verification_mismatch_count` | `VERIFY PROJECTION`, `projections.verifications` |
@@ -699,7 +731,7 @@ It reserves representative future scenario ids without requiring 1M fixture gene
 | Vector | `vector.candidate_count_total`, `vector.normalized_fallback_count_total` | `access_path=vector`, `vector.latency_ms_total` |
 | Hybrid | `hybrid.candidate_count_total`, `hybrid.prefilter_fallback_count_total` | `mixed_execution`, `hybrid.latency_ms_total` |
 | Time series | `time_series.bucket_native_hits`, `time_series.fallback_reason`, `retention.skipped_rows`, `retention.errors`, `rollups.refreshes`, `rollups.stale_fallbacks` | `time_series_storage=bucket-native-v1`, `time_series.buckets_scanned`, `time_series.scans`, `ENFORCE RETENTION`, `retention.deleted_rows`, `REFRESH ROLLUP`, `rollups.rewrite_hits` |
-| pgwire | `pgwire.blocking_elapsed_ms_total`, `pgwire.protocol_errors_total` | `pgwire_simple_query`, `pgwire.simple_queries_total` |
+| pgwire | `pgwire.blocking_elapsed_ms_total`, `pgwire.protocol_errors_total` | `pgwire_simple_query`, `pgwire_prepared_query`, `pgwire.simple_queries_total`, `pgwire.extended_queries_total` |
 | HTTP | `storage.data.writes`, `vector.normalized_fallback_count_total`, `rest.blocking_error_total` | `documents::create/get`, `http_vector_search`, `rest.requests_total` |
 
 ## Example Discipline

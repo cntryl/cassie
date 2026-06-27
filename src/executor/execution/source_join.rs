@@ -23,14 +23,16 @@ pub(super) fn execute_join_source<'a>(
     on: &'a Expr,
     cte_context: &'a mut CteContext,
     outer_row: Option<&'a BatchRow>,
+    row_budget: Option<usize>,
 ) -> SourceExecution<'a> {
-    let (left_batches, _left_text) = execute_query_source(env, left, cte_context, true, outer_row)?;
+    let (left_batches, _left_text) =
+        execute_query_source(env, left, cte_context, true, outer_row, None)?;
     if source_contains_lateral(right) {
         return execute_lateral_join(env, right, kind, on, cte_context, outer_row, left_batches);
     }
 
     let (right_batches, _right_text) =
-        execute_query_source(env, right, cte_context, true, outer_row)?;
+        execute_query_source(env, right, cte_context, true, outer_row, None)?;
     let left_rows = batch::flatten_batches(left_batches);
     let right_rows = batch::flatten_batches(right_batches);
     let left_columns = row_columns(&left_rows);
@@ -44,9 +46,10 @@ pub(super) fn execute_join_source<'a>(
             kind,
             on,
             keys.clone(),
-            left_rows.clone(),
-            right_rows.clone(),
+            &left_rows,
+            &right_rows,
             &right_columns,
+            row_budget,
         )?
         .map(Ok)
         .unwrap_or_else(|| {
@@ -91,7 +94,7 @@ fn execute_lateral_join<'a>(
 
     for left_row in &left_rows {
         let (right_batches, _right_text) =
-            execute_query_source(env, right, cte_context, true, Some(left_row))?;
+            execute_query_source(env, right, cte_context, true, Some(left_row), None)?;
         let right_rows = batch::flatten_batches(right_batches);
         let right_columns = row_columns(&right_rows);
         let mut matched = false;
@@ -200,11 +203,12 @@ fn execute_nested_loop_join(
 fn execute_vectorized_join(
     env: &SourceExecutionEnv<'_>,
     kind: &JoinKind,
-    on: &Expr,
+    _on: &Expr,
     keys: EquiJoinKeys,
-    left_rows: Vec<BatchRow>,
-    right_rows: Vec<BatchRow>,
+    left_rows: &[BatchRow],
+    right_rows: &[BatchRow],
     right_columns: &[String],
+    row_budget: Option<usize>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let limits = env.cassie.runtime.limits();
     let batch_size = limits.vectorized_join_batch_size.max(1);
@@ -262,46 +266,49 @@ fn execute_vectorized_join(
         return Ok(None);
     }
 
-    let mut build = std::collections::HashMap::<String, Vec<BatchRow>>::new();
+    let output_budget = row_budget.unwrap_or(usize::MAX);
+    if output_budget == 0 {
+        env.cassie
+            .runtime
+            .record_vectorized_join_execution(0, 0, 0, 0, batch_size, 0);
+        return Ok(Some(Vec::new()));
+    }
+
+    let mut build = std::collections::HashMap::<String, Vec<&BatchRow>>::new();
     for right in right_rows {
-        let key = row_join_key(&right, &keys.right);
+        let key = row_join_key(right, &keys.right);
         build.entry(key).or_default().push(right);
     }
 
-    let probe_rows = left_rows.len();
+    let mut probe_rows = 0usize;
     let build_rows = build.values().map(Vec::len).sum::<usize>();
-    let batches = probe_rows.div_ceil(batch_size);
+    let mut batches = 0usize;
     let mut matched_rows = 0usize;
     let mut joined = Vec::new();
 
-    for left_batch in left_rows.chunks(batch_size) {
+    'probe: for left_batch in left_rows.chunks(batch_size) {
         check_timeout(env.controls)?;
+        batches += 1;
         for left in left_batch {
+            probe_rows += 1;
             let key = row_join_key(left, &keys.left);
             let mut matched = false;
             if let Some(right_group) = build.get(&key) {
                 for right in right_group {
-                    let combined = combine_rows(left, right);
-                    if filter::eval_scalar(
-                        &combined,
-                        on,
-                        env.params,
-                        None,
-                        env.user_functions,
-                        None,
-                        env.session,
-                    )?
-                    .as_bool()
-                    {
-                        matched = true;
-                        matched_rows += 1;
-                        joined.push(combined);
+                    matched = true;
+                    matched_rows += 1;
+                    joined.push(combine_rows(left, right));
+                    if joined.len() >= output_budget {
+                        break 'probe;
                     }
                 }
             }
 
             if !matched && matches!(kind, JoinKind::Left) {
                 joined.push(combine_row_with_nulls(left, right_columns));
+                if joined.len() >= output_budget {
+                    break 'probe;
+                }
             }
         }
     }

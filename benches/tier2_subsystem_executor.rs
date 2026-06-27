@@ -3,19 +3,41 @@ use criterion::{
 };
 use std::hint::black_box;
 
+const BENCHMARK: &str = "tier2_subsystem_executor";
+
 #[path = "support/criterion_config.rs"]
 mod criterion_config;
+#[path = "support/performance_benchmarks.rs"]
+mod performance_benchmarks;
 #[path = "support/workloads.rs"]
 mod workloads;
 
+fn criterion_filters() -> Vec<String> {
+    std::env::args()
+        .skip(1)
+        .filter(|arg| !arg.starts_with("--"))
+        .collect()
+}
+
+fn benchmark_enabled(filters: &[String], workload: &str, scale: &str) -> bool {
+    if filters.is_empty() {
+        return true;
+    }
+    let id = format!("{BENCHMARK}/{workload}/{scale}");
+    filters
+        .iter()
+        .any(|filter| id.contains(filter) || workload.contains(filter) || scale == filter)
+}
+
 fn bench_executor(c: &mut Criterion) {
     std::env::set_var("CASSIE_PARALLEL_AGGREGATION_WORKERS", "4");
+    let filters = criterion_filters();
     let runtime = workloads::runtime();
     let ctx = runtime
         .block_on(workloads::context("tier2-executor", 10_000))
         .expect("benchmark context");
 
-    let mut group = c.benchmark_group("tier2_subsystem_executor");
+    let mut group = c.benchmark_group(BENCHMARK);
     group.sampling_mode(SamplingMode::Flat);
     group.throughput(Throughput::Elements(1));
 
@@ -75,9 +97,69 @@ fn bench_executor(c: &mut Criterion) {
     ];
 
     for (name, sql) in cases {
+        if !benchmark_enabled(&filters, name, "10k") {
+            continue;
+        }
         group.bench_function(BenchmarkId::new(name, "10k"), |b| {
             b.iter(|| black_box(runtime.block_on(workloads::execute_sql(&ctx, sql))))
         });
+    }
+
+    for dataset_rows in [10_000, 100_000] {
+        let scale = if dataset_rows == 10_000 {
+            "10k"
+        } else {
+            "100k"
+        };
+        if benchmark_enabled(&filters, "column_batch_covered_projection", scale) {
+            let column_ctx = runtime
+                .block_on(workloads::column_batch_context(
+                    &format!("tier2-executor-column-{scale}"),
+                    dataset_rows,
+                ))
+                .expect("column-batch benchmark context");
+            let benchmark = performance_benchmarks::expect_benchmark(
+                BENCHMARK,
+                "column_batch_covered_projection",
+                scale,
+            );
+            group.bench_function(
+                BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
+                |b| {
+                    b.iter(|| {
+                        black_box(runtime.block_on(workloads::execute_sql(
+                            &column_ctx,
+                            "SELECT title, body FROM bench_documents WHERE status = 'approved' LIMIT 50",
+                        )))
+                    })
+                },
+            );
+        }
+
+        if benchmark_enabled(&filters, "vectorized_join_equi", scale) {
+            let join_ctx = runtime
+                .block_on(workloads::vectorized_join_context(
+                    &format!("tier2-executor-vectorized-join-{scale}"),
+                    dataset_rows,
+                ))
+                .expect("vectorized join benchmark context");
+            let benchmark =
+                performance_benchmarks::expect_benchmark(BENCHMARK, "vectorized_join_equi", scale);
+            group.bench_function(
+                BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
+                |b| {
+                    b.iter(|| {
+                        black_box(runtime.block_on(workloads::execute_sql(
+                            &join_ctx,
+                            "SELECT bench_join_users.name, bench_join_orders.total \
+                             FROM bench_join_users JOIN bench_join_orders \
+                             ON bench_join_users.user_key = bench_join_orders.order_user_key \
+                             LIMIT 50",
+                        )))
+                    })
+                },
+            );
+        }
     }
 
     group.finish();

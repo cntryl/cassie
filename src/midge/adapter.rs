@@ -153,6 +153,8 @@ mod column_batches;
 mod column_store;
 #[path = "adapter/documents.rs"]
 pub(crate) mod documents;
+#[path = "adapter/fresh_documents.rs"]
+mod fresh_documents;
 #[path = "adapter/graphs.rs"]
 mod graphs;
 #[path = "adapter/key_encoding.rs"]

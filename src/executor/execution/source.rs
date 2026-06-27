@@ -20,6 +20,7 @@ pub(super) fn execute_query_source<'a>(
     cte_context: &'a mut CteContext,
     qualify: bool,
     outer_row: Option<&'a BatchRow>,
+    row_budget: Option<usize>,
 ) -> SourceExecution<'a> {
     match source {
         QuerySource::Collection(name) => {
@@ -195,6 +196,7 @@ pub(super) fn execute_query_source<'a>(
                 on,
                 cte_context,
                 outer_row,
+                row_budget,
             )?;
             ensure_temp_budget(env.controls, &batches)?;
             Ok((batches, text_fields))
@@ -224,6 +226,38 @@ fn combine_batches_with_outer_row(batches: Vec<Batch>, outer_row: &BatchRow) -> 
                 .collect()
         })
         .collect()
+}
+
+fn source_row_budget(plan: &LogicalPlan) -> Option<usize> {
+    let QuerySource::Join { .. } = &plan.source else {
+        return None;
+    };
+    if plan.filter.is_some()
+        || plan.having.is_some()
+        || plan.offset.unwrap_or(0) > 0
+        || plan.set.is_some()
+        || plan.distinct
+        || !plan.distinct_on.is_empty()
+        || !plan.ctes.is_empty()
+        || !plan.group_by.is_empty()
+        || !plan.order.is_empty()
+        || plan_uses_aggregate(plan)
+        || plan.projection.iter().any(|item| {
+            !matches!(item, SelectItem::Wildcard | SelectItem::Column { .. })
+                && !matches!(
+                    item,
+                    SelectItem::Expr {
+                        expr: Expr::Column(_),
+                        ..
+                    }
+                )
+        })
+    {
+        return None;
+    }
+
+    let limit = plan.limit?;
+    usize::try_from(limit.max(0)).ok()
 }
 
 fn source_contains_lateral(source: &QuerySource) -> bool {
@@ -552,8 +586,14 @@ pub(super) fn execute_source_query_with_outer_row(
         params,
         controls,
     };
-    let (mut batches, text_fields) =
-        execute_query_source(&env, &plan.source, cte_context, false, outer_row)?;
+    let (mut batches, text_fields) = execute_query_source(
+        &env,
+        &plan.source,
+        cte_context,
+        false,
+        outer_row,
+        source_row_budget(plan),
+    )?;
     if let Some(outer_row) = outer_row {
         batches = combine_batches_with_outer_row(batches, outer_row);
     }

@@ -25,8 +25,13 @@ pub(super) fn execute_join_source<'a>(
     outer_row: Option<&'a BatchRow>,
     row_budget: Option<usize>,
 ) -> SourceExecution<'a> {
+    let left_row_budget = if matches!(kind, JoinKind::Left) {
+        row_budget
+    } else {
+        None
+    };
     let (left_batches, _left_text) =
-        execute_query_source(env, left, cte_context, true, outer_row, None)?;
+        execute_query_source(env, left, cte_context, true, outer_row, left_row_budget)?;
     if source_contains_lateral(right) {
         return execute_lateral_join(env, right, kind, on, cte_context, outer_row, left_batches);
     }

@@ -72,7 +72,8 @@ pub(super) fn execute_query_source<'a>(
                         ))
                     })?
                     .to_string();
-                let mut batches = scan::scan(env.cassie, env.session, &output_collection)?;
+                let mut batches =
+                    scan::scan_limit(env.cassie, env.session, &output_collection, row_budget)?;
                 if qualify {
                     batches = qualify_batches(batches, name);
                 }
@@ -92,7 +93,7 @@ pub(super) fn execute_query_source<'a>(
                 return Ok((batches, text_fields));
             }
 
-            let mut batches = scan::scan(env.cassie, env.session, name)?;
+            let mut batches = scan::scan_limit(env.cassie, env.session, name, row_budget)?;
             if qualify {
                 batches = qualify_batches(batches, name);
             }

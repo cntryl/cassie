@@ -118,6 +118,9 @@ fn bench_executor(c: &mut Criterion) {
                     dataset_rows,
                 ))
                 .expect("column-batch benchmark context");
+            let column_sql =
+                "SELECT title, body FROM bench_documents WHERE status = 'approved' LIMIT 50";
+            black_box(runtime.block_on(workloads::execute_sql(&column_ctx, column_sql)));
             let benchmark = performance_benchmarks::expect_benchmark(
                 BENCHMARK,
                 "column_batch_covered_projection",
@@ -127,38 +130,63 @@ fn bench_executor(c: &mut Criterion) {
                 BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
                 |b| {
                     b.iter(|| {
-                        black_box(runtime.block_on(workloads::execute_sql(
-                            &column_ctx,
-                            "SELECT title, body FROM bench_documents WHERE status = 'approved' LIMIT 50",
-                        )))
+                        black_box(runtime.block_on(workloads::execute_sql(&column_ctx, column_sql)))
                     })
                 },
             );
         }
 
-        if benchmark_enabled(&filters, "vectorized_join_equi", scale) {
+        if benchmark_enabled(&filters, "vectorized_join_equi", scale)
+            || benchmark_enabled(&filters, "vectorized_left_join_limited", scale)
+        {
             let join_ctx = runtime
                 .block_on(workloads::vectorized_join_context(
                     &format!("tier2-executor-vectorized-join-{scale}"),
                     dataset_rows,
                 ))
                 .expect("vectorized join benchmark context");
-            let benchmark =
-                performance_benchmarks::expect_benchmark(BENCHMARK, "vectorized_join_equi", scale);
-            group.bench_function(
-                BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-                |b| {
-                    b.iter(|| {
-                        black_box(runtime.block_on(workloads::execute_sql(
-                            &join_ctx,
-                            "SELECT bench_join_users.name, bench_join_orders.total \
-                             FROM bench_join_users JOIN bench_join_orders \
-                             ON bench_join_users.user_key = bench_join_orders.order_user_key \
-                             LIMIT 50",
-                        )))
-                    })
-                },
-            );
+            if benchmark_enabled(&filters, "vectorized_join_equi", scale) {
+                let join_sql = "SELECT bench_join_users.name, bench_join_orders.total \
+                                FROM bench_join_users JOIN bench_join_orders \
+                                ON bench_join_users.user_key = bench_join_orders.order_user_key \
+                                LIMIT 50";
+                black_box(runtime.block_on(workloads::execute_sql(&join_ctx, join_sql)));
+                let benchmark = performance_benchmarks::expect_benchmark(
+                    BENCHMARK,
+                    "vectorized_join_equi",
+                    scale,
+                );
+                group.bench_function(
+                    BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
+                    |b| {
+                        b.iter(|| {
+                            black_box(runtime.block_on(workloads::execute_sql(&join_ctx, join_sql)))
+                        })
+                    },
+                );
+            }
+            if benchmark_enabled(&filters, "vectorized_left_join_limited", scale) {
+                let left_join_sql = "SELECT bench_join_users.name, bench_join_orders.total \
+                                     FROM bench_join_users LEFT JOIN bench_join_orders \
+                                     ON bench_join_users.user_key = bench_join_orders.order_user_key \
+                                     LIMIT 50";
+                black_box(runtime.block_on(workloads::execute_sql(&join_ctx, left_join_sql)));
+                let benchmark = performance_benchmarks::expect_benchmark(
+                    BENCHMARK,
+                    "vectorized_left_join_limited",
+                    scale,
+                );
+                group.bench_function(
+                    BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
+                    |b| {
+                        b.iter(|| {
+                            black_box(
+                                runtime.block_on(workloads::execute_sql(&join_ctx, left_join_sql)),
+                            )
+                        })
+                    },
+                );
+            }
         }
     }
 

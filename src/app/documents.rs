@@ -155,49 +155,6 @@ impl Cassie {
         self.midge.get_document(collection, id)
     }
 
-    pub(crate) fn scan_documents_batched_for_session(
-        &self,
-        session: Option<&CassieSession>,
-        collection: &str,
-        batch_size: usize,
-    ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
-        let mut rows = self
-            .midge
-            .scan_documents(collection)?
-            .into_iter()
-            .map(|document| (document.id.clone(), document))
-            .collect::<BTreeMap<_, _>>();
-
-        if let Some(session) = session {
-            for (id, change) in session.collection_changes(collection) {
-                match change {
-                    TransactionRowChange::Upsert(payload) => {
-                        rows.insert(id.clone(), DocumentRef { id, payload });
-                    }
-                    TransactionRowChange::Delete => {
-                        rows.remove(&id);
-                    }
-                }
-            }
-        }
-
-        let batch_size = batch_size.max(1);
-        let mut batches = Vec::new();
-        let mut current = Vec::with_capacity(batch_size);
-        for document in rows.into_values() {
-            current.push(document);
-            if current.len() >= batch_size {
-                batches.push(current);
-                current = Vec::with_capacity(batch_size);
-            }
-        }
-        if !current.is_empty() {
-            batches.push(current);
-        }
-
-        Ok(batches)
-    }
-
     pub(crate) fn scan_projected_documents_batched_for_session(
         &self,
         session: Option<&CassieSession>,

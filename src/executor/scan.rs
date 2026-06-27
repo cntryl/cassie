@@ -24,8 +24,17 @@ pub(crate) fn scan(
     session: Option<&CassieSession>,
     collection: &str,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
+    scan_limit(cassie, session, collection, None)
+}
+
+pub(crate) fn scan_limit(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    collection: &str,
+    limit: Option<usize>,
+) -> Result<Vec<Batch>, crate::executor::QueryError> {
     let document_batches = cassie
-        .scan_documents_batched_for_session(session, collection, DEFAULT_BATCH_SIZE)
+        .scan_documents_batched_for_session_limit(session, collection, DEFAULT_BATCH_SIZE, limit)
         .map_err(|error| {
             cassie.runtime.record_storage_access("data", false, false);
             crate::executor::QueryError::General(error.to_string())

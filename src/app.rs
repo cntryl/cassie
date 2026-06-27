@@ -480,6 +480,8 @@ mod consistency;
 mod defaults;
 #[path = "app/diagnostics.rs"]
 mod diagnostics;
+#[path = "app/document_scans.rs"]
+mod document_scans;
 #[path = "app/documents.rs"]
 mod documents;
 #[path = "app/embeddings.rs"]

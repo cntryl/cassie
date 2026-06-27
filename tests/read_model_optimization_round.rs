@@ -529,6 +529,127 @@ fn should_push_unordered_left_join_limit_into_left_source_scan() {
 }
 
 #[test]
+fn should_probe_indexed_left_source_for_bounded_inner_join() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("read_model_indexed_inner_join_budget");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let mut config = vectorized_join_config();
+        config.limits.vectorized_join_batch_size = 8;
+        config.limits.temp_spill_budget_bytes = 4 * 1024;
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE read_model_indexed_users (user_key INT, name TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE read_model_indexed_orders (order_user_key INT, total INT)",
+                vec![],
+            )
+            .unwrap();
+
+        let mut users = Vec::new();
+        for index in 0..200 {
+            users.push((
+                Some(format!("user-{index:03}")),
+                serde_json::json!({
+                    "user_key": index as i64,
+                    "name": format!("user-{index:03}"),
+                }),
+            ));
+        }
+        cassie
+            .midge
+            .put_fresh_documents("read_model_indexed_users", users)
+            .unwrap();
+        cassie
+            .midge
+            .put_fresh_documents(
+                "read_model_indexed_orders",
+                vec![
+                    (
+                        Some("order-150".to_string()),
+                        serde_json::json!({
+                            "order_user_key": 150_i64,
+                            "total": 150_i64,
+                        }),
+                    ),
+                    (
+                        Some("order-151".to_string()),
+                        serde_json::json!({
+                            "order_user_key": 151_i64,
+                            "total": 151_i64,
+                        }),
+                    ),
+                ],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX read_model_indexed_users_key_idx \
+                 ON read_model_indexed_users USING btree (user_key)",
+                vec![],
+            )
+            .unwrap();
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT read_model_indexed_users.name, read_model_indexed_orders.total \
+                 FROM read_model_indexed_users JOIN read_model_indexed_orders \
+                 ON read_model_indexed_users.user_key = read_model_indexed_orders.order_user_key \
+                 LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("user-150".to_string()), Value::Int64(150)],
+                vec![Value::String("user-151".to_string()), Value::Int64(151)],
+            ]
+        );
+        assert_eq!(after["joins"]["last_strategy"].as_str(), Some("vectorized"));
+        let probe_delta = after["joins"]["vectorized_probe_rows_total"]
+            .as_u64()
+            .unwrap()
+            - before["joins"]["vectorized_probe_rows_total"]
+                .as_u64()
+                .unwrap();
+        let index_seek_delta = after["read_paths"]["index_seek_scans"].as_u64().unwrap()
+            - before["read_paths"]["index_seek_scans"].as_u64().unwrap();
+        assert!(
+            probe_delta <= 2,
+            "expected indexed bounded join to probe only matching left rows, got {probe_delta}"
+        );
+        assert!(
+            index_seek_delta > 0,
+            "expected bounded inner join to use the indexed left source"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_lock_pgwire_prepared_read_hot_path_metrics() {
     // Arrange
     with_fallback();

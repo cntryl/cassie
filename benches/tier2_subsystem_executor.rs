@@ -188,6 +188,40 @@ fn bench_executor(c: &mut Criterion) {
                 );
             }
         }
+
+        if benchmark_enabled(&filters, "vectorized_indexed_inner_join", scale) {
+            let indexed_join_ctx = runtime
+                .block_on(workloads::vectorized_indexed_join_context(
+                    &format!("tier2-executor-vectorized-indexed-join-{scale}"),
+                    dataset_rows,
+                ))
+                .expect("vectorized indexed join benchmark context");
+            let indexed_join_sql = "SELECT bench_join_users.name, bench_join_orders.total \
+                                    FROM bench_join_users JOIN bench_join_orders \
+                                    ON bench_join_users.user_key = bench_join_orders.order_user_key \
+                                    LIMIT 50";
+            black_box(
+                runtime.block_on(workloads::execute_sql(&indexed_join_ctx, indexed_join_sql)),
+            );
+            let benchmark = performance_benchmarks::expect_benchmark(
+                BENCHMARK,
+                "vectorized_indexed_inner_join",
+                scale,
+            );
+            group.bench_function(
+                BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
+                |b| {
+                    b.iter(|| {
+                        black_box(
+                            runtime.block_on(workloads::execute_sql(
+                                &indexed_join_ctx,
+                                indexed_join_sql,
+                            )),
+                        )
+                    })
+                },
+            );
+        }
     }
 
     group.finish();

@@ -176,6 +176,19 @@ pub async fn vectorized_join_context(
     Ok(ctx)
 }
 
+pub async fn vectorized_indexed_join_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Result<BenchContext, CassieError> {
+    let ctx = vectorized_join_context(label, dataset_rows).await?;
+    let _ = ctx.cassie.execute_sql(
+        &ctx.session,
+        "CREATE INDEX bench_join_users_key_idx ON bench_join_users USING btree (user_key)",
+        vec![],
+    )?;
+    Ok(ctx)
+}
+
 #[derive(Debug, Clone, Copy)]
 struct BenchIndexOptions {
     include_scalar_indexes: bool,

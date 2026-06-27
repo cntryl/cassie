@@ -664,6 +664,7 @@ Round 01 owns these hot paths:
 - column-batch covered projection/filter: `perf.read_path.column_batch.10k` and `perf.read_path.column_batch.100k`
 - vectorized inner/left equi-join when explicitly enabled: `perf.read_path.vectorized_join.10k` and `perf.read_path.vectorized_join.100k`
 - bounded unordered vectorized left join: `perf.read_path.vectorized_left_join_limited.10k` and `perf.read_path.vectorized_left_join_limited.100k`
+- bounded indexed vectorized inner join: `perf.read_path.vectorized_indexed_inner_join.10k` and `perf.read_path.vectorized_indexed_inner_join.100k`
 - pgwire prepared read path: `perf.pgwire.prepared_query.10k` and `perf.pgwire.prepared_query.100k`
 
 The default decision rule is to prefer Midge-native access paths, covering reads, bounded scans,
@@ -673,9 +674,10 @@ Round 01 measured notes from 2026-06-27 local-dev fallback runs:
 
 - `vectorized_join_equi/100k` now reaches stable Criterion measurement instead of stalling in fixture setup; latest mean was 36.309 us with a 35.909-36.885 us confidence interval.
 - `vectorized_left_join_limited` validates bounded left-source scans: 35.604 us at 10k and 36.037 us at 100k.
+- `vectorized_indexed_inner_join` validates indexed left-source probes for bounded inner joins: 35.745 us at 10k and 35.676 us at 100k.
 - `pgwire_prepared_query` remained scale-flat: 54.234 us at 10k and 55.031 us at 100k.
 - `column_batch_covered_projection` now measures with tight intervals after explicit benchmark warmup: 16.202 us at 10k and 15.354 us at 100k.
-- Remaining executor bottleneck: bounded inner joins still need a proof, index, or streaming source plan before the left input can be limited safely.
+- Remaining executor bottleneck: bounded inner joins without a left-key index still need a proof or streaming source plan before the left input can avoid broad materialization safely.
 
 ### Manual Benchmark Scenarios
 
@@ -693,6 +695,8 @@ Round 01 measured notes from 2026-06-27 local-dev fallback runs:
 | `perf.read_path.vectorized_join.100k` | Core read | `tier2_subsystem_executor` | `vectorized_join_equi` | 100k |
 | `perf.read_path.vectorized_left_join_limited.10k` | Core read | `tier2_subsystem_executor` | `vectorized_left_join_limited` | 10k |
 | `perf.read_path.vectorized_left_join_limited.100k` | Core read | `tier2_subsystem_executor` | `vectorized_left_join_limited` | 100k |
+| `perf.read_path.vectorized_indexed_inner_join.10k` | Core read | `tier2_subsystem_executor` | `vectorized_indexed_inner_join` | 10k |
+| `perf.read_path.vectorized_indexed_inner_join.100k` | Core read | `tier2_subsystem_executor` | `vectorized_indexed_inner_join` | 100k |
 | `perf.replay.lag_catchup.10k` | Replay | `tier2_subsystem_ingest` | `projection_lag_catchup` | 10k |
 | `perf.replay.lag_catchup.100k` | Replay | `tier2_subsystem_ingest` | `projection_lag_catchup` | 100k |
 | `perf.rebuild.refresh.10k` | Rebuild | `tier3_system_rebuild` | `projection_refresh` | 10k |

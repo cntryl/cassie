@@ -309,6 +309,7 @@ pub struct RetentionSnapshot {
 pub struct ReadPathSnapshot {
     pub collection_scans: u64,
     pub collection_scan_fields: u64,
+    pub collection_scan_rows: u64,
     pub point_lookup_scans: u64,
     pub point_lookup_hits: u64,
     pub point_lookup_misses: u64,

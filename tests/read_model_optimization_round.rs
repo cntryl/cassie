@@ -650,6 +650,113 @@ fn should_probe_indexed_left_source_for_bounded_inner_join() {
 }
 
 #[test]
+fn should_stream_unindexed_bounded_inner_join_until_output_budget() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("read_model_streaming_inner_join_budget");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let mut config = vectorized_join_config();
+        config.limits.vectorized_join_batch_size = 8;
+        config.limits.temp_spill_budget_bytes = 4 * 1024;
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE read_model_stream_users (user_key INT, name TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE read_model_stream_orders (order_user_key INT, total INT)",
+                vec![],
+            )
+            .unwrap();
+
+        let mut users = Vec::new();
+        for index in 0..200 {
+            users.push((
+                Some(format!("user-{index:03}")),
+                serde_json::json!({
+                    "user_key": index as i64,
+                    "name": format!("user-{index:03}"),
+                }),
+            ));
+        }
+        cassie
+            .midge
+            .put_fresh_documents("read_model_stream_users", users)
+            .unwrap();
+        cassie
+            .midge
+            .put_fresh_documents(
+                "read_model_stream_orders",
+                vec![
+                    (
+                        Some("order-000".to_string()),
+                        serde_json::json!({
+                            "order_user_key": 0_i64,
+                            "total": 10_i64,
+                        }),
+                    ),
+                    (
+                        Some("order-001".to_string()),
+                        serde_json::json!({
+                            "order_user_key": 1_i64,
+                            "total": 11_i64,
+                        }),
+                    ),
+                ],
+            )
+            .unwrap();
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT read_model_stream_users.name, read_model_stream_orders.total \
+                 FROM read_model_stream_users JOIN read_model_stream_orders \
+                 ON read_model_stream_users.user_key = read_model_stream_orders.order_user_key \
+                 LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("user-000".to_string()), Value::Int64(10)],
+                vec![Value::String("user-001".to_string()), Value::Int64(11)],
+            ]
+        );
+        assert_eq!(after["joins"]["last_strategy"].as_str(), Some("vectorized"));
+        let scanned_delta = after["read_paths"]["collection_scan_rows"]
+            .as_u64()
+            .unwrap()
+            - before["read_paths"]["collection_scan_rows"]
+                .as_u64()
+                .unwrap();
+        assert!(
+            scanned_delta <= 10,
+            "expected streaming bounded join to avoid full left materialization, scanned {scanned_delta} rows"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_lock_pgwire_prepared_read_hot_path_metrics() {
     // Arrange
     with_fallback();

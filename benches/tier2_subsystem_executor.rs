@@ -222,6 +222,39 @@ fn bench_executor(c: &mut Criterion) {
                 },
             );
         }
+
+        if benchmark_enabled(&filters, "vectorized_streaming_inner_join", scale) {
+            let streaming_join_ctx = runtime
+                .block_on(workloads::vectorized_sparse_join_context(
+                    &format!("tier2-executor-vectorized-streaming-join-{scale}"),
+                    dataset_rows,
+                ))
+                .expect("vectorized streaming join benchmark context");
+            let streaming_join_sql = "SELECT bench_join_users.name, bench_join_orders.total \
+                                      FROM bench_join_users JOIN bench_join_orders \
+                                      ON bench_join_users.user_key = bench_join_orders.order_user_key \
+                                      LIMIT 50";
+            black_box(runtime.block_on(workloads::execute_sql(
+                &streaming_join_ctx,
+                streaming_join_sql,
+            )));
+            let benchmark = performance_benchmarks::expect_benchmark(
+                BENCHMARK,
+                "vectorized_streaming_inner_join",
+                scale,
+            );
+            group.bench_function(
+                BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
+                |b| {
+                    b.iter(|| {
+                        black_box(runtime.block_on(workloads::execute_sql(
+                            &streaming_join_ctx,
+                            streaming_join_sql,
+                        )))
+                    })
+                },
+            );
+        }
     }
 
     group.finish();

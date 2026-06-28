@@ -183,6 +183,8 @@ pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
 mod schema_ops;
 #[path = "adapter/sequences.rs"]
 mod sequences;
+#[path = "adapter/streaming_scans.rs"]
+mod streaming_scans;
 #[path = "adapter/time_series_indexes.rs"]
 pub(crate) mod time_series_indexes;
 #[path = "adapter/verification.rs"]

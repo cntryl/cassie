@@ -1,10 +1,11 @@
 use super::*;
 
 impl RuntimeState {
-    pub fn record_read_path_collection_scan(&self, collection: &str, fields: usize) {
+    pub fn record_read_path_collection_scan(&self, collection: &str, fields: usize, rows: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.read_paths.collection_scans += 1;
         metrics.read_paths.collection_scan_fields += fields as u64;
+        metrics.read_paths.collection_scan_rows += rows as u64;
         metrics.read_paths.last_collection_scan_collection = collection.to_string();
     }
 

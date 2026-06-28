@@ -42,11 +42,16 @@ pub(crate) fn scan_limit(
     cassie.runtime.record_storage_access("data", false, true);
     let schema = cassie.catalog.get_schema(collection);
 
-    Ok(document_batches_to_rows(
-        cassie,
-        document_batches,
-        schema.as_ref(),
-    ))
+    let batches = document_batches_to_rows(cassie, document_batches, schema.as_ref());
+    let rows = batches.iter().map(Vec::len).sum::<usize>();
+    let fields = schema
+        .as_ref()
+        .map(|schema| schema.fields.len())
+        .unwrap_or_default();
+    cassie
+        .runtime
+        .record_read_path_collection_scan(collection, fields, rows);
+    Ok(batches)
 }
 
 pub(crate) fn scan_projected_filtered(

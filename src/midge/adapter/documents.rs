@@ -585,7 +585,7 @@ impl Midge {
         )
     }
 
-    fn scan_rows_batched(
+    pub(super) fn scan_rows_batched(
         &self,
         collection: &str,
         batch_size: usize,

@@ -80,9 +80,10 @@ pub(super) fn execute_projected_filtered_read(
         column_filter.as_ref(),
     )?;
 
+    let rows = batches.iter().map(Vec::len).sum::<usize>();
     cassie
         .runtime
-        .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len());
+        .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len(), rows);
 
     ensure_temp_budget(controls, &batches)?;
 
@@ -275,9 +276,10 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
     breakdown.scan += scan_timings
         .scan
         .saturating_add(scan_started.elapsed().saturating_sub(measured_scan));
+    let rows = batches.iter().map(Vec::len).sum::<usize>();
     cassie
         .runtime
-        .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len());
+        .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len(), rows);
     ensure_temp_budget(controls, &batches)?;
 
     if pushdown_filter.is_none() {

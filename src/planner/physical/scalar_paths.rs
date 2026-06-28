@@ -209,10 +209,6 @@ fn expression_index_plan_shape(
     plan: &LogicalPlan,
     index: &IndexMeta,
 ) -> Option<ScalarIndexPlanShape> {
-    if !plan.order.is_empty() {
-        return None;
-    }
-
     let fields = index.normalized_fields();
     let expressions = index.normalized_expressions();
     let key_count = fields.len() + expressions.len();
@@ -221,6 +217,18 @@ fn expression_index_plan_shape(
     }
 
     if fields.is_empty() && expressions.len() == 1 {
+        let order_shape = single_expression_order_shape(plan, &expressions[0])?;
+        if plan.filter.is_none() && order_shape.order_columns_used > 0 && plan.limit.is_some() {
+            return Some(ScalarIndexPlanShape {
+                path: ScalarIndexPlanPath::OrderedBoundedScan,
+                equality_prefix_len: 0,
+                range_field_index: None,
+                order_columns_used: order_shape.order_columns_used,
+                order_by_row_id: false,
+                reverse: order_shape.reverse,
+            });
+        }
+
         if let Some(constraint) =
             single_expression_constraint_shape(plan.filter.as_ref(), &expressions[0])
         {
@@ -229,9 +237,9 @@ fn expression_index_plan_shape(
                     path: ScalarIndexPlanPath::IndexSeek,
                     equality_prefix_len: 1,
                     range_field_index: None,
-                    order_columns_used: 0,
+                    order_columns_used: order_shape.order_columns_used,
                     order_by_row_id: false,
-                    reverse: false,
+                    reverse: order_shape.reverse,
                 });
             }
             if constraint.has_range() {
@@ -239,12 +247,16 @@ fn expression_index_plan_shape(
                     path: ScalarIndexPlanPath::RangeScan,
                     equality_prefix_len: 0,
                     range_field_index: Some(0),
-                    order_columns_used: 0,
+                    order_columns_used: order_shape.order_columns_used,
                     order_by_row_id: false,
-                    reverse: false,
+                    reverse: order_shape.reverse,
                 });
             }
         }
+    }
+
+    if !plan.order.is_empty() {
+        return None;
     }
 
     let equality = exact_expression_index_equalities(plan.filter.as_ref())?;
@@ -268,6 +280,28 @@ fn expression_index_plan_shape(
         order_columns_used: 0,
         order_by_row_id: false,
         reverse: false,
+    })
+}
+
+fn single_expression_order_shape(plan: &LogicalPlan, expression: &str) -> Option<OrderShape> {
+    if plan.order.is_empty() {
+        return Some(OrderShape::default());
+    }
+
+    if plan.order.len() != 1 || plan.order.iter().any(|order| order.nulls.is_some()) {
+        return None;
+    }
+
+    let order = &plan.order[0];
+    let candidate = serde_json::to_string(&order.expr).ok()?;
+    if candidate != expression {
+        return None;
+    }
+
+    Some(OrderShape {
+        order_columns_used: 1,
+        order_by_row_id: false,
+        reverse: matches!(order.direction, SortDirection::Desc),
     })
 }
 

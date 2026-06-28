@@ -305,3 +305,58 @@ fn should_lower_expression_range_to_scalar_index_range_scan() {
     assert_eq!(physical_plan.access_path_reason, "scalar-index-range");
     assert_eq!(physical_plan.fallback_reason, None);
 }
+
+#[test]
+fn should_lower_expression_order_limit_to_ordered_bounded_scan() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_collection_fields(
+        &catalog,
+        "planner_expression_index_order",
+        vec![
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    );
+    let expression = expression_from_create_index(
+        "CREATE INDEX planner_expression_index_order_idx \
+         ON planner_expression_index_order USING btree (lower(title))",
+    );
+    register_expression_index(
+        &catalog,
+        "planner_expression_index_order",
+        "planner_expression_index_order_idx",
+        expression,
+    );
+
+    // Act
+    let physical_plan = build_plan(
+        &catalog,
+        "SELECT body FROM planner_expression_index_order \
+         ORDER BY lower(title) DESC LIMIT 2",
+        "planner_expression_index_order",
+    );
+
+    // Assert
+    assert_eq!(
+        physical_plan.selected_index.as_deref(),
+        Some("planner_expression_index_order_idx")
+    );
+    assert_eq!(
+        physical_plan.access_path,
+        physical::ReadAccessPath::OrderedBoundedScan
+    );
+    assert_eq!(
+        physical_plan.access_path_reason,
+        "scalar-index-ordered-bounded"
+    );
+    assert_eq!(physical_plan.fallback_reason, None);
+}

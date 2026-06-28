@@ -288,3 +288,100 @@ fn should_scan_expression_index_range_with_row_blob_projection() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_scan_expression_index_order_limit_with_row_blob_projection() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("read_path_expression_index_order");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE read_path_expression_index_order (title TEXT, body TEXT)",
+                vec![],
+            )
+            .unwrap();
+        for (id, title, body) in [
+            ("row-1", "Beta", "second"),
+            ("row-2", "alpha", "third"),
+            ("row-3", "Gamma", "first"),
+        ] {
+            cassie
+                .midge
+                .put_document(
+                    "read_path_expression_index_order",
+                    Some(id.to_string()),
+                    serde_json::json!({"title": title, "body": body}),
+                )
+                .unwrap();
+        }
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX read_path_expression_index_order_idx \
+                 ON read_path_expression_index_order USING btree (lower(title))",
+                vec![],
+            )
+            .unwrap();
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT body FROM read_path_expression_index_order \
+                 ORDER BY lower(title) DESC LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT body FROM read_path_expression_index_order \
+                 ORDER BY lower(title) DESC LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("first".to_string())],
+                vec![Value::String("second".to_string())],
+            ]
+        );
+        let Value::String(plan) = &explain.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("index=read_path_expression_index_order_idx"));
+        assert!(plan.contains("access_path=ordered_bounded_scan"));
+        assert!(plan.contains("access_path_reason=scalar-index-ordered-bounded"));
+        assert!(plan.contains("fallback_reason=none"));
+        assert!(plan.contains("top_k_mode=storage"));
+        assert!(
+            after["read_paths"]["ordered_bounded_scans"]
+                .as_u64()
+                .unwrap()
+                > before["read_paths"]["ordered_bounded_scans"]
+                    .as_u64()
+                    .unwrap()
+        );
+        assert_eq!(
+            after["read_paths"]["last_index_scan_index"].as_str(),
+            Some("read_path_expression_index_order_idx")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

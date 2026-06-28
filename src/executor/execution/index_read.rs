@@ -199,7 +199,6 @@ fn expression_index_read_spec(
         || !plan.group_by.is_empty()
         || plan.having.is_some()
         || plan.set.is_some()
-        || !plan.order.is_empty()
     {
         return None;
     }
@@ -383,7 +382,10 @@ fn concrete_expression_constraints(
     params: &[Value],
 ) -> Option<BTreeMap<String, ConcreteConstraint>> {
     let mut constraints = BTreeMap::new();
-    collect_concrete_expression_constraints(filter?, params, &mut constraints)?;
+    let Some(filter) = filter else {
+        return Some(constraints);
+    };
+    collect_concrete_expression_constraints(filter, params, &mut constraints)?;
     Some(constraints)
 }
 

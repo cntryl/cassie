@@ -54,6 +54,11 @@ fn bench_query(c: &mut Criterion) {
             "SELECT id FROM bench_documents WHERE lower(title) >= 'title-4' AND lower(title) < 'title-9' LIMIT 50",
         ),
         (
+            "expression_index_order_query",
+            "10k",
+            "SELECT id FROM bench_documents ORDER BY lower(title) ASC LIMIT 50",
+        ),
+        (
             "fulltext_search_query",
             "10k",
             "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 20",
@@ -85,6 +90,7 @@ fn bench_query(c: &mut Criterion) {
                     | "mixed_order_scalar_query"
                     | "expression_index_query"
                     | "expression_index_range_query"
+                    | "expression_index_order_query"
             ) {
                 performance_benchmarks::expect_benchmark(BENCHMARK, name, dataset);
             }
@@ -126,6 +132,10 @@ fn bench_query(c: &mut Criterion) {
         (
             "expression_index_range_query",
             "SELECT id FROM bench_documents WHERE lower(title) >= 'title-4' AND lower(title) < 'title-9' LIMIT 50",
+        ),
+        (
+            "expression_index_order_query",
+            "SELECT id FROM bench_documents ORDER BY lower(title) ASC LIMIT 50",
         ),
     ];
     let runnable_scalar_100k_cases = scalar_100k_cases

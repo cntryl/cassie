@@ -82,6 +82,8 @@ mod read_path_metrics;
 mod retention_metrics;
 #[path = "runtime/rollup_metrics.rs"]
 mod rollup_metrics;
+#[path = "runtime/schema_epochs.rs"]
+mod schema_epochs;
 #[path = "runtime/snapshots.rs"]
 mod snapshots;
 #[path = "runtime/time_series_metrics.rs"]
@@ -101,6 +103,8 @@ pub(crate) use helpers::stable_fingerprint;
 use helpers::*;
 pub use helpers::{error_class, hash_params, parameter_shape, sql_fingerprint};
 pub(crate) use projection_metrics::ProjectionWriteStats;
+pub use schema_epochs::RunningQueryGuard;
+use schema_epochs::SchemaEpochTracker;
 pub use snapshots::*;
 
 #[derive(Debug, Default)]
@@ -174,23 +178,14 @@ pub struct RuntimeState {
     execution_result_cache: Mutex<ExecutionResultCacheState>,
     fulltext_index_options: Mutex<HashMap<FulltextIndexOptionsCacheKey, FulltextIndexOptions>>,
     started_at: Mutex<Option<Instant>>,
+    schema_epochs: SchemaEpochTracker,
     schema_epoch: AtomicU64,
     data_epoch: AtomicU64,
     index_feedback_epoch: AtomicU64,
 }
 
-pub struct RunningQueryGuard {
-    runtime: Arc<RuntimeState>,
-}
-
 pub struct PgwireSessionGuard {
     runtime: Arc<RuntimeState>,
-}
-
-impl Drop for RunningQueryGuard {
-    fn drop(&mut self) {
-        self.runtime.finish_running_query();
-    }
 }
 
 impl Drop for PgwireSessionGuard {
@@ -212,6 +207,7 @@ impl RuntimeState {
             execution_result_cache: Mutex::new(ExecutionResultCacheState::default()),
             fulltext_index_options: Mutex::new(HashMap::new()),
             started_at: Mutex::new(None),
+            schema_epochs: SchemaEpochTracker::default(),
             schema_epoch: AtomicU64::new(0),
             data_epoch: AtomicU64::new(0),
             index_feedback_epoch: AtomicU64::new(0),
@@ -256,22 +252,6 @@ impl RuntimeState {
     pub fn record_sql_parse(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.runtime.sql_parse_total += 1;
-    }
-
-    pub fn begin_running_query(self: &Arc<Self>) -> RunningQueryGuard {
-        {
-            let mut metrics = self.metrics.lock().expect("runtime metrics");
-            metrics.runtime.running_queries += 1;
-        }
-
-        RunningQueryGuard {
-            runtime: Arc::clone(self),
-        }
-    }
-
-    fn finish_running_query(&self) {
-        let mut metrics = self.metrics.lock().expect("runtime metrics");
-        metrics.runtime.running_queries = metrics.runtime.running_queries.saturating_sub(1);
     }
 
     pub fn begin_pgwire_session(self: &Arc<Self>) -> PgwireSessionGuard {

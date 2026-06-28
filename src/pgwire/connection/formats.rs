@@ -1,5 +1,6 @@
-use super::*;
+#![allow(clippy::result_large_err)]
 
+use super::*;
 pub(super) fn validate_parameter_formats(
     parameter_formats: &[i16],
     parameter_count: usize,

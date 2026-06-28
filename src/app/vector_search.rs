@@ -25,15 +25,18 @@ impl Cassie {
         let metric = metric.unwrap_or(index.metadata.metric.clone());
         let limit = limit.max(1);
         let catalog_version = self.catalog.version();
-        let result_cache_key = self.vector_search_result_cache_key(
+        let result_cache_key = VectorSearchResultCacheKey {
             catalog_version,
-            collection,
-            vector_field,
-            &metric,
+            provider: self.embedding_provider.provider_name().to_string(),
+            model: self.embedding_provider.model_name().to_string(),
+            dimensions: self.embedding_provider.dimensions(),
+            collection: collection.to_string(),
+            field: vector_field.to_string(),
+            metric: metric.as_str().to_string(),
             limit,
             offset,
-            query,
-        );
+            query: query.to_string(),
+        };
         let result_cache_enabled =
             self.vector_search_result_cache_enabled(collection, vector_field, &index);
         if result_cache_enabled {
@@ -90,30 +93,6 @@ impl Cassie {
         }
         cache.insert(key, Arc::new(embedding.values.clone()));
         Ok(embedding)
-    }
-
-    fn vector_search_result_cache_key(
-        &self,
-        catalog_version: u64,
-        collection: &str,
-        vector_field: &str,
-        metric: &DistanceMetric,
-        limit: usize,
-        offset: usize,
-        query: &str,
-    ) -> VectorSearchResultCacheKey {
-        VectorSearchResultCacheKey {
-            catalog_version,
-            provider: self.embedding_provider.provider_name().to_string(),
-            model: self.embedding_provider.model_name().to_string(),
-            dimensions: self.embedding_provider.dimensions(),
-            collection: collection.to_string(),
-            field: vector_field.to_string(),
-            metric: metric.as_str().to_string(),
-            limit,
-            offset,
-            query: query.to_string(),
-        }
     }
 
     fn vector_search_result_cache_enabled(

@@ -502,6 +502,8 @@ mod registry;
 mod replay;
 #[path = "app/roles.rs"]
 mod roles;
+#[path = "app/schema_cleanup.rs"]
+mod schema_cleanup;
 #[path = "app/snapshots.rs"]
 mod snapshots;
 #[path = "app/vector_helpers.rs"]

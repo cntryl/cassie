@@ -136,7 +136,10 @@ fn run_with_execution_breakdown_controls(
     )?;
 
     let result_started = Instant::now();
-    let collection_schema = cassie.catalog.get_schema(&plan.logical.collection);
+    let collection_schema = plan
+        .collection_schema
+        .clone()
+        .or_else(|| cassie.catalog.get_schema(&plan.logical.collection));
     let columns = aggregate::columns_from_projection(
         &plan.logical.projection,
         collection_schema.as_ref(),
@@ -204,7 +207,10 @@ pub(crate) fn run_with_session_controls(
         controls,
     )?;
 
-    let collection_schema = cassie.catalog.get_schema(&plan.logical.collection);
+    let collection_schema = plan
+        .collection_schema
+        .clone()
+        .or_else(|| cassie.catalog.get_schema(&plan.logical.collection));
     let columns = aggregate::columns_from_projection(
         &plan.logical.projection,
         collection_schema.as_ref(),

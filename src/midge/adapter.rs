@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::env;
 use std::path::Path;
 use std::sync::OnceLock;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use cntryl_midge::{ColumnFamilyHandle, Engine, Query, TransactionMode, WriteOptions};
 use uuid::Uuid;
@@ -18,7 +18,8 @@ use crate::catalog::{
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord};
 use crate::midge::row_blob::{
-    decode_projected_row, decode_projected_row_matching, decode_row, encode_row, RowSchema,
+    decode_projected_row, decode_projected_row_matching_with_aliases,
+    decode_projected_row_with_aliases, decode_row, encode_row, RowSchema,
 };
 use crate::types::{DataType, FieldSchema, Schema, Value, Vector};
 use crate::vector::normalize as normalize_vector;
@@ -26,121 +27,6 @@ use crate::vector::normalize as normalize_vector;
 pub struct Midge {
     engine: Engine,
     storage_layout: OnceLock<StorageLayout>,
-}
-
-#[derive(Debug, Clone)]
-pub struct DocumentRef {
-    pub id: String,
-    pub payload: serde_json::Value,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RowDecode {
-    Full,
-    Projected(Vec<String>),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct RowFilter {
-    pub field: String,
-    pub value: serde_json::Value,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ColumnBatchScanFilter {
-    pub predicates: Vec<ColumnBatchScanPredicate>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ColumnBatchScanPredicate {
-    pub field: String,
-    pub op: ColumnBatchScanOp,
-    pub value: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ColumnBatchScanOp {
-    Eq,
-    Lt,
-    Lte,
-    Gt,
-    Gte,
-    IsNull,
-    IsNotNull,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum ColumnBatchScanFallbackReason {
-    NoCoveringIndex,
-    MissingMetadata,
-    SegmentSizeMismatch,
-    FieldCoverageMismatch,
-    SegmentMissing,
-    SegmentChecksumMismatch,
-    InvalidPayload,
-    InvalidEncodingVersion,
-    SegmentCodecMismatch,
-    SegmentDecodeFailed,
-    RowFilterMismatch,
-}
-
-impl ColumnBatchScanFallbackReason {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::NoCoveringIndex => "no_covering_column_index",
-            Self::MissingMetadata => "missing_metadata",
-            Self::SegmentSizeMismatch => "segment_size_mismatch",
-            Self::FieldCoverageMismatch => "field_coverage_mismatch",
-            Self::SegmentMissing => "segment_missing",
-            Self::SegmentChecksumMismatch => "segment_checksum_mismatch",
-            Self::InvalidPayload => "invalid_payload",
-            Self::InvalidEncodingVersion => "invalid_encoding_version",
-            Self::SegmentCodecMismatch => "segment_codec_mismatch",
-            Self::SegmentDecodeFailed => "segment_decode_failed",
-            Self::RowFilterMismatch => "row_filter_mismatch",
-        }
-    }
-
-    pub const fn is_decode_fallback(&self) -> bool {
-        matches!(
-            self,
-            Self::SegmentMissing
-                | Self::SegmentChecksumMismatch
-                | Self::InvalidPayload
-                | Self::InvalidEncodingVersion
-                | Self::SegmentCodecMismatch
-                | Self::SegmentDecodeFailed
-        )
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum ColumnBatchScanDecision {
-    Hit(ColumnBatchScanOutcome),
-    Fallback(ColumnBatchScanFallbackReason),
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct MidgeScanTimings {
-    pub scan: Duration,
-    pub row_decode: Duration,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct OrderedRowBound {
-    pub id: String,
-    pub inclusive: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct ColumnBatchScanOutcome {
-    pub batches: Vec<Vec<DocumentRef>>,
-    pub timings: MidgeScanTimings,
-    pub index_name: String,
-    pub compressed_bytes: usize,
-    pub uncompressed_bytes: usize,
-    pub skipped_segments: usize,
-    pub decoded_columns: usize,
 }
 
 #[path = "adapter/capacity.rs"]
@@ -179,6 +65,10 @@ mod repair;
 #[path = "adapter/scalar_indexes.rs"]
 mod scalar_indexes;
 pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
+#[path = "adapter/scan_types.rs"]
+mod scan_types;
+#[path = "adapter/schema_cleanup.rs"]
+mod schema_cleanup;
 #[path = "adapter/schema_ops.rs"]
 mod schema_ops;
 #[path = "adapter/sequences.rs"]
@@ -192,6 +82,12 @@ mod verification;
 
 pub(crate) use documents::{DocumentWriteBatchOptions, DocumentWriteOp};
 pub(crate) use graphs::GraphEdgeRecord;
+pub(crate) use scan_types::OrderedRowBound;
+pub use scan_types::{
+    ColumnBatchScanDecision, ColumnBatchScanFallbackReason, ColumnBatchScanFilter,
+    ColumnBatchScanOp, ColumnBatchScanOutcome, ColumnBatchScanPredicate, DocumentRef,
+    MidgeScanTimings, RowDecode, RowFilter,
+};
 pub use verification::{
     IntegrityCheckReport, RangeHashRecord, RootHashRecord, RowHashRecord, StoredHashState,
 };
@@ -673,6 +569,14 @@ impl Midge {
 
     fn schema_epoch_key() -> Vec<u8> {
         key_encoding::schema_epoch_key()
+    }
+
+    fn schema_cleanup_key(cleanup_id: &str) -> Vec<u8> {
+        key_encoding::schema_cleanup_key(cleanup_id)
+    }
+
+    fn schema_cleanup_prefix() -> Vec<u8> {
+        key_encoding::schema_cleanup_prefix()
     }
 
     fn collections_key() -> Vec<u8> {

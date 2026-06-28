@@ -274,6 +274,7 @@ fn should_fail_unknown_function_during_execution() {
             top_k_mode: cassie::planner::physical::TopKMode::None,
             early_stop: cassie::planner::physical::EarlyStopMode::None,
             projection_shape: cassie::planner::physical::ProjectionShape::Other,
+            collection_schema: None,
             logical,
         };
 

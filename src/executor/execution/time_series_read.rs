@@ -290,7 +290,7 @@ fn scan_row_backed_documents(
 ) -> Result<Vec<DocumentRef>, QueryError> {
     cassie
         .midge
-        .scan_rows_for_rebuild(collection, RowDecode::Projected(scan_fields))
+        .scan_rows_for_rebuild(collection, RowDecode::ProjectedHistorical(scan_fields))
         .map_err(|error| QueryError::General(error.to_string()))
 }
 

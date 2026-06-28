@@ -506,9 +506,7 @@ fn should_execute_projected_crud_queries_against_column_store_tables() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = CassieRuntimeConfig::default();
-        config.limits.experimental_column_store_enabled = true;
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         let collection = "sql_column_store_projection_crud";
@@ -627,7 +625,7 @@ fn should_execute_projected_crud_queries_against_column_store_tables() {
 }
 
 #[test]
-fn should_reject_column_store_creation_when_experimental_mode_is_disabled() {
+fn should_create_column_store_tables_without_feature_gate() {
     // Arrange
     with_fallback();
     let path = data_dir("column_store_disabled");
@@ -642,17 +640,17 @@ fn should_reject_column_store_creation_when_experimental_mode_is_disabled() {
         let session = cassie.create_session("tester", None);
 
         // Act
-        let error = cassie
+        let result = cassie
             .execute_sql(
                 &session,
-                "CREATE TABLE sql_column_store_disabled (title TEXT) WITH (storage = column_store)",
+                "CREATE TABLE sql_column_store_enabled (title TEXT) WITH (storage = column_store)",
                 vec![],
             )
-            .expect_err("column-store creation should be gated");
+            .expect("column-store creation should not require a feature gate");
 
         // Assert
-        assert!(error.to_string().contains("column-store"));
-        assert!(!cassie.catalog.exists("sql_column_store_disabled"));
+        assert_eq!(result.command, "CREATE TABLE");
+        assert!(cassie.catalog.exists("sql_column_store_enabled"));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -669,9 +667,7 @@ fn should_reject_column_store_schema_rewrites_before_partial_write() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = CassieRuntimeConfig::default();
-        config.limits.experimental_column_store_enabled = true;
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

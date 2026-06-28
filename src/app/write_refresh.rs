@@ -1,5 +1,4 @@
 use super::{Cassie, CassieError};
-use crate::catalog::CollectionCardinalityStats;
 use crate::runtime::ProjectionWriteStats;
 
 impl Cassie {
@@ -47,7 +46,7 @@ impl Cassie {
         let mut stats = self
             .catalog
             .get_cardinality_stats(collection)
-            .unwrap_or_else(CollectionCardinalityStats::default);
+            .unwrap_or_default();
         if row_delta.is_positive() {
             stats.row_count = stats.row_count.saturating_add(row_delta as u64);
         } else {

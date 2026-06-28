@@ -251,6 +251,8 @@ impl Cassie {
             schema_epoch
                 .map_err(|error| CassieError::Storage(format!("load schema epoch: {error}")))?,
         );
+        self.run_deferred_schema_cleanup()
+            .map_err(|error| CassieError::Storage(format!("schema cleanup: {error}")))?;
 
         self.hydrate_catalog()
             .map_err(|error| CassieError::Storage(format!("catalog hydration: {error}")))?;

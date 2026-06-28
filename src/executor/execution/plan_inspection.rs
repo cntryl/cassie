@@ -117,10 +117,9 @@ fn select_needs_user_functions(select: &SelectStatement) -> bool {
 fn query_source_needs_user_functions(source: &QuerySource) -> bool {
     match source {
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
-        QuerySource::TableFunction { function, .. } => function
-            .args
-            .iter()
-            .any(|arg| expr_needs_user_functions(arg)),
+        QuerySource::TableFunction { function, .. } => {
+            function.args.iter().any(expr_needs_user_functions)
+        }
         QuerySource::Subquery { select, .. } => select_needs_user_functions(select),
         QuerySource::Join {
             left, right, on, ..

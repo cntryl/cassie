@@ -35,6 +35,7 @@ impl Cassie {
         self.runtime.record_storage_access("schema", true, true);
         self.runtime.set_schema_epoch(schema_epoch);
         self.runtime.invalidate_plan_cache();
+        self.run_deferred_schema_cleanup()?;
         Ok(())
     }
 }

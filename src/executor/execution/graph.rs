@@ -185,8 +185,8 @@ fn graph_shortest_path(
         let Some(path) = frontier.pop() else {
             break;
         };
-        if !best_seen.insert(format!("{}:{}", path.node_type, path.node_id))
-            && !(path.node_type == target_type && path.node_id == target_id)
+        if !(best_seen.insert(format!("{}:{}", path.node_type, path.node_id))
+            || path.node_type == target_type && path.node_id == target_id)
         {
             continue;
         }

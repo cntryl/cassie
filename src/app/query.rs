@@ -280,6 +280,7 @@ impl Cassie {
         }
 
         drop(running_guard);
+        let _ = self.run_deferred_schema_cleanup();
         result
     }
 
@@ -354,6 +355,7 @@ impl Cassie {
         }
 
         drop(running_guard);
+        let _ = self.run_deferred_schema_cleanup();
         result
     }
 

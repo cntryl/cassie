@@ -218,7 +218,7 @@ impl Cassie {
 
         let mut rows = self
             .midge
-            .scan_rows_for_rebuild(collection, RowDecode::Projected(fields.to_vec()))?
+            .scan_rows_for_rebuild(collection, RowDecode::ProjectedHistorical(fields.to_vec()))?
             .into_iter()
             .map(|document| (document.id.clone(), document))
             .collect::<BTreeMap<_, _>>();

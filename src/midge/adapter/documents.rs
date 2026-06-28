@@ -1,4 +1,5 @@
 use super::*;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub(crate) enum DocumentWriteOp {
@@ -557,7 +558,7 @@ impl Midge {
         self.scan_rows_batched(
             collection,
             batch_size,
-            RowDecode::Projected(fields),
+            RowDecode::ProjectedHistorical(fields),
             filter,
             limit,
         )
@@ -596,15 +597,7 @@ impl Midge {
         let scan_started = Instant::now();
         let mut row_decode = Duration::ZERO;
         let row_schema = self.row_schema(collection)?;
-        let projection = match decode {
-            RowDecode::Full => None,
-            RowDecode::Projected(fields) => Some(
-                fields
-                    .into_iter()
-                    .map(|field| field.to_ascii_lowercase())
-                    .collect::<HashSet<_>>(),
-            ),
-        };
+        let (projection, include_historical_aliases) = decode.into_projection();
 
         let tx = self.begin_data_readonly_tx()?;
         let batch_size = batch_size.max(1);
@@ -616,6 +609,7 @@ impl Midge {
                 &row_schema,
                 batch_size,
                 projection.as_ref(),
+                include_historical_aliases,
                 filter,
                 limit,
             );
@@ -652,16 +646,19 @@ impl Midge {
 
                 let decode_started = Instant::now();
                 let payload = match (projection.as_ref(), filter) {
-                    (Some(projection), Some(filter)) => decode_projected_row_matching(
+                    (Some(projection), Some(filter)) => decode_projected_row_matching_with_aliases(
                         &row_schema,
                         &raw_value,
                         projection,
                         &filter.field,
                         &filter.value,
+                        include_historical_aliases,
                     )?,
-                    (Some(projection), None) => {
-                        Some(decode_projected_row(&row_schema, &raw_value, projection)?)
-                    }
+                    (Some(projection), None) => Some(if include_historical_aliases {
+                        decode_projected_row_with_aliases(&row_schema, &raw_value, projection)?
+                    } else {
+                        decode_projected_row(&row_schema, &raw_value, projection)?
+                    }),
                     (None, _) => Some(decode_row(&row_schema, &raw_value)?),
                 };
                 row_decode += decode_started.elapsed();
@@ -716,15 +713,7 @@ impl Midge {
         let scan_started = Instant::now();
         let mut row_decode = Duration::ZERO;
         let row_schema = self.row_schema(collection)?;
-        let projection = match decode {
-            RowDecode::Full => None,
-            RowDecode::Projected(fields) => Some(
-                fields
-                    .into_iter()
-                    .map(|field| field.to_ascii_lowercase())
-                    .collect::<HashSet<_>>(),
-            ),
-        };
+        let (projection, include_historical_aliases) = decode.into_projection();
 
         let tx = self.begin_data_readonly_tx()?;
         let batch_size = batch_size.max(1);
@@ -736,6 +725,7 @@ impl Midge {
                 &row_schema,
                 batch_size,
                 projection.as_ref(),
+                include_historical_aliases,
                 start_bound,
                 end_bound,
                 reverse,
@@ -799,6 +789,9 @@ impl Midge {
 
             let decode_started = Instant::now();
             let payload = match projection.as_ref() {
+                Some(projection) if include_historical_aliases => {
+                    decode_projected_row_with_aliases(&row_schema, &selected.raw_value, projection)?
+                }
                 Some(projection) => {
                     decode_projected_row(&row_schema, &selected.raw_value, projection)?
                 }

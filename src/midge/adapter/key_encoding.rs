@@ -36,6 +36,7 @@ const FAMILY_CONSTRAINTS: &[u8] = b"constraints";
 const FAMILY_NAMESPACE: &[u8] = b"namespace";
 const FAMILY_NAMESPACES: &[u8] = b"namespaces";
 const FAMILY_SCHEMA_EPOCH: &[u8] = b"schema-epoch";
+const FAMILY_SCHEMA_CLEANUP: &[u8] = b"schema-cleanup";
 const FAMILY_COLLECTIONS: &[u8] = b"collections";
 const FAMILY_ROW: &[u8] = b"row";
 const FAMILY_LEGACY_DOC: &[u8] = b"legacy-doc";
@@ -259,6 +260,14 @@ pub(super) fn index_prefix() -> Vec<u8> {
 
 pub(super) fn index_collection_prefix(collection: &str) -> Vec<u8> {
     prefix(FAMILY_INDEX, &[collection.as_bytes()])
+}
+
+pub(super) fn schema_cleanup_key(cleanup_id: &str) -> Vec<u8> {
+    key(FAMILY_SCHEMA_CLEANUP, &[cleanup_id.as_bytes()])
+}
+
+pub(super) fn schema_cleanup_prefix() -> Vec<u8> {
+    prefix(FAMILY_SCHEMA_CLEANUP, &[])
 }
 
 pub(super) fn scalar_index_collection_prefix(collection: &str) -> Vec<u8> {

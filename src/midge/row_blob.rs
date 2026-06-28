@@ -33,6 +33,8 @@ pub(crate) struct RowFieldMeta {
     pub name: String,
     #[serde(default)]
     pub normalized_name: String,
+    #[serde(default)]
+    pub aliases: Vec<String>,
     pub data_type: DataType,
     pub nullable: bool,
     pub retired: bool,
@@ -48,6 +50,7 @@ impl RowSchema {
                 field_id: (index + 1) as u32,
                 name: field.name.clone(),
                 normalized_name: field.name.to_ascii_lowercase(),
+                aliases: Vec::new(),
                 data_type: field.data_type.clone(),
                 nullable: field.nullable,
                 retired: false,
@@ -94,6 +97,7 @@ impl RowSchema {
             field_id: self.next_field_id,
             name: field.name,
             normalized_name,
+            aliases: Vec::new(),
             data_type: field.data_type,
             nullable: field.nullable,
             retired: false,
@@ -124,6 +128,7 @@ impl RowSchema {
             )));
         };
 
+        push_field_alias(field, field.name.clone());
         field.name = next.to_string();
         field.normalized_name = next.to_ascii_lowercase();
         self.schema_version += 1;
@@ -139,6 +144,7 @@ impl RowSchema {
             return false;
         };
 
+        push_field_alias(field, field.name.clone());
         field.retired = true;
         self.schema_version += 1;
         true
@@ -155,11 +161,15 @@ impl RowSchema {
             .filter(|field| field.field_id == field_id)
     }
 
-    fn active_field_by_name(&self, name: &str) -> Option<&RowFieldMeta> {
+    fn field_by_name_or_alias(
+        &self,
+        name: &str,
+        include_historical_aliases: bool,
+    ) -> Option<&RowFieldMeta> {
         let normalized = name.to_ascii_lowercase();
         self.fields
             .iter()
-            .find(|field| !field.retired && field.normalized_name == normalized)
+            .find(|field| field_matches_name(field, &normalized, include_historical_aliases))
     }
 }
 
@@ -169,6 +179,17 @@ fn hydrate_normalized_names(fields: &mut [RowFieldMeta]) {
             field.normalized_name = field.name.to_ascii_lowercase();
         }
     }
+}
+
+fn push_field_alias(field: &mut RowFieldMeta, alias: String) {
+    if field
+        .aliases
+        .iter()
+        .any(|candidate| candidate.eq_ignore_ascii_case(&alias))
+    {
+        return;
+    }
+    field.aliases.push(alias);
 }
 
 pub(crate) fn encode_row(
@@ -233,7 +254,7 @@ fn write_field_value(
 }
 
 pub(crate) fn decode_row(schema: &RowSchema, row: &[u8]) -> Result<serde_json::Value, CassieError> {
-    decode_row_with_projection(schema, row, None)
+    decode_row_with_projection(schema, row, None, false)
 }
 
 pub(crate) fn decode_projected_row(
@@ -241,9 +262,18 @@ pub(crate) fn decode_projected_row(
     row: &[u8],
     projection: &HashSet<String>,
 ) -> Result<serde_json::Value, CassieError> {
-    decode_row_with_projection(schema, row, Some(projection))
+    decode_row_with_projection(schema, row, Some(projection), false)
 }
 
+pub(crate) fn decode_projected_row_with_aliases(
+    schema: &RowSchema,
+    row: &[u8],
+    projection: &HashSet<String>,
+) -> Result<serde_json::Value, CassieError> {
+    decode_row_with_projection(schema, row, Some(projection), true)
+}
+
+#[cfg(test)]
 pub(crate) fn decode_projected_row_matching(
     schema: &RowSchema,
     row: &[u8],
@@ -251,14 +281,44 @@ pub(crate) fn decode_projected_row_matching(
     filter_field: &str,
     filter_value: &serde_json::Value,
 ) -> Result<Option<serde_json::Value>, CassieError> {
+    decode_projected_row_matching_with_aliases(
+        schema,
+        row,
+        projection,
+        filter_field,
+        filter_value,
+        false,
+    )
+}
+
+pub(crate) fn decode_projected_row_matching_with_aliases(
+    schema: &RowSchema,
+    row: &[u8],
+    projection: &HashSet<String>,
+    filter_field: &str,
+    filter_value: &serde_json::Value,
+    include_historical_aliases: bool,
+) -> Result<Option<serde_json::Value>, CassieError> {
     if row.first() == Some(&b'{') {
         let payload: serde_json::Value = serde_json::from_slice(row).map_err(|error| {
             CassieError::Parse(format!("invalid legacy JSON document: {error}"))
         })?;
-        if !json_object_matches_filter(schema, &payload, filter_field, filter_value)? {
+        if !json_object_matches_filter(
+            schema,
+            &payload,
+            filter_field,
+            filter_value,
+            include_historical_aliases,
+        )? {
             return Ok(None);
         }
-        return filter_json_object(schema, payload, Some(projection)).map(Some);
+        return filter_json_object(
+            schema,
+            payload,
+            Some(projection),
+            include_historical_aliases,
+        )
+        .map(Some);
     }
 
     let mut cursor = Cursor::new(row);
@@ -286,16 +346,17 @@ pub(crate) fn decode_projected_row_matching(
             continue;
         };
 
-        let include_field = should_include_field(field, Some(projection));
-        let is_filter_field = !field.retired && field.normalized_name == filter_field;
-        if include_field || is_filter_field {
+        let include_names =
+            included_field_names(field, Some(projection), include_historical_aliases);
+        let is_filter_field = field_matches_name(field, &filter_field, include_historical_aliases);
+        if !include_names.is_empty() || is_filter_field {
             let value = decode_value(type_tag, &mut cursor)?;
             if is_filter_field {
                 saw_filter = true;
                 matched_filter = value_matches_filter(&value, filter_value);
             }
-            if include_field {
-                object.insert(field.name.clone(), value);
+            for name in include_names {
+                object.insert(name, value.clone());
             }
         } else {
             skip_value(type_tag, &mut cursor)?;
@@ -309,12 +370,13 @@ fn decode_row_with_projection(
     schema: &RowSchema,
     row: &[u8],
     projection: Option<&HashSet<String>>,
+    include_historical_aliases: bool,
 ) -> Result<serde_json::Value, CassieError> {
     if row.first() == Some(&b'{') {
         let payload: serde_json::Value = serde_json::from_slice(row).map_err(|error| {
             CassieError::Parse(format!("invalid legacy JSON document: {error}"))
         })?;
-        return filter_json_object(schema, payload, projection);
+        return filter_json_object(schema, payload, projection, include_historical_aliases);
     }
 
     let mut cursor = Cursor::new(row);
@@ -338,9 +400,12 @@ fn decode_row_with_projection(
             skip_value(type_tag, &mut cursor)?;
             continue;
         };
-        if should_include_field(field, projection) {
+        let include_names = included_field_names(field, projection, include_historical_aliases);
+        if !include_names.is_empty() {
             let value = decode_value(type_tag, &mut cursor)?;
-            object.insert(field.name.clone(), value);
+            for name in include_names {
+                object.insert(name, value.clone());
+            }
         } else {
             skip_value(type_tag, &mut cursor)?;
         }
@@ -353,6 +418,7 @@ fn filter_json_object(
     schema: &RowSchema,
     payload: serde_json::Value,
     projection: Option<&HashSet<String>>,
+    include_historical_aliases: bool,
 ) -> Result<serde_json::Value, CassieError> {
     let object = payload
         .as_object()
@@ -362,9 +428,13 @@ fn filter_json_object(
     match projection {
         Some(projection) => {
             for field_name in projection {
-                if let Some(field) = schema.active_field_by_name(field_name) {
-                    if let Some(value) = object.get(&field.name) {
-                        out.insert(field.name.clone(), value.clone());
+                if let Some(field) =
+                    schema.field_by_name_or_alias(field_name, include_historical_aliases)
+                {
+                    if let Some(value) = json_field_value(object, field) {
+                        let output = projected_output_name(field, field_name)
+                            .unwrap_or_else(|| field.name.clone());
+                        out.insert(output, value.clone());
                     }
                 }
             }
@@ -386,15 +456,16 @@ fn json_object_matches_filter(
     payload: &serde_json::Value,
     filter_field: &str,
     filter_value: &serde_json::Value,
+    include_historical_aliases: bool,
 ) -> Result<bool, CassieError> {
     let object = payload
         .as_object()
         .ok_or_else(|| CassieError::InvalidVector("document must be object".to_string()))?;
-    let Some(field) = schema.active_field_by_name(filter_field) else {
+    let Some(field) = schema.field_by_name_or_alias(filter_field, include_historical_aliases)
+    else {
         return Ok(false);
     };
-    Ok(object
-        .get(&field.name)
+    Ok(json_field_value(object, field)
         .is_some_and(|value| value_matches_filter(value, filter_value)))
 }
 
@@ -402,12 +473,68 @@ fn value_matches_filter(value: &serde_json::Value, filter_value: &serde_json::Va
     value == filter_value
 }
 
-fn should_include_field(field: &RowFieldMeta, projection: Option<&HashSet<String>>) -> bool {
-    if field.retired {
-        return false;
-    }
+fn included_field_names(
+    field: &RowFieldMeta,
+    projection: Option<&HashSet<String>>,
+    include_historical_aliases: bool,
+) -> Vec<String> {
+    let Some(projection) = projection else {
+        return (!field.retired)
+            .then(|| field.name.clone())
+            .into_iter()
+            .collect();
+    };
 
-    projection.is_none_or(|projection| projection.contains(&field.normalized_name))
+    let mut names = Vec::new();
+    if !field.retired && projection.contains(&field.normalized_name) {
+        names.push(field.name.clone());
+    }
+    if include_historical_aliases {
+        for alias in &field.aliases {
+            if projection.contains(&alias.to_ascii_lowercase())
+                && !names.iter().any(|name| name.eq_ignore_ascii_case(alias))
+            {
+                names.push(alias.clone());
+            }
+        }
+    }
+    names
+}
+
+fn field_matches_name(
+    field: &RowFieldMeta,
+    normalized_name: &str,
+    include_historical_aliases: bool,
+) -> bool {
+    (!field.retired && field.normalized_name == normalized_name)
+        || (include_historical_aliases
+            && field
+                .aliases
+                .iter()
+                .any(|alias| alias.eq_ignore_ascii_case(normalized_name)))
+}
+
+fn projected_output_name(field: &RowFieldMeta, requested: &str) -> Option<String> {
+    if !field.retired && field.normalized_name == requested.to_ascii_lowercase() {
+        return Some(field.name.clone());
+    }
+    field
+        .aliases
+        .iter()
+        .find(|alias| alias.eq_ignore_ascii_case(requested))
+        .cloned()
+}
+
+fn json_field_value<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    field: &RowFieldMeta,
+) -> Option<&'a serde_json::Value> {
+    object.get(&field.name).or_else(|| {
+        field
+            .aliases
+            .iter()
+            .find_map(|alias| object.get(alias.as_str()))
+    })
 }
 
 fn skip_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<(), CassieError> {

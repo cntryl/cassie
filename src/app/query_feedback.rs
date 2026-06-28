@@ -215,14 +215,16 @@ impl Cassie {
                 &limits,
             );
 
-        Ok(Arc::new(crate::planner::physical::build_with_selection(
+        let mut physical = crate::planner::physical::build_with_selection(
             optimized,
             bound.indexes,
             &cardinality_stats,
             selected_index,
             operator_feedback,
             adaptive_plan,
-        )))
+        );
+        physical.collection_schema = self.catalog.get_schema(&physical.logical.collection);
+        Ok(Arc::new(physical))
     }
 
     #[doc(hidden)]

@@ -1,4 +1,5 @@
 use super::*;
+use std::time::Duration;
 
 impl Midge {
     pub fn create_collection_with_meta(
@@ -241,6 +242,7 @@ impl Midge {
         row_schema: &RowSchema,
         batch_size: usize,
         projection: Option<&HashSet<String>>,
+        _include_historical_aliases: bool,
         filter: Option<&RowFilter>,
         limit: usize,
     ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
@@ -319,6 +321,7 @@ impl Midge {
         row_schema: &RowSchema,
         batch_size: usize,
         projection: Option<&HashSet<String>>,
+        _include_historical_aliases: bool,
         start_bound: Option<OrderedRowBound>,
         end_bound: Option<OrderedRowBound>,
         reverse: bool,

@@ -295,6 +295,7 @@ mod tests {
             top_k_mode: crate::planner::physical::TopKMode::None,
             early_stop: crate::planner::physical::EarlyStopMode::None,
             projection_shape: crate::planner::physical::ProjectionShape::Collection,
+            collection_schema: None,
             logical: LogicalPlan {
                 command: None,
                 source: QuerySource::Collection("bench_documents".to_string()),

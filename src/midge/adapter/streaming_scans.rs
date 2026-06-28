@@ -29,15 +29,7 @@ impl Midge {
         }
 
         let row_schema = self.row_schema(collection).map_err(E::from)?;
-        let projection = match decode {
-            RowDecode::Full => None,
-            RowDecode::Projected(fields) => Some(
-                fields
-                    .into_iter()
-                    .map(|field| field.to_ascii_lowercase())
-                    .collect::<HashSet<_>>(),
-            ),
-        };
+        let (projection, include_historical_aliases) = decode.into_projection();
         let tx = self.begin_data_readonly_tx().map_err(E::from)?;
         let mut seen_ids = HashSet::new();
         let mut emitted = 0usize;
@@ -60,6 +52,10 @@ impl Midge {
                 seen_ids.insert(id.clone());
 
                 let payload = match projection.as_ref() {
+                    Some(projection) if include_historical_aliases => {
+                        decode_projected_row_with_aliases(&row_schema, &raw_value, projection)
+                            .map_err(E::from)?
+                    }
                     Some(projection) => decode_projected_row(&row_schema, &raw_value, projection)
                         .map_err(E::from)?,
                     None => decode_row(&row_schema, &raw_value).map_err(E::from)?,

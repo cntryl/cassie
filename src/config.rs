@@ -39,7 +39,6 @@ pub struct CassieRuntimeLimits {
     pub feedback_entries: usize,
     pub feedback_ttl_seconds: u64,
     pub operator_feedback_enabled: bool,
-    pub experimental_column_store_enabled: bool,
     pub vectorized_joins_enabled: bool,
     pub vectorized_join_batch_size: usize,
     pub adaptive_execution_enabled: bool,
@@ -124,7 +123,6 @@ impl Default for CassieRuntimeLimits {
             feedback_entries: 128,
             feedback_ttl_seconds: 900,
             operator_feedback_enabled: false,
-            experimental_column_store_enabled: false,
             vectorized_joins_enabled: false,
             vectorized_join_batch_size: 1024,
             adaptive_execution_enabled: false,
@@ -243,11 +241,6 @@ impl CassieRuntimeConfig {
                 &env_reader,
                 "CASSIE_OPERATOR_FEEDBACK_ENABLED",
                 config.limits.operator_feedback_enabled,
-            ),
-            experimental_column_store_enabled: parse_bool_from(
-                &env_reader,
-                "CASSIE_EXPERIMENTAL_COLUMN_STORE_ENABLED",
-                config.limits.experimental_column_store_enabled,
             ),
             vectorized_joins_enabled: parse_bool_from(
                 &env_reader,

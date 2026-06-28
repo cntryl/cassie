@@ -65,7 +65,7 @@ impl Cassie {
 
             let mut row_id = None;
             let mut payload = serde_json::Map::new();
-            for (column, value) in columns.iter().zip(row.into_iter()) {
+            for (column, value) in columns.iter().zip(row) {
                 match column {
                     CopyColumn::RowId => {
                         let Some(value) = value else {

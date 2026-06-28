@@ -163,7 +163,7 @@ fn execute_fulltext_top_k(
         .midge
         .scan_rows_for_rebuild(
             &spec.collection,
-            RowDecode::Projected(vec![spec.text_field.clone()]),
+            RowDecode::ProjectedHistorical(vec![spec.text_field.clone()]),
         )
         .map_err(|error| QueryError::General(error.to_string()))?;
     let search_index_options = search_context_for_fields(

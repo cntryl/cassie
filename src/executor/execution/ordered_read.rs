@@ -32,7 +32,7 @@ pub(super) fn execute_ordered_column_top_k(
             .midge
             .scan_rows_for_rebuild(
                 &spec.collection,
-                RowDecode::Projected(spec.projected_scan_fields()),
+                RowDecode::ProjectedHistorical(spec.projected_scan_fields()),
             )
             .map_err(|error| QueryError::General(error.to_string()))?
     };
@@ -103,7 +103,7 @@ fn execute_ordered_row_id_page(
         .scan_ordered_rows_batched_by_id_limit_with_timings(
             &spec.collection,
             batch::DEFAULT_BATCH_SIZE,
-            RowDecode::Projected(spec.scan_fields()),
+            RowDecode::ProjectedHistorical(spec.scan_fields()),
             spec.start_bound.clone(),
             spec.end_bound.clone(),
             matches!(spec.direction, SortDirection::Desc),

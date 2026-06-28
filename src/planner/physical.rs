@@ -182,6 +182,8 @@ pub struct PhysicalPlan {
     pub collection: String,
     pub operators: Vec<Operator>,
     pub logical: LogicalPlan,
+    #[serde(default)]
+    pub collection_schema: Option<crate::catalog::CollectionSchema>,
     pub estimates: PlanEstimates,
     #[serde(default)]
     pub operator_feedback: OperatorFeedbackPlanDiagnostics,
@@ -274,6 +276,7 @@ pub(crate) fn build_with_selection(
             collection: plan.collection.clone(),
             operators: Vec::new(),
             logical: plan,
+            collection_schema: None,
             estimates: PlanEstimates::default(),
             operator_feedback,
             adaptive_plan,
@@ -376,6 +379,7 @@ pub(crate) fn build_with_selection(
         collection: plan.collection.clone(),
         operators,
         logical: plan,
+        collection_schema: None,
         estimates,
         operator_feedback,
         adaptive_plan,
@@ -445,7 +449,6 @@ fn plan_is_covered_by_index(plan: &LogicalPlan, index: &IndexMeta) -> bool {
     {
         return false;
     }
-
     let covered_fields = index
         .normalized_fields()
         .into_iter()
@@ -466,7 +469,6 @@ fn plan_is_covered_by_index(plan: &LogicalPlan, index: &IndexMeta) -> bool {
     for expr in plan_expressions(plan) {
         collect_expr_column_refs(expr, &mut needed_fields);
     }
-
     needed_fields
         .into_iter()
         .all(|field| covered_fields.contains(&field))
@@ -685,7 +687,6 @@ fn plan_supports_predicate_pushdown(plan: &LogicalPlan) -> bool {
     if !matches!(plan.source, QuerySource::Collection(_)) {
         return false;
     }
-
     if plan.projection.is_empty()
         || !plan
             .projection
@@ -694,7 +695,6 @@ fn plan_supports_predicate_pushdown(plan: &LogicalPlan) -> bool {
     {
         return false;
     }
-
     plan.filter
         .as_ref()
         .is_some_and(filter_supports_predicate_pushdown)

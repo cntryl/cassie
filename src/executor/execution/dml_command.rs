@@ -223,14 +223,6 @@ pub(super) fn execute_command(
                     })
                     .collect(),
             };
-            if statement.storage_mode.uses_column_store_storage()
-                && !cassie.runtime.limits().experimental_column_store_enabled
-            {
-                return Err(QueryError::General(
-                    "column-store tables are disabled; set CASSIE_EXPERIMENTAL_COLUMN_STORE_ENABLED=1 to create them"
-                        .to_string(),
-                ));
-            }
             let collection_meta = catalog::CollectionMeta::new_with_storage_mode(
                 &statement.table,
                 None,
@@ -392,7 +384,7 @@ pub(super) fn execute_command(
 
             cassie
                 .midge
-                .delete_view(&statement.name)
+                .defer_drop_view(&statement.name, cassie.runtime.schema_epoch())
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.unregister_view(&statement.name);
             invalidate_plan_cache = true;
@@ -414,7 +406,7 @@ pub(super) fn execute_command(
 
             cassie
                 .midge
-                .drop_collection(&statement.table)
+                .defer_drop_collection(&statement.table, cassie.runtime.schema_epoch())
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.unregister_collection(&statement.table);
             invalidate_plan_cache = true;
@@ -757,27 +749,21 @@ pub(super) fn execute_command(
                 });
             }
 
-            if let Some(index) = index {
+            if let Some(index) = index.as_ref() {
                 if matches!(index.kind, catalog::IndexKind::Vector) {
-                    cassie
-                        .midge
-                        .delete_vector_index(&statement.table, &index.field)
-                        .map_err(|error| QueryError::General(error.to_string()))?;
                     cassie
                         .catalog
                         .unregister_vector_index(&statement.table, &index.field);
-                }
-                if matches!(index.kind, catalog::IndexKind::Column) {
-                    cassie
-                        .midge
-                        .delete_column_batches(&statement.table, &index.name)
-                        .map_err(|error| QueryError::General(error.to_string()))?;
                 }
             }
 
             cassie
                 .midge
-                .delete_index(&statement.table, &statement.name)
+                .defer_drop_index(
+                    &statement.table,
+                    &statement.name,
+                    cassie.runtime.schema_epoch(),
+                )
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog

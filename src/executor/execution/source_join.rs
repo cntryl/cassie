@@ -2,6 +2,9 @@ use super::*;
 
 const VECTOR_TO_MERGE_SWITCH_PAIR: &str = "vectorized_join_to_merge_join";
 
+#[path = "source_join/bounded.rs"]
+mod bounded;
+
 #[derive(Debug, Clone)]
 struct EquiJoinKeys {
     left: String,
@@ -26,7 +29,7 @@ pub(super) fn execute_join_source<'a>(
     row_budget: Option<usize>,
 ) -> SourceExecution<'a> {
     if !source_contains_lateral(right) {
-        if let Some(joined) = try_execute_indexed_bounded_inner_join(
+        if let Some(joined) = bounded::try_execute_indexed_bounded_inner_join(
             env,
             left,
             right,
@@ -38,7 +41,7 @@ pub(super) fn execute_join_source<'a>(
         )? {
             return finish_join(joined);
         }
-        if let Some(joined) = try_execute_streaming_bounded_inner_join(
+        if let Some(joined) = bounded::try_execute_streaming_bounded_inner_join(
             env,
             left,
             right,
@@ -108,257 +111,6 @@ pub(super) fn execute_join_source<'a>(
     };
 
     finish_join(joined)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn try_execute_indexed_bounded_inner_join(
-    env: &SourceExecutionEnv<'_>,
-    left: &QuerySource,
-    right: &QuerySource,
-    kind: &JoinKind,
-    on: &Expr,
-    cte_context: &mut CteContext,
-    outer_row: Option<&BatchRow>,
-    row_budget: Option<usize>,
-) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let output_budget = row_budget.unwrap_or(usize::MAX);
-    if output_budget == 0 {
-        return Ok(Some(Vec::new()));
-    }
-    let limits = env.cassie.runtime.limits();
-    if !limits.vectorized_joins_enabled || !matches!(kind, JoinKind::Inner) {
-        return Ok(None);
-    }
-
-    let (QuerySource::Collection(left_collection), QuerySource::Collection(right_collection)) =
-        (left, right)
-    else {
-        return Ok(None);
-    };
-    if env
-        .session
-        .map(|session| !session.collection_changes(left_collection).is_empty())
-        .unwrap_or(false)
-    {
-        return Ok(None);
-    }
-    let Some(left_columns) = collection_join_columns(env, left_collection) else {
-        return Ok(None);
-    };
-    let Some(right_columns) = collection_join_columns(env, right_collection) else {
-        return Ok(None);
-    };
-    let Some(keys) = merge_join_keys(on, &left_columns, &right_columns) else {
-        return Ok(None);
-    };
-    let Some(left_field) = join_field_for_collection(&keys.left, left_collection) else {
-        return Ok(None);
-    };
-    let Some(index) = scalar_join_index(env, left_collection, &left_field) else {
-        return Ok(None);
-    };
-    let Some(left_scan_fields) = collection_scan_fields(env, left_collection) else {
-        return Ok(None);
-    };
-
-    let (right_batches, _right_text) =
-        execute_query_source(env, right, cte_context, true, outer_row, None)?;
-    let right_rows = batch::flatten_batches(right_batches);
-    let batch_size = limits.vectorized_join_batch_size.max(1);
-    let mut joined = Vec::with_capacity(output_budget.min(batch_size));
-    let mut probe_rows = 0usize;
-    let mut matched_rows = 0usize;
-    let mut index_scans = 0usize;
-
-    'right: for right_row in &right_rows {
-        check_timeout(env.controls)?;
-        let Some(key_value) = right_row.get(&keys.right).and_then(value_to_json) else {
-            continue;
-        };
-        let remaining = output_budget.saturating_sub(joined.len());
-        if remaining == 0 {
-            break;
-        }
-        let left_rows = scan_indexed_left_rows(
-            env,
-            left_collection,
-            &left_scan_fields,
-            &index,
-            key_value,
-            remaining,
-        )?;
-        index_scans += 1;
-        probe_rows += left_rows.len();
-
-        for left_row in left_rows {
-            let combined = combine_rows(&left_row, right_row);
-            if filter::eval_scalar(
-                &combined,
-                on,
-                env.params,
-                None,
-                env.user_functions,
-                None,
-                env.session,
-            )?
-            .as_bool()
-            {
-                matched_rows += 1;
-                joined.push(combined);
-                if joined.len() >= output_budget {
-                    break 'right;
-                }
-            }
-        }
-    }
-
-    env.cassie.runtime.record_vectorized_join_execution(
-        probe_rows,
-        right_rows.len(),
-        matched_rows,
-        joined.len(),
-        batch_size,
-        index_scans.max(1),
-    );
-    Ok(Some(joined))
-}
-
-#[allow(clippy::too_many_arguments)]
-fn try_execute_streaming_bounded_inner_join(
-    env: &SourceExecutionEnv<'_>,
-    left: &QuerySource,
-    right: &QuerySource,
-    kind: &JoinKind,
-    on: &Expr,
-    cte_context: &mut CteContext,
-    outer_row: Option<&BatchRow>,
-    row_budget: Option<usize>,
-) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(output_budget) = row_budget else {
-        return Ok(None);
-    };
-    if output_budget == 0 {
-        return Ok(Some(Vec::new()));
-    }
-
-    let limits = env.cassie.runtime.limits();
-    if !limits.vectorized_joins_enabled || !matches!(kind, JoinKind::Inner) {
-        return Ok(None);
-    }
-
-    let (QuerySource::Collection(left_collection), QuerySource::Collection(right_collection)) =
-        (left, right)
-    else {
-        return Ok(None);
-    };
-    if env
-        .session
-        .map(|session| !session.collection_changes(left_collection).is_empty())
-        .unwrap_or(false)
-    {
-        return Ok(None);
-    }
-
-    let Some(left_columns) = collection_join_columns(env, left_collection) else {
-        return Ok(None);
-    };
-    let Some(right_columns) = collection_join_columns(env, right_collection) else {
-        return Ok(None);
-    };
-    let Some(keys) = merge_join_keys(on, &left_columns, &right_columns) else {
-        return Ok(None);
-    };
-    let Some(left_field) = join_field_for_collection(&keys.left, left_collection) else {
-        return Ok(None);
-    };
-    if scalar_join_index(env, left_collection, &left_field).is_some() {
-        return Ok(None);
-    }
-    let Some(left_scan_fields) = collection_scan_fields(env, left_collection) else {
-        return Ok(None);
-    };
-
-    let (right_batches, _right_text) =
-        execute_query_source(env, right, cte_context, true, outer_row, None)?;
-    let right_rows = batch::flatten_batches(right_batches);
-    if right_rows.is_empty() {
-        env.cassie.runtime.record_vectorized_join_execution(
-            0,
-            0,
-            0,
-            0,
-            limits.vectorized_join_batch_size.max(1),
-            0,
-        );
-        return Ok(Some(Vec::new()));
-    }
-
-    let mut build = std::collections::HashMap::<String, Vec<usize>>::new();
-    for (index, right_row) in right_rows.iter().enumerate() {
-        build
-            .entry(row_join_key(right_row, &keys.right))
-            .or_default()
-            .push(index);
-    }
-
-    let schema = env.cassie.catalog.get_schema(left_collection);
-    let batch_size = limits.vectorized_join_batch_size.max(1);
-    let mut joined = Vec::with_capacity(output_budget.min(batch_size));
-    let mut probe_rows = 0usize;
-    let mut matched_rows = 0usize;
-
-    let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
-        left_collection,
-        crate::midge::adapter::RowDecode::Full,
-        |document| {
-            check_timeout(env.controls)?;
-            let left_row = qualify_row(
-                scan::projected_document_to_row(document, &left_scan_fields, schema.as_ref()),
-                left_collection,
-            );
-            probe_rows += 1;
-            let key = row_join_key(&left_row, &keys.left);
-
-            if let Some(right_indexes) = build.get(&key) {
-                for right_index in right_indexes {
-                    let combined = combine_rows(&left_row, &right_rows[*right_index]);
-                    if filter::eval_scalar(
-                        &combined,
-                        on,
-                        env.params,
-                        None,
-                        env.user_functions,
-                        None,
-                        env.session,
-                    )?
-                    .as_bool()
-                    {
-                        matched_rows += 1;
-                        joined.push(combined);
-                        if joined.len() >= output_budget {
-                            return Ok(false);
-                        }
-                    }
-                }
-            }
-
-            Ok(true)
-        },
-    )?;
-    env.cassie.runtime.record_read_path_collection_scan(
-        left_collection,
-        left_scan_fields.len(),
-        scanned,
-    );
-    env.cassie.runtime.record_vectorized_join_execution(
-        probe_rows,
-        right_rows.len(),
-        matched_rows,
-        joined.len(),
-        batch_size,
-        probe_rows.div_ceil(batch_size),
-    );
-    Ok(Some(joined))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -517,81 +269,6 @@ fn join_field_for_collection(key: &str, collection: &str) -> Option<String> {
         return Some(key[prefix.len()..].to_string());
     }
     (!key.contains('.')).then(|| key.to_string())
-}
-
-fn scalar_join_index(
-    env: &SourceExecutionEnv<'_>,
-    collection: &str,
-    field: &str,
-) -> Option<catalog::IndexMeta> {
-    env.cassie
-        .catalog
-        .list_indexes(collection)
-        .into_iter()
-        .find(|index| {
-            index.kind == catalog::IndexKind::Scalar
-                && index.predicate.is_none()
-                && index.normalized_expressions().is_empty()
-                && index
-                    .normalized_fields()
-                    .first()
-                    .is_some_and(|candidate| candidate.eq_ignore_ascii_case(field))
-        })
-}
-
-fn scan_indexed_left_rows(
-    env: &SourceExecutionEnv<'_>,
-    collection: &str,
-    scan_fields: &[String],
-    index: &catalog::IndexMeta,
-    key_value: serde_json::Value,
-    limit: usize,
-) -> Result<Vec<BatchRow>, QueryError> {
-    let hits = env
-        .cassie
-        .midge
-        .scan_scalar_index(
-            index,
-            crate::midge::adapter::ScalarIndexScanRequest {
-                equality_prefix: vec![key_value],
-                limit: Some(limit),
-                ..Default::default()
-            },
-        )
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    env.cassie
-        .runtime
-        .record_read_path_index_seek(collection, hits.len(), &index.name);
-
-    let schema = env.cassie.catalog.get_schema(collection);
-    let mut rows = Vec::with_capacity(hits.len());
-    for hit in hits {
-        let Some(document) = env
-            .cassie
-            .get_document_for_session(env.session, collection, &hit.id)
-            .map_err(|error| QueryError::General(error.to_string()))?
-        else {
-            continue;
-        };
-        rows.push(qualify_row(
-            scan::projected_document_to_row(document, scan_fields, schema.as_ref()),
-            collection,
-        ));
-    }
-    Ok(rows)
-}
-
-fn value_to_json(value: &Value) -> Option<serde_json::Value> {
-    match value {
-        Value::Null => Some(serde_json::Value::Null),
-        Value::Bool(value) => Some(serde_json::Value::Bool(*value)),
-        Value::Int64(value) => Some(serde_json::Value::Number((*value).into())),
-        Value::Float64(value) => {
-            serde_json::Number::from_f64(*value).map(serde_json::Value::Number)
-        }
-        Value::String(value) => Some(serde_json::Value::String(value.clone())),
-        Value::Vector(_) | Value::Json(_) => None,
-    }
 }
 
 #[allow(clippy::too_many_arguments)]

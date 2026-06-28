@@ -757,6 +757,103 @@ fn should_stream_unindexed_bounded_inner_join_until_output_budget() {
 }
 
 #[test]
+fn should_stream_dense_bounded_inner_join_without_materializing_right_source() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("read_model_dense_streaming_inner_join_budget");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let mut config = vectorized_join_config();
+        config.limits.vectorized_join_batch_size = 8;
+        config.limits.temp_spill_budget_bytes = 4 * 1024;
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE read_model_dense_stream_users (user_key INT, name TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE read_model_dense_stream_orders (order_user_key INT, total INT)",
+                vec![],
+            )
+            .unwrap();
+
+        let mut users = Vec::new();
+        let mut orders = Vec::new();
+        for index in 0..200 {
+            users.push((
+                Some(format!("user-{index:03}")),
+                serde_json::json!({
+                    "user_key": index as i64,
+                    "name": format!("user-{index:03}"),
+                }),
+            ));
+            orders.push((
+                Some(format!("order-{index:03}")),
+                serde_json::json!({
+                    "order_user_key": 0_i64,
+                    "total": index as i64,
+                }),
+            ));
+        }
+        cassie
+            .midge
+            .put_fresh_documents("read_model_dense_stream_users", users)
+            .unwrap();
+        cassie
+            .midge
+            .put_fresh_documents("read_model_dense_stream_orders", orders)
+            .unwrap();
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT read_model_dense_stream_users.name, read_model_dense_stream_orders.total \
+                 FROM read_model_dense_stream_users JOIN read_model_dense_stream_orders \
+                 ON read_model_dense_stream_users.user_key = read_model_dense_stream_orders.order_user_key \
+                 LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("user-000".to_string()), Value::Int64(0)],
+                vec![Value::String("user-000".to_string()), Value::Int64(1)],
+            ]
+        );
+        assert_eq!(after["joins"]["last_strategy"].as_str(), Some("vectorized"));
+        let scanned_delta = after["read_paths"]["collection_scan_rows"]
+            .as_u64()
+            .unwrap()
+            - before["read_paths"]["collection_scan_rows"]
+                .as_u64()
+                .unwrap();
+        assert!(
+            scanned_delta <= 6,
+            "expected dense bounded join to avoid materializing either source, scanned {scanned_delta} rows"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_lock_pgwire_prepared_read_hot_path_metrics() {
     // Arrange
     with_fallback();

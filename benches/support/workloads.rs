@@ -6,6 +6,8 @@ mod context;
 mod hotpath;
 #[path = "workloads/http.rs"]
 mod http;
+#[path = "workloads/join_context.rs"]
+mod join_context;
 #[path = "workloads/pgwire.rs"]
 mod pgwire;
 #[path = "workloads/sql.rs"]
@@ -15,12 +17,11 @@ mod system;
 
 pub use context::{
     column_batch_context, context, context_with_mock_tei_embeddings, empty_context, graph_context,
-    replay_context, runtime, scalar_context, time_series_context, unindexed_context,
-    vectorized_indexed_join_context, vectorized_join_context, vectorized_sparse_join_context,
-    BenchContext,
+    replay_context, runtime, scalar_context, time_series_context, unindexed_context, BenchContext,
 };
 pub use hotpath::*;
 pub use http::*;
+pub use join_context::*;
 pub use pgwire::*;
 pub use sql::*;
 pub use system::*;

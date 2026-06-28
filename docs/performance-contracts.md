@@ -668,6 +668,7 @@ Round 01 owns these hot paths:
 - vectorized inner/left equi-join when explicitly enabled: `perf.read_path.vectorized_join.10k` and `perf.read_path.vectorized_join.100k`
 - bounded unordered vectorized left join: `perf.read_path.vectorized_left_join_limited.10k` and `perf.read_path.vectorized_left_join_limited.100k`
 - bounded streaming vectorized inner join without a left-key index: `perf.read_path.vectorized_streaming_inner_join.10k` and `perf.read_path.vectorized_streaming_inner_join.100k`
+- dense bounded streaming vectorized inner join under tight temp budget: `perf.read_path.vectorized_dense_streaming_inner_join.10k` and `perf.read_path.vectorized_dense_streaming_inner_join.100k`
 - bounded indexed vectorized inner join: `perf.read_path.vectorized_indexed_inner_join.10k` and `perf.read_path.vectorized_indexed_inner_join.100k`
 - pgwire prepared read path: `perf.pgwire.prepared_query.10k` and `perf.pgwire.prepared_query.100k`
 
@@ -679,12 +680,13 @@ Round 01 measured notes from 2026-06-27 local-dev fallback runs:
 - `vectorized_join_equi/100k` now reaches stable Criterion measurement instead of stalling in fixture setup; latest mean was 36.309 us with a 35.909-36.885 us confidence interval.
 - `vectorized_left_join_limited` validates bounded left-source scans: 35.604 us at 10k and 36.037 us at 100k.
 - `vectorized_streaming_inner_join` validates bounded streaming left-source scans for sparse unindexed inner joins: 36.597 us at 10k and 36.672 us at 100k.
+- `vectorized_dense_streaming_inner_join` validates dense bounded nested-stream scans under tight temp budget: 34.853 us at 10k and 34.631 us at 100k.
 - `vectorized_indexed_inner_join` validates indexed left-source probes for bounded inner joins: 35.745 us at 10k and 35.676 us at 100k.
 - `expression_index_range_query` validates scalar expression range scans: 22.284 us at 10k and 21.667 us at 100k after explicit benchmark warmup.
 - `expression_index_order_query` validates scalar expression ordered bounded scans: 9.663 us at 10k and 9.812 us at 100k after explicit benchmark warmup.
 - `pgwire_prepared_query` remained scale-flat: 54.234 us at 10k and 55.031 us at 100k.
 - `column_batch_covered_projection` now measures with tight intervals after explicit benchmark warmup: 16.202 us at 10k and 15.354 us at 100k.
-- Remaining executor bottleneck: dense bounded joins without a selective build/probe side still need a broader streaming proof before both inputs can avoid broad materialization safely.
+- Remaining executor bottleneck: late-match or larger-output bounded joins still need adaptive side selection before both inputs can avoid broad materialization safely.
 
 ### Manual Benchmark Scenarios
 
@@ -708,6 +710,8 @@ Round 01 measured notes from 2026-06-27 local-dev fallback runs:
 | `perf.read_path.vectorized_left_join_limited.100k` | Core read | `tier2_subsystem_executor` | `vectorized_left_join_limited` | 100k |
 | `perf.read_path.vectorized_streaming_inner_join.10k` | Core read | `tier2_subsystem_executor` | `vectorized_streaming_inner_join` | 10k |
 | `perf.read_path.vectorized_streaming_inner_join.100k` | Core read | `tier2_subsystem_executor` | `vectorized_streaming_inner_join` | 100k |
+| `perf.read_path.vectorized_dense_streaming_inner_join.10k` | Core read | `tier2_subsystem_executor` | `vectorized_dense_streaming_inner_join` | 10k |
+| `perf.read_path.vectorized_dense_streaming_inner_join.100k` | Core read | `tier2_subsystem_executor` | `vectorized_dense_streaming_inner_join` | 100k |
 | `perf.read_path.vectorized_indexed_inner_join.10k` | Core read | `tier2_subsystem_executor` | `vectorized_indexed_inner_join` | 10k |
 | `perf.read_path.vectorized_indexed_inner_join.100k` | Core read | `tier2_subsystem_executor` | `vectorized_indexed_inner_join` | 100k |
 | `perf.replay.lag_catchup.10k` | Replay | `tier2_subsystem_ingest` | `projection_lag_catchup` | 10k |

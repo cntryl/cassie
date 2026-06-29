@@ -123,7 +123,6 @@ impl Cassie {
     }
 
     pub(crate) fn validate_embedding_payload(
-        &self,
         index: &VectorIndexRecord,
         embedding: &Embedding,
     ) -> Result<(), CassieError> {

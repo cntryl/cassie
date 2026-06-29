@@ -131,7 +131,7 @@ impl Cassie {
                 ))
         });
         let created_ms = current_time_millis();
-        let report = build_consistency_report(manifests, created_ms);
+        let report = build_consistency_report(&manifests, created_ms);
         self.midge
             .put_projection_consistency_report(report.clone())?;
         self.catalog
@@ -148,7 +148,7 @@ impl Cassie {
 }
 
 fn build_consistency_report(
-    manifests: Vec<ProjectionVerificationManifest>,
+    manifests: &[ProjectionVerificationManifest],
     created_ms: u64,
 ) -> ProjectionConsistencyReportMeta {
     let mut diagnostics = BTreeSet::new();

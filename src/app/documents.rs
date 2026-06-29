@@ -603,17 +603,13 @@ impl Cassie {
         match check.operator {
             ConstraintOperator::Eq => value == &check.value,
             ConstraintOperator::NotEq => value != &check.value,
-            ConstraintOperator::Lt => self
-                .compare_constraint_values(value, &check.value)
+            ConstraintOperator::Lt => Self::compare_constraint_values(value, &check.value)
                 .is_some_and(std::cmp::Ordering::is_lt),
-            ConstraintOperator::Lte => self
-                .compare_constraint_values(value, &check.value)
+            ConstraintOperator::Lte => Self::compare_constraint_values(value, &check.value)
                 .is_some_and(std::cmp::Ordering::is_le),
-            ConstraintOperator::Gt => self
-                .compare_constraint_values(value, &check.value)
+            ConstraintOperator::Gt => Self::compare_constraint_values(value, &check.value)
                 .is_some_and(std::cmp::Ordering::is_gt),
-            ConstraintOperator::Gte => self
-                .compare_constraint_values(value, &check.value)
+            ConstraintOperator::Gte => Self::compare_constraint_values(value, &check.value)
                 .is_some_and(std::cmp::Ordering::is_ge),
             ConstraintOperator::Like => {
                 let Some(value) = value.as_str() else {
@@ -622,13 +618,12 @@ impl Cassie {
                 let Some(expected) = check.value.as_str() else {
                     return false;
                 };
-                self.string_like_match(expected, value)
+                Self::string_like_match(expected, value)
             }
         }
     }
 
     fn compare_constraint_values(
-        &self,
         left: &serde_json::Value,
         right: &serde_json::Value,
     ) -> Option<std::cmp::Ordering> {
@@ -647,7 +642,7 @@ impl Cassie {
         }
     }
 
-    fn string_like_match(&self, pattern: &str, value: &str) -> bool {
+    fn string_like_match(pattern: &str, value: &str) -> bool {
         if pattern == "%" {
             return true;
         }
@@ -915,7 +910,7 @@ impl Cassie {
                 .embedding_provider
                 .embed_query(&source)
                 .map_err(CassieError::from)?;
-            self.validate_embedding_payload(index, &embedding)?;
+            Self::validate_embedding_payload(index, &embedding)?;
 
             object.insert(
                 index.field.clone(),

@@ -51,7 +51,7 @@ impl Cassie {
         }
 
         let embedding = self.cached_query_embedding(query)?;
-        self.validate_embedding_payload(&index, &embedding)?;
+        Self::validate_embedding_payload(&index, &embedding)?;
 
         let result = self.execute_projected_vector_search(
             &index,

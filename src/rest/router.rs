@@ -97,7 +97,7 @@ fn json_response<T: serde::Serialize>(status: StatusCode, value: &T) -> Response
     response
 }
 
-fn map_error(error: crate::app::CassieError) -> (StatusCode, String) {
+fn map_error(error: &crate::app::CassieError) -> (StatusCode, String) {
     match error {
         crate::app::CassieError::CollectionNotFound(_) => {
             (StatusCode::NOT_FOUND, error.to_string())
@@ -130,7 +130,7 @@ fn record_rest_error(
     started_at: Instant,
     error: crate::app::CassieError,
 ) -> (StatusCode, String) {
-    let mapped = map_error(error);
+    let mapped = map_error(&error);
     cassie
         .runtime
         .record_rest_request(method, route, mapped.0.as_u16(), started_at.elapsed());

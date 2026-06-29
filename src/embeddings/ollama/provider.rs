@@ -94,12 +94,12 @@ impl OllamaProvider {
             let client = self.client.clone();
             let endpoint = endpoint.clone();
             let request_snapshot = request.clone();
-            let response = self.run_blocking(move || {
+            let response = Self::run_blocking(move || {
                 let response = client.post(endpoint).json(&request_snapshot).send()?;
                 let status = response.status();
                 let body = response.text()?;
                 Ok::<_, reqwest::Error>((status, body))
-            })?;
+            });
 
             match response {
                 Ok((status, body)) if status.is_success() => {
@@ -148,11 +148,11 @@ impl OllamaProvider {
         }
     }
 
-    fn run_blocking<T, F>(&self, f: F) -> Result<reqwest::Result<T>, EmbeddingError>
+    fn run_blocking<T, F>(f: F) -> reqwest::Result<T>
     where
         F: FnOnce() -> reqwest::Result<T>,
     {
-        Ok(f())
+        f()
     }
 }
 

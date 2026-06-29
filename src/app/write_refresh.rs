@@ -48,7 +48,7 @@ impl Cassie {
             .get_cardinality_stats(collection)
             .unwrap_or_default();
         if row_delta.is_positive() {
-            stats.row_count = stats.row_count.saturating_add(row_delta as u64);
+            stats.row_count = stats.row_count.saturating_add(row_delta.unsigned_abs());
         } else {
             stats.row_count = stats.row_count.saturating_sub(row_delta.unsigned_abs());
         }

@@ -257,7 +257,7 @@ pub(super) fn parse_create_function_statement(sql: &str) -> Result<ParsedStateme
         ));
     }
 
-    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
 
     let name_end = rest
         .find('(')
@@ -309,7 +309,7 @@ pub(super) fn parse_create_procedure_statement(sql: &str) -> Result<ParsedStatem
         ));
     }
 
-    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
 
     let name_end = rest
         .find('(')
@@ -349,7 +349,7 @@ pub(super) fn parse_create_procedure_statement(sql: &str) -> Result<ParsedStatem
 pub(super) fn parse_create_view_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[11..].trim();
-    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
 
     let as_pos = find_top_level_keyword(rest, 0, "as")
         .ok_or_else(|| SqlError("CREATE VIEW requires AS clause".into()))?;
@@ -379,7 +379,7 @@ pub(super) fn parse_create_view_statement(sql: &str) -> Result<ParsedStatement, 
 pub(super) fn parse_drop_function_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[14..].trim();
-    let (if_exists, rest) = parse_if_exists(rest)?;
+    let (if_exists, rest) = parse_if_exists(rest);
 
     if rest.is_empty() {
         return Err(SqlError("missing function name for DROP FUNCTION".into()));
@@ -397,7 +397,7 @@ pub(super) fn parse_drop_function_statement(sql: &str) -> Result<ParsedStatement
 pub(super) fn parse_drop_procedure_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[15..].trim();
-    let (if_exists, rest) = parse_if_exists(rest)?;
+    let (if_exists, rest) = parse_if_exists(rest);
 
     if rest.is_empty() {
         return Err(SqlError("missing procedure name for DROP PROCEDURE".into()));
@@ -415,7 +415,7 @@ pub(super) fn parse_drop_procedure_statement(sql: &str) -> Result<ParsedStatemen
 pub(super) fn parse_drop_view_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[10..].trim();
-    let (if_exists, rest) = parse_if_exists(rest)?;
+    let (if_exists, rest) = parse_if_exists(rest);
 
     if rest.is_empty() {
         return Err(SqlError("missing view name for DROP VIEW".into()));
@@ -581,9 +581,9 @@ pub(super) fn parse_quoted_or_raw_body(raw: &str) -> Result<String, SqlError> {
         return Err(SqlError("empty function/procedure body".into()));
     }
 
-    if let Ok((_value, remainder)) = parse_sql_quoted_string(raw) {
+    if let Ok((value, remainder)) = parse_sql_quoted_string(raw) {
         if remainder.trim().is_empty() {
-            return Ok(_value);
+            return Ok(value);
         }
     }
 

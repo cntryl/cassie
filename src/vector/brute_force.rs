@@ -1,12 +1,12 @@
 pub fn top_k(
-    query: Vec<f32>,
+    query: &[f32],
     candidates: Vec<(String, Vec<f32>)>,
     k: usize,
     metric: fn(&[f32], &[f32]) -> f64,
 ) -> Vec<(String, f64)> {
     let mut scored = Vec::with_capacity(candidates.len());
     for (id, vector) in candidates {
-        let score = metric(&query, &vector);
+        let score = metric(query, &vector);
         scored.push((id, score));
     }
     scored.sort_by(|a, b| a.1.total_cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
@@ -29,7 +29,7 @@ mod tests {
         ];
 
         // Act
-        let selected = top_k(query, candidates, 2, crate::vector::l2_distance);
+        let selected = top_k(&query, candidates, 2, crate::vector::l2_distance);
 
         // Assert
         assert_eq!(

@@ -111,7 +111,7 @@ fn parse_table_constraint_body(
                 constraint.unique = true;
                 constraint.primary_key = true;
                 constraint.primary_key_name = constraint_name.map(str::to_string);
-                constraint.primary_key_ordinal = Some((idx + 1) as u32);
+                constraint.primary_key_ordinal = Some(u32::try_from(idx + 1).unwrap_or(u32::MAX));
                 constraint
             })
             .collect());
@@ -126,7 +126,7 @@ fn parse_table_constraint_body(
                 let mut constraint = FieldConstraint::new(field);
                 constraint.unique = true;
                 constraint.unique_name = constraint_name.map(str::to_string);
-                constraint.unique_ordinal = Some((idx + 1) as u32);
+                constraint.unique_ordinal = Some(u32::try_from(idx + 1).unwrap_or(u32::MAX));
                 constraint
             })
             .collect());

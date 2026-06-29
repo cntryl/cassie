@@ -63,8 +63,8 @@ fn fingerprint<T: Serialize>(value: &T) -> u64 {
     stable_fingerprint(value)
 }
 
-fn plan_entry_key(key: &PlanCacheKey) -> Result<Vec<u8>, CassieError> {
-    Ok(temp_key(PLAN_ENTRY_FAMILY, fingerprint(key)))
+fn plan_entry_key(key: &PlanCacheKey) -> Vec<u8> {
+    temp_key(PLAN_ENTRY_FAMILY, fingerprint(key))
 }
 
 fn fulltext_stats_key(
@@ -73,7 +73,7 @@ fn fulltext_stats_key(
     analyzer_key: &str,
     schema_epoch: u64,
     data_epoch: u64,
-) -> Result<Vec<u8>, CassieError> {
+) -> Vec<u8> {
     let key = FulltextStatsKey {
         collection,
         field,
@@ -81,7 +81,7 @@ fn fulltext_stats_key(
         schema_epoch,
         data_epoch,
     };
-    Ok(temp_key(FULLTEXT_STATS_FAMILY, fingerprint(&key)))
+    temp_key(FULLTEXT_STATS_FAMILY, fingerprint(&key))
 }
 
 fn temp_key(family: &[u8], fingerprint: u64) -> Vec<u8> {
@@ -135,7 +135,7 @@ pub(crate) fn lookup_plan(
         return Ok(None);
     }
 
-    let storage_key = plan_entry_key(key)?;
+    let storage_key = plan_entry_key(key);
     let Some(raw) = (match midge.raw_get(StorageFamily::Temp, &storage_key) {
         Ok(value) => {
             runtime.record_storage_access("temp", false, true);
@@ -179,7 +179,7 @@ pub(crate) fn observe_non_durable_plan_usage(
     }
 
     if candidate_pending {
-        let plan_storage_key = plan_entry_key(key)?;
+        let plan_storage_key = plan_entry_key(key);
         let entry = CachedPlanEntry {
             key: key.clone(),
             plan: (**plan).clone(),
@@ -221,7 +221,7 @@ pub(crate) fn lookup_fulltext_stats(
     }
 
     let storage_key =
-        fulltext_stats_key(collection, field, analyzer_key, schema_epoch, data_epoch)?;
+        fulltext_stats_key(collection, field, analyzer_key, schema_epoch, data_epoch);
     let Some(raw) = (match midge.raw_get(StorageFamily::Temp, &storage_key) {
         Ok(value) => {
             runtime.record_storage_access("temp", false, true);
@@ -284,7 +284,7 @@ pub(crate) fn store_fulltext_stats(
     put_temp_json(
         midge,
         runtime,
-        fulltext_stats_key(collection, field, analyzer_key, schema_epoch, data_epoch)?,
+        fulltext_stats_key(collection, field, analyzer_key, schema_epoch, data_epoch),
         &record,
         ttl_seconds,
     )

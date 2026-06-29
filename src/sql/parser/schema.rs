@@ -23,7 +23,7 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[12..].trim();
 
-    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
 
     let open_paren = rest
         .find('(')
@@ -112,7 +112,7 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
 pub(super) fn parse_create_graph_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed["create graph".len()..].trim();
-    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
     if rest.is_empty() {
         return Err(SqlError("CREATE GRAPH requires a graph name".into()));
     }
@@ -231,7 +231,7 @@ pub(super) fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement,
         ));
     }
 
-    let (if_not_exists, remainder) = parse_if_not_exists(remainder)?;
+    let (if_not_exists, remainder) = parse_if_not_exists(remainder);
 
     let on_pos = find_top_level_keyword(remainder, 0, "on")
         .ok_or_else(|| SqlError("CREATE INDEX requires 'ON' clause".to_string()))?;
@@ -287,7 +287,7 @@ pub(super) fn parse_drop_index_statement(sql: &str) -> Result<ParsedStatement, S
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[10..].trim();
 
-    let (if_exists, rest) = parse_if_exists(rest)?;
+    let (if_exists, rest) = parse_if_exists(rest);
     let on_pos = find_top_level_keyword(rest, 0, "on")
         .ok_or_else(|| SqlError("DROP INDEX requires 'ON' clause".to_string()))?;
 
@@ -318,7 +318,7 @@ pub(super) fn parse_drop_table_statement(sql: &str) -> Result<ParsedStatement, S
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[10..].trim();
 
-    let (if_exists, rest) = parse_if_exists(rest)?;
+    let (if_exists, rest) = parse_if_exists(rest);
     let table = rest.trim();
     if table.is_empty() {
         return Err(SqlError("missing table name in DROP TABLE".into()));
@@ -342,7 +342,7 @@ pub(super) fn parse_drop_schema_statement(sql: &str) -> Result<ParsedStatement, 
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[11..].trim();
 
-    let (if_exists, rest) = parse_if_exists(rest)?;
+    let (if_exists, rest) = parse_if_exists(rest);
     let schema = rest.trim();
     if schema.is_empty() {
         return Err(SqlError("missing schema name in DROP SCHEMA".into()));
@@ -366,7 +366,7 @@ pub(super) fn parse_alter_table_statement(sql: &str) -> Result<ParsedStatement, 
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[11..].trim();
 
-    let (if_exists, rest) = parse_if_exists(rest)?;
+    let (if_exists, rest) = parse_if_exists(rest);
     if if_exists {
         return Err(SqlError("ALTER TABLE IF EXISTS is not supported".into()));
     }
@@ -466,7 +466,7 @@ pub(super) fn parse_drop_sequence_statement(sql: &str) -> Result<ParsedStatement
 pub(super) fn parse_create_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[13..].trim();
-    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
     let schema = rest.trim();
     if schema.is_empty() {
         return Err(SqlError("missing schema name".into()));
@@ -527,7 +527,7 @@ pub(super) fn parse_create_role_statement(
 ) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[11..].trim();
-    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
     let mut tokens = tokenize_schema_field(rest).into_iter();
 
     let name = tokens
@@ -613,7 +613,7 @@ pub(super) fn parse_alter_role_statement(
 pub(super) fn parse_drop_role_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[9..].trim();
-    let (if_exists, rest) = parse_if_exists(rest)?;
+    let (if_exists, rest) = parse_if_exists(rest);
     let role = rest.trim();
     if role.is_empty() {
         return Err(SqlError("missing role name".into()));
@@ -633,20 +633,20 @@ pub(super) fn parse_drop_role_statement(sql: &str) -> Result<ParsedStatement, Sq
     })
 }
 
-pub(super) fn parse_if_not_exists(raw: &str) -> Result<(bool, &str), SqlError> {
+pub(super) fn parse_if_not_exists(raw: &str) -> (bool, &str) {
     let lower = raw.to_lowercase();
     if lower.starts_with("if not exists ") {
-        return Ok((true, raw["if not exists ".len()..].trim()));
+        return (true, raw["if not exists ".len()..].trim());
     }
-    Ok((false, raw.trim()))
+    (false, raw.trim())
 }
 
-pub(super) fn parse_if_exists(raw: &str) -> Result<(bool, &str), SqlError> {
+pub(super) fn parse_if_exists(raw: &str) -> (bool, &str) {
     let lower = raw.to_lowercase();
     if lower.starts_with("if exists ") {
-        return Ok((true, raw["if exists ".len()..].trim()));
+        return (true, raw["if exists ".len()..].trim());
     }
-    Ok((false, raw.trim()))
+    (false, raw.trim())
 }
 
 pub(super) fn split_first_token(raw: &str) -> Option<(String, &str)> {

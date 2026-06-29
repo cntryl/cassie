@@ -284,7 +284,7 @@ fn freshness_confidence_bps(age_ms: u64, ttl_seconds: u64) -> u16 {
 
     let ttl_ms = ttl_seconds.saturating_mul(1_000).max(1);
     let remaining = ttl_ms.saturating_sub(age_ms).min(ttl_ms);
-    ((remaining.saturating_mul(1_000)) / ttl_ms).max(1) as u16
+    u16::try_from(((remaining.saturating_mul(1_000)) / ttl_ms).max(1)).unwrap_or(1_000)
 }
 
 fn adjusted_cost_from_record(

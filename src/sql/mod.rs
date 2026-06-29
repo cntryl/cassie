@@ -339,7 +339,7 @@ fn infer_parameter_type_from_expected_expr(
 fn set_parameter_type_oid(oids: &mut [i32], index: usize, data_type: &DataType) {
     if let Some(oid) = oids.get_mut(index) {
         if *oid == UNKNOWN_PARAMETER_TYPE_OID {
-            *oid = data_type.type_oid() as i32;
+            *oid = i32::try_from(data_type.type_oid()).unwrap_or(i32::MAX);
         }
     }
 }

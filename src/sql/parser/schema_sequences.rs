@@ -39,7 +39,7 @@ pub(super) fn parse_alter_column_operation(raw: &str) -> Result<AlterTableOperat
 pub(super) fn parse_create_sequence_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed["create sequence".len()..].trim();
-    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
     let (name, trailing) = split_first_token(rest)
         .ok_or_else(|| SqlError("CREATE SEQUENCE requires a name".into()))?;
     let name = parse_identifier(&name)?;
@@ -71,7 +71,7 @@ pub(super) fn parse_create_sequence_statement(sql: &str) -> Result<ParsedStateme
 pub(super) fn parse_drop_sequence_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed["drop sequence".len()..].trim();
-    let (if_exists, rest) = parse_if_exists(rest)?;
+    let (if_exists, rest) = parse_if_exists(rest);
     let name = parse_identifier(rest)?;
     if name.is_empty() {
         return Err(SqlError("DROP SEQUENCE requires a name".into()));

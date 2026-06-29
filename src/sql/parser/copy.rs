@@ -17,7 +17,7 @@ pub(super) fn parse_copy_statement(sql: &str) -> Result<ParsedStatement, SqlErro
     let source = after_copy[(from_pos + 6)..].trim();
 
     let (table, columns) = parse_copy_target(target)?;
-    let (stdin, options) = split_copy_source(source)?;
+    let (stdin, options) = split_copy_source(source);
     if !stdin.eq_ignore_ascii_case("stdin") {
         return Err(SqlError("COPY only supports FROM STDIN".into()));
     }
@@ -70,12 +70,12 @@ fn parse_copy_target(raw: &str) -> Result<(String, Vec<String>), SqlError> {
     Ok((table.to_string(), columns))
 }
 
-fn split_copy_source(raw: &str) -> Result<(&str, Option<&str>), SqlError> {
+fn split_copy_source(raw: &str) -> (&str, Option<&str>) {
     let lower = raw.to_ascii_lowercase();
     if let Some(with_pos) = lower.find(" with ") {
-        return Ok((raw[..with_pos].trim(), Some(raw[(with_pos + 6)..].trim())));
+        return (raw[..with_pos].trim(), Some(raw[(with_pos + 6)..].trim()));
     }
-    Ok((raw.trim(), None))
+    (raw.trim(), None)
 }
 
 fn parse_copy_options(

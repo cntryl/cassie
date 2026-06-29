@@ -152,7 +152,7 @@ impl OpenAiProvider {
             let endpoint = endpoint.clone();
 
             let request_snapshot = request.clone();
-            let response = self.run_blocking(move || {
+            let response = Self::run_blocking(move || {
                 let response = self
                     .client
                     .post(&endpoint)
@@ -282,7 +282,7 @@ impl OpenAiProvider {
         }
     }
 
-    fn run_blocking<T, F>(&self, f: F) -> reqwest::Result<T>
+    fn run_blocking<T, F>(f: F) -> reqwest::Result<T>
     where
         F: FnOnce() -> reqwest::Result<T>,
     {

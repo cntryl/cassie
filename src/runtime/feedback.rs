@@ -188,15 +188,19 @@ pub(crate) fn recompute_feedback_confidence(record: &mut RuntimeFeedbackRecord) 
         return;
     }
 
-    let sample_factor = (record.stable_samples.saturating_mul(250)).min(1_000) as u16;
+    let sample_factor =
+        u16::try_from((record.stable_samples.saturating_mul(250)).min(1_000)).unwrap_or(1_000);
     let consistency_factor = if record.executions == 0 {
         0
     } else {
-        record
-            .stable_samples
-            .saturating_mul(1_000)
-            .checked_div(record.executions)
-            .unwrap_or(1_000) as u16
+        u16::try_from(
+            record
+                .stable_samples
+                .saturating_mul(1_000)
+                .checked_div(record.executions)
+                .unwrap_or(1_000),
+        )
+        .unwrap_or(1_000)
     };
     let error_penalty = if record.executions == 0 {
         1_000
@@ -211,7 +215,7 @@ pub(crate) fn recompute_feedback_confidence(record: &mut RuntimeFeedbackRecord) 
     };
     record.confidence_bps = sample_factor
         .min(consistency_factor)
-        .min(error_penalty.max(250) as u16);
+        .min(u16::try_from(error_penalty.max(250)).unwrap_or(1_000));
 }
 
 pub(crate) fn observation_is_outlier(

@@ -946,7 +946,7 @@ impl Catalog {
                 ..CollectionCardinalityStats::default()
             });
         if delta.is_positive() {
-            stats.row_count = stats.row_count.saturating_add(delta as u64);
+            stats.row_count = stats.row_count.saturating_add(delta.unsigned_abs());
         } else if delta.is_negative() {
             stats.row_count = stats.row_count.saturating_sub(delta.unsigned_abs());
         }

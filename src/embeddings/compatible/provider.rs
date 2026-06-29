@@ -104,14 +104,14 @@ impl OpenAiCompatibleProvider {
             let endpoint = endpoint.clone();
             let request_snapshot = request.clone();
             let api_key = self.api_key.clone();
-            let response = self.run_blocking(move || {
+            let response = Self::run_blocking(move || {
                 let builder = client.post(endpoint).json(&request_snapshot);
                 let builder = add_auth_header(builder, api_key.as_deref());
                 let response = builder.send()?;
                 let status = response.status();
                 let body = response.text()?;
                 Ok::<_, reqwest::Error>((status, body))
-            })?;
+            });
 
             match response {
                 Ok((status, body)) if status.is_success() => {
@@ -158,11 +158,11 @@ impl OpenAiCompatibleProvider {
         }
     }
 
-    fn run_blocking<T, F>(&self, f: F) -> Result<reqwest::Result<T>, EmbeddingError>
+    fn run_blocking<T, F>(f: F) -> reqwest::Result<T>
     where
         F: FnOnce() -> reqwest::Result<T>,
     {
-        Ok(f())
+        f()
     }
 }
 

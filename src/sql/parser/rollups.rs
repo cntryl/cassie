@@ -5,7 +5,7 @@ use super::{ParsedStatement, SqlError, find_top_level_keyword, Expr, parse_proje
 pub(super) fn parse_create_rollup_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed["create rollup".len()..].trim();
-    let (if_not_exists, rest) = parse_if_not_exists(rest)?;
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
 
     let on_pos = find_top_level_keyword(rest, 0, "on")
         .ok_or_else(|| SqlError("CREATE ROLLUP requires ON source".to_string()))?;
@@ -94,7 +94,7 @@ pub(super) fn parse_refresh_rollup_statement(sql: &str) -> Result<ParsedStatemen
 pub(super) fn parse_drop_rollup_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed["drop rollup".len()..].trim();
-    let (if_exists, rest) = parse_if_exists(rest)?;
+    let (if_exists, rest) = parse_if_exists(rest);
     let name = rest.trim();
     if name.is_empty() || name.split_whitespace().count() != 1 {
         return Err(SqlError("DROP ROLLUP requires one rollup name".to_string()));

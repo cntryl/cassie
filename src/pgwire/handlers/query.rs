@@ -74,7 +74,10 @@ pub fn parse_bind_param(raw: &str) -> Value {
             let mut values = Vec::new();
             for value in items {
                 if let Some(number) = value.as_f64() {
-                    values.push(number as f32);
+                    let Some(number) = parse_f64_to_f32(number) else {
+                        return Value::Json(json);
+                    };
+                    values.push(number);
                 } else {
                     return Value::Json(json);
                 }
@@ -85,6 +88,10 @@ pub fn parse_bind_param(raw: &str) -> Value {
     }
 
     Value::String(raw.to_string())
+}
+
+fn parse_f64_to_f32(value: f64) -> Option<f32> {
+    value.to_string().parse::<f32>().ok()
 }
 
 fn format_value(value: Value) -> String {

@@ -18,7 +18,7 @@ impl Value {
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             Value::Float64(v) => Some(*v),
-            Value::Int64(v) => Some(*v as f64),
+            Value::Int64(v) => v.to_string().parse::<f64>().ok(),
             _ => None,
         }
     }
@@ -27,7 +27,10 @@ impl Value {
     pub fn as_i64(&self) -> Option<i64> {
         match self {
             Value::Int64(v) => Some(*v),
-            Value::Float64(v) => Some(*v as i64),
+            Value::Float64(v) if v.is_finite() && v.fract() == 0.0 => {
+                format!("{v:.0}").parse::<i64>().ok()
+            }
+            Value::Float64(_) => None,
             _ => None,
         }
     }

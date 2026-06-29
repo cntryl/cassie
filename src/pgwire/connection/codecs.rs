@@ -39,33 +39,50 @@ pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>
             other => Ok(value_to_text(other).into_bytes()),
         },
         21 => match value {
-            Value::Int64(v) => Ok((v as i16).to_be_bytes().to_vec()),
-            Value::String(v) => {
-                parse_i64_binary(&v).map(|value| (value as i16).to_be_bytes().to_vec())
-            }
+            Value::Int64(v) => encode_i16_binary(v),
+            Value::String(v) => parse_i64_binary(&v).and_then(encode_i16_binary),
             other => Ok(value_to_text(other).into_bytes()),
         },
         20 => match value {
             Value::Int64(v) => Ok(v.to_be_bytes().to_vec()),
-            Value::Float64(v) => Ok((v as i64).to_be_bytes().to_vec()),
+            Value::Float64(v) => encode_f64_as_i64_binary(v),
             Value::String(v) => parse_i64_binary(&v).map(|value| value.to_be_bytes().to_vec()),
             other => Ok(value_to_text(other).into_bytes()),
         },
         23 => match value {
-            Value::Int64(v) => Ok((v as i32).to_be_bytes().to_vec()),
-            Value::String(v) => {
-                parse_i64_binary(&v).map(|value| (value as i32).to_be_bytes().to_vec())
-            }
+            Value::Int64(v) => encode_i32_binary(v),
+            Value::String(v) => parse_i64_binary(&v).and_then(encode_i32_binary),
             other => Ok(value_to_text(other).into_bytes()),
         },
         701 => match value {
             Value::Float64(v) => Ok(v.to_be_bytes().to_vec()),
-            Value::Int64(v) => Ok((v as f64).to_be_bytes().to_vec()),
+            Value::Int64(v) => encode_i64_as_f64_binary(v),
             Value::String(v) => parse_f64_binary(&v).map(|value| value.to_be_bytes().to_vec()),
             other => Ok(value_to_text(other).into_bytes()),
         },
         _ => Ok(value_to_text(value).into_bytes()),
     }
+}
+
+fn encode_i16_binary(value: i64) -> io::Result<Vec<u8>> {
+    i16::try_from(value)
+        .map(|value| value.to_be_bytes().to_vec())
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "int2 out of range"))
+}
+
+fn encode_i32_binary(value: i64) -> io::Result<Vec<u8>> {
+    i32::try_from(value)
+        .map(|value| value.to_be_bytes().to_vec())
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "int4 out of range"))
+}
+
+fn encode_f64_as_i64_binary(value: f64) -> io::Result<Vec<u8>> {
+    let integer = parse_f64_to_i64(value)?;
+    Ok(integer.to_be_bytes().to_vec())
+}
+
+fn encode_i64_as_f64_binary(value: i64) -> io::Result<Vec<u8>> {
+    parse_i64_to_f64(value).map(|value| value.to_be_bytes().to_vec())
 }
 
 fn parse_bool_binary(value: &str) -> io::Result<Vec<u8>> {
@@ -93,6 +110,31 @@ fn parse_f64_binary(value: &str) -> io::Result<f64> {
         io::Error::new(
             io::ErrorKind::InvalidData,
             "cannot encode float value to binary",
+        )
+    })
+}
+
+fn parse_f64_to_i64(value: f64) -> io::Result<i64> {
+    if !value.is_finite() || value.fract() != 0.0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "cannot encode non-integral float as int8",
+        ));
+    }
+
+    format!("{value:.0}").parse::<i64>().map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "cannot encode float value to int8",
+        )
+    })
+}
+
+fn parse_i64_to_f64(value: i64) -> io::Result<f64> {
+    value.to_string().parse::<f64>().map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "cannot encode int8 value to float8",
         )
     })
 }

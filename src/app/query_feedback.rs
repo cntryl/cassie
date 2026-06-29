@@ -127,7 +127,7 @@ impl Cassie {
         };
 
         let (_base_key, base_estimate) =
-            self.feedback_planned_candidate(database.clone(), collection, logical, base_candidate);
+            self.feedback_planned_candidate(database, collection, logical, base_candidate);
         let mut chosen_candidate = base_candidate;
         let mut chosen_estimate = base_estimate.clone();
         let mut chosen_cost = if base_estimate.state == "used" {
@@ -142,7 +142,7 @@ impl Cassie {
             .filter(|candidate| !candidate.base_selected)
         {
             let (_key, estimate) =
-                self.feedback_planned_candidate(database.clone(), collection, logical, candidate);
+                self.feedback_planned_candidate(database, collection, logical, candidate);
             if estimate.state == "used" && estimate.adjusted_cost < chosen_cost {
                 chosen_candidate = candidate;
                 chosen_cost = estimate.adjusted_cost;
@@ -275,10 +275,10 @@ impl Cassie {
     #[doc(hidden)]
     pub fn seed_feedback_for_diagnostics(
         &self,
-        key: RuntimeFeedbackKey,
-        observation: RuntimeFeedbackObservation,
+        key: &RuntimeFeedbackKey,
+        observation: &RuntimeFeedbackObservation,
     ) -> Result<(), CassieError> {
-        self.runtime.record_feedback(&key, &observation);
+        self.runtime.record_feedback(key, observation);
         self.persist_runtime_feedback();
         Ok(())
     }

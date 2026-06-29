@@ -34,7 +34,13 @@ pub fn normalize(values: &[f32]) -> Option<NormalizedVector> {
     } else {
         values
             .iter()
-            .map(|value| (f64::from(*value) / magnitude) as f32)
+            .map(|value| {
+                let normalized = f64::from(*value) / magnitude;
+                normalized
+                    .to_string()
+                    .parse::<f32>()
+                    .expect("normalized f32")
+            })
             .collect::<Vec<_>>()
     };
 

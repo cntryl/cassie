@@ -955,12 +955,14 @@ impl<'a> Cursor<'a> {
     }
 
     fn read_len_prefixed(&mut self) -> Result<Vec<u8>, CassieError> {
-        let len = self.read_varint()? as usize;
+        let len = usize::try_from(self.read_varint()?)
+            .map_err(|_| CassieError::Parse("row blob length overflow".to_string()))?;
         Ok(self.read_exact(len)?.to_vec())
     }
 
     fn skip_len_prefixed(&mut self) -> Result<(), CassieError> {
-        let len = self.read_varint()? as usize;
+        let len = usize::try_from(self.read_varint()?)
+            .map_err(|_| CassieError::Parse("row blob length overflow".to_string()))?;
         self.skip_exact(len)
     }
 

@@ -36,7 +36,7 @@ pub(super) fn compare_scored_vector_candidates(
 }
 
 pub(super) fn vector_distance_for_metric(
-    metric: &DistanceMetric,
+    metric: DistanceMetric,
     query: &[f32],
     target: &[f32],
 ) -> f64 {
@@ -55,7 +55,8 @@ pub(super) fn vector_from_json(value: &serde_json::Value) -> Option<Vec<f32>> {
     let values = value.as_array()?;
     let mut vector = Vec::with_capacity(values.len());
     for value in values {
-        vector.push(value.as_f64()? as f32);
+        let parsed = value.as_f64()?.to_string().parse::<f32>().ok()?;
+        vector.push(parsed);
     }
     Some(vector)
 }

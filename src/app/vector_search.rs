@@ -25,7 +25,7 @@ impl Cassie {
 
         self.validate_embedding_compatibility(&index, metric.as_ref())?;
 
-        let metric = metric.unwrap_or(index.metadata.metric.clone());
+        let metric = metric.unwrap_or(index.metadata.metric);
         let limit = limit.max(1);
         let catalog_version = self.catalog.version();
         let result_cache_key = VectorSearchResultCacheKey {
@@ -177,7 +177,7 @@ impl Cassie {
                 collection,
                 vector_field,
                 query,
-                &metric,
+                metric,
                 limit,
                 offset,
             )? {
@@ -266,7 +266,7 @@ impl Cassie {
                 match &metric {
                     DistanceMetric::Cosine => normalized_query
                         .as_ref().map_or_else(|| {
-                            (vector_distance_for_metric(&metric, query, &vector), false)
+                            (vector_distance_for_metric(metric, query, &vector), false)
                         }, |normalized_query| {
                             let record = normalized_record.expect("normalized record");
                             (
@@ -289,11 +289,11 @@ impl Cassie {
                         )
                     }
                     DistanceMetric::L2 => {
-                        (vector_distance_for_metric(&metric, query, &vector), false)
+                        (vector_distance_for_metric(metric, query, &vector), false)
                     }
                 }
             } else {
-                (vector_distance_for_metric(&metric, query, &vector), false)
+                (vector_distance_for_metric(metric, query, &vector), false)
             };
             if used_normalized {
                 normalized_candidate_count += 1;
@@ -343,7 +343,7 @@ impl Cassie {
         collection: &str,
         vector_field: &str,
         query: &[f32],
-        metric: &DistanceMetric,
+        metric: DistanceMetric,
         limit: usize,
         offset: usize,
     ) -> Result<Option<QueryResult>, CassieError> {
@@ -461,7 +461,7 @@ impl Cassie {
         vector_field: &str,
         catalog_version: u64,
         expected_cardinality: usize,
-        metric: &DistanceMetric,
+        metric: DistanceMetric,
         dimensions: usize,
     ) -> Result<Option<Arc<NormalizedVectorCacheEntry>>, CassieError> {
         let key = NormalizedVectorCacheKey {
@@ -475,7 +475,7 @@ impl Cassie {
             const SENTINEL_VALIDATION_MAX_CARDINALITY: usize = 1024;
             let entry_current = entry.ids.len() > SENTINEL_VALIDATION_MAX_CARDINALITY
                 || self.normalized_vector_cache_entry_current(collection, vector_field, &entry)?;
-            if entry.metric == *metric && entry.dimensions == dimensions && entry_current {
+            if entry.metric == metric && entry.dimensions == dimensions && entry_current {
                 return Ok(Some(entry));
             }
             self.normalized_vector_cache.lock().remove(&key);
@@ -541,7 +541,7 @@ impl Cassie {
     fn build_normalized_vector_cache_entry(
         records: Vec<NormalizedVectorRecord>,
         expected_cardinality: usize,
-        metric: &DistanceMetric,
+        metric: DistanceMetric,
         dimensions: usize,
     ) -> Option<NormalizedVectorCacheEntry> {
         if records.len() != expected_cardinality {
@@ -551,7 +551,7 @@ impl Cassie {
             record.payload_available
                 && record.normalization_version
                     == NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION
-                && &record.metric == metric
+                && record.metric == metric
                 && record.dimensions == dimensions
                 && record.values.len() == dimensions
         }) {
@@ -574,7 +574,7 @@ impl Cassie {
             values,
             magnitudes,
             dimensions,
-            metric: metric.clone(),
+            metric,
             first_record,
             last_record,
         })

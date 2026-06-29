@@ -1,5 +1,6 @@
-use super::*;
+use super::{Value, Hash, Hasher, ParameterShape, CassieError, Duration, Serialize, Write, io, VecDeque, PlanCacheKey, RuntimeFeedbackKey, RuntimeFeedbackRecord, RuntimeFeedbackObservation, observation_is_outlier, recompute_feedback_confidence, RuntimeFeedbackState};
 
+#[must_use]
 pub fn hash_params(params: &[Value]) -> u64 {
     fn hash_value(hasher: &mut std::hash::DefaultHasher, value: &Value) {
         match value {
@@ -41,10 +42,12 @@ pub fn parameter_shape(params: &[Value]) -> Vec<ParameterShape> {
     params.iter().map(parameter_shape_for_value).collect()
 }
 
+#[must_use]
 pub fn sql_fingerprint(statement: &crate::sql::ast::ParsedStatement) -> u64 {
     stable_fingerprint(&statement.statement)
 }
 
+#[must_use]
 pub fn error_class(error: &CassieError) -> &'static str {
     match error {
         CassieError::CollectionNotFound(_) => "collection_not_found",
@@ -87,22 +90,23 @@ pub(super) fn status_class(status: u16) -> String {
 }
 
 pub(super) fn duration_ms(duration: Duration) -> u64 {
-    duration.as_millis().min(u64::MAX as u128) as u64
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
 pub(super) fn adjust_signed(value: &mut u64, delta: isize) {
     if delta.is_negative() {
-        *value = value.saturating_sub(delta.unsigned_abs() as u64);
+        *value = value.saturating_sub(u64::try_from(delta.unsigned_abs()).unwrap_or(u64::MAX));
     } else {
-        *value = value.saturating_add(delta as u64);
+        *value = value.saturating_add(u64::try_from(delta).unwrap_or(u64::MAX));
     }
 }
 
 pub(super) fn current_time_millis() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as u64)
-        .unwrap_or(0)
+        .map_or(0, |duration| {
+            u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+        })
 }
 
 pub(crate) fn stable_fingerprint<T: Serialize>(value: &T) -> u64 {
@@ -124,8 +128,8 @@ impl StableFingerprintWriter {
 
 impl Write for StableFingerprintWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
-        const FNV_PRIME: u64 = 0x100000001b3;
+        const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+        const FNV_PRIME: u64 = 0x0100_0000_01b3;
 
         if self.state == 0 {
             self.state = FNV_OFFSET_BASIS;
@@ -263,15 +267,17 @@ mod tests {
     use super::*;
     use crate::planner::logical::LogicalPlan;
     use crate::planner::physical::{Operator, PhysicalPlan};
+    use crate::runtime::{ExecutionMode, RuntimeState};
     use crate::sql::ast::QuerySource;
+    use std::sync::Arc;
 
     fn sample_plan() -> PhysicalPlan {
         PhysicalPlan {
             collection: "bench_documents".to_string(),
             operators: vec![Operator::Scan, Operator::Filter, Operator::Project],
-            estimates: Default::default(),
-            operator_feedback: Default::default(),
-            adaptive_plan: Default::default(),
+            estimates: crate::planner::physical::PlanEstimates::default(),
+            operator_feedback: crate::planner::physical::OperatorFeedbackPlanDiagnostics::default(),
+            adaptive_plan: crate::planner::physical::AdaptivePlanDiagnostics::default(),
             predicate_pushdown: false,
             projected_scan_fields: Vec::new(),
             scan_limit: None,

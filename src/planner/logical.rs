@@ -82,6 +82,9 @@ pub enum LogicalCommand {
     Delete(DeleteStatement),
 }
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
     match &bound.statement.statement {
         QueryStatement::Explain(_) => Err(CassieError::Planner(
@@ -436,8 +439,7 @@ fn require_name(value: &str, message: &'static str) -> Result<(), CassieError> {
 
 fn source_name(source: &QuerySource) -> String {
     match source {
-        QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
-        QuerySource::TableFunction { name, .. } => name.clone(),
+        QuerySource::Collection(name) | QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
         QuerySource::SingleRow => "single_row".to_string(),
         QuerySource::Subquery { alias, .. } => alias.clone(),
         QuerySource::Join { .. } => "join".to_string(),

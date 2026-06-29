@@ -33,6 +33,9 @@ pub fn run_simple_query(
     }
 }
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub fn describe_query(
     cassie: &Cassie,
     sql: &str,
@@ -40,6 +43,7 @@ pub fn describe_query(
     cassie.describe_sql(sql)
 }
 
+#[must_use]
 pub fn parse_bind_param(raw: &str) -> Value {
     let raw = raw.trim();
     if raw.eq_ignore_ascii_case("null") {
@@ -94,7 +98,7 @@ fn format_value(value: Value) -> String {
             "[{}]",
             v.values
                 .iter()
-                .map(|item| item.to_string())
+                .map(std::string::ToString::to_string)
                 .collect::<Vec<_>>()
                 .join(",")
         ),

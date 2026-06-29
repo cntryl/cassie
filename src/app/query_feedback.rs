@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, RuntimeFeedbackKey, RuntimeFeedbackObservation, QueryExecutionControls, Arc, CassieError, binder, CassieSession, parser};
 
 impl Cassie {
     pub(crate) fn feedback_keys_for_plan(
@@ -228,6 +228,7 @@ impl Cassie {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn feedback_record_for_diagnostics(
         &self,
         key: &RuntimeFeedbackKey,

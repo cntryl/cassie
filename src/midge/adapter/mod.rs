@@ -387,11 +387,17 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn schema_epoch(&self) -> Result<u64, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
         Self::load_schema_epoch_from_tx(&tx)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn bump_schema_epoch(&self) -> Result<u64, CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let next = Self::load_schema_epoch_from_tx(&tx)?.saturating_add(1);
@@ -592,6 +598,7 @@ impl From<&Value> for Vector {
     }
 }
 
+#[must_use]
 pub fn vector_from_json(value: &serde_json::Value) -> Option<Vector> {
     let arr = value.as_array()?;
     let mut nums = Vec::with_capacity(arr.len());

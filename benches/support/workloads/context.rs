@@ -281,7 +281,7 @@ impl MockTeiEmbeddingServer {
                         let body = read_http_body(&mut stream);
                         let inputs = serde_json::from_slice::<serde_json::Value>(&body)
                             .ok()
-                            .and_then(|value| value["inputs"].as_array().map(|items| items.len()))
+                            .and_then(|value| value["inputs"].as_array().map(std::vec::Vec::len))
                             .unwrap_or(1);
                         let vectors = vec![vec![1.0_f32, 0.0, 0.0]; inputs];
                         let response = serde_json::to_string(&vectors).expect("tei response");

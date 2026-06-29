@@ -20,6 +20,9 @@ fn default_kind() -> String {
     "vector".to_string()
 }
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Value, CassieError> {
     let payload = parse_create_index_request(body)?;
     validate_index_kind(&payload)?;

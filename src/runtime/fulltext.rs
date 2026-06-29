@@ -1,4 +1,4 @@
-use super::*;
+use super::{Hash, HashMap, AnalyzerConfig};
 
 #[derive(Debug, Clone, Default)]
 pub struct FulltextIndexOptions {

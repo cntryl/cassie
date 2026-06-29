@@ -18,13 +18,13 @@ fn bench_plan_cache(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("plan_cache_hit", |b| {
-        b.iter(|| runtime.block_on(workloads::plan_cache_hit(&ctx)))
+        b.iter(|| runtime.block_on(workloads::plan_cache_hit(&ctx)));
     });
     group.bench_function("plan_cache_miss", |b| {
         b.iter(|| {
             miss_nonce = miss_nonce.wrapping_add(1);
             runtime.block_on(workloads::plan_cache_miss(&ctx, miss_nonce))
-        })
+        });
     });
 
     group.finish();

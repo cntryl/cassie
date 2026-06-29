@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, CassieSession, HashMap, FunctionMeta, Value, LogicalPlan, BatchRow, QueryError, batch, scan, vector_prefilter_supported, filter, BinaryHeap, value_to_vector, SortDirection, QuerySource, SelectItem, FunctionCall, Expr, CmpOrdering};
 
 pub(crate) fn execute_vector_distance_top_k(
     cassie: &Cassie,
@@ -127,9 +127,7 @@ fn execute_ivfflat_vector_top_k(
     }
 
     let started_at = std::time::Instant::now();
-    let normalized_query = crate::vector::normalize(&spec.query)
-        .map(|normalized| normalized.values)
-        .unwrap_or_else(|| spec.query.clone());
+    let normalized_query = crate::vector::normalize(&spec.query).map_or_else(|| spec.query.clone(), |normalized| normalized.values);
     let probed_lists = ivfflat_probe_lists(&normalized_query, training);
     let normalized_vectors = cassie
         .midge

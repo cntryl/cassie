@@ -1,13 +1,13 @@
-use super::*;
+use crate::embeddings::EmbeddingProvider;
+use super::{CassieRuntimeConfig, Arc, CassieError, EmbeddingsRuntimeConfig, LocalProvider, VoyageProvider, CohereProvider, OpenAiRuntimeConfig, OpenAiProviderConfig, OpenAiProvider, OpenAiCompatibleRuntimeConfig, OpenAiCompatibleProvider, OpenAiCompatibleProviderConfig, SelfHostedEmbeddingRuntimeConfig, TeiProvider, TeiProviderConfig, OllamaProvider, OllamaProviderConfig, Cassie, VectorIndexRecord, DistanceMetric, Embedding};
 
 pub(super) fn build_embedding_provider(
     config: &CassieRuntimeConfig,
 ) -> Result<Arc<dyn EmbeddingProvider>, CassieError> {
     match &config.embeddings {
-        EmbeddingsRuntimeConfig::Disabled => Ok(Arc::new(LocalProvider)),
         EmbeddingsRuntimeConfig::Voyage => Ok(Arc::new(VoyageProvider)),
         EmbeddingsRuntimeConfig::Cohere => Ok(Arc::new(CohereProvider)),
-        EmbeddingsRuntimeConfig::Local => Ok(Arc::new(LocalProvider)),
+        EmbeddingsRuntimeConfig::Disabled | EmbeddingsRuntimeConfig::Local => Ok(Arc::new(LocalProvider)),
         EmbeddingsRuntimeConfig::OpenAI(runtime) => build_openai_provider(runtime),
         EmbeddingsRuntimeConfig::OpenAiCompatible(runtime) => {
             build_openai_compatible_provider(runtime)

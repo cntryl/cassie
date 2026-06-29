@@ -1,4 +1,4 @@
-use super::*;
+use super::{Instant, CassieRuntimeLimits, Duration};
 
 #[derive(Debug, Clone, Copy)]
 pub struct QueryExecutionControls {
@@ -9,6 +9,7 @@ pub struct QueryExecutionControls {
 }
 
 impl QueryExecutionControls {
+    #[must_use]
     pub fn from_limits(limits: &CassieRuntimeLimits, started_at: Instant) -> Self {
         let deadline = if limits.query_timeout_ms == 0 {
             Some(started_at)
@@ -26,6 +27,7 @@ impl QueryExecutionControls {
         }
     }
 
+    #[must_use]
     pub fn is_timed_out(&self) -> bool {
         self.deadline
             .is_some_and(|deadline| Instant::now() >= deadline)

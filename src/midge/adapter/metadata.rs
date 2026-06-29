@@ -1,6 +1,9 @@
-use super::*;
+use super::{Midge, CassieError, IndexMeta, IndexKind, StorageFamily, RollupMeta, RetentionPolicyMeta, FieldConstraint, CollectionCardinalityStats, key_encoding, WriteOptions, payload_contains_index_membership, payload_contains_vector_membership, NormalizedVectorRecord, normalize_vector, Query, VectorIndexRecord, RoleMeta, Schema, ProjectionMeta};
 
 impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_vector_index(
         &self,
         mut metadata: crate::embeddings::VectorIndexRecord,
@@ -29,6 +32,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn get_vector_index(
         &self,
         collection: &str,
@@ -48,6 +54,9 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid vector index metadata: {error}")))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_index(&self, metadata: IndexMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::index_key(&metadata.collection, &metadata.name);
@@ -65,6 +74,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn get_index(
         &self,
         collection: &str,
@@ -83,6 +95,9 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_indexes(&self) -> Result<Vec<IndexMeta>, CassieError> {
         let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::index_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
@@ -97,6 +112,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn delete_index(&self, collection: &str, name: &str) -> Result<(), CassieError> {
         let metadata = self.get_index(collection, name)?;
         let mut tx = self.begin_schema_rw_tx()?;
@@ -115,6 +133,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_rollup(&self, metadata: RollupMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
@@ -126,6 +147,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_rollups(&self) -> Result<Vec<RollupMeta>, CassieError> {
         let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::rollup_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
@@ -138,6 +162,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn delete_rollup(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::rollup_key(name))
@@ -147,6 +174,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_retention_policy(&self, metadata: RetentionPolicyMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
@@ -158,6 +188,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_retention_policies(&self) -> Result<Vec<RetentionPolicyMeta>, CassieError> {
         let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::retention_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
@@ -170,6 +203,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn delete_retention_policy(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::retention_key(name))
@@ -179,6 +215,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_graph(&self, metadata: crate::catalog::GraphMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
@@ -190,6 +229,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_graphs(&self) -> Result<Vec<crate::catalog::GraphMeta>, CassieError> {
         let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::graph_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
@@ -202,6 +244,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn delete_vector_index(&self, collection: &str, field: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::vector_index_key(collection, field))
@@ -220,6 +265,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_projection_comparison_report(
         &self,
         report: crate::catalog::ProjectionComparisonReportMeta,
@@ -238,6 +286,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_projection_comparison_reports(
         &self,
     ) -> Result<Vec<crate::catalog::ProjectionComparisonReportMeta>, CassieError> {
@@ -258,6 +309,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_projection_consistency_report(
         &self,
         report: crate::catalog::ProjectionConsistencyReportMeta,
@@ -276,6 +330,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_projection_consistency_reports(
         &self,
     ) -> Result<Vec<crate::catalog::ProjectionConsistencyReportMeta>, CassieError> {
@@ -296,6 +353,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn save_constraints(
         &self,
         collection: &str,
@@ -311,6 +371,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn load_constraints(&self, collection: &str) -> Result<Vec<FieldConstraint>, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
         let raw = tx
@@ -324,6 +387,9 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid constraint metadata: {error}")))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_vector_indexes(
         &self,
     ) -> Result<Vec<crate::embeddings::VectorIndexRecord>, CassieError> {
@@ -340,6 +406,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn get_cardinality_stats(
         &self,
         collection: &str,
@@ -348,6 +417,9 @@ impl Midge {
         Self::load_cardinality_stats_from_tx(&tx, collection)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_cardinality_stats(
         &self,
     ) -> Result<std::collections::HashMap<String, CollectionCardinalityStats>, CassieError> {
@@ -365,6 +437,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn save_cardinality_stats(
         &self,
         collection: &str,
@@ -376,6 +451,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn delete_cardinality_stats(&self, collection: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::cardinality_key(collection))
@@ -384,6 +462,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn rebuild_cardinality_stats_for_collection(
         &self,
         collection: &str,
@@ -551,6 +632,9 @@ impl Midge {
         Ok(deleted_keys)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn rebuild_normalized_vectors_for_index(
         &self,
         index: &VectorIndexRecord,
@@ -583,6 +667,9 @@ impl Midge {
         Ok(records.len())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn rebuild_ivfflat_training(
         &self,
         index: &VectorIndexRecord,
@@ -603,7 +690,7 @@ impl Midge {
                 training_seed: options.training_seed,
                 centroid_ids: Vec::new(),
                 centroids: Vec::new(),
-                assignments: Default::default(),
+                assignments: std::collections::BTreeMap::default(),
                 list_sizes: vec![0; lists],
             });
         }
@@ -650,6 +737,9 @@ impl Midge {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn refresh_ivfflat_indexes_for_collection(
         &self,
         collection: &str,
@@ -668,6 +758,9 @@ impl Midge {
         Ok(refreshed)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_normalized_vectors(
         &self,
         collection: &str,
@@ -690,6 +783,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn get_normalized_vector(
         &self,
         collection: &str,
@@ -709,6 +805,9 @@ impl Midge {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_function(&self, metadata: crate::catalog::FunctionMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::function_key(&metadata.name);
@@ -720,6 +819,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn get_function(
         &self,
         name: &str,
@@ -737,6 +839,9 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid function metadata: {error}")))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_functions(&self) -> Result<Vec<crate::catalog::FunctionMeta>, CassieError> {
         let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::function_prefix())?;
         let mut out: Vec<crate::catalog::FunctionMeta> = Vec::with_capacity(entries.len());
@@ -750,6 +855,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn delete_function(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::function_key(name))
@@ -759,6 +867,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_procedure(
         &self,
         metadata: crate::catalog::ProcedureMeta,
@@ -773,6 +884,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn get_procedure(
         &self,
         name: &str,
@@ -790,6 +904,9 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid procedure metadata: {error}")))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_procedures(&self) -> Result<Vec<crate::catalog::ProcedureMeta>, CassieError> {
         let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::procedure_prefix())?;
         let mut out: Vec<crate::catalog::ProcedureMeta> = Vec::with_capacity(entries.len());
@@ -803,6 +920,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn delete_procedure(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::procedure_key(name))
@@ -812,6 +932,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_view(&self, metadata: crate::catalog::ViewMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::view_key(&metadata.name);
@@ -823,6 +946,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn get_view(&self, name: &str) -> Result<Option<crate::catalog::ViewMeta>, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
         let raw = tx.get(&Self::view_key(name)).map_err(CassieError::from)?;
@@ -835,6 +961,9 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid view metadata: {error}")))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_views(&self) -> Result<Vec<crate::catalog::ViewMeta>, CassieError> {
         let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::view_prefix())?;
         let mut out: Vec<crate::catalog::ViewMeta> = Vec::with_capacity(entries.len());
@@ -848,6 +977,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn delete_view(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::view_key(name)).map_err(CassieError::from)?;
@@ -856,6 +988,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_role(&self, metadata: RoleMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::role_key(&metadata.name);
@@ -867,6 +1002,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn get_role(&self, name: &str) -> Result<Option<RoleMeta>, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
         let raw = tx.get(&Self::role_key(name)).map_err(CassieError::from)?;
@@ -879,6 +1017,9 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid role metadata: {error}")))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_roles(&self) -> Result<Vec<RoleMeta>, CassieError> {
         let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::role_prefix())?;
         let mut out: Vec<RoleMeta> = Vec::with_capacity(entries.len());
@@ -892,6 +1033,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn delete_role(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::role_key(name)).map_err(CassieError::from)?;
@@ -909,6 +1053,9 @@ impl Midge {
         serde_json::from_slice(&raw).ok()
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn projection_metadata(
         &self,
         collection: &str,
@@ -918,24 +1065,16 @@ impl Midge {
     }
 
     pub fn list_collections(&self) -> Vec<String> {
-        let tx = match self.begin_schema_readonly_tx() {
-            Ok(tx) => tx,
-            Err(_) => return Vec::new(),
-        };
+        let Ok(tx) = self.begin_schema_readonly_tx() else { return Vec::new() };
 
-        self.load_collections(&tx)
-            .map(|mut values| {
+        self.load_collections(&tx).map_or_else(|_| Vec::new(), |mut values| {
                 values.sort();
                 values
             })
-            .unwrap_or_else(|_| Vec::new())
     }
 
     pub fn list_collections_from_schema(&self) -> Vec<String> {
-        let tx = match self.begin_schema_readonly_tx() {
-            Ok(tx) => tx,
-            Err(_) => return Vec::new(),
-        };
+        let Ok(tx) = self.begin_schema_readonly_tx() else { return Vec::new() };
         let Ok(mut scan) = tx.scan(&Query::new().prefix(Self::schema_collection_prefix().into()))
         else {
             return Vec::new();
@@ -956,10 +1095,10 @@ impl Midge {
 }
 
 fn ivfflat_training_order(seed: u64, id: &str) -> u64 {
-    let mut state = 0xcbf29ce484222325_u64 ^ seed;
+    let mut state = 0xcbf2_9ce4_8422_2325_u64 ^ seed;
     for byte in id.as_bytes() {
         state ^= u64::from(*byte);
-        state = state.wrapping_mul(0x100000001b3);
+        state = state.wrapping_mul(0x0100_0000_01b3);
     }
     state
 }
@@ -973,8 +1112,7 @@ fn nearest_ivfflat_centroid(vector: &[f32], centroids: &[Vec<f32>]) -> usize {
                 .total_cmp(&squared_l2(vector, right))
                 .then_with(|| left_index.cmp(right_index))
         })
-        .map(|(index, _)| index)
-        .unwrap_or(0)
+        .map_or(0, |(index, _)| index)
 }
 
 fn squared_l2(left: &[f32], right: &[f32]) -> f64 {

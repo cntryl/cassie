@@ -1,4 +1,4 @@
-use super::*;
+use super::{SourceExecutionEnv, QuerySource, JoinKind, Expr, CteContext, BatchRow, QueryError, execute_query_source, batch, check_timeout, combine_rows, filter, qualify_row, scan, catalog, Value, SourceExecution, source_contains_lateral, row_columns, Batch, combine_row_with_nulls, combine_nulls_with_row, value_sort_key, BinaryOp, deduce_text_fields};
 
 const VECTOR_TO_MERGE_SWITCH_PAIR: &str = "vectorized_join_to_merge_join";
 
@@ -85,9 +85,7 @@ pub(super) fn execute_join_source<'a>(
             &right_rows,
             &right_columns,
             row_budget,
-        )?
-        .map(Ok)
-        .unwrap_or_else(|| {
+        )?.map_or_else(|| {
             execute_merge_join(
                 env,
                 kind,
@@ -98,7 +96,7 @@ pub(super) fn execute_join_source<'a>(
                 &left_columns,
                 &right_columns,
             )
-        })?,
+        }, Ok)?,
         None => execute_nested_loop_join(
             env,
             kind,
@@ -525,18 +523,14 @@ fn keyed_rows(rows: Vec<BatchRow>, key_column: &str) -> Vec<KeyedRow> {
     rows.into_iter()
         .map(|row| {
             let key = row
-                .get(key_column)
-                .map(value_sort_key)
-                .unwrap_or_else(|| value_sort_key(&Value::Null));
+                .get(key_column).map_or_else(|| value_sort_key(&Value::Null), value_sort_key);
             KeyedRow { key, row }
         })
         .collect()
 }
 
 fn row_join_key(row: &BatchRow, key_column: &str) -> String {
-    row.get(key_column)
-        .map(value_sort_key)
-        .unwrap_or_else(|| value_sort_key(&Value::Null))
+    row.get(key_column).map_or_else(|| value_sort_key(&Value::Null), value_sort_key)
 }
 
 fn estimate_vectorized_join_bytes(left_rows: usize, right_rows: usize) -> usize {

@@ -32,7 +32,7 @@ fn bench_ingest(c: &mut Criterion) {
                 elapsed += runtime.block_on(workloads::timed_ingest_document_batch(&ctx_10k, 64));
             }
             elapsed
-        })
+        });
     });
     group.bench_function("projection_duplicate_replay", |b| {
         b.iter(|| {
@@ -41,7 +41,7 @@ fn bench_ingest(c: &mut Criterion) {
                 &ctx_10k,
                 replay_nonce,
             ))
-        })
+        });
     });
     for (dataset, ctx) in [("10k", &ctx_10k), ("100k", &ctx_100k)] {
         let benchmark =
@@ -52,7 +52,7 @@ fn bench_ingest(c: &mut Criterion) {
                 b.iter(|| {
                     replay_nonce = replay_nonce.wrapping_add(1);
                     runtime.block_on(workloads::projection_lag_catchup(ctx, replay_nonce))
-                })
+                });
             },
         );
     }

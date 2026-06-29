@@ -66,8 +66,7 @@ pub enum QuerySource {
 impl PartialEq for QuerySource {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Collection(left), Self::Collection(right)) => left == right,
-            (Self::Cte(left), Self::Cte(right)) => left == right,
+            (Self::Collection(left), Self::Collection(right)) | (Self::Cte(left), Self::Cte(right)) => left == right,
             (Self::TableFunction { name: left, .. }, Self::TableFunction { name: right, .. }) => {
                 left == right
             }
@@ -382,6 +381,7 @@ pub enum ProjectionRepairScope {
 }
 
 impl ProjectionRepairScope {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Row => "row",
@@ -402,6 +402,7 @@ pub enum ProjectionVerificationMode {
 }
 
 impl ProjectionVerificationMode {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::MetadataOnly => "metadata_only",

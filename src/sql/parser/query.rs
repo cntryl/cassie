@@ -1,6 +1,6 @@
-use super::clauses::*;
-use super::expr::*;
-use super::*;
+use super::clauses::{find_top_level_keyword, split_top_level, strip_parentheses, parse_clauses, ClauseToken, Clause};
+use super::expr::{split_csv, parse_alias, parse_expression, parse_function, parse_order_by, split_csv_quoted_by_space, take_int};
+use super::{ParsedStatement, SqlError, SelectItem, Expr, FunctionCall, WindowFunctionCall, OrderExpr, QuerySource, JoinKind, parse_statement, QueryStatement, CommonTableExpression, HashSet, SelectStatement, SetOperator, SelectSet, CteQuery};
 
 pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let remainder = sql[4..].trim_start();
@@ -378,9 +378,7 @@ pub(super) fn parse_select_statement(
     } else {
         let clauses = parse_clauses(after_select)?;
         let first_clause = clauses
-            .first()
-            .map(|clause| clause.position)
-            .unwrap_or_else(|| after_select.len());
+            .first().map_or_else(|| after_select.len(), |clause| clause.position);
         let select_part = after_select[..first_clause].trim();
         if select_part.is_empty() {
             return Err(SqlError("missing projection in SELECT statement".into()));
@@ -434,9 +432,7 @@ pub(super) fn parse_select_statement(
     let clauses = parse_clauses(&rest)?;
 
     let first_clause = clauses
-        .first()
-        .map(|clause| clause.position)
-        .unwrap_or_else(|| rest.len());
+        .first().map_or_else(|| rest.len(), |clause| clause.position);
     let source = if let Some(source) = source {
         source
     } else {
@@ -457,9 +453,7 @@ pub(super) fn parse_select_statement(
     let mut seen = HashSet::new();
     for (idx, clause) in clauses.iter().enumerate() {
         let next_pos = clauses
-            .get(idx + 1)
-            .map(|clause| clause.position)
-            .unwrap_or_else(|| rest.len());
+            .get(idx + 1).map_or_else(|| rest.len(), |clause| clause.position);
 
         let token_text = match clause.token {
             ClauseToken::Recognized(clause_kind) => clause_kind.token(),
@@ -483,7 +477,7 @@ pub(super) fn parse_select_statement(
 
         match clause.token {
             ClauseToken::Unsupported(kind) => {
-                return Err(SqlError(format!("unsupported clause '{}'", kind)));
+                return Err(SqlError(format!("unsupported clause '{kind}'")));
             }
             ClauseToken::Recognized(kind) => match kind {
                 Clause::Where => {
@@ -670,9 +664,7 @@ pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, S
 
     for (idx, clause) in clauses.iter().enumerate() {
         let next_pos = clauses
-            .get(idx + 1)
-            .map(|clause| clause.position)
-            .unwrap_or_else(|| rest.len());
+            .get(idx + 1).map_or_else(|| rest.len(), |clause| clause.position);
         let ClauseToken::Recognized(kind) = clause.token else {
             return Err(SqlError(format!("unsupported clause '{}'", clause.text())));
         };
@@ -737,15 +729,12 @@ pub(super) fn parse_cte_definitions(
         let (name, aliases) = parse_cte_header(head)?;
         let body_sql = parse_enclosed_parenthesized(body)
             .ok_or_else(|| SqlError(format!("invalid CTE body for '{name}'")))?;
-        let query = match parse_recursive_cte_query(&body_sql) {
-            Some(query) => query,
-            None => {
-                let parsed_body = parse_statement(&body_sql).map_err(|error| {
-                    SqlError(format!("invalid CTE body for '{name}': {}", error.0))
-                })?;
+        let query = if let Some(query) = parse_recursive_cte_query(&body_sql) { query } else {
+            let parsed_body = parse_statement(&body_sql).map_err(|error| {
+                SqlError(format!("invalid CTE body for '{name}': {}", error.0))
+            })?;
 
-                CteQuery::Simple(Box::new(parsed_body))
-            }
+            CteQuery::Simple(Box::new(parsed_body))
         };
         if recursive && !matches!(query, CteQuery::Recursive { .. }) {
             return Err(SqlError(format!(
@@ -757,7 +746,7 @@ pub(super) fn parse_cte_definitions(
         }
 
         out.push(CommonTableExpression {
-            name: name.to_string(),
+            name: name.clone(),
             aliases,
             query,
         });

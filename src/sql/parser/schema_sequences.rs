@@ -1,6 +1,6 @@
 use super::schema_fields::apply_default_constraint;
 use super::schema_identifiers::parse_identifier;
-use super::*;
+use super::{AlterTableOperation, SqlError, split_first_token, FieldConstraint, ParsedStatement, parse_if_not_exists, QueryStatement, CreateSequenceStatement, DataType, parse_if_exists, DropSequenceStatement};
 
 pub(super) fn parse_alter_column_operation(raw: &str) -> Result<AlterTableOperation, SqlError> {
     let (field, action) = split_first_token(raw)

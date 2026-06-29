@@ -282,12 +282,11 @@ fn key_column_usage_row(
         string("table_name", collection),
         string("column_name", field),
         string("constraint_name", constraint_name),
-        int_value("ordinal_position", ordinal_position as i64),
+        int_value("ordinal_position", i64::from(ordinal_position)),
         (
             "position_in_unique_constraint".to_string(),
             unique_position
-                .map(|value| Value::Int64(value as i64))
-                .unwrap_or(Value::Null),
+                .map_or(Value::Null, |value| Value::Int64(i64::from(value))),
         ),
     ]
 }

@@ -41,12 +41,12 @@ pub fn rows(catalog: &Catalog) -> Vec<VirtualRow> {
                 bool_value("executable", report.executable),
                 string("affected_objects", report.affected_objects.join(",")),
                 string("source_report_state", report.source_report_state),
-                int_value("source_mismatch_count", report.source_mismatch_count as i64),
-                int_value("source_missing_count", report.source_missing_count as i64),
-                int_value("source_stale_count", report.source_stale_count as i64),
+                int_value("source_mismatch_count", report.source_mismatch_count),
+                int_value("source_missing_count", report.source_missing_count),
+                int_value("source_stale_count", report.source_stale_count),
                 string("verification_required", report.verification_required),
                 string("post_verification_state", report.post_verification_state),
-                int_value("created_ms", report.created_ms as i64),
+                int_value("created_ms", report.created_ms),
                 string("last_error", report.last_error.unwrap_or_default()),
             ]
         })
@@ -69,8 +69,14 @@ fn string(name: &str, value: String) -> (String, Value) {
     (name.to_string(), Value::String(value))
 }
 
-fn int_value(name: &str, value: i64) -> (String, Value) {
-    (name.to_string(), Value::Int64(value))
+fn int_value<T>(name: &str, value: T) -> (String, Value)
+where
+    T: TryInto<i64>,
+{
+    (
+        name.to_string(),
+        Value::Int64(value.try_into().unwrap_or(i64::MAX)),
+    )
 }
 
 fn bool_value(name: &str, value: bool) -> (String, Value) {

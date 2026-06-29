@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, CassieSession, LogicalPlan, BatchRow, QueryError, QuerySource, SelectItem, Expr, aggregate_signature, catalog, HashSet, Value};
 use crate::catalog::{
     ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchSegmentMeta, IndexMeta,
 };
@@ -12,8 +12,7 @@ pub(super) fn try_execute_column_batch_aggregate(
         return Ok(None);
     };
     if session
-        .map(|session| !session.collection_changes(collection).is_empty())
-        .unwrap_or(false)
+        .is_some_and(|session| !session.collection_changes(collection).is_empty())
     {
         cassie
             .runtime

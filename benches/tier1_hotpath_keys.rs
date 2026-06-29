@@ -11,7 +11,7 @@ fn bench_keys(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("key_encode_decode", |b| {
-        b.iter(workloads::key_encode_decode)
+        b.iter(workloads::key_encode_decode);
     });
     group.bench_function("field_lookup", |b| b.iter(workloads::field_lookup));
 

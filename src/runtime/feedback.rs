@@ -1,4 +1,4 @@
-use super::*;
+use super::{Hash, Serialize, Deserialize, stable_fingerprint};
 use crate::catalog::IndexMeta;
 use crate::planner::logical::LogicalPlan;
 use crate::sql::ast::{Expr, QuerySource, SelectItem, SortDirection};
@@ -50,34 +50,42 @@ pub struct RuntimeFeedbackRecord {
 }
 
 impl RuntimeFeedbackRecord {
+    #[must_use]
     pub fn stable_average_rows_in(&self) -> u64 {
         average(self.stable_rows_in_total, self.stable_samples)
     }
 
+    #[must_use]
     pub fn stable_average_rows_out(&self) -> u64 {
         average(self.stable_rows_out_total, self.stable_samples)
     }
 
+    #[must_use]
     pub fn stable_average_elapsed_ms(&self) -> u64 {
         average(self.stable_elapsed_ms_total, self.stable_samples)
     }
 
+    #[must_use]
     pub fn stable_average_storage_reads(&self) -> u64 {
         average(self.stable_storage_reads_total, self.stable_samples)
     }
 
+    #[must_use]
     pub fn stable_average_storage_writes(&self) -> u64 {
         average(self.stable_storage_writes_total, self.stable_samples)
     }
 
+    #[must_use]
     pub fn stable_average_temp_writes(&self) -> u64 {
         average(self.stable_temp_writes_total, self.stable_samples)
     }
 
+    #[must_use]
     pub fn stable_average_candidate_count(&self) -> u64 {
         average(self.stable_candidate_count_total, self.stable_samples)
     }
 
+    #[must_use]
     pub fn stable_average_result_count(&self) -> u64 {
         average(self.stable_result_count_total, self.stable_samples)
     }

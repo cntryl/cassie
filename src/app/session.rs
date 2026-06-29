@@ -1,4 +1,4 @@
-use super::*;
+use super::{Serialize, Arc, Mutex, TransactionIsolation, BTreeMap, normalize_role_name, CassieError};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CassieSession {
@@ -38,6 +38,7 @@ pub(crate) enum TransactionRowChange {
 }
 
 impl CassieSession {
+    #[must_use]
     pub fn new(user: String, database: Option<String>) -> Self {
         Self {
             user: normalize_role_name(user),
@@ -52,6 +53,7 @@ impl CassieSession {
         }
     }
 
+    #[must_use]
     pub fn transaction_status(&self) -> &'static str {
         match self.transaction.lock().status {
             SessionTransactionStatus::Idle => "idle",

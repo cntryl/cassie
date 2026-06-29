@@ -247,7 +247,7 @@ fn should_reject_invalid_logical_plan_shape_missing_collection() {
         statement: ParsedStatement {
             raw_sql: "SELECT id FROM  LIMIT 1".to_string(),
             statement: QueryStatement::Select(SelectStatement {
-                source: QuerySource::Collection("".to_string()),
+                source: QuerySource::Collection(String::new()),
                 ctes: vec![],
                 recursive: false,
                 distinct: false,
@@ -415,7 +415,7 @@ fn should_be_deterministic_for_repeated_planning_of_same_query() {
         let second = logical::plan(&bound).unwrap();
 
         // Assert
-        assert_eq!(format!("{:?}", first), format!("{:?}", second));
+        assert_eq!(format!("{first:?}"), format!("{:?}", second));
     });
 }
 
@@ -442,7 +442,7 @@ fn should_be_deterministic_for_repeated_optimization_of_same_logical_plan() {
         let second = optimizer::optimize(logical_plan);
 
         // Assert
-        assert_eq!(format!("{:?}", first), format!("{:?}", second));
+        assert_eq!(format!("{first:?}"), format!("{:?}", second));
         assert_eq!(first.offset, Some(0));
         assert_eq!(second.offset, Some(0));
     });

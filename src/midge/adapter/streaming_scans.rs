@@ -1,4 +1,4 @@
-use super::*;
+use super::{Midge, CassieError, DocumentRef, RowDecode, HashSet, Query, key_encoding, decode_projected_row_with_aliases, decode_projected_row, decode_row};
 
 impl Midge {
     pub(crate) fn scan_rows_until<E, F>(

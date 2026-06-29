@@ -1,6 +1,9 @@
-use super::*;
+use super::{Midge, TransactionMode, CassieError, StorageFamily, DEFAULT_FAMILY_NAME, FamilyScope, ColumnFamilyHandle};
 
 impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn schema_tx(
         &self,
         mode: TransactionMode,
@@ -8,14 +11,23 @@ impl Midge {
         self.begin_families_tx(&[StorageFamily::Schema], mode)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn data_tx(&self, mode: TransactionMode) -> Result<cntryl_midge::Transaction, CassieError> {
         self.begin_families_tx(&[StorageFamily::Data], mode)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn temp_tx(&self, mode: TransactionMode) -> Result<cntryl_midge::Transaction, CassieError> {
         self.begin_families_tx(&[StorageFamily::Temp], mode)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn default_tx(
         &self,
         mode: TransactionMode,
@@ -23,6 +35,9 @@ impl Midge {
         self.transaction_by_name(DEFAULT_FAMILY_NAME, mode)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn begin_families_tx(
         &self,
         families: &[StorageFamily],

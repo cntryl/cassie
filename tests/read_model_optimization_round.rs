@@ -380,15 +380,15 @@ fn should_stop_vectorized_join_after_unordered_limit_budget() {
             users.push((
                 Some(format!("user-{index:02}")),
                 serde_json::json!({
-                    "user_key": index as i64,
+                    "user_key": i64::from(index),
                     "name": format!("user-{index:02}"),
                 }),
             ));
             orders.push((
                 Some(format!("order-{index:02}")),
                 serde_json::json!({
-                    "order_user_key": index as i64,
-                    "total": index as i64,
+                    "order_user_key": i64::from(index),
+                    "total": i64::from(index),
                 }),
             ));
         }
@@ -473,7 +473,7 @@ fn should_push_unordered_left_join_limit_into_left_source_scan() {
             users.push((
                 Some(format!("user-{index:03}")),
                 serde_json::json!({
-                    "user_key": index as i64,
+                    "user_key": i64::from(index),
                     "name": format!("user-{index:03}"),
                 }),
             ));
@@ -565,7 +565,7 @@ fn should_probe_indexed_left_source_for_bounded_inner_join() {
             users.push((
                 Some(format!("user-{index:03}")),
                 serde_json::json!({
-                    "user_key": index as i64,
+                    "user_key": i64::from(index),
                     "name": format!("user-{index:03}"),
                 }),
             ));
@@ -686,7 +686,7 @@ fn should_stream_unindexed_bounded_inner_join_until_output_budget() {
             users.push((
                 Some(format!("user-{index:03}")),
                 serde_json::json!({
-                    "user_key": index as i64,
+                    "user_key": i64::from(index),
                     "name": format!("user-{index:03}"),
                 }),
             ));
@@ -794,7 +794,7 @@ fn should_stream_dense_bounded_inner_join_without_materializing_right_source() {
             users.push((
                 Some(format!("user-{index:03}")),
                 serde_json::json!({
-                    "user_key": index as i64,
+                    "user_key": i64::from(index),
                     "name": format!("user-{index:03}"),
                 }),
             ));
@@ -802,7 +802,7 @@ fn should_stream_dense_bounded_inner_join_without_materializing_right_source() {
                 Some(format!("order-{index:03}")),
                 serde_json::json!({
                     "order_user_key": 0_i64,
-                    "total": index as i64,
+                    "total": i64::from(index),
                 }),
             ));
         }

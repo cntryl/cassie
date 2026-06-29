@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, HashSet, FulltextIndexOptions, QueryError, FulltextIndexOptionsCacheKey, HashMap, catalog, AnalyzerConfig};
 
 pub(crate) fn load_fulltext_index_options(
     cassie: &Cassie,
@@ -66,7 +66,7 @@ pub(crate) fn load_fulltext_index_options(
             Some(1.0),
         )?;
         let analyzer = AnalyzerConfig::from_index_options(&index.options)
-            .map_err(|error| QueryError::General(error.to_string()))?;
+            .map_err(|error| QueryError::General(error.clone()))?;
 
         field_boost.insert(field.clone(), boost);
         field_k1.insert(field.clone(), k1);

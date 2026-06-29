@@ -86,8 +86,7 @@ pub(crate) fn scan_projected_filtered_with_timings(
 ) -> Result<(Vec<Batch>, ScanTimings), crate::executor::QueryError> {
     let storage_filter = document_filter.and_then(row_filter_from_projected_filter);
     let has_session_changes = session
-        .map(|session| !session.collection_changes(collection).is_empty())
-        .unwrap_or(false);
+        .is_some_and(|session| !session.collection_changes(collection).is_empty());
     if !has_session_changes {
         match cassie.midge.scan_column_batch_projected_rows(
             collection,
@@ -267,18 +266,17 @@ fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&Collectio
                     for field in &schema.fields {
                         let value = obj
                             .get(&field.name)
-                            .map(|value| json_to_typed_value(value, &field.data_type))
-                            .unwrap_or(Value::Null);
+                            .map_or(Value::Null, |value| json_to_typed_value(value, &field.data_type));
                         row.push((field.name.clone(), value));
                         seen.insert(field.name.clone());
                     }
-                    for (k, v) in obj.iter() {
+                    for (k, v) in obj {
                         if !seen.contains(k) {
                             row.push((k.clone(), json_to_value(v)));
                         }
                     }
                 } else {
-                    for (k, v) in obj.iter() {
+                    for (k, v) in obj {
                         row.push((k.clone(), json_to_value(v)));
                     }
                 }
@@ -345,8 +343,7 @@ fn projected_document_batch_to_rows(
         .into_iter()
         .filter(|document| {
             document_filter
-                .map(|filter| projected_document_matches(&document.payload, filter))
-                .unwrap_or(true)
+                .is_none_or(|filter| projected_document_matches(&document.payload, filter))
         })
         .map(|document| projected_document_to_row(document, fields, schema))
         .collect::<Batch>()
@@ -363,12 +360,9 @@ pub(crate) fn projected_document_to_row(
     for field in fields {
         let value = object
             .and_then(|object| projected_field_value(object, field))
-            .map(|value| {
-                field_data_type(schema, field)
-                    .map(|data_type| json_to_typed_value(value, data_type))
-                    .unwrap_or_else(|| json_to_value(value))
-            })
-            .unwrap_or(Value::Null);
+            .map_or(Value::Null, |value| {
+                field_data_type(schema, field).map_or_else(|| json_to_value(value), |data_type| json_to_typed_value(value, data_type))
+            });
         row.push((field.clone(), value));
     }
     BatchRow::from_projected_values(row)

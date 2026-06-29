@@ -4,6 +4,9 @@ use crate::app::Cassie;
 use crate::config::CassieRuntimeConfig;
 use tokio::sync::Notify;
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub async fn run(
     addr: String,
     cassie: Arc<Cassie>,
@@ -12,6 +15,9 @@ pub async fn run(
     run_with_shutdown(addr, cassie, config, Arc::new(Notify::new())).await
 }
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub async fn run_with_shutdown(
     addr: String,
     cassie: Arc<Cassie>,
@@ -26,19 +32,19 @@ pub async fn run_with_shutdown(
     loop {
         tokio::select! {
             biased;
-            _ = shutdown.notified() => {
+            () = shutdown.notified() => {
                 tracing::info!(target: "pgwire", address = %addr, "shutdown requested");
                 break;
             }
             accept = listener.accept() => {
                 match accept {
                     Ok((socket, peer)) => {
-                        let peer_addr = format!("{}", peer);
+                        let peer_addr = format!("{peer}");
                         tracing::info!(target: "pgwire", peer = %peer_addr, "accepted");
                         let cassie = cassie.clone();
                         let config = config.clone();
                         tokio::spawn(async move {
-                            let _ = crate::pgwire::connection::run_connection(socket, cassie, config).await;
+                            let () = crate::pgwire::connection::run_connection(socket, cassie, config).await;
                         });
                     }
                     Err(e) => {

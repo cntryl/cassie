@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::*;
+use super::{Cassie, QueryError, catalog, FunctionMeta, QueryExecutionControls, QueryResult, virtual_views, ColumnMeta, DataType, Value, execute_plan, CteContext, LogicalPlan, Schema, QueryStatement, BatchRow, QuerySource, SelectItem, Expr, FunctionCall};
 use crate::midge::adapter::RootHashRecord;
 
 pub(super) fn reject_write(cassie: &Cassie, relation: &str) -> Result<(), QueryError> {
@@ -791,8 +791,7 @@ fn value_to_json(value: Value) -> serde_json::Value {
         Value::Bool(value) => serde_json::Value::Bool(value),
         Value::Int64(value) => serde_json::Value::Number(value.into()),
         Value::Float64(value) => serde_json::Number::from_f64(value)
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null),
+            .map_or(serde_json::Value::Null, serde_json::Value::Number),
         Value::String(value) => serde_json::Value::String(value),
         Value::Vector(value) => serde_json::json!(value.values),
         Value::Json(value) => value,
@@ -811,7 +810,7 @@ fn collect_source_collections_into(source: &QuerySource, out: &mut Vec<String>) 
     match source {
         QuerySource::Collection(name) => out.push(name.clone()),
         QuerySource::Subquery { select, .. } => {
-            collect_source_collections_into(&select.source, out)
+            collect_source_collections_into(&select.source, out);
         }
         QuerySource::Join { left, right, .. } => {
             collect_source_collections_into(left, out);
@@ -872,7 +871,7 @@ fn collect_functions_in_expr(expr: &Expr, out: &mut Vec<String>) {
             collect_functions_in_expr(right, out);
         }
         Expr::Not { expr } | Expr::Cast { expr, .. } | Expr::IsNull { expr, .. } => {
-            collect_functions_in_expr(expr, out)
+            collect_functions_in_expr(expr, out);
         }
         Expr::Between {
             expr, low, high, ..
@@ -917,10 +916,10 @@ fn stable_projection_fingerprint(query: &str) -> u64 {
 }
 
 fn fnv1a64(input: &str) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in input.as_bytes() {
         hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x100000001b3);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
     }
     hash
 }
@@ -928,8 +927,9 @@ fn fnv1a64(input: &str) -> u64 {
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as u64)
-        .unwrap_or(0)
+        .map_or(0, |duration| {
+            u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+        })
 }
 
 fn empty_command(command: &str) -> QueryResult {

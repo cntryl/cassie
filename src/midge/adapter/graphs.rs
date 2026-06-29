@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::*;
+use super::{Midge, CassieError, Uuid, encode_row, WriteOptions, StorageFamily};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct GraphEdgeRecord {
@@ -19,6 +19,10 @@ impl Midge {
     ///
     /// This intentionally skips replacement checks and secondary-index maintenance; callers must
     /// only use it for fresh row-store graph node/edge collections.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_fresh_graph_documents(
         &self,
         collection: &str,

@@ -1,4 +1,4 @@
-use super::*;
+use super::ReadOperatorSelection;
 use crate::config::CassieRuntimeLimits;
 use serde::{Deserialize, Serialize};
 
@@ -89,13 +89,13 @@ pub(crate) fn select_adaptive_read_operator(
     }
 
     if selection.candidates.len() <= 1 {
-        diagnostics.selected_alternative = base_candidate.label.clone();
+        diagnostics.selected_alternative.clone_from(&base_candidate.label);
         diagnostics.reason = "no_alternatives".to_string();
         return (base_candidate.selected_index.clone(), diagnostics);
     }
 
     if operator_feedback.state != "used" || operator_candidate.label == base_candidate.label {
-        diagnostics.selected_alternative = base_candidate.label.clone();
+        diagnostics.selected_alternative.clone_from(&base_candidate.label);
         diagnostics.reason = "no_runtime_observation".to_string();
         return (base_candidate.selected_index.clone(), diagnostics);
     }
@@ -106,7 +106,7 @@ pub(crate) fn select_adaptive_read_operator(
             "operator_feedback_confidence_bps:{}>={confidence_threshold_bps}",
             operator_feedback.confidence_bps
         );
-        diagnostics.selected_alternative = base_candidate.label.clone();
+        diagnostics.selected_alternative.clone_from(&base_candidate.label);
         diagnostics.reason = "confidence_guard_failed".to_string();
         return (base_candidate.selected_index.clone(), diagnostics);
     }
@@ -120,11 +120,11 @@ pub(crate) fn select_adaptive_read_operator(
     diagnostics.guard_passed = savings_bps >= threshold_bps;
     if diagnostics.guard_passed {
         diagnostics.reason = "selected_operator_feedback".to_string();
-        diagnostics.selected_alternative = operator_candidate.label.clone();
+        diagnostics.selected_alternative.clone_from(&operator_candidate.label);
         (operator_candidate.selected_index.clone(), diagnostics)
     } else {
         diagnostics.reason = "guard_failed".to_string();
-        diagnostics.selected_alternative = base_candidate.label.clone();
+        diagnostics.selected_alternative.clone_from(&base_candidate.label);
         (base_candidate.selected_index.clone(), diagnostics)
     }
 }

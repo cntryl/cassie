@@ -163,17 +163,17 @@ fn should_parse_deterministically_across_invocations() {
     let second = parse_statement(sql_two).unwrap();
 
     // Assert
-    let (_, first_statement) = match first.statement {
+    let ((), first_statement) = match first.statement {
         QueryStatement::Select(statement) => ((), statement),
         _ => panic!("expected select statement"),
     };
-    let (_, second_statement) = match second.statement {
+    let ((), second_statement) = match second.statement {
         QueryStatement::Select(statement) => ((), statement),
         _ => panic!("expected select statement"),
     };
 
     assert_eq!(
-        format!("{:?}", first_statement),
+        format!("{first_statement:?}"),
         format!("{:?}", second_statement)
     );
 }

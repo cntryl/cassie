@@ -1,6 +1,7 @@
-use super::*;
+use super::Cassie;
 
 impl Cassie {
+    #[must_use]
     pub fn health(&self) -> serde_json::Value {
         let ready = self.is_started();
         let collections = self.midge.list_collections();
@@ -12,6 +13,7 @@ impl Cassie {
         })
     }
 
+    #[must_use]
     pub fn metrics(&self) -> serde_json::Value {
         let snapshot = self.runtime.snapshot();
         serde_json::json!({

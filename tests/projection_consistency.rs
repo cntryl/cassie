@@ -256,8 +256,7 @@ fn should_rehydrate_persisted_consistency_report_after_restart() {
         .execute_sql(
             &session,
             &format!(
-                "SELECT state, manifest_count FROM pg_catalog.pg_projection_consistency_reports WHERE report_id = '{}'",
-                report_id
+                "SELECT state, manifest_count FROM pg_catalog.pg_projection_consistency_reports WHERE report_id = '{report_id}'"
             ),
             vec![],
         )

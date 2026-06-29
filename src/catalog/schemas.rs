@@ -23,6 +23,7 @@ impl CollectionSchema {
         }
     }
 
+    #[must_use]
     pub fn field(&self, name: &str) -> Option<&FieldMeta> {
         self.fields.iter().find(|f| f.name == name)
     }

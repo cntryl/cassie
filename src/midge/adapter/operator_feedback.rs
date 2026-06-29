@@ -1,4 +1,4 @@
-use super::*;
+use super::{Midge, CassieError, StorageFamily};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -8,6 +8,9 @@ struct StoredRuntimeFeedbackRecord {
 }
 
 impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_runtime_feedback_records(
         &self,
     ) -> Result<
@@ -31,6 +34,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn replace_runtime_feedback_records(
         &self,
         records: &[(
@@ -59,6 +65,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn clear_runtime_feedback_records(&self) -> Result<(), CassieError> {
         self.replace_runtime_feedback_records(&[])
     }

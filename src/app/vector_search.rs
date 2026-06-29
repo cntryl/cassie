@@ -1,7 +1,10 @@
-use super::vector_helpers::*;
-use super::*;
+use super::vector_helpers::{vector_from_json, vector_search_row, vector_search_columns, vector_distance_for_metric, ScoredVectorCandidate, compare_scored_vector_candidates};
+use super::{Cassie, DistanceMetric, QueryResult, CassieError, VectorSearchResultCacheKey, Embedding, QueryEmbeddingCacheKey, Arc, VectorIndexRecord, VectorIndexType, RowDecode, BTreeMap, normalize_vector, BinaryHeap, NormalizedVectorRecord, cosine_distance_from_normalized_query, dot_distance_from_normalized_target, CollectionSchema, CmpOrdering, NormalizedVectorCacheEntry, NormalizedVectorCacheKey};
 
 impl Cassie {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn execute_vector_search(
         &self,
         collection: &str,
@@ -262,8 +265,9 @@ impl Cassie {
             let (distance, used_normalized) = if can_use_normalized {
                 match &metric {
                     DistanceMetric::Cosine => normalized_query
-                        .as_ref()
-                        .map(|normalized_query| {
+                        .as_ref().map_or_else(|| {
+                            (vector_distance_for_metric(&metric, query, &vector), false)
+                        }, |normalized_query| {
                             let record = normalized_record.expect("normalized record");
                             (
                                 cosine_distance_from_normalized_query(
@@ -272,9 +276,6 @@ impl Cassie {
                                 ),
                                 true,
                             )
-                        })
-                        .unwrap_or_else(|| {
-                            (vector_distance_for_metric(&metric, query, &vector), false)
                         }),
                     DistanceMetric::Dot => {
                         let record = normalized_record.expect("normalized record");

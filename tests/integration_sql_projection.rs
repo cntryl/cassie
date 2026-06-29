@@ -137,7 +137,7 @@ fn should_preserve_results_for_adaptive_read_operator_choice() {
         let fixed_session = fixed.create_session("tester", None);
         let adaptive_session = adaptive.create_session("tester", None);
         for cassie in [&fixed, &adaptive] {
-            let session = if std::ptr::eq(cassie, &fixed) {
+            let session = if std::ptr::eq(cassie, &raw const fixed) {
                 &fixed_session
             } else {
                 &adaptive_session

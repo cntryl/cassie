@@ -1,5 +1,5 @@
-use super::expr::*;
-use super::*;
+use super::expr::{split_csv, parse_expression};
+use super::{FieldConstraint, FieldDefinition, SqlError, find_matching_paren, AlterTableOperation, ParsedStatement, QueryStatement, CreateSequenceStatement, DataType, DropSequenceStatement, HashSet, CreateTableStatement, parse_enclosed_parenthesized, CreateGraphStatement, find_top_level_keyword, IndexKind, CreateIndexStatement, DropIndexStatement, DropTableStatement, DropSchemaStatement, AlterTableStatement, split_keyword, CreateSchemaStatement, AlterSchemaStatement, AlterSchemaOperation, parse_optional_role_password, CreateRoleStatement, AlterRoleStatement, DropRoleStatement, ConstraintCheck, strip_parentheses, ConstraintOperator, Value, Expr};
 
 #[path = "schema_fields.rs"]
 mod schema_fields;
@@ -270,7 +270,7 @@ pub(super) fn parse_create_index_statement(sql: &str) -> Result<ParsedStatement,
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::CreateIndex(CreateIndexStatement {
             name,
-            table: table.to_string(),
+            table: table.clone(),
             fields,
             expressions,
             include_fields,
@@ -513,7 +513,7 @@ pub(super) fn parse_alter_schema_statement(sql: &str) -> Result<ParsedStatement,
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::AlterSchema(AlterSchemaStatement {
-            schema: schema.to_string(),
+            schema: schema.clone(),
             operation: AlterSchemaOperation::RenameTo {
                 schema: target.to_string(),
             },
@@ -688,7 +688,7 @@ pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlEr
     }
 
     Ok(ConstraintCheck {
-        field: left.to_string(),
+        field: left.clone(),
         operator: op,
         value: right,
     })

@@ -1,6 +1,9 @@
-use super::*;
+use super::{Midge, OperationalAssignmentMeta, CassieError, WriteOptions, StorageFamily};
 
 impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_operational_assignment(
         &self,
         metadata: OperationalAssignmentMeta,
@@ -18,6 +21,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_operational_assignments(
         &self,
     ) -> Result<Vec<OperationalAssignmentMeta>, CassieError> {

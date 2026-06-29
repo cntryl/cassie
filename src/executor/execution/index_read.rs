@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, CassieSession, PhysicalPlan, LogicalPlan, HashMap, FunctionMeta, Value, QueryExecutionControls, BatchRow, QueryError, scan, batch, projected_read, QuerySource, SelectItem, Expr, BinaryOp};
 use crate::catalog::IndexMeta;
 use crate::midge::adapter::{DocumentRef, ScalarIndexBound, ScalarIndexScanRequest};
 use crate::planner::physical::{scalar_index_plan_shape, ScalarIndexPlanPath};
@@ -7,12 +7,13 @@ use std::collections::BTreeMap;
 pub(super) fn execute_scalar_index_read(
     cassie: &Cassie,
     session: Option<&CassieSession>,
+    physical: Option<&PhysicalPlan>,
     plan: &LogicalPlan,
     user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(spec) = scalar_index_read_spec(cassie, session, plan, params)? else {
+    let Some(spec) = scalar_index_read_spec(cassie, session, physical, plan, params)? else {
         return Ok(None);
     };
 
@@ -52,7 +53,12 @@ pub(super) fn execute_scalar_index_read(
     record_scalar_index_read_path(cassie, &spec, rows.len());
 
     let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
-    let rows = projected_read::finalize_projected_filtered_read(
+    let index_usage = if spec.covered {
+        projected_read::ProjectedReadIndexUsage::CoveringScalarIndex
+    } else {
+        projected_read::ProjectedReadIndexUsage::SelectedScalarIndexFallback
+    };
+    let rows = projected_read::finalize_projected_filtered_read_with_index_usage(
         cassie,
         session,
         plan,
@@ -62,6 +68,7 @@ pub(super) fn execute_scalar_index_read(
         &mut batches,
         false,
         !spec.sort_applied,
+        Some(index_usage),
     )?;
     Ok(Some(rows))
 }
@@ -80,6 +87,7 @@ struct ScalarIndexReadSpec {
 fn scalar_index_read_spec(
     cassie: &Cassie,
     session: Option<&CassieSession>,
+    physical: Option<&PhysicalPlan>,
     plan: &LogicalPlan,
     params: &[Value],
 ) -> Result<Option<ScalarIndexReadSpec>, QueryError> {
@@ -89,20 +97,28 @@ fn scalar_index_read_spec(
         return Ok(None);
     };
     if session
-        .map(|session| !session.collection_changes(&projected.collection).is_empty())
-        .unwrap_or(false)
+        .is_some_and(|session| !session.collection_changes(&projected.collection).is_empty())
     {
         return Ok(None);
     }
 
     let indexes = cassie.catalog.list_indexes(&projected.collection);
-    let physical = crate::planner::physical::build_with_indexes(
-        plan.clone(),
-        indexes.clone(),
-        &Default::default(),
-    );
-    let Some(index_name) = physical.selected_index.as_deref() else {
-        return Ok(None);
+    let physical = physical.filter(|physical| physical.collection == projected.collection);
+    let (index_name, covered_index) = if let Some(physical) = physical {
+        let Some(index_name) = physical.selected_index.as_deref() else {
+            return Ok(None);
+        };
+        (index_name.to_string(), physical.covered_index)
+    } else {
+        let physical = crate::planner::physical::build_with_indexes(
+            plan.clone(),
+            indexes.clone(),
+            &std::collections::HashMap::default(),
+        );
+        let Some(index_name) = physical.selected_index else {
+            return Ok(None);
+        };
+        (index_name, physical.covered_index)
     };
     let Some(index) = indexes.into_iter().find(|index| index.name == index_name) else {
         return Ok(None);
@@ -166,7 +182,7 @@ fn scalar_index_read_spec(
         scan_fields: projected.scan_fields,
         request,
         path: shape.path,
-        covered: physical.covered_index,
+        covered: covered_index,
         sort_applied: !plan.order.is_empty(),
     }))
 }
@@ -418,25 +434,25 @@ fn collect_concrete_expression_constraints(
                     entry.lower = Some(ConcreteBound {
                         value,
                         inclusive: false,
-                    })
+                    });
                 }
                 BinaryOp::Gte => {
                     entry.lower = Some(ConcreteBound {
                         value,
                         inclusive: true,
-                    })
+                    });
                 }
                 BinaryOp::Lt => {
                     entry.upper = Some(ConcreteBound {
                         value,
                         inclusive: false,
-                    })
+                    });
                 }
                 BinaryOp::Lte => {
                     entry.upper = Some(ConcreteBound {
                         value,
                         inclusive: true,
-                    })
+                    });
                 }
                 _ => return None,
             }
@@ -572,25 +588,25 @@ fn collect_concrete_constraints(
                     entry.lower = Some(ConcreteBound {
                         value,
                         inclusive: false,
-                    })
+                    });
                 }
                 BinaryOp::Gte => {
                     entry.lower = Some(ConcreteBound {
                         value,
                         inclusive: true,
-                    })
+                    });
                 }
                 BinaryOp::Lt => {
                     entry.upper = Some(ConcreteBound {
                         value,
                         inclusive: false,
-                    })
+                    });
                 }
                 BinaryOp::Lte => {
                     entry.upper = Some(ConcreteBound {
                         value,
                         inclusive: true,
-                    })
+                    });
                 }
                 _ => return None,
             }
@@ -686,14 +702,13 @@ fn value_to_json(value: &Value) -> serde_json::Value {
         Value::Bool(value) => serde_json::Value::Bool(*value),
         Value::Int64(value) => serde_json::Value::Number((*value).into()),
         Value::Float64(value) => serde_json::Number::from_f64(*value)
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null),
+            .map_or(serde_json::Value::Null, serde_json::Value::Number),
         Value::String(value) => serde_json::Value::String(value.clone()),
         Value::Vector(value) => serde_json::Value::Array(
             value
                 .values
                 .iter()
-                .filter_map(|value| serde_json::Number::from_f64(*value as f64))
+                .filter_map(|value| serde_json::Number::from_f64(f64::from(*value)))
                 .map(serde_json::Value::Number)
                 .collect(),
         ),
@@ -706,17 +721,17 @@ fn record_scalar_index_read_path(cassie: &Cassie, spec: &ScalarIndexReadSpec, ro
         ScalarIndexPlanPath::IndexSeek => {
             cassie
                 .runtime
-                .record_read_path_index_seek(&spec.collection, rows, &spec.index.name)
+                .record_read_path_index_seek(&spec.collection, rows, &spec.index.name);
         }
         ScalarIndexPlanPath::PrefixScan => {
             cassie
                 .runtime
-                .record_read_path_prefix_scan(&spec.collection, rows, &spec.index.name)
+                .record_read_path_prefix_scan(&spec.collection, rows, &spec.index.name);
         }
         ScalarIndexPlanPath::RangeScan => {
             cassie
                 .runtime
-                .record_read_path_range_scan(&spec.collection, rows, &spec.index.name)
+                .record_read_path_range_scan(&spec.collection, rows, &spec.index.name);
         }
         ScalarIndexPlanPath::OrderedBoundedScan => cassie
             .runtime

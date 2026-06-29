@@ -19,10 +19,14 @@ pub struct FieldSpec {
     pub data_type: String,
 }
 
+#[must_use]
 pub fn list(cassie: &Cassie) -> Vec<String> {
     cassie.midge.list_collections()
 }
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> {
     let request: CreateCollectionRequest =
         serde_json::from_slice(body).map_err(|e| CassieError::Parse(e.to_string()))?;

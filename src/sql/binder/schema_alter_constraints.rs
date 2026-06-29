@@ -1,4 +1,4 @@
-use super::*;
+use super::{AlterTableOperation, Catalog, CassieError};
 
 pub(super) fn validate_alter_constraint_targets(
     operation: &AlterTableOperation,

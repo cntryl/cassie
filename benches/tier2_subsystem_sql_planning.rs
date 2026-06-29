@@ -17,13 +17,13 @@ fn bench_sql_planning(c: &mut Criterion) {
 
     group.bench_function("sql_parsing", |b| b.iter(workloads::sql_parsing));
     group.bench_function("sql_binding", |b| {
-        b.iter(|| runtime.block_on(workloads::sql_binding(&ctx)))
+        b.iter(|| runtime.block_on(workloads::sql_binding(&ctx)));
     });
     group.bench_function("logical_planning", |b| {
-        b.iter(|| runtime.block_on(workloads::logical_planning(&ctx)))
+        b.iter(|| runtime.block_on(workloads::logical_planning(&ctx)));
     });
     group.bench_function("physical_planning", |b| {
-        b.iter(|| runtime.block_on(workloads::physical_planning(&ctx)))
+        b.iter(|| runtime.block_on(workloads::physical_planning(&ctx)));
     });
 
     group.finish();

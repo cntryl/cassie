@@ -1,5 +1,8 @@
-use super::*;
+use super::{SelectStatement, Catalog, Schema, CassieError, HashMap, Expr, CommonTableExpression, CteQuery, QueryStatement, QuerySource, FieldSchema, virtual_views, DataType, SelectItem, FunctionCall};
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub fn infer_select_schema(
     select: &SelectStatement,
     catalog: &Catalog,
@@ -82,7 +85,7 @@ pub(super) fn infer_cte_schema(
         }
 
         for (field, alias) in schema.fields.iter_mut().zip(cte.aliases.iter()) {
-            field.name = alias.clone();
+            field.name.clone_from(alias);
         }
     }
 
@@ -274,30 +277,9 @@ pub(super) fn infer_function_return_type(
     }
 
     match name.as_str() {
-        "count" => Some(DataType::Int),
-        "sum" | "avg" => Some(DataType::Float),
-        "min" | "max" => Some(DataType::Text),
-        "length" | "len" => Some(DataType::Int),
-        "lower" | "upper" | "substring" | "trim" | "concat" => Some(DataType::Text),
-        "coalesce" => function
-            .args
-            .iter()
-            .find_map(|arg| infer_expr_type(arg, source_schema))
-            .filter(|data_type| !matches!(data_type, DataType::Null))
-            .or(Some(DataType::Text)),
-        "abs" => function
-            .args
-            .first()
-            .and_then(|expr| infer_expr_type(expr, source_schema))
-            .map(|data_type| match data_type {
-                DataType::Int => DataType::Int,
-                DataType::Float => DataType::Float,
-                _ => DataType::Float,
-            })
-            .or(Some(DataType::Float)),
-        "search" | "search_score" | "vector_distance" | "vector_score" | "cosine_distance"
+        "sum" | "avg" | "search" | "search_score" | "vector_distance" | "vector_score" | "cosine_distance"
         | "dot_product" | "hybrid_score" => Some(DataType::Float),
-        "snippet"
+        "min" | "max" | "lower" | "upper" | "substring" | "trim" | "concat" | "snippet"
         | "version"
         | "pg_catalog.version"
         | "current_schema"
@@ -315,6 +297,22 @@ pub(super) fn infer_function_return_type(
         | "pg_catalog.pg_get_userbyid"
         | "obj_description"
         | "pg_catalog.obj_description" => Some(DataType::Text),
+        "count" | "length" | "len" => Some(DataType::Int),
+        "coalesce" => function
+            .args
+            .iter()
+            .find_map(|arg| infer_expr_type(arg, source_schema))
+            .filter(|data_type| !matches!(data_type, DataType::Null))
+            .or(Some(DataType::Text)),
+        "abs" => function
+            .args
+            .first()
+            .and_then(|expr| infer_expr_type(expr, source_schema))
+            .map(|data_type| match data_type {
+                DataType::Int => DataType::Int,
+                _ => DataType::Float,
+            })
+            .or(Some(DataType::Float)),
         "has_schema_privilege"
         | "pg_catalog.has_schema_privilege"
         | "has_table_privilege"

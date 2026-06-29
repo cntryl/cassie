@@ -1,6 +1,9 @@
-use super::*;
+use super::RuntimeState;
 
 impl RuntimeState {
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_adaptive_candidate_decision(
         &self,
         initial_budget: usize,
@@ -21,11 +24,17 @@ impl RuntimeState {
         }
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_adaptive_candidate_limit_error(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.adaptive_candidates.limit_errors_total += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_adaptive_plan_decision(
         &self,
         diagnostics: &crate::planner::physical::AdaptivePlanDiagnostics,
@@ -50,15 +59,16 @@ impl RuntimeState {
         if diagnostics.selected_alternative != diagnostics.base_alternative {
             metrics.adaptive_candidates.plan_selected_alternatives += 1;
         }
-        metrics.adaptive_candidates.last_plan_decision_point = diagnostics.decision_point.clone();
-        metrics.adaptive_candidates.last_plan_base_alternative =
-            diagnostics.base_alternative.clone();
-        metrics.adaptive_candidates.last_plan_selected_alternative =
-            diagnostics.selected_alternative.clone();
-        metrics.adaptive_candidates.last_plan_guard = diagnostics.guard.clone();
-        metrics.adaptive_candidates.last_plan_reason = diagnostics.reason.clone();
+        metrics.adaptive_candidates.last_plan_decision_point.clone_from(&diagnostics.decision_point);
+        metrics.adaptive_candidates.last_plan_base_alternative.clone_from(&diagnostics.base_alternative);
+        metrics.adaptive_candidates.last_plan_selected_alternative.clone_from(&diagnostics.selected_alternative);
+        metrics.adaptive_candidates.last_plan_guard.clone_from(&diagnostics.guard);
+        metrics.adaptive_candidates.last_plan_reason.clone_from(&diagnostics.reason);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_runtime_operator_switch(&self, pair: &str, reason: &str, state: &str) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.adaptive_candidates.operator_switch_attempts += 1;
@@ -68,6 +78,9 @@ impl RuntimeState {
         metrics.adaptive_candidates.last_operator_switch_state = state.to_string();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_runtime_operator_switch_skip(&self, pair: &str, reason: &str, state: &str) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.adaptive_candidates.operator_switch_attempts += 1;
@@ -77,6 +90,9 @@ impl RuntimeState {
         metrics.adaptive_candidates.last_operator_switch_state = state.to_string();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_runtime_operator_switch_fallback(&self, pair: &str, reason: &str, state: &str) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.adaptive_candidates.operator_switch_attempts += 1;

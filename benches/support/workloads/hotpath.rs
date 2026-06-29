@@ -123,7 +123,7 @@ pub fn predicate_evaluation() -> usize {
     let row = json!({"score": 42, "status": "approved"});
     let passes = row["score"].as_i64().unwrap_or_default() >= 40
         && row["status"].as_str() == Some("approved");
-    std::hint::black_box(passes as usize)
+    std::hint::black_box(usize::from(passes))
 }
 
 pub fn batch_filter() -> usize {
@@ -142,8 +142,7 @@ pub fn batch_projection() -> usize {
     std::hint::black_box(
         projected
             .as_object()
-            .map(|fields| fields.len())
-            .unwrap_or(0),
+            .map_or(0, serde_json::Map::len),
     )
 }
 

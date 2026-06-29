@@ -1,5 +1,5 @@
 use super::plan_inspection;
-use super::*;
+use super::{QuerySource, JoinKind, Expr, CteContext, BatchRow, QueryError, batch, check_timeout, filter, scan, catalog, Value, Batch, BinaryOp, deduce_text_fields, Cassie, CassieSession, HashMap, FunctionMeta, QueryExecutionControls, virtual_views, ensure_temp_budget, build_logical_plan, execute_plan, DataType, graph, LogicalPlan, execute_plan_with_outer_row, SelectItem, Schema, BTreeMap, row_signature, HashSet, SelectSet, SetOperator, FunctionCall, Instant, aggregate_accel, load_fulltext_index_options, resolve_exists_expr, aggregate_exec, window_exec, sort, projection};
 
 #[path = "source_join.rs"]
 mod source_join;
@@ -263,11 +263,10 @@ fn source_row_budget(plan: &LogicalPlan) -> Option<usize> {
 
 fn source_contains_lateral(source: &QuerySource) -> bool {
     match source {
-        QuerySource::Subquery { lateral, .. } => *lateral,
         QuerySource::Join { left, right, .. } => {
             source_contains_lateral(left) || source_contains_lateral(right)
         }
-        QuerySource::TableFunction { lateral, .. } => *lateral,
+        QuerySource::Subquery { lateral, .. } | QuerySource::TableFunction { lateral, .. } => *lateral,
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
     }
 }
@@ -598,7 +597,7 @@ pub(super) fn execute_source_query_with_outer_row(
     if let Some(outer_row) = outer_row {
         batches = combine_batches_with_outer_row(batches, outer_row);
     }
-    let candidate_rows = batches.iter().map(|batch| batch.len()).sum::<usize>();
+    let candidate_rows = batches.iter().map(std::vec::Vec::len).sum::<usize>();
 
     let fulltext_fields = plan_inspection::fulltext_query_fields(plan);
     let uses_hybrid = plan_inspection::plan_uses_function(plan, "hybrid_score");
@@ -612,7 +611,7 @@ pub(super) fn execute_source_query_with_outer_row(
                 let mut boost = HashMap::with_capacity(fields.len());
                 for field in fields {
                     if let Some(value) = cassie.catalog.get_field_boost(name, &field) {
-                        boost.insert(field, value as f64);
+                        boost.insert(field, f64::from(value));
                     }
                 }
 

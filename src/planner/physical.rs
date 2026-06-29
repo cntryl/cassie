@@ -242,10 +242,12 @@ pub struct PlanEstimates {
     pub rejected_alternatives: Vec<String>,
 }
 
+#[must_use]
 pub fn build(plan: LogicalPlan) -> PhysicalPlan {
-    build_with_indexes(plan, Vec::new(), &Default::default())
+    build_with_indexes(plan, Vec::new(), &std::collections::HashMap::default())
 }
 
+#[must_use]
 pub fn build_with_indexes(
     plan: LogicalPlan,
     indexes: Vec<IndexMeta>,
@@ -487,16 +489,11 @@ fn filter_supports_covering_index(expr: &Expr) -> bool {
             right,
         } => matches!(
             (left.as_ref(), right.as_ref()),
-            (Expr::Column(_), Expr::StringLiteral(_))
-                | (Expr::StringLiteral(_), Expr::Column(_))
-                | (Expr::Column(_), Expr::NumberLiteral(_))
-                | (Expr::NumberLiteral(_), Expr::Column(_))
-                | (Expr::Column(_), Expr::BoolLiteral(_))
-                | (Expr::BoolLiteral(_), Expr::Column(_))
-                | (Expr::Column(_), Expr::Null)
-                | (Expr::Null, Expr::Column(_))
-                | (Expr::Column(_), Expr::Param(_))
-                | (Expr::Param(_), Expr::Column(_))
+            (Expr::Column(_),
+Expr::StringLiteral(_) | Expr::NumberLiteral(_) | Expr::BoolLiteral(_) |
+Expr::Null | Expr::Param(_)) |
+(Expr::StringLiteral(_) | Expr::NumberLiteral(_) | Expr::BoolLiteral(_) |
+Expr::Null | Expr::Param(_), Expr::Column(_))
         ),
         _ => false,
     }

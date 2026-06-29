@@ -1,4 +1,4 @@
-use super::*;
+use super::RuntimeState;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ProjectionWriteStats {
@@ -15,6 +15,9 @@ pub struct ProjectionWriteStats {
 }
 
 impl RuntimeState {
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_write_batch(
         &self,
         projection: impl Into<String>,
@@ -56,6 +59,9 @@ impl RuntimeState {
             .saturating_add(stats.batch_flushes);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_index_writes(
         &self,
         projection: impl Into<String>,
@@ -72,6 +78,9 @@ impl RuntimeState {
             .saturating_add(deletes);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_metadata_writes(
         &self,
         projection: impl Into<String>,
@@ -88,6 +97,9 @@ impl RuntimeState {
             .saturating_add(deletes);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_rebuild_writes(
         &self,
         projection: impl Into<String>,
@@ -106,6 +118,9 @@ impl RuntimeState {
             .saturating_add(flushes);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_activation_write(&self, projection: impl Into<String>) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.projections.last_projection = projection.into();
@@ -115,6 +130,9 @@ impl RuntimeState {
             .saturating_add(1);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_replay(
         &self,
         projection: impl Into<String>,
@@ -128,6 +146,9 @@ impl RuntimeState {
         metrics.projections.last_projection = projection.into();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_replay_error(
         &self,
         projection: impl Into<String>,
@@ -139,24 +160,36 @@ impl RuntimeState {
         metrics.projections.last_error = error.into();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_materialized_projection_build(&self, projection: impl Into<String>) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.projections.materialized_builds += 1;
         metrics.projections.last_projection = projection.into();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_materialized_projection_refresh(&self, projection: impl Into<String>) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.projections.materialized_refreshes += 1;
         metrics.projections.last_projection = projection.into();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_swap(&self, projection: impl Into<String>) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.projections.version_swaps += 1;
         metrics.projections.last_projection = projection.into();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_stale_mark(&self, projection: impl Into<String>) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.projections.stale_marks += 1;
@@ -164,6 +197,9 @@ impl RuntimeState {
         metrics.projections.last_state = "stale".to_string();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_hash_update(&self, projection: impl Into<String>) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.projections.row_hash_updates += 1;
@@ -173,6 +209,9 @@ impl RuntimeState {
         metrics.projections.last_state = "current".to_string();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_rebuild_verification(
         &self,
         projection: impl Into<String>,
@@ -189,6 +228,9 @@ impl RuntimeState {
         metrics.projections.last_projection = projection.into();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_integrity_verification(
         &self,
         projection: impl Into<String>,
@@ -205,6 +247,9 @@ impl RuntimeState {
         metrics.projections.last_projection = projection.into();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_manifest_export(&self, projection: impl Into<String>) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.projections.consistency_exports += 1;
@@ -212,6 +257,9 @@ impl RuntimeState {
         metrics.projections.last_state = "manifest_exported".to_string();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_projection_consistency_check(
         &self,
         projection: impl Into<String>,
@@ -238,6 +286,9 @@ impl RuntimeState {
         metrics.projections.last_state = state.into();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_mixed_execution_optimized(&self, projection: impl Into<String>) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.projections.mixed_execution_optimized += 1;
@@ -245,6 +296,9 @@ impl RuntimeState {
         metrics.projections.last_state = "optimized".to_string();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_mixed_execution_fallback(
         &self,
         projection: impl Into<String>,

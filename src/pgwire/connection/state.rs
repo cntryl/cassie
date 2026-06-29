@@ -1,4 +1,4 @@
-use super::*;
+use super::{HashMap, CassieSession, ReadyState, PreparedStatement, Portal};
 
 #[derive(Debug)]
 pub(super) enum HandshakeState {

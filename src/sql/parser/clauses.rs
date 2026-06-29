@@ -1,4 +1,4 @@
-use super::*;
+use super::SqlError;
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum Clause {
@@ -93,7 +93,7 @@ pub(super) fn parse_clauses(rest: &str) -> Result<Vec<ClauseMatch>, SqlError> {
     let mut ordered = Vec::new();
     for clause in matches {
         if let ClauseToken::Unsupported(kind) = clause.token {
-            return Err(SqlError(format!("unsupported clause '{}'", kind)));
+            return Err(SqlError(format!("unsupported clause '{kind}'")));
         }
         ordered.push(clause);
     }

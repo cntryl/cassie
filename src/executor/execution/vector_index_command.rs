@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, VectorIndexRecord, QueryError, DataType, VectorIndexType, HnswIndexOptions, VectorIndexMetadata, DistanceMetric};
 
 pub(super) fn vector_index_metadata(
     cassie: &Cassie,
@@ -31,15 +31,12 @@ pub(super) fn vector_index_metadata(
             ))
         })?;
 
-    let dimensions = match vector_field.data_type {
-        DataType::Vector(dimensions) => dimensions,
-        _ => {
+    let DataType::Vector(dimensions) = vector_field.data_type else {
             return Err(QueryError::General(format!(
                 "field '{}' is not a vector field",
                 vector_field.name
             )));
-        }
-    };
+        };
     if cassie.embedding_provider.dimensions() != dimensions {
         return Err(QueryError::General(format!(
             "embedding dimension mismatch: field '{}' has {}, active provider '{}' model '{}' has {}",
@@ -56,8 +53,7 @@ pub(super) fn vector_index_metadata(
         .get("source_field")
         .ok_or_else(|| {
             QueryError::General("CREATE INDEX USING vector requires source_field".to_string())
-        })?
-        .to_string();
+        })?.clone();
 
     let source_metadata = schema
         .fields
@@ -72,16 +68,14 @@ pub(super) fn vector_index_metadata(
 
     if !matches!(source_metadata.data_type, DataType::Text | DataType::Json) {
         return Err(QueryError::General(format!(
-            "source field '{}' must be text/json for vector index",
-            source_field
+            "source field '{source_field}' must be text/json for vector index"
         )));
     }
 
     let index_type = match statement
         .options
         .get("index_type")
-        .map(String::as_str)
-        .unwrap_or("bruteforce")
+        .map_or("bruteforce", String::as_str)
     {
         "hnsw" => VectorIndexType::Hnsw,
         "ivfflat" => VectorIndexType::IvfFlat,

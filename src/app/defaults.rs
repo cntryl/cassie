@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, FieldConstraint, CassieError};
 
 pub(super) fn apply_default_values(
     app: &Cassie,

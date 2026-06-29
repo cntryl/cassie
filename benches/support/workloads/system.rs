@@ -339,7 +339,7 @@ pub async fn projection_lag_catchup(ctx: &BenchContext, nonce: usize) -> usize {
 
 pub async fn index_rebuild_ddl(ctx: &BenchContext, nonce: usize) -> usize {
     let before = ctx.cassie.metrics();
-    let name = format!("bench_rebuild_idx_{}", nonce);
+    let name = format!("bench_rebuild_idx_{nonce}");
     let create = format!(
         "CREATE INDEX {name} ON {} USING btree (status)",
         ctx.collection

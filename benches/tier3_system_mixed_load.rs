@@ -18,10 +18,10 @@ fn bench_mixed_load(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function(BenchmarkId::new("mixed_ingest_query", "10k"), |b| {
-        b.iter(|| runtime.block_on(workloads::mixed_ingest_query(&ctx)))
+        b.iter(|| runtime.block_on(workloads::mixed_ingest_query(&ctx)));
     });
     group.bench_function(BenchmarkId::new("large_result_set", "512_rows"), |b| {
-        b.iter(|| runtime.block_on(workloads::large_result_set_query(&ctx)))
+        b.iter(|| runtime.block_on(workloads::large_result_set_query(&ctx)));
     });
     group.bench_function(
         BenchmarkId::new("ten_million_row_query_shape", "scaled"),

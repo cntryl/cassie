@@ -1,4 +1,4 @@
-use super::*;
+use super::{RuntimeState, RuntimeFeedbackKey, RuntimeFeedbackRecord, RuntimeFeedbackLookupState, RuntimeFeedbackLookup, current_time_millis, touch_feedback, RuntimeFeedbackObservation, prune_feedback_by_age, apply_feedback_observation, OperatorFeedbackEstimate, OPERATOR_FEEDBACK_CONFIDENCE_FLOOR_BPS, OPERATOR_FEEDBACK_MIN_STABLE_SAMPLES};
 
 impl RuntimeState {
     pub fn feedback_lookup(&self, key: &RuntimeFeedbackKey) -> Option<RuntimeFeedbackRecord> {
@@ -57,6 +57,9 @@ impl RuntimeState {
         lookup
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn feedback_record(&self, key: &RuntimeFeedbackKey) -> Option<RuntimeFeedbackRecord> {
         self.feedback
             .lock()
@@ -66,6 +69,9 @@ impl RuntimeState {
             .cloned()
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_feedback(
         &self,
         key: RuntimeFeedbackKey,
@@ -123,6 +129,9 @@ impl RuntimeState {
         }
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn feedback_candidate_budget(&self, collection: &str) -> Option<usize> {
         let now_ms = current_time_millis();
         let mut feedback = self.feedback.lock().expect("runtime feedback");
@@ -251,6 +260,9 @@ impl RuntimeState {
         feedback.order.clear();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn feedback_entry_count(&self) -> usize {
         self.feedback
             .lock()

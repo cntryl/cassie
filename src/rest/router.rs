@@ -19,17 +19,23 @@ use tokio::task;
 use crate::app::Cassie;
 use crate::catalog::RoleMeta;
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub async fn run(addr: String, cassie: Cassie) -> Result<(), crate::app::CassieError> {
     run_with_shutdown(addr, cassie, Arc::new(Notify::new())).await
 }
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub async fn run_with_shutdown(
     addr: String,
     cassie: Cassie,
     shutdown: Arc<Notify>,
 ) -> Result<(), crate::app::CassieError> {
     let listen: SocketAddr = addr.parse().map_err(|e| {
-        crate::app::CassieError::Execution(format!("invalid rest address '{}': {}", addr, e))
+        crate::app::CassieError::Execution(format!("invalid rest address '{addr}': {e}"))
     })?;
     let cassie = Arc::new(cassie);
     let listener = tokio::net::TcpListener::bind(&listen)
@@ -39,7 +45,7 @@ pub async fn run_with_shutdown(
     loop {
         tokio::select! {
             biased;
-            _ = shutdown.notified() => {
+            () = shutdown.notified() => {
                 tracing::info!(target: "rest", address = %listen, "shutdown requested");
                 break;
             }
@@ -103,30 +109,18 @@ fn map_error(error: crate::app::CassieError) -> (StatusCode, String) {
             (StatusCode::CONFLICT, error.to_string())
         }
         crate::app::CassieError::NotFound(_) => (StatusCode::NOT_FOUND, error.to_string()),
-        crate::app::CassieError::Parse(_) | crate::app::CassieError::InvalidVector(_) => {
+        crate::app::CassieError::Parse(_) | crate::app::CassieError::InvalidVector(_) | crate::app::CassieError::InvalidEmbedding(_) | crate::app::CassieError::Planner(_) | crate::app::CassieError::Execution(_) => {
             (StatusCode::BAD_REQUEST, error.to_string())
         }
-        crate::app::CassieError::InvalidEmbedding(_) => {
-            (StatusCode::BAD_REQUEST, error.to_string())
-        }
-        crate::app::CassieError::EmbeddingUnavailable(_) => {
-            (StatusCode::SERVICE_UNAVAILABLE, error.to_string())
-        }
-        crate::app::CassieError::Configuration(_) => {
-            (StatusCode::SERVICE_UNAVAILABLE, error.to_string())
-        }
-        crate::app::CassieError::Unauthorized => (StatusCode::UNAUTHORIZED, error.to_string()),
-        crate::app::CassieError::Unsupported(_) => (StatusCode::NOT_IMPLEMENTED, error.to_string()),
-        crate::app::CassieError::StorageBootstrap(_)
+        crate::app::CassieError::EmbeddingUnavailable(_) | crate::app::CassieError::Configuration(_) | crate::app::CassieError::StorageBootstrap(_)
         | crate::app::CassieError::StorageMissingFamily(_)
         | crate::app::CassieError::StorageRetryable(_)
         | crate::app::CassieError::Storage(_) => {
             (StatusCode::SERVICE_UNAVAILABLE, error.to_string())
         }
-        crate::app::CassieError::Planner(_) | crate::app::CassieError::Execution(_) => {
-            (StatusCode::BAD_REQUEST, error.to_string())
+        crate::app::CassieError::Unauthorized => (StatusCode::UNAUTHORIZED, error.to_string()),
+        crate::app::CassieError::Unsupported(_) => (StatusCode::NOT_IMPLEMENTED, error.to_string()),
         }
-    }
 }
 
 fn record_rest_error(
@@ -143,6 +137,9 @@ fn record_rest_error(
     mapped
 }
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub async fn route_request(
     request: Request<Incoming>,
     cassie: Arc<Cassie>,
@@ -331,7 +328,7 @@ pub async fn route_request(
             );
             return Err((
                 StatusCode::NOT_FOUND,
-                format!("unsupported route: {} {}", method, path),
+                format!("unsupported route: {method} {path}"),
             ));
         }
     };
@@ -383,7 +380,7 @@ where
 fn is_route_public(method: &Method, segments: &[&str]) -> bool {
     matches!(
         (method, segments),
-        (&Method::GET, ["health"]) | (&Method::GET, ["liveness"]) | (&Method::GET, ["metrics"])
+        (&Method::GET, ["health" | "liveness" | "metrics"])
     )
 }
 

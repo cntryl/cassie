@@ -186,8 +186,8 @@ pub(super) fn pg_index(catalog: &Catalog) -> Vec<VirtualRow> {
                 bool_value("indisunique", index.unique),
                 bool_value("indisprimary", primary),
                 string("indkey", index_keys(catalog, &index)),
-                int_value("indnatts", index_key_count(catalog, &index) as i64),
-                int_value("indnkeyatts", index_key_count(catalog, &index) as i64),
+                int_value("indnatts", index_key_count(catalog, &index)),
+                int_value("indnkeyatts", index_key_count(catalog, &index)),
                 bool_value("indisvalid", true),
                 bool_value("indisready", true),
                 string("indpred", index.predicate.clone().unwrap_or_default()),
@@ -213,7 +213,7 @@ pub(super) fn pg_attrdef(catalog: &Catalog) -> Vec<VirtualRow> {
             };
             rows.push(vec![
                 string("adrelid", &schema.collection),
-                int_value("adnum", (index + 1) as i64),
+                int_value("adnum", index + 1 ),
                 string("adsrc", default),
             ]);
         }
@@ -239,10 +239,10 @@ fn attribute_row(
         string("attrelid", relation),
         int_value("attrelid_oid", relation_oid(relation)),
         string("attname", field_name),
-        int_value("attnum", (index + 1) as i64),
+        int_value("attnum", index + 1 ),
         int_value("atttypid", data_type.type_oid()),
         bool_value("attnotnull", is_not_null(constraint)),
-        int_value("atttypmod", data_type.atttypmod() as i64),
+        int_value("atttypmod", i64::from(data_type.atttypmod())),
         bool_value("atthasdef", constraint_has_default(constraint)),
         bool_value("attisdropped", false),
         string("attidentity", ""),
@@ -343,9 +343,7 @@ fn index_keys(catalog: &Catalog, index: &IndexMeta) -> String {
             schema
                 .fields
                 .iter()
-                .position(|candidate| candidate.name.eq_ignore_ascii_case(&field))
-                .map(|position| (position + 1).to_string())
-                .unwrap_or_else(|| "0".to_string())
+                .position(|candidate| candidate.name.eq_ignore_ascii_case(&field)).map_or_else(|| "0".to_string(), |position| (position + 1).to_string())
         })
         .chain(
             index
@@ -381,16 +379,14 @@ fn constraint_for_field<'a>(
 
 fn is_not_null(constraint: Option<&FieldConstraint>) -> bool {
     constraint
-        .map(|constraint| constraint.not_null || constraint.primary_key)
-        .unwrap_or(false)
+        .is_some_and(|constraint| constraint.not_null || constraint.primary_key)
 }
 
 fn constraint_has_default(constraint: Option<&FieldConstraint>) -> bool {
     constraint
-        .map(|constraint| {
+        .is_some_and(|constraint| {
             constraint.default_expression.is_some() || constraint.default_value.is_some()
         })
-        .unwrap_or(false)
 }
 
 pub(super) fn constraint_default_expression(constraint: &FieldConstraint) -> Option<String> {
@@ -470,23 +466,12 @@ fn type_row(data_type: DataType, namespace: &str) -> VirtualRow {
 
 fn type_length(data_type: &DataType) -> i64 {
     match data_type {
-        DataType::Null => -1,
         DataType::Boolean => 1,
         DataType::SmallInt => 2,
-        DataType::Int => 4,
-        DataType::BigInt => 8,
-        DataType::Float => 8,
+        DataType::Int | DataType::Date => 4,
+        DataType::BigInt | DataType::Float | DataType::Time | DataType::Timestamp => 8,
         DataType::Uuid => 16,
-        DataType::Char { .. } => -1,
-        DataType::Varchar { .. } => -1,
-        DataType::Date => 4,
-        DataType::Time => 8,
-        DataType::Timestamp => 8,
-        DataType::Text => -1,
-        DataType::Bytea => -1,
-        DataType::Json => -1,
-        DataType::Vector(_) => -1,
-        DataType::Array(_) => -1,
+        DataType::Null | DataType::Char { .. } | DataType::Varchar { .. } | DataType::Text | DataType::Bytea | DataType::Json | DataType::Vector(_) | DataType::Array(_) => -1,
     }
 }
 
@@ -595,8 +580,14 @@ fn string(name: &str, value: impl Into<String>) -> (String, Value) {
     (name.to_string(), Value::String(value.into()))
 }
 
-fn int_value(name: &str, value: i64) -> (String, Value) {
-    (name.to_string(), Value::Int64(value))
+fn int_value<T>(name: &str, value: T) -> (String, Value)
+where
+    T: TryInto<i64>,
+{
+    (
+        name.to_string(),
+        Value::Int64(value.try_into().unwrap_or(i64::MAX)),
+    )
 }
 
 fn bool_value(name: &str, value: bool) -> (String, Value) {

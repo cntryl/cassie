@@ -14,6 +14,7 @@ pub enum Value {
 }
 
 impl Value {
+    #[must_use]
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             Value::Float64(v) => Some(*v),
@@ -22,6 +23,7 @@ impl Value {
         }
     }
 
+    #[must_use]
     pub fn as_i64(&self) -> Option<i64> {
         match self {
             Value::Int64(v) => Some(*v),
@@ -30,6 +32,7 @@ impl Value {
         }
     }
 
+    #[must_use]
     pub fn as_str(&self) -> Option<&str> {
         match self {
             Value::String(v) => Some(v.as_str()),
@@ -37,6 +40,7 @@ impl Value {
         }
     }
 
+    #[must_use]
     pub fn as_vector(&self) -> Option<&Vector> {
         match self {
             Value::Vector(v) => Some(v),
@@ -44,6 +48,7 @@ impl Value {
         }
     }
 
+    #[must_use]
     pub fn is_null(&self) -> bool {
         matches!(self, Value::Null)
     }

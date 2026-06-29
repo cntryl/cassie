@@ -1,18 +1,25 @@
 use super::types::ExecutionBreakdownDurations;
-use super::*;
+use super::{Expr, QueryError, BatchRow, Cassie, CassieSession, PhysicalPlan, LogicalPlan, CteContext, HashMap, FunctionMeta, Value, QueryExecutionControls, execute_cte, source, scored, analytical_projection, index_read, ordered_read, projected_read, rollups, plan_inspection, SelectItem, QuerySource, Instant, batch};
 
 type ExprResolution<'a> = Result<Expr, QueryError>;
 type AccessPathResult = Result<Option<Vec<BatchRow>>, QueryError>;
 type AccessPathFn = for<'a> fn(&mut AccessPathContext<'a>) -> AccessPathResult;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum AccessPathRoute {
+    ScalarIndex,
+}
+
 struct AccessPathExecutor {
     execute: AccessPathFn,
     records_mixed_optimization: bool,
+    route: Option<AccessPathRoute>,
 }
 
 struct AccessPathContext<'a> {
     cassie: &'a Cassie,
     session: Option<&'a CassieSession>,
+    physical: Option<&'a PhysicalPlan>,
     plan: &'a LogicalPlan,
     cte_context: &'a mut CteContext,
     user_functions: &'a HashMap<String, FunctionMeta>,
@@ -25,30 +32,37 @@ const ACCESS_PATH_EXECUTORS: &[AccessPathExecutor] = &[
     AccessPathExecutor {
         execute: vector_distance_path,
         records_mixed_optimization: true,
+        route: None,
     },
     AccessPathExecutor {
         execute: scored_search_path,
         records_mixed_optimization: true,
+        route: None,
     },
     AccessPathExecutor {
         execute: analytical_projection_path,
         records_mixed_optimization: false,
+        route: None,
     },
     AccessPathExecutor {
         execute: scalar_index_path,
         records_mixed_optimization: true,
+        route: Some(AccessPathRoute::ScalarIndex),
     },
     AccessPathExecutor {
         execute: ordered_column_path,
         records_mixed_optimization: true,
+        route: None,
     },
     AccessPathExecutor {
         execute: projected_filtered_path,
         records_mixed_optimization: true,
+        route: None,
     },
     AccessPathExecutor {
         execute: rollup_path,
         records_mixed_optimization: true,
+        route: None,
     },
 ];
 
@@ -73,10 +87,57 @@ pub(super) fn execute_plan(
     )
 }
 
+pub(super) fn execute_physical_plan(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    physical: &PhysicalPlan,
+    cte_context: &mut CteContext,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+) -> Result<Vec<BatchRow>, QueryError> {
+    execute_plan_with_physical(
+        cassie,
+        session,
+        Some(physical),
+        &physical.logical,
+        cte_context,
+        user_functions,
+        params,
+        controls,
+        None,
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn execute_plan_with_outer_row(
     cassie: &Cassie,
     session: Option<&CassieSession>,
+    plan: &LogicalPlan,
+    cte_context: &mut CteContext,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+    outer_row: Option<&BatchRow>,
+) -> Result<Vec<BatchRow>, QueryError> {
+    execute_plan_with_physical(
+        cassie,
+        session,
+        None,
+        plan,
+        cte_context,
+        user_functions,
+        params,
+        controls,
+        outer_row,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_plan_with_physical(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    physical: Option<&PhysicalPlan>,
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
     user_functions: &HashMap<String, FunctionMeta>,
@@ -109,6 +170,7 @@ pub(super) fn execute_plan_with_outer_row(
         if let Some(rows) = execute_access_path_registry(
             cassie,
             session,
+            physical,
             plan,
             cte_context,
             user_functions,
@@ -137,10 +199,27 @@ pub(super) fn execute_plan_with_outer_row(
     )
 }
 
+pub(super) fn preferred_access_path_route(
+    physical: Option<&PhysicalPlan>,
+) -> Option<AccessPathRoute> {
+    let physical = physical?;
+    physical.selected_index.as_ref()?;
+    match physical.access_path {
+        crate::planner::physical::ReadAccessPath::IndexSeek
+        | crate::planner::physical::ReadAccessPath::PrefixScan
+        | crate::planner::physical::ReadAccessPath::RangeScan
+        | crate::planner::physical::ReadAccessPath::OrderedBoundedScan => {
+            Some(AccessPathRoute::ScalarIndex)
+        }
+        _ => None,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn execute_access_path_registry(
     cassie: &Cassie,
     session: Option<&CassieSession>,
+    physical: Option<&PhysicalPlan>,
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
     user_functions: &HashMap<String, FunctionMeta>,
@@ -151,6 +230,7 @@ fn execute_access_path_registry(
     let mut context = AccessPathContext {
         cassie,
         session,
+        physical,
         plan,
         cte_context,
         user_functions,
@@ -159,19 +239,45 @@ fn execute_access_path_registry(
         mixed_execution,
     };
 
+    let preferred_route = preferred_access_path_route(physical);
+    if let Some(route) = preferred_route {
+        if let Some(rows) = execute_access_path_route(route, &mut context)? {
+            record_mixed_optimization_if_needed(&context);
+            return Ok(Some(rows));
+        }
+    }
+
     for executor in ACCESS_PATH_EXECUTORS {
+        if preferred_route.is_some() && executor.route == preferred_route {
+            continue;
+        }
         if let Some(rows) = (executor.execute)(&mut context)? {
             if executor.records_mixed_optimization && context.mixed_execution.is_some() {
-                context
-                    .cassie
-                    .runtime
-                    .record_mixed_execution_optimized(context.plan.collection.clone());
+                record_mixed_optimization_if_needed(&context);
             }
             return Ok(Some(rows));
         }
     }
 
     Ok(None)
+}
+
+fn execute_access_path_route(
+    route: AccessPathRoute,
+    context: &mut AccessPathContext<'_>,
+) -> AccessPathResult {
+    match route {
+        AccessPathRoute::ScalarIndex => scalar_index_path(context),
+    }
+}
+
+fn record_mixed_optimization_if_needed(context: &AccessPathContext<'_>) {
+    if context.mixed_execution.is_some() {
+        context
+            .cassie
+            .runtime
+            .record_mixed_execution_optimized(context.plan.collection.clone());
+    }
 }
 
 fn vector_distance_path(context: &mut AccessPathContext<'_>) -> AccessPathResult {
@@ -210,6 +316,7 @@ fn scalar_index_path(context: &mut AccessPathContext<'_>) -> AccessPathResult {
     index_read::execute_scalar_index_read(
         context.cassie,
         context.session,
+        context.physical,
         context.plan,
         context.user_functions,
         context.params,
@@ -529,8 +636,7 @@ fn bounded_exists_logical(mut logical: LogicalPlan) -> LogicalPlan {
     logical.limit = Some(
         logical
             .limit
-            .map(|limit| if limit <= 0 { 0 } else { 1 })
-            .unwrap_or(1),
+            .map_or(1, |limit| i64::from(limit > 0)),
     );
     logical
 }

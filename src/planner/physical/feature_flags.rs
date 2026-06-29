@@ -1,4 +1,4 @@
-use super::*;
+use super::{LogicalPlan, Expr, SelectItem, WindowFunctionCall, FunctionCall, BinaryOp};
 
 pub(super) fn plan_uses_fulltext(plan: &LogicalPlan) -> bool {
     plan.projection.iter().any(select_item_uses_fulltext)

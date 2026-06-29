@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
 
-use super::*;
+use super::{Midge, CassieError, IndexKind, IndexMeta, ColumnBatchMetadata, ColumnBatchRow, ColumnBatchSegmentMeta, ColumnBatchCodecMeta, WriteOptions, RowFilter, ColumnBatchScanFilter, ColumnBatchScanDecision, ColumnBatchScanFallbackReason, ColumnBatchPayload, DocumentRef, ColumnBatchScanOutcome, MidgeScanTimings, Query, ColumnBatchColumn, ColumnBatchValueRun, ColumnBatchFieldSummary, ColumnBatchScanPredicate, ColumnBatchScanOp};
 
 const COLUMN_BATCH_ENCODING_VERSION: u32 = 1;
 const COLUMN_BATCH_CODEC_VERSION: u32 = 1;
@@ -15,6 +15,9 @@ struct EncodedColumnBatch {
 }
 
 impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn rebuild_column_batches_for_collection(
         &self,
         collection: &str,
@@ -29,6 +32,9 @@ impl Midge {
         Ok(rebuilt)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn rebuild_column_batches_for_index(
         &self,
         index: &IndexMeta,
@@ -128,6 +134,9 @@ impl Midge {
         Ok(metadata)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn get_column_batch_metadata(
         &self,
         collection: &str,
@@ -145,6 +154,9 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid column batch metadata: {error}")))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn delete_column_batches(
         &self,
         collection: &str,
@@ -170,6 +182,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn scan_column_batch_projected_rows(
         &self,
         collection: &str,
@@ -306,7 +321,7 @@ impl Midge {
             batches,
             timings: MidgeScanTimings {
                 scan: started.elapsed(),
-                row_decode: Default::default(),
+                row_decode: std::time::Duration::default(),
             },
             index_name: index.name,
             compressed_bytes,
@@ -366,8 +381,7 @@ fn column_index_segment_size(index: &IndexMeta) -> Result<usize, CassieError> {
     let raw = index
         .options
         .get("segment_size")
-        .map(String::as_str)
-        .unwrap_or("1024")
+        .map_or("1024", String::as_str)
         .trim();
     let parsed = raw
         .parse::<usize>()
@@ -440,8 +454,7 @@ fn value_runs(rows: &[ColumnBatchRow], field: &str) -> Vec<ColumnBatchValueRun> 
             .values
             .iter()
             .find(|(name, _)| name.eq_ignore_ascii_case(field))
-            .map(|(_, value)| value.clone())
-            .unwrap_or(serde_json::Value::Null);
+            .map_or(serde_json::Value::Null, |(_, value)| value.clone());
         if let Some(last) = runs.last_mut() {
             if last.value == value {
                 last.len += 1;
@@ -502,10 +515,10 @@ fn decode_dictionary_rle_payload(
 }
 
 fn checksum_hex(bytes: &[u8]) -> String {
-    let mut hash = 0xcbf29ce484222325u64;
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in bytes {
         hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x100000001b3);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
     }
     format!("{hash:016x}")
 }
@@ -558,8 +571,7 @@ fn column_batch_field_summary(rows: &[ColumnBatchRow], field: &str) -> ColumnBat
             .values
             .iter()
             .find(|(name, _)| name.eq_ignore_ascii_case(field))
-            .map(|(_, value)| value)
-            .unwrap_or(&serde_json::Value::Null);
+            .map_or(&serde_json::Value::Null, |(_, value)| value);
         if value.is_null() {
             continue;
         }
@@ -734,8 +746,7 @@ fn project_column_batch_row(row: &ColumnBatchRow, fields: &[String]) -> serde_js
             .values
             .iter()
             .find(|(name, _)| name.eq_ignore_ascii_case(field))
-            .map(|(_, value)| value.clone())
-            .unwrap_or(serde_json::Value::Null);
+            .map_or(serde_json::Value::Null, |(_, value)| value.clone());
         object.insert(field.clone(), value);
     }
     serde_json::Value::Object(object)

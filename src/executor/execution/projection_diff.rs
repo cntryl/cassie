@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::*;
+use super::{Cassie, QueryResult, QueryError, Value, ColumnMeta};
 
 pub(super) fn diff_projection(
     cassie: &Cassie,
@@ -151,8 +151,7 @@ pub(super) fn diff_projection(
     for row in &mut rows {
         row.push(
             cursor
-                .map(|value| Value::String(value.to_string()))
-                .unwrap_or(Value::Null),
+                .map_or(Value::Null, |value| Value::String(value.to_string())),
         );
         row.push(Value::Bool(complete));
     }
@@ -166,8 +165,7 @@ pub(super) fn diff_projection(
         );
         row.push(
             cursor
-                .map(|value| Value::String(value.to_string()))
-                .unwrap_or(Value::Null),
+                .map_or(Value::Null, |value| Value::String(value.to_string())),
         );
         row.push(Value::Bool(complete));
         rows.push(row);
@@ -268,7 +266,7 @@ pub(super) fn compare_projection(
         rows: vec![vec![
             Value::String(statement.target.name.clone()),
             Value::String(state.to_string()),
-            actual_digest.map(Value::String).unwrap_or(Value::Null),
+            actual_digest.map_or(Value::Null, Value::String),
             Value::String(manifest_digest.to_string()),
             Value::Int64(mismatches),
             Value::String(report.report_id),
@@ -326,13 +324,11 @@ fn manifest_field_matches(
         return false;
     };
     let matches = actual
-        .as_str()
-        .map(|value| value == expected)
-        .unwrap_or_else(|| {
+        .as_str().map_or_else(|| {
             actual
                 .as_u64()
                 .is_some_and(|value| value.to_string() == expected)
-        });
+        }, |value| value == expected);
     if !matches {
         *compatibility_status = format!("incompatible-{key}");
     }
@@ -353,7 +349,7 @@ fn stored_hash_state(state: &crate::midge::adapter::StoredHashState) -> &'static
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as u64)
+        .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
         .unwrap_or_default()
 }
 
@@ -393,11 +389,9 @@ fn diff_row(
         Value::String(row_id.to_string()),
         Value::String(change.to_string()),
         left_digest
-            .map(|digest| Value::String(digest.to_string()))
-            .unwrap_or(Value::Null),
+            .map_or(Value::Null, |digest| Value::String(digest.to_string())),
         right_digest
-            .map(|digest| Value::String(digest.to_string()))
-            .unwrap_or(Value::Null),
+            .map_or(Value::Null, |digest| Value::String(digest.to_string())),
         Value::String(state.to_string()),
     ]
 }

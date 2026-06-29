@@ -1,4 +1,4 @@
-use super::*;
+use super::{AlterTableOperation, Catalog, CassieError, CreateIndexStatement, CollectionSchema, DataType, Expr, DistanceMetric, virtual_views, HashSet, CreateViewStatement, QueryStatement, bind_select, HashMap, select_contains_parameters, infer_select_schema, DropViewStatement, bm25, DropIndexStatement, DropSchemaStatement, is_reserved_namespace, AlterSchemaStatement, AlterSchemaOperation, AlterTableStatement};
 
 #[path = "schema_alter_constraints.rs"]
 mod schema_alter_constraints;
@@ -623,7 +623,7 @@ pub(super) fn validate_index_expression(
 pub(super) fn parse_column_index_segment_size(
     value: Option<&String>,
 ) -> Result<usize, CassieError> {
-    let value = value.map(String::as_str).unwrap_or("").trim();
+    let value = value.map_or("", String::as_str).trim();
     if value.is_empty() {
         return Ok(1024);
     }

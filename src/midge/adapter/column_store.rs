@@ -1,7 +1,10 @@
-use super::*;
+use super::{Midge, Schema, CollectionMeta, CassieError, RowSchema, ProjectionMeta, CollectionCardinalityStats, WriteOptions, CollectionStorageMode, HashSet, RowFilter, DocumentRef, MidgeScanTimings, Instant, Query, key_encoding, OrderedRowBound};
 use std::time::Duration;
 
 impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn create_collection_with_meta(
         &self,
         name: &str,
@@ -61,6 +64,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn collection_metadata(&self, name: &str) -> Result<Option<CollectionMeta>, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
         if let Some(metadata) = Self::load_collection_metadata_from_tx(&tx, name)? {
@@ -79,8 +85,7 @@ impl Midge {
     ) -> Result<CollectionStorageMode, CassieError> {
         Ok(self
             .collection_metadata(collection)?
-            .map(|metadata| metadata.storage_mode)
-            .unwrap_or(CollectionStorageMode::RowStore))
+            .map_or(CollectionStorageMode::RowStore, |metadata| metadata.storage_mode))
     }
 
     pub(crate) fn collection_uses_column_store(
@@ -428,8 +433,7 @@ impl Midge {
         let mut object = serde_json::Map::new();
         for field in fields {
             let include = projection
-                .map(|projection| projection.contains(&field.name.to_ascii_lowercase()))
-                .unwrap_or(true);
+                .is_none_or(|projection| projection.contains(&field.name.to_ascii_lowercase()));
             if !include {
                 continue;
             }

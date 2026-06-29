@@ -229,17 +229,13 @@ fn write_field_value(
     encoded: &[u8],
     out: &mut Vec<u8>,
 ) -> Result<(), CassieError> {
-    write_varint(field_id as u64, out);
+    write_varint(u64::from(field_id), out);
     out.push(type_tag);
 
     match type_tag {
         TYPE_NULL => {}
         TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID | TYPE_ARRAY => out.extend_from_slice(encoded),
-        TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME | TYPE_TIMESTAMP => {
-            write_varint(encoded.len() as u64, out);
-            out.extend_from_slice(encoded);
-        }
-        TYPE_BYTEA => {
+        TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME | TYPE_TIMESTAMP | TYPE_BYTEA => {
             write_varint(encoded.len() as u64, out);
             out.extend_from_slice(encoded);
         }
@@ -401,13 +397,13 @@ fn decode_row_with_projection(
             continue;
         };
         let include_names = included_field_names(field, projection, include_historical_aliases);
-        if !include_names.is_empty() {
+        if include_names.is_empty() {
+            skip_value(type_tag, &mut cursor)?;
+        } else {
             let value = decode_value(type_tag, &mut cursor)?;
             for name in include_names {
                 object.insert(name, value.clone());
             }
-        } else {
-            skip_value(type_tag, &mut cursor)?;
         }
     }
 
@@ -693,7 +689,7 @@ fn encode_value(
                 out.push(value_type);
                 match value_type {
                     TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID => {
-                        out.extend_from_slice(&value_data)
+                        out.extend_from_slice(&value_data);
                     }
                     TYPE_NULL | TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE
                     | TYPE_TIME | TYPE_TIMESTAMP | TYPE_ARRAY | TYPE_BYTEA => {
@@ -825,7 +821,7 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
                 let value = f32::from_be_bytes(chunk.try_into().map_err(|_| {
                     CassieError::Parse("invalid vector value in row blob".to_string())
                 })?);
-                let number = serde_json::Number::from_f64(value as f64).ok_or_else(|| {
+                let number = serde_json::Number::from_f64(f64::from(value)).ok_or_else(|| {
                     CassieError::Parse("invalid vector numeric value in row blob".to_string())
                 })?;
                 values.push(serde_json::Value::Number(number));
@@ -950,7 +946,7 @@ impl<'a> Cursor<'a> {
                 return Err(CassieError::Parse("row blob varint overflow".into()));
             }
             let byte = self.read_u8()?;
-            value |= ((byte & 0x7f) as u64) << shift;
+            value |= u64::from(byte & 0x7f) << shift;
             if byte & 0x80 == 0 {
                 return Ok(value);
             }

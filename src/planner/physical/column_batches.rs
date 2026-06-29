@@ -1,4 +1,4 @@
-use super::*;
+use super::{LogicalPlan, IndexMeta, source_contains_join, QuerySource, projected_scan_fields, is_row_id_column, BTreeSet, IndexKind};
 
 pub(super) fn column_batch_index(plan: &LogicalPlan, indexes: &[IndexMeta]) -> Option<String> {
     if plan.command.is_some()

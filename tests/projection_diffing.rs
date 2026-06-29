@@ -215,8 +215,7 @@ fn should_report_projection_diff_resume_cursor_for_bounded_output() {
             .execute_sql(
                 &session,
                 &format!(
-                    "DIFF PROJECTION diff_cursor_left WITH diff_cursor_right LIMIT 5 AFTER {}",
-                    cursor
+                    "DIFF PROJECTION diff_cursor_left WITH diff_cursor_right LIMIT 5 AFTER {cursor}"
                 ),
                 vec![],
             )
@@ -354,8 +353,7 @@ fn should_persist_projection_comparison_report_after_restart() {
             .execute_sql(
                 &session,
                 &format!(
-                    "SELECT state, compatibility_status, mismatch_count FROM pg_catalog.pg_projection_comparison_reports WHERE report_id = '{}'",
-                    report_id
+                    "SELECT state, compatibility_status, mismatch_count FROM pg_catalog.pg_projection_comparison_reports WHERE report_id = '{report_id}'"
                 ),
                 vec![],
             )

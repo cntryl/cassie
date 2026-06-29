@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::*;
+use super::{Cassie, QueryResult, QueryError, Value, catalog, ColumnMeta, DataType};
 use crate::sql::ast::{
     ProjectionDiffTarget, ProjectionRepairScope, ProjectionVerificationMode,
     RepairProjectionStatement, VerifyProjectionStatement,
@@ -258,6 +258,6 @@ fn repair_result(command: &str, state: &str, report_id: &str, plan: &RepairPlan)
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as u64)
+        .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
         .unwrap_or_default()
 }

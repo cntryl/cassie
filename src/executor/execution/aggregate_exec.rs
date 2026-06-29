@@ -394,7 +394,7 @@ impl AggregateAccumulator {
                 }
                 let replace = selected
                     .as_ref()
-                    .map(|current| {
+                    .is_none_or(|current| {
                         let current_key = value_sort_key(current);
                         let value_key = value_sort_key(&value);
                         if *max {
@@ -402,8 +402,7 @@ impl AggregateAccumulator {
                         } else {
                             value_key < current_key
                         }
-                    })
-                    .unwrap_or(true);
+                    });
                 if replace {
                     *selected = Some(value);
                 }
@@ -446,7 +445,7 @@ impl AggregateAccumulator {
             ) => {
                 let replace = selected
                     .as_ref()
-                    .map(|current| {
+                    .is_none_or(|current| {
                         let current_key = value_sort_key(current);
                         let value_key = value_sort_key(value);
                         if *max {
@@ -454,8 +453,7 @@ impl AggregateAccumulator {
                         } else {
                             value_key < current_key
                         }
-                    })
-                    .unwrap_or(true);
+                    });
                 if replace {
                     *selected = Some(value.clone());
                 }
@@ -902,7 +900,7 @@ fn minmax_aggregate(
         }
         let replace = selected
             .as_ref()
-            .map(|current| {
+            .is_none_or(|current| {
                 let current_key = value_sort_key(current);
                 let value_key = value_sort_key(&value);
                 if max {
@@ -910,8 +908,7 @@ fn minmax_aggregate(
                 } else {
                     value_key < current_key
                 }
-            })
-            .unwrap_or(true);
+            });
         if replace {
             selected = Some(value);
         }

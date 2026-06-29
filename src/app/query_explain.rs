@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, vector_prefilter_supported, vector_prefilter_fallback_reason};
 
 pub(super) fn plan_line(
     cassie: &Cassie,
@@ -18,9 +18,7 @@ pub(super) fn plan_line(
     };
     let limit_pushdown = physical.scan_limit.is_some();
     let scan_limit = physical
-        .scan_limit
-        .map(|limit| limit.to_string())
-        .unwrap_or_else(|| "none".to_string());
+        .scan_limit.map_or_else(|| "none".to_string(), |limit| limit.to_string());
     let index_aware = physical.selected_index.is_some();
     let index = physical.selected_index.as_deref().unwrap_or("none");
     let index_feedback = if physical.selected_index.is_some() {
@@ -92,9 +90,7 @@ pub(super) fn plan_line(
     let time_series = time_series_description(cassie, physical);
     let time_series_storage = time_series_storage_description(cassie, physical);
     let top_k_limit = physical
-        .top_k_limit
-        .map(|limit| limit.to_string())
-        .unwrap_or_else(|| "none".to_string());
+        .top_k_limit.map_or_else(|| "none".to_string(), |limit| limit.to_string());
     let access_path = physical.access_path.as_str();
     let access_path_reason = physical.access_path_reason.as_str();
     let fallback_reason = physical.fallback_reason.as_deref().unwrap_or("none");
@@ -141,9 +137,7 @@ pub(super) fn plan_line(
     };
     let storage_mode = cassie
         .catalog
-        .collection_storage_mode(&physical.collection)
-        .map(|mode| mode.as_str().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
+        .collection_storage_mode(&physical.collection).map_or_else(|| "unknown".to_string(), |mode| mode.as_str().to_string());
     let aggregate_parallel = physical.parallel_aggregate_candidate;
     let aggregate_acceleration = physical.aggregate_acceleration;
     let rollup_rewrite = crate::executor::rollup_rewrite_name_for_plan(cassie, &physical.logical)
@@ -158,9 +152,7 @@ pub(super) fn plan_line(
             cassie
                 .catalog
                 .materialized_projection_for_output(&physical.collection)
-        })
-        .map(|projection| projection.freshness.as_str().to_string())
-        .unwrap_or_else(|| "unavailable".to_string());
+        }).map_or_else(|| "unavailable".to_string(), |projection| projection.freshness.as_str().to_string());
     let estimates = &physical.estimates;
     let selected_cost = if operator_feedback == "used"
         && adaptive_selected_alternative == operator_feedback_selected_candidate
@@ -366,9 +358,7 @@ fn candidate_budget(cassie: &Cassie, physical: &crate::planner::physical::Physic
                 .max(limits.adaptive_candidate_min)
                 .max(feedback_budget)
                 .min(limits.adaptive_candidate_max)
-        })
-        .map(|budget| budget.to_string())
-        .unwrap_or_else(|| "none".to_string())
+        }).map_or_else(|| "none".to_string(), |budget| budget.to_string())
 }
 
 struct Phase03Diagnostics {
@@ -407,9 +397,7 @@ fn phase03_diagnostics(
                     .source_collections
                     .iter()
                     .any(|source| source == &physical.collection)
-        })
-        .map(|(name, _)| name)
-        .unwrap_or_else(|| "none".to_string());
+        }).map_or_else(|| "none".to_string(), |(name, _)| name);
 
     Phase03Diagnostics {
         column_native,

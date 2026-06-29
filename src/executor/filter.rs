@@ -1,3 +1,4 @@
+use crate::executor::batch::RowAccess;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -6,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
-use crate::executor::batch::{Batch, RowAccess};
+use crate::executor::batch::{Batch};
 use crate::executor::QueryError;
 use crate::search::analyzer::AnalyzerConfig;
 use crate::sql::ast::FunctionCall;
@@ -116,12 +117,10 @@ fn is_constant_expr(expr: &Expr) -> bool {
         | Expr::Param(_) => true,
         Expr::Function(f) => f.args.iter().all(is_constant_expr),
         Expr::Binary { left, right, .. } => is_constant_expr(left) && is_constant_expr(right),
-        Expr::Cast { expr, .. } => is_constant_expr(expr),
+        Expr::Cast { expr, .. } | Expr::Not { expr } | Expr::IsNull { expr, .. } => is_constant_expr(expr),
         Expr::InList { expr, values, .. } => {
             is_constant_expr(expr) && values.iter().all(is_constant_expr)
         }
-        Expr::Not { expr } => is_constant_expr(expr),
-        Expr::IsNull { expr, .. } => is_constant_expr(expr),
         Expr::Between {
             expr, low, high, ..
         } => is_constant_expr(expr) && is_constant_expr(low) && is_constant_expr(high),
@@ -307,9 +306,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
         Expr::Null => Ok(ScalarValue::Null),
         Expr::Param(index) => params
             .get(*index)
-            .and_then(scalar_from_value)
-            .map(Ok)
-            .unwrap_or_else(|| Ok(ScalarValue::Null)),
+            .and_then(scalar_from_value).map_or_else(|| Ok(ScalarValue::Null), Ok),
         Expr::Function(function) => Ok(scalar_from_value(&evaluate_function(
             function,
             row,
@@ -470,11 +467,11 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
         DataType::Null => Ok(ScalarValue::Null),
         DataType::SmallInt => scalar_to_i64(value)
             .and_then(|value| i16::try_from(value).ok())
-            .map(|value| ScalarValue::Int(value as i64))
+            .map(|value| ScalarValue::Int(i64::from(value)))
             .ok_or_else(|| QueryError::General("cannot cast value to SMALLINT".to_string())),
         DataType::Int => scalar_to_i64(value)
             .and_then(|value| i32::try_from(value).ok())
-            .map(|value| ScalarValue::Int(value as i64))
+            .map(|value| ScalarValue::Int(i64::from(value)))
             .ok_or_else(|| QueryError::General("cannot cast value to INT".to_string())),
         DataType::BigInt => scalar_to_i64(value)
             .map(ScalarValue::Int)
@@ -573,14 +570,13 @@ fn cast_to_text(value: &ScalarValue) -> Option<String> {
 fn scalar_to_i64(value: &ScalarValue) -> Option<i64> {
     match value {
         ScalarValue::Int(value) => Some(*value),
-        ScalarValue::Bool(value) => Some(if *value { 1 } else { 0 }),
+        ScalarValue::Bool(value) => Some(i64::from(*value)),
         ScalarValue::Float(value) if value.is_finite() && value.fract() == 0.0 => {
             Some(*value as i64)
         }
-        ScalarValue::Float(_) => None,
+        ScalarValue::Float(_) | ScalarValue::Null => None,
         ScalarValue::Str(value) => value.parse().ok(),
-        ScalarValue::Null => None,
-    }
+        }
 }
 
 fn decode_bytea(value: &str) -> Result<(), QueryError> {
@@ -594,7 +590,7 @@ fn decode_bytea(value: &str) -> Result<(), QueryError> {
             "cannot cast value to BYTEA".to_string(),
         ));
     }
-    for byte in value.as_bytes()[2..].iter() {
+    for byte in &value.as_bytes()[2..] {
         if !byte.is_ascii_hexdigit() {
             return Err(QueryError::General(
                 "cannot cast value to BYTEA".to_string(),
@@ -611,9 +607,9 @@ fn binary_scalar(left: &ScalarValue, op: &BinaryOp, right: &ScalarValue) -> Scal
         BinaryOp::Or => ScalarValue::Bool(left.as_bool() || right.as_bool()),
         BinaryOp::Eq => ScalarValue::Bool(eq_value(left, right)),
         BinaryOp::NotEq => ScalarValue::Bool(!eq_value(left, right)),
-        BinaryOp::Lt => ScalarValue::Bool(ordered_cmp(left, right, |ordering| ordering.is_lt())),
+        BinaryOp::Lt => ScalarValue::Bool(ordered_cmp(left, right, std::cmp::Ordering::is_lt)),
         BinaryOp::Lte => ScalarValue::Bool(ordered_cmp(left, right, |ordering| !ordering.is_gt())),
-        BinaryOp::Gt => ScalarValue::Bool(ordered_cmp(left, right, |ordering| ordering.is_gt())),
+        BinaryOp::Gt => ScalarValue::Bool(ordered_cmp(left, right, std::cmp::Ordering::is_gt)),
         BinaryOp::Gte => ScalarValue::Bool(ordered_cmp(left, right, |ordering| !ordering.is_lt())),
         BinaryOp::Like => ScalarValue::Bool(like_match(left.as_str(), right.as_str())),
         BinaryOp::Add => ScalarValue::Float(binary_math(left, right, |a, b| a + b)),
@@ -632,10 +628,8 @@ fn binary_scalar(left: &ScalarValue, op: &BinaryOp, right: &ScalarValue) -> Scal
                 },
             ))
         }
-        BinaryOp::PgvectorCosine => ScalarValue::Float(vector_distance(op, left, right)),
-        BinaryOp::PgvectorL2 => ScalarValue::Float(vector_distance(op, left, right)),
-        BinaryOp::PgvectorDot => ScalarValue::Float(vector_distance(op, left, right)),
-    }
+        BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => ScalarValue::Float(vector_distance(op, left, right)),
+        }
 }
 
 fn like_match(value: Option<&str>, pattern: Option<&str>) -> bool {
@@ -677,12 +671,11 @@ fn ordered_cmp(
     cmp: impl Fn(std::cmp::Ordering) -> bool,
 ) -> bool {
     match (left.to_f64(), right.to_f64()) {
-        (Some(left), Some(right)) => left.partial_cmp(&right).map(&cmp).unwrap_or(false),
+        (Some(left), Some(right)) => left.partial_cmp(&right).is_some_and(&cmp),
         _ => left
             .as_str()
             .zip(right.as_str())
-            .map(|(left, right)| cmp(left.cmp(right)))
-            .unwrap_or(false),
+            .is_some_and(|(left, right)| cmp(left.cmp(right))),
     }
 }
 
@@ -732,7 +725,6 @@ fn eq_value(left: &ScalarValue, right: &ScalarValue) -> bool {
         (ScalarValue::Float(left), ScalarValue::Bool(right)) => {
             (*left != 0.0 && *right) || (*left == 0.0 && !*right)
         }
-        (ScalarValue::Null, _) | (_, ScalarValue::Null) => false,
         _ => false,
     }
 }
@@ -747,7 +739,7 @@ fn scalar_from_value(value: &Value) -> Option<ScalarValue> {
             "[{}]",
             v.values
                 .iter()
-                .map(|value| value.to_string())
+                .map(std::string::ToString::to_string)
                 .collect::<Vec<_>>()
                 .join(",")
         ))),

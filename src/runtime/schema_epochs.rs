@@ -46,6 +46,9 @@ impl SchemaEpochTracker {
 }
 
 impl RuntimeState {
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn begin_running_query(self: &Arc<Self>) -> RunningQueryGuard {
         let schema_epoch = self.schema_epoch();
         self.schema_epochs.begin(schema_epoch);

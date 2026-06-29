@@ -44,7 +44,7 @@ impl MockOpenAiServer {
                         value
                             .get("input")
                             .and_then(|value| value.as_array())
-                            .map(|items| items.len())
+                            .map(std::vec::Vec::len)
                     })
                     .unwrap_or(0);
 

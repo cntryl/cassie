@@ -47,12 +47,12 @@ mod writers;
 
 use blocking::run_pgwire_blocking;
 use errors::{cassie_pg_error, PgWireError, PgWireSeverity};
-use execute::*;
-use formats::*;
-use readers::*;
+use execute::{batch_from_suspended, batch_from_query_result};
+use formats::{validate_parameter_formats, validate_bind_result_formats, decode_bind_params};
+use readers::{read_frontend_message, parse_bind_param_value, read_startup_frame, read_password_message, read_simple_query_message};
 use startup_params::validate_startup_parameters;
-use state::*;
-use writers::*;
+use state::{FrontendMessage, HandshakeError, DescribeTarget, CloseTarget, StartupFrame, SessionState, HandshakeState};
+use writers::{write_error_response, write_ready_for_query, write_copy_in_response, write_command_complete, write_ssl_not_supported, write_auth_ok, write_parameter_statuses, write_auth_cleartext, write_simple_query_result, write_backend_frame, write_parameter_description, write_row_description, validate_result_formats, write_data_row, write_portal_suspended};
 
 pub async fn run_connection(
     mut socket: TcpStream,
@@ -235,7 +235,7 @@ pub async fn run_connection(
                     Err(_) => break,
                 };
 
-                let Some(session) = state.session.as_ref().cloned() else {
+                let Some(session) = state.session.clone() else {
                     runtime.record_pgwire_protocol_error();
                     let _ = write_error_response(
                         &mut write_half,
@@ -286,9 +286,7 @@ pub async fn run_connection(
                     runtime.record_pgwire_message("query");
                     runtime.record_pgwire_simple_query();
 
-                    let session = if let Some(active_session) = state.session.as_ref() {
-                        active_session
-                    } else {
+                    let Some(session) = state.session.as_ref() else {
                         runtime.record_pgwire_protocol_error();
                         let _ = write_error_response(
                             &mut write_half,
@@ -628,49 +626,43 @@ pub async fn run_connection(
                             let describe_statement = matches!(&target, DescribeTarget::Statement);
                             let mut describe_result_formats = Vec::new();
                             let prepared = match target {
-                                DescribeTarget::Statement => match state.prepared.get_mut(&name) {
-                                    Some(prepared) => {
-                                        prepared.described = true;
-                                        prepared.clone()
+                                DescribeTarget::Statement => if let Some(prepared) = state.prepared.get_mut(&name) {
+                                    prepared.described = true;
+                                    prepared.clone()
+                                } else {
+                                    runtime.record_pgwire_protocol_error();
+                                    awaiting_sync = true;
+                                    if write_error_response(
+                                        &mut write_half,
+                                        &PgWireError::invalid_statement(&name),
+                                    )
+                                    .await
+                                    .is_err()
+                                    {
+                                        break;
                                     }
-                                    None => {
-                                        runtime.record_pgwire_protocol_error();
-                                        awaiting_sync = true;
-                                        if write_error_response(
-                                            &mut write_half,
-                                            &PgWireError::invalid_statement(&name),
-                                        )
-                                        .await
-                                        .is_err()
-                                        {
-                                            break;
-                                        }
-                                        continue;
-                                    }
+                                    continue;
                                 },
                                 DescribeTarget::Portal => {
                                     let (statement_name, prepared_id) =
-                                        match state.portals.get_mut(&name) {
-                                            Some(portal) => {
-                                                portal.described = true;
-                                                describe_result_formats =
-                                                    portal.result_formats.clone();
-                                                (portal.statement_name.clone(), portal.prepared_id)
+                                        if let Some(portal) = state.portals.get_mut(&name) {
+                                            portal.described = true;
+                                            describe_result_formats =
+                                                portal.result_formats.clone();
+                                            (portal.statement_name.clone(), portal.prepared_id)
+                                        } else {
+                                            runtime.record_pgwire_protocol_error();
+                                            awaiting_sync = true;
+                                            if write_error_response(
+                                                &mut write_half,
+                                                &PgWireError::invalid_portal(&name),
+                                            )
+                                            .await
+                                            .is_err()
+                                            {
+                                                break;
                                             }
-                                            None => {
-                                                runtime.record_pgwire_protocol_error();
-                                                awaiting_sync = true;
-                                                if write_error_response(
-                                                    &mut write_half,
-                                                    &PgWireError::invalid_portal(&name),
-                                                )
-                                                .await
-                                                .is_err()
-                                                {
-                                                    break;
-                                                }
-                                                continue;
-                                            }
+                                            continue;
                                         };
                                     match state.prepared.get(&statement_name) {
                                         Some(prepared) if prepared.id == prepared_id => {
@@ -967,12 +959,11 @@ pub async fn run_connection(
                                 break;
                             }
                         }
-                        FrontendMessage::Flush | FrontendMessage::Terminate => unreachable!(),
-                        FrontendMessage::CopyData(_)
+                        FrontendMessage::Flush | FrontendMessage::Terminate | FrontendMessage::CopyData(_)
                         | FrontendMessage::CopyDone
                         | FrontendMessage::CopyFail(_)
                         | FrontendMessage::FunctionCall => unreachable!(),
-                    },
+                        },
                 }
             }
         }

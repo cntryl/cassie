@@ -1,4 +1,4 @@
-use super::*;
+use super::{QueryResult, QueryError, ColumnMeta, Value};
 
 pub(super) fn execute_show(
     statement: &crate::sql::ast::ShowStatement,
@@ -55,8 +55,7 @@ pub(super) fn execute_set(
                 })
             } else {
                 Err(QueryError::General(format!(
-                    "unsupported search_path value '{}' for SET",
-                    value
+                    "unsupported search_path value '{value}' for SET"
                 )))
             }
         }

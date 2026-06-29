@@ -1,4 +1,4 @@
-use super::*;
+use super::{Value, Cassie, CassieSession, LogicalPlan, HashMap, FunctionMeta, QueryExecutionControls, BatchRow, QueryError, virtual_views, scan, ensure_temp_budget, Instant, filter, sort, projection, batch, ExecutionBreakdownDurations, QuerySource, SelectItem, Expr, BinaryOp, catalog};
 
 pub(super) fn is_row_id_column(column: &str) -> bool {
     column.eq_ignore_ascii_case("id") || column.eq_ignore_ascii_case("_id")
@@ -100,6 +100,12 @@ pub(super) fn execute_projected_filtered_read(
     )?))
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(super) enum ProjectedReadIndexUsage {
+    CoveringScalarIndex,
+    SelectedScalarIndexFallback,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn finalize_projected_filtered_read(
     cassie: &Cassie,
@@ -111,6 +117,33 @@ pub(super) fn finalize_projected_filtered_read(
     batches: &mut Vec<Vec<BatchRow>>,
     apply_filter: bool,
     apply_sort: bool,
+) -> Result<Vec<BatchRow>, QueryError> {
+    finalize_projected_filtered_read_with_index_usage(
+        cassie,
+        session,
+        plan,
+        user_functions,
+        params,
+        controls,
+        batches,
+        apply_filter,
+        apply_sort,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn finalize_projected_filtered_read_with_index_usage(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &LogicalPlan,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+    batches: &mut Vec<Vec<BatchRow>>,
+    apply_filter: bool,
+    apply_sort: bool,
+    index_usage: Option<ProjectedReadIndexUsage>,
 ) -> Result<Vec<BatchRow>, QueryError> {
     if apply_filter {
         if let Some(filter_expr) = &plan.filter {
@@ -164,10 +197,20 @@ pub(super) fn finalize_projected_filtered_read(
 
     let rows = batch::flatten_batches(std::mem::take(batches));
 
-    if covering_index_for_plan(cassie, plan).is_some() {
-        cassie.runtime.record_covering_index_scan(rows.len());
-    } else if selected_scalar_index_for_plan(cassie, plan).is_some() {
-        cassie.runtime.record_covering_index_fallback();
+    match index_usage {
+        Some(ProjectedReadIndexUsage::CoveringScalarIndex) => {
+            cassie.runtime.record_covering_index_scan(rows.len());
+        }
+        Some(ProjectedReadIndexUsage::SelectedScalarIndexFallback) => {
+            cassie.runtime.record_covering_index_fallback();
+        }
+        None => {
+            if covering_index_for_plan(cassie, plan).is_some() {
+                cassie.runtime.record_covering_index_scan(rows.len());
+            } else if selected_scalar_index_for_plan(cassie, plan).is_some() {
+                cassie.runtime.record_covering_index_fallback();
+            }
+        }
     }
 
     Ok(rows)
@@ -511,7 +554,7 @@ fn covering_index_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Option<catalo
     let physical = crate::planner::physical::build_with_indexes(
         plan.clone(),
         indexes.clone(),
-        &Default::default(),
+        &std::collections::HashMap::default(),
     );
     let selected = physical.selected_index?;
     physical
@@ -531,7 +574,7 @@ fn selected_scalar_index_for_plan(
     let physical = crate::planner::physical::build_with_indexes(
         plan.clone(),
         indexes.clone(),
-        &Default::default(),
+        &std::collections::HashMap::default(),
     );
     let selected = physical.selected_index?;
     indexes.into_iter().find(|index| index.name == selected)
@@ -755,7 +798,7 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
             collect_projected_scan_filter_columns(left, fields)?;
             collect_projected_scan_filter_columns(right, fields)
         }
-        Expr::IsNull { expr, .. } => collect_projected_scan_filter_columns(expr, fields),
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => collect_projected_scan_filter_columns(expr, fields),
         Expr::InList { expr, values, .. } => {
             collect_projected_scan_filter_columns(expr, fields)?;
             for value in values {
@@ -770,8 +813,6 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
             collect_projected_scan_filter_columns(low, fields)?;
             collect_projected_scan_filter_columns(high, fields)
         }
-        Expr::Not { expr } => collect_projected_scan_filter_columns(expr, fields),
-        Expr::Cast { expr, .. } => collect_projected_scan_filter_columns(expr, fields),
         Expr::Function(_) | Expr::Exists(_) => None,
     }
 }

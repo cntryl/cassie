@@ -1,4 +1,4 @@
-use super::*;
+use super::{IndexMeta, LogicalPlan, CollectionCardinalityStats, PlanEstimates, QuerySource, time_series, IndexKind, BTreeSet, scalar_index_plan_shape, ScalarIndexPlanPath, Expr};
 
 #[derive(Debug, Clone)]
 pub(crate) struct ReadOperatorCandidate {

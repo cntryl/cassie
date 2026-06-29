@@ -1,11 +1,17 @@
-use super::*;
+use super::RuntimeState;
 
 impl RuntimeState {
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_time_series_bucket_native_hit(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.time_series.bucket_native_hits += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_time_series_scan(
         &self,
         index: impl Into<String>,
@@ -21,6 +27,9 @@ impl RuntimeState {
         metrics.time_series.last_index = index.into();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_time_series_fallback(&self, reason: impl Into<String>) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.time_series.fallback_scans += 1;

@@ -7,7 +7,7 @@ use crate::sql::ast::{Expr, FunctionCall, QuerySource, SelectItem};
 use crate::types::{DataType, FieldSchema, Schema, Value};
 
 use super::source::{aggregate_signature, expr_key, group_expr_name};
-use super::*;
+use super::{Cassie, FunctionMeta, QueryExecutionControls, QueryResult, QueryError, LogicalPlan, scan, sort, projection, check_timeout, filter, aggregate_exec};
 
 pub(super) fn create_rollup(
     cassie: &Cassie,
@@ -55,8 +55,7 @@ pub(super) fn refresh_rollup(
     meta.refresh_cursor.source_row_count = cassie
         .catalog
         .get_cardinality_stats(&meta.source_collection)
-        .map(|stats| stats.row_count)
-        .unwrap_or(0);
+        .map_or(0, |stats| stats.row_count);
     meta.refresh_cursor.lag_rows = 0;
     cassie
         .midge
@@ -504,8 +503,7 @@ fn value_to_json(value: Value) -> serde_json::Value {
         Value::Bool(value) => serde_json::Value::Bool(value),
         Value::Int64(value) => serde_json::Value::Number(value.into()),
         Value::Float64(value) => serde_json::Number::from_f64(value)
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null),
+            .map_or(serde_json::Value::Null, serde_json::Value::Number),
         Value::String(value) => serde_json::Value::String(value),
         Value::Vector(value) => serde_json::json!(value.values),
         Value::Json(value) => value,

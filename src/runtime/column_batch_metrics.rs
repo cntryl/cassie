@@ -1,6 +1,9 @@
 use super::RuntimeState;
 
 impl RuntimeState {
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_column_batch_scan(
         &self,
         rows: usize,
@@ -18,6 +21,9 @@ impl RuntimeState {
         metrics.column_batches.decoded_columns += decoded_columns as u64;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_column_batch_fallback(&self, reason: &str) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.column_batches.fallback_scans += 1;
@@ -28,6 +34,9 @@ impl RuntimeState {
         self.record_column_batch_decode_fallback_with_reason("decode");
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_column_batch_decode_fallback_with_reason(&self, reason: &str) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.column_batches.decode_fallbacks += 1;
@@ -35,6 +44,9 @@ impl RuntimeState {
         metrics.column_batches.last_fallback_reason = reason.to_string();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_column_batch_row_blob_fallback(&self, rows: usize, reason: &str) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.column_batches.fallback_scans += 1;

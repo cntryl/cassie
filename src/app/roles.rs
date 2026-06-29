@@ -1,7 +1,8 @@
 use super::auth::{hash_password, verify_password};
-use super::*;
+use super::{Cassie, CassieSession, RoleMeta, CassieError, normalize_role_name};
 
 impl Cassie {
+    #[must_use]
     pub fn create_session(&self, user: &str, database: Option<String>) -> CassieSession {
         let database = database.or_else(|| Some(self.default_database.clone()));
         CassieSession::new(user.to_string(), database)
@@ -22,6 +23,9 @@ impl Cassie {
             .map_err(|error| CassieError::Storage(format!("load role '{normalized}': {error}")))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn authenticate_role(
         &self,
         user: &str,
@@ -53,6 +57,9 @@ impl Cassie {
         ))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn create_role(
         &self,
         name: &str,
@@ -100,6 +107,9 @@ impl Cassie {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn alter_role(
         &self,
         name: &str,
@@ -143,6 +153,9 @@ impl Cassie {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn drop_role(&self, name: &str, if_exists: bool) -> Result<(), CassieError> {
         let normalized = normalize_role_name(name);
         let Some(role) = self.lookup_role(&normalized)? else {

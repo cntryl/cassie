@@ -4,7 +4,13 @@ pub trait EmbeddingProvider: Send + Sync {
     fn provider_name(&self) -> &'static str;
     fn model_name(&self) -> &str;
     fn dimensions(&self) -> usize;
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     fn embed_documents(&self, inputs: &[String]) -> Result<Vec<Embedding>, EmbeddingError>;
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     fn embed_query(&self, input: &str) -> Result<Embedding, EmbeddingError> {
         self.embed_documents(std::slice::from_ref(&input.to_string()))
             .map(|batch| {

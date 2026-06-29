@@ -1,10 +1,16 @@
-use super::*;
+use super::{Midge, Schema, CassieError, CollectionMeta, NamespaceMeta, WriteOptions, Query, key_encoding, RetentionPolicyMeta, FieldSchema, RowSchema, IndexMeta, IndexKind, FieldConstraint, NormalizedVectorRecord, ProjectionMeta, ColumnBatchMetadata};
 
 impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn create_collection(&self, name: &str, schema: Schema) -> Result<(), CassieError> {
         self.create_collection_with_meta(name, schema, CollectionMeta::new(name, None))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn create_namespace(&self, namespace: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
 
@@ -29,10 +35,7 @@ impl Midge {
     }
 
     pub fn list_namespaces(&self) -> Vec<String> {
-        let tx = match self.begin_schema_readonly_tx() {
-            Ok(tx) => tx,
-            Err(_) => return Vec::new(),
-        };
+        let Ok(tx) = self.begin_schema_readonly_tx() else { return Vec::new() };
 
         if let Ok(namespaces) = self.load_namespaces(&tx) {
             if !namespaces.is_empty() {
@@ -61,6 +64,9 @@ impl Midge {
         namespaces
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn drop_namespace(&self, namespace: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let namespace_key = Self::namespace_key(namespace);
@@ -82,6 +88,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn rename_namespace(&self, current_name: &str, next_name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let current_key = Self::namespace_key(current_name);
@@ -137,6 +146,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn drop_collection(&self, name: &str) -> Result<(), CassieError> {
         let mut schema_tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(name);
@@ -244,6 +256,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn alter_collection_add_column(
         &self,
         collection: &str,
@@ -299,6 +314,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn alter_collection_drop_column(
         &self,
         collection: &str,
@@ -356,13 +374,12 @@ impl Midge {
             let partition_references_field = metadata
                 .options
                 .get("partition_by")
-                .map(|fields| {
+                .is_some_and(|fields| {
                     fields
                         .split(',')
                         .map(str::trim)
                         .any(|candidate| candidate.eq_ignore_ascii_case(field))
-                })
-                .unwrap_or(false);
+                });
             let references_field = partition_references_field
                 || metadata
                     .normalized_fields()
@@ -432,6 +449,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn alter_collection_rename_column(
         &self,
         collection: &str,
@@ -646,6 +666,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn rename_collection(
         &self,
         current_name: &str,

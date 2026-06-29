@@ -19,6 +19,7 @@ pub struct GraphMeta {
 }
 
 impl GraphMeta {
+    #[must_use]
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -36,6 +37,7 @@ impl GraphMeta {
         }
     }
 
+    #[must_use]
     pub fn node_builtin_fields(&self) -> Vec<(String, DataType)> {
         vec![
             (self.node_type_field.clone(), DataType::Text),
@@ -43,6 +45,7 @@ impl GraphMeta {
         ]
     }
 
+    #[must_use]
     pub fn edge_builtin_fields(&self) -> Vec<(String, DataType)> {
         vec![
             (self.edge_id_field.clone(), DataType::Text),

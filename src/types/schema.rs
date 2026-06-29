@@ -23,10 +23,14 @@ pub enum DataType {
 }
 
 impl DataType {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn parse_sql(raw: &str) -> Result<Self, String> {
         parse_sql_type(raw)
     }
 
+    #[must_use]
     pub fn type_name(&self) -> String {
         match self {
             Self::Null => "null".to_string(),
@@ -55,6 +59,7 @@ impl DataType {
         }
     }
 
+    #[must_use]
     pub fn type_oid(&self) -> i64 {
         const OID_BOOL: i64 = 16;
         const OID_INT2: i64 = 21;
@@ -95,28 +100,20 @@ impl DataType {
         }
     }
 
+    #[must_use]
     pub fn typlen(&self) -> i16 {
         match self {
             Self::Null => 0,
             Self::SmallInt => 2,
-            Self::Int => 4,
-            Self::BigInt => 8,
-            Self::Float => 8,
+            Self::Int | Self::Date => 4,
+            Self::BigInt | Self::Float | Self::Time | Self::Timestamp => 8,
             Self::Boolean => 1,
-            Self::Char { .. } => -1,
-            Self::Varchar { .. } => -1,
-            Self::Text => -1,
+            Self::Char { .. } | Self::Varchar { .. } | Self::Text | Self::Bytea | Self::Vector(_) | Self::Json | Self::Array(_) => -1,
             Self::Uuid => 16,
-            Self::Bytea => -1,
-            Self::Date => 4,
-            Self::Time => 8,
-            Self::Timestamp => 8,
-            Self::Vector(_) => -1,
-            Self::Json => -1,
-            Self::Array(_) => -1,
-        }
+            }
     }
 
+    #[must_use]
     pub fn atttypmod(&self) -> i32 {
         match self {
             Self::Varchar { length } => {
@@ -131,7 +128,6 @@ impl DataType {
                 .checked_add(4)
                 .and_then(|length| i32::try_from(length).ok())
                 .unwrap_or(5),
-            Self::Vector(_) => -1,
             _ => -1,
         }
     }
@@ -227,12 +223,9 @@ fn parse_string_type_with_length(raw: &str, kind: &str) -> Option<Result<DataTyp
         return Some(Err(format!("unsupported modifier in '{raw}'")));
     };
 
-    let length = match rest.trim().parse::<u32>() {
-        Ok(length) => length,
-        Err(_) => {
+    let Ok(length) = rest.trim().parse::<u32>() else {
             return Some(Err(format!("invalid {kind} length '{raw}'")));
-        }
-    };
+        };
     if length == 0 {
         return Some(Err(format!("{kind} length cannot be zero")));
     }
@@ -261,6 +254,7 @@ pub struct Schema {
 }
 
 impl Schema {
+    #[must_use]
     pub fn vector_fields(&self) -> Vec<&FieldSchema> {
         self.fields
             .iter()
@@ -285,6 +279,7 @@ impl std::iter::FromIterator<(String, DataType)> for Schema {
 }
 
 impl Schema {
+    #[must_use]
     pub fn field(&self, name: &str) -> Option<&FieldSchema> {
         self.fields.iter().find(|f| f.name == name)
     }

@@ -18,7 +18,7 @@ fn bench_startup(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function(BenchmarkId::new("cold_start", "10k"), |b| {
-        b.iter(|| runtime.block_on(workloads::empty_context("tier3-cold-start")))
+        b.iter(|| runtime.block_on(workloads::empty_context("tier3-cold-start")));
     });
     group.bench_function(BenchmarkId::new("warm_start_query", "10k"), |b| {
         b.iter(|| {
@@ -26,7 +26,7 @@ fn bench_startup(c: &mut Criterion) {
                 &warm_ctx,
                 "SELECT count(*) FROM bench_documents",
             ))
-        })
+        });
     });
 
     group.finish();

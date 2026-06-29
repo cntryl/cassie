@@ -1,4 +1,4 @@
-use super::*;
+use super::{SelectStatement, CommonTableExpression, CteQuery, ParsedStatement, QueryStatement, SelectItem, QuerySource, Expr, HashSet, Catalog, CassieError, FunctionCall, HashMap, OrderExpr};
 
 pub(super) fn select_contains_parameters(select: &SelectStatement) -> bool {
     select.ctes.iter().any(cte_contains_parameters)
@@ -87,8 +87,7 @@ pub(super) fn parsed_statement_contains_parameters(statement: &ParsedStatement) 
 
 pub(super) fn select_item_contains_parameters(item: &SelectItem) -> bool {
     match item {
-        SelectItem::Wildcard => false,
-        SelectItem::Column { .. } => false,
+        SelectItem::Wildcard | SelectItem::Column { .. } => false,
         SelectItem::Function { function, .. } => function.args.iter().any(expr_contains_parameters),
         SelectItem::Expr { expr, .. } => expr_contains_parameters(expr),
         SelectItem::WindowFunction { function, .. } => {
@@ -125,7 +124,7 @@ pub(super) fn expr_contains_parameters(expr: &Expr) -> bool {
         Expr::Binary { left, right, .. } => {
             expr_contains_parameters(left) || expr_contains_parameters(right)
         }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } => expr_contains_parameters(expr),
+        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => expr_contains_parameters(expr),
         Expr::InList { expr, values, .. } => {
             expr_contains_parameters(expr) || values.iter().any(expr_contains_parameters)
         }
@@ -136,7 +135,6 @@ pub(super) fn expr_contains_parameters(expr: &Expr) -> bool {
                 || expr_contains_parameters(low)
                 || expr_contains_parameters(high)
         }
-        Expr::Not { expr } => expr_contains_parameters(expr),
         Expr::Exists(statement) => parsed_statement_contains_parameters(statement),
         Expr::Function(function) => function.args.iter().any(expr_contains_parameters),
         Expr::Column(_)
@@ -371,8 +369,7 @@ pub(super) fn validate_expression(
             }
 
             Err(CassieError::Planner(format!(
-                "unresolvable column reference '{}'; known fields or aliases required",
-                name
+                "unresolvable column reference '{name}'; known fields or aliases required"
             )))
         }
         Expr::Binary { left, right, .. } => {
@@ -389,7 +386,7 @@ pub(super) fn validate_expression(
                 allow_projection_alias,
             )
         }
-        Expr::IsNull { expr, .. } => validate_expression(
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => validate_expression(
             expr,
             known_fields,
             projection_aliases,
@@ -434,19 +431,11 @@ pub(super) fn validate_expression(
                 allow_projection_alias,
             )
         }
-        Expr::Not { expr } => validate_expression(
-            expr,
-            known_fields,
-            projection_aliases,
-            allow_projection_alias,
-        ),
-        Expr::Cast { expr, .. } => validate_expression(
-            expr,
-            known_fields,
-            projection_aliases,
-            allow_projection_alias,
-        ),
-        Expr::Exists(_) => Ok(()),
+        Expr::Exists(_) | Expr::Param(_)
+        | Expr::Null
+        | Expr::BoolLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::StringLiteral(_) => Ok(()),
         Expr::Function(function) => {
             if crate::sql::functions::is_aggregate_function(&function.name) {
                 validate_aggregate_function_args(function, known_fields)?;
@@ -462,12 +451,7 @@ pub(super) fn validate_expression(
             }
             Ok(())
         }
-        Expr::Param(_)
-        | Expr::Null
-        | Expr::BoolLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::StringLiteral(_) => Ok(()),
-    }
+        }
 }
 
 pub(super) fn validate_aggregate_function_args(
@@ -632,8 +616,7 @@ pub(super) fn source_references_cte(source: &QuerySource, cte_name: &str) -> boo
         QuerySource::Cte(name) | QuerySource::Collection(name) => {
             name.eq_ignore_ascii_case(cte_name)
         }
-        QuerySource::TableFunction { .. } => false,
-        QuerySource::SingleRow => false,
+        QuerySource::TableFunction { .. } | QuerySource::SingleRow => false,
         QuerySource::Subquery { select, .. } => source_references_cte(&select.source, cte_name),
         QuerySource::Join { left, right, .. } => {
             source_references_cte(left, cte_name) || source_references_cte(right, cte_name)

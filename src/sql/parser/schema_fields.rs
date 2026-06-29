@@ -128,14 +128,14 @@ pub(super) fn parse_field_definition_for_table(
 
     if !saw_constraint {
         return Ok(FieldDefinition {
-            name: name.to_string(),
+            name: name.clone(),
             data_type,
             constraints: Vec::new(),
         });
     }
 
     Ok(FieldDefinition {
-        name: name.to_string(),
+        name: name.clone(),
         data_type,
         constraints: vec![constraint],
     })

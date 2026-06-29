@@ -322,7 +322,7 @@ fn should_keep_performance_contract_docs_aligned_with_benchmark_ids() {
         .collect::<Vec<_>>();
 
     // Assert
-    assert!(missing.is_empty(), "docs missing {:?}", missing);
+    assert!(missing.is_empty(), "docs missing {missing:?}");
 }
 
 #[test]
@@ -339,7 +339,7 @@ fn should_keep_performance_contract_docs_aligned_with_profile_ids() {
         .collect::<Vec<_>>();
 
     // Assert
-    assert!(missing.is_empty(), "docs missing profiles {:?}", missing);
+    assert!(missing.is_empty(), "docs missing profiles {missing:?}");
 }
 
 #[test]

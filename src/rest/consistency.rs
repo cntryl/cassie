@@ -18,6 +18,9 @@ struct ConsistencyCheckRequest {
     manifests: Vec<ProjectionVerificationManifest>,
 }
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub fn export_manifest(
     cassie: &Cassie,
     projection: &str,
@@ -43,6 +46,9 @@ pub fn export_manifest(
         .map_err(|error| CassieError::Parse(error.to_string()))
 }
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub fn compare_manifests(cassie: &Cassie, body: &[u8]) -> Result<serde_json::Value, CassieError> {
     let request: ConsistencyCheckRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
@@ -50,6 +56,7 @@ pub fn compare_manifests(cassie: &Cassie, body: &[u8]) -> Result<serde_json::Val
         .map_err(|error| CassieError::Parse(error.to_string()))
 }
 
+#[must_use]
 pub fn reports(cassie: &Cassie) -> serde_json::Value {
     serde_json::json!({
         "reports": cassie.catalog.latest_projection_consistency_reports(),

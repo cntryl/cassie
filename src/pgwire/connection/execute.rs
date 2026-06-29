@@ -1,4 +1,4 @@
-use super::*;
+use super::{Value, PortalSuspended, TryFrom};
 
 pub(super) struct ExecuteBatch {
     pub columns: Vec<crate::executor::ColumnMeta>,
@@ -46,8 +46,7 @@ fn batch_from_parts(
 ) -> ExecuteBatch {
     let remaining = rows.len().saturating_sub(start);
     let take = limit
-        .map(|limit| usize::try_from(limit.max(0)).unwrap_or(0))
-        .unwrap_or(remaining)
+        .map_or(remaining, |limit| usize::try_from(limit.max(0)).unwrap_or(0))
         .min(remaining);
     let end = start.saturating_add(take);
     let batch_rows = rows[start..end].to_vec();

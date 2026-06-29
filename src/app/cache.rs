@@ -1,4 +1,4 @@
-use super::*;
+use super::{DistanceMetric, NormalizedVectorRecord};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct NormalizedVectorCacheKey {
@@ -54,6 +54,7 @@ pub(super) enum PlanCacheProvenance {
 pub(super) fn current_time_millis() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as u64)
-        .unwrap_or(0)
+        .map_or(0, |duration| {
+            u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+        })
 }

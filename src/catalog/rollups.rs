@@ -35,6 +35,7 @@ pub enum RollupState {
 }
 
 impl RollupState {
+    #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Building => "building",
@@ -54,6 +55,7 @@ pub struct RollupRefreshCursor {
 
 impl RollupMeta {
     #[allow(clippy::too_many_arguments)]
+    #[must_use]
     pub fn new(
         name: String,
         source_collection: String,
@@ -82,11 +84,13 @@ impl RollupMeta {
         }
     }
 
+    #[must_use]
     pub fn is_fresh(&self) -> bool {
         self.state == RollupState::Ready && self.refresh_cursor.lag_rows == 0
     }
 }
 
+#[must_use]
 pub fn output_collection_name(name: &str) -> String {
     format!("__cassie_rollup_{}", name.trim().to_ascii_lowercase())
 }

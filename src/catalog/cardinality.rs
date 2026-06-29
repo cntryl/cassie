@@ -54,6 +54,7 @@ pub struct CollectionCardinalityStats {
 }
 
 impl CollectionCardinalityStats {
+    #[must_use]
     pub fn index_key(kind: &IndexKind, name: &str) -> String {
         let kind = match kind {
             IndexKind::Scalar => "scalar",
@@ -66,22 +67,27 @@ impl CollectionCardinalityStats {
         format!("{kind}:{name}")
     }
 
+    #[must_use]
     pub fn scalar_index_key(name: &str) -> String {
         Self::index_key(&IndexKind::Scalar, name)
     }
 
+    #[must_use]
     pub fn fulltext_index_key(name: &str) -> String {
         Self::index_key(&IndexKind::FullText, name)
     }
 
+    #[must_use]
     pub fn vector_index_key(field: &str) -> String {
         Self::index_key(&IndexKind::Vector, field)
     }
 
+    #[must_use]
     pub fn hybrid_index_key(name: &str) -> String {
         Self::index_key(&IndexKind::Hybrid, name)
     }
 
+    #[must_use]
     pub fn time_series_index_key(name: &str) -> String {
         Self::index_key(&IndexKind::TimeSeries, name)
     }
@@ -91,6 +97,7 @@ impl CollectionCardinalityStats {
             .insert(key, IndexCardinalityStats { cardinality });
     }
 
+    #[must_use]
     pub fn index_cardinality(&self, key: &str) -> Option<u64> {
         self.indexes.get(key).map(|stats| stats.cardinality)
     }
@@ -99,19 +106,23 @@ impl CollectionCardinalityStats {
         self.fields.insert(field, stats);
     }
 
+    #[must_use]
     pub fn field_stats(&self, field: &str) -> Option<&FieldCardinalityStats> {
         self.fields.get(field)
     }
 }
 
+#[must_use]
 pub fn index_cardinality_key(index: &IndexMeta) -> String {
     CollectionCardinalityStats::index_key(&index.kind, &index.name)
 }
 
+#[must_use]
 pub fn vector_index_cardinality_key(record: &VectorIndexRecord) -> String {
     CollectionCardinalityStats::vector_index_key(&record.field)
 }
 
+#[must_use]
 pub fn payload_contains_index_membership(payload: &serde_json::Value, index: &IndexMeta) -> bool {
     let fields = index.normalized_fields();
     if fields.is_empty() {
@@ -128,10 +139,11 @@ pub fn payload_contains_index_membership(payload: &serde_json::Value, index: &In
             .any(|field| payload.get(field).is_some_and(|value| !value.is_null())),
         IndexKind::Vector => payload
             .get(index.primary_field())
-            .is_some_and(|value| value.is_array()),
+            .is_some_and(serde_json::Value::is_array),
     }
 }
 
+#[must_use]
 pub fn payload_contains_vector_membership(
     payload: &serde_json::Value,
     record: &VectorIndexRecord,

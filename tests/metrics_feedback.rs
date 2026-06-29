@@ -338,6 +338,67 @@ fn should_capture_runtime_feedback_for_selected_index() {
 }
 
 #[test]
+fn should_skip_feedback_lookup_when_execution_result_cache_hits() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("feedback_result_cache_hit");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE feedback_result_cache_hit (title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO feedback_result_cache_hit (title) VALUES ('alpha')",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let first = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM feedback_result_cache_hit WHERE title = 'alpha'",
+                vec![],
+            )
+            .unwrap();
+        let after_first = cassie.metrics();
+        let second = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM feedback_result_cache_hit WHERE title = 'alpha'",
+                vec![],
+            )
+            .unwrap();
+        let after_second = cassie.metrics();
+
+        // Assert
+        assert_eq!(first.rows, second.rows);
+        assert_eq!(
+            after_second["feedback"]["hits"].as_u64(),
+            after_first["feedback"]["hits"].as_u64()
+        );
+        assert_eq!(
+            after_second["feedback"]["misses"].as_u64(),
+            after_first["feedback"]["misses"].as_u64()
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_aggregate_runtime_feedback_across_parameter_values() {
     // Arrange
     with_fallback();

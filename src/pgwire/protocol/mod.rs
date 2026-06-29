@@ -125,6 +125,7 @@ pub struct PortalSuspended {
 }
 
 impl ServerMessage {
+    #[must_use]
     pub fn as_wire(&self) -> String {
         match self {
             ServerMessage::AuthenticationOk => "OK auth".to_string(),
@@ -137,14 +138,15 @@ impl ServerMessage {
                 format!("ROWDESC {payload}")
             }
             ServerMessage::DataRow(values) => format!("DATAROW {}", values.join("\t")),
-            ServerMessage::CommandComplete(msg) => format!("DONE {}", msg),
+            ServerMessage::CommandComplete(msg) => format!("DONE {msg}"),
             ServerMessage::ReadyForQuery => "READY_FOR_QUERY".to_string(),
-            ServerMessage::ErrorResponse(msg) => format!("ERR {}", msg),
+            ServerMessage::ErrorResponse(msg) => format!("ERR {msg}"),
             ServerMessage::SyncComplete => "SYNC".to_string(),
         }
     }
 }
 
+#[must_use]
 pub fn encode(message: &ServerMessage) -> Vec<u8> {
     let mut out = Vec::new();
     let text = message.as_wire();
@@ -223,7 +225,7 @@ pub fn decode(line: &str) -> ClientMessage {
         } else {
             let mut split = rest.split_whitespace();
             let name = split.next().unwrap_or("_pstmt_").to_string();
-            let params = split.map(|value| value.to_string()).collect();
+            let params = split.map(std::string::ToString::to_string).collect();
             (name, params)
         };
         let name = if name.is_empty() {

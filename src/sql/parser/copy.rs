@@ -1,5 +1,5 @@
 use super::expr::split_csv;
-use super::*;
+use super::{ParsedStatement, SqlError, QueryStatement};
 
 pub(super) fn parse_copy_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
@@ -61,7 +61,7 @@ fn parse_copy_target(raw: &str) -> Result<(String, Vec<String>), SqlError> {
         .into_iter()
         .map(|column| column.trim().to_string())
         .collect::<Vec<_>>();
-    if columns.iter().any(|column| column.is_empty()) {
+    if columns.iter().any(std::string::String::is_empty) {
         return Err(SqlError(
             "COPY column list cannot include empty columns".into(),
         ));

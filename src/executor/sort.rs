@@ -1,7 +1,8 @@
+use crate::executor::batch::RowAccess;
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::{
-    chunk_rows, flatten_batches, row_tie_key, Batch, RowAccess, DEFAULT_BATCH_SIZE,
+    chunk_rows, flatten_batches, row_tie_key, Batch, DEFAULT_BATCH_SIZE,
 };
 use crate::executor::filter;
 use crate::executor::filter::SearchContext;

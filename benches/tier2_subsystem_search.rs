@@ -34,7 +34,7 @@ fn bench_search(c: &mut Criterion) {
                     &ctx_10k,
                     "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 20",
                 ))
-            })
+            });
         },
     );
     let benchmark_100k =
@@ -47,7 +47,7 @@ fn bench_search(c: &mut Criterion) {
                 &ctx_100k,
                 "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 20",
             ))
-        })
+        });
         },
     );
 

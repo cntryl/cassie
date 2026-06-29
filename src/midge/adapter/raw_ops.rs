@@ -1,6 +1,9 @@
-use super::*;
+use super::{Midge, StorageFamily, CassieError, TransactionMode, RawStorageEntry, Query, WriteOptions};
 
 impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn raw_get(
         &self,
         family: StorageFamily,
@@ -11,6 +14,9 @@ impl Midge {
         Ok(value.map(|value| value.to_vec()))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn raw_scan_prefix(
         &self,
         family: StorageFamily,
@@ -28,6 +34,9 @@ impl Midge {
         Ok(values)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn raw_scan_prefix_named(
         &self,
         family: &str,
@@ -45,6 +54,9 @@ impl Midge {
         Ok(values)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn clear_temp_family(&self) -> Result<usize, CassieError> {
         let mut tx = self.temp_tx(TransactionMode::ReadWrite)?;
         let mut iterator = tx.scan(&Query::new()).map_err(CassieError::from)?;

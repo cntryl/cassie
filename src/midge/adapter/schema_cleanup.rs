@@ -1,4 +1,4 @@
-use super::*;
+use super::{Midge, CassieError, Uuid, StorageFamily, WriteOptions, IndexKind};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PendingSchemaCleanup {
@@ -19,10 +19,14 @@ pub(crate) enum PendingSchemaCleanupAction {
 
 impl Midge {
     #[doc(hidden)]
+    #[must_use]
     pub fn scalar_index_collection_prefix_for_diagnostics(collection: &str) -> Vec<u8> {
         Self::scalar_index_collection_prefix(collection)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn defer_drop_collection(
         &self,
         table: &str,
@@ -46,6 +50,9 @@ impl Midge {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn defer_drop_index(
         &self,
         table: &str,
@@ -62,6 +69,9 @@ impl Midge {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn defer_drop_view(&self, view: &str, blocked_by_epoch: u64) -> Result<(), CassieError> {
         self.save_pending_schema_cleanup(PendingSchemaCleanup {
             cleanup_id: Uuid::new_v4().to_string(),

@@ -8,7 +8,7 @@ fn with_fallback() {
 
 fn data_dir(label: &str) -> String {
     let mut path = std::env::temp_dir();
-    path.push(format!("cassie-types-{}", label));
+    path.push(format!("cassie-types-{label}"));
     path.push(Uuid::new_v4().to_string());
     path.to_string_lossy().to_string()
 }

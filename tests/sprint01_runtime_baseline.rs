@@ -123,10 +123,8 @@ fn should_map_storage_bootstrap_failure_to_cassie_error() {
     // Assert
     assert!(matches!(
         created,
-        Err(CassieError::Storage(_))
-            | Err(CassieError::StorageBootstrap(_))
-            | Err(CassieError::StorageMissingFamily(_))
-            | Err(CassieError::StorageRetryable(_))
+        Err(CassieError::Storage(_) | CassieError::StorageBootstrap(_) |
+CassieError::StorageMissingFamily(_) | CassieError::StorageRetryable(_))
     ));
 
     let _ = std::fs::remove_file(marker);

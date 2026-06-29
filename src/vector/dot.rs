@@ -1,3 +1,4 @@
+#[must_use]
 pub fn score(query: &[f32], target: &[f32]) -> f64 {
     if query.len() != target.len() || query.is_empty() {
         return 0.0;
@@ -5,6 +6,7 @@ pub fn score(query: &[f32], target: &[f32]) -> f64 {
     super::simd::dot(query, target)
 }
 
+#[must_use]
 pub fn distance(query: &[f32], target: &[f32]) -> f64 {
     -score(query, target)
 }

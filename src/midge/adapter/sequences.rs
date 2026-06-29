@@ -1,6 +1,9 @@
-use super::*;
+use super::{Midge, CassieError, key_encoding, WriteOptions, StorageFamily};
 
 impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_sequence(&self, metadata: crate::catalog::SequenceMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
@@ -11,6 +14,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn get_sequence(
         &self,
         name: &str,
@@ -27,6 +33,9 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid sequence metadata: {error}")))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_sequences(&self) -> Result<Vec<crate::catalog::SequenceMeta>, CassieError> {
         let entries =
             self.raw_scan_prefix(StorageFamily::Schema, &key_encoding::sequence_prefix())?;
@@ -43,6 +52,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn delete_sequence(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(key_encoding::sequence_key(name))
@@ -51,6 +63,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn next_sequence_value(&self, name: &str) -> Result<i64, CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let raw = tx

@@ -29,6 +29,9 @@ impl Default for AnalyzerConfig {
 }
 
 impl AnalyzerConfig {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn from_index_options(
         options: &std::collections::BTreeMap<String, String>,
     ) -> Result<Self, String> {
@@ -92,12 +95,14 @@ impl AnalyzerConfig {
             .collect()
     }
 
+    #[must_use]
     pub fn cache_key(&self) -> String {
         serde_json::to_string(self).unwrap_or_else(|_| self.name.clone())
     }
 }
 
 impl TokenizedText {
+    #[must_use]
     pub fn analyze(input: &str) -> Self {
         Self {
             tokens: AnalyzerConfig::default().analyze(input),

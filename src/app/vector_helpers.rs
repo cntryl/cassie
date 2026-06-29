@@ -1,4 +1,4 @@
-use super::*;
+use super::{CmpOrdering, DistanceMetric, CollectionSchema, ColumnMeta, DocumentRef, Value, Vector};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct ScoredVectorCandidate {
@@ -87,8 +87,7 @@ pub(super) fn vector_search_row(schema: &CollectionSchema, document: DocumentRef
         let value = document
             .payload
             .get(&field.name)
-            .map(|value| json_to_query_value(value, &field.data_type))
-            .unwrap_or(Value::Null);
+            .map_or(Value::Null, |value| json_to_query_value(value, &field.data_type));
         row.push(value);
     }
     row
@@ -103,8 +102,7 @@ pub(super) fn json_to_query_value(
     }
     if matches!(data_type, crate::types::DataType::Vector(_)) {
         return vector_from_json(value)
-            .map(|vector| Value::Vector(Vector::new(vector)))
-            .unwrap_or(Value::Null);
+            .map_or(Value::Null, |vector| Value::Vector(Vector::new(vector)));
     }
     if let Some(value) = value.as_str() {
         return Value::String(value.to_string());

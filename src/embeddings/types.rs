@@ -11,6 +11,7 @@ pub enum DistanceMetric {
 }
 
 impl DistanceMetric {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Cosine => "cosine",
@@ -19,6 +20,7 @@ impl DistanceMetric {
         }
     }
 
+    #[must_use]
     pub fn sql_operator(&self) -> &'static str {
         match self {
             Self::Cosine => "<=>",
@@ -71,6 +73,7 @@ pub enum VectorIndexType {
 }
 
 impl VectorIndexType {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::BruteForce => "bruteforce",

@@ -1,9 +1,10 @@
+use crate::embeddings::EmbeddingProvider;
 use std::time::{Duration, Instant};
 
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::embeddings::{Embedding, EmbeddingError, EmbeddingProvider};
+use crate::embeddings::{Embedding, EmbeddingError};
 
 pub const DEFAULT_OPENAI_TIMEOUT_SECONDS: u64 = 30;
 pub const DEFAULT_OPENAI_MAX_RETRIES: usize = 3;
@@ -61,6 +62,9 @@ pub struct OpenAiProvider {
 }
 
 impl OpenAiProvider {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn from_config(config: OpenAiConfig) -> Result<Self, EmbeddingError> {
         Self::with_config(OpenAiProviderConfig {
             api_key: config.api_key,
@@ -72,6 +76,9 @@ impl OpenAiProvider {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn with_config(config: OpenAiProviderConfig) -> Result<Self, EmbeddingError> {
         if config.api_key.trim().is_empty() {
             return Err(EmbeddingError::InvalidConfiguration(
@@ -106,6 +113,9 @@ impl OpenAiProvider {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn test_with_base_url(
         config: OpenAiConfig,
         base_url: String,
@@ -156,7 +166,8 @@ impl OpenAiProvider {
 
             match response {
                 Ok((status, response_body)) => {
-                    let elapsed_ms = started.elapsed().as_millis() as u64;
+                    let elapsed_ms =
+                        u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
                     if status.is_success() {
                         let parsed: OpenAiEmbeddingResponse = serde_json::from_str(&response_body)
                             .map_err(|error| {
@@ -193,7 +204,7 @@ impl OpenAiProvider {
                             ));
                         }
 
-                        for item in ordered.iter() {
+                        for item in &ordered {
                             if item.embedding.len() != self.dimensions {
                                 return Err(EmbeddingError::ParseError(format!(
                                     "unexpected embedding dimension {} (expected {})",
@@ -306,11 +317,13 @@ impl EmbeddingProvider for OpenAiProvider {
     }
 }
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub fn dimensions_for_model(model: &str) -> Result<usize, EmbeddingError> {
     match model {
-        "text-embedding-3-small" => Ok(1536),
         "text-embedding-3-large" => Ok(3072),
-        "text-embedding-ada-002" => Ok(1536),
+        "text-embedding-3-small" | "text-embedding-ada-002" => Ok(1536),
         model => Err(EmbeddingError::InvalidConfiguration(format!(
             "unsupported OpenAI model: {model}"
         ))),

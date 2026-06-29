@@ -1,4 +1,4 @@
-use super::*;
+use super::{Arc, Cassie, CassieSession, str, BufReader, AsyncWrite, run_pgwire_blocking, cassie_pg_error, write_error_response, write_ready_for_query, write_copy_in_response, read_frontend_message, FrontendMessage, PgWireError, MAX_FRONTEND_MESSAGE_BYTES, write_command_complete, PgWireSeverity, HandshakeError};
 use crate::sql::ast::{CopyStatement, QueryStatement};
 
 pub(super) enum SimpleCopyOutcome {
@@ -65,8 +65,7 @@ fn copy_response_column_count(cassie: &Cassie, statement: &CopyStatement) -> usi
     cassie
         .catalog
         .get_schema(&statement.table)
-        .map(|schema| schema.fields.len())
-        .unwrap_or(0)
+        .map_or(0, |schema| schema.fields.len())
 }
 
 async fn handle_simple_copy_from_stdin(

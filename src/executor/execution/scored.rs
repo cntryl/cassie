@@ -1,4 +1,4 @@
-use super::*;
+use super::{filter, HashMap, Cassie, CassieSession, BatchRow, QueryError, Instant, batch, Value, FunctionMeta, LogicalPlan, scan, BinaryHeap, SortDirection, QuerySource, SelectItem, FunctionCall, Expr, CmpOrdering, virtual_views, HashSet, AnalyzerConfig, query_cache, RowDecode, FulltextIndexOptions, load_fulltext_index_options, expr_key, CollectionSchema, DataType, BinaryOp};
 
 #[path = "scored/fulltext_read.rs"]
 mod fulltext_read;
@@ -133,7 +133,7 @@ where
 
     let context = filter::SearchContext::from_term_stats(
         field,
-        documents.iter().map(|document| document.term_stats()),
+        documents.iter().map(PostingListDocument::term_stats),
         field_boost,
         field_k1,
         field_b,
@@ -814,8 +814,7 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
             .fields
             .iter()
             .find(|field| field.name.eq_ignore_ascii_case(name))
-            .map(|field| !matches!(field.data_type, DataType::Vector(_)))
-            .unwrap_or(true),
+            .is_none_or(|field| !matches!(field.data_type, DataType::Vector(_))),
         Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::BoolLiteral(_)

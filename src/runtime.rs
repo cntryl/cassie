@@ -100,7 +100,7 @@ pub(crate) use feedback::{
 pub use feedback::{RuntimeFeedbackKey, RuntimeFeedbackObservation, RuntimeFeedbackRecord};
 pub use fulltext::{FulltextIndexOptions, FulltextIndexOptionsCacheKey};
 pub(crate) use helpers::stable_fingerprint;
-use helpers::*;
+use helpers::{current_time_millis, touch_feedback, prune_feedback_by_age, apply_feedback_observation, duration_ms, status_class, adjust_signed, touch};
 pub use helpers::{error_class, hash_params, parameter_shape, sql_fingerprint};
 pub(crate) use projection_metrics::ProjectionWriteStats;
 pub use schema_epochs::RunningQueryGuard;
@@ -195,6 +195,7 @@ impl Drop for PgwireSessionGuard {
 }
 
 impl RuntimeState {
+    #[must_use]
     pub fn new(limits: CassieRuntimeLimits) -> Self {
         let mut metrics = RuntimeMetricsState::default();
         metrics.plan_cache.max_entries = limits.plan_cache_entries as u64;
@@ -218,6 +219,9 @@ impl RuntimeState {
         self.limits.clone()
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn mark_started(&self) {
         let mut started_at = self.started_at.lock().expect("runtime clock");
         if started_at.is_none() {
@@ -225,11 +229,17 @@ impl RuntimeState {
         }
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn mark_shutdown(&self) {
         let mut started_at = self.started_at.lock().expect("runtime clock");
         *started_at = None;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_startup(&self, elapsed: Duration) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.runtime.started = true;
@@ -237,23 +247,35 @@ impl RuntimeState {
         metrics.runtime.startup_ms_total += duration_ms(elapsed);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_shutdown(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.runtime.started = false;
         metrics.runtime.shutdown_total += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_catalog_hydration(&self, elapsed: Duration) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.runtime.catalog_hydration_total += 1;
         metrics.runtime.catalog_hydration_ms_total += duration_ms(elapsed);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_sql_parse(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.runtime.sql_parse_total += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn begin_pgwire_session(self: &Arc<Self>) -> PgwireSessionGuard {
         {
             let mut metrics = self.metrics.lock().expect("runtime metrics");
@@ -272,6 +294,9 @@ impl RuntimeState {
         metrics.pgwire.sessions_finished_total += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_query_success(&self, elapsed: Duration, rows: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query.count += 1;
@@ -279,6 +304,9 @@ impl RuntimeState {
         metrics.query.rows_returned_total += rows as u64;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_query_error(&self, elapsed: Duration, error: &CassieError) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query.count += 1;
@@ -291,6 +319,9 @@ impl RuntimeState {
             .or_insert(0) += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_rest_request(&self, method: &str, route: &str, status: u16, elapsed: Duration) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.rest.requests_total += 1;
@@ -308,41 +339,65 @@ impl RuntimeState {
             .or_insert(0) += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_pgwire_auth_ok(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.pgwire.auth_ok_total += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_pgwire_auth_failed(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.pgwire.auth_failed_total += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_pgwire_protocol_error(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.pgwire.protocol_errors_total += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_pgwire_simple_query(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.pgwire.simple_queries_total += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_pgwire_extended_query(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.pgwire.extended_queries_total += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_pgwire_prepared_delta(&self, delta: isize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         adjust_signed(&mut metrics.pgwire.prepared_statements, delta);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_pgwire_portal_delta(&self, delta: isize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         adjust_signed(&mut metrics.pgwire.portals, delta);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_pgwire_message(&self, message: &str) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         *metrics
@@ -352,11 +407,17 @@ impl RuntimeState {
             .or_insert(0) += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_pgwire_boundary_started(&self, operation: &str) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         increment_boundary_counter(&mut metrics.pgwire.blocking_started_total, operation);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_pgwire_boundary_completed(&self, operation: &str, elapsed: Duration) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         increment_boundary_counter(&mut metrics.pgwire.blocking_completed_total, operation);
@@ -367,6 +428,9 @@ impl RuntimeState {
         );
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_pgwire_boundary_error(&self, operation: &str, elapsed: Duration) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         increment_boundary_counter(&mut metrics.pgwire.blocking_error_total, operation);
@@ -377,6 +441,9 @@ impl RuntimeState {
         );
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_pgwire_boundary_join_failed(&self, operation: &str, elapsed: Duration) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         increment_boundary_counter(&mut metrics.pgwire.blocking_join_failed_total, operation);
@@ -387,11 +454,17 @@ impl RuntimeState {
         );
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_rest_boundary_started(&self, operation: &str) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         increment_boundary_counter(&mut metrics.rest.blocking_started_total, operation);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_rest_boundary_completed(&self, operation: &str, elapsed: Duration) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         increment_boundary_counter(&mut metrics.rest.blocking_completed_total, operation);
@@ -402,6 +475,9 @@ impl RuntimeState {
         );
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_rest_boundary_error(&self, operation: &str, elapsed: Duration) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         increment_boundary_counter(&mut metrics.rest.blocking_error_total, operation);
@@ -412,6 +488,9 @@ impl RuntimeState {
         );
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_rest_boundary_join_failed(&self, operation: &str, elapsed: Duration) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         increment_boundary_counter(&mut metrics.rest.blocking_join_failed_total, operation);
@@ -422,6 +501,9 @@ impl RuntimeState {
         );
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_search_execution(&self, elapsed: Duration, candidates: usize, results: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.search.count += 1;
@@ -430,6 +512,9 @@ impl RuntimeState {
         metrics.search.result_count_total += results as u64;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_vector_execution(&self, elapsed: Duration, candidates: usize, results: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.vector.count += 1;
@@ -438,6 +523,9 @@ impl RuntimeState {
         metrics.vector.result_count_total += results as u64;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_vector_normalization_usage(
         &self,
         normalized_candidates: usize,
@@ -448,6 +536,9 @@ impl RuntimeState {
         metrics.vector.normalized_fallback_count_total += fallback_candidates as u64;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_vector_prefilter_usage(
         &self,
         input_candidates: usize,
@@ -467,6 +558,9 @@ impl RuntimeState {
         }
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_hybrid_execution(&self, elapsed: Duration, candidates: usize, results: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.hybrid.count += 1;
@@ -475,6 +569,9 @@ impl RuntimeState {
         metrics.hybrid.result_count_total += results as u64;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_hybrid_prefilter_usage(
         &self,
         input_candidates: usize,
@@ -494,6 +591,9 @@ impl RuntimeState {
         }
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_storage_access(&self, family: &str, write: bool, success: bool) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         let family = family.to_ascii_lowercase();
@@ -515,83 +615,131 @@ impl RuntimeState {
         }
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_plan_cache_hit(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.plan_cache.hits += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_plan_cache_miss(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.plan_cache.misses += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_query_cache_l1_hit(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query_cache.l1_hits += 1;
         metrics.plan_cache.hits += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_query_cache_l1_miss(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query_cache.l1_misses += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_query_cache_l2_hit(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query_cache.l2_hits += 1;
         metrics.plan_cache.hits += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_query_cache_l2_miss(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query_cache.l2_misses += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_query_cache_compile_miss(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.plan_cache.misses += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_query_cache_promotion(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query_cache.candidate_promotions += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_query_cache_schema_epoch_reject(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query_cache.schema_epoch_rejects += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_query_cache_deserialize_reject(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query_cache.deserialize_rejects += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_query_cache_fulltext_stats_hit(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query_cache.fulltext_stats_hits += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_query_cache_fulltext_stats_miss(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query_cache.fulltext_stats_misses += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_cardinality_read(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.cardinality.reads += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_cardinality_write(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.cardinality.writes += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_cardinality_rebuild(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.cardinality.rebuilds += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_cardinality_unavailable(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.cardinality.unavailable += 1;
@@ -621,28 +769,43 @@ impl RuntimeState {
         metrics.feedback.evictions += evictions;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_covering_index_scan(&self, rows: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.covering_indexes.scans += 1;
         metrics.covering_indexes.row_fetches_avoided += rows as u64;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_covering_index_fallback(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.covering_indexes.fallback_scans += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_aggregate_acceleration(&self, accelerated_segments: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.aggregate_acceleration.scans += 1;
         metrics.aggregate_acceleration.accelerated_segments += accelerated_segments as u64;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_aggregate_acceleration_row_blob_fallback(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.aggregate_acceleration.row_blob_fallbacks += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_parallel_scan(&self, workers: usize, shards: usize, rows: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.parallel_scans.scans += 1;
@@ -651,11 +814,17 @@ impl RuntimeState {
         metrics.parallel_scans.rows += rows as u64;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_parallel_scan_fallback(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.parallel_scans.fallback_scans += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_parallel_scoring(&self, workers: usize, partitions: usize, rows: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.parallel_scoring.scorings += 1;
@@ -664,11 +833,17 @@ impl RuntimeState {
         metrics.parallel_scoring.rows += rows as u64;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_parallel_scoring_fallback(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.parallel_scoring.fallback_scorings += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_parallel_aggregation(
         &self,
         workers: usize,
@@ -684,17 +859,26 @@ impl RuntimeState {
         metrics.parallel_aggregation.groups += groups as u64;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_parallel_aggregation_fallback(&self, reason: impl Into<String>) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.parallel_aggregation.fallback_aggregations += 1;
         metrics.parallel_aggregation.last_fallback_reason = reason.into();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_plan_cache_invalidation(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.plan_cache.invalidations += 1;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_plan_cache_eviction(&self, evictions: u64) {
         if evictions == 0 {
             return;
@@ -704,6 +888,9 @@ impl RuntimeState {
         metrics.plan_cache.evictions += evictions;
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn plan_cache_lookup(&self, key: &PlanCacheKey) -> Option<L1PlanHit> {
         let mut cache = self.plan_cache.lock().expect("plan cache");
         if let Some(plan) = cache.entries.get(key).cloned() {
@@ -722,6 +909,9 @@ impl RuntimeState {
         None
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn plan_cache_store(&self, key: PlanCacheKey, plan: Arc<PhysicalPlan>, durable: bool) {
         let max_entries = self.limits.plan_cache_entries.max(1);
         let mut cache = self.plan_cache.lock().expect("plan cache");
@@ -752,6 +942,9 @@ impl RuntimeState {
         self.record_plan_cache_eviction(evictions);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn mark_plan_cache_entry_durable(&self, key: &PlanCacheKey) {
         let mut cache = self.plan_cache.lock().expect("plan cache");
         if let Some(entry) = cache.entries.get_mut(key) {
@@ -760,6 +953,9 @@ impl RuntimeState {
         }
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn mark_plan_cache_entry_candidate_pending(&self, key: &PlanCacheKey, ttl_seconds: u64) {
         if ttl_seconds == 0 {
             return;
@@ -774,6 +970,9 @@ impl RuntimeState {
         }
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn invalidate_plan_cache(&self) {
         let mut cache = self.plan_cache.lock().expect("plan cache");
         cache.entries.clear();
@@ -786,6 +985,9 @@ impl RuntimeState {
         self.record_plan_cache_invalidation();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn execution_result_cache_lookup(
         &self,
         key: &ExecutionResultCacheKey,
@@ -802,6 +1004,9 @@ impl RuntimeState {
         None
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn execution_result_cache_store(&self, key: ExecutionResultCacheKey, result: QueryResult) {
         const MAX_ENTRIES: usize = 64;
         let mut cache = self
@@ -823,6 +1028,9 @@ impl RuntimeState {
         cache.order.push_back(key);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn invalidate_execution_result_cache(&self) {
         let mut cache = self
             .execution_result_cache
@@ -867,6 +1075,9 @@ impl RuntimeState {
         order.push_back(key.clone());
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn plan_cache_entry_count(&self) -> usize {
         self.plan_cache.lock().expect("plan cache").entries.len()
     }
@@ -875,6 +1086,9 @@ impl RuntimeState {
         self.schema_epoch.load(Ordering::SeqCst)
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn set_schema_epoch(&self, schema_epoch: u64) {
         self.schema_epoch.store(schema_epoch, Ordering::SeqCst);
         self.fulltext_index_options
@@ -884,6 +1098,9 @@ impl RuntimeState {
         self.clear_feedback();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn fulltext_index_options_lookup(
         &self,
         key: &FulltextIndexOptionsCacheKey,
@@ -895,6 +1112,9 @@ impl RuntimeState {
             .cloned()
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn store_fulltext_index_options(
         &self,
         key: FulltextIndexOptionsCacheKey,
@@ -910,13 +1130,15 @@ impl RuntimeState {
         QueryExecutionControls::from_limits(&self.limits, started_at)
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn snapshot(&self) -> RuntimeMetricsSnapshot {
         let metrics = self.metrics.lock().expect("runtime metrics");
         let started_at = self.started_at.lock().expect("runtime clock");
         let uptime_seconds = started_at
             .as_ref()
-            .map(|instant| instant.elapsed().as_secs())
-            .unwrap_or(0);
+            .map_or(0, |instant| instant.elapsed().as_secs());
         let mut snapshot = RuntimeMetricsSnapshot {
             runtime: metrics.runtime.clone(),
             query: metrics.query.clone(),

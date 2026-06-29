@@ -11,13 +11,13 @@ fn bench_pgwire_json(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("query_parameter_binding", |b| {
-        b.iter(workloads::parameter_binding)
+        b.iter(workloads::parameter_binding);
     });
     group.bench_function("row_to_pgwire_encoding", |b| {
-        b.iter(workloads::row_to_pgwire_encoding)
+        b.iter(workloads::row_to_pgwire_encoding);
     });
     group.bench_function("row_to_json_encoding", |b| {
-        b.iter(workloads::row_to_json_encoding)
+        b.iter(workloads::row_to_json_encoding);
     });
 
     group.finish();

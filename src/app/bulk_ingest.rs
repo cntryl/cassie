@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
 
-use super::*;
+use super::{Cassie, CassieSession, CassieError, Uuid, TransactionRowChange};
 use crate::catalog::FieldMeta;
 use crate::midge::adapter::{DocumentWriteBatchOptions, DocumentWriteOp};
 use crate::sql::ast::{CopyFormat, CopyStatement};
@@ -10,6 +10,9 @@ use crate::types::DataType;
 const COPY_NULL: &str = "\\N";
 
 impl Cassie {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn copy_from_csv_stdin(
         &self,
         session: &CassieSession,
@@ -195,7 +198,6 @@ fn copy_value_to_json(
     };
 
     match &field.data_type {
-        DataType::Null => Ok(serde_json::Value::String(value)),
         DataType::SmallInt | DataType::Int | DataType::BigInt => value
             .parse::<i64>()
             .map(serde_json::Value::from)
@@ -217,7 +219,7 @@ fn copy_value_to_json(
             .map_err(|error| {
                 CassieError::Parse(format!("field '{}' expects JSON: {error}", field.name))
             }),
-        DataType::Text
+        DataType::Null | DataType::Text
         | DataType::Char { .. }
         | DataType::Varchar { .. }
         | DataType::Uuid

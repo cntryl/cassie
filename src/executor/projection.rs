@@ -1,6 +1,7 @@
+use crate::executor::batch::RowAccess;
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
-use crate::executor::batch::{Batch, BatchRow, RowAccess};
+use crate::executor::batch::{Batch, BatchRow};
 use crate::executor::filter;
 use crate::executor::filter::SearchContext;
 use crate::executor::QueryError;
@@ -55,9 +56,7 @@ where
                         .as_ref()
                         .and_then(|precomputed_key| row.get(precomputed_key))
                         .or_else(|| row.get(key))
-                        .cloned()
-                        .map(Ok)
-                        .unwrap_or_else(|| {
+                        .cloned().map_or_else(|| {
                             filter::evaluate_expr_value(
                                 &row,
                                 expr,
@@ -67,7 +66,7 @@ where
                                 session,
                                 None,
                             )
-                        })?;
+                        }, Ok)?;
                     projected.push((key.clone(), value));
                 }
                 ProjectionOp::WindowFunction { key } => {

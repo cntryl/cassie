@@ -1,6 +1,9 @@
 use super::types::ExecutionBreakdownDurations;
-use super::*;
+use super::{Cassie, PhysicalPlan, Value, QueryResult, QueryError, Arc, QueryExecutionControls, ExecutionBreakdownOutput, Instant, dml_command, CteContext, HashMap, execute_plan_with_execution_breakdown, build_select_result, CassieSession, execute_physical_plan, rollups, materialized_projection, LogicalPlan, FunctionMeta, plan_needs_user_functions};
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub fn run(
     cassie: &Cassie,
     plan: PhysicalPlan,
@@ -10,6 +13,9 @@ pub fn run(
     run_with_controls(cassie, Arc::new(plan), params, &controls)
 }
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub fn run_with_controls(
     cassie: &Cassie,
     plan: Arc<PhysicalPlan>,
@@ -98,10 +104,10 @@ pub(crate) fn run_with_session_controls(
     }
 
     let mut cte_context: CteContext = HashMap::new();
-    let rows = execute_plan(
+    let rows = execute_physical_plan(
         cassie,
         session,
-        &plan.logical,
+        plan.as_ref(),
         &mut cte_context,
         &user_functions,
         &params,

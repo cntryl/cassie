@@ -1,4 +1,4 @@
-use super::*;
+use super::{SourceExecutionEnv, QuerySource, JoinKind, Expr, CteContext, BatchRow, QueryError, collection_join_columns, merge_join_keys, join_field_for_collection, collection_scan_fields, execute_query_source, batch, check_timeout, combine_rows, filter, row_join_key, qualify_row, scan, EquiJoinKeys, catalog, Value, estimate_vectorized_join_bytes};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn try_execute_indexed_bounded_inner_join(
@@ -458,8 +458,7 @@ fn value_to_json(value: &Value) -> Option<serde_json::Value> {
 
 fn has_session_changes(env: &SourceExecutionEnv<'_>, collection: &str) -> bool {
     env.session
-        .map(|session| !session.collection_changes(collection).is_empty())
-        .unwrap_or(false)
+        .is_some_and(|session| !session.collection_changes(collection).is_empty())
 }
 
 fn can_dense_stream(

@@ -16,6 +16,7 @@ mod virtual_views_sequences;
 #[path = "virtual_views_storage.rs"]
 mod virtual_views_storage;
 
+#[must_use]
 pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
     let name = normalize_name(name);
     let fields = match name.as_str() {
@@ -186,6 +187,7 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
     Some(fields)
 }
 
+#[must_use]
 pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
     let name = normalize_name(name);
     let rows = match name.as_str() {
@@ -233,7 +235,7 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                     string("source_collection", rollup.source_collection),
                     string("output_collection", rollup.output_collection),
                     string("state", rollup.state.as_str()),
-                    int_value("lag_rows", rollup.refresh_cursor.lag_rows as i64),
+                    int_value("lag_rows", rollup.refresh_cursor.lag_rows),
                     string("bucket_expr", rollup.bucket_expr),
                 ]
             })
@@ -256,7 +258,7 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                     ),
                     int_value(
                         "source_position",
-                        projection.source_position.unwrap_or_default() as i64,
+                        projection.source_position.unwrap_or_default(),
                     ),
                     string(
                         "last_applied_event_id",
@@ -266,7 +268,7 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                         "replay_batch_id",
                         projection.replay_batch_id.unwrap_or_default(),
                     ),
-                    int_value("lag", projection.lag as i64),
+                    int_value("lag", projection.lag),
                     string("freshness", projection.freshness.as_str()),
                     string("last_error", projection.last_error.unwrap_or_default()),
                 ]
@@ -292,7 +294,7 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                         "source_collections",
                         materialized.source_collections.join(","),
                     ),
-                    int_value("schema_epoch", materialized.schema_epoch as i64),
+                    int_value("schema_epoch", materialized.schema_epoch),
                     string("last_error", last_error),
                 ])
             })
@@ -308,12 +310,12 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                         string("version_id", version.version_id),
                         string("output_collection", version.output_collection),
                         string("state", version.state.as_str()),
-                        int_value("created_ms", version.created_ms as i64),
+                        int_value("created_ms", version.created_ms),
                         int_value(
                             "activated_ms",
-                            version.activated_ms.unwrap_or_default() as i64,
+                            version.activated_ms.unwrap_or_default(),
                         ),
-                        int_value("retired_ms", version.retired_ms.unwrap_or_default() as i64),
+                        int_value("retired_ms", version.retired_ms.unwrap_or_default()),
                         string("last_error", version.last_error.unwrap_or_default()),
                     ]
                 })
@@ -330,7 +332,7 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                         "active_version",
                         projection.active_version.unwrap_or_default(),
                     ),
-                    int_value("lag", projection.lag as i64),
+                    int_value("lag", projection.lag),
                     string("freshness", projection.freshness.as_str()),
                     string("rebuild_state", projection.rebuild_state.as_str()),
                     string("verification_state", projection.verification.state.as_str()),
@@ -348,20 +350,20 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                     string("algorithm", projection.hashes.algorithm.algorithm),
                     int_value(
                         "digest_length",
-                        projection.hashes.algorithm.digest_length as i64,
+                        i64::from(projection.hashes.algorithm.digest_length),
                     ),
                     int_value(
                         "canonical_encoder_version",
-                        projection.hashes.algorithm.canonical_encoder_version as i64,
+                        i64::from(projection.hashes.algorithm.canonical_encoder_version),
                     ),
                     int_value(
                         "hash_version",
-                        projection.hashes.algorithm.hash_version as i64,
+                        i64::from(projection.hashes.algorithm.hash_version),
                     ),
                     string("row_state", projection.hashes.rows.state.as_str()),
-                    int_value("row_count", projection.hashes.rows.row_count as i64),
+                    int_value("row_count", projection.hashes.rows.row_count),
                     string("range_state", projection.hashes.ranges.state.as_str()),
-                    int_value("range_count", projection.hashes.ranges.range_count as i64),
+                    int_value("range_count", projection.hashes.ranges.range_count),
                     string("root_state", projection.hashes.root.state.as_str()),
                     string(
                         "root_digest",
@@ -383,11 +385,11 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                         projection.integrity.version_id.unwrap_or_default(),
                     ),
                     string("mode", projection.integrity.mode),
-                    int_value("mismatch_count", projection.integrity.mismatch_count as i64),
-                    int_value("missing_count", projection.integrity.missing_count as i64),
-                    int_value("stale_count", projection.integrity.stale_count as i64),
+                    int_value("mismatch_count", projection.integrity.mismatch_count),
+                    int_value("missing_count", projection.integrity.missing_count),
+                    int_value("stale_count", projection.integrity.stale_count),
                     bool_value("repairable", projection.integrity.repairable),
-                    int_value("elapsed_ms", projection.integrity.elapsed_ms as i64),
+                    int_value("elapsed_ms", projection.integrity.elapsed_ms),
                     string(
                         "checked_components",
                         projection.integrity.checked_components.join(","),
@@ -421,10 +423,10 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                         "manifest_digest",
                         report.manifest_digest.unwrap_or_default(),
                     ),
-                    int_value("mismatch_count", report.mismatch_count as i64),
-                    int_value("unverifiable_count", report.unverifiable_count as i64),
+                    int_value("mismatch_count", report.mismatch_count),
+                    int_value("unverifiable_count", report.unverifiable_count),
                     string("diagnostic_sample", report.diagnostic_sample.join(",")),
-                    int_value("created_ms", report.created_ms as i64),
+                    int_value("created_ms", report.created_ms),
                     string("last_error", report.last_error.unwrap_or_default()),
                 ]
             })
@@ -444,10 +446,10 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                         "partition_key",
                         assignment.partition_key.unwrap_or_default(),
                     ),
-                    int_value("generation", assignment.generation as i64),
+                    int_value("generation", assignment.generation),
                     string("state", assignment.state.as_str()),
                     string("routing_hint", assignment.routing_hint.unwrap_or_default()),
-                    int_value("updated_ms", assignment.updated_ms as i64),
+                    int_value("updated_ms", assignment.updated_ms),
                 ]
             })
             .collect(),
@@ -464,10 +466,10 @@ pub fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
                     string("state", policy.state.as_str()),
                     int_value(
                         "last_enforced_ms",
-                        policy.last_enforced_ms.unwrap_or_default() as i64,
+                        policy.last_enforced_ms.unwrap_or_default(),
                     ),
-                    int_value("last_deleted_rows", policy.last_deleted_rows as i64),
-                    int_value("last_skipped_rows", policy.last_skipped_rows as i64),
+                    int_value("last_deleted_rows", policy.last_deleted_rows),
+                    int_value("last_skipped_rows", policy.last_skipped_rows),
                     string("last_error", policy.last_error.unwrap_or_default()),
                 ]
             })
@@ -562,7 +564,7 @@ fn information_schema_column_row(
         string("table_name", relation),
         string("column_name", field_name),
         string("data_type", data_type_name(data_type)),
-        int_value("ordinal_position", (index + 1) as i64),
+        int_value("ordinal_position", index + 1 ),
         string(
             "is_nullable",
             if is_not_nullable(constraint) {
@@ -594,8 +596,7 @@ fn constraint_for_field<'a>(
 
 fn is_not_nullable(constraint: Option<&FieldConstraint>) -> bool {
     constraint
-        .map(|constraint| constraint.not_null || constraint.primary_key)
-        .unwrap_or(false)
+        .is_some_and(|constraint| constraint.not_null || constraint.primary_key)
 }
 
 fn udt_name(data_type: &DataType) -> String {
@@ -700,8 +701,14 @@ fn string(name: &str, value: impl Into<String>) -> (String, Value) {
     (name.to_string(), Value::String(value.into()))
 }
 
-fn int_value(name: &str, value: i64) -> (String, Value) {
-    (name.to_string(), Value::Int64(value))
+fn int_value<T>(name: &str, value: T) -> (String, Value)
+where
+    T: TryInto<i64>,
+{
+    (
+        name.to_string(),
+        Value::Int64(value.try_into().unwrap_or(i64::MAX)),
+    )
 }
 
 fn bool_value(name: &str, value: bool) -> (String, Value) {
@@ -711,14 +718,14 @@ fn bool_value(name: &str, value: bool) -> (String, Value) {
 fn optional_string(name: &str, value: Option<String>) -> (String, Value) {
     (
         name.to_string(),
-        value.map(Value::String).unwrap_or(Value::Null),
+        value.map_or(Value::Null, Value::String),
     )
 }
 
 fn optional_i64(name: &str, value: Option<i64>) -> (String, Value) {
     (
         name.to_string(),
-        value.map(Value::Int64).unwrap_or(Value::Null),
+        value.map_or(Value::Null, Value::Int64),
     )
 }
 

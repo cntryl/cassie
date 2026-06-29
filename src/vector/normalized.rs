@@ -6,6 +6,7 @@ pub struct NormalizedVector {
     pub magnitude: f64,
 }
 
+#[must_use]
 pub fn normalize(values: &[f32]) -> Option<NormalizedVector> {
     if values.is_empty() {
         return None;
@@ -13,7 +14,7 @@ pub fn normalize(values: &[f32]) -> Option<NormalizedVector> {
 
     let mut squared_magnitude = 0.0f64;
     for value in values {
-        let value = *value as f64;
+        let value = f64::from(*value);
         if !value.is_finite() {
             return None;
         }
@@ -33,17 +34,19 @@ pub fn normalize(values: &[f32]) -> Option<NormalizedVector> {
     } else {
         values
             .iter()
-            .map(|value| (*value as f64 / magnitude) as f32)
+            .map(|value| (f64::from(*value) / magnitude) as f32)
             .collect::<Vec<_>>()
     };
 
     Some(NormalizedVector { values, magnitude })
 }
 
+#[must_use]
 pub fn dot(left: &[f32], right: &[f32]) -> f64 {
     simd::dot(left, right)
 }
 
+#[must_use]
 pub fn cosine_distance(left: &[f32], right: &[f32]) -> f64 {
     if left.is_empty() || right.is_empty() || left.len() != right.len() {
         return 1.0;
@@ -52,6 +55,7 @@ pub fn cosine_distance(left: &[f32], right: &[f32]) -> f64 {
     1.0 - dot(left, right)
 }
 
+#[must_use]
 pub fn dot_distance_from_normalized_target(
     query: &[f32],
     normalized_target: &[f32],
@@ -64,6 +68,7 @@ pub fn dot_distance_from_normalized_target(
     -dot(query, normalized_target) * target_magnitude
 }
 
+#[must_use]
 pub fn cosine_distance_from_normalized_query(
     normalized_query: &[f32],
     normalized_target: &[f32],

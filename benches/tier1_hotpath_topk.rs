@@ -11,7 +11,7 @@ fn bench_topk(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("top_k_heap_maintenance", |b| {
-        b.iter(workloads::top_k_update)
+        b.iter(workloads::top_k_update);
     });
 
     group.finish();

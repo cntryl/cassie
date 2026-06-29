@@ -96,7 +96,7 @@ fn bench_query(c: &mut Criterion) {
             }
             let _ = runtime.block_on(workloads::execute_sql(&ctx_10k, sql));
             group.bench_function(BenchmarkId::new(name, dataset), |b| {
-                b.iter(|| runtime.block_on(workloads::execute_sql(&ctx_10k, sql)))
+                b.iter(|| runtime.block_on(workloads::execute_sql(&ctx_10k, sql)));
             });
         }
     }
@@ -115,7 +115,7 @@ fn bench_query(c: &mut Criterion) {
                         &ctx_100k,
                         "SELECT id, title FROM bench_documents WHERE id = 'doc-1'",
                     ))
-                })
+                });
             },
         );
     }
@@ -170,7 +170,7 @@ fn bench_query(c: &mut Criterion) {
             |b| {
                 b.iter(|| {
                     runtime.block_on(workloads::time_series_window_scan(&time_series_ctx_10k))
-                })
+                });
             },
         );
     }
@@ -189,7 +189,7 @@ fn bench_query(c: &mut Criterion) {
                         &graph_ctx_10k,
                         "SELECT node_id FROM graph_expand('bench_graph', 'doc', 'node-0', 4, 'out', 'links', 64)",
                     ))
-                })
+                });
             },
         );
     }
@@ -208,7 +208,7 @@ fn bench_query(c: &mut Criterion) {
                         &graph_ctx_100k,
                         "SELECT node_id FROM graph_expand('bench_graph', 'doc', 'node-0', 4, 'out', 'links', 64)",
                     ))
-                })
+                });
             },
         );
     }
@@ -227,7 +227,7 @@ fn bench_query(c: &mut Criterion) {
             |b| {
                 b.iter(|| {
                     runtime.block_on(workloads::time_series_window_scan(&time_series_ctx_100k))
-                })
+                });
             },
         );
     }

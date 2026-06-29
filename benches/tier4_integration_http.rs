@@ -46,15 +46,15 @@ fn bench_http(c: &mut Criterion) {
                             .block_on(workloads::timed_http_document_create_get_batch(ctx, 64));
                     }
                     elapsed
-                })
+                });
             },
         );
     }
     group.bench_function(BenchmarkId::new("http_vector_search", "10k"), |b| {
-        b.iter(|| runtime.block_on(workloads::http_vector_search(&vector_ctx)))
+        b.iter(|| runtime.block_on(workloads::http_vector_search(&vector_ctx)));
     });
     group.bench_function(BenchmarkId::new("http_large_result_set", "512_rows"), |b| {
-        b.iter(|| runtime.block_on(workloads::http_large_result_json(&ctx_10k)))
+        b.iter(|| runtime.block_on(workloads::http_large_result_json(&ctx_10k)));
     });
     group.bench_function(
         BenchmarkId::new("json_serialization_overhead", "512_rows"),
@@ -62,7 +62,7 @@ fn bench_http(c: &mut Criterion) {
     );
     group.throughput(Throughput::Elements(8));
     group.bench_function(BenchmarkId::new("http_concurrent_requests", "8x10k"), |b| {
-        b.iter(|| runtime.block_on(workloads::http_concurrent_document_gets(&ctx_10k, 8)))
+        b.iter(|| runtime.block_on(workloads::http_concurrent_document_gets(&ctx_10k, 8)));
     });
 
     group.finish();

@@ -11,7 +11,7 @@ fn bench_row_codec(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("row_encode_decode", |b| {
-        b.iter(workloads::row_encode_decode)
+        b.iter(workloads::row_encode_decode);
     });
 
     group.finish();

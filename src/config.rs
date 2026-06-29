@@ -155,6 +155,9 @@ impl Default for OpenAiRuntimeConfig {
 }
 
 impl CassieRuntimeConfig {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn from_env() -> Result<Self, CassieRuntimeConfigError> {
         Self::from_env_reader(|key| env::var(key).ok())
     }
@@ -437,7 +440,7 @@ mod tests {
     use uuid::Uuid;
 
     fn env_reader(values: HashMap<&'static str, &'static str>) -> impl Fn(&str) -> Option<String> {
-        move |key| values.get(key).map(|value| value.to_string())
+        move |key| values.get(key).map(std::string::ToString::to_string)
     }
 
     fn env_reader_owned(values: HashMap<&'static str, String>) -> impl Fn(&str) -> Option<String> {

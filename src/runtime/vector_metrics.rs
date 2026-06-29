@@ -1,6 +1,9 @@
-use super::*;
+use super::RuntimeState;
 
 impl RuntimeState {
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_ivfflat_execution(&self, lists: usize, probes: usize, exact_reranks: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.vector.ivfflat_executions += 1;
@@ -10,6 +13,9 @@ impl RuntimeState {
         metrics.vector.last_index_kind = "ivfflat".to_string();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_ivfflat_fallback(&self, reason: impl Into<String>) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.vector.ivfflat_fallbacks += 1;

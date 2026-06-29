@@ -16,13 +16,13 @@ fn bench_binder(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("sql_binder", |b| {
-        b.iter(|| runtime.block_on(workloads::sql_binding(&ctx)))
+        b.iter(|| runtime.block_on(workloads::sql_binding(&ctx)));
     });
     group.bench_function("logical_planner", |b| {
-        b.iter(|| runtime.block_on(workloads::logical_planning(&ctx)))
+        b.iter(|| runtime.block_on(workloads::logical_planning(&ctx)));
     });
     group.bench_function("physical_planner", |b| {
-        b.iter(|| runtime.block_on(workloads::physical_planning(&ctx)))
+        b.iter(|| runtime.block_on(workloads::physical_planning(&ctx)));
     });
 
     group.finish();

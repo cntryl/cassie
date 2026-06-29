@@ -13,6 +13,7 @@ impl Default for HybridScorePolicy {
     }
 }
 
+#[must_use]
 pub fn hybrid_score(
     search_score: f64,
     vector_score: f64,

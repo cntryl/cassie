@@ -6,10 +6,12 @@ pub struct Vector {
 }
 
 impl Vector {
+    #[must_use]
     pub fn new(values: Vec<f32>) -> Self {
         Self { values }
     }
 
+    #[must_use]
     pub fn dimension(&self) -> usize {
         self.values.len()
     }

@@ -1,7 +1,10 @@
 use super::vector_helpers::project_payload_fields;
-use super::*;
+use super::{Cassie, CassieError, CassieSession, Uuid, DocumentRef, TransactionRowChange, MidgeScanTimings, RowFilter, Instant, BTreeMap, RowDecode, FieldConstraint, ConstraintCheck, ConstraintOperator, VectorIndexRecord};
 
 impl Cassie {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn ingest_document(
         &self,
         collection: &str,
@@ -547,7 +550,7 @@ impl Cassie {
             let existing = object.get(&constraint.field);
 
             if (constraint.not_null || constraint.primary_key)
-                && (existing.is_none() || existing.is_some_and(|value| value.is_null()))
+                && existing.is_none_or(serde_json::Value::is_null)
             {
                 let constraint_name = if constraint.primary_key {
                     Some(crate::catalog::generated_constraint_name(
@@ -602,16 +605,16 @@ impl Cassie {
             ConstraintOperator::NotEq => value != &check.value,
             ConstraintOperator::Lt => self
                 .compare_constraint_values(value, &check.value)
-                .is_some_and(|order| order.is_lt()),
+                .is_some_and(std::cmp::Ordering::is_lt),
             ConstraintOperator::Lte => self
                 .compare_constraint_values(value, &check.value)
-                .is_some_and(|order| order.is_le()),
+                .is_some_and(std::cmp::Ordering::is_le),
             ConstraintOperator::Gt => self
                 .compare_constraint_values(value, &check.value)
-                .is_some_and(|order| order.is_gt()),
+                .is_some_and(std::cmp::Ordering::is_gt),
             ConstraintOperator::Gte => self
                 .compare_constraint_values(value, &check.value)
-                .is_some_and(|order| order.is_ge()),
+                .is_some_and(std::cmp::Ordering::is_ge),
             ConstraintOperator::Like => {
                 let Some(value) = value.as_str() else {
                     return false;

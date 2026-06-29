@@ -1,6 +1,9 @@
-use super::*;
+use super::{Cassie, CassieError};
 
 impl Cassie {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_operational_assignment(
         &self,
         metadata: crate::catalog::OperationalAssignmentMeta,
@@ -11,6 +14,7 @@ impl Cassie {
         Ok(())
     }
 
+    #[must_use]
     pub fn list_operational_assignments(&self) -> Vec<crate::catalog::OperationalAssignmentMeta> {
         self.catalog.list_operational_assignments()
     }

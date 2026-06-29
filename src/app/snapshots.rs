@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use super::*;
+use super::{Cassie, CassieError, Midge, current_time_millis};
 
 const SNAPSHOT_FORMAT_VERSION: u16 = 1;
 const SNAPSHOT_MANIFEST_FILE: &str = "cassie-snapshot-manifest.json";
@@ -54,6 +54,9 @@ pub struct CassieSnapshotHashManifest {
 }
 
 impl Cassie {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn create_snapshot_from_data_dir(
         data_dir: impl AsRef<Path>,
         snapshot_dir: impl AsRef<Path>,
@@ -84,6 +87,9 @@ impl Cassie {
         Ok(manifest)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn restore_snapshot(
         snapshot_dir: impl AsRef<Path>,
         target_data_dir: impl AsRef<Path>,

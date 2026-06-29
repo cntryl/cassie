@@ -1,7 +1,10 @@
 use super::auth::hash_password;
-use super::*;
+use super::{Cassie, CassieError, Instant, normalize_role_name, RoleMeta, current_time_millis};
 
 impl Cassie {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn hydrate_catalog(&self) -> Result<(), CassieError> {
         let started_at = Instant::now();
         self.catalog.clear();

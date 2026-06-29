@@ -61,7 +61,6 @@ fn numeric_precision(data_type: &DataType) -> i64 {
     match data_type {
         DataType::SmallInt => 16,
         DataType::Int => 32,
-        DataType::BigInt => 64,
         _ => 64,
     }
 }
@@ -70,7 +69,6 @@ fn maximum_value(data_type: &DataType) -> i64 {
     match data_type {
         DataType::SmallInt => i16::MAX.into(),
         DataType::Int => i32::MAX.into(),
-        DataType::BigInt => i64::MAX,
         _ => i64::MAX,
     }
 }

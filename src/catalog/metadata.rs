@@ -42,6 +42,7 @@ pub struct Catalog {
 }
 
 impl Catalog {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             collections: Arc::new(RwLock::new(HashMap::new())),
@@ -68,6 +69,7 @@ impl Catalog {
         }
     }
 
+    #[must_use]
     pub fn version(&self) -> u64 {
         self.version.load(Ordering::SeqCst)
     }
@@ -110,9 +112,9 @@ impl Catalog {
             })
             .collect();
         schemas.insert(
-            name.to_string(),
+            name.clone(),
             CollectionSchema {
-                collection: name.to_string(),
+                collection: name.clone(),
                 fields,
             },
         );
@@ -123,10 +125,10 @@ impl Catalog {
             .collect::<Vec<_>>();
         self.constraints
             .write()
-            .insert(name.to_string(), normalized);
+            .insert(name.clone(), normalized);
         self.register_projection_metadata(ProjectionMeta::new(&name, 1));
         self.cardinality.write().insert(
-            name.to_string(),
+            name.clone(),
             CollectionCardinalityStats {
                 hydrated: false,
                 ..CollectionCardinalityStats::default()
@@ -135,10 +137,12 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_collection(&self, name: &str) -> Option<CollectionMeta> {
         self.collections.read().get(name).cloned()
     }
 
+    #[must_use]
     pub fn collection_storage_mode(&self, name: &str) -> Option<CollectionStorageMode> {
         let base = self.get_collection(name)?.storage_mode;
         if matches!(
@@ -159,6 +163,7 @@ impl Catalog {
         })
     }
 
+    #[must_use]
     pub fn list_collections(&self) -> Vec<CollectionMeta> {
         let collections = self.collections.read();
         let mut out = collections.values().cloned().collect::<Vec<_>>();
@@ -173,14 +178,17 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_graph(&self, name: &str) -> Option<GraphMeta> {
         self.graphs.read().get(&name.to_ascii_lowercase()).cloned()
     }
 
+    #[must_use]
     pub fn graph_exists(&self, name: &str) -> bool {
         self.graphs.read().contains_key(&name.to_ascii_lowercase())
     }
 
+    #[must_use]
     pub fn graph_for_edge_collection(&self, collection: &str) -> Option<GraphMeta> {
         self.graphs
             .read()
@@ -189,6 +197,7 @@ impl Catalog {
             .cloned()
     }
 
+    #[must_use]
     pub fn list_graphs(&self) -> Vec<GraphMeta> {
         let mut out = self.graphs.read().values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|graph| graph.name.to_ascii_lowercase());
@@ -202,10 +211,12 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_projection_metadata(&self, collection: &str) -> Option<ProjectionMeta> {
         self.projections.read().get(collection).cloned()
     }
 
+    #[must_use]
     pub fn list_projection_metadata(&self) -> Vec<ProjectionMeta> {
         let mut out = self
             .projections
@@ -217,6 +228,7 @@ impl Catalog {
         out
     }
 
+    #[must_use]
     pub fn get_materialized_projection(&self, name: &str) -> Option<ProjectionMeta> {
         self.projections
             .read()
@@ -225,10 +237,12 @@ impl Catalog {
             .cloned()
     }
 
+    #[must_use]
     pub fn is_materialized_projection(&self, name: &str) -> bool {
         self.get_materialized_projection(name).is_some()
     }
 
+    #[must_use]
     pub fn materialized_projection_for_output(&self, output: &str) -> Option<ProjectionMeta> {
         self.projections
             .read()
@@ -272,6 +286,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn list_namespaces(&self) -> Vec<NamespaceMeta> {
         let namespaces = self.namespaces.read();
         let mut out = namespaces.values().cloned().collect::<Vec<_>>();
@@ -290,6 +305,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_function(&self, name: &str) -> Option<FunctionMeta> {
         self.functions
             .read()
@@ -297,6 +313,7 @@ impl Catalog {
             .cloned()
     }
 
+    #[must_use]
     pub fn list_functions(&self) -> Vec<FunctionMeta> {
         let mut out = self.functions.read().values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|function| function.name.to_ascii_lowercase());
@@ -314,10 +331,12 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_view(&self, name: &str) -> Option<ViewMeta> {
         self.views.read().get(name).cloned()
     }
 
+    #[must_use]
     pub fn list_views(&self) -> Vec<ViewMeta> {
         let mut out = self.views.read().values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|view| view.name.to_ascii_lowercase());
@@ -335,6 +354,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_procedure(&self, name: &str) -> Option<ProcedureMeta> {
         self.procedures
             .read()
@@ -342,6 +362,7 @@ impl Catalog {
             .cloned()
     }
 
+    #[must_use]
     pub fn list_procedures(&self) -> Vec<ProcedureMeta> {
         let mut out = self.procedures.read().values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|procedure| procedure.name.to_ascii_lowercase());
@@ -359,10 +380,12 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_role(&self, name: &str) -> Option<RoleMeta> {
         self.roles.read().get(&normalize_role_name(name)).cloned()
     }
 
+    #[must_use]
     pub fn list_roles(&self) -> Vec<RoleMeta> {
         let mut out = self.roles.read().values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|role| role.name.to_ascii_lowercase());
@@ -381,16 +404,19 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_rollup(&self, name: &str) -> Option<RollupMeta> {
         self.rollups.read().get(&name.to_ascii_lowercase()).cloned()
     }
 
+    #[must_use]
     pub fn list_rollups(&self) -> Vec<RollupMeta> {
         let mut out = self.rollups.read().values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|rollup| rollup.name.to_ascii_lowercase());
         out
     }
 
+    #[must_use]
     pub fn list_rollups_for_source(&self, source_collection: &str) -> Vec<RollupMeta> {
         let mut out = self
             .rollups
@@ -417,6 +443,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_retention_policy(&self, name: &str) -> Option<RetentionPolicyMeta> {
         self.retention_policies
             .read()
@@ -424,6 +451,7 @@ impl Catalog {
             .cloned()
     }
 
+    #[must_use]
     pub fn list_retention_policies(&self) -> Vec<RetentionPolicyMeta> {
         let mut out = self
             .retention_policies
@@ -435,6 +463,7 @@ impl Catalog {
         out
     }
 
+    #[must_use]
     pub fn namespace_exists(&self, namespace: &str) -> bool {
         self.namespaces.read().contains_key(namespace)
     }
@@ -493,6 +522,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_constraints(&self, collection: &str) -> Vec<FieldConstraint> {
         self.constraints
             .read()
@@ -501,6 +531,7 @@ impl Catalog {
             .unwrap_or_default()
     }
 
+    #[must_use]
     pub fn get_constraint(&self, collection: &str, field: &str) -> Option<FieldConstraint> {
         self.constraints
             .read()
@@ -573,11 +604,13 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_index(&self, collection: &str, name: &str) -> Option<IndexMeta> {
         let indexes = self.indexes.read();
         indexes.get(&Self::index_key(collection, name)).cloned()
     }
 
+    #[must_use]
     pub fn list_indexes(&self, collection: &str) -> Vec<IndexMeta> {
         let indexes = self.indexes.read();
         let mut out = indexes
@@ -589,6 +622,7 @@ impl Catalog {
         out
     }
 
+    #[must_use]
     pub fn get_schema(&self, collection: &str) -> Option<CollectionSchema> {
         let schemas = self.schemas.read();
         if let Some(schema) = schemas.get(collection).cloned() {
@@ -602,6 +636,7 @@ impl Catalog {
             .map(|view| view_schema_to_collection_schema(&view.name, &view.schema))
     }
 
+    #[must_use]
     pub fn field_type(&self, collection: &str, field: &str) -> Option<DataType> {
         self.get_schema(collection).and_then(|schema| {
             schema
@@ -819,10 +854,12 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn exists(&self, collection: &str) -> bool {
         self.collections.read().contains_key(collection)
     }
 
+    #[must_use]
     pub fn relation_exists(&self, name: &str) -> bool {
         if self.collections.read().contains_key(name) {
             return true;
@@ -835,6 +872,7 @@ impl Catalog {
         self.is_materialized_projection(name)
     }
 
+    #[must_use]
     pub fn get_field_boost(&self, collection: &str, field: &str) -> Option<f32> {
         let schemas = self.schemas.read();
         schemas
@@ -843,6 +881,7 @@ impl Catalog {
             .and_then(|field| field.boost)
     }
 
+    #[must_use]
     pub fn set_field_boost(&self, collection: &str, field: &str, boost: f32) -> bool {
         let mut schemas = self.schemas.write();
         let Some(schema) = schemas.get_mut(collection) else {
@@ -858,6 +897,7 @@ impl Catalog {
         true
     }
 
+    #[must_use]
     pub fn text_fields(&self, collection: &str) -> Vec<String> {
         let schemas = self.schemas.read();
         schemas
@@ -880,6 +920,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_cardinality_stats(&self, collection: &str) -> Option<CollectionCardinalityStats> {
         self.cardinality.read().get(collection).cloned()
     }
@@ -950,6 +991,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_vector_index(
         &self,
         collection: &str,
@@ -961,6 +1003,7 @@ impl Catalog {
             .cloned()
     }
 
+    #[must_use]
     pub fn list_vector_indexes(&self, collection: &str) -> Vec<VectorIndexRecord> {
         let indexes = self.vector_indexes.read();
         indexes
@@ -976,6 +1019,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn vector_index_key(collection: &str, field: &str) -> String {
         format!("{collection}:{field}")
     }

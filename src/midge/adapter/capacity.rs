@@ -207,8 +207,7 @@ fn capacity_key_kind(key: &[u8], prefixes: &[CapacityKeyPrefix]) -> CapacityKeyK
     prefixes
         .iter()
         .find(|candidate| key.starts_with(&candidate.prefix))
-        .map(|candidate| candidate.kind)
-        .unwrap_or(CapacityKeyKind::Other)
+        .map_or(CapacityKeyKind::Other, |candidate| candidate.kind)
 }
 
 fn index_metadata_category(value: &[u8]) -> &'static str {

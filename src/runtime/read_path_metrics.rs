@@ -1,6 +1,9 @@
-use super::*;
+use super::{RuntimeState, RuntimeMetricsState};
 
 impl RuntimeState {
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_read_path_collection_scan(&self, collection: &str, fields: usize, rows: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.read_paths.collection_scans += 1;
@@ -9,6 +12,9 @@ impl RuntimeState {
         metrics.read_paths.last_collection_scan_collection = collection.to_string();
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_read_path_point_lookup(&self, collection: &str, hit: bool) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.read_paths.point_lookup_scans += 1;
@@ -108,6 +114,9 @@ impl RuntimeState {
         update(&mut metrics);
     }
 
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_graph_traversal(
         &self,
         graph: &str,

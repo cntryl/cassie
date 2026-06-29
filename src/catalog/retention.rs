@@ -20,6 +20,7 @@ pub enum RetentionEnforcementMode {
 }
 
 impl RetentionEnforcementMode {
+    #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Explicit => "explicit",
@@ -34,6 +35,7 @@ pub enum RetentionPolicyState {
 }
 
 impl RetentionPolicyState {
+    #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Ready => "ready",
@@ -43,6 +45,7 @@ impl RetentionPolicyState {
 }
 
 impl RetentionPolicyMeta {
+    #[must_use]
     pub fn new(
         name: String,
         collection: String,

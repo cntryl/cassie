@@ -1,4 +1,4 @@
-use super::*;
+use super::{Catalog, CassieError, virtual_views, HashSet, InsertSource, bind_select, HashMap, Expr, SelectItem, validate_expression, DataType, CollectionSchema, collect_item, validate_function_calls};
 
 pub(super) fn bind_insert(
     mut statement: crate::sql::ast::InsertStatement,
@@ -28,7 +28,7 @@ pub(super) fn bind_insert(
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
 
     let mut seen_columns = HashSet::new();
-    for column in statement.columns.iter_mut() {
+    for column in &mut statement.columns {
         let column_name = column.trim().to_string();
         if column_name.is_empty() {
             return Err(CassieError::Planner(

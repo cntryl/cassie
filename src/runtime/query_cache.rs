@@ -54,8 +54,9 @@ struct FulltextStatsKey<'a> {
 fn current_time_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as u64)
-        .unwrap_or(0)
+        .map_or(0, |duration| {
+            u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+        })
 }
 
 fn fingerprint<T: Serialize>(value: &T) -> u64 {
@@ -149,14 +150,11 @@ pub(crate) fn lookup_plan(
         return Ok(None);
     };
 
-    let entry: CachedPlanEntry = match serde_json::from_slice(&raw) {
-        Ok(entry) => entry,
-        Err(_) => {
-            runtime.record_query_cache_deserialize_reject();
-            runtime.record_query_cache_l2_miss();
-            let _ = delete_temp_key(midge, runtime, storage_key);
-            return Ok(None);
-        }
+    let entry: CachedPlanEntry = if let Ok(entry) = serde_json::from_slice(&raw) { entry } else {
+        runtime.record_query_cache_deserialize_reject();
+        runtime.record_query_cache_l2_miss();
+        let _ = delete_temp_key(midge, runtime, storage_key);
+        return Ok(None);
     };
 
     if entry.key.schema_epoch != key.schema_epoch {
@@ -238,14 +236,11 @@ pub(crate) fn lookup_fulltext_stats(
         return Ok(None);
     };
 
-    let record: FulltextStatsRecord = match serde_json::from_slice(&raw) {
-        Ok(record) => record,
-        Err(_) => {
-            runtime.record_query_cache_deserialize_reject();
-            runtime.record_query_cache_fulltext_stats_miss();
-            let _ = delete_temp_key(midge, runtime, storage_key);
-            return Ok(None);
-        }
+    let record: FulltextStatsRecord = if let Ok(record) = serde_json::from_slice(&raw) { record } else {
+        runtime.record_query_cache_deserialize_reject();
+        runtime.record_query_cache_fulltext_stats_miss();
+        let _ = delete_temp_key(midge, runtime, storage_key);
+        return Ok(None);
     };
 
     if record.schema_epoch != schema_epoch

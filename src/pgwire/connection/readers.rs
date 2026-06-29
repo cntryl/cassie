@@ -1,4 +1,4 @@
-use super::*;
+use super::{BufReader, HandshakeError, AsyncReadExt, io, TryFrom, MAX_FRONTEND_MESSAGE_BYTES, FrontendMessage, DescribeTarget, CloseTarget, StartupFrame, MIN_STARTUP_MESSAGE_BYTES, SSL_REQUEST_CODE, CANCEL_REQUEST_CODE, PROTOCOL_VERSION_3, PASSWORD_MESSAGE_TAG, HashMap, Value, str, query};
 
 pub(super) async fn read_simple_query_message(
     reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
@@ -204,14 +204,14 @@ pub(super) async fn read_frontend_message(
         b'E' => {
             let portal_name = read_null_terminated(&payload, &mut cursor)?;
             let limit = read_frontend_i32(&payload, &mut cursor)?;
-            let limit = if limit == 0 {
-                None
-            } else if limit < 0 {
-                return Err(HandshakeError::Invalid(
-                    "invalid execute row limit".to_string(),
-                ));
-            } else {
-                Some(i64::from(limit))
+            let limit = match limit.cmp(&0) {
+                std::cmp::Ordering::Equal => None,
+                std::cmp::Ordering::Less => {
+                    return Err(HandshakeError::Invalid(
+                        "invalid execute row limit".to_string(),
+                    ))
+                }
+                std::cmp::Ordering::Greater => Some(i64::from(limit)),
             };
             FrontendMessage::Execute { portal_name, limit }
         }
@@ -555,16 +555,16 @@ fn parse_binary_bind_param(value: &[u8], type_oid: i32) -> Result<Value, Handsha
     }
 
     match value.len() {
-        2 => Ok(Value::Int64(i16::from_be_bytes(
+        2 => Ok(Value::Int64(i64::from(i16::from_be_bytes(
             value
                 .try_into()
                 .map_err(|_| HandshakeError::Invalid("invalid int2 bind parameter".to_string()))?,
-        ) as i64)),
-        4 => Ok(Value::Int64(i32::from_be_bytes(
+        )))),
+        4 => Ok(Value::Int64(i64::from(i32::from_be_bytes(
             value
                 .try_into()
                 .map_err(|_| HandshakeError::Invalid("invalid int4 bind parameter".to_string()))?,
-        ) as i64)),
+        )))),
         8 => Ok(Value::Int64(i64::from_be_bytes(value.try_into().map_err(
             |_| HandshakeError::Invalid("invalid int8 bind parameter".to_string()),
         )?))),

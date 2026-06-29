@@ -104,7 +104,7 @@ impl PgWireError {
                 let mut pg_error = Self::new(severity, "23502", error.to_string());
                 pg_error.table = Some(table.clone());
                 pg_error.column = Some(column.clone());
-                pg_error.constraint = constraint.clone();
+                pg_error.constraint.clone_from(constraint);
                 pg_error
             }
             CassieError::UniqueViolation {

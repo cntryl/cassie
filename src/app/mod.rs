@@ -30,7 +30,7 @@ use crate::embeddings::{
     openai::{OpenAiProvider, OpenAiProviderConfig},
     tei::{TeiProvider, TeiProviderConfig},
     voyage::VoyageProvider,
-    DistanceMetric, Embedding, EmbeddingError, EmbeddingProvider, NormalizedVectorRecord,
+    DistanceMetric, Embedding, EmbeddingError, NormalizedVectorRecord,
     VectorIndexRecord, VectorIndexType,
 };
 use crate::executor::{

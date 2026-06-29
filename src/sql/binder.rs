@@ -33,13 +33,13 @@ mod select;
 #[path = "binder/validation.rs"]
 mod validation;
 
-use commands::*;
+use commands::{bind_create_rollup, bind_create_retention_policy, bind_alter_retention_policy, bind_enforce_retention_policy, bind_insert, bind_update, bind_delete};
 pub use inference::infer_select_schema;
-use routines::*;
-use schema::*;
-use schema_sequences::*;
-use select::*;
-use validation::*;
+use routines::{bind_create_function, bind_drop_function, bind_create_procedure, bind_drop_procedure, bind_call_procedure};
+use schema::{bind_create_table, bind_create_graph, bind_drop_table, bind_alter_table, bind_create_index, bind_drop_index, bind_drop_schema, bind_alter_schema, bind_create_view, bind_drop_view};
+use schema_sequences::{bind_create_sequence, bind_drop_sequence};
+use select::bind_select;
+use validation::{validate_expression, collect_item, validate_function_calls, select_contains_parameters, recursive_cte_references_self, collect_projection_aliases, validate_projection_references, validate_expression_references, validate_order_by_references, validate_distinct_on_order_prefix, validate_functions, qualified_fields};
 
 #[derive(Debug, Clone)]
 pub struct BoundStatement {
@@ -47,6 +47,9 @@ pub struct BoundStatement {
     pub indexes: Vec<IndexMeta>,
 }
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub fn bind(statement: ParsedStatement, catalog: &Catalog) -> Result<BoundStatement, CassieError> {
     let statement = bind_statement(statement, catalog, &HashMap::new())?;
     let indexes = bound_indexes(&statement, catalog);

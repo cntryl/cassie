@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, CassieError, CassieSession, QueryResult};
 
 impl Cassie {
     pub(crate) fn run_deferred_schema_cleanup(&self) -> Result<(), CassieError> {
@@ -15,6 +15,7 @@ impl Cassie {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn begin_schema_epoch_guard_for_diagnostics(&self) -> crate::runtime::RunningQueryGuard {
         self.runtime.begin_running_query()
     }

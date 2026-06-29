@@ -1,4 +1,4 @@
-use super::*;
+use super::{Engine, OnceLock, StorageLayout, CassieError, env, Path, allow_memory_fallback, StorageFamily, key_encoding, TransactionMode, WriteOptions, SCHEMA_FAMILY_NAME, DATA_FAMILY_NAME, TEMP_FAMILY_NAME, Query};
 
 pub struct Midge {
     pub(super) engine: Engine,
@@ -6,12 +6,18 @@ pub struct Midge {
 }
 
 impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn new() -> Result<Self, CassieError> {
         let data_dir =
             env::var("CASSIE_MIDGE_DATA_DIR").unwrap_or_else(|_| "./.cassie/midge".to_string());
         Self::new_with_data_dir(data_dir)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn new_with_data_dir(data_dir: impl AsRef<Path>) -> Result<Self, CassieError> {
         let options = cntryl_midge::OpenOptions::local(data_dir.as_ref()).build();
 
@@ -33,6 +39,9 @@ impl Midge {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn new_strict_with_data_dir(data_dir: impl AsRef<Path>) -> Result<Self, CassieError> {
         let options = cntryl_midge::OpenOptions::local(data_dir.as_ref()).build();
         Ok(Self {
@@ -41,6 +50,9 @@ impl Midge {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn bootstrap_families(&self) -> Result<StorageLayout, CassieError> {
         let schema = self.get_or_create_family(StorageFamily::Schema)?;
         let data = self.get_or_create_family(StorageFamily::Data)?;
@@ -55,6 +67,9 @@ impl Midge {
         Ok(StorageLayout { schema, data, temp })
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn ensure_families_ready(&self) -> Result<&StorageLayout, CassieError> {
         if self.storage_layout.get().is_none() {
             let layout = self.bootstrap_families()?;

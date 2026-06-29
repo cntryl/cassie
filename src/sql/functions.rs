@@ -48,6 +48,7 @@ pub enum FunctionArity {
 }
 
 impl FunctionArity {
+    #[must_use]
     pub fn matches(self, actual: usize) -> bool {
         match self {
             FunctionArity::Exact(expected) => actual == expected,
@@ -56,6 +57,7 @@ impl FunctionArity {
         }
     }
 
+    #[must_use]
     pub fn describe(self) -> String {
         match self {
             FunctionArity::Exact(expected) => format!("{expected} args"),
@@ -65,10 +67,12 @@ impl FunctionArity {
     }
 }
 
+#[must_use]
 pub fn is_aggregate_function(name: &str) -> bool {
     aggregate_arity(name).is_some()
 }
 
+#[must_use]
 pub fn aggregate_arity(name: &str) -> Option<usize> {
     match name.to_ascii_lowercase().as_str() {
         "count" | "sum" | "avg" | "min" | "max" => Some(1),
@@ -76,6 +80,7 @@ pub fn aggregate_arity(name: &str) -> Option<usize> {
     }
 }
 
+#[must_use]
 pub fn registry() -> Vec<ScalarFunction> {
     vec![
         ScalarFunction {

@@ -1,5 +1,6 @@
-use super::search::*;
-use super::*;
+use crate::executor::batch::RowAccess;
+use super::search::{SearchContext, simple_search_score};
+use super::{FunctionCall, Value, HashMap, FunctionMeta, CassieSession, QueryError, evaluate_expr_value, has_only_constant_args, function_cache_key, FUNCTION_CACHE, Expr, AnalyzerConfig, DataType, scalar_from_value, cast_scalar, eval_scalar};
 use time::format_description::well_known::Rfc3339;
 use time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 
@@ -59,13 +60,13 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
     let result = match name.as_str() {
         "version" => {
             if !args.is_empty() {
-                return Err(QueryError::General(format!("{} requires 0 args", name)));
+                return Err(QueryError::General(format!("{name} requires 0 args")));
             }
             Ok(Value::String(env!("CARGO_PKG_VERSION").to_string()))
         }
         "pg_catalog.version" => {
             if !args.is_empty() {
-                return Err(QueryError::General(format!("{} requires 0 args", name)));
+                return Err(QueryError::General(format!("{name} requires 0 args")));
             }
             Ok(Value::String(format!(
                 "PostgreSQL 16.0 compatible Cassie {}",
@@ -74,13 +75,13 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         }
         "current_schema" => {
             if !args.is_empty() {
-                return Err(QueryError::General(format!("{} requires 0 args", name)));
+                return Err(QueryError::General(format!("{name} requires 0 args")));
             }
             Ok(Value::String("public".to_string()))
         }
         "current_database" => {
             if !args.is_empty() {
-                return Err(QueryError::General(format!("{} requires 0 args", name)));
+                return Err(QueryError::General(format!("{name} requires 0 args")));
             }
             Ok(Value::String(
                 session
@@ -90,17 +91,15 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         }
         "current_user" | "session_user" | "current_role" => {
             if !args.is_empty() {
-                return Err(QueryError::General(format!("{} requires 0 args", name)));
+                return Err(QueryError::General(format!("{name} requires 0 args")));
             }
             Ok(Value::String(
-                session
-                    .map(|session| session.user.clone())
-                    .unwrap_or_else(|| "postgres".to_string()),
+                session.map_or_else(|| "postgres".to_string(), |session| session.user.clone()),
             ))
         }
         "quote_ident" | "pg_catalog.quote_ident" => {
             if args.len() != 1 {
-                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+                return Err(QueryError::General(format!("{name} requires 1 arg")));
             }
             match text_arg(&name, &args[0])? {
                 Some(text) => Ok(Value::String(quote_identifier(&text))),
@@ -109,7 +108,7 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         }
         "format_type" | "pg_catalog.format_type" => {
             if args.len() != 2 {
-                return Err(QueryError::General(format!("{} requires 2 args", name)));
+                return Err(QueryError::General(format!("{name} requires 2 args")));
             }
             let oid = signed_integer_arg(&name, &args[0])?;
             let typmod = signed_integer_arg(&name, &args[1])?;
@@ -120,7 +119,7 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         }
         "pg_get_expr" | "pg_catalog.pg_get_expr" => {
             if args.len() != 2 {
-                return Err(QueryError::General(format!("{} requires 2 args", name)));
+                return Err(QueryError::General(format!("{name} requires 2 args")));
             }
             match text_arg(&name, &args[0])? {
                 Some(text) => Ok(Value::String(text)),
@@ -129,15 +128,14 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         }
         "pg_get_userbyid" | "pg_catalog.pg_get_userbyid" => {
             if args.len() != 1 {
-                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+                return Err(QueryError::General(format!("{name} requires 1 arg")));
             }
             Ok(Value::String("postgres".to_string()))
         }
         "obj_description" | "pg_catalog.obj_description" => {
             if !(1..=2).contains(&args.len()) {
                 return Err(QueryError::General(format!(
-                    "{} requires 1 or 2 args",
-                    name
+                    "{name} requires 1 or 2 args"
                 )));
             }
             Ok(Value::Null)
@@ -148,21 +146,20 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         | "pg_catalog.has_table_privilege" => {
             if !(2..=3).contains(&args.len()) {
                 return Err(QueryError::General(format!(
-                    "{} requires 2 or 3 args",
-                    name
+                    "{name} requires 2 or 3 args"
                 )));
             }
             Ok(Value::Bool(true))
         }
         "pg_table_is_visible" | "pg_catalog.pg_table_is_visible" => {
             if args.len() != 1 {
-                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+                return Err(QueryError::General(format!("{name} requires 1 arg")));
             }
             Ok(Value::Bool(true))
         }
         "length" | "len" => {
             if args.len() != 1 {
-                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+                return Err(QueryError::General(format!("{name} requires 1 arg")));
             }
             let text = text_arg(&name, &args[0])?;
             match text {
@@ -172,7 +169,7 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         }
         "lower" => {
             if args.len() != 1 {
-                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+                return Err(QueryError::General(format!("{name} requires 1 arg")));
             }
             let text = text_arg(&name, &args[0])?;
             match text {
@@ -182,7 +179,7 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         }
         "upper" => {
             if args.len() != 1 {
-                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+                return Err(QueryError::General(format!("{name} requires 1 arg")));
             }
             let text = text_arg(&name, &args[0])?;
             match text {
@@ -192,7 +189,7 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         }
         "trim" => {
             if args.len() != 1 {
-                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+                return Err(QueryError::General(format!("{name} requires 1 arg")));
             }
             let text = text_arg(&name, &args[0])?;
             match text {
@@ -228,8 +225,7 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         "concat" => {
             if args.is_empty() {
                 return Err(QueryError::General(format!(
-                    "{} requires at least 1 arg",
-                    name
+                    "{name} requires at least 1 arg"
                 )));
             }
             let mut out = String::new();
@@ -242,22 +238,21 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         }
         "abs" => {
             if args.len() != 1 {
-                return Err(QueryError::General(format!("{} requires 1 arg", name)));
+                return Err(QueryError::General(format!("{name} requires 1 arg")));
             }
             match &args[0] {
                 Value::Null => Ok(Value::Null),
                 Value::Int64(v) => Ok(Value::Int64(v.checked_abs().unwrap_or(i64::MAX))),
                 Value::Float64(v) => Ok(Value::Float64(v.abs())),
                 _ => Err(QueryError::General(format!(
-                    "function '{}' expects a numeric input",
-                    name
+                    "function '{name}' expects a numeric input"
                 ))),
             }
         }
         "time_bucket" => evaluate_time_bucket(&args),
         "search" | "search_score" => {
             if args.len() != 2 {
-                return Err(QueryError::General(format!("{} requires 2 args", name)));
+                return Err(QueryError::General(format!("{name} requires 2 args")));
             }
             let source = to_text(&args[0]);
             let query = to_text(&args[1]);
@@ -439,8 +434,7 @@ pub(super) fn text_arg(name: &str, value: &Value) -> Result<Option<String>, Quer
         Value::Null => Ok(None),
         Value::String(text) => Ok(Some(text.clone())),
         _ => Err(QueryError::General(format!(
-            "function '{}' expects text input",
-            name
+            "function '{name}' expects text input"
         ))),
     }
 }
@@ -455,8 +449,7 @@ pub(super) fn integer_arg(name: &str, value: &Value) -> Result<Option<usize>, Qu
             Ok(Some(*value as usize))
         }
         _ => Err(QueryError::General(format!(
-            "function '{}' expects a non-negative integer input",
-            name
+            "function '{name}' expects a non-negative integer input"
         ))),
     }
 }
@@ -469,8 +462,7 @@ fn signed_integer_arg(name: &str, value: &Value) -> Result<Option<i64>, QueryErr
             Ok(Some(*value as i64))
         }
         _ => Err(QueryError::General(format!(
-            "function '{}' expects an integer input",
-            name
+            "function '{name}' expects an integer input"
         ))),
     }
 }
@@ -654,8 +646,7 @@ fn parse_duration_parts(raw: &str) -> Result<(i128, String), QueryError> {
 fn timestamp_arg_ns(name: &str, value: &Value) -> Result<i128, QueryError> {
     let Value::String(raw) = value else {
         return Err(QueryError::General(format!(
-            "function '{}' expects timestamp input",
-            name
+            "function '{name}' expects timestamp input"
         )));
     };
     parse_timestamp_utc(raw)
@@ -703,7 +694,7 @@ pub(super) fn to_text(value: &Value) -> String {
         Value::Vector(value) => value
             .values
             .iter()
-            .map(|value| value.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>()
             .join(","),
         Value::Null => String::new(),
@@ -715,14 +706,13 @@ pub(super) fn to_vector(value: &Value) -> Option<Vec<f32>> {
         Value::Vector(vector) => Some(vector.values.clone()),
         Value::Json(json) => json
             .as_array()
-            .map(|items| {
+            .and_then(|items| {
                 let mut out = Vec::with_capacity(items.len());
                 for item in items {
                     out.push(item.as_f64()? as f32);
                 }
                 Some(out)
-            })
-            .unwrap_or(None),
+            }),
         Value::String(value) => parse_vector_text(value),
         _ => None,
     }

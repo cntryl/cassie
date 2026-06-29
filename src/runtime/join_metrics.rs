@@ -1,4 +1,4 @@
-use super::*;
+use super::RuntimeState;
 
 impl RuntimeState {
     pub(crate) fn record_join_execution(

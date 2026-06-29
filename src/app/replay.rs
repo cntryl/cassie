@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::midge::adapter::DocumentWriteOp;
 
-use super::*;
+use super::{Cassie, CassieError};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectionReplayEvent {
@@ -34,6 +34,9 @@ pub struct ProjectionReplayReport {
 }
 
 impl Cassie {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn replay_projection_batch(
         &self,
         batch: ProjectionReplayBatch,
@@ -153,7 +156,16 @@ impl Cassie {
             last_applied_event_id = Some(event.event_id.clone());
         }
 
-        if !write_ops.is_empty() {
+        if write_ops.is_empty() {
+            let write_stats = crate::runtime::ProjectionWriteStats {
+                duplicate_checks,
+                ..Default::default()
+            };
+            if duplicate_checks > 0 {
+                self.runtime
+                    .record_projection_write_batch(batch.projection.clone(), &write_stats);
+            }
+        } else {
             let write_report = match self
                 .midge
                 .apply_document_write_batch(&batch.projection, write_ops)
@@ -189,16 +201,7 @@ impl Cassie {
             let mut write_stats = write_report.stats;
             write_stats.duplicate_checks = duplicate_checks;
             self.runtime
-                .record_projection_write_batch(batch.projection.to_string(), &write_stats);
-        } else {
-            let write_stats = crate::runtime::ProjectionWriteStats {
-                duplicate_checks,
-                ..Default::default()
-            };
-            if duplicate_checks > 0 {
-                self.runtime
-                    .record_projection_write_batch(batch.projection.to_string(), &write_stats);
-            }
+                .record_projection_write_batch(batch.projection.clone(), &write_stats);
         }
 
         metadata.source_identity = Some(batch.source_identity);

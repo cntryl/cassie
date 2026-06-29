@@ -76,6 +76,7 @@ pub enum ColumnBatchScanFallbackReason {
 }
 
 impl ColumnBatchScanFallbackReason {
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::NoCoveringIndex => "no_covering_column_index",
@@ -92,6 +93,7 @@ impl ColumnBatchScanFallbackReason {
         }
     }
 
+    #[must_use]
     pub const fn is_decode_fallback(&self) -> bool {
         matches!(
             self,

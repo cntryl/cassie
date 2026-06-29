@@ -1,6 +1,6 @@
-use super::expr::*;
-use super::schema::*;
-use super::*;
+use super::expr::{split_csv, parse_expr_token};
+use super::schema::{parse_if_not_exists, starts_with_keyword, parse_if_exists, parse_constraint_literal, tokenize_schema_field, parse_data_type};
+use super::{ParsedStatement, SqlError, parse_statement, QueryStatement, ExplainStatement, TransactionStatement, TransactionAction, TransactionIsolation, ShowStatement, SetStatement, CreateFunctionStatement, CreateProcedureStatement, find_top_level_keyword, CreateViewStatement, DropFunctionStatement, DropProcedureStatement, DropViewStatement, CallProcedureStatement, Value, FunctionArg, DataType, Volatility};
 
 pub(super) fn parse_explain_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let rest = sql["EXPLAIN".len()..].trim();
@@ -91,17 +91,12 @@ pub(super) fn parse_transaction_statement(sql: &str) -> Result<ParsedStatement, 
     let token_refs = tokens.iter().map(String::as_str).collect::<Vec<_>>();
 
     let statement = match token_refs.as_slice() {
-        ["begin"] | ["begin", "transaction"] => TransactionStatement {
-            action: TransactionAction::Begin,
-            isolation: None,
-        },
-        ["begin", "isolation", "level", isolation @ ..]
-        | ["begin", "transaction", "isolation", "level", isolation @ ..]
-        | ["start", "transaction", "isolation", "level", isolation @ ..] => TransactionStatement {
+        ["begin", "isolation", "level", isolation @ ..] |
+["begin" | "start", "transaction", "isolation", "level", isolation @ ..] => TransactionStatement {
             action: TransactionAction::Begin,
             isolation: Some(parse_transaction_isolation(isolation)?),
         },
-        ["start", "transaction"] => TransactionStatement {
+        ["begin"] | ["begin" | "start", "transaction"] => TransactionStatement {
             action: TransactionAction::Begin,
             isolation: None,
         },
@@ -513,8 +508,7 @@ pub(super) fn parse_function_args(raw: &str) -> Result<Vec<FunctionArg>, SqlErro
 
         if parts.len() < 2 {
             return Err(SqlError(format!(
-                "missing data type for function argument '{}'",
-                name
+                "missing data type for function argument '{name}'"
             )));
         }
         let data_type = parse_data_type(parts[1].as_str())?;

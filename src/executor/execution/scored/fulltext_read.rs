@@ -1,5 +1,5 @@
 use super::super::projected_read::{is_row_id_column, json_to_query_value};
-use super::*;
+use super::{filter, PostingListDocument, HashMap, Cassie, CassieSession, FulltextFilteredReadSpec, BatchRow, QueryError, Instant, batch, search_context_for_fields, analyzer_for_search_field, json_search_term_stats, cached_search_context, posting_list_candidate_ids, Value};
 
 struct TokenizedFulltextReadDocument {
     id: String,
@@ -43,7 +43,7 @@ pub(super) fn execute_fulltext_filtered_read(
     let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
     let search_documents = document_batches
         .into_iter()
-        .flat_map(|documents| documents.into_iter())
+        .flat_map(std::iter::IntoIterator::into_iter)
         .map(|document| TokenizedFulltextReadDocument {
             id: document.id,
             text_stats: json_search_term_stats(
@@ -96,8 +96,7 @@ pub(super) fn execute_fulltext_filtered_read(
                 Value::String(document.id.clone())
             } else {
                 json_projected_value(&document.payload, &column.name)
-                    .map(json_to_query_value)
-                    .unwrap_or(Value::Null)
+                    .map_or(Value::Null, json_to_query_value)
             };
             entries.push((column.output_name.clone(), value));
         }

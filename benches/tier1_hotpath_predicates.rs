@@ -11,13 +11,13 @@ fn bench_predicates(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("field_lookup_by_field_id", |b| {
-        b.iter(workloads::field_lookup_by_field_id)
+        b.iter(workloads::field_lookup_by_field_id);
     });
     group.bench_function("predicate_evaluation", |b| {
-        b.iter(workloads::predicate_evaluation)
+        b.iter(workloads::predicate_evaluation);
     });
     group.bench_function("query_parameter_binding", |b| {
-        b.iter(workloads::parameter_binding)
+        b.iter(workloads::parameter_binding);
     });
 
     group.finish();

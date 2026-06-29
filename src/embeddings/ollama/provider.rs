@@ -1,9 +1,10 @@
+use crate::embeddings::EmbeddingProvider;
 use std::time::Duration;
 
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::embeddings::{Embedding, EmbeddingError, EmbeddingProvider};
+use crate::embeddings::{Embedding, EmbeddingError};
 
 #[derive(Debug, Clone)]
 pub struct OllamaProviderConfig {
@@ -37,6 +38,9 @@ struct OllamaResponse {
 }
 
 impl OllamaProvider {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn with_config(config: OllamaProviderConfig) -> Result<Self, EmbeddingError> {
         if config.base_url.trim().is_empty() {
             return Err(EmbeddingError::InvalidConfiguration(
@@ -113,7 +117,6 @@ impl OllamaProvider {
                 }
                 Ok((status, _)) if is_transient_status(status) && attempt < self.max_retries => {
                     std::thread::sleep(Duration::from_millis(50 * attempt as u64));
-                    continue;
                 }
                 Ok((status, body)) if is_transient_status(status) => {
                     return Err(EmbeddingError::RetryExhausted {
@@ -131,7 +134,6 @@ impl OllamaProvider {
                     if (error.is_timeout() || error.is_connect()) && attempt < self.max_retries =>
                 {
                     std::thread::sleep(Duration::from_millis(50 * attempt as u64));
-                    continue;
                 }
                 Err(error) if error.is_timeout() => {
                     return Err(EmbeddingError::Timeout {

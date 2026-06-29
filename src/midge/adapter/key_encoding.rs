@@ -728,8 +728,7 @@ fn append_scalar_value(key: &mut Vec<u8>, value: &serde_json::Value) -> Result<(
         }
         other => {
             return Err(CassieError::Unsupported(format!(
-                "scalar index does not support key value '{}'",
-                other
+                "scalar index does not support key value '{other}'"
             )));
         }
     }

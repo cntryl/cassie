@@ -1,4 +1,4 @@
-use super::*;
+use super::{PlanEstimates, LogicalPlan, CollectionCardinalityStats, plan_uses_fulltext, plan_uses_vector, plan_uses_aggregate, Expr, BinaryOp, QuerySource, JoinKind, is_equi_join_predicate};
 
 impl PlanEstimates {
     const DEFAULT_ROWS: u64 = 1_000;
@@ -68,8 +68,7 @@ impl PlanEstimates {
         };
         let scan_cost = scan_rows;
         let index_cost = selected_index
-            .map(|_| index_rows.max(1))
-            .unwrap_or(scan_rows);
+            .map_or(scan_rows, |_| index_rows.max(1));
         let selected_cost = if selected_index.is_some() {
             index_cost
         } else {
@@ -242,8 +241,7 @@ fn estimated_source_rows(
 ) -> u64 {
     match source {
         QuerySource::Collection(collection) => collection_stats(collection, cardinality_stats)
-            .map(|stats| stats.row_count)
-            .unwrap_or(PlanEstimates::DEFAULT_ROWS),
+            .map_or(PlanEstimates::DEFAULT_ROWS, |stats| stats.row_count),
         QuerySource::Join {
             left,
             right,
@@ -261,8 +259,7 @@ fn estimated_source_rows(
         QuerySource::Subquery { select, .. } => select
             .limit
             .and_then(|limit| usize::try_from(limit.max(0)).ok())
-            .map(|limit| limit as u64)
-            .unwrap_or(PlanEstimates::DEFAULT_ROWS),
+            .map_or(PlanEstimates::DEFAULT_ROWS, |limit| limit as u64),
         QuerySource::Cte(_) | QuerySource::TableFunction { .. } => PlanEstimates::DEFAULT_ROWS,
         QuerySource::SingleRow => 1,
     }

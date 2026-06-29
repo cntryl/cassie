@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, QueryResult, QueryError};
 
 pub(super) fn create_sequence(
     cassie: &Cassie,
@@ -137,7 +137,7 @@ pub(super) fn alter_column_set_not_null(
         .map_err(QueryError::from)?
     {
         let value = document.payload.get(field);
-        if value.is_none() || value.is_some_and(|value| value.is_null()) {
+        if value.is_none_or(serde_json::Value::is_null) {
             return Err(QueryError::Cassie(
                 crate::app::CassieError::NotNullViolation {
                     table: table.to_string(),

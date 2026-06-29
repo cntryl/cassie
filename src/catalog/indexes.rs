@@ -105,6 +105,7 @@ pub struct ColumnBatchValueRun {
 }
 
 impl IndexMeta {
+    #[must_use]
     pub fn normalized_fields(&self) -> Vec<String> {
         if self.fields.is_empty() && !self.field.is_empty() {
             vec![self.field.clone()]
@@ -113,14 +114,17 @@ impl IndexMeta {
         }
     }
 
+    #[must_use]
     pub fn normalized_include_fields(&self) -> Vec<String> {
         self.include_fields.clone()
     }
 
+    #[must_use]
     pub fn normalized_expressions(&self) -> Vec<String> {
         self.expressions.clone()
     }
 
+    #[must_use]
     pub fn primary_field(&self) -> String {
         self.normalized_fields()
             .into_iter()

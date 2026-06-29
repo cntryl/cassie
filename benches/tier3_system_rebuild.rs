@@ -26,27 +26,27 @@ fn bench_rebuild(c: &mut Criterion) {
             .block_on(workloads::context("tier3-rebuild", 10_000))
             .expect("benchmark context");
         group.bench_function(BenchmarkId::new("projection_rebuild_query", "10k"), |b| {
-            b.iter(|| runtime.block_on(workloads::projection_rebuild_query(&ctx_10k)))
+            b.iter(|| runtime.block_on(workloads::projection_rebuild_query(&ctx_10k)));
         });
         performance_benchmarks::expect_benchmark(BENCHMARK, "projection_refresh", "10k");
         group.bench_function(BenchmarkId::new("projection_refresh", "10k"), |b| {
-            b.iter(|| runtime.block_on(workloads::projection_refresh_workflow(&ctx_10k)))
+            b.iter(|| runtime.block_on(workloads::projection_refresh_workflow(&ctx_10k)));
         });
         performance_benchmarks::expect_benchmark(BENCHMARK, "projection_verify", "10k");
         group.bench_function(BenchmarkId::new("projection_verify", "10k"), |b| {
-            b.iter(|| runtime.block_on(workloads::projection_rebuild_verification(&ctx_10k)))
+            b.iter(|| runtime.block_on(workloads::projection_rebuild_verification(&ctx_10k)));
         });
         group.bench_function(BenchmarkId::new("projection_swap", "10k"), |b| {
             b.iter(|| {
                 index_nonce = index_nonce.wrapping_add(1);
                 runtime.block_on(workloads::projection_version_swap(&ctx_10k, index_nonce))
-            })
+            });
         });
         group.bench_function(BenchmarkId::new("index_rebuild_ddl", "10k"), |b| {
             b.iter(|| {
                 index_nonce = index_nonce.wrapping_add(1);
                 runtime.block_on(workloads::index_rebuild_ddl(&ctx_10k, index_nonce))
-            })
+            });
         });
     }
 
@@ -86,7 +86,7 @@ fn bench_rebuild(c: &mut Criterion) {
                         &time_series_ctx_10k,
                         retention_nonce,
                     ))
-                })
+                });
             },
         );
         let rollup_10k = performance_benchmarks::expect_benchmark(
@@ -103,7 +103,7 @@ fn bench_rebuild(c: &mut Criterion) {
                         &time_series_ctx_10k,
                         rollup_nonce,
                     ))
-                })
+                });
             },
         );
     }
@@ -129,7 +129,7 @@ fn bench_rebuild(c: &mut Criterion) {
                         &time_series_ctx_100k,
                         retention_nonce,
                     ))
-                })
+                });
             },
         );
         let rollup_100k = performance_benchmarks::expect_benchmark(
@@ -146,7 +146,7 @@ fn bench_rebuild(c: &mut Criterion) {
                         &time_series_ctx_100k,
                         rollup_nonce,
                     ))
-                })
+                });
             },
         );
     }

@@ -101,7 +101,7 @@ fn bench_executor(c: &mut Criterion) {
             continue;
         }
         group.bench_function(BenchmarkId::new(name, "10k"), |b| {
-            b.iter(|| black_box(runtime.block_on(workloads::execute_sql(&ctx, sql))))
+            b.iter(|| black_box(runtime.block_on(workloads::execute_sql(&ctx, sql))));
         });
     }
 
@@ -131,7 +131,7 @@ fn bench_executor(c: &mut Criterion) {
                 |b| {
                     b.iter(|| {
                         black_box(runtime.block_on(workloads::execute_sql(&column_ctx, column_sql)))
-                    })
+                    });
                 },
             );
         }
@@ -161,7 +161,7 @@ fn bench_executor(c: &mut Criterion) {
                     |b| {
                         b.iter(|| {
                             black_box(runtime.block_on(workloads::execute_sql(&join_ctx, join_sql)))
-                        })
+                        });
                     },
                 );
             }
@@ -183,7 +183,7 @@ fn bench_executor(c: &mut Criterion) {
                             black_box(
                                 runtime.block_on(workloads::execute_sql(&join_ctx, left_join_sql)),
                             )
-                        })
+                        });
                     },
                 );
             }
@@ -218,7 +218,7 @@ fn bench_executor(c: &mut Criterion) {
                                 indexed_join_sql,
                             )),
                         )
-                    })
+                    });
                 },
             );
         }
@@ -251,7 +251,7 @@ fn bench_executor(c: &mut Criterion) {
                             &streaming_join_ctx,
                             streaming_join_sql,
                         )))
-                    })
+                    });
                 },
             );
         }
@@ -281,7 +281,7 @@ fn bench_executor(c: &mut Criterion) {
                             runtime
                                 .block_on(workloads::execute_sql(&dense_join_ctx, dense_join_sql)),
                         )
-                    })
+                    });
                 },
             );
         }

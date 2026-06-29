@@ -1,5 +1,8 @@
 use crate::app::CassieError;
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub fn validate_user_password(
     configured_user: &str,
     configured_password: &str,

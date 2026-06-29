@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, CassieSession, Value, LogicalPlan, BatchRow, QueryError, batch, BinaryHeap, SortDirection, CollectionSchema, scan, QuerySource, Expr, SelectItem, BinaryOp, CmpOrdering, compare_query_values};
 use crate::midge::adapter::{DocumentRef, OrderedRowBound, RowDecode};
 
 pub(super) fn execute_ordered_column_top_k(
@@ -46,8 +46,7 @@ pub(super) fn execute_ordered_column_top_k(
             document
                 .payload
                 .get(&spec.order_column)
-                .map(super::projected_read::json_to_query_value)
-                .unwrap_or(Value::Null)
+                .map_or(Value::Null, super::projected_read::json_to_query_value)
         };
         let values = ordered_projection_row(document, &spec.projection, schema.as_ref());
         let candidate = OrderedColumnCandidate {
@@ -90,8 +89,7 @@ fn execute_ordered_row_id_page(
     }
 
     if session
-        .map(|session| !session.collection_changes(&spec.collection).is_empty())
-        .unwrap_or(false)
+        .is_some_and(|session| !session.collection_changes(&spec.collection).is_empty())
     {
         return Ok(None);
     }

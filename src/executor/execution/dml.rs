@@ -1,5 +1,5 @@
 use super::dml_referential_actions;
-use super::*;
+use super::{Cassie, CassieSession, Value, HashMap, FunctionMeta, QueryExecutionControls, QueryResult, QueryError, filter, Expr, projection, BatchRow, InsertSource, LogicalPlan, QuerySource, CteContext, execute_plan, CollectionSchema, FieldMeta, DataType, SelectItem, ColumnMeta, aggregate, check_timeout, scan, ensure_temp_budget, batch};
 
 pub(super) fn execute_insert(
     cassie: &Cassie,
@@ -16,9 +16,7 @@ pub(super) fn execute_insert(
     let source_rows =
         insert_source_rows(cassie, session, statement, params, user_functions, controls)?;
     let source_width = source_rows
-        .first()
-        .map(Vec::len)
-        .unwrap_or_else(|| insert_source_width(statement, &schema));
+        .first().map_or_else(|| insert_source_width(statement, &schema), Vec::len);
     let target_fields = insert_target_fields(statement, &schema, source_width)?;
     for row in &source_rows {
         if row.len() != target_fields.len() {
@@ -203,8 +201,7 @@ fn find_insert_conflict_row_id(
                     .map(|value| (field.as_str(), value))
                     .ok_or_else(|| {
                         QueryError::General(format!(
-                            "ON CONFLICT target column '{}' is missing from inserted row",
-                            field
+                            "ON CONFLICT target column '{field}' is missing from inserted row"
                         ))
                     })
             })
@@ -312,8 +309,7 @@ fn insert_source_rows(
                 command: None,
                 source: select.source.clone(),
                 collection: match &select.source {
-                    QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
-                    QuerySource::TableFunction { name, .. } => name.clone(),
+                    QuerySource::Collection(name) | QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
                     QuerySource::Subquery { alias, .. } => alias.clone(),
                     QuerySource::SingleRow => "single_row".to_string(),
                     QuerySource::Join { .. } => "join".to_string(),
@@ -473,8 +469,7 @@ fn value_to_json(value: &Value) -> serde_json::Value {
         Value::Bool(value) => serde_json::Value::Bool(*value),
         Value::Int64(value) => serde_json::Value::Number((*value).into()),
         Value::Float64(value) => serde_json::Number::from_f64(*value)
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null),
+            .map_or(serde_json::Value::Null, serde_json::Value::Number),
         Value::String(value) => serde_json::Value::String(value.clone()),
         Value::Vector(value) => serde_json::Value::Array(
             value
@@ -506,7 +501,7 @@ fn update_assignment_to_json(
                             vector
                                 .into_iter()
                                 .map(|component| {
-                                    serde_json::Number::from_f64(component as f64)
+                                    serde_json::Number::from_f64(f64::from(component))
                                         .map(serde_json::Value::Number)
                                 })
                                 .collect::<Option<Vec<_>>>()
@@ -546,8 +541,7 @@ fn inserted_row_to_batch_row(
     for field in &schema.fields {
         let value = payload
             .get(&field.name)
-            .map(json_to_value)
-            .unwrap_or(Value::Null);
+            .map_or(Value::Null, json_to_value);
         row.push((field.name.clone(), value));
     }
 

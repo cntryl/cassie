@@ -1,6 +1,6 @@
 use super::clauses::{split_top_level, strip_parentheses};
 use super::schema::{parse_data_type, starts_with_keyword};
-use super::*;
+use super::{FunctionCall, SqlError, Expr, BinaryOp, OrderExpr, NullsOrder, SortDirection, parse_statement, QueryStatement};
 
 pub(super) fn take_int(input: &str) -> Result<Option<i64>, ParserError> {
     let trimmed = input.trim();
@@ -48,11 +48,9 @@ pub(super) fn split_csv(s: &str) -> Vec<&str> {
         match ch {
             '\'' if !in_double => {
                 in_single = !in_single;
-                continue;
             }
             '"' if !in_single => {
                 in_double = !in_double;
-                continue;
             }
             '(' if !in_single && !in_double => depth += 1,
             ')' if !in_single && !in_double => {
@@ -65,7 +63,6 @@ pub(super) fn split_csv(s: &str) -> Vec<&str> {
             ',' if !in_single && !in_double && depth == 0 && bracket_depth == 0 => {
                 out.push(&s[start..i]);
                 start = i + ch.len_utf8();
-                continue;
             }
             _ => {}
         }
@@ -79,14 +76,8 @@ pub(super) fn split_csv_quoted_by_space(s: &str) -> Vec<&str> {
 }
 
 pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError> {
-    let open = match raw.find('(') {
-        Some(value) => value,
-        None => return Ok(None),
-    };
-    let close = match raw.rfind(')') {
-        Some(value) => value,
-        None => return Ok(None),
-    };
+    let Some(open) = raw.find('(') else { return Ok(None) };
+    let Some(close) = raw.rfind(')') else { return Ok(None) };
     if close < open {
         return Ok(None);
     }

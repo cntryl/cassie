@@ -92,6 +92,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn list_projection_comparison_reports(&self) -> Vec<ProjectionComparisonReportMeta> {
         let mut out = self
             .projection_comparison_reports
@@ -110,6 +111,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn list_projection_consistency_reports(&self) -> Vec<ProjectionConsistencyReportMeta> {
         let mut out = self
             .projection_consistency_reports
@@ -121,14 +123,14 @@ impl Catalog {
         out
     }
 
+    #[must_use]
     pub fn latest_projection_consistency_reports(&self) -> Vec<ProjectionConsistencyReportMeta> {
         let mut latest =
             std::collections::BTreeMap::<String, ProjectionConsistencyReportMeta>::new();
         for report in self.list_projection_consistency_reports() {
             let replace = latest
                 .get(&report.projection_id)
-                .map(|current| current.created_ms <= report.created_ms)
-                .unwrap_or(true);
+                .is_none_or(|current| current.created_ms <= report.created_ms);
             if replace {
                 latest.insert(report.projection_id.clone(), report);
             }

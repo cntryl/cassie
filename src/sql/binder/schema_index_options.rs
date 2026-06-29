@@ -1,4 +1,4 @@
-use super::*;
+use super::{CreateIndexStatement, Catalog, CollectionSchema, CassieError, DataType, Expr, DistanceMetric};
 
 pub(super) fn bind_vector_index_options(
     statement: &mut CreateIndexStatement,
@@ -72,8 +72,7 @@ pub(super) fn bind_vector_index_options(
     let index_type = statement
         .options
         .get("index_type")
-        .map(String::as_str)
-        .unwrap_or("bruteforce")
+        .map_or("bruteforce", String::as_str)
         .trim()
         .to_ascii_lowercase();
     if !matches!(index_type.as_str(), "bruteforce" | "hnsw" | "ivfflat") {
@@ -225,8 +224,7 @@ pub(super) fn bind_time_series_index_options(
     let bucket_width = statement
         .options
         .get("bucket_width")
-        .map(String::as_str)
-        .unwrap_or("1 hour")
+        .map_or("1 hour", String::as_str)
         .trim()
         .to_string();
     if bucket_width.is_empty() {
@@ -277,7 +275,7 @@ pub(super) fn bind_time_series_index_options(
 
 fn parse_vector_metric(raw_metric: Option<&str>) -> Result<DistanceMetric, CassieError> {
     let metric = raw_metric.unwrap_or("cosine");
-    metric.parse().map_err(|_| {
+    metric.parse().map_err(|()| {
         CassieError::Planner(format!(
             "unsupported vector metric '{metric}' (expected cosine, l2, or dot)"
         ))
@@ -291,7 +289,7 @@ fn parse_vector_index_usize_option(
     min: usize,
     max: usize,
 ) -> Result<usize, CassieError> {
-    let value = value.map(String::as_str).unwrap_or("").trim();
+    let value = value.map_or("", String::as_str).trim();
     if value.is_empty() {
         return Ok(default);
     }

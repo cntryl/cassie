@@ -18,13 +18,13 @@ fn bench_protocol_compare(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function(BenchmarkId::new("direct_query_baseline", "10k"), |b| {
-        b.iter(|| runtime.block_on(workloads::protocol_comparison_sql(&ctx)))
+        b.iter(|| runtime.block_on(workloads::protocol_comparison_sql(&ctx)));
     });
     group.bench_function(BenchmarkId::new("postgres_wire_query", "10k"), |b| {
-        b.iter(|| runtime.block_on(workloads::protocol_comparison_pgwire(&ctx)))
+        b.iter(|| runtime.block_on(workloads::protocol_comparison_pgwire(&ctx)));
     });
     group.bench_function(BenchmarkId::new("http_json_query", "10k"), |b| {
-        b.iter(|| runtime.block_on(workloads::protocol_comparison_http(&ctx)))
+        b.iter(|| runtime.block_on(workloads::protocol_comparison_http(&ctx)));
     });
 
     group.finish();

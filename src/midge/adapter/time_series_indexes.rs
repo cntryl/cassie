@@ -2,7 +2,7 @@ use cntryl_midge::{Query, WriteOptions};
 use serde::{Deserialize, Serialize};
 use time::{format_description::well_known::Rfc3339, Duration as TimeDuration, OffsetDateTime};
 
-use super::*;
+use super::{Midge, CassieError, Uuid, encode_row, RowDecode, DocumentRef, key_encoding, decode_projected_row};
 use crate::catalog::{IndexKind, IndexMeta};
 
 #[derive(Debug, Clone)]
@@ -31,6 +31,10 @@ impl Midge {
     ///
     /// This skips replacement checks and non-time-series secondary-index maintenance; callers must
     /// only use it for fresh row-store collections whose secondary indexes are time-series indexes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_fresh_time_series_documents(
         &self,
         collection: &str,
@@ -380,9 +384,7 @@ fn partition_key(index: &IndexMeta, payload: &serde_json::Value) -> String {
         .map(str::trim)
         .filter(|field| !field.is_empty())
         .map(|field| {
-            payload_field(payload, field)
-                .map(partition_value)
-                .unwrap_or_else(|| "null".to_string())
+            payload_field(payload, field).map_or_else(|| "null".to_string(), partition_value)
         })
         .collect::<Vec<_>>();
     if values.is_empty() {

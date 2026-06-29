@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+#[must_use]
 pub fn is_reserved_namespace(name: &str) -> bool {
     matches!(
         name.to_ascii_lowercase().as_str(),
@@ -27,6 +28,7 @@ pub enum CollectionStorageMode {
 }
 
 impl CollectionStorageMode {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::RowStore => "row-store",
@@ -35,6 +37,7 @@ impl CollectionStorageMode {
         }
     }
 
+    #[must_use]
     pub fn parse_option(value: &str) -> Option<Self> {
         match value.trim().to_ascii_lowercase().as_str() {
             "row_store" | "row-store" => Some(Self::RowStore),
@@ -44,6 +47,7 @@ impl CollectionStorageMode {
         }
     }
 
+    #[must_use]
     pub fn uses_column_store_storage(self) -> bool {
         matches!(self, Self::ColumnStore)
     }
@@ -58,6 +62,7 @@ pub enum ProjectionRebuildState {
 }
 
 impl ProjectionRebuildState {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Idle => "idle",
@@ -98,6 +103,7 @@ pub enum ProjectionVerificationState {
 }
 
 impl ProjectionVerificationState {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Unknown => "unknown",
@@ -204,6 +210,7 @@ pub struct ProjectionComparisonReportMeta {
 }
 
 impl ProjectionFreshness {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Unknown => "unknown",
@@ -224,6 +231,7 @@ pub enum ProjectionKind {
 }
 
 impl ProjectionKind {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Collection => "collection",
@@ -242,6 +250,7 @@ pub enum MaterializedProjectionState {
 }
 
 impl MaterializedProjectionState {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Building => "building",
@@ -263,6 +272,7 @@ pub enum ProjectionVersionState {
 }
 
 impl ProjectionVersionState {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Building => "building",
@@ -483,6 +493,7 @@ impl ProjectionMeta {
         }
     }
 
+    #[must_use]
     pub fn projection_id(&self) -> &str {
         if self.projection_id.is_empty() {
             &self.collection
@@ -491,6 +502,7 @@ impl ProjectionMeta {
         }
     }
 
+    #[must_use]
     pub fn active_output_collection(&self) -> Option<&str> {
         let active = self.active_version.as_ref()?;
         self.versions
@@ -500,6 +512,7 @@ impl ProjectionMeta {
     }
 }
 
+#[must_use]
 pub fn materialized_output_collection(name: &str, version_id: &str) -> String {
     format!("__cassie_projection_{name}_{version_id}")
 }

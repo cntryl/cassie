@@ -5,6 +5,7 @@ use crate::executor::ColumnMeta;
 use crate::sql::ast::SelectItem;
 use crate::types::DataType;
 
+#[must_use]
 pub fn columns_from_projection(
     projection: &[SelectItem],
     collection_schema: Option<&CollectionSchema>,
@@ -74,11 +75,9 @@ fn function_return_type(
 
     match name.to_ascii_lowercase().as_str() {
         "count" => Some(DataType::Int),
-        "sum" | "avg" => Some(DataType::Float),
-        "min" | "max" => Some(DataType::Text),
-        "search" | "search_score" | "vector_distance" | "vector_score" | "cosine_distance"
+        "sum" | "avg" | "search" | "search_score" | "vector_distance" | "vector_score" | "cosine_distance"
         | "dot_product" | "hybrid_score" => Some(DataType::Float),
-        "snippet"
+        "min" | "max" | "snippet"
         | "version"
         | "pg_catalog.version"
         | "current_schema"
@@ -95,7 +94,7 @@ fn function_return_type(
         | "pg_get_userbyid"
         | "pg_catalog.pg_get_userbyid"
         | "obj_description"
-        | "pg_catalog.obj_description" => Some(DataType::Text),
+        | "pg_catalog.obj_description" | "cast" => Some(DataType::Text),
         "has_schema_privilege"
         | "pg_catalog.has_schema_privilege"
         | "has_table_privilege"
@@ -103,7 +102,6 @@ fn function_return_type(
         | "pg_table_is_visible"
         | "pg_catalog.pg_table_is_visible" => Some(DataType::Boolean),
         "time_bucket" => Some(DataType::Timestamp),
-        "cast" => Some(DataType::Text),
         _ => None,
     }
 }
@@ -121,6 +119,5 @@ fn column_data_type(name: &str, schema: Option<&CollectionSchema>) -> DataType {
         .fields
         .iter()
         .find(|field| field.name.eq_ignore_ascii_case(name))
-        .map(|field| field.data_type.clone())
-        .unwrap_or(DataType::Text)
+        .map_or(DataType::Text, |field| field.data_type.clone())
 }

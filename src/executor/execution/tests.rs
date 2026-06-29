@@ -5,6 +5,50 @@ fn plan_for_sql(sql: &str) -> LogicalPlan {
     build_logical_plan(&parsed).expect("build logical plan")
 }
 
+fn scalar_index(collection: &str, name: &str, fields: Vec<&str>) -> catalog::IndexMeta {
+    catalog::IndexMeta {
+        collection: collection.to_string(),
+        name: name.to_string(),
+        field: fields.first().copied().unwrap_or_default().to_string(),
+        fields: fields.into_iter().map(str::to_string).collect(),
+        expressions: Vec::new(),
+        include_fields: Vec::new(),
+        predicate: None,
+        kind: catalog::IndexKind::Scalar,
+        unique: false,
+        options: std::collections::BTreeMap::default(),
+    }
+}
+
+#[test]
+fn should_route_scalar_physical_read_paths_directly_to_scalar_index_executor() {
+    // Arrange
+    let logical = plan_for_sql(
+        "SELECT id FROM bench_documents \
+         WHERE status = 'approved' AND score >= 10 \
+         ORDER BY status DESC, score ASC LIMIT 50",
+    );
+    let physical = crate::planner::physical::build_with_indexes(
+        logical,
+        vec![scalar_index(
+            "bench_documents",
+            "bench_documents_status_score_idx",
+            vec!["status", "score"],
+        )],
+        &std::collections::HashMap::default(),
+    );
+    assert_eq!(
+        physical.access_path,
+        crate::planner::physical::ReadAccessPath::RangeScan
+    );
+
+    // Act
+    let route = preferred_access_path_route(Some(&physical));
+
+    // Assert
+    assert_eq!(route, Some(AccessPathRoute::ScalarIndex));
+}
+
 #[test]
 fn should_detect_unordered_fulltext_fast_path_for_matching_search_query() {
     // Arrange

@@ -1,4 +1,5 @@
-use super::*;
+use crate::executor::batch::RowAccess;
+use super::{Serialize, Deserialize, HashMap, AnalyzerConfig, HashSet, Value};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub(crate) struct SearchContext {
@@ -319,22 +320,20 @@ impl SearchContext {
         let dl = source_stats.doc_length as f64;
 
         let docs = self.total_documents.max(1) as f64;
-        let field = field.map(|field| field.to_lowercase());
+        let field = field.map(str::to_lowercase);
         let avg_dl = field
             .as_deref()
             .and_then(|field| self.average_doc_length(field))
             .unwrap_or(dl);
         let boost = field
             .as_deref()
-            .map(|field| self.field_boost(field))
-            .unwrap_or(1.0);
+            .map_or(1.0, |field| self.field_boost(field));
         let (k1, b) = field
             .as_deref()
-            .map(|field| (self.field_k1(field), self.field_b(field)))
-            .unwrap_or((
+            .map_or((
                 crate::search::bm25::DEFAULT_BM25_K1,
                 crate::search::bm25::DEFAULT_BM25_B,
-            ));
+            ), |field| (self.field_k1(field), self.field_b(field)));
 
         let mut score = 0.0;
         for term in query_terms {
@@ -369,7 +368,7 @@ pub(super) fn simple_search_score(haystack: &str, query: &str) -> f64 {
     }
 
     let mut hits = 0f64;
-    for token in query_tokens.iter() {
+    for token in &query_tokens {
         if haystack_tokens.contains(token.as_str()) {
             hits += 1.0;
         }

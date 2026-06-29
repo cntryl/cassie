@@ -35,7 +35,7 @@ fn bench_vector(c: &mut Criterion) {
                         ctx,
                         "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20",
                     ))
-                })
+                });
             },
         );
     }

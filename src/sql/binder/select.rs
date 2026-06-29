@@ -1,4 +1,4 @@
-use super::*;
+use super::{SelectStatement, Catalog, CteScope, CassieError, HashSet, mem, CteQuery, bind_statement, recursive_cte_references_self, collect_projection_aliases, validate_projection_references, validate_expression_references, validate_expression, validate_order_by_references, validate_distinct_on_order_prefix, SelectSet, validate_functions, QueryStatement, SelectItem, QuerySource, virtual_views, qualified_fields, FunctionCall, Expr, DataType};
 
 pub(super) fn bind_select(
     select: SelectStatement,

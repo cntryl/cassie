@@ -1,4 +1,4 @@
-use super::*;
+use super::{ParsedStatement, SqlError, parse_index_options, QueryStatement, CreateMaterializedProjectionStatement, DropMaterializedProjectionStatement, VerifyProjectionStatement};
 
 pub(super) fn parse_create_materialized_projection_statement(
     trimmed: &str,
@@ -29,7 +29,7 @@ pub(super) fn parse_create_materialized_projection_statement(
         }
         (name, options)
     } else {
-        (name_part, Default::default())
+        (name_part, std::collections::BTreeMap::default())
     };
     if name.is_empty() {
         return Err(SqlError(

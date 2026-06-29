@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, VectorIndexRecord, CassieError};
 
 impl Cassie {
     pub fn register_collection(&self, name: impl Into<String>, schema: crate::types::Schema) {

@@ -10,7 +10,7 @@ use crate::catalog::{CollectionSchema, FieldMeta, FunctionMeta, ProcedureMeta, V
 use crate::embeddings::{
     DistanceMetric, HnswIndexOptions, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
 };
-use crate::executor::batch::{self, Batch, BatchRow, RowAccess};
+use crate::executor::batch::{self, Batch, BatchRow};
 use crate::executor::{aggregate, filter, projection, scan, sort};
 use crate::midge::adapter::RowDecode;
 use crate::planner::logical::{LogicalCommand, LogicalPlan};
@@ -66,9 +66,11 @@ pub use entrypoints::{run, run_with_controls, run_with_execution_breakdown};
 use cte::{execute_cte, CteContext};
 use dispatch::{
     build_logical_plan, check_timeout, ensure_temp_budget, ensure_temp_budget_for_rows,
-    execute_plan, execute_plan_with_execution_breakdown, execute_plan_with_outer_row,
-    resolve_exists_expr,
+    execute_physical_plan, execute_plan, execute_plan_with_execution_breakdown,
+    execute_plan_with_outer_row, resolve_exists_expr,
 };
+#[cfg(test)]
+use dispatch::{preferred_access_path_route, AccessPathRoute};
 use result::{build_select_result, compare_query_values, deduce_text_fields, row_signature};
 
 mod dml;

@@ -22,10 +22,12 @@ pub use parser::{parse_statement, SqlError};
 const UNKNOWN_PARAMETER_TYPE_OID: i32 = 705;
 type FieldTypeMap = HashMap<String, DataType>;
 
+#[must_use]
 pub fn parameter_count(statement: &ParsedStatement) -> usize {
     parameter_count_query(&statement.statement)
 }
 
+#[must_use]
 pub fn parameter_type_oids(statement: &ParsedStatement, provided: &[i32]) -> Vec<i32> {
     let count = parameter_count(statement);
     let mut oids = provided.iter().copied().take(count).collect::<Vec<_>>();
@@ -38,6 +40,7 @@ pub fn parameter_type_oids(statement: &ParsedStatement, provided: &[i32]) -> Vec
     oids
 }
 
+#[must_use]
 pub fn parameter_type_oids_with_catalog(
     statement: &ParsedStatement,
     provided: &[i32],
@@ -55,16 +58,16 @@ fn infer_parameter_type_oids_query(
 ) {
     match statement {
         QueryStatement::Select(statement) => {
-            infer_select_parameter_type_oids(statement, catalog, oids)
+            infer_select_parameter_type_oids(statement, catalog, oids);
         }
         QueryStatement::Insert(statement) => {
-            infer_insert_parameter_type_oids(statement, catalog, oids)
+            infer_insert_parameter_type_oids(statement, catalog, oids);
         }
         QueryStatement::Update(statement) => {
-            infer_update_parameter_type_oids(statement, catalog, oids)
+            infer_update_parameter_type_oids(statement, catalog, oids);
         }
         QueryStatement::Delete(statement) => {
-            infer_delete_parameter_type_oids(statement, catalog, oids)
+            infer_delete_parameter_type_oids(statement, catalog, oids);
         }
         QueryStatement::Explain(statement) => {
             infer_parameter_type_oids_query(&statement.statement.statement, catalog, oids);
@@ -111,7 +114,7 @@ fn infer_insert_parameter_type_oids(
             }
         }
         ast::InsertSource::Select(select) => {
-            infer_select_parameter_type_oids(select, catalog, oids)
+            infer_select_parameter_type_oids(select, catalog, oids);
         }
     }
 
@@ -139,7 +142,7 @@ fn infer_select_parameter_type_oids(
     for cte in &statement.ctes {
         match &cte.query {
             ast::CteQuery::Simple(statement) => {
-                infer_parameter_type_oids_query(&statement.statement, catalog, oids)
+                infer_parameter_type_oids_query(&statement.statement, catalog, oids);
             }
             ast::CteQuery::Recursive { base, recursive } => {
                 infer_parameter_type_oids_query(&base.statement, catalog, oids);
@@ -228,10 +231,10 @@ fn infer_select_item_parameter_type_oids(
     match item {
         ast::SelectItem::Wildcard | ast::SelectItem::Column { .. } => {}
         ast::SelectItem::Function { function, .. } => {
-            infer_function_parameter_type_oids(function, field_types, catalog, oids)
+            infer_function_parameter_type_oids(function, field_types, catalog, oids);
         }
         ast::SelectItem::Expr { expr, .. } => {
-            infer_parameter_type_oids_expr(expr, field_types, catalog, oids)
+            infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
         }
         ast::SelectItem::WindowFunction { function, .. } => {
             for arg in &function.args {
@@ -327,7 +330,7 @@ fn infer_parameter_type_from_expected_expr(
     match expr {
         ast::Expr::Param(index) => set_parameter_type_oid(oids, *index, data_type),
         ast::Expr::Cast { expr, data_type } => {
-            infer_parameter_type_from_expected_expr(expr, data_type, oids)
+            infer_parameter_type_from_expected_expr(expr, data_type, oids);
         }
         _ => {}
     }
@@ -410,50 +413,10 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
     match statement {
         QueryStatement::Explain(statement) => parameter_count(&statement.statement),
         QueryStatement::Select(statement) => parameter_count_select(statement),
-        QueryStatement::Show(_) => 0,
-        QueryStatement::Set(_) => 0,
-        QueryStatement::Copy(_) => 0,
+        QueryStatement::Show(_) | QueryStatement::Set(_) | QueryStatement::Copy(_) | QueryStatement::Transaction(_) | QueryStatement::CreateTable(_) | QueryStatement::CreateGraph(_) | QueryStatement::DropTable(_) | QueryStatement::AlterTable(_) | QueryStatement::CreateSequence(_) | QueryStatement::DropSequence(_) | QueryStatement::CreateSchema(_) | QueryStatement::CreateView(_) | QueryStatement::CreateRole(_) | QueryStatement::AlterRole(_) | QueryStatement::DropRole(_) | QueryStatement::CreateIndex(_) | QueryStatement::DropIndex(_) | QueryStatement::CreateRollup(_) | QueryStatement::RefreshRollup(_) | QueryStatement::DropRollup(_) | QueryStatement::CreateMaterializedProjection(_) | QueryStatement::RefreshMaterializedProjection(_) | QueryStatement::DropMaterializedProjection(_) | QueryStatement::AlterMaterializedProjection(_) | QueryStatement::DropMaterializedProjectionVersion(_) | QueryStatement::VerifyProjection(_) | QueryStatement::DiffProjection(_) | QueryStatement::CompareProjection(_) | QueryStatement::PlanRepairProjection(_) | QueryStatement::RepairProjection(_) | QueryStatement::CreateRetentionPolicy(_) | QueryStatement::AlterRetentionPolicy(_) | QueryStatement::DropRetentionPolicy(_) | QueryStatement::EnforceRetentionPolicy(_) | QueryStatement::CreateFunction(_) | QueryStatement::DropFunction(_) | QueryStatement::CreateProcedure(_) | QueryStatement::DropProcedure(_) | QueryStatement::DropView(_) | QueryStatement::DropSchema(_) | QueryStatement::AlterSchema(_) => 0,
         QueryStatement::Insert(statement) => parameter_count_insert(statement),
         QueryStatement::Update(statement) => parameter_count_update(statement),
         QueryStatement::Delete(statement) => parameter_count_delete(statement),
-        QueryStatement::Transaction(_) => 0,
-        QueryStatement::CreateTable(_) => 0,
-        QueryStatement::CreateGraph(_) => 0,
-        QueryStatement::DropTable(_) => 0,
-        QueryStatement::AlterTable(_) => 0,
-        QueryStatement::CreateSequence(_) => 0,
-        QueryStatement::DropSequence(_) => 0,
-        QueryStatement::CreateSchema(_) => 0,
-        QueryStatement::CreateView(_) => 0,
-        QueryStatement::CreateRole(_) => 0,
-        QueryStatement::AlterRole(_) => 0,
-        QueryStatement::DropRole(_) => 0,
-        QueryStatement::CreateIndex(_) => 0,
-        QueryStatement::DropIndex(_) => 0,
-        QueryStatement::CreateRollup(_) => 0,
-        QueryStatement::RefreshRollup(_) => 0,
-        QueryStatement::DropRollup(_) => 0,
-        QueryStatement::CreateMaterializedProjection(_) => 0,
-        QueryStatement::RefreshMaterializedProjection(_) => 0,
-        QueryStatement::DropMaterializedProjection(_) => 0,
-        QueryStatement::AlterMaterializedProjection(_) => 0,
-        QueryStatement::DropMaterializedProjectionVersion(_) => 0,
-        QueryStatement::VerifyProjection(_) => 0,
-        QueryStatement::DiffProjection(_) => 0,
-        QueryStatement::CompareProjection(_) => 0,
-        QueryStatement::PlanRepairProjection(_) => 0,
-        QueryStatement::RepairProjection(_) => 0,
-        QueryStatement::CreateRetentionPolicy(_) => 0,
-        QueryStatement::AlterRetentionPolicy(_) => 0,
-        QueryStatement::DropRetentionPolicy(_) => 0,
-        QueryStatement::EnforceRetentionPolicy(_) => 0,
-        QueryStatement::CreateFunction(_) => 0,
-        QueryStatement::DropFunction(_) => 0,
-        QueryStatement::CreateProcedure(_) => 0,
-        QueryStatement::DropProcedure(_) => 0,
-        QueryStatement::DropView(_) => 0,
-        QueryStatement::DropSchema(_) => 0,
-        QueryStatement::AlterSchema(_) => 0,
         QueryStatement::CallProcedure(statement) => statement
             .args
             .iter()
@@ -614,7 +577,7 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
         ast::Expr::Binary { left, right, .. } => {
             parameter_count_expr(left).max(parameter_count_expr(right))
         }
-        ast::Expr::IsNull { expr, .. } => parameter_count_expr(expr),
+        ast::Expr::IsNull { expr, .. } | ast::Expr::Not { expr } | ast::Expr::Cast { expr, .. } => parameter_count_expr(expr),
         ast::Expr::InList { expr, values, .. } => values
             .iter()
             .fold(parameter_count_expr(expr), |count, value| {
@@ -625,8 +588,6 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
         } => parameter_count_expr(expr)
             .max(parameter_count_expr(low))
             .max(parameter_count_expr(high)),
-        ast::Expr::Not { expr } => parameter_count_expr(expr),
-        ast::Expr::Cast { expr, .. } => parameter_count_expr(expr),
         ast::Expr::Exists(statement) => parameter_count_query(&statement.statement),
         ast::Expr::Function(function) => parameter_count_function(function),
     }

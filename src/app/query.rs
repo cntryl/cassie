@@ -1,5 +1,6 @@
-use super::*;
+use super::{Cassie, QueryStatement, ExecutionMode, PlanCacheKey, Arc, PlanCacheProvenance, QueryExecutionControls, CassieError, query_cache, current_time_millis, CassieSession, QueryResult, unsupported_sql_error, parser, ColumnMeta, Instant, TransactionStatement, TransactionAction, RuntimeFeedbackObservation, TransactionRowChange, Value};
 use crate::midge::adapter::DocumentWriteOp;
+use std::fmt::Write as _;
 
 const PLAN_CACHE_COST_MODEL_VERSION: u32 = 2;
 
@@ -41,6 +42,7 @@ impl Cassie {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn plan_cache_hit_for_diagnostics(
         &self,
         parsed: &crate::sql::ast::ParsedStatement,
@@ -107,8 +109,7 @@ impl Cassie {
         provenance: &PlanCacheProvenance,
     ) -> Result<(), CassieError> {
         match provenance {
-            PlanCacheProvenance::L2 => Ok(()),
-            PlanCacheProvenance::L1 { durable: true, .. } => Ok(()),
+            PlanCacheProvenance::L2 | PlanCacheProvenance::L1 { durable: true, .. } => Ok(()),
             PlanCacheProvenance::L1 {
                 durable: false,
                 candidate_expires_at_ms,
@@ -155,6 +156,9 @@ impl Cassie {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn execute_sql(
         &self,
         session: &CassieSession,
@@ -164,6 +168,9 @@ impl Cassie {
         self.execute_sql_with_mode(session, sql, params, ExecutionMode::SimpleQuery)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn describe_sql(&self, sql: &str) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
         if let Some(error) = unsupported_sql_error(sql) {
             return Err(error);
@@ -406,6 +413,39 @@ impl Cassie {
                 session.database.clone(),
             )
         });
+        let params_hash = is_select.then(|| crate::runtime::hash_params(&params));
+        let exec_cache_key = is_select.then(|| crate::runtime::ExecutionResultCacheKey {
+            sql_fingerprint,
+            params_hash: params_hash.expect("select params hash"),
+            schema_epoch: self.runtime.schema_epoch(),
+            data_epoch: self.runtime.data_epoch(),
+            database: session.database.clone(),
+            mode,
+        });
+        if let Some(exec_cache_key) = exec_cache_key.as_ref() {
+            if let Some(cached) = self.runtime.execution_result_cache_lookup(exec_cache_key) {
+                if let Some(key) = cache_key.as_ref() {
+                    if let Some(hit) = self.runtime.plan_cache_lookup(key) {
+                        let (physical, provenance) = Self::plan_cache_provenance(hit);
+                        self.runtime
+                            .record_adaptive_plan_decision(&physical.adaptive_plan);
+                        self.observe_query_plan_usage(key, &physical, &provenance)?;
+                    } else {
+                        let (physical, provenance) = self.resolve_physical_plan(
+                            parsed,
+                            key.clone(),
+                            session.database.clone(),
+                            Some(controls),
+                        )?;
+                        self.runtime
+                            .record_adaptive_plan_decision(&physical.adaptive_plan);
+                        self.observe_query_plan_usage(key, &physical, &provenance)?;
+                    }
+                }
+                return Ok(cached);
+            }
+        }
+
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
             self.resolve_physical_plan(parsed, key, session.database.clone(), Some(controls))?
         } else {
@@ -418,38 +458,16 @@ impl Cassie {
             self.runtime
                 .record_adaptive_plan_decision(&physical.adaptive_plan);
         }
-        let feedback_keys = is_select.then(|| {
-            let keys = self.feedback_keys_for_plan(session.database.clone(), &physical);
-            self.observe_feedback_lookup(&keys);
-            keys
-        });
 
         if controls.is_timed_out() {
             return Err(CassieError::Execution("query timeout exceeded".to_string()));
         }
 
-        let params_hash = if is_select {
-            Some(crate::runtime::hash_params(&params))
-        } else {
-            None
-        };
-
-        if is_select {
-            let exec_cache_key = crate::runtime::ExecutionResultCacheKey {
-                sql_fingerprint,
-                params_hash: params_hash.unwrap(),
-                schema_epoch: self.runtime.schema_epoch(),
-                data_epoch: self.runtime.data_epoch(),
-                database: session.database.clone(),
-                mode,
-            };
-            if let Some(cached) = self.runtime.execution_result_cache_lookup(&exec_cache_key) {
-                if let Some(key) = cache_key.as_ref() {
-                    self.observe_query_plan_usage(key, &physical, &provenance)?;
-                }
-                return Ok(cached);
-            }
-        }
+        let feedback_keys = is_select.then(|| {
+            let keys = self.feedback_keys_for_plan(session.database.clone(), &physical);
+            self.observe_feedback_lookup(&keys);
+            keys
+        });
 
         let feedback_before = feedback_keys.as_ref().map(|_| self.runtime.snapshot());
         let feedback_started_at = Instant::now();
@@ -516,17 +534,16 @@ impl Cassie {
                 rows_in: storage_reads.saturating_add(candidate_count).max(
                     execution
                         .as_ref()
-                        .map(|result| result.rows.len() as u64)
-                        .unwrap_or(0),
+                        .map_or(0, |result| result.rows.len() as u64),
                 ),
                 rows_out: execution
                     .as_ref()
-                    .map(|result| result.rows.len() as u64)
-                    .unwrap_or(0),
+                    .map_or(0, |result| result.rows.len() as u64),
                 elapsed_ms: feedback_started_at
                     .elapsed()
                     .as_millis()
-                    .min(u64::MAX as u128) as u64,
+                    .try_into()
+                    .unwrap_or(u64::MAX),
                 storage_reads,
                 storage_writes,
                 temp_writes,
@@ -552,15 +569,7 @@ impl Cassie {
             )));
         }
 
-        if is_select {
-            let exec_cache_key = crate::runtime::ExecutionResultCacheKey {
-                sql_fingerprint,
-                params_hash: params_hash.unwrap(),
-                schema_epoch: self.runtime.schema_epoch(),
-                data_epoch: self.runtime.data_epoch(),
-                database: session.database.clone(),
-                mode,
-            };
+        if let Some(exec_cache_key) = exec_cache_key {
             self.runtime
                 .execution_result_cache_store(exec_cache_key, result.clone());
         }
@@ -619,7 +628,7 @@ impl Cassie {
                             session.mark_transaction_failed();
                         })?;
                     self.runtime
-                        .record_projection_write_batch(collection.to_string(), &report.stats);
+                        .record_projection_write_batch(collection.clone(), &report.stats);
                     if report.stats.row_puts > 0
                         || report.stats.row_deletes > 0
                         || report.stats.index_puts > 0
@@ -805,7 +814,7 @@ impl Cassie {
                         .saturating_add(candidate_count_delta)
                         .max(result.rows.len() as u64),
                     rows_out: result.rows.len() as u64,
-                    elapsed_ms: elapsed_ms.min(u128::from(u64::MAX)) as u64,
+                    elapsed_ms: elapsed_ms.try_into().unwrap_or(u64::MAX),
                     storage_reads: storage_reads_delta,
                     storage_writes: storage_writes_delta,
                     temp_writes: temp_writes_delta,
@@ -837,8 +846,7 @@ impl Cassie {
                     .collect::<Vec<_>>()
                     .join("|")
             };
-            plan.push_str(&format!(
-                " analyze=true actual_rows={} actual_ms={} operator_actuals={} diagnostics=plan_cache_hits_delta:{},plan_cache_misses_delta:{},storage_reads_delta:{},storage_writes_delta:{},temp_writes_delta:{},candidate_count_delta:{},result_count_delta:{},parallel_aggregations_delta:{},parallel_aggregation_fallback_delta:{},parallel_aggregation_workers_delta:{},parallel_aggregation_groups_delta:{},adaptive_plan_decisions_delta:{},adaptive_plan_selected_delta:{},operator_switch_attempts_delta:{},operator_switch_success_delta:{},operator_switch_skips_delta:{},operator_switch_fallbacks_delta:{}",
+            let _ = write!(plan, " analyze=true actual_rows={} actual_ms={} operator_actuals={} diagnostics=plan_cache_hits_delta:{},plan_cache_misses_delta:{},storage_reads_delta:{},storage_writes_delta:{},temp_writes_delta:{},candidate_count_delta:{},result_count_delta:{},parallel_aggregations_delta:{},parallel_aggregation_fallback_delta:{},parallel_aggregation_workers_delta:{},parallel_aggregation_groups_delta:{},adaptive_plan_decisions_delta:{},adaptive_plan_selected_delta:{},operator_switch_attempts_delta:{},operator_switch_success_delta:{},operator_switch_skips_delta:{},operator_switch_fallbacks_delta:{}",
                 result.rows.len(),
                 elapsed_ms,
                 actual_operators,
@@ -858,8 +866,7 @@ impl Cassie {
                 operator_switch_attempts_delta,
                 operator_switch_success_delta,
                 operator_switch_skips_delta,
-                operator_switch_fallbacks_delta
-            ));
+                operator_switch_fallbacks_delta);
         }
 
         Ok(QueryResult {

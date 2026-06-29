@@ -35,7 +35,7 @@ fn bench_hybrid(c: &mut Criterion) {
                         ctx,
                         "SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0,0]')) AS score FROM bench_documents ORDER BY score DESC LIMIT 20",
                     ))
-                })
+                });
             },
         );
     }

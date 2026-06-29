@@ -1,6 +1,6 @@
-use super::expr::*;
-use super::query::*;
-use super::*;
+use super::expr::{split_csv, parse_expr_token, parse_expression};
+use super::query::parse_projection_items;
+use super::{ParsedStatement, SqlError, find_top_level_keyword, QueryStatement, InsertSource, parse_statement, strip_parentheses, SelectItem, Expr};
 
 pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
@@ -15,7 +15,7 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
         return Err(SqlError("INSERT requires VALUES or SELECT source".into()));
     }
     let (table, columns, source) = parse_insert_target(statement_source)?;
-    let table = table.to_string();
+    let table = table.clone();
 
     let values_pos = find_top_level_keyword(source, 0, "values");
     if let Some(values_pos) = values_pos {
@@ -491,9 +491,8 @@ pub(super) fn split_trailing_update_clauses(raw: &str) -> Result<(&str, &str), S
             Ok((&raw[..where_pos], &raw[where_pos..]))
         }
         (Some(_), Some(_)) => Err(SqlError("unexpected RETURNING order".into())),
-        (Some(pos), None) => Ok((&raw[..pos], &raw[pos..])),
-        (None, Some(pos)) => Ok((&raw[..pos], &raw[pos..])),
-    }
+        (Some(pos), None) | (None, Some(pos)) => Ok((&raw[..pos], &raw[pos..])),
+        }
 }
 
 pub(super) fn parse_assignment(raw: &str) -> Result<(String, Expr), SqlError> {

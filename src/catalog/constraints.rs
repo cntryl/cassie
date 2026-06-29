@@ -89,6 +89,7 @@ impl FieldConstraint {
     }
 }
 
+#[must_use]
 pub fn generated_constraint_name(collection: &str, field: &str, kind: &str) -> String {
     format!(
         "{}_{}_{}",

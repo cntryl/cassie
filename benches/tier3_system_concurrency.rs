@@ -18,7 +18,7 @@ fn bench_concurrency(c: &mut Criterion) {
     group.throughput(Throughput::Elements(8));
 
     group.bench_function(BenchmarkId::new("concurrent_queries", "8x10k"), |b| {
-        b.iter(|| runtime.block_on(workloads::concurrent_queries(&ctx, 8)))
+        b.iter(|| runtime.block_on(workloads::concurrent_queries(&ctx, 8)));
     });
 
     group.finish();

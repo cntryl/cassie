@@ -1,6 +1,9 @@
-use super::*;
+use super::{Midge, CassieError, StorageFamily, key_encoding};
 
 impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_projection_repair_report(
         &self,
         report: crate::catalog::ProjectionRepairReportMeta,
@@ -15,6 +18,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_projection_repair_reports(
         &self,
     ) -> Result<Vec<crate::catalog::ProjectionRepairReportMeta>, CassieError> {

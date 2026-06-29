@@ -1,7 +1,7 @@
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-use super::*;
+use super::{Cassie, QueryResult, QueryError, HashMap, FunctionMeta, QueryExecutionControls, check_timeout, batch, scan, BatchRow, Value};
 
 pub(super) fn create_retention_policy(
     cassie: &Cassie,
@@ -43,7 +43,7 @@ pub(super) fn alter_retention_policy(
                 statement.name
             ))
         })?;
-    metadata.retention_duration = statement.retention_duration.clone();
+    metadata.retention_duration.clone_from(&statement.retention_duration);
     metadata.state = crate::catalog::RetentionPolicyState::Ready;
     metadata.last_error = None;
     cassie

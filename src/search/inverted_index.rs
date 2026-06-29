@@ -11,7 +11,7 @@ impl InvertedIndex {
 
         let mut term_counts = HashMap::<String, usize>::new();
         for token in tokens {
-            *term_counts.entry(token.to_string()).or_default() += 1;
+            *term_counts.entry(token.clone()).or_default() += 1;
         }
 
         for (token, frequency) in term_counts {
@@ -33,10 +33,12 @@ impl InvertedIndex {
         }
     }
 
+    #[must_use]
     pub fn postings(&self, token: &str) -> Option<&Vec<(String, usize)>> {
         self.postings.get(token)
     }
 
+    #[must_use]
     pub fn candidate_documents(&self, tokens: &[String]) -> HashSet<String> {
         let mut candidates = HashSet::new();
         for token in tokens {

@@ -146,7 +146,7 @@ fn expr_needs_user_functions(expr: &Expr) -> bool {
         Expr::Binary { left, right, .. } => {
             expr_needs_user_functions(left) || expr_needs_user_functions(right)
         }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } => expr_needs_user_functions(expr),
+        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => expr_needs_user_functions(expr),
         Expr::InList { expr, values, .. } => {
             expr_needs_user_functions(expr) || values.iter().any(expr_needs_user_functions)
         }
@@ -157,7 +157,6 @@ fn expr_needs_user_functions(expr: &Expr) -> bool {
                 || expr_needs_user_functions(low)
                 || expr_needs_user_functions(high)
         }
-        Expr::Not { expr } => expr_needs_user_functions(expr),
         Expr::Exists(statement) => parsed_statement_needs_user_functions(statement),
         Expr::Function(function) => function_needs_user_functions(function),
         Expr::Column(_)
@@ -296,7 +295,7 @@ fn expr_uses_vector_operator(expr: &crate::sql::ast::Expr) -> bool {
                 || expr_uses_vector_operator(right)
         }
         crate::sql::ast::Expr::Function(function) => function_uses_vector_operator(function),
-        crate::sql::ast::Expr::IsNull { expr, .. } => expr_uses_vector_operator(expr),
+        crate::sql::ast::Expr::IsNull { expr, .. } | crate::sql::ast::Expr::Cast { expr, .. } => expr_uses_vector_operator(expr),
         crate::sql::ast::Expr::InList { expr, values, .. } => {
             expr_uses_vector_operator(expr) || values.iter().any(expr_uses_vector_operator)
         }
@@ -307,7 +306,6 @@ fn expr_uses_vector_operator(expr: &crate::sql::ast::Expr) -> bool {
                 || expr_uses_vector_operator(low)
                 || expr_uses_vector_operator(high)
         }
-        crate::sql::ast::Expr::Cast { expr, .. } => expr_uses_vector_operator(expr),
         _ => false,
     }
 }
@@ -379,7 +377,7 @@ fn expr_uses_function(expr: &crate::sql::ast::Expr, function_name: &str) -> bool
         crate::sql::ast::Expr::Function(function) => {
             function_uses_function(function, function_name)
         }
-        crate::sql::ast::Expr::IsNull { expr, .. } => expr_uses_function(expr, function_name),
+        crate::sql::ast::Expr::IsNull { expr, .. } | crate::sql::ast::Expr::Cast { expr, .. } => expr_uses_function(expr, function_name),
         crate::sql::ast::Expr::InList { expr, values, .. } => {
             expr_uses_function(expr, function_name)
                 || values
@@ -393,7 +391,6 @@ fn expr_uses_function(expr: &crate::sql::ast::Expr, function_name: &str) -> bool
                 || expr_uses_function(low, function_name)
                 || expr_uses_function(high, function_name)
         }
-        crate::sql::ast::Expr::Cast { expr, .. } => expr_uses_function(expr, function_name),
         _ => false,
     }
 }
@@ -424,7 +421,7 @@ fn collect_fulltext_fields_from_expr(expr: &crate::sql::ast::Expr, fields: &mut 
         crate::sql::ast::Expr::Function(function) => {
             collect_fulltext_fields_from_function(function, fields);
         }
-        crate::sql::ast::Expr::IsNull { expr, .. } => {
+        crate::sql::ast::Expr::IsNull { expr, .. } | crate::sql::ast::Expr::Cast { expr, .. } => {
             collect_fulltext_fields_from_expr(expr, fields);
         }
         crate::sql::ast::Expr::InList { expr, values, .. } => {
@@ -439,9 +436,6 @@ fn collect_fulltext_fields_from_expr(expr: &crate::sql::ast::Expr, fields: &mut 
             collect_fulltext_fields_from_expr(expr, fields);
             collect_fulltext_fields_from_expr(low, fields);
             collect_fulltext_fields_from_expr(high, fields);
-        }
-        crate::sql::ast::Expr::Cast { expr, .. } => {
-            collect_fulltext_fields_from_expr(expr, fields);
         }
         _ => {}
     }
@@ -484,8 +478,7 @@ pub(super) fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan 
 
 fn execution_source_name(source: &QuerySource) -> String {
     match source {
-        QuerySource::Collection(name) | QuerySource::Cte(name) => name.clone(),
-        QuerySource::TableFunction { name, .. } => name.clone(),
+        QuerySource::Collection(name) | QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
         QuerySource::Subquery { alias, .. } => alias.clone(),
         QuerySource::SingleRow => "single_row".to_string(),
         QuerySource::Join { .. } => "join".to_string(),

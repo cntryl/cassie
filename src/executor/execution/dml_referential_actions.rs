@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, CassieSession, QueryError};
 
 pub(super) fn assert_no_referencing_rows(
     cassie: &Cassie,

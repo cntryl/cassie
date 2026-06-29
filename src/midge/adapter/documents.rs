@@ -1,4 +1,4 @@
-use super::*;
+use super::{WriteOptions, Midge, CassieError, Uuid, DocumentRef, decode_row, IndexKind, encode_row, RowSchema, RowDecode, MidgeScanTimings, RowFilter, Instant, HashSet, Query, key_encoding, decode_projected_row_matching_with_aliases, decode_projected_row_with_aliases, decode_projected_row, Schema, DataType};
 use std::time::Duration;
 
 #[derive(Debug)]
@@ -55,6 +55,9 @@ enum OrderedScanSelection {
 }
 
 impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_document(
         &self,
         collection: &str,
@@ -72,6 +75,9 @@ impl Midge {
         Ok(doc_id)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_documents(
         &self,
         collection: &str,
@@ -88,6 +94,9 @@ impl Midge {
         Ok(report.ids)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn get_document(
         &self,
         collection: &str,
@@ -129,6 +138,9 @@ impl Midge {
         }))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn delete_document(&self, collection: &str, id: &str) -> Result<bool, CassieError> {
         let _row_schema = self.row_schema(collection)?;
         let report = self.apply_document_write_batch(
@@ -508,6 +520,9 @@ impl Midge {
         decode_row(row_schema, &raw).map(Some)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn scan_documents_batched(
         &self,
         collection: &str,
@@ -517,6 +532,9 @@ impl Midge {
             .map(|(rows, _)| rows)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn scan_rows_for_rebuild(
         &self,
         collection: &str,
@@ -526,6 +544,9 @@ impl Midge {
             .map(|(batches, _)| batches.into_iter().flatten().collect())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn scan_rows_batched_limit(
         &self,
         collection: &str,
@@ -537,6 +558,9 @@ impl Midge {
             .map(|(rows, _)| rows)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn scan_rows_batched_limit_with_timings(
         &self,
         collection: &str,
@@ -547,6 +571,9 @@ impl Midge {
         self.scan_rows_batched(collection, batch_size, decode, None, limit)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn scan_projected_rows_batched_filter_limit_with_timings(
         &self,
         collection: &str,
@@ -933,11 +960,17 @@ impl Midge {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn scan_documents(&self, collection: &str) -> Result<Vec<DocumentRef>, CassieError> {
         self.scan_documents_batched(collection, 1024)
             .map(|batches| batches.into_iter().flatten().collect())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn all_fields_json(
         &self,
         collection: &str,

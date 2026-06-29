@@ -11,7 +11,7 @@ fn bench_filter_projection(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("predicate_evaluation", |b| {
-        b.iter(workloads::predicate_evaluation)
+        b.iter(workloads::predicate_evaluation);
     });
     group.bench_function("batch_filter", |b| b.iter(workloads::batch_filter));
     group.bench_function("batch_projection", |b| b.iter(workloads::batch_projection));

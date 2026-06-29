@@ -56,7 +56,7 @@ fn bench_pgwire(c: &mut Criterion) {
                         &ctx,
                         "SELECT id, title FROM bench_documents WHERE id = 'doc-1'",
                     ))
-                })
+                });
             },
         );
     }
@@ -103,23 +103,23 @@ fn bench_pgwire(c: &mut Criterion) {
             .expect("benchmark context");
         if benchmark_enabled(&filters, "connection_churn", "10k") {
             group.bench_function(BenchmarkId::new("connection_churn", "10k"), |b| {
-                b.iter(|| runtime.block_on(workloads::pgwire_connection_churn(&ctx_10k)))
+                b.iter(|| runtime.block_on(workloads::pgwire_connection_churn(&ctx_10k)));
             });
         }
         if benchmark_enabled(&filters, "connection_pooling", "10k") {
             group.bench_function(BenchmarkId::new("connection_pooling", "10k"), |b| {
-                b.iter(|| runtime.block_on(workloads::pgwire_connection_pooling(&ctx_10k)))
+                b.iter(|| runtime.block_on(workloads::pgwire_connection_pooling(&ctx_10k)));
             });
         }
         if benchmark_enabled(&filters, "large_result_set", "512_rows") {
             group.bench_function(BenchmarkId::new("large_result_set", "512_rows"), |b| {
-                b.iter(|| runtime.block_on(workloads::pgwire_large_result_query(&ctx_10k)))
+                b.iter(|| runtime.block_on(workloads::pgwire_large_result_query(&ctx_10k)));
             });
         }
         if benchmark_enabled(&filters, "concurrent_connections", "8x10k") {
             group.throughput(Throughput::Elements(8));
             group.bench_function(BenchmarkId::new("concurrent_connections", "8x10k"), |b| {
-                b.iter(|| runtime.block_on(workloads::pgwire_concurrent_connections(&ctx_10k, 8)))
+                b.iter(|| runtime.block_on(workloads::pgwire_concurrent_connections(&ctx_10k, 8)));
             });
         }
     }

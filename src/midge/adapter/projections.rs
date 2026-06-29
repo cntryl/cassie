@@ -1,6 +1,9 @@
-use super::*;
+use super::{Midge, ProjectionMeta, CassieError, WriteOptions, StorageFamily};
 
 impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_projection_metadata(&self, metadata: ProjectionMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         Self::save_projection_metadata_to_tx(&mut tx, &metadata)?;
@@ -8,6 +11,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_projection_metadata(&self) -> Result<Vec<ProjectionMeta>, CassieError> {
         let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::projection_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
@@ -21,6 +27,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn delete_projection_metadata(&self, collection: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::projection_key(collection))
@@ -30,6 +39,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn has_projection_event(
         &self,
         projection: &str,
@@ -46,6 +58,9 @@ impl Midge {
         .map_err(CassieError::from)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn projection_events_seen(
         &self,
         projection: &str,
@@ -68,6 +83,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn record_projection_event(
         &self,
         projection: &str,
@@ -83,6 +101,9 @@ impl Midge {
         )
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn record_projection_events_batch(
         &self,
         projection: &str,

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Write};
 
-use super::*;
+use super::{Cassie, CassieError, current_time_millis};
 use crate::catalog::{
     ProjectionConsistencyReportMeta, ProjectionManifestHashMetadata,
     ProjectionManifestRangeSummary, ProjectionManifestRootSummary,
@@ -31,6 +31,9 @@ impl ProjectionManifestExportOptions {
 }
 
 impl Cassie {
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn export_projection_verification_manifest(
         &self,
         projection: &str,
@@ -49,8 +52,7 @@ impl Cassie {
         let ttl_ms = options.ttl_ms.unwrap_or(DEFAULT_MANIFEST_TTL_MS);
         let schema_epoch = root
             .as_ref()
-            .map(|root| root.schema_epoch)
-            .unwrap_or(metadata.schema_version as u64);
+            .map_or(u64::from(metadata.schema_version), |root| root.schema_epoch);
         let projection_definition_hash = metadata
             .materialized
             .as_ref()
@@ -83,7 +85,7 @@ impl Cassie {
             source_position: metadata.source_position,
             generated_ms,
             expires_at_ms: generated_ms.saturating_add(ttl_ms),
-            hash: root.as_ref().map(root_hash_metadata).unwrap_or_else(|| {
+            hash: root.as_ref().map_or_else(|| {
                 ProjectionManifestHashMetadata {
                     algorithm: metadata.hashes.algorithm.algorithm.clone(),
                     digest_length: metadata.hashes.algorithm.digest_length,
@@ -92,7 +94,7 @@ impl Cassie {
                     range_hash_version: metadata.hashes.algorithm.hash_version,
                     root_hash_version: metadata.hashes.algorithm.hash_version,
                 }
-            }),
+            }, root_hash_metadata),
             root: root.as_ref().map(root_summary),
             ranges: ranges.iter().map(range_summary).collect(),
             row_hashes: if options.include_row_hashes {
@@ -108,6 +110,9 @@ impl Cassie {
         Ok(manifest)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn compare_projection_verification_manifests(
         &self,
         manifests: Vec<ProjectionVerificationManifest>,
@@ -468,8 +473,8 @@ impl StableDigestWriter {
 
 impl Write for StableDigestWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
-        const FNV_PRIME: u64 = 0x100000001b3;
+        const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+        const FNV_PRIME: u64 = 0x0100_0000_01b3;
 
         if self.state == 0 {
             self.state = FNV_OFFSET_BASIS;

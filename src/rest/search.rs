@@ -16,6 +16,9 @@ pub struct SearchRequest {
     pub offset: Option<usize>,
 }
 
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
 pub fn vector_search(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Value, CassieError> {
     let request: SearchRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
@@ -29,8 +32,7 @@ pub fn vector_search(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<V
     if let Some(requested_metric) = requested_metric {
         if metric.is_none() {
             return Err(CassieError::InvalidEmbedding(format!(
-                "unsupported metric '{}'. expected cosine/l2/dot",
-                requested_metric
+                "unsupported metric '{requested_metric}'. expected cosine/l2/dot"
             )));
         }
     }

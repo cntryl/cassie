@@ -1,6 +1,6 @@
 use std::collections::{HashSet, VecDeque};
 
-use super::*;
+use super::{source, FunctionCall, BatchRow, QueryError, Value, filter};
 
 #[derive(Debug, Clone)]
 struct GraphPath {
@@ -367,38 +367,32 @@ impl GraphPath {
             (
                 "edge_id".to_string(),
                 edge.as_ref()
-                    .map(|edge| Value::String(edge.edge_id.clone()))
-                    .unwrap_or(Value::Null),
+                    .map_or(Value::Null, |edge| Value::String(edge.edge_id.clone())),
             ),
             (
                 "edge_type".to_string(),
                 edge.as_ref()
-                    .map(|edge| Value::String(edge.edge_type.clone()))
-                    .unwrap_or(Value::Null),
+                    .map_or(Value::Null, |edge| Value::String(edge.edge_type.clone())),
             ),
             (
                 "source_type".to_string(),
                 edge.as_ref()
-                    .map(|edge| Value::String(edge.source_type.clone()))
-                    .unwrap_or(Value::Null),
+                    .map_or(Value::Null, |edge| Value::String(edge.source_type.clone())),
             ),
             (
                 "source_id".to_string(),
                 edge.as_ref()
-                    .map(|edge| Value::String(edge.source_id.clone()))
-                    .unwrap_or(Value::Null),
+                    .map_or(Value::Null, |edge| Value::String(edge.source_id.clone())),
             ),
             (
                 "target_type".to_string(),
                 edge.as_ref()
-                    .map(|edge| Value::String(edge.target_type.clone()))
-                    .unwrap_or(Value::Null),
+                    .map_or(Value::Null, |edge| Value::String(edge.target_type.clone())),
             ),
             (
                 "target_id".to_string(),
                 edge.as_ref()
-                    .map(|edge| Value::String(edge.target_id.clone()))
-                    .unwrap_or(Value::Null),
+                    .map_or(Value::Null, |edge| Value::String(edge.target_id.clone())),
             ),
             ("path_nodes".to_string(), Value::Json(path_nodes)),
             ("path_edges".to_string(), Value::Json(path_edges)),

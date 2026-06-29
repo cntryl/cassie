@@ -23,10 +23,10 @@ fn bench_protocol_handlers(c: &mut Criterion) {
                 &ctx,
                 "SELECT id, title FROM bench_documents WHERE title = 'title-1' LIMIT 20",
             ))
-        })
+        });
     });
     group.bench_function(BenchmarkId::new("http_handler", "10k"), |b| {
-        b.iter(|| runtime.block_on(workloads::http_document_get(&ctx)))
+        b.iter(|| runtime.block_on(workloads::http_document_get(&ctx)));
     });
 
     group.finish();

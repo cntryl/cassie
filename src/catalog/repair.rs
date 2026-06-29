@@ -31,6 +31,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn list_projection_repair_reports(&self) -> Vec<ProjectionRepairReportMeta> {
         let mut out = self
             .projection_repair_reports

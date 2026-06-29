@@ -1,13 +1,17 @@
 use cntryl_midge::WriteOptions;
 use uuid::Uuid;
 
-use super::*;
+use super::{Midge, CassieError, encode_row};
 
 impl Midge {
     /// Load documents into a newly-created row-store collection without replacement checks.
     ///
     /// Callers must only use this for fresh collections with no secondary indexes. The loader still
     /// validates documents, writes row blobs, and updates row hashes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn put_fresh_documents(
         &self,
         collection: &str,

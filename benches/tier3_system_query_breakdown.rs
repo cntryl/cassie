@@ -27,7 +27,7 @@ fn bench_query_breakdown(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function(BenchmarkId::new("simple_10k", "breakdown"), |b| {
-        b.iter(|| runtime.block_on(workloads::simple_10k_query_breakdown(&ctx)))
+        b.iter(|| runtime.block_on(workloads::simple_10k_query_breakdown(&ctx)));
     });
 
     group.finish();

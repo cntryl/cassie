@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use super::*;
+use super::{Cassie, CassieSession, LogicalPlan, CteContext, HashMap, FunctionMeta, Value, QueryExecutionControls, BatchRow, QueryError, QuerySource, catalog, SelectItem, projected_read, Expr};
 
 pub(super) fn try_execute_analytical_projection(
     cassie: &Cassie,
@@ -153,13 +153,12 @@ fn plan_needed_columns(plan: &LogicalPlan) -> Option<BTreeSet<String>> {
                     columns.insert(name.to_ascii_lowercase());
                 }
             }
-            SelectItem::Wildcard => return None,
+            SelectItem::Wildcard | SelectItem::WindowFunction { .. } => return None,
             SelectItem::Function { function, .. } => {
-                collect_expr_columns_from_slice(function.args.as_slice(), &mut columns)
+                collect_expr_columns_from_slice(function.args.as_slice(), &mut columns);
             }
             SelectItem::Expr { expr, .. } => collect_expr_columns(expr, &mut columns),
-            SelectItem::WindowFunction { .. } => return None,
-        }
+            }
     }
     if let Some(filter) = &plan.filter {
         collect_expr_columns(filter, &mut columns);
@@ -202,14 +201,13 @@ fn collect_expr_columns(expr: &Expr, columns: &mut BTreeSet<String>) {
             collect_expr_columns_from_slice(values, columns);
         }
         Expr::Function(function) => {
-            collect_expr_columns_from_slice(function.args.as_slice(), columns)
+            collect_expr_columns_from_slice(function.args.as_slice(), columns);
         }
         Expr::Cast { expr, .. } => collect_expr_columns(expr, columns),
-        Expr::Exists(_) => {}
-        Expr::StringLiteral(_)
+        Expr::Exists(_) | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Param(_) => {}
-    }
+        }
 }

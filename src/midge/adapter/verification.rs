@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::*;
+use super::{Midge, CassieError, StorageFamily, WriteOptions, encode_row, RowSchema, ProjectionMeta, Query};
 
 const ROW_HASH_ALGORITHM: &str = "cassie-fnv128";
 const ROW_HASH_DIGEST_LENGTH: u16 = 16;
@@ -110,6 +110,9 @@ impl Midge {
         hash_algorithm_metadata()
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn row_hash(
         &self,
         collection: &str,
@@ -127,6 +130,9 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid row hash metadata: {error}")))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_row_hashes(&self, collection: &str) -> Result<Vec<RowHashRecord>, CassieError> {
         let entries =
             self.raw_scan_prefix(StorageFamily::Data, &Self::row_hash_prefix(collection))?;
@@ -141,6 +147,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn list_range_hashes(&self, collection: &str) -> Result<Vec<RangeHashRecord>, CassieError> {
         let entries =
             self.raw_scan_prefix(StorageFamily::Data, &Self::range_hash_prefix(collection))?;
@@ -155,6 +164,9 @@ impl Midge {
         Ok(out)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn root_hash(&self, collection: &str) -> Result<Option<RootHashRecord>, CassieError> {
         let tx = self.begin_data_readonly_tx()?;
         let Some(raw) = tx
@@ -168,6 +180,9 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid root hash metadata: {error}")))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn compute_expected_row_hash(
         &self,
         collection: &str,
@@ -185,6 +200,9 @@ impl Midge {
         ))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn rebuild_projection_hashes(
         &self,
         collection: &str,
@@ -288,6 +306,9 @@ impl Midge {
         Ok((report, root))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn refresh_projection_hashes_after_write(
         &self,
         collection: &str,
@@ -308,6 +329,9 @@ impl Midge {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn projection_hash_summary(
         &self,
         collection: &str,
@@ -352,6 +376,9 @@ impl Midge {
         }))
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
     pub fn verify_projection_integrity(
         &self,
         collection: &str,
@@ -596,12 +623,12 @@ fn compute_row_hash_record(
     write_str(projection_id, &mut input);
     write_option_str(version_id, &mut input);
     write_str(collection, &mut input);
-    write_u64(row_schema.schema_version as u64, &mut input);
+    write_u64(u64::from(row_schema.schema_version), &mut input);
     write_str(row_id, &mut input);
 
     let object = payload.as_object();
     for field in row_schema.active_fields_by_id() {
-        write_u64(field.field_id as u64, &mut input);
+        write_u64(u64::from(field.field_id), &mut input);
         write_str(&field.data_type.type_name(), &mut input);
         match object.and_then(|object| object.get(&field.name)) {
             Some(value) if value.is_null() => input.push(b'N'),
@@ -617,7 +644,7 @@ fn compute_row_hash_record(
         projection_id: projection_id.to_string(),
         version_id: version_id.map(str::to_string),
         collection: collection.to_string(),
-        schema_epoch: row_schema.schema_version as u64,
+        schema_epoch: u64::from(row_schema.schema_version),
         row_id: row_id.to_string(),
         algorithm: ROW_HASH_ALGORITHM.to_string(),
         digest_length: ROW_HASH_DIGEST_LENGTH,
@@ -642,7 +669,7 @@ fn build_range_hash_records(
             write_str("range", &mut input);
             write_str(collection, &mut input);
             write_option_str(version_id.as_deref(), &mut input);
-            write_u64(schema_epoch as u64, &mut input);
+            write_u64(u64::from(schema_epoch), &mut input);
             write_u64(index as u64, &mut input);
             write_u64(RANGE_SEGMENT_SIZE as u64, &mut input);
             for row in chunk {
@@ -653,7 +680,7 @@ fn build_range_hash_records(
                 projection_id: collection.to_string(),
                 version_id: version_id.clone(),
                 collection: collection.to_string(),
-                schema_epoch: schema_epoch as u64,
+                schema_epoch: u64::from(schema_epoch),
                 range_id: index as u64,
                 first_row_id: chunk.first().map(|record| record.row_id.clone()),
                 last_row_id: chunk.last().map(|record| record.row_id.clone()),
@@ -683,7 +710,7 @@ fn build_root_hash_record(
     write_str("root", &mut input);
     write_str(collection, &mut input);
     write_option_str(version_id.as_deref(), &mut input);
-    write_u64(schema_epoch as u64, &mut input);
+    write_u64(u64::from(schema_epoch), &mut input);
     write_u64(rows.len() as u64, &mut input);
     write_u64(ranges.len() as u64, &mut input);
     if ranges.is_empty() {
@@ -697,7 +724,7 @@ fn build_root_hash_record(
         projection_id: collection.to_string(),
         version_id,
         collection: collection.to_string(),
-        schema_epoch: schema_epoch as u64,
+        schema_epoch: u64::from(schema_epoch),
         row_count: rows.len() as u64,
         range_count: ranges.len() as u64,
         algorithm: ROW_HASH_ALGORITHM.to_string(),
@@ -842,8 +869,7 @@ fn write_u64(value: u64, out: &mut Vec<u8>) {
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis().try_into().unwrap_or(u64::MAX))
-        .unwrap_or(0)
+        .map_or(0, |duration| duration.as_millis().try_into().unwrap_or(u64::MAX))
 }
 
 fn duration_ms(duration: std::time::Duration) -> u64 {

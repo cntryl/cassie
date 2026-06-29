@@ -1,5 +1,5 @@
 use super::schema::{parse_if_exists, parse_if_not_exists};
-use super::*;
+use super::{ParsedStatement, SqlError, find_top_level_keyword, QueryStatement, CreateRetentionPolicyStatement, AlterRetentionPolicyStatement, DropRetentionPolicyStatement, EnforceRetentionPolicyStatement};
 
 pub(super) fn parse_create_retention_policy_statement(
     sql: &str,

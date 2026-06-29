@@ -1,4 +1,4 @@
-use super::*;
+use super::{Midge, CassieError, RowDecode, key_encoding};
 use crate::catalog::{IndexKind, IndexMeta};
 use crate::executor::filter;
 use crate::sql::ast::Expr;
@@ -368,7 +368,7 @@ fn query_value_to_json(value: Value) -> Result<serde_json::Value, CassieError> {
             value
                 .values
                 .into_iter()
-                .filter_map(|value| serde_json::Number::from_f64(value as f64))
+                .filter_map(|value| serde_json::Number::from_f64(f64::from(value)))
                 .map(serde_json::Value::Number)
                 .collect(),
         )),

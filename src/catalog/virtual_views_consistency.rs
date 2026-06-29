@@ -40,24 +40,24 @@ pub fn rows(catalog: &Catalog) -> Vec<VirtualRow> {
                 ),
                 string("state", report.state),
                 string("compatibility_status", report.compatibility_status),
-                int_value("manifest_count", report.manifest_count as i64),
+                int_value("manifest_count", report.manifest_count),
                 string("instance_ids", report.instance_ids.join(",")),
                 string("root_digest", report.root_digest.unwrap_or_default()),
                 string(
                     "manifest_digest",
                     report.manifest_digest.unwrap_or_default(),
                 ),
-                int_value("mismatch_count", report.mismatch_count as i64),
-                int_value("divergent_range_count", report.divergent_range_count as i64),
-                int_value("divergent_row_count", report.divergent_row_count as i64),
-                int_value("stale_manifest_count", report.stale_manifest_count as i64),
+                int_value("mismatch_count", report.mismatch_count),
+                int_value("divergent_range_count", report.divergent_range_count),
+                int_value("divergent_row_count", report.divergent_row_count),
+                int_value("stale_manifest_count", report.stale_manifest_count),
                 int_value(
                     "incompatible_manifest_count",
-                    report.incompatible_manifest_count as i64,
+                    report.incompatible_manifest_count,
                 ),
-                int_value("unverifiable_count", report.unverifiable_count as i64),
+                int_value("unverifiable_count", report.unverifiable_count),
                 string("diagnostic_sample", report.diagnostic_sample.join(",")),
-                int_value("created_ms", report.created_ms as i64),
+                int_value("created_ms", report.created_ms),
                 string("last_error", report.last_error.unwrap_or_default()),
             ]
         })
@@ -76,6 +76,12 @@ fn string(name: &str, value: String) -> (String, Value) {
     (name.to_string(), Value::String(value))
 }
 
-fn int_value(name: &str, value: i64) -> (String, Value) {
-    (name.to_string(), Value::Int64(value))
+fn int_value<T>(name: &str, value: T) -> (String, Value)
+where
+    T: TryInto<i64>,
+{
+    (
+        name.to_string(),
+        Value::Int64(value.try_into().unwrap_or(i64::MAX)),
+    )
 }

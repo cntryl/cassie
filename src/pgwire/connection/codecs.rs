@@ -1,4 +1,4 @@
-use super::*;
+use super::{Value, io, str};
 
 pub(super) fn value_to_text(value: Value) -> String {
     match value {
@@ -11,7 +11,7 @@ pub(super) fn value_to_text(value: Value) -> String {
             "[{}]",
             v.values
                 .iter()
-                .map(|value| value.to_string())
+                .map(std::string::ToString::to_string)
                 .collect::<Vec<_>>()
                 .join(",")
         ),
@@ -22,7 +22,7 @@ pub(super) fn value_to_text(value: Value) -> String {
 pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
     match type_oid {
         16 => match value {
-            Value::Bool(v) => Ok(vec![if v { 1 } else { 0 }]),
+            Value::Bool(v) => Ok(vec![u8::from(v)]),
             Value::String(v) => parse_bool_binary(&v),
             other => Ok(value_to_text(other).into_bytes()),
         },
@@ -64,7 +64,6 @@ pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>
             Value::String(v) => parse_f64_binary(&v).map(|value| value.to_be_bytes().to_vec()),
             other => Ok(value_to_text(other).into_bytes()),
         },
-        25 | 1042 | 1043 | 705 | 114 => Ok(value_to_text(value).into_bytes()),
         _ => Ok(value_to_text(value).into_bytes()),
     }
 }

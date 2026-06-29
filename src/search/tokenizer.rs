@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+#[must_use]
 pub fn tokenize(input: &str) -> Vec<String> {
     crate::search::analyzer::AnalyzerConfig::default().analyze(input)
 }

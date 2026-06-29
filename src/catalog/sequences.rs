@@ -29,6 +29,7 @@ impl SequenceMeta {
 }
 
 impl Catalog {
+    #[must_use]
     pub fn sequence_store() -> Arc<RwLock<HashMap<String, SequenceMeta>>> {
         Arc::new(RwLock::new(HashMap::new()))
     }
@@ -45,6 +46,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn get_sequence(&self, name: &str) -> Option<SequenceMeta> {
         self.sequences
             .read()
@@ -52,12 +54,14 @@ impl Catalog {
             .cloned()
     }
 
+    #[must_use]
     pub fn sequence_exists(&self, name: &str) -> bool {
         self.sequences
             .read()
             .contains_key(&name.to_ascii_lowercase())
     }
 
+    #[must_use]
     pub fn list_sequences(&self) -> Vec<SequenceMeta> {
         let mut out = self.sequences.read().values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|sequence| sequence.name.to_ascii_lowercase());
@@ -72,14 +76,17 @@ impl Catalog {
     }
 }
 
+#[must_use]
 pub fn serial_sequence_name(table: &str, field: &str) -> String {
     format!("{table}_{field}_seq")
 }
 
+#[must_use]
 pub fn canonical_nextval_expression(sequence: &str) -> String {
     format!("nextval('{sequence}'::regclass)")
 }
 
+#[must_use]
 pub fn parse_nextval_default_expression(raw: &str) -> Option<String> {
     let raw = raw.trim();
     let lower = raw.to_ascii_lowercase();

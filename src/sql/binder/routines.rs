@@ -1,4 +1,4 @@
-use super::*;
+use super::{CreateFunctionStatement, Catalog, CassieError, HashSet, DropFunctionStatement, CreateProcedureStatement, QueryStatement, DropProcedureStatement, CallProcedureStatement, Expr};
 
 pub(super) fn bind_create_function(
     mut statement: CreateFunctionStatement,
@@ -211,7 +211,7 @@ pub(super) fn function_body_references(expr: &Expr, function_name: &str) -> bool
             function_body_references(left, function_name)
                 || function_body_references(right, function_name)
         }
-        Expr::IsNull { expr, .. } => function_body_references(expr, function_name),
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => function_body_references(expr, function_name),
         Expr::InList { expr, values, .. } => {
             function_body_references(expr, function_name)
                 || values
@@ -225,14 +225,11 @@ pub(super) fn function_body_references(expr: &Expr, function_name: &str) -> bool
                 || function_body_references(low, function_name)
                 || function_body_references(high, function_name)
         }
-        Expr::Not { expr } => function_body_references(expr, function_name),
-        Expr::Cast { expr, .. } => function_body_references(expr, function_name),
-        Expr::Exists(_) => false,
-        Expr::StringLiteral(_)
+        Expr::Exists(_) | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Param(_)
         | Expr::Column(_)
         | Expr::Null => false,
-    }
+        }
 }

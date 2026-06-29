@@ -1,4 +1,5 @@
-use crate::embeddings::{Embedding, EmbeddingError, EmbeddingProvider};
+use crate::embeddings::EmbeddingProvider;
+use crate::embeddings::{Embedding, EmbeddingError};
 
 #[derive(Debug, Default)]
 pub struct CohereProvider;
@@ -8,7 +9,7 @@ impl EmbeddingProvider for CohereProvider {
         "cohere"
     }
 
-    fn model_name(&self) -> &str {
+    fn model_name(&self) -> &'static str {
         "stub"
     }
 

@@ -1,4 +1,4 @@
-use super::*;
+use super::{Cassie, CassieSession, LogicalCommand, Value, HashMap, FunctionMeta, QueryExecutionControls, QueryResult, QueryError, check_timeout, virtual_views, Schema, FieldSchema, catalog, primary_key_indexes, QueryStatement, Volatility, ProcedureMeta, filter};
 
 pub(super) fn execute_command(
     cassie: &Cassie,
@@ -373,8 +373,7 @@ pub(super) fn execute_command(
             let is_column_store = cassie
                 .catalog
                 .collection_storage_mode(&statement.table)
-                .map(|mode| mode.uses_column_store_storage())
-                .unwrap_or(false);
+                .is_some_and(crate::catalog::collections::CollectionStorageMode::uses_column_store_storage);
             match &statement.operation {
                 crate::sql::ast::AlterTableOperation::AddColumn { field, data_type } => {
                     if is_column_store {
@@ -568,7 +567,7 @@ pub(super) fn execute_command(
                 return Err(QueryError::General(format!(
                     "namespace '{next_schema}' already exists"
                 )));
-            };
+            }
 
             cassie
                 .midge
@@ -630,8 +629,7 @@ pub(super) fn execute_command(
             let is_column_store = cassie
                 .catalog
                 .collection_storage_mode(&statement.table)
-                .map(|mode| mode.uses_column_store_storage())
-                .unwrap_or(false);
+                .is_some_and(crate::catalog::collections::CollectionStorageMode::uses_column_store_storage);
             if is_column_store && matches!(statement.kind, catalog::IndexKind::Column) {
                 return Err(QueryError::General(
                     "column indexes are not supported on column-store tables".to_string(),
@@ -913,8 +911,7 @@ fn apply_write_side_effects(
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
     if session
-        .map(|session| !session.is_transaction_active())
-        .unwrap_or(true)
+        .is_none_or(|session| !session.is_transaction_active())
     {
         super::rollups::refresh_rollups_for_source(cassie, table, user_functions, controls)?;
     } else {

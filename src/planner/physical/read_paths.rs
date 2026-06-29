@@ -1,4 +1,4 @@
-use super::*;
+use super::{LogicalPlan, IndexMeta, ReadAccessPath, source_contains_join, QuerySource, scalar_index_plan_shape, ScalarIndexPlanPath, PaginationStrategy, TopKMode, EarlyStopMode, join_paths, ProjectionShape, scan_limit, projected_scan_fields, SelectItem, Expr, is_row_id_column, BinaryOp};
 
 pub(super) fn determine_read_access_path(
     plan: &LogicalPlan,
@@ -196,17 +196,16 @@ pub(super) fn read_access_path_fallback_reason(
             ) {
                 Some("offset-degraded".to_string())
             } else if selected_index.is_some() {
-                Some(if !plan.order.is_empty() {
-                    "index-order-proof-missing".to_string()
-                } else {
+                Some(if plan.order.is_empty() {
                     "index-bounds-unavailable".to_string()
+                } else {
+                    "index-order-proof-missing".to_string()
                 })
             } else {
                 None
             }
         }
         ReadAccessPath::RuntimeJoin => Some("runtime-join-required".to_string()),
-        ReadAccessPath::GraphAdjacency => None,
         _ => None,
     }
 }
@@ -325,11 +324,7 @@ fn is_id_point_lookup_filter(expr: &Expr) -> bool {
     };
 
     let (lhs, rhs) = (left.as_ref(), right.as_ref());
-    let (column, other) = match (lhs, rhs) {
-        (Expr::Column(column), other) => (column, other),
-        (other, Expr::Column(column)) => (column, other),
-        _ => return false,
-    };
+    let ((Expr::Column(column), other) | (other, Expr::Column(column))) = (lhs, rhs) else { return false };
 
     if !is_row_id_column(column) {
         return false;

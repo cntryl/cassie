@@ -12,6 +12,7 @@ pub enum OperationalAssignmentState {
 }
 
 impl OperationalAssignmentState {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Claimed => "claimed",
@@ -43,6 +44,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn list_operational_assignments(&self) -> Vec<OperationalAssignmentMeta> {
         let mut out = self
             .operational_assignments

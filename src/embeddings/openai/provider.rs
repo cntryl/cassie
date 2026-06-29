@@ -169,57 +169,11 @@ impl OpenAiProvider {
                     let elapsed_ms =
                         u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
                     if status.is_success() {
-                        let parsed: OpenAiEmbeddingResponse = serde_json::from_str(&response_body)
-                            .map_err(|error| {
-                                EmbeddingError::ParseError(format!(
-                                    "OpenAI response parse failure: {error}"
-                                ))
-                            })?;
-                        if let Some(usage) = parsed.usage {
-                            tracing::info!(
-                                provider = %self.provider_name(),
-                                model = %self.model,
-                                latency_ms = elapsed_ms,
-                                prompt_tokens = usage.prompt_tokens.unwrap_or(0),
-                                total_tokens = usage.total_tokens.unwrap_or(0),
-                                dimensions = self.dimensions,
-                                "embeddings request completed"
-                            );
-                        } else {
-                            tracing::info!(
-                                provider = %self.provider_name(),
-                                model = %self.model,
-                                latency_ms = elapsed_ms,
-                                batch = inputs.len(),
-                                dimensions = self.dimensions,
-                                "embeddings request completed"
-                            );
-                        }
-
-                        let mut ordered = parsed.data;
-                        ordered.sort_by_key(|entry| entry.index);
-                        if ordered.len() != inputs.len() {
-                            return Err(EmbeddingError::ParseError(
-                                "OpenAI response length does not match request length".to_string(),
-                            ));
-                        }
-
-                        for item in &ordered {
-                            if item.embedding.len() != self.dimensions {
-                                return Err(EmbeddingError::ParseError(format!(
-                                    "unexpected embedding dimension {} (expected {})",
-                                    item.embedding.len(),
-                                    self.dimensions
-                                )));
-                            }
-                        }
-
-                        return Ok(ordered
-                            .into_iter()
-                            .map(|entry| Embedding {
-                                values: entry.embedding,
-                            })
-                            .collect());
+                        return self.parse_successful_embeddings(
+                            &response_body,
+                            elapsed_ms,
+                            inputs.len(),
+                        );
                     }
 
                     if Self::is_transient_status(status) && attempt < self.max_retries {
@@ -287,6 +241,62 @@ impl OpenAiProvider {
         F: FnOnce() -> reqwest::Result<T>,
     {
         f()
+    }
+
+    fn parse_successful_embeddings(
+        &self,
+        response_body: &str,
+        elapsed_ms: u64,
+        input_count: usize,
+    ) -> Result<Vec<Embedding>, EmbeddingError> {
+        let parsed: OpenAiEmbeddingResponse = serde_json::from_str(response_body)
+            .map_err(|error| EmbeddingError::ParseError(format!("OpenAI response parse failure: {error}")))?;
+        self.log_success(elapsed_ms, input_count, parsed.usage.as_ref());
+        let mut ordered = parsed.data;
+        ordered.sort_by_key(|entry| entry.index);
+        if ordered.len() != input_count {
+            return Err(EmbeddingError::ParseError(
+                "OpenAI response length does not match request length".to_string(),
+            ));
+        }
+        for item in &ordered {
+            if item.embedding.len() != self.dimensions {
+                return Err(EmbeddingError::ParseError(format!(
+                    "unexpected embedding dimension {} (expected {})",
+                    item.embedding.len(),
+                    self.dimensions
+                )));
+            }
+        }
+        Ok(ordered
+            .into_iter()
+            .map(|entry| Embedding {
+                values: entry.embedding,
+            })
+            .collect())
+    }
+
+    fn log_success(&self, elapsed_ms: u64, input_count: usize, usage: Option<&OpenAiUsage>) {
+        if let Some(usage) = usage {
+            tracing::info!(
+                provider = %self.provider_name(),
+                model = %self.model,
+                latency_ms = elapsed_ms,
+                prompt_tokens = usage.prompt_tokens.unwrap_or(0),
+                total_tokens = usage.total_tokens.unwrap_or(0),
+                dimensions = self.dimensions,
+                "embeddings request completed"
+            );
+        } else {
+            tracing::info!(
+                provider = %self.provider_name(),
+                model = %self.model,
+                latency_ms = elapsed_ms,
+                batch = input_count,
+                dimensions = self.dimensions,
+                "embeddings request completed"
+            );
+        }
     }
 }
 

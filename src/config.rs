@@ -189,125 +189,154 @@ impl CassieRuntimeConfig {
             env_reader("CASSIE_EMBEDDINGS_PROVIDER").unwrap_or_else(|| "disabled".to_string());
         config.embeddings =
             parse_provider_config_from(provider.to_lowercase().as_str(), &env_reader);
-        config.limits = CassieRuntimeLimits {
-            query_timeout_ms: parse_u64_from(
-                &env_reader,
-                "CASSIE_QUERY_TIMEOUT_MS",
-                config.limits.query_timeout_ms,
-            ),
-            max_result_rows: parse_usize_from(
-                &env_reader,
-                "CASSIE_MAX_RESULT_ROWS",
-                config.limits.max_result_rows,
-            ),
-            cte_recursion_depth: parse_usize_from(
-                &env_reader,
-                "CASSIE_CTE_RECURSION_DEPTH",
-                config.limits.cte_recursion_depth,
-            ),
-            temp_spill_budget_bytes: parse_usize_from(
-                &env_reader,
-                "CASSIE_TEMP_SPILL_BUDGET_BYTES",
-                config.limits.temp_spill_budget_bytes,
-            ),
-            plan_cache_entries: parse_usize_from(
-                &env_reader,
-                "CASSIE_PLAN_CACHE_ENTRIES",
-                config.limits.plan_cache_entries,
-            ),
-            cf2_plan_ttl_seconds: parse_u64_from(
-                &env_reader,
-                "CASSIE_CF2_PLAN_TTL_SECONDS",
-                config.limits.cf2_plan_ttl_seconds,
-            ),
-            cf2_plan_candidate_ttl_seconds: parse_u64_from(
-                &env_reader,
-                "CASSIE_CF2_PLAN_CANDIDATE_TTL_SECONDS",
-                config.limits.cf2_plan_candidate_ttl_seconds,
-            ),
-            cf2_fulltext_stats_ttl_seconds: parse_u64_from(
-                &env_reader,
-                "CASSIE_CF2_FULLTEXT_STATS_TTL_SECONDS",
-                config.limits.cf2_fulltext_stats_ttl_seconds,
-            ),
-            feedback_entries: parse_usize_from(
-                &env_reader,
-                "CASSIE_FEEDBACK_ENTRIES",
-                config.limits.feedback_entries,
-            ),
-            feedback_ttl_seconds: parse_u64_from(
-                &env_reader,
-                "CASSIE_FEEDBACK_TTL_SECONDS",
-                config.limits.feedback_ttl_seconds,
-            ),
-            operator_feedback_enabled: parse_bool_from(
-                &env_reader,
-                "CASSIE_OPERATOR_FEEDBACK_ENABLED",
-                config.limits.operator_feedback_enabled,
-            ),
-            vectorized_joins_enabled: parse_bool_from(
-                &env_reader,
-                "CASSIE_VECTORIZED_JOINS_ENABLED",
-                config.limits.vectorized_joins_enabled,
-            ),
-            vectorized_join_batch_size: parse_usize_from(
-                &env_reader,
-                "CASSIE_VECTORIZED_JOIN_BATCH_SIZE",
-                config.limits.vectorized_join_batch_size,
-            ),
-            adaptive_execution_enabled: parse_bool_from(
-                &env_reader,
-                "CASSIE_ADAPTIVE_EXECUTION_ENABLED",
-                config.limits.adaptive_execution_enabled,
-            ),
-            adaptive_min_cost_savings_bps: parse_usize_from(
-                &env_reader,
-                "CASSIE_ADAPTIVE_MIN_COST_SAVINGS_BPS",
-                config.limits.adaptive_min_cost_savings_bps,
-            ),
-            adaptive_min_confidence_bps: parse_u16_from(
-                &env_reader,
-                "CASSIE_ADAPTIVE_MIN_CONFIDENCE_BPS",
-                config.limits.adaptive_min_confidence_bps,
-            ),
-            operator_switching_enabled: parse_bool_from(
-                &env_reader,
-                "CASSIE_OPERATOR_SWITCHING_ENABLED",
-                config.limits.operator_switching_enabled,
-            ),
-            operator_switch_join_row_threshold: parse_usize_from(
-                &env_reader,
-                "CASSIE_OPERATOR_SWITCH_JOIN_ROW_THRESHOLD",
-                config.limits.operator_switch_join_row_threshold,
-            ),
-            adaptive_candidate_min: parse_usize_from(
-                &env_reader,
-                "CASSIE_ADAPTIVE_CANDIDATE_MIN",
-                config.limits.adaptive_candidate_min,
-            ),
-            adaptive_candidate_max: parse_usize_from(
-                &env_reader,
-                "CASSIE_ADAPTIVE_CANDIDATE_MAX",
-                config.limits.adaptive_candidate_max,
-            ),
-            parallel_scan_workers: parse_usize_from(
-                &env_reader,
-                "CASSIE_PARALLEL_SCAN_WORKERS",
-                config.limits.parallel_scan_workers,
-            ),
-            parallel_scoring_workers: parse_usize_from(
-                &env_reader,
-                "CASSIE_PARALLEL_SCORING_WORKERS",
-                config.limits.parallel_scoring_workers,
-            ),
-            parallel_aggregation_workers: parse_usize_from(
-                &env_reader,
-                "CASSIE_PARALLEL_AGGREGATION_WORKERS",
-                config.limits.parallel_aggregation_workers,
-            ),
-        };
+        config.limits = limits_from_env(&env_reader, &config.limits);
 
         Ok(config)
+    }
+}
+
+fn limits_from_env(
+    env_reader: &impl Fn(&str) -> Option<String>,
+    defaults: &CassieRuntimeLimits,
+) -> CassieRuntimeLimits {
+    CassieRuntimeLimits {
+        query_timeout_ms: parse_u64_from(
+            env_reader,
+            "CASSIE_QUERY_TIMEOUT_MS",
+            defaults.query_timeout_ms,
+        ),
+        max_result_rows: parse_usize_from(
+            env_reader,
+            "CASSIE_MAX_RESULT_ROWS",
+            defaults.max_result_rows,
+        ),
+        cte_recursion_depth: parse_usize_from(
+            env_reader,
+            "CASSIE_CTE_RECURSION_DEPTH",
+            defaults.cte_recursion_depth,
+        ),
+        temp_spill_budget_bytes: parse_usize_from(
+            env_reader,
+            "CASSIE_TEMP_SPILL_BUDGET_BYTES",
+            defaults.temp_spill_budget_bytes,
+        ),
+        plan_cache_entries: parse_usize_from(
+            env_reader,
+            "CASSIE_PLAN_CACHE_ENTRIES",
+            defaults.plan_cache_entries,
+        ),
+        cf2_plan_ttl_seconds: parse_u64_from(
+            env_reader,
+            "CASSIE_CF2_PLAN_TTL_SECONDS",
+            defaults.cf2_plan_ttl_seconds,
+        ),
+        cf2_plan_candidate_ttl_seconds: parse_u64_from(
+            env_reader,
+            "CASSIE_CF2_PLAN_CANDIDATE_TTL_SECONDS",
+            defaults.cf2_plan_candidate_ttl_seconds,
+        ),
+        cf2_fulltext_stats_ttl_seconds: parse_u64_from(
+            env_reader,
+            "CASSIE_CF2_FULLTEXT_STATS_TTL_SECONDS",
+            defaults.cf2_fulltext_stats_ttl_seconds,
+        ),
+        feedback_entries: parse_usize_from(
+            env_reader,
+            "CASSIE_FEEDBACK_ENTRIES",
+            defaults.feedback_entries,
+        ),
+        feedback_ttl_seconds: parse_u64_from(
+            env_reader,
+            "CASSIE_FEEDBACK_TTL_SECONDS",
+            defaults.feedback_ttl_seconds,
+        ),
+        operator_feedback_enabled: parse_bool_from(
+            env_reader,
+            "CASSIE_OPERATOR_FEEDBACK_ENABLED",
+            defaults.operator_feedback_enabled,
+        ),
+        vectorized_joins_enabled: parse_bool_from(
+            env_reader,
+            "CASSIE_VECTORIZED_JOINS_ENABLED",
+            defaults.vectorized_joins_enabled,
+        ),
+        vectorized_join_batch_size: parse_usize_from(
+            env_reader,
+            "CASSIE_VECTORIZED_JOIN_BATCH_SIZE",
+            defaults.vectorized_join_batch_size,
+        ),
+        ..adaptive_limits_from_env(env_reader, defaults)
+    }
+}
+
+fn adaptive_limits_from_env(
+    env_reader: &impl Fn(&str) -> Option<String>,
+    defaults: &CassieRuntimeLimits,
+) -> CassieRuntimeLimits {
+    CassieRuntimeLimits {
+        query_timeout_ms: defaults.query_timeout_ms,
+        max_result_rows: defaults.max_result_rows,
+        cte_recursion_depth: defaults.cte_recursion_depth,
+        temp_spill_budget_bytes: defaults.temp_spill_budget_bytes,
+        plan_cache_entries: defaults.plan_cache_entries,
+        cf2_plan_ttl_seconds: defaults.cf2_plan_ttl_seconds,
+        cf2_plan_candidate_ttl_seconds: defaults.cf2_plan_candidate_ttl_seconds,
+        cf2_fulltext_stats_ttl_seconds: defaults.cf2_fulltext_stats_ttl_seconds,
+        feedback_entries: defaults.feedback_entries,
+        feedback_ttl_seconds: defaults.feedback_ttl_seconds,
+        operator_feedback_enabled: defaults.operator_feedback_enabled,
+        vectorized_joins_enabled: defaults.vectorized_joins_enabled,
+        vectorized_join_batch_size: defaults.vectorized_join_batch_size,
+        adaptive_execution_enabled: parse_bool_from(
+            env_reader,
+            "CASSIE_ADAPTIVE_EXECUTION_ENABLED",
+            defaults.adaptive_execution_enabled,
+        ),
+        adaptive_min_cost_savings_bps: parse_usize_from(
+            env_reader,
+            "CASSIE_ADAPTIVE_MIN_COST_SAVINGS_BPS",
+            defaults.adaptive_min_cost_savings_bps,
+        ),
+        adaptive_min_confidence_bps: parse_u16_from(
+            env_reader,
+            "CASSIE_ADAPTIVE_MIN_CONFIDENCE_BPS",
+            defaults.adaptive_min_confidence_bps,
+        ),
+        operator_switching_enabled: parse_bool_from(
+            env_reader,
+            "CASSIE_OPERATOR_SWITCHING_ENABLED",
+            defaults.operator_switching_enabled,
+        ),
+        operator_switch_join_row_threshold: parse_usize_from(
+            env_reader,
+            "CASSIE_OPERATOR_SWITCH_JOIN_ROW_THRESHOLD",
+            defaults.operator_switch_join_row_threshold,
+        ),
+        adaptive_candidate_min: parse_usize_from(
+            env_reader,
+            "CASSIE_ADAPTIVE_CANDIDATE_MIN",
+            defaults.adaptive_candidate_min,
+        ),
+        adaptive_candidate_max: parse_usize_from(
+            env_reader,
+            "CASSIE_ADAPTIVE_CANDIDATE_MAX",
+            defaults.adaptive_candidate_max,
+        ),
+        parallel_scan_workers: parse_usize_from(
+            env_reader,
+            "CASSIE_PARALLEL_SCAN_WORKERS",
+            defaults.parallel_scan_workers,
+        ),
+        parallel_scoring_workers: parse_usize_from(
+            env_reader,
+            "CASSIE_PARALLEL_SCORING_WORKERS",
+            defaults.parallel_scoring_workers,
+        ),
+        parallel_aggregation_workers: parse_usize_from(
+            env_reader,
+            "CASSIE_PARALLEL_AGGREGATION_WORKERS",
+            defaults.parallel_aggregation_workers,
+        ),
     }
 }
 

@@ -466,129 +466,30 @@ pub(super) fn resolve_exists_expr<'a>(
     controls: &'a QueryExecutionControls,
 ) -> ExprResolution<'a> {
     match expr {
-        Expr::Binary { left, op, right } => Ok(Expr::Binary {
-            left: Box::new(resolve_exists_expr(
-                cassie,
-                session,
-                left,
-                cte_context,
-                user_functions,
-                params,
-                controls,
-            )?),
-            op: op.clone(),
-            right: Box::new(resolve_exists_expr(
-                cassie,
-                session,
-                right,
-                cte_context,
-                user_functions,
-                params,
-                controls,
-            )?),
-        }),
-        Expr::IsNull { expr, negated } => Ok(Expr::IsNull {
-            expr: Box::new(resolve_exists_expr(
-                cassie,
-                session,
-                expr,
-                cte_context,
-                user_functions,
-                params,
-                controls,
-            )?),
-            negated: *negated,
-        }),
-        Expr::InList {
-            expr,
-            values,
-            negated,
-        } => {
-            let expr = resolve_exists_expr(
-                cassie,
-                session,
-                expr,
-                cte_context,
-                user_functions,
-                params,
-                controls,
-            )?;
-            let mut resolved_values = Vec::with_capacity(values.len());
-            for value in values {
-                resolved_values.push(resolve_exists_expr(
-                    cassie,
-                    session,
-                    value,
-                    cte_context,
-                    user_functions,
-                    params,
-                    controls,
-                )?);
-            }
-            Ok(Expr::InList {
-                expr: Box::new(expr),
-                values: resolved_values,
-                negated: *negated,
-            })
-        }
+        Expr::Binary { left, op, right } => resolve_binary_exists_expr(
+            cassie, session, left, op, right, cte_context, user_functions, params, controls,
+        ),
+        Expr::IsNull { expr, negated } => resolve_is_null_exists_expr(
+            cassie, session, expr, *negated, cte_context, user_functions, params, controls,
+        ),
+        Expr::InList { expr, values, negated } => resolve_in_list_exists_expr(
+            cassie, session, expr, values, *negated, cte_context, user_functions, params, controls,
+        ),
         Expr::Between {
             expr,
             low,
             high,
             negated,
-        } => Ok(Expr::Between {
-            expr: Box::new(resolve_exists_expr(
-                cassie,
-                session,
-                expr,
-                cte_context,
-                user_functions,
-                params,
-                controls,
-            )?),
-            low: Box::new(resolve_exists_expr(
-                cassie,
-                session,
-                low,
-                cte_context,
-                user_functions,
-                params,
-                controls,
-            )?),
-            high: Box::new(resolve_exists_expr(
-                cassie,
-                session,
-                high,
-                cte_context,
-                user_functions,
-                params,
-                controls,
-            )?),
-            negated: *negated,
-        }),
-        Expr::Not { expr } => Ok(Expr::Not {
-            expr: Box::new(resolve_exists_expr(
-                cassie,
-                session,
-                expr,
-                cte_context,
-                user_functions,
-                params,
-                controls,
-            )?),
-        }),
-        Expr::Cast { expr, data_type } => Ok(Expr::Cast {
-            expr: Box::new(resolve_exists_expr(
-                cassie,
-                session,
-                expr,
-                cte_context,
-                user_functions,
-                params,
-                controls,
-            )?),
-            data_type: data_type.clone(),
-        }),
+        } => resolve_between_exists_expr(
+            cassie, session, expr, low, high, *negated, cte_context, user_functions, params,
+            controls,
+        ),
+        Expr::Not { expr } => resolve_not_exists_expr(
+            cassie, session, expr, cte_context, user_functions, params, controls,
+        ),
+        Expr::Cast { expr, data_type } => resolve_cast_exists_expr(
+            cassie, session, expr, data_type, cte_context, user_functions, params, controls,
+        ),
         Expr::Exists(statement) => {
             let logical = build_logical_plan(statement.as_ref())?;
             let logical = bounded_exists_logical(logical);
@@ -612,6 +513,199 @@ pub(super) fn resolve_exists_expr<'a>(
         | Expr::Null
         | Expr::Function(_) => Ok(expr.clone()),
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_binary_exists_expr<'a>(
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    left: &'a Expr,
+    op: &'a crate::sql::ast::BinaryOp,
+    right: &'a Expr,
+    cte_context: &'a CteContext,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    controls: &'a QueryExecutionControls,
+) -> ExprResolution<'a> {
+    Ok(Expr::Binary {
+        left: Box::new(resolve_exists_expr(
+            cassie,
+            session,
+            left,
+            cte_context,
+            user_functions,
+            params,
+            controls,
+        )?),
+        op: op.clone(),
+        right: Box::new(resolve_exists_expr(
+            cassie,
+            session,
+            right,
+            cte_context,
+            user_functions,
+            params,
+            controls,
+        )?),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_is_null_exists_expr<'a>(
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    expr: &'a Expr,
+    negated: bool,
+    cte_context: &'a CteContext,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    controls: &'a QueryExecutionControls,
+) -> ExprResolution<'a> {
+    Ok(Expr::IsNull {
+        expr: Box::new(resolve_exists_expr(
+            cassie,
+            session,
+            expr,
+            cte_context,
+            user_functions,
+            params,
+            controls,
+        )?),
+        negated,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_in_list_exists_expr<'a>(
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    expr: &'a Expr,
+    values: &'a [Expr],
+    negated: bool,
+    cte_context: &'a CteContext,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    controls: &'a QueryExecutionControls,
+) -> ExprResolution<'a> {
+    let expr = resolve_exists_expr(
+        cassie,
+        session,
+        expr,
+        cte_context,
+        user_functions,
+        params,
+        controls,
+    )?;
+    let mut resolved_values = Vec::with_capacity(values.len());
+    for value in values {
+        resolved_values.push(resolve_exists_expr(
+            cassie,
+            session,
+            value,
+            cte_context,
+            user_functions,
+            params,
+            controls,
+        )?);
+    }
+    Ok(Expr::InList {
+        expr: Box::new(expr),
+        values: resolved_values,
+        negated,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_between_exists_expr<'a>(
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    expr: &'a Expr,
+    low: &'a Expr,
+    high: &'a Expr,
+    negated: bool,
+    cte_context: &'a CteContext,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    controls: &'a QueryExecutionControls,
+) -> ExprResolution<'a> {
+    Ok(Expr::Between {
+        expr: Box::new(resolve_exists_expr(
+            cassie,
+            session,
+            expr,
+            cte_context,
+            user_functions,
+            params,
+            controls,
+        )?),
+        low: Box::new(resolve_exists_expr(
+            cassie,
+            session,
+            low,
+            cte_context,
+            user_functions,
+            params,
+            controls,
+        )?),
+        high: Box::new(resolve_exists_expr(
+            cassie,
+            session,
+            high,
+            cte_context,
+            user_functions,
+            params,
+            controls,
+        )?),
+        negated,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_not_exists_expr<'a>(
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    expr: &'a Expr,
+    cte_context: &'a CteContext,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    controls: &'a QueryExecutionControls,
+) -> ExprResolution<'a> {
+    Ok(Expr::Not {
+        expr: Box::new(resolve_exists_expr(
+            cassie,
+            session,
+            expr,
+            cte_context,
+            user_functions,
+            params,
+            controls,
+        )?),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_cast_exists_expr<'a>(
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    expr: &'a Expr,
+    data_type: &'a crate::types::DataType,
+    cte_context: &'a CteContext,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    controls: &'a QueryExecutionControls,
+) -> ExprResolution<'a> {
+    Ok(Expr::Cast {
+        expr: Box::new(resolve_exists_expr(
+            cassie,
+            session,
+            expr,
+            cte_context,
+            user_functions,
+            params,
+            controls,
+        )?),
+        data_type: data_type.clone(),
+    })
 }
 
 pub(super) fn build_logical_plan(

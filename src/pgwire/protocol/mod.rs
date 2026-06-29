@@ -158,37 +158,10 @@ pub fn encode(message: &ServerMessage) -> Vec<u8> {
 pub fn decode(line: &str) -> ClientMessage {
     let trimmed = line.trim_end();
     if trimmed.starts_with("STARTUP") {
-        let mut user = "postgres".to_string();
-        let mut database = None;
-        let parts: Vec<_> = trimmed.split_whitespace().collect();
-        for part in parts.iter().skip(1) {
-            if let Some((k, v)) = part.split_once('=') {
-                match k.to_lowercase().as_str() {
-                    "user" => user = v.to_string(),
-                    "database" => database = Some(v.to_string()),
-                    _ => {}
-                }
-            }
-        }
-        return ClientMessage::Startup { user, database };
+        return decode_startup(trimmed);
     }
     if trimmed.starts_with("PASSWORD") {
-        let parts: Vec<_> = trimmed.split_whitespace().collect();
-        let mut user = "postgres".to_string();
-        let mut password = String::new();
-
-        for part in parts.iter().skip(1) {
-            if let Some((key, value)) = part.split_once('=') {
-                match key.to_lowercase().as_str() {
-                    "user" => user = value.to_string(),
-                    "password" => password = value.to_string(),
-                    _ => {}
-                }
-            } else if parts.len() > 1 && password.is_empty() {
-                password = part.to_string();
-            }
-        }
-        return ClientMessage::Password { user, password };
+        return decode_password(trimmed);
     }
     if trimmed.starts_with("PARSE") {
         let rest = trimmed.trim_start_matches("PARSE").trim();
@@ -267,4 +240,40 @@ pub fn decode(line: &str) -> ClientMessage {
         return ClientMessage::Query(trimmed.trim_start_matches("QUERY").trim().to_string());
     }
     ClientMessage::Unknown(trimmed.to_string())
+}
+
+fn decode_startup(trimmed: &str) -> ClientMessage {
+    let mut user = "postgres".to_string();
+    let mut database = None;
+    let parts: Vec<_> = trimmed.split_whitespace().collect();
+    for part in parts.iter().skip(1) {
+        if let Some((key, value)) = part.split_once('=') {
+            match key.to_lowercase().as_str() {
+                "user" => user = value.to_string(),
+                "database" => database = Some(value.to_string()),
+                _ => {}
+            }
+        }
+    }
+    ClientMessage::Startup { user, database }
+}
+
+fn decode_password(trimmed: &str) -> ClientMessage {
+    let parts: Vec<_> = trimmed.split_whitespace().collect();
+    let mut user = "postgres".to_string();
+    let mut password = String::new();
+
+    for part in parts.iter().skip(1) {
+        if let Some((key, value)) = part.split_once('=') {
+            match key.to_lowercase().as_str() {
+                "user" => user = value.to_string(),
+                "password" => password = value.to_string(),
+                _ => {}
+            }
+        } else if parts.len() > 1 && password.is_empty() {
+            password = part.to_string();
+        }
+    }
+
+    ClientMessage::Password { user, password }
 }

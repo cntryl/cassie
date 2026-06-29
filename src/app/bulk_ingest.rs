@@ -19,27 +19,7 @@ impl Cassie {
         statement: &CopyStatement,
         payload: &[u8],
     ) -> Result<usize, CassieError> {
-        if session.is_transaction_active() {
-            return Err(CassieError::Unsupported(
-                "COPY inside an active transaction is not supported".to_string(),
-            ));
-        }
-        if statement.format != CopyFormat::Csv {
-            return Err(CassieError::Unsupported(
-                "COPY only supports FORMAT csv".to_string(),
-            ));
-        }
-        if self.catalog.is_materialized_projection(&statement.table)
-            || self
-                .catalog
-                .materialized_projection_for_output(&statement.table)
-                .is_some()
-        {
-            return Err(CassieError::Unsupported(format!(
-                "materialized projection '{}' is read-only",
-                statement.table
-            )));
-        }
+        validate_copy_request(self, session, statement)?;
 
         let schema = self
             .catalog
@@ -119,21 +99,60 @@ impl Cassie {
             operations,
             DocumentWriteBatchOptions::buffered(),
         )?;
-        self.runtime
-            .record_projection_write_batch(statement.table.clone(), &report.stats);
-        self.refresh_cardinality_stats(&statement.table)?;
-        self.refresh_projection_metadata(&statement.table)?;
-
-        let controls = self.runtime.query_controls(Instant::now());
-        crate::executor::refresh_rollups_for_source_external(self, &statement.table, &controls)
-            .map_err(|error| CassieError::Execution(error.to_string()))?;
-        crate::executor::mark_source_projections_stale_external(self, &statement.table)
-            .map_err(|error| CassieError::Execution(error.to_string()))?;
-
-        self.midge.flush_data_family()?;
-        self.runtime.bump_data_epoch();
+        finish_copy_batch(self, statement, &report.stats)?;
         Ok(affected)
     }
+}
+
+fn validate_copy_request(
+    cassie: &Cassie,
+    session: &CassieSession,
+    statement: &CopyStatement,
+) -> Result<(), CassieError> {
+    if session.is_transaction_active() {
+        return Err(CassieError::Unsupported(
+            "COPY inside an active transaction is not supported".to_string(),
+        ));
+    }
+    if statement.format != CopyFormat::Csv {
+        return Err(CassieError::Unsupported(
+            "COPY only supports FORMAT csv".to_string(),
+        ));
+    }
+    if cassie.catalog.is_materialized_projection(&statement.table)
+        || cassie
+            .catalog
+            .materialized_projection_for_output(&statement.table)
+            .is_some()
+    {
+        return Err(CassieError::Unsupported(format!(
+            "materialized projection '{}' is read-only",
+            statement.table
+        )));
+    }
+    Ok(())
+}
+
+fn finish_copy_batch(
+    cassie: &Cassie,
+    statement: &CopyStatement,
+    stats: &crate::runtime::ProjectionWriteStats,
+) -> Result<(), CassieError> {
+    cassie
+        .runtime
+        .record_projection_write_batch(statement.table.clone(), stats);
+    cassie.refresh_cardinality_stats(&statement.table)?;
+    cassie.refresh_projection_metadata(&statement.table)?;
+
+    let controls = cassie.runtime.query_controls(Instant::now());
+    crate::executor::refresh_rollups_for_source_external(cassie, &statement.table, &controls)
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    crate::executor::mark_source_projections_stale_external(cassie, &statement.table)
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+
+    cassie.midge.flush_data_family()?;
+    cassie.runtime.bump_data_epoch();
+    Ok(())
 }
 
 #[derive(Debug, Clone)]

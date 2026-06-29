@@ -99,27 +99,7 @@ pub(super) fn bind_select_with_lateral_fields(
     select.ctes = bound_ctes;
 
     let projection_aliases = collect_projection_aliases(&select);
-    validate_projection_references(&select.projection, &known_fields)?;
-    validate_expression_references(
-        select.filter.as_ref(),
-        &known_fields,
-        &projection_aliases,
-        false,
-    )?;
-    for group_expr in &select.group_by {
-        validate_expression(group_expr, &known_fields, &projection_aliases, false)?;
-    }
-    for distinct_expr in &select.distinct_on {
-        validate_expression(distinct_expr, &known_fields, &projection_aliases, false)?;
-    }
-    validate_expression_references(
-        select.having.as_ref(),
-        &known_fields,
-        &projection_aliases,
-        false,
-    )?;
-    validate_order_by_references(&select.order, &known_fields, &projection_aliases)?;
-    validate_distinct_on_order_prefix(&select.distinct_on, &select.order)?;
+    validate_bound_select_references(&select, &known_fields, &projection_aliases)?;
 
     if let Some(set) = set {
         let right = bind_select(*set.right, catalog, &scope)?;
@@ -132,6 +112,35 @@ pub(super) fn bind_select_with_lateral_fields(
     validate_functions(&select, catalog)?;
 
     Ok(select)
+}
+
+fn validate_bound_select_references(
+    select: &SelectStatement,
+    known_fields: &HashSet<String>,
+    projection_aliases: &HashSet<String>,
+) -> Result<(), CassieError> {
+    validate_projection_references(&select.projection, known_fields)?;
+    validate_expression_references(
+        select.filter.as_ref(),
+        known_fields,
+        projection_aliases,
+        false,
+    )?;
+    for group_expr in &select.group_by {
+        validate_expression(group_expr, known_fields, projection_aliases, false)?;
+    }
+    for distinct_expr in &select.distinct_on {
+        validate_expression(distinct_expr, known_fields, projection_aliases, false)?;
+    }
+    validate_expression_references(
+        select.having.as_ref(),
+        known_fields,
+        projection_aliases,
+        false,
+    )?;
+    validate_order_by_references(&select.order, known_fields, projection_aliases)?;
+    validate_distinct_on_order_prefix(&select.distinct_on, &select.order)?;
+    Ok(())
 }
 
 pub(super) fn cte_output_fields(cte_query: &CteQuery) -> Result<Vec<String>, CassieError> {

@@ -856,60 +856,14 @@ pub(super) fn validate_alter_schema(
     catalog: &Catalog,
 ) -> Result<(), CassieError> {
     match operation {
-        AlterTableOperation::AddColumn {
-            field,
-            data_type: _,
-        } => {
-            let name = field.trim();
-            if name.is_empty() {
-                return Err(CassieError::Planner(
-                    "ALTER TABLE ADD COLUMN requires a field name".into(),
-                ));
-            }
-
-            if existing_fields.contains(&name.to_ascii_lowercase()) {
-                return Err(CassieError::Planner(format!(
-                    "cannot add existing column '{name}' on collection '{table}'"
-                )));
-            }
+        AlterTableOperation::AddColumn { field, data_type: _ } => {
+            validate_alter_add_column(table, field, existing_fields)?
         }
         AlterTableOperation::AddConstraint { constraints } => {
-            if constraints.is_empty() {
-                return Err(CassieError::Planner(
-                    "ALTER TABLE ADD CONSTRAINT requires a constraint".into(),
-                ));
-            }
-            for constraint in constraints {
-                let name = constraint.field.trim();
-                if name.is_empty() {
-                    return Err(CassieError::Planner(
-                        "ALTER TABLE ADD CONSTRAINT requires a field".into(),
-                    ));
-                }
-                if !existing_fields.contains(&name.to_ascii_lowercase()) {
-                    return Err(CassieError::Planner(format!(
-                        "ALTER TABLE '{table}' has no field '{name}'"
-                    )));
-                }
-            }
+            validate_alter_add_constraints(table, constraints, existing_fields)?
         }
         AlterTableOperation::DropColumn { field } => {
-            let name = field.trim();
-            if name.is_empty() {
-                return Err(CassieError::Planner(
-                    "ALTER TABLE DROP COLUMN requires a field name".into(),
-                ));
-            }
-            if name.eq_ignore_ascii_case("id") {
-                return Err(CassieError::Planner(
-                    "ALTER TABLE DROP COLUMN cannot remove reserved field 'id'".into(),
-                ));
-            }
-            if !existing_fields.contains(&name.to_ascii_lowercase()) {
-                return Err(CassieError::Planner(format!(
-                    "ALTER TABLE '{table}' has no field '{name}'"
-                )));
-            }
+            validate_alter_drop_column(table, field, existing_fields)?
         }
         AlterTableOperation::RenameColumn { from, to } => {
             let from = from.trim();
@@ -961,5 +915,74 @@ pub(super) fn validate_alter_schema(
         }
     }
 
+    Ok(())
+}
+
+fn validate_alter_add_column(
+    table: &str,
+    field: &str,
+    existing_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    let name = field.trim();
+    if name.is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER TABLE ADD COLUMN requires a field name".into(),
+        ));
+    }
+    if existing_fields.contains(&name.to_ascii_lowercase()) {
+        return Err(CassieError::Planner(format!(
+            "cannot add existing column '{name}' on collection '{table}'"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_alter_add_constraints(
+    table: &str,
+    constraints: &[crate::catalog::FieldConstraint],
+    existing_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    if constraints.is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER TABLE ADD CONSTRAINT requires a constraint".into(),
+        ));
+    }
+    for constraint in constraints {
+        let name = constraint.field.trim();
+        if name.is_empty() {
+            return Err(CassieError::Planner(
+                "ALTER TABLE ADD CONSTRAINT requires a field".into(),
+            ));
+        }
+        if !existing_fields.contains(&name.to_ascii_lowercase()) {
+            return Err(CassieError::Planner(format!(
+                "ALTER TABLE '{table}' has no field '{name}'"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn validate_alter_drop_column(
+    table: &str,
+    field: &str,
+    existing_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    let name = field.trim();
+    if name.is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER TABLE DROP COLUMN requires a field name".into(),
+        ));
+    }
+    if name.eq_ignore_ascii_case("id") {
+        return Err(CassieError::Planner(
+            "ALTER TABLE DROP COLUMN cannot remove reserved field 'id'".into(),
+        ));
+    }
+    if !existing_fields.contains(&name.to_ascii_lowercase()) {
+        return Err(CassieError::Planner(format!(
+            "ALTER TABLE '{table}' has no field '{name}'"
+        )));
+    }
     Ok(())
 }

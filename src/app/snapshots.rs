@@ -155,7 +155,7 @@ fn snapshot_projection_manifest(
         source_identity: metadata.source_identity.clone(),
         source_checkpoint: metadata.source_checkpoint.clone(),
         source_position: metadata.source_position,
-        hash: snapshot_hash_manifest(midge, hash_collection, &metadata)?,
+        hash: snapshot_hash_manifest(midge, hash_collection, metadata)?,
     })
 }
 

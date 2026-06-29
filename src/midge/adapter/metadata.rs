@@ -570,7 +570,7 @@ impl Midge {
             field: field.to_string(),
             id: id.to_string(),
             dimensions,
-            metric: metric.clone(),
+            metric: *metric,
             normalization_version: NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION,
             payload_available: true,
             magnitude: normalized.magnitude,

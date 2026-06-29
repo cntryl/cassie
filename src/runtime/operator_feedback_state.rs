@@ -87,12 +87,12 @@ impl RuntimeState {
 
         let outlier_before = feedback
             .entries
-            .get(&key)
+            .get(key)
             .map(|record| record.outlier_samples)
             .unwrap_or_default();
-        if let Some(record) = feedback.entries.get_mut(&key) {
-            apply_feedback_observation(record, &observation, now_ms);
-            touch_feedback(&mut feedback.order, &key);
+        if let Some(record) = feedback.entries.get_mut(key) {
+            apply_feedback_observation(record, observation, now_ms);
+            touch_feedback(&mut feedback.order, key);
         } else {
             while feedback.entries.len() >= max_entries {
                 let Some(oldest) = feedback.order.pop_front() else {
@@ -108,13 +108,13 @@ impl RuntimeState {
                 last_seen_ms: now_ms,
                 ..RuntimeFeedbackRecord::default()
             };
-            apply_feedback_observation(&mut record, &observation, now_ms);
+            apply_feedback_observation(&mut record, observation, now_ms);
             feedback.entries.insert(key.clone(), record);
             feedback.order.push_back(key.clone());
         }
         let outlier_after = feedback
             .entries
-            .get(&key)
+            .get(key)
             .map(|record| record.outlier_samples)
             .unwrap_or_default();
         drop(feedback);

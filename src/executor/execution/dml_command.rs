@@ -26,23 +26,7 @@ pub(super) fn execute_command(
                 user_functions,
                 controls,
             )?;
-            if session
-                .map(|session| !session.is_transaction_active())
-                .unwrap_or(true)
-            {
-                super::rollups::refresh_rollups_for_source(
-                    cassie,
-                    &statement.table,
-                    user_functions,
-                    controls,
-                )?;
-            } else {
-                super::rollups::mark_source_rollups_stale(cassie, &statement.table)?;
-            }
-            super::materialized_projection::mark_source_projections_stale(
-                cassie,
-                &statement.table,
-            )?;
+            apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
             Ok(result)
         }
         LogicalCommand::Update(statement) => {
@@ -55,23 +39,7 @@ pub(super) fn execute_command(
                 user_functions,
                 controls,
             )?;
-            if session
-                .map(|session| !session.is_transaction_active())
-                .unwrap_or(true)
-            {
-                super::rollups::refresh_rollups_for_source(
-                    cassie,
-                    &statement.table,
-                    user_functions,
-                    controls,
-                )?;
-            } else {
-                super::rollups::mark_source_rollups_stale(cassie, &statement.table)?;
-            }
-            super::materialized_projection::mark_source_projections_stale(
-                cassie,
-                &statement.table,
-            )?;
+            apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
             Ok(result)
         }
         LogicalCommand::Delete(statement) => {
@@ -84,23 +52,7 @@ pub(super) fn execute_command(
                 user_functions,
                 controls,
             )?;
-            if session
-                .map(|session| !session.is_transaction_active())
-                .unwrap_or(true)
-            {
-                super::rollups::refresh_rollups_for_source(
-                    cassie,
-                    &statement.table,
-                    user_functions,
-                    controls,
-                )?;
-            } else {
-                super::rollups::mark_source_rollups_stale(cassie, &statement.table)?;
-            }
-            super::materialized_projection::mark_source_projections_stale(
-                cassie,
-                &statement.table,
-            )?;
+            apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
             Ok(result)
         }
         LogicalCommand::CreateRollup(statement) => {
@@ -951,4 +903,22 @@ pub(super) fn execute_command(
     }
 
     result
+}
+
+fn apply_write_side_effects(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
+    if session
+        .map(|session| !session.is_transaction_active())
+        .unwrap_or(true)
+    {
+        super::rollups::refresh_rollups_for_source(cassie, table, user_functions, controls)?;
+    } else {
+        super::rollups::mark_source_rollups_stale(cassie, table)?;
+    }
+    super::materialized_projection::mark_source_projections_stale(cassie, table)
 }

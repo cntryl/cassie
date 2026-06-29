@@ -24,60 +24,39 @@ use crate::midge::row_blob::{
 use crate::types::{DataType, FieldSchema, Schema, Value, Vector};
 use crate::vector::normalize as normalize_vector;
 
-pub struct Midge {
-    engine: Engine,
-    storage_layout: OnceLock<StorageLayout>,
-}
+mod core;
+mod raw_ops;
+mod transactions;
 
-#[path = "adapter/capacity.rs"]
+pub use core::Midge;
+
 mod capacity;
-#[path = "adapter/cardinality_stats.rs"]
 mod cardinality_stats;
-#[path = "adapter/column_batches.rs"]
 mod column_batches;
-#[path = "adapter/column_store.rs"]
 mod column_store;
-#[path = "adapter/documents.rs"]
 pub(crate) mod documents;
-#[path = "adapter/fresh_documents.rs"]
 mod fresh_documents;
-#[path = "adapter/graphs.rs"]
 mod graphs;
-#[path = "adapter/key_encoding.rs"]
 mod key_encoding;
-#[path = "adapter/layout.rs"]
 mod layout;
 use layout::{
     allow_memory_fallback, FamilyScope, RawStorageEntry, DATA_FAMILY_NAME, DEFAULT_FAMILY_NAME,
     SCHEMA_FAMILY_NAME, TEMP_FAMILY_NAME,
 };
 pub use layout::{StorageFamily, StorageLayout};
-#[path = "adapter/metadata.rs"]
 mod metadata;
-#[path = "adapter/operational.rs"]
 mod operational;
-#[path = "adapter/operator_feedback.rs"]
 mod operator_feedback;
-#[path = "adapter/projections.rs"]
 mod projections;
-#[path = "adapter/repair.rs"]
 mod repair;
-#[path = "adapter/scalar_indexes.rs"]
 mod scalar_indexes;
 pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
-#[path = "adapter/scan_types.rs"]
 mod scan_types;
-#[path = "adapter/schema_cleanup.rs"]
 mod schema_cleanup;
-#[path = "adapter/schema_ops.rs"]
 mod schema_ops;
-#[path = "adapter/sequences.rs"]
 mod sequences;
-#[path = "adapter/streaming_scans.rs"]
 mod streaming_scans;
-#[path = "adapter/time_series_indexes.rs"]
 pub(crate) mod time_series_indexes;
-#[path = "adapter/verification.rs"]
 mod verification;
 
 pub(crate) use documents::{DocumentWriteBatchOptions, DocumentWriteOp};
@@ -93,220 +72,6 @@ pub use verification::{
 };
 
 impl Midge {
-    pub fn new() -> Result<Self, CassieError> {
-        let data_dir =
-            env::var("CASSIE_MIDGE_DATA_DIR").unwrap_or_else(|_| "./.cassie/midge".to_string());
-        Self::new_with_data_dir(data_dir)
-    }
-
-    pub fn new_with_data_dir(data_dir: impl AsRef<Path>) -> Result<Self, CassieError> {
-        let options = cntryl_midge::OpenOptions::local(data_dir.as_ref()).build();
-
-        let engine = match Engine::open(options) {
-            Ok(engine) => engine,
-            Err(error) => {
-                if allow_memory_fallback() {
-                    Engine::open(cntryl_midge::OpenOptions::in_memory().build())
-                        .map_err(CassieError::from)?
-                } else {
-                    return Err(CassieError::from(error));
-                }
-            }
-        };
-
-        Ok(Self {
-            engine,
-            storage_layout: OnceLock::new(),
-        })
-    }
-
-    pub fn new_strict_with_data_dir(data_dir: impl AsRef<Path>) -> Result<Self, CassieError> {
-        let options = cntryl_midge::OpenOptions::local(data_dir.as_ref()).build();
-        Ok(Self {
-            engine: Engine::open(options).map_err(CassieError::from)?,
-            storage_layout: OnceLock::new(),
-        })
-    }
-
-    pub fn bootstrap_families(&self) -> Result<StorageLayout, CassieError> {
-        let schema = self.get_or_create_family(StorageFamily::Schema)?;
-        let data = self.get_or_create_family(StorageFamily::Data)?;
-        let temp = self.get_or_create_family(StorageFamily::Temp)?;
-
-        if schema.id() == data.id() || schema.id() == temp.id() || data.id() == temp.id() {
-            return Err(CassieError::StorageBootstrap(
-                "family ids must be distinct for schema/data/temp families".to_string(),
-            ));
-        }
-
-        Ok(StorageLayout { schema, data, temp })
-    }
-
-    pub fn ensure_families_ready(&self) -> Result<&StorageLayout, CassieError> {
-        if self.storage_layout.get().is_none() {
-            let layout = self.bootstrap_families()?;
-            self.ensure_lexkey_layout_ready(&layout)?;
-            let _ = self.storage_layout.set(layout);
-        }
-
-        self.storage_layout.get().ok_or_else(|| {
-            CassieError::StorageBootstrap("failed to initialize midge storage families".to_string())
-        })
-    }
-
-    fn ensure_lexkey_layout_ready(&self, layout: &StorageLayout) -> Result<(), CassieError> {
-        self.reject_legacy_layout_prefixes(layout)?;
-
-        let marker_key = key_encoding::layout_marker_key();
-        let mut tx = self
-            .engine
-            .begin_tx(layout.schema.id(), TransactionMode::ReadWrite)
-            .map_err(CassieError::from)?;
-        match tx.get(&marker_key).map_err(CassieError::from)? {
-            Some(value) if value == key_encoding::LAYOUT_MARKER_VALUE => Ok(()),
-            Some(value) => Err(CassieError::StorageBootstrap(format!(
-                "incompatible lexkey v{} storage layout marker: {:?}",
-                key_encoding::LAYOUT_VERSION,
-                String::from_utf8_lossy(&value)
-            ))),
-            None => {
-                tx.put(marker_key, key_encoding::LAYOUT_MARKER_VALUE.to_vec(), None)
-                    .map_err(CassieError::from)?;
-                tx.commit(WriteOptions::sync()).map_err(CassieError::from)
-            }
-        }
-    }
-
-    fn reject_legacy_layout_prefixes(&self, layout: &StorageLayout) -> Result<(), CassieError> {
-        for (family_name, family_id, prefixes) in [
-            (
-                SCHEMA_FAMILY_NAME,
-                layout.schema.id(),
-                key_encoding::LEGACY_SCHEMA_PREFIXES,
-            ),
-            (
-                DATA_FAMILY_NAME,
-                layout.data.id(),
-                key_encoding::LEGACY_DATA_PREFIXES,
-            ),
-            (
-                TEMP_FAMILY_NAME,
-                layout.temp.id(),
-                key_encoding::LEGACY_TEMP_PREFIXES,
-            ),
-        ] {
-            let tx = self
-                .engine
-                .begin_tx(family_id, TransactionMode::ReadOnly)
-                .map_err(CassieError::from)?;
-            for prefix in prefixes {
-                let mut scan = tx
-                    .scan(&Query::new().prefix(prefix.to_vec().into()))
-                    .map_err(CassieError::from)?;
-                if scan.next().is_some() {
-                    return Err(CassieError::StorageBootstrap(format!(
-                        "incompatible lexkey v{} storage layout: found v1 key prefix '{}' in {family_name}; recreate the Midge data directory",
-                        key_encoding::LAYOUT_VERSION,
-                        String::from_utf8_lossy(prefix)
-                    )));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn storage_layout(&self) -> Option<StorageLayout> {
-        self.storage_layout.get().cloned()
-    }
-
-    pub fn schema_tx(
-        &self,
-        mode: TransactionMode,
-    ) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.begin_families_tx(&[StorageFamily::Schema], mode)
-    }
-
-    pub fn data_tx(&self, mode: TransactionMode) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.begin_families_tx(&[StorageFamily::Data], mode)
-    }
-
-    pub fn temp_tx(&self, mode: TransactionMode) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.begin_families_tx(&[StorageFamily::Temp], mode)
-    }
-
-    pub fn default_tx(
-        &self,
-        mode: TransactionMode,
-    ) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.transaction_by_name(DEFAULT_FAMILY_NAME, mode)
-    }
-
-    pub fn begin_families_tx(
-        &self,
-        families: &[StorageFamily],
-        mode: TransactionMode,
-    ) -> Result<cntryl_midge::Transaction, CassieError> {
-        let scope = FamilyScope::for_families(families)?;
-        let family = scope.family().ok_or_else(|| {
-            CassieError::Unsupported(
-                "transactions currently support exactly one storage family".to_string(),
-            )
-        })?;
-
-        self.transaction(family, mode)
-    }
-
-    fn transaction(
-        &self,
-        family: StorageFamily,
-        mode: TransactionMode,
-    ) -> Result<cntryl_midge::Transaction, CassieError> {
-        let layout = self.ensure_families_ready()?;
-        let cf = match family {
-            StorageFamily::Schema => &layout.schema,
-            StorageFamily::Data => &layout.data,
-            StorageFamily::Temp => &layout.temp,
-        };
-
-        self.engine
-            .begin_tx(cf.id(), mode)
-            .map_err(CassieError::from)
-    }
-
-    fn transaction_by_name(
-        &self,
-        family: &str,
-        mode: TransactionMode,
-    ) -> Result<cntryl_midge::Transaction, CassieError> {
-        let Some(cf) = self.engine.get_column_family(family) else {
-            return Err(CassieError::StorageMissingFamily(format!(
-                "required column family '{family}' is missing"
-            )));
-        };
-
-        self.engine
-            .begin_tx(cf.id(), mode)
-            .map_err(CassieError::from)
-    }
-
-    fn get_or_create_family(
-        &self,
-        family: StorageFamily,
-    ) -> Result<ColumnFamilyHandle, CassieError> {
-        let name = family.name();
-        if let Some(existing) = self.engine.get_column_family(name) {
-            return Ok(existing);
-        }
-
-        if let Ok(created) = self.engine.create_column_family(name) {
-            return Ok(created);
-        }
-
-        self.engine.get_column_family(name).ok_or_else(|| {
-            CassieError::StorageBootstrap(format!("cannot resolve required column family '{name}'"))
-        })
-    }
-
     fn collection_schema_key(collection: &str) -> Vec<u8> {
         key_encoding::collection_schema_key(collection)
     }
@@ -597,87 +362,6 @@ impl Midge {
 
     fn doc_key(collection: &str, id: &str) -> Vec<u8> {
         key_encoding::doc_key(collection, id)
-    }
-
-    fn begin_schema_readonly_tx(&self) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.schema_tx(TransactionMode::ReadOnly)
-    }
-
-    fn begin_schema_rw_tx(&self) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.schema_tx(TransactionMode::ReadWrite)
-    }
-
-    fn begin_data_readonly_tx(&self) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.data_tx(TransactionMode::ReadOnly)
-    }
-
-    fn begin_data_rw_tx(&self) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.data_tx(TransactionMode::ReadWrite)
-    }
-
-    pub fn raw_get(
-        &self,
-        family: StorageFamily,
-        key: &[u8],
-    ) -> Result<Option<Vec<u8>>, CassieError> {
-        let tx = self.transaction(family, TransactionMode::ReadOnly)?;
-        let value = tx.get(key).map_err(CassieError::from)?;
-        Ok(value.map(|value| value.to_vec()))
-    }
-
-    pub fn raw_scan_prefix(
-        &self,
-        family: StorageFamily,
-        prefix: &[u8],
-    ) -> Result<Vec<RawStorageEntry>, CassieError> {
-        let tx = self.transaction(family, TransactionMode::ReadOnly)?;
-        let mut iterator = tx
-            .scan(&Query::new().prefix(prefix.to_vec().into()))
-            .map_err(CassieError::from)?;
-
-        let mut values = Vec::new();
-        while let Some((key, value)) = iterator.next() {
-            values.push((key, value));
-        }
-        Ok(values)
-    }
-
-    pub fn raw_scan_prefix_named(
-        &self,
-        family: &str,
-        prefix: &[u8],
-    ) -> Result<Vec<RawStorageEntry>, CassieError> {
-        let tx = self.transaction_by_name(family, TransactionMode::ReadOnly)?;
-        let mut iterator = tx
-            .scan(&Query::new().prefix(prefix.to_vec().into()))
-            .map_err(CassieError::from)?;
-
-        let mut values = Vec::new();
-        while let Some((key, value)) = iterator.next() {
-            values.push((key, value));
-        }
-        Ok(values)
-    }
-
-    pub fn clear_temp_family(&self) -> Result<usize, CassieError> {
-        let mut tx = self.temp_tx(TransactionMode::ReadWrite)?;
-        let mut iterator = tx.scan(&Query::new()).map_err(CassieError::from)?;
-        let mut keys = Vec::new();
-        while let Some((raw_key, _)) = iterator.next() {
-            keys.push(raw_key);
-        }
-
-        if keys.is_empty() {
-            return Ok(0);
-        }
-
-        let deleted = keys.len();
-        for key in keys {
-            tx.delete(key).map_err(CassieError::from)?;
-        }
-
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
-        Ok(deleted)
     }
 
     fn load_schema_epoch_from_tx(tx: &cntryl_midge::Transaction) -> Result<u64, CassieError> {

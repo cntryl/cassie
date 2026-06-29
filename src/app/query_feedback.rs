@@ -3,7 +3,7 @@ use super::{Cassie, RuntimeFeedbackKey, RuntimeFeedbackObservation, QueryExecuti
 impl Cassie {
     pub(crate) fn feedback_keys_for_plan(
         &self,
-        database: Option<String>,
+        database: Option<&str>,
         physical: &crate::planner::physical::PhysicalPlan,
     ) -> Vec<RuntimeFeedbackKey> {
         let schema_epoch = self.runtime.schema_epoch();
@@ -11,7 +11,7 @@ impl Cassie {
         if let Some(index_name) = physical.selected_index.as_deref() {
             let index = self.catalog.get_index(&physical.collection, index_name);
             keys.push(crate::runtime::normalized_feedback_key(
-                database.clone(),
+                database.map(str::to_string),
                 schema_epoch,
                 &physical.collection,
                 "index_read",
@@ -20,7 +20,7 @@ impl Cassie {
             ));
         } else {
             keys.push(crate::runtime::normalized_feedback_key(
-                database.clone(),
+                database.map(str::to_string),
                 schema_epoch,
                 &physical.collection,
                 "row_scan",
@@ -43,7 +43,7 @@ impl Cassie {
         ] {
             if physical.operators.contains(&operator) {
                 keys.push(crate::runtime::normalized_feedback_key(
-                    database.clone(),
+                    database.map(str::to_string),
                     schema_epoch,
                     &physical.collection,
                     family,
@@ -72,23 +72,23 @@ impl Cassie {
     pub(crate) fn record_feedback_for_keys(
         &self,
         keys: Vec<RuntimeFeedbackKey>,
-        observation: RuntimeFeedbackObservation,
+        observation: &RuntimeFeedbackObservation,
     ) {
         for key in keys {
-            self.runtime.record_feedback(key, observation.clone());
+            self.runtime.record_feedback(&key, observation);
         }
         self.persist_runtime_feedback();
     }
 
     fn feedback_planned_candidate(
         &self,
-        database: Option<String>,
+        database: Option<&str>,
         collection: &str,
         logical: &crate::planner::logical::LogicalPlan,
         candidate: &crate::planner::physical::ReadOperatorCandidate,
     ) -> (RuntimeFeedbackKey, crate::runtime::OperatorFeedbackEstimate) {
         let key = crate::runtime::normalized_feedback_key(
-            database,
+            database.map(str::to_string),
             self.runtime.schema_epoch(),
             collection,
             candidate.operator_family,
@@ -106,7 +106,7 @@ impl Cassie {
 
     fn select_operator_feedback_plan(
         &self,
-        database: Option<String>,
+        database: Option<&str>,
         collection: &str,
         logical: &crate::planner::logical::LogicalPlan,
         selection: &crate::planner::physical::ReadOperatorSelection,
@@ -201,7 +201,7 @@ impl Cassie {
             &cardinality_stats,
         );
         let (operator_selected_index, operator_feedback) = self.select_operator_feedback_plan(
-            database,
+            database.as_deref(),
             &optimized.collection,
             &optimized,
             &selection,
@@ -278,7 +278,7 @@ impl Cassie {
         key: RuntimeFeedbackKey,
         observation: RuntimeFeedbackObservation,
     ) -> Result<(), CassieError> {
-        self.runtime.record_feedback(key, observation);
+        self.runtime.record_feedback(&key, &observation);
         self.persist_runtime_feedback();
         Ok(())
     }

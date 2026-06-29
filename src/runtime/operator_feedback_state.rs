@@ -74,8 +74,8 @@ impl RuntimeState {
     /// Panics if an internal invariant required by this operation is violated.
     pub fn record_feedback(
         &self,
-        key: RuntimeFeedbackKey,
-        observation: RuntimeFeedbackObservation,
+        key: &RuntimeFeedbackKey,
+        observation: &RuntimeFeedbackObservation,
     ) {
         let planner_feedback = self.limits.operator_feedback_enabled
             && matches!(key.operator_family.as_str(), "row_scan" | "index_read");

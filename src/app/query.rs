@@ -464,7 +464,7 @@ impl Cassie {
         }
 
         let feedback_keys = is_select.then(|| {
-            let keys = self.feedback_keys_for_plan(session.database.clone(), &physical);
+            let keys = self.feedback_keys_for_plan(session.database.as_deref(), &physical);
             self.observe_feedback_lookup(&keys);
             keys
         });
@@ -556,7 +556,7 @@ impl Cassie {
                 spilled: temp_writes > 0,
                 memory_pressure: temp_writes > 0,
             };
-            self.record_feedback_for_keys(keys, observation);
+            self.record_feedback_for_keys(keys, &observation);
         }
 
         let result = execution?;
@@ -700,7 +700,7 @@ impl Cassie {
         if analyze {
             self.runtime
                 .record_adaptive_plan_decision(&physical.adaptive_plan);
-            let feedback_keys = self.feedback_keys_for_plan(session.database.clone(), &physical);
+            let feedback_keys = self.feedback_keys_for_plan(session.database.as_deref(), &physical);
             self.observe_feedback_lookup(&feedback_keys);
             let started_at = Instant::now();
             let result = crate::executor::run_with_session_controls(
@@ -809,7 +809,7 @@ impl Cassie {
                 .saturating_sub(before.adaptive_candidates.operator_switch_fallbacks);
             self.record_feedback_for_keys(
                 feedback_keys,
-                RuntimeFeedbackObservation {
+                &RuntimeFeedbackObservation {
                     rows_in: storage_reads_delta
                         .saturating_add(candidate_count_delta)
                         .max(result.rows.len() as u64),

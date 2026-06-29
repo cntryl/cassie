@@ -10,7 +10,7 @@ const SNAPSHOT_MANIFEST_FILE: &str = "cassie-snapshot-manifest.json";
 const SNAPSHOT_MIDGE_DIR: &str = "midge";
 const SNAPSHOT_COMPATIBLE: &str = "compatible";
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CassieSnapshotOptions {
     pub generated_ms: Option<u64>,
 }
@@ -120,7 +120,7 @@ fn build_snapshot_manifest(
     let mut projections = midge
         .list_projection_metadata()?
         .into_iter()
-        .map(|metadata| snapshot_projection_manifest(midge, metadata))
+        .map(|metadata| snapshot_projection_manifest(midge, &metadata))
         .collect::<Result<Vec<_>, _>>()?;
     projections.sort_by(|left, right| {
         left.projection_id
@@ -141,7 +141,7 @@ fn build_snapshot_manifest(
 
 fn snapshot_projection_manifest(
     midge: &Midge,
-    metadata: crate::catalog::ProjectionMeta,
+    metadata: &crate::catalog::ProjectionMeta,
 ) -> Result<CassieSnapshotProjectionManifest, CassieError> {
     let hash_collection = metadata
         .active_output_collection()
@@ -255,12 +255,12 @@ fn write_snapshot_manifest(
     let encoded = serde_json::to_vec_pretty(manifest)
         .map_err(|error| CassieError::Storage(format!("encode snapshot manifest: {error}")))?;
     fs::write(snapshot_dir.join(SNAPSHOT_MANIFEST_FILE), encoded)
-        .map_err(|error| io_error("write snapshot manifest", error))
+        .map_err(|error| io_error("write snapshot manifest", &error))
 }
 
 fn read_snapshot_manifest(snapshot_dir: &Path) -> Result<CassieSnapshotManifest, CassieError> {
     let path = snapshot_dir.join(SNAPSHOT_MANIFEST_FILE);
-    let raw = fs::read(&path).map_err(|error| io_error("read snapshot manifest", error))?;
+    let raw = fs::read(&path).map_err(|error| io_error("read snapshot manifest", &error))?;
     serde_json::from_slice(&raw)
         .map_err(|error| CassieError::Storage(format!("invalid snapshot manifest: {error}")))
 }
@@ -275,7 +275,7 @@ fn prepare_empty_directory(path: &Path, label: &str) -> Result<(), CassieError> 
         }
         if path
             .read_dir()
-            .map_err(|error| io_error("read directory", error))?
+            .map_err(|error| io_error("read directory", &error))?
             .next()
             .is_some()
         {
@@ -286,7 +286,7 @@ fn prepare_empty_directory(path: &Path, label: &str) -> Result<(), CassieError> 
         }
         return Ok(());
     }
-    fs::create_dir_all(path).map_err(|error| io_error("create directory", error))
+    fs::create_dir_all(path).map_err(|error| io_error("create directory", &error))
 }
 
 fn prepare_restore_target(path: &Path) -> Result<(), CassieError> {
@@ -301,7 +301,7 @@ fn prepare_restore_target(path: &Path) -> Result<(), CassieError> {
     }
     if path
         .read_dir()
-        .map_err(|error| io_error("read restore target", error))?
+        .map_err(|error| io_error("read restore target", &error))?
         .next()
         .is_some()
     {
@@ -320,19 +320,19 @@ fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), CassieError> {
             source.display()
         )));
     }
-    fs::create_dir_all(target).map_err(|error| io_error("create directory", error))?;
-    for entry in fs::read_dir(source).map_err(|error| io_error("read directory", error))? {
-        let entry = entry.map_err(|error| io_error("read directory entry", error))?;
+    fs::create_dir_all(target).map_err(|error| io_error("create directory", &error))?;
+    for entry in fs::read_dir(source).map_err(|error| io_error("read directory", &error))? {
+        let entry = entry.map_err(|error| io_error("read directory entry", &error))?;
         let source_path = entry.path();
         let target_path = target.join(entry.file_name());
         let file_type = entry
             .file_type()
-            .map_err(|error| io_error("read file type", error))?;
+            .map_err(|error| io_error("read file type", &error))?;
         if file_type.is_dir() {
             copy_dir_recursive(&source_path, &target_path)?;
         } else if file_type.is_file() {
             fs::copy(&source_path, &target_path)
-                .map_err(|error| io_error("copy snapshot file", error))?;
+                .map_err(|error| io_error("copy snapshot file", &error))?;
         } else {
             return Err(CassieError::Unsupported(format!(
                 "snapshot copy does not support special file: {}",
@@ -343,6 +343,6 @@ fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), CassieError> {
     Ok(())
 }
 
-fn io_error(operation: &str, error: std::io::Error) -> CassieError {
+fn io_error(operation: &str, error: &std::io::Error) -> CassieError {
     CassieError::Storage(format!("{operation}: {error}"))
 }

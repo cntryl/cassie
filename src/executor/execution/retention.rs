@@ -1,7 +1,10 @@
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-use super::{Cassie, QueryResult, QueryError, HashMap, FunctionMeta, QueryExecutionControls, check_timeout, batch, scan, BatchRow, Value};
+use super::{
+    batch, check_timeout, scan, BatchRow, Cassie, FunctionMeta, HashMap, QueryError,
+    QueryExecutionControls, QueryResult, Value,
+};
 
 pub(super) fn create_retention_policy(
     cassie: &Cassie,
@@ -24,7 +27,7 @@ pub(super) fn create_retention_policy(
     );
     cassie
         .midge
-        .put_retention_policy(metadata.clone())
+        .put_retention_policy(&metadata)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_retention_policy(metadata);
     Ok(empty_result("CREATE RETENTION POLICY"))
@@ -43,12 +46,14 @@ pub(super) fn alter_retention_policy(
                 statement.name
             ))
         })?;
-    metadata.retention_duration.clone_from(&statement.retention_duration);
+    metadata
+        .retention_duration
+        .clone_from(&statement.retention_duration);
     metadata.state = crate::catalog::RetentionPolicyState::Ready;
     metadata.last_error = None;
     cassie
         .midge
-        .put_retention_policy(metadata.clone())
+        .put_retention_policy(&metadata)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_retention_policy(metadata);
     Ok(empty_result("ALTER RETENTION POLICY"))
@@ -105,7 +110,7 @@ pub(super) fn enforce_retention_policy(
                 .record_retention_enforcement(metadata.name.clone(), deleted, skipped);
             cassie
                 .midge
-                .put_retention_policy(metadata.clone())
+                .put_retention_policy(&metadata)
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_retention_policy(metadata);
             Ok(QueryResult {
@@ -121,7 +126,7 @@ pub(super) fn enforce_retention_policy(
             cassie
                 .runtime
                 .record_retention_error(metadata.name.clone(), message);
-            let _ = cassie.midge.put_retention_policy(metadata.clone());
+            let _ = cassie.midge.put_retention_policy(&metadata);
             cassie.catalog.register_retention_policy(metadata);
             Err(error)
         }
@@ -176,11 +181,7 @@ fn enforce(
         user_functions,
         controls,
     )?;
-    Ok((
-        deleted,
-        skipped,
-        enforce_at.unix_timestamp_nanos() as u64 / 1_000_000,
-    ))
+    Ok((deleted, skipped, timestamp_millis(enforce_at)))
 }
 
 fn parse_duration(raw: &str) -> Result<time::Duration, QueryError> {
@@ -228,4 +229,10 @@ fn empty_result(command: &str) -> QueryResult {
         rows: Vec::new(),
         command: command.to_string(),
     }
+}
+
+fn timestamp_millis(timestamp: OffsetDateTime) -> u64 {
+    u64::try_from(timestamp.unix_timestamp_nanos())
+        .map(|nanos| nanos / 1_000_000)
+        .unwrap_or_default()
 }

@@ -35,13 +35,7 @@ pub(super) fn try_execute_time_series_read(
     }
 
     let timestamp_field = index.primary_field();
-    let mut scan_fields = spec.scan_fields.clone();
-    if !scan_fields
-        .iter()
-        .any(|field| field.eq_ignore_ascii_case(&timestamp_field))
-    {
-        scan_fields.push(timestamp_field.clone());
-    }
+    let scan_fields = scan_fields_with_timestamp(&spec.scan_fields, &timestamp_field);
 
     let schema = cassie.catalog.get_schema(&spec.collection);
     let range = plan
@@ -50,45 +44,14 @@ pub(super) fn try_execute_time_series_read(
         .map(|filter| timestamp_range_from_filter(filter, &timestamp_field))
         .unwrap_or_default();
     let mut indexed_total_buckets = None;
-    let mut documents = match cassie.midge.scan_time_series_index(&index) {
-        Ok(report) if report.hits.is_empty() => {
-            cassie
-                .runtime
-                .record_time_series_fallback("missing-bucket-metadata");
-            scan_row_backed_documents(cassie, &spec.collection, scan_fields.clone())?
-        }
-        Ok(report) => {
-            indexed_total_buckets = Some(hit_bucket_keys(report.hits.as_slice()).len());
-            let hits = prune_hits_for_range(report.hits, &range);
-            if hits.is_empty() {
-                cassie.runtime.record_time_series_bucket_native_hit();
-                Vec::new()
-            } else {
-                let documents = cassie
-                    .midge
-                    .scan_time_series_hit_documents(&spec.collection, &hits, &scan_fields)
-                    .map_err(|error| QueryError::General(error.to_string()))?;
-                if documents.is_empty() {
-                    cassie
-                        .runtime
-                        .record_time_series_fallback("stale-bucket-metadata");
-                    scan_row_backed_documents(cassie, &spec.collection, scan_fields.clone())?
-                } else {
-                    cassie.runtime.record_time_series_bucket_native_hit();
-                    documents
-                }
-            }
-        }
-        Err(error) => {
-            let reason = if matches!(error, crate::app::CassieError::Unsupported(_)) {
-                "unsupported-bucket-width"
-            } else {
-                "corrupt-bucket-metadata"
-            };
-            cassie.runtime.record_time_series_fallback(reason);
-            scan_row_backed_documents(cassie, &spec.collection, scan_fields.clone())?
-        }
-    };
+    let mut documents = time_series_documents(
+        cassie,
+        &spec.collection,
+        &scan_fields,
+        &index,
+        &range,
+        &mut indexed_total_buckets,
+    )?;
     let total_buckets = indexed_total_buckets
         .unwrap_or_else(|| bucket_keys(documents.as_slice(), &timestamp_field, &index).len());
     documents.sort_by(|left, right| {
@@ -141,13 +104,8 @@ pub(super) fn try_execute_time_series_read(
     )?;
     ensure_temp_budget(controls, &batches)?;
 
-    if let Some(offset) = plan.offset {
-        let offset = offset.max(0) as usize;
-        let limit = plan.limit.map(|value| value.max(0) as usize);
+    if let Some((offset, limit)) = batch_window(plan) {
         batches = batch::slice_batches(batches, offset, limit);
-    } else if let Some(limit) = plan.limit {
-        let limit = limit.max(0) as usize;
-        batches = batch::slice_batches(batches, 0, Some(limit));
     }
 
     let rows = batch::flatten_batches(batches);
@@ -158,6 +116,75 @@ pub(super) fn try_execute_time_series_read(
         skipped_buckets,
     );
     Ok(Some(rows))
+}
+
+fn scan_fields_with_timestamp(scan_fields: &[String], timestamp_field: &str) -> Vec<String> {
+    let mut fields = scan_fields.to_vec();
+    if !fields
+        .iter()
+        .any(|field| field.eq_ignore_ascii_case(timestamp_field))
+    {
+        fields.push(timestamp_field.to_string());
+    }
+    fields
+}
+
+fn time_series_documents(
+    cassie: &Cassie,
+    collection: &str,
+    scan_fields: &[String],
+    index: &catalog::IndexMeta,
+    range: &TimestampRange,
+    indexed_total_buckets: &mut Option<usize>,
+) -> Result<Vec<DocumentRef>, QueryError> {
+    match cassie.midge.scan_time_series_index(index) {
+        Ok(report) if report.hits.is_empty() => {
+            cassie
+                .runtime
+                .record_time_series_fallback("missing-bucket-metadata");
+            scan_row_backed_documents(cassie, collection, scan_fields)
+        }
+        Ok(report) => {
+            *indexed_total_buckets = Some(hit_bucket_keys(report.hits.as_slice()).len());
+            let hits = prune_hits_for_range(report.hits, range);
+            if hits.is_empty() {
+                cassie.runtime.record_time_series_bucket_native_hit();
+                return Ok(Vec::new());
+            }
+            let documents = cassie
+                .midge
+                .scan_time_series_hit_documents(collection, &hits, scan_fields)
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            if documents.is_empty() {
+                cassie
+                    .runtime
+                    .record_time_series_fallback("stale-bucket-metadata");
+                scan_row_backed_documents(cassie, collection, scan_fields)
+            } else {
+                cassie.runtime.record_time_series_bucket_native_hit();
+                Ok(documents)
+            }
+        }
+        Err(error) => {
+            let reason = if matches!(error, crate::app::CassieError::Unsupported(_)) {
+                "unsupported-bucket-width"
+            } else {
+                "corrupt-bucket-metadata"
+            };
+            cassie.runtime.record_time_series_fallback(reason);
+            scan_row_backed_documents(cassie, collection, scan_fields)
+        }
+    }
+}
+
+fn batch_window(plan: &LogicalPlan) -> Option<(usize, Option<usize>)> {
+    let offset = plan.offset.and_then(non_negative_usize).unwrap_or_default();
+    let limit = plan.limit.and_then(non_negative_usize);
+    (offset > 0 || limit.is_some()).then_some((offset, limit))
+}
+
+fn non_negative_usize(value: i64) -> Option<usize> {
+    usize::try_from(value.max(0)).ok()
 }
 
 fn prune_hits_for_range(
@@ -287,11 +314,14 @@ fn hit_bucket_keys(
 fn scan_row_backed_documents(
     cassie: &Cassie,
     collection: &str,
-    scan_fields: Vec<String>,
+    scan_fields: &[String],
 ) -> Result<Vec<DocumentRef>, QueryError> {
     cassie
         .midge
-        .scan_rows_for_rebuild(collection, RowDecode::ProjectedHistorical(scan_fields))
+        .scan_rows_for_rebuild(
+            collection,
+            RowDecode::ProjectedHistorical(scan_fields.to_vec()),
+        )
         .map_err(|error| QueryError::General(error.to_string()))
 }
 
@@ -307,7 +337,7 @@ fn selected_time_series_index(cassie: &Cassie, plan: &LogicalPlan) -> Option<cat
         indexes.as_slice(),
         &cardinality_stats,
     );
-    let selected = physical.selected_index?;
+    let selected = physical.read.selected_index?;
     indexes
         .into_iter()
         .find(|index| index.name == selected && index.kind == catalog::IndexKind::TimeSeries)

@@ -86,7 +86,7 @@ pub(super) fn create_materialized_projection(
     );
     cassie
         .midge
-        .put_projection_metadata(metadata.clone())
+        .put_projection_metadata(&metadata)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_projection_metadata(metadata);
     refresh_materialized_projection(cassie, &statement.name, user_functions, controls)?;
@@ -266,9 +266,9 @@ pub(super) fn verify_projection(
             Value::String(report.state.as_str().to_string()),
             Value::String(target.output_collection),
             Value::String(statement.mode.as_str().to_string()),
-            Value::Int64(report.mismatch_count as i64),
-            Value::Int64(report.missing_count as i64),
-            Value::Int64(report.stale_count as i64),
+            Value::Int64(u64_to_i64(report.mismatch_count)),
+            Value::Int64(u64_to_i64(report.missing_count)),
+            Value::Int64(u64_to_i64(report.stale_count)),
             Value::Bool(report.repairable),
             Value::String(report.checked_components.join(",")),
             Value::String(report.skipped_components.join(",")),
@@ -342,6 +342,10 @@ fn verification_mode_components(
         crate::sql::ast::ProjectionVerificationMode::IndexesOnly => (false, false, true),
         crate::sql::ast::ProjectionVerificationMode::Full => (true, true, true),
     }
+}
+
+fn u64_to_i64(value: u64) -> i64 {
+    i64::try_from(value).unwrap_or(i64::MAX)
 }
 
 fn build_projection_version(
@@ -640,7 +644,7 @@ fn persist_projection_metadata(
 ) -> Result<(), QueryError> {
     cassie
         .midge
-        .put_projection_metadata(metadata.clone())
+        .put_projection_metadata(&metadata)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_projection_metadata(metadata);
     Ok(())

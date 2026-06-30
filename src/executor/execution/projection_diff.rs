@@ -16,78 +16,13 @@ pub(super) fn diff_projection(
         .map_err(|error| QueryError::General(error.to_string()))?;
     let columns = diff_columns();
 
-    let Some(left_root) = left_root else {
-        return Ok(QueryResult {
-            columns,
-            rows: vec![terminal_diff_row(
-                "__root__",
-                "unverifiable",
-                None,
-                right_root.as_ref().map(|root| root.digest.as_str()),
-                "missing-left-root",
-            )],
-            command: "DIFF PROJECTION".to_string(),
-        });
-    };
-    let Some(right_root) = right_root else {
-        return Ok(QueryResult {
-            columns,
-            rows: vec![terminal_diff_row(
-                "__root__",
-                "unverifiable",
-                Some(left_root.digest.as_str()),
-                None,
-                "missing-right-root",
-            )],
-            command: "DIFF PROJECTION".to_string(),
-        });
-    };
-
-    if left_root.algorithm != right_root.algorithm
-        || left_root.range_hash_version != right_root.range_hash_version
-        || left_root.root_hash_version != right_root.root_hash_version
-    {
-        return Ok(QueryResult {
-            columns,
-            rows: vec![terminal_diff_row(
-                "__root__",
-                "unverifiable",
-                Some(left_root.digest.as_str()),
-                Some(right_root.digest.as_str()),
-                "incompatible-hash-metadata",
-            )],
-            command: "DIFF PROJECTION".to_string(),
-        });
-    }
-
-    if left_root.state != crate::midge::adapter::StoredHashState::Current
-        || right_root.state != crate::midge::adapter::StoredHashState::Current
-    {
-        return Ok(QueryResult {
-            columns,
-            rows: vec![terminal_diff_row(
-                "__root__",
-                "unverifiable",
-                Some(left_root.digest.as_str()),
-                Some(right_root.digest.as_str()),
-                "stale-root",
-            )],
-            command: "DIFF PROJECTION".to_string(),
-        });
-    }
-
-    if left_root.digest == right_root.digest {
-        return Ok(QueryResult {
-            columns,
-            rows: vec![terminal_diff_row(
-                "__root__",
-                "equal",
-                Some(left_root.digest.as_str()),
-                Some(right_root.digest.as_str()),
-                "verified",
-            )],
-            command: "DIFF PROJECTION".to_string(),
-        });
+    let (left_root, right_root) =
+        match resolve_diff_roots(columns.as_slice(), left_root.as_ref(), right_root.as_ref()) {
+            Ok(roots) => roots,
+            Err(result) => return Ok(result),
+        };
+    if let Some(result) = root_terminal_result(columns.as_slice(), left_root, right_root) {
+        return Ok(result);
     }
 
     let left = row_hash_map(cassie, &statement.left.name)?;
@@ -100,59 +35,13 @@ pub(super) fn diff_projection(
         .into_iter()
         .collect::<Vec<_>>();
 
-    let mut rows = Vec::new();
-    let mut next_cursor = None;
-    let mut last_emitted = None;
     let limit = statement.limit.unwrap_or(usize::MAX);
-    for row_id in row_ids {
-        if statement
-            .after
-            .as_ref()
-            .is_some_and(|after| row_id <= *after)
-        {
-            continue;
-        }
-        if rows.len() >= limit {
-            next_cursor = last_emitted;
-            break;
-        }
-        let before_len = rows.len();
-        match (left.get(&row_id), right.get(&row_id)) {
-            (Some(left), Some(right)) if left.digest == right.digest => {}
-            (Some(left), Some(right)) => rows.push(diff_row(
-                &row_id,
-                "changed",
-                Some(left.digest.as_str()),
-                Some(right.digest.as_str()),
-                "different-row-hash",
-            )),
-            (Some(left), None) => rows.push(diff_row(
-                &row_id,
-                "removed",
-                Some(left.digest.as_str()),
-                None,
-                "missing-right-row",
-            )),
-            (None, Some(right)) => rows.push(diff_row(
-                &row_id,
-                "added",
-                None,
-                Some(right.digest.as_str()),
-                "missing-left-row",
-            )),
-            (None, None) => {}
-        }
-        if rows.len() > before_len {
-            last_emitted = Some(row_id);
-        }
-    }
+    let (mut rows, next_cursor) =
+        diff_rows(row_ids, statement.after.as_deref(), limit, &left, &right);
     let complete = next_cursor.is_none();
-    let cursor = next_cursor.as_deref();
-    for row in &mut rows {
-        row.push(cursor.map_or(Value::Null, |value| Value::String(value.to_string())));
-        row.push(Value::Bool(complete));
-    }
+    append_diff_paging(&mut rows, next_cursor.as_deref(), complete);
     if rows.is_empty() {
+        let cursor = next_cursor.as_deref();
         let mut row = diff_row(
             "__range__",
             "unverifiable",
@@ -169,6 +58,169 @@ pub(super) fn diff_projection(
         rows,
         command: "DIFF PROJECTION".to_string(),
     })
+}
+
+fn resolve_diff_roots<'a>(
+    columns: &[ColumnMeta],
+    left_root: Option<&'a crate::midge::adapter::RootHashRecord>,
+    right_root: Option<&'a crate::midge::adapter::RootHashRecord>,
+) -> Result<
+    (
+        &'a crate::midge::adapter::RootHashRecord,
+        &'a crate::midge::adapter::RootHashRecord,
+    ),
+    QueryResult,
+> {
+    match (left_root, right_root) {
+        (Some(left_root), Some(right_root)) => Ok((left_root, right_root)),
+        (None, right_root) => Err(terminal_diff_result(
+            columns,
+            "__root__",
+            "unverifiable",
+            None,
+            right_root.map(|root| root.digest.as_str()),
+            "missing-left-root",
+        )),
+        (Some(left_root), None) => Err(terminal_diff_result(
+            columns,
+            "__root__",
+            "unverifiable",
+            Some(left_root.digest.as_str()),
+            None,
+            "missing-right-root",
+        )),
+    }
+}
+
+fn root_terminal_result(
+    columns: &[ColumnMeta],
+    left_root: &crate::midge::adapter::RootHashRecord,
+    right_root: &crate::midge::adapter::RootHashRecord,
+) -> Option<QueryResult> {
+    if left_root.algorithm != right_root.algorithm
+        || left_root.range_hash_version != right_root.range_hash_version
+        || left_root.root_hash_version != right_root.root_hash_version
+    {
+        return Some(terminal_diff_result(
+            columns,
+            "__root__",
+            "unverifiable",
+            Some(left_root.digest.as_str()),
+            Some(right_root.digest.as_str()),
+            "incompatible-hash-metadata",
+        ));
+    }
+    if left_root.state != crate::midge::adapter::StoredHashState::Current
+        || right_root.state != crate::midge::adapter::StoredHashState::Current
+    {
+        return Some(terminal_diff_result(
+            columns,
+            "__root__",
+            "unverifiable",
+            Some(left_root.digest.as_str()),
+            Some(right_root.digest.as_str()),
+            "stale-root",
+        ));
+    }
+    if left_root.digest == right_root.digest {
+        return Some(terminal_diff_result(
+            columns,
+            "__root__",
+            "equal",
+            Some(left_root.digest.as_str()),
+            Some(right_root.digest.as_str()),
+            "verified",
+        ));
+    }
+    None
+}
+
+fn terminal_diff_result(
+    columns: &[ColumnMeta],
+    row_id: &str,
+    change: &str,
+    left_digest: Option<&str>,
+    right_digest: Option<&str>,
+    state: &str,
+) -> QueryResult {
+    QueryResult {
+        columns: columns.to_vec(),
+        rows: vec![terminal_diff_row(
+            row_id,
+            change,
+            left_digest,
+            right_digest,
+            state,
+        )],
+        command: "DIFF PROJECTION".to_string(),
+    }
+}
+
+fn diff_rows(
+    row_ids: Vec<String>,
+    after: Option<&str>,
+    limit: usize,
+    left: &BTreeMap<String, crate::midge::adapter::RowHashRecord>,
+    right: &BTreeMap<String, crate::midge::adapter::RowHashRecord>,
+) -> (Vec<Vec<Value>>, Option<String>) {
+    let mut rows = Vec::new();
+    let mut next_cursor = None;
+    let mut last_emitted = None;
+
+    for row_id in row_ids {
+        if after.is_some_and(|after| row_id.as_str() <= after) {
+            continue;
+        }
+        if rows.len() >= limit {
+            next_cursor = last_emitted;
+            break;
+        }
+        if let Some(row) = diff_row_change(&row_id, left.get(&row_id), right.get(&row_id)) {
+            last_emitted = Some(row_id);
+            rows.push(row);
+        }
+    }
+
+    (rows, next_cursor)
+}
+
+fn diff_row_change(
+    row_id: &str,
+    left: Option<&crate::midge::adapter::RowHashRecord>,
+    right: Option<&crate::midge::adapter::RowHashRecord>,
+) -> Option<Vec<Value>> {
+    match (left, right) {
+        (Some(left), Some(right)) if left.digest == right.digest => None,
+        (Some(left), Some(right)) => Some(diff_row(
+            row_id,
+            "changed",
+            Some(left.digest.as_str()),
+            Some(right.digest.as_str()),
+            "different-row-hash",
+        )),
+        (Some(left), None) => Some(diff_row(
+            row_id,
+            "removed",
+            Some(left.digest.as_str()),
+            None,
+            "missing-right-row",
+        )),
+        (None, Some(right)) => Some(diff_row(
+            row_id,
+            "added",
+            None,
+            Some(right.digest.as_str()),
+            "missing-left-row",
+        )),
+        (None, None) => None,
+    }
+}
+
+fn append_diff_paging(rows: &mut [Vec<Value>], cursor: Option<&str>, complete: bool) {
+    for row in rows {
+        row.push(cursor.map_or(Value::Null, |value| Value::String(value.to_string())));
+        row.push(Value::Bool(complete));
+    }
 }
 
 pub(super) fn compare_projection(
@@ -229,7 +281,7 @@ pub(super) fn compare_projection(
         compatibility_status,
         root_digest: actual_digest.clone(),
         manifest_digest: Some(manifest_digest.to_string()),
-        mismatch_count: mismatches as u64,
+        mismatch_count: mismatches.unsigned_abs(),
         unverifiable_count: unverifiable,
         diagnostic_sample,
         last_error: if state == "equal" {
@@ -240,7 +292,7 @@ pub(super) fn compare_projection(
     };
     cassie
         .midge
-        .put_projection_comparison_report(report.clone())
+        .put_projection_comparison_report(&report)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie
         .catalog

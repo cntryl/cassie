@@ -1,6 +1,6 @@
 use std::collections::{HashSet, VecDeque};
 
-use super::{source, FunctionCall, BatchRow, QueryError, Value, filter};
+use super::{filter, source, BatchRow, FunctionCall, QueryError, Value};
 
 #[derive(Debug, Clone)]
 struct GraphPath {
@@ -33,7 +33,8 @@ fn graph_neighbors(
     env: &source::SourceExecutionEnv<'_>,
     args: &[Value],
 ) -> Result<Vec<BatchRow>, QueryError> {
-    let graph = graph_meta(env, text_arg(args, 0, "graph")?)?;
+    let graph_name = text_arg(args, 0, "graph")?;
+    let graph = graph_meta(env, &graph_name)?;
     let node_type = text_arg(args, 1, "node_type")?;
     let node_id = text_arg(args, 2, "node_id")?;
     let direction = direction_arg(args, 3)?;
@@ -59,7 +60,7 @@ fn graph_neighbors(
                 path_edges: vec![edge.edge_id.clone()],
                 last_edge: Some(edge),
             }
-            .into_row(index as i64)
+            .into_row(path_rank(index))
         })
         .collect();
     env.cassie
@@ -72,7 +73,8 @@ fn graph_expand(
     env: &source::SourceExecutionEnv<'_>,
     args: &[Value],
 ) -> Result<Vec<BatchRow>, QueryError> {
-    let graph = graph_meta(env, text_arg(args, 0, "graph")?)?;
+    let graph_name = text_arg(args, 0, "graph")?;
+    let graph = graph_meta(env, &graph_name)?;
     let start_type = text_arg(args, 1, "node_type")?;
     let start_id = text_arg(args, 2, "node_id")?;
     let max_depth = usize_arg(args, 3, "max_depth")?;
@@ -128,7 +130,7 @@ fn graph_expand(
                 .push((next.node_type.clone(), next.node_id.clone()));
             next.path_edges.push(edge.edge_id.clone());
             next.last_edge = Some(edge);
-            rows.push(next.clone().into_row(rows.len() as i64));
+            rows.push(next.clone().into_row(path_rank(rows.len())));
             if rows.len() >= max_results {
                 break;
             }
@@ -154,7 +156,8 @@ fn graph_shortest_path(
     env: &source::SourceExecutionEnv<'_>,
     args: &[Value],
 ) -> Result<Vec<BatchRow>, QueryError> {
-    let graph = graph_meta(env, text_arg(args, 0, "graph")?)?;
+    let graph_name = text_arg(args, 0, "graph")?;
+    let graph = graph_meta(env, &graph_name)?;
     let source_type = text_arg(args, 1, "source_type")?;
     let source_id = text_arg(args, 2, "source_id")?;
     let target_type = text_arg(args, 3, "target_type")?;
@@ -233,7 +236,7 @@ fn graph_shortest_path(
     let rows = found
         .into_iter()
         .enumerate()
-        .map(|(index, path)| path.into_row(index as i64))
+        .map(|(index, path)| path.into_row(path_rank(index)))
         .collect::<Vec<_>>();
     env.cassie.runtime.record_graph_traversal(
         &graph.name,
@@ -275,12 +278,16 @@ fn evaluate_args(
 
 fn graph_meta(
     env: &source::SourceExecutionEnv<'_>,
-    graph_name: String,
+    graph_name: &str,
 ) -> Result<crate::catalog::GraphMeta, QueryError> {
     env.cassie
         .catalog
-        .get_graph(&graph_name)
+        .get_graph(graph_name)
         .ok_or_else(|| QueryError::General(format!("graph '{graph_name}' does not exist")))
+}
+
+fn path_rank(index: usize) -> i64 {
+    i64::try_from(index).unwrap_or(i64::MAX)
 }
 
 fn text_arg(args: &[Value], index: usize, label: &str) -> Result<String, QueryError> {

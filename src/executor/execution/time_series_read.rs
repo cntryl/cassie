@@ -90,7 +90,7 @@ pub(super) fn try_execute_time_series_read(
             None,
             user_functions,
             session,
-        )?;
+        );
         ensure_temp_budget(controls, &batches)?;
     }
 

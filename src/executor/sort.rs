@@ -1,9 +1,7 @@
-use crate::executor::batch::RowAccess;
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
-use crate::executor::batch::{
-    chunk_rows, flatten_batches, row_tie_key, Batch, DEFAULT_BATCH_SIZE,
-};
+use crate::executor::batch::RowAccess;
+use crate::executor::batch::{chunk_rows, flatten_batches, row_tie_key, Batch, DEFAULT_BATCH_SIZE};
 use crate::executor::filter;
 use crate::executor::filter::SearchContext;
 use crate::sql::ast::{Expr, NullsOrder, OrderExpr, SelectItem, SortDirection};
@@ -17,12 +15,12 @@ pub(crate) fn sort_rows<R>(
     search_context: Option<&SearchContext>,
     user_functions: &std::collections::HashMap<String, FunctionMeta>,
     session: Option<&CassieSession>,
-) -> Result<Vec<R>, crate::executor::QueryError>
+) -> Vec<R>
 where
     R: RowAccess,
 {
     if order.is_empty() {
-        return Ok(rows);
+        return rows;
     }
 
     rows.sort_by(|left, right| {
@@ -69,7 +67,7 @@ where
         left_key.cmp(&right_key)
     });
 
-    Ok(rows)
+    rows
 }
 
 pub(crate) fn sort_batches(
@@ -80,9 +78,9 @@ pub(crate) fn sort_batches(
     search_context: Option<&SearchContext>,
     user_functions: &std::collections::HashMap<String, FunctionMeta>,
     session: Option<&CassieSession>,
-) -> Result<Vec<Batch>, crate::executor::QueryError> {
+) -> Vec<Batch> {
     if order.is_empty() {
-        return Ok(batches);
+        return batches;
     }
 
     let rows = flatten_batches(batches);
@@ -94,8 +92,8 @@ pub(crate) fn sort_batches(
         search_context,
         user_functions,
         session,
-    )?;
-    Ok(chunk_rows(rows, DEFAULT_BATCH_SIZE))
+    );
+    chunk_rows(rows, DEFAULT_BATCH_SIZE)
 }
 
 fn sort_value<R: RowAccess + ?Sized>(

@@ -1,6 +1,6 @@
-use crate::executor::batch::RowAccess;
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
+use crate::executor::batch::RowAccess;
 use crate::executor::batch::{Batch, BatchRow};
 use crate::executor::filter;
 use crate::executor::filter::SearchContext;
@@ -56,17 +56,21 @@ where
                         .as_ref()
                         .and_then(|precomputed_key| row.get(precomputed_key))
                         .or_else(|| row.get(key))
-                        .cloned().map_or_else(|| {
-                            filter::evaluate_expr_value(
-                                &row,
-                                expr,
-                                params,
-                                search_context,
-                                user_functions,
-                                session,
-                                None,
-                            )
-                        }, Ok)?;
+                        .cloned()
+                        .map_or_else(
+                            || {
+                                filter::evaluate_expr_value(
+                                    &row,
+                                    expr,
+                                    params,
+                                    search_context,
+                                    user_functions,
+                                    session,
+                                    None,
+                                )
+                            },
+                            Ok,
+                        )?;
                     projected.push((key.clone(), value));
                 }
                 ProjectionOp::WindowFunction { key } => {
@@ -134,10 +138,10 @@ pub(crate) fn project_batches(
 ) -> Result<Vec<Batch>, QueryError> {
     let ops = compile_projection_ops(projection);
     if ops.iter().all(ProjectionOp::can_move_owned) {
-        return batches
+        return Ok(batches
             .into_iter()
             .map(|batch| project_owned_batch(batch, &ops))
-            .collect();
+            .collect());
     }
 
     batches
@@ -155,12 +159,12 @@ pub(crate) fn project_batches(
         .collect()
 }
 
-fn project_owned_batch(batch: Batch, ops: &[ProjectionOp]) -> Result<Batch, QueryError> {
+fn project_owned_batch(batch: Batch, ops: &[ProjectionOp]) -> Batch {
     let mut out = Vec::with_capacity(batch.len());
     for row in batch {
         out.push(project_owned_row(row, ops));
     }
-    Ok(out)
+    out
 }
 
 fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {

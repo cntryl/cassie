@@ -136,7 +136,7 @@ pub(super) fn try_execute_rollup_query(
             None,
             user_functions,
             None,
-        )?;
+        );
     }
     batches = projection::project_batches(
         batches,

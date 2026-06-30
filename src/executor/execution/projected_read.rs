@@ -175,7 +175,7 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
             None,
             user_functions,
             session,
-        )?;
+        );
         ensure_temp_budget(controls, batches)?;
         let _ = sort_started;
     }
@@ -355,7 +355,7 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
             None,
             user_functions,
             session,
-        )?;
+        );
         ensure_temp_budget(controls, &batches)?;
         breakdown.sort += sort_started.elapsed();
     }

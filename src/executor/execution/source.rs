@@ -726,7 +726,7 @@ pub(super) fn execute_source_query_with_outer_row(
             search_context.as_ref(),
             user_functions,
             session,
-        )?;
+        );
         ensure_temp_budget(controls, &batches)?;
         batches = distinct_on_batches(
             batches,
@@ -746,7 +746,7 @@ pub(super) fn execute_source_query_with_outer_row(
             search_context.as_ref(),
             user_functions,
             session,
-        )?;
+        );
         ensure_temp_budget(controls, &batches)?;
     }
 
@@ -788,7 +788,7 @@ pub(super) fn execute_source_query_with_outer_row(
             search_context.as_ref(),
             user_functions,
             session,
-        )?;
+        );
     }
     rows = slice_rows(rows, plan.offset, plan.limit);
 

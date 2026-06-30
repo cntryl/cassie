@@ -85,8 +85,8 @@ pub(crate) fn scan_projected_filtered_with_timings(
     column_filter: Option<&ColumnBatchScanFilter>,
 ) -> Result<(Vec<Batch>, ScanTimings), crate::executor::QueryError> {
     let storage_filter = document_filter.and_then(row_filter_from_projected_filter);
-    let has_session_changes = session
-        .is_some_and(|session| !session.collection_changes(collection).is_empty());
+    let has_session_changes =
+        session.is_some_and(|session| !session.collection_changes(collection).is_empty());
     if !has_session_changes {
         match cassie.midge.scan_column_batch_projected_rows(
             collection,
@@ -264,9 +264,9 @@ fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&Collectio
                 if let Some(schema) = schema.as_ref() {
                     let mut seen = HashSet::new();
                     for field in &schema.fields {
-                        let value = obj
-                            .get(&field.name)
-                            .map_or(Value::Null, |value| json_to_typed_value(value, &field.data_type));
+                        let value = obj.get(&field.name).map_or(Value::Null, |value| {
+                            json_to_typed_value(value, &field.data_type)
+                        });
                         row.push((field.name.clone(), value));
                         seen.insert(field.name.clone());
                     }
@@ -361,7 +361,10 @@ pub(crate) fn projected_document_to_row(
         let value = object
             .and_then(|object| projected_field_value(object, field))
             .map_or(Value::Null, |value| {
-                field_data_type(schema, field).map_or_else(|| json_to_value(value), |data_type| json_to_typed_value(value, data_type))
+                field_data_type(schema, field).map_or_else(
+                    || json_to_value(value),
+                    |data_type| json_to_typed_value(value, data_type),
+                )
             });
         row.push((field.clone(), value));
     }
@@ -427,7 +430,7 @@ fn json_to_typed_value(value: &serde_json::Value, data_type: &DataType) -> Value
             if values.len() == *dimensions {
                 let vector_values = values
                     .iter()
-                    .map(|value| value.as_f64().map(|value| value as f32))
+                    .map(|value| value.as_f64().and_then(parse_f64_to_f32))
                     .collect::<Option<Vec<_>>>();
                 if let Some(vector_values) = vector_values {
                     return Value::Vector(Vector::new(vector_values));
@@ -437,6 +440,10 @@ fn json_to_typed_value(value: &serde_json::Value, data_type: &DataType) -> Value
     }
 
     json_to_value(value)
+}
+
+fn parse_f64_to_f32(value: f64) -> Option<f32> {
+    value.to_string().parse::<f32>().ok()
 }
 
 #[cfg(test)]

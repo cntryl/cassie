@@ -1,4 +1,10 @@
-use super::{AlterTableOperation, Catalog, CassieError, CreateIndexStatement, CollectionSchema, DataType, Expr, DistanceMetric, virtual_views, HashSet, CreateViewStatement, QueryStatement, bind_select, HashMap, select_contains_parameters, infer_select_schema, DropViewStatement, bm25, DropIndexStatement, DropSchemaStatement, is_reserved_namespace, AlterSchemaStatement, AlterSchemaOperation, AlterTableStatement};
+use super::{
+    bind_select, bm25, infer_select_schema, is_reserved_namespace, select_contains_parameters,
+    virtual_views, AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation,
+    AlterTableStatement, CassieError, Catalog, CollectionSchema, CreateIndexStatement,
+    CreateViewStatement, DataType, DistanceMetric, DropIndexStatement, DropSchemaStatement,
+    DropViewStatement, Expr, HashMap, HashSet, QueryStatement,
+};
 
 #[path = "schema_alter_constraints.rs"]
 mod schema_alter_constraints;
@@ -856,14 +862,17 @@ pub(super) fn validate_alter_schema(
     catalog: &Catalog,
 ) -> Result<(), CassieError> {
     match operation {
-        AlterTableOperation::AddColumn { field, data_type: _ } => {
-            validate_alter_add_column(table, field, existing_fields)?
+        AlterTableOperation::AddColumn {
+            field,
+            data_type: _,
+        } => {
+            validate_alter_add_column(table, field, existing_fields)?;
         }
         AlterTableOperation::AddConstraint { constraints } => {
-            validate_alter_add_constraints(table, constraints, existing_fields)?
+            validate_alter_add_constraints(table, constraints, existing_fields)?;
         }
         AlterTableOperation::DropColumn { field } => {
-            validate_alter_drop_column(table, field, existing_fields)?
+            validate_alter_drop_column(table, field, existing_fields)?;
         }
         AlterTableOperation::RenameColumn { from, to } => {
             let from = from.trim();

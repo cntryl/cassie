@@ -75,11 +75,10 @@ fn build_plan(catalog: &Catalog, sql: &str, collection: &str) -> physical::Physi
         let parsed = parser::parse_statement(sql).unwrap();
         let bound = binder::bind(parsed, catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
-        physical::build_with_indexes(
-            logical,
-            catalog.list_indexes(collection),
-            &Default::default(),
-        )
+        let indexes = catalog.list_indexes(collection);
+        let cardinality_stats =
+            std::collections::HashMap::<String, cassie::catalog::CollectionCardinalityStats>::new();
+        physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats)
     })
 }
 

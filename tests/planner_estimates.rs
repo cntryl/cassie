@@ -82,7 +82,7 @@ fn should_fallback_to_conservative_cardinality_estimates_when_stats_missing() {
 
         // Act
         let physical_plan =
-            physical::build_with_indexes(logical, bound.indexes, &cardinality_stats);
+            physical::build_with_indexes(logical, bound.indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(physical_plan.estimates.scan_rows, 1_000);
@@ -136,7 +136,7 @@ fn should_use_hydrated_cardinality_estimates_for_index_plans() {
 
         // Act
         let physical_plan =
-            physical::build_with_indexes(logical, bound.indexes, &cardinality_stats);
+            physical::build_with_indexes(logical, bound.indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(physical_plan.estimates.scan_rows, 42);
@@ -202,7 +202,7 @@ fn should_use_advanced_field_stats_for_selective_filter_estimates() {
 
         // Act
         let physical_plan =
-            physical::build_with_indexes(logical, bound.indexes, &cardinality_stats);
+            physical::build_with_indexes(logical, bound.indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(physical_plan.estimates.scan_rows, 100);
@@ -263,7 +263,7 @@ fn should_choose_lower_cost_competing_scalar_index_from_stats() {
 
         // Act
         let physical_plan =
-            physical::build_with_indexes(logical, bound.indexes, &cardinality_stats);
+            physical::build_with_indexes(logical, bound.indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(

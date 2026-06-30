@@ -8,6 +8,7 @@ SQL-over-document-store database engine in Rust. Embedded storage via `cntryl-mi
 cargo build --locked --bin cassie
 cargo test --locked
 cargo bench --locked
+cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic
 cargo fmt --all -- --check
 ```
 
@@ -50,6 +51,8 @@ find src tests benches -type f -name '*.rs' -print0 | xargs -0 wc -l | sort -nr 
 - All integration tests live in `tests/`. Module tests live near the code they cover.
 - **Async tests**: use `tokio::runtime::Builder::new_current_thread().enable_all().build()` — never `#[tokio::test]`.
 - Many tests need `CASSIE_MIDGE_ALLOW_FALLBACK=1` for in-memory storage fallback.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` is a standing requirement for completed work.
+- Fix every pedantic clippy finding in touched code. Do not silence clippy with `#[allow(clippy::...)]`, lint-cap changes, reduced lint levels, or equivalent workarounds.
 
 ```sh
 # specific split integration tests
@@ -63,7 +66,7 @@ cargo test --locked should_reuse_cached_plan_arc
 cntryl-tools validate-tests -f <path>
 ```
 
-**Required order**: `cargo build` → `cargo test` → `cntryl-tools validate-tests -f <path>`
+**Required order**: `cargo build` → `cargo test --locked` → `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` → `cargo fmt --all -- --check` → `cntryl-tools validate-tests -f <path>`
 
 ## Configuration
 
@@ -130,9 +133,10 @@ Required loop:
 5. Make the smallest code change that satisfies the failing test and issue requirements.
 6. Refactor only inside the slice scope and without broadening test coverage opportunistically.
 7. Update docs, diagnostics, benchmarks, or roadmap references required by the slice.
-8. Run validation in the required order: `cargo build` -> `cargo test --locked` -> `cargo fmt --all -- --check` -> `cntryl-tools validate-tests -f <path>` for touched test files.
-9. Confirm every acceptance criterion and close-out step is complete.
-10. Commit the completed slice with only the files required for that slice when a commit is requested.
+8. Run validation in the required order: `cargo build` -> `cargo test --locked` -> `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` -> `cargo fmt --all -- --check` -> `cntryl-tools validate-tests -f <path>` for touched test files.
+9. Treat pedantic clippy findings as defects to fix, not lints to mute. Never add `#[allow(clippy::...)]`, never lower lint levels, and never bypass the requirement by narrowing the clippy invocation.
+10. Confirm every acceptance criterion and close-out step is complete.
+11. Commit the completed slice with only the files required for that slice when a commit is requested.
 
 Do not start implementation from a later roadmap/readiness item while an earlier documented dependency is still open unless the later item explicitly names that dependency as complete or unnecessary.
 Do not reinterpret documented requirements as suggestions; if the plan is wrong, update the doc or issue first so implementation remains mechanical.

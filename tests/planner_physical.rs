@@ -565,11 +565,11 @@ fn should_mark_composite_equality_as_prefix_scan() {
         let logical = logical::plan(&bound).unwrap();
 
         // Act
-        let physical_plan = physical::build_with_indexes(
-            logical,
-            catalog.list_indexes("planner_prefix_scan"),
-            &Default::default(),
-        );
+        let indexes = catalog.list_indexes("planner_prefix_scan");
+        let cardinality_stats =
+            std::collections::HashMap::<String, cassie::catalog::CollectionCardinalityStats>::new();
+        let physical_plan =
+            physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(
@@ -621,11 +621,11 @@ fn should_mark_range_filter_as_range_scan() {
         let logical = logical::plan(&bound).unwrap();
 
         // Act
-        let physical_plan = physical::build_with_indexes(
-            logical,
-            catalog.list_indexes("planner_range_scan"),
-            &Default::default(),
-        );
+        let indexes = catalog.list_indexes("planner_range_scan");
+        let cardinality_stats =
+            std::collections::HashMap::<String, cassie::catalog::CollectionCardinalityStats>::new();
+        let physical_plan =
+            physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(
@@ -680,11 +680,11 @@ fn should_mark_order_limit_as_ordered_bounded_scan_when_index_matches() {
         let logical = logical::plan(&bound).unwrap();
 
         // Act
-        let physical_plan = physical::build_with_indexes(
-            logical,
-            catalog.list_indexes("planner_ordered_bounded"),
-            &Default::default(),
-        );
+        let indexes = catalog.list_indexes("planner_ordered_bounded");
+        let cardinality_stats =
+            std::collections::HashMap::<String, cassie::catalog::CollectionCardinalityStats>::new();
+        let physical_plan =
+            physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(
@@ -739,11 +739,11 @@ fn should_report_fallback_when_secondary_ordering_proof_is_missing() {
         let logical = logical::plan(&bound).unwrap();
 
         // Act
-        let physical_plan = physical::build_with_indexes(
-            logical,
-            catalog.list_indexes("planner_ordering_fallback"),
-            &Default::default(),
-        );
+        let indexes = catalog.list_indexes("planner_ordering_fallback");
+        let cardinality_stats =
+            std::collections::HashMap::<String, cassie::catalog::CollectionCardinalityStats>::new();
+        let physical_plan =
+            physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(

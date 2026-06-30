@@ -458,10 +458,10 @@ fn should_select_adaptive_read_operator_alternative() {
         let preferred_key = feedback_key(&cassie, &session, shape_sql, Some(preferred_index));
         for _ in 0..4 {
             cassie
-                .seed_feedback_for_diagnostics(base_key.clone(), confident_feedback(90, 24))
+                .seed_feedback_for_diagnostics(&base_key, &confident_feedback(90, 24))
                 .expect("seed base feedback");
             cassie
-                .seed_feedback_for_diagnostics(preferred_key.clone(), confident_feedback(5, 1))
+                .seed_feedback_for_diagnostics(&preferred_key, &confident_feedback(5, 1))
                 .expect("seed preferred feedback");
         }
         let before = cassie.metrics();
@@ -535,10 +535,10 @@ fn should_keep_base_alternative_when_adaptive_guard_fails() {
         let preferred_key = feedback_key(&cassie, &session, shape_sql, Some(preferred_index));
         for _ in 0..4 {
             cassie
-                .seed_feedback_for_diagnostics(base_key.clone(), confident_feedback(90, 24))
+                .seed_feedback_for_diagnostics(&base_key, &confident_feedback(90, 24))
                 .expect("seed base feedback");
             cassie
-                .seed_feedback_for_diagnostics(preferred_key.clone(), confident_feedback(5, 1))
+                .seed_feedback_for_diagnostics(&preferred_key, &confident_feedback(5, 1))
                 .expect("seed preferred feedback");
         }
 
@@ -584,10 +584,10 @@ fn should_keep_base_alternative_when_confidence_guard_fails() {
         let preferred_key = feedback_key(&cassie, &session, shape_sql, Some(preferred_index));
         for _ in 0..3 {
             cassie
-                .seed_feedback_for_diagnostics(base_key.clone(), confident_feedback(90, 24))
+                .seed_feedback_for_diagnostics(&base_key, &confident_feedback(90, 24))
                 .expect("seed base feedback");
             cassie
-                .seed_feedback_for_diagnostics(preferred_key.clone(), confident_feedback(5, 1))
+                .seed_feedback_for_diagnostics(&preferred_key, &confident_feedback(5, 1))
                 .expect("seed preferred feedback");
         }
 

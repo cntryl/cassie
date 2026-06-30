@@ -187,10 +187,10 @@ fn should_preserve_results_for_adaptive_read_operator_choice() {
             .unwrap();
         for _ in 0..4 {
             adaptive
-                .seed_feedback_for_diagnostics(base_key.clone(), confident_feedback(90, 24))
+                .seed_feedback_for_diagnostics(&base_key, &confident_feedback(90, 24))
                 .unwrap();
             adaptive
-                .seed_feedback_for_diagnostics(preferred_key.clone(), confident_feedback(5, 1))
+                .seed_feedback_for_diagnostics(&preferred_key, &confident_feedback(5, 1))
                 .unwrap();
         }
 

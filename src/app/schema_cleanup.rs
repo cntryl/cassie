@@ -41,13 +41,7 @@ impl Cassie {
         plan: &std::sync::Arc<crate::planner::physical::PhysicalPlan>,
     ) -> Result<QueryResult, CassieError> {
         let controls = self.runtime.query_controls(std::time::Instant::now());
-        crate::executor::run_with_session_controls(
-            self,
-            Some(session),
-            &plan,
-            Vec::new(),
-            &controls,
-        )
-        .map_err(CassieError::from)
+        crate::executor::run_with_session_controls(self, Some(session), plan, Vec::new(), &controls)
+            .map_err(CassieError::from)
     }
 }

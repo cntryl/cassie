@@ -93,7 +93,7 @@ fn should_select_scalar_index_for_equality_filter() {
         // Act
         let cardinality_stats = std::collections::HashMap::new();
         let physical_plan =
-            physical::build_with_indexes(logical, bound.indexes, &cardinality_stats);
+            physical::build_with_indexes(logical, bound.indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(
@@ -128,11 +128,11 @@ fn should_mark_scalar_index_plan_as_covered() {
         let logical = logical::plan(&bound).unwrap();
 
         // Act
-        let physical_plan = physical::build_with_indexes(
-            logical,
-            catalog.list_indexes("planner_covering_index"),
-            &Default::default(),
-        );
+        let indexes = catalog.list_indexes("planner_covering_index");
+        let cardinality_stats =
+            std::collections::HashMap::<String, cassie::catalog::CollectionCardinalityStats>::new();
+        let physical_plan =
+            physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(
@@ -168,11 +168,11 @@ fn should_leave_noncovered_scalar_index_plan_uncovered() {
         let logical = logical::plan(&bound).unwrap();
 
         // Act
-        let physical_plan = physical::build_with_indexes(
-            logical,
-            catalog.list_indexes("planner_covering_fallback"),
-            &Default::default(),
-        );
+        let indexes = catalog.list_indexes("planner_covering_fallback");
+        let cardinality_stats =
+            std::collections::HashMap::<String, cassie::catalog::CollectionCardinalityStats>::new();
+        let physical_plan =
+            physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(
@@ -214,11 +214,11 @@ fn should_mark_include_column_plan_as_covered() {
         let logical = logical::plan(&bound).unwrap();
 
         // Act
-        let physical_plan = physical::build_with_indexes(
-            logical,
-            catalog.list_indexes("planner_include_covering"),
-            &Default::default(),
-        );
+        let indexes = catalog.list_indexes("planner_include_covering");
+        let cardinality_stats =
+            std::collections::HashMap::<String, cassie::catalog::CollectionCardinalityStats>::new();
+        let physical_plan =
+            physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(
@@ -269,11 +269,11 @@ fn should_select_partial_index_for_exact_predicate() {
         let logical = logical::plan(&bound).unwrap();
 
         // Act
-        let physical_plan = physical::build_with_indexes(
-            logical,
-            catalog.list_indexes("planner_partial_index"),
-            &Default::default(),
-        );
+        let indexes = catalog.list_indexes("planner_partial_index");
+        let cardinality_stats =
+            std::collections::HashMap::<String, cassie::catalog::CollectionCardinalityStats>::new();
+        let physical_plan =
+            physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(
@@ -314,11 +314,11 @@ fn should_skip_partial_index_for_unsafe_predicate() {
         let logical = logical::plan(&bound).unwrap();
 
         // Act
-        let physical_plan = physical::build_with_indexes(
-            logical,
-            catalog.list_indexes("planner_partial_fallback"),
-            &Default::default(),
-        );
+        let indexes = catalog.list_indexes("planner_partial_fallback");
+        let cardinality_stats =
+            std::collections::HashMap::<String, cassie::catalog::CollectionCardinalityStats>::new();
+        let physical_plan =
+            physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert!(physical_plan.selected_index.is_none());
@@ -364,11 +364,11 @@ fn should_select_expression_index_for_matching_predicate() {
         let logical = logical::plan(&bound).unwrap();
 
         // Act
-        let physical_plan = physical::build_with_indexes(
-            logical,
-            catalog.list_indexes("planner_expression_index"),
-            &Default::default(),
-        );
+        let indexes = catalog.list_indexes("planner_expression_index");
+        let cardinality_stats =
+            std::collections::HashMap::<String, cassie::catalog::CollectionCardinalityStats>::new();
+        let physical_plan =
+            physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(
@@ -417,11 +417,11 @@ fn should_skip_expression_index_for_non_equivalent_predicate() {
         let logical = logical::plan(&bound).unwrap();
 
         // Act
-        let physical_plan = physical::build_with_indexes(
-            logical,
-            catalog.list_indexes("planner_expression_fallback"),
-            &Default::default(),
-        );
+        let indexes = catalog.list_indexes("planner_expression_fallback");
+        let cardinality_stats =
+            std::collections::HashMap::<String, cassie::catalog::CollectionCardinalityStats>::new();
+        let physical_plan =
+            physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert!(physical_plan.selected_index.is_none());
@@ -459,11 +459,11 @@ fn should_keep_scalar_index_selection_deterministic_when_candidates_tie() {
         let logical = logical::plan(&bound).unwrap();
 
         // Act
-        let physical_plan = physical::build_with_indexes(
-            logical,
-            catalog.list_indexes("planner_operator_feedback_tie"),
-            &Default::default(),
-        );
+        let indexes = catalog.list_indexes("planner_operator_feedback_tie");
+        let cardinality_stats =
+            std::collections::HashMap::<String, cassie::catalog::CollectionCardinalityStats>::new();
+        let physical_plan =
+            physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
         assert_eq!(

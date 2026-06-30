@@ -327,7 +327,7 @@ fn should_execute_saved_plan_with_schema_snapshot_after_column_rename() {
             )
             .unwrap();
         let saved = cassie
-            .execute_physical_plan_for_diagnostics(&session, saved_plan)
+            .execute_physical_plan_for_diagnostics(&session, &saved_plan)
             .unwrap();
         let current = cassie
             .execute_sql(
@@ -401,7 +401,7 @@ fn should_execute_saved_plan_with_schema_snapshot_after_column_drop() {
             )
             .unwrap();
         let saved = cassie
-            .execute_physical_plan_for_diagnostics(&session, saved_plan)
+            .execute_physical_plan_for_diagnostics(&session, &saved_plan)
             .unwrap();
         let current = cassie
             .execute_sql(
@@ -469,7 +469,7 @@ fn should_keep_saved_wildcard_plan_on_schema_snapshot_after_column_add() {
             )
             .unwrap();
         let saved = cassie
-            .execute_physical_plan_for_diagnostics(&session, saved_plan)
+            .execute_physical_plan_for_diagnostics(&session, &saved_plan)
             .unwrap();
         let current = cassie
             .execute_sql(

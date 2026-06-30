@@ -82,7 +82,7 @@ fn run_with_execution_breakdown_controls(
     )?;
 
     let result_started = Instant::now();
-    let result = build_select_result(cassie, &plan, rows, &user_functions, controls)?;
+    let result = build_select_result(cassie, plan, rows, &user_functions, controls)?;
     breakdown.result_build += result_started.elapsed();
     Ok(ExecutionBreakdownOutput {
         result,
@@ -121,7 +121,7 @@ pub(crate) fn run_with_session_controls(
         controls,
     )?;
 
-    build_select_result(cassie, &plan, rows, &user_functions, controls)
+    build_select_result(cassie, plan, rows, &user_functions, controls)
 }
 
 pub(crate) fn refresh_rollups_for_source_external(

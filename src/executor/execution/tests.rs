@@ -35,7 +35,7 @@ fn should_route_scalar_physical_read_paths_directly_to_scalar_index_executor() {
             "bench_documents_status_score_idx",
             vec!["status", "score"],
         )],
-        &std::collections::HashMap::default(),
+        &std::collections::HashMap::<String, crate::catalog::CollectionCardinalityStats>::default(),
     );
     assert_eq!(
         physical.access_path,

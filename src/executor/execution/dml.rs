@@ -1,5 +1,10 @@
 use super::dml_referential_actions;
-use super::{Cassie, CassieSession, Value, HashMap, FunctionMeta, QueryExecutionControls, QueryResult, QueryError, filter, Expr, projection, BatchRow, InsertSource, LogicalPlan, QuerySource, CteContext, execute_plan, CollectionSchema, FieldMeta, DataType, SelectItem, ColumnMeta, aggregate, check_timeout, scan, ensure_temp_budget, batch};
+use super::{
+    aggregate, batch, check_timeout, ensure_temp_budget, execute_plan, filter, projection, scan,
+    BatchRow, Cassie, CassieSession, CollectionSchema, ColumnMeta, CteContext, DataType, Expr,
+    FieldMeta, FunctionMeta, HashMap, InsertSource, LogicalPlan, QueryError,
+    QueryExecutionControls, QueryResult, QuerySource, SelectItem, Value,
+};
 
 pub(super) fn execute_insert(
     cassie: &Cassie,
@@ -12,170 +17,52 @@ pub(super) fn execute_insert(
     let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", statement.table))
     })?;
-
     let source_rows =
         insert_source_rows(cassie, session, statement, params, user_functions, controls)?;
     let source_width = source_rows
-        .first().map_or_else(|| insert_source_width(statement, &schema), Vec::len);
+        .first()
+        .map_or_else(|| insert_source_width(statement, &schema), Vec::len);
     let target_fields = insert_target_fields(statement, &schema, source_width)?;
-    for row in &source_rows {
-        if row.len() != target_fields.len() {
-            return Err(QueryError::General(format!(
-                "INSERT column/value counts mismatch: {} columns, {} values",
-                target_fields.len(),
-                row.len()
-            )));
-        }
-    }
+    validate_insert_source_rows(&source_rows, target_fields.len())?;
 
     let mut affected_count = 0usize;
     let mut returning_rows = Vec::new();
+    let insert_context = InsertExecutionContext {
+        cassie,
+        session,
+        statement,
+        params,
+        user_functions,
+        schema: &schema,
+    };
     for source_row in source_rows {
-        let payload = payload_from_insert_row(&target_fields, &source_row);
-        let payload = serde_json::Value::Object(payload);
-        let maybe_conflict_id = find_insert_conflict_row_id(cassie, session, statement, &payload)?;
-
-        let row_id = match (statement.on_conflict.as_ref(), maybe_conflict_id) {
-            (Some(on_conflict), Some(conflict_id)) => match &on_conflict.action {
-                crate::sql::ast::InsertConflictAction::DoNothing => {
-                    continue;
-                }
-                crate::sql::ast::InsertConflictAction::DoUpdate {
-                    assignments,
-                    filter,
-                } => {
-                    let current = cassie
-                        .get_document_for_session(session, &statement.table, &conflict_id)
-                        .map_err(QueryError::from)?
-                        .ok_or_else(|| {
-                            QueryError::General(format!(
-                                "conflicting row '{conflict_id}' was not found in '{}'",
-                                statement.table
-                            ))
-                        })?;
-                    let existing_row =
-                        inserted_row_to_batch_row(&conflict_id, &schema, &current.payload);
-                    let excluded_args = excluded_local_args(&payload);
-
-                    if let Some(filter) = filter {
-                        let matches = filter::eval_scalar(
-                            &existing_row,
-                            filter,
-                            params,
-                            None,
-                            user_functions,
-                            Some(&excluded_args),
-                            session,
-                        )?
-                        .as_bool();
-                        if !matches {
-                            continue;
-                        }
-                    }
-
-                    let mut merged_payload =
-                        current.payload.as_object().cloned().ok_or_else(|| {
-                            QueryError::General("stored row payload must be object".to_string())
-                        })?;
-                    for (field, expr) in assignments {
-                        let value = match expr {
-                            Expr::Column(name) => excluded_args
-                                .get(&name.to_ascii_lowercase())
-                                .cloned()
-                                .or_else(|| existing_row.get(name).cloned())
-                                .unwrap_or(Value::Null),
-                            _ => filter::evaluate_expr_value(
-                                &existing_row,
-                                expr,
-                                params,
-                                None,
-                                user_functions,
-                                session,
-                                Some(&excluded_args),
-                            )?,
-                        };
-                        merged_payload.insert(
-                            field.clone(),
-                            update_assignment_to_json(field, &value, &schema),
-                        );
-                    }
-
-                    let prepared = cassie
-                        .prepare_document_write_for_session(
-                            session,
-                            &statement.table,
-                            serde_json::Value::Object(merged_payload),
-                            true,
-                            Some(&conflict_id),
-                        )
-                        .map_err(QueryError::from)?;
-                    cassie
-                        .put_prepared_document_for_session(
-                            session,
-                            &statement.table,
-                            conflict_id.clone(),
-                            prepared,
-                        )
-                        .map_err(QueryError::from)?;
-                    conflict_id
-                }
-            },
-            (_, Some(_)) => {
-                return Err(QueryError::General(
-                    "INSERT conflict detected without ON CONFLICT clause".to_string(),
-                ));
-            }
-            (_, None) => cassie
-                .write_document_for_session(session, &statement.table, None, payload, true, None)
-                .map_err(QueryError::from)?,
+        let Some(row_id) = execute_insert_source_row(&insert_context, &target_fields, &source_row)?
+        else {
+            continue;
         };
         affected_count += 1;
-
-        if !statement.returning.is_empty() {
-            let document = cassie
-                .get_document_for_session(session, &statement.table, &row_id)
-                .map_err(QueryError::from)?
-                .ok_or_else(|| {
-                    QueryError::General(format!(
-                        "affected row '{row_id}' was not found in '{}'",
-                        statement.table
-                    ))
-                })?;
-
-            returning_rows.push(inserted_row_to_batch_row(
-                &row_id,
-                &schema,
-                &document.payload,
-            ));
-        }
+        append_insert_returning_row(
+            cassie,
+            session,
+            statement,
+            &schema,
+            &row_id,
+            &mut returning_rows,
+        )?;
     }
-
-    if statement.returning.is_empty() {
-        return Ok(QueryResult {
-            columns: Vec::new(),
-            rows: Vec::new(),
-            command: format!("INSERT 0 {affected_count}"),
-        });
-    }
-
-    let projected = projection::project_rows(
+    build_dml_result(
+        &DmlResultContext {
+            cassie,
+            session,
+            table: &statement.table,
+            returning: &statement.returning,
+            params,
+            user_functions,
+            command_prefix: "INSERT 0",
+        },
+        affected_count,
         returning_rows,
-        &statement.returning,
-        params,
-        None,
-        user_functions,
-        session,
-    )?;
-
-    let column_schema = cassie.catalog.get_schema(&statement.table);
-    let columns =
-        dml_returning_columns(&statement.returning, column_schema.as_ref(), user_functions);
-
-    Ok(QueryResult {
-        columns,
-        rows: projected.into_iter().map(BatchRow::into_values).collect(),
-        command: format!("INSERT 0 {affected_count}"),
-    })
+    )
 }
 
 fn find_insert_conflict_row_id(
@@ -309,7 +196,9 @@ fn insert_source_rows(
                 command: None,
                 source: select.source.clone(),
                 collection: match &select.source {
-                    QuerySource::Collection(name) | QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
+                    QuerySource::Collection(name)
+                    | QuerySource::Cte(name)
+                    | QuerySource::TableFunction { name, .. } => name.clone(),
                     QuerySource::Subquery { alias, .. } => alias.clone(),
                     QuerySource::SingleRow => "single_row".to_string(),
                     QuerySource::Join { .. } => "join".to_string(),
@@ -377,6 +266,222 @@ fn payload_from_insert_row(
         payload.insert(field.name.clone(), value_to_json(value));
     }
     payload
+}
+
+fn validate_insert_source_rows(
+    source_rows: &[Vec<Value>],
+    target_field_count: usize,
+) -> Result<(), QueryError> {
+    for row in source_rows {
+        if row.len() != target_field_count {
+            return Err(QueryError::General(format!(
+                "INSERT column/value counts mismatch: {} columns, {} values",
+                target_field_count,
+                row.len()
+            )));
+        }
+    }
+    Ok(())
+}
+
+struct InsertExecutionContext<'a> {
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    statement: &'a crate::sql::ast::InsertStatement,
+    params: &'a [Value],
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    schema: &'a CollectionSchema,
+}
+
+fn execute_insert_source_row(
+    context: &InsertExecutionContext<'_>,
+    target_fields: &[FieldMeta],
+    source_row: &[Value],
+) -> Result<Option<String>, QueryError> {
+    let payload = serde_json::Value::Object(payload_from_insert_row(target_fields, source_row));
+    let maybe_conflict_id =
+        find_insert_conflict_row_id(context.cassie, context.session, context.statement, &payload)?;
+    match (context.statement.on_conflict.as_ref(), maybe_conflict_id) {
+        (Some(on_conflict), Some(conflict_id)) => match &on_conflict.action {
+            crate::sql::ast::InsertConflictAction::DoNothing => Ok(None),
+            crate::sql::ast::InsertConflictAction::DoUpdate {
+                assignments,
+                filter,
+            } => execute_insert_conflict_update(
+                context,
+                &payload,
+                &conflict_id,
+                assignments,
+                filter.as_ref(),
+            ),
+        },
+        (_, Some(_)) => Err(QueryError::General(
+            "INSERT conflict detected without ON CONFLICT clause".to_string(),
+        )),
+        (_, None) => context
+            .cassie
+            .write_document_for_session(
+                context.session,
+                &context.statement.table,
+                None,
+                payload,
+                true,
+                None,
+            )
+            .map(Some)
+            .map_err(QueryError::from),
+    }
+}
+
+struct ConflictAssignmentContext<'a> {
+    existing_row: &'a BatchRow,
+    excluded_args: &'a HashMap<String, Value>,
+    params: &'a [Value],
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    session: Option<&'a CassieSession>,
+    schema: &'a CollectionSchema,
+}
+
+fn execute_insert_conflict_update(
+    context: &InsertExecutionContext<'_>,
+    payload: &serde_json::Value,
+    conflict_id: &str,
+    assignments: &[(String, Expr)],
+    conflict_filter: Option<&Expr>,
+) -> Result<Option<String>, QueryError> {
+    let current = context
+        .cassie
+        .get_document_for_session(context.session, &context.statement.table, conflict_id)
+        .map_err(QueryError::from)?
+        .ok_or_else(|| {
+            QueryError::General(format!(
+                "conflicting row '{conflict_id}' was not found in '{}'",
+                context.statement.table
+            ))
+        })?;
+    let existing_row = inserted_row_to_batch_row(conflict_id, context.schema, &current.payload);
+    let excluded_args = excluded_local_args(payload);
+    if let Some(filter_expr) = conflict_filter {
+        let matches = filter::eval_scalar(
+            &existing_row,
+            filter_expr,
+            context.params,
+            None,
+            context.user_functions,
+            Some(&excluded_args),
+            context.session,
+        )?
+        .as_bool();
+        if !matches {
+            return Ok(None);
+        }
+    }
+    let assignment_context = ConflictAssignmentContext {
+        existing_row: &existing_row,
+        excluded_args: &excluded_args,
+        params: context.params,
+        user_functions: context.user_functions,
+        session: context.session,
+        schema: context.schema,
+    };
+    let merged_payload =
+        merged_conflict_payload(&current.payload, assignments, &assignment_context)?;
+    let prepared = context
+        .cassie
+        .prepare_document_write_for_session(
+            context.session,
+            &context.statement.table,
+            serde_json::Value::Object(merged_payload),
+            true,
+            Some(conflict_id),
+        )
+        .map_err(QueryError::from)?;
+    context
+        .cassie
+        .put_prepared_document_for_session(
+            context.session,
+            &context.statement.table,
+            conflict_id.to_string(),
+            prepared,
+        )
+        .map_err(QueryError::from)?;
+    Ok(Some(conflict_id.to_string()))
+}
+
+fn merged_conflict_payload(
+    current_payload: &serde_json::Value,
+    assignments: &[(String, Expr)],
+    context: &ConflictAssignmentContext<'_>,
+) -> Result<serde_json::Map<String, serde_json::Value>, QueryError> {
+    let mut merged_payload = current_payload
+        .as_object()
+        .cloned()
+        .ok_or_else(|| QueryError::General("stored row payload must be object".to_string()))?;
+    for (field, expr) in assignments {
+        let value = conflict_assignment_value(
+            expr,
+            context.existing_row,
+            context.excluded_args,
+            context.params,
+            context.user_functions,
+            context.session,
+        )?;
+        merged_payload.insert(
+            field.clone(),
+            update_assignment_to_json(field, &value, context.schema),
+        );
+    }
+    Ok(merged_payload)
+}
+
+fn conflict_assignment_value(
+    expr: &Expr,
+    existing_row: &BatchRow,
+    excluded_args: &HashMap<String, Value>,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    match expr {
+        Expr::Column(name) => Ok(excluded_args
+            .get(&name.to_ascii_lowercase())
+            .cloned()
+            .or_else(|| existing_row.get(name).cloned())
+            .unwrap_or(Value::Null)),
+        _ => filter::evaluate_expr_value(
+            existing_row,
+            expr,
+            params,
+            None,
+            user_functions,
+            session,
+            Some(excluded_args),
+        ),
+    }
+}
+
+fn append_insert_returning_row(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    statement: &crate::sql::ast::InsertStatement,
+    schema: &CollectionSchema,
+    row_id: &str,
+    returning_rows: &mut Vec<BatchRow>,
+) -> Result<(), QueryError> {
+    if statement.returning.is_empty() || row_id.is_empty() {
+        return Ok(());
+    }
+    let document = cassie
+        .get_document_for_session(session, &statement.table, row_id)
+        .map_err(QueryError::from)?
+        .ok_or_else(|| {
+            QueryError::General(format!(
+                "affected row '{row_id}' was not found in '{}'",
+                statement.table
+            ))
+        })?;
+    returning_rows.push(inserted_row_to_batch_row(row_id, schema, &document.payload));
+    Ok(())
 }
 
 fn insert_target_fields(
@@ -453,11 +558,9 @@ fn number_literal_to_json(value: f64) -> Result<serde_json::Value, String> {
     if !value.is_finite() {
         return Err("INSERT VALUES requires finite numeric literals".to_string());
     }
-
-    if value.fract() == 0.0 && value >= i64::MIN as f64 && value <= i64::MAX as f64 {
-        return Ok(serde_json::Value::Number((value as i64).into()));
+    if let Some(integer) = integral_json_number(value) {
+        return Ok(serde_json::Value::Number(integer));
     }
-
     serde_json::Number::from_f64(value)
         .map(serde_json::Value::Number)
         .ok_or_else(|| "INSERT VALUES requires finite numeric literals".to_string())
@@ -516,12 +619,8 @@ fn update_assignment_to_json(
             DataType::SmallInt | DataType::Int | DataType::BigInt
         ) {
             if let Value::Float64(number) = value {
-                if number.is_finite()
-                    && number.fract() == 0.0
-                    && *number >= i64::MIN as f64
-                    && *number <= i64::MAX as f64
-                {
-                    return serde_json::Value::Number((*number as i64).into());
+                if let Some(integer) = integral_json_number(*number) {
+                    return serde_json::Value::Number(integer);
                 }
             }
         }
@@ -539,9 +638,7 @@ fn inserted_row_to_batch_row(
     row.push(("_id".to_string(), Value::String(row_id.to_string())));
 
     for field in &schema.fields {
-        let value = payload
-            .get(&field.name)
-            .map_or(Value::Null, json_to_value);
+        let value = payload.get(&field.name).map_or(Value::Null, json_to_value);
         row.push((field.name.clone(), value));
     }
 
@@ -590,6 +687,29 @@ fn json_to_value(value: &serde_json::Value) -> Value {
     Value::Json(value.clone())
 }
 
+fn integral_json_number(value: f64) -> Option<serde_json::Number> {
+    if !value.is_finite() || value.fract() != 0.0 {
+        return None;
+    }
+    format!("{value:.0}").parse::<i64>().ok().map(Into::into)
+}
+
+struct PreparedUpdateRow {
+    row_id: String,
+    before_payload: serde_json::Value,
+    payload: serde_json::Value,
+}
+
+struct DmlResultContext<'a> {
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    table: &'a str,
+    returning: &'a [SelectItem],
+    params: &'a [Value],
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    command_prefix: &'a str,
+}
+
 pub(super) fn execute_update(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -602,82 +722,177 @@ pub(super) fn execute_update(
     let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", statement.table))
     })?;
-
-    let batches = scan::scan(cassie, session, &statement.table)?;
-    ensure_temp_budget(controls, &batches)?;
-    let rows = batch::flatten_batches(batches);
-    let matched_rows = if let Some(filter_expr) = &statement.filter {
-        filter::filter_rows(rows, filter_expr, params, None, user_functions, session)?
+    let matched_rows = matched_dml_rows(
+        cassie,
+        session,
+        &statement.table,
+        statement.filter.as_ref(),
+        params,
+        user_functions,
+        controls,
+    )?;
+    let prepared_rows = prepare_update_rows(
+        cassie,
+        session,
+        statement,
+        params,
+        user_functions,
+        &schema,
+        &matched_rows,
+    )?;
+    let mut returning_rows = Vec::new();
+    apply_update_rows(
+        cassie,
+        session,
+        statement,
+        &schema,
+        prepared_rows,
+        &mut returning_rows,
+    )?;
+    let updated_count = if statement.returning.is_empty() {
+        matched_rows.len()
     } else {
-        rows
+        returning_rows.len()
     };
-
-    let mut prepared_rows = Vec::with_capacity(matched_rows.len());
-    for row in &matched_rows {
-        let row_id = row_id_from_batch_row(row)?;
-        let current = cassie
-            .get_document_for_session(session, &statement.table, &row_id)
-            .map_err(QueryError::from)?
-            .ok_or_else(|| {
-                QueryError::General(format!(
-                    "row '{row_id}' was not found in '{}'",
-                    statement.table
-                ))
-            })?;
-        let mut payload =
-            current.payload.as_object().cloned().ok_or_else(|| {
-                QueryError::General("stored row payload must be object".to_string())
-            })?;
-
-        for (field, expr) in &statement.assignments {
-            let value = filter::evaluate_expr_value(
-                row,
-                expr,
-                params,
-                None,
-                user_functions,
-                session,
-                None,
-            )?;
-            payload.insert(
-                field.clone(),
-                update_assignment_to_json(field, &value, &schema),
-            );
-        }
-
-        let payload = cassie
-            .prepare_document_write_for_session(
-                session,
-                &statement.table,
-                serde_json::Value::Object(payload),
-                true,
-                Some(&row_id),
-            )
-            .map_err(QueryError::from)?;
-        dml_referential_actions::assert_referenced_values_can_change(
+    build_dml_result(
+        &DmlResultContext {
             cassie,
             session,
-            &statement.table,
-            &current.payload,
-            &payload,
-        )?;
-        prepared_rows.push((row_id, current.payload, payload));
-    }
+            table: &statement.table,
+            returning: &statement.returning,
+            params,
+            user_functions,
+            command_prefix: "UPDATE",
+        },
+        updated_count,
+        returning_rows,
+    )
+}
 
-    let mut returning_rows = Vec::new();
-    for (row_id, before_payload, payload) in prepared_rows {
-        cassie
-            .put_prepared_document_for_session(session, &statement.table, row_id.clone(), payload)
-            .map_err(QueryError::from)?;
-        let document = cassie
-            .get_document_for_session(session, &statement.table, &row_id)
-            .map_err(QueryError::from)?
-            .ok_or_else(|| {
-                QueryError::General(format!(
-                    "updated row '{row_id}' was not found in '{}'",
-                    statement.table
-                ))
-            })?;
+fn matched_dml_rows(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    filter_expr: Option<&Expr>,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<BatchRow>, QueryError> {
+    let batches = scan::scan(cassie, session, table)?;
+    ensure_temp_budget(controls, &batches)?;
+    let rows = batch::flatten_batches(batches);
+    if let Some(filter_expr) = filter_expr {
+        filter::filter_rows(rows, filter_expr, params, None, user_functions, session)
+    } else {
+        Ok(rows)
+    }
+}
+
+fn prepare_update_rows(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    statement: &crate::sql::ast::UpdateStatement,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    schema: &CollectionSchema,
+    matched_rows: &[BatchRow],
+) -> Result<Vec<PreparedUpdateRow>, QueryError> {
+    let mut prepared_rows = Vec::with_capacity(matched_rows.len());
+    for row in matched_rows {
+        prepared_rows.push(prepare_update_row(
+            cassie,
+            session,
+            statement,
+            params,
+            user_functions,
+            schema,
+            row,
+        )?);
+    }
+    Ok(prepared_rows)
+}
+
+fn prepare_update_row(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    statement: &crate::sql::ast::UpdateStatement,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    schema: &CollectionSchema,
+    row: &BatchRow,
+) -> Result<PreparedUpdateRow, QueryError> {
+    let row_id = row_id_from_batch_row(row)?;
+    let current = cassie
+        .get_document_for_session(session, &statement.table, &row_id)
+        .map_err(QueryError::from)?
+        .ok_or_else(|| {
+            QueryError::General(format!(
+                "row '{row_id}' was not found in '{}'",
+                statement.table
+            ))
+        })?;
+    let payload = updated_payload_from_row(
+        row,
+        &statement.assignments,
+        params,
+        user_functions,
+        session,
+        schema,
+        &current.payload,
+    )?;
+    let payload = cassie
+        .prepare_document_write_for_session(session, &statement.table, payload, true, Some(&row_id))
+        .map_err(QueryError::from)?;
+    dml_referential_actions::assert_referenced_values_can_change(
+        cassie,
+        session,
+        &statement.table,
+        &current.payload,
+        &payload,
+    )?;
+    Ok(PreparedUpdateRow {
+        row_id,
+        before_payload: current.payload,
+        payload,
+    })
+}
+
+fn updated_payload_from_row(
+    row: &BatchRow,
+    assignments: &[(String, Expr)],
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+    schema: &CollectionSchema,
+    current_payload: &serde_json::Value,
+) -> Result<serde_json::Value, QueryError> {
+    let mut payload = current_payload
+        .as_object()
+        .cloned()
+        .ok_or_else(|| QueryError::General("stored row payload must be object".to_string()))?;
+    for (field, expr) in assignments {
+        let value =
+            filter::evaluate_expr_value(row, expr, params, None, user_functions, session, None)?;
+        payload.insert(
+            field.clone(),
+            update_assignment_to_json(field, &value, schema),
+        );
+    }
+    Ok(serde_json::Value::Object(payload))
+}
+
+fn apply_update_rows(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    statement: &crate::sql::ast::UpdateStatement,
+    schema: &CollectionSchema,
+    prepared_rows: Vec<PreparedUpdateRow>,
+    returning_rows: &mut Vec<BatchRow>,
+) -> Result<(), QueryError> {
+    for prepared in prepared_rows {
+        let before_payload = prepared.before_payload.clone();
+        let row_id = prepared.row_id.clone();
+        let document = write_updated_row(cassie, session, &statement.table, prepared)?;
         dml_referential_actions::apply_referenced_update_actions(
             cassie,
             session,
@@ -685,46 +900,72 @@ pub(super) fn execute_update(
             &before_payload,
             &document.payload,
         )?;
-
         if !statement.returning.is_empty() {
             returning_rows.push(inserted_row_to_batch_row(
                 &row_id,
-                &schema,
+                schema,
                 &document.payload,
             ));
         }
     }
+    Ok(())
+}
 
-    let updated_count = if statement.returning.is_empty() {
-        matched_rows.len()
-    } else {
-        returning_rows.len()
-    };
-    if statement.returning.is_empty() {
+fn write_updated_row(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    prepared: PreparedUpdateRow,
+) -> Result<crate::midge::adapter::DocumentRef, QueryError> {
+    cassie
+        .put_prepared_document_for_session(
+            session,
+            table,
+            prepared.row_id.clone(),
+            prepared.payload,
+        )
+        .map_err(QueryError::from)?;
+    cassie
+        .get_document_for_session(session, table, &prepared.row_id)
+        .map_err(QueryError::from)?
+        .ok_or_else(|| {
+            QueryError::General(format!(
+                "updated row '{}' was not found in '{}'",
+                prepared.row_id, table
+            ))
+        })
+}
+
+fn build_dml_result(
+    context: &DmlResultContext<'_>,
+    affected_count: usize,
+    returning_rows: Vec<BatchRow>,
+) -> Result<QueryResult, QueryError> {
+    if context.returning.is_empty() {
         return Ok(QueryResult {
             columns: Vec::new(),
             rows: Vec::new(),
-            command: format!("UPDATE {updated_count}"),
+            command: format!("{} {affected_count}", context.command_prefix),
         });
     }
-
     let projected = projection::project_rows(
         returning_rows,
-        &statement.returning,
-        params,
+        context.returning,
+        context.params,
         None,
-        user_functions,
-        session,
+        context.user_functions,
+        context.session,
     )?;
-
-    let column_schema = cassie.catalog.get_schema(&statement.table);
-    let columns =
-        dml_returning_columns(&statement.returning, column_schema.as_ref(), user_functions);
-
+    let column_schema = context.cassie.catalog.get_schema(context.table);
+    let columns = dml_returning_columns(
+        context.returning,
+        column_schema.as_ref(),
+        context.user_functions,
+    );
     Ok(QueryResult {
         columns,
         rows: projected.into_iter().map(BatchRow::into_values).collect(),
-        command: format!("UPDATE {updated_count}"),
+        command: format!("{} {affected_count}", context.command_prefix),
     })
 }
 

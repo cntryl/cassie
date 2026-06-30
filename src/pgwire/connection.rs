@@ -125,7 +125,6 @@ async fn handle_startup(
             let _ = write_ssl_not_supported(write_half).await;
             ConnectionStep::Continue(HandshakeState::AwaitStartup)
         }
-        Ok(StartupFrame::CancelRequest) => ConnectionStep::Break,
         Ok(StartupFrame::Startup(parameters)) => {
             runtime.record_pgwire_message("startup");
             state.startup_user = Some(
@@ -163,7 +162,7 @@ async fn handle_startup(
                 })
             }
         }
-        Err(HandshakeError::Closed) => ConnectionStep::Break,
+        Ok(StartupFrame::CancelRequest) | Err(HandshakeError::Closed) => ConnectionStep::Break,
         Err(HandshakeError::Invalid(_)) => {
             runtime.record_pgwire_protocol_error();
             let _ = write_error_response(

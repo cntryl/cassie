@@ -65,7 +65,7 @@ pub(super) fn execute_projected_filtered_read(
             params,
             controls,
             plan,
-            spec,
+            &spec,
         )?));
     }
 
@@ -190,32 +190,10 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
     )?;
     ensure_temp_budget(controls, batches)?;
 
-    if let Some(offset) = plan.offset {
-        let offset = offset.max(0) as usize;
-        let limit = plan.limit.map(|value| value.max(0) as usize);
-        *batches = batch::slice_batches(batches.clone(), offset, limit);
-    } else if let Some(limit) = plan.limit {
-        let limit = limit.max(0) as usize;
-        *batches = batch::slice_batches(batches.clone(), 0, Some(limit));
-    }
+    *batches = slice_batches_for_plan(batches.clone(), plan.offset, plan.limit);
 
     let rows = batch::flatten_batches(std::mem::take(batches));
-
-    match index_usage {
-        Some(ProjectedReadIndexUsage::CoveringScalarIndex) => {
-            cassie.runtime.record_covering_index_scan(rows.len());
-        }
-        Some(ProjectedReadIndexUsage::SelectedScalarIndexFallback) => {
-            cassie.runtime.record_covering_index_fallback();
-        }
-        None => {
-            if covering_index_for_plan(cassie, plan).is_some() {
-                cassie.runtime.record_covering_index_scan(rows.len());
-            } else if selected_scalar_index_for_plan(cassie, plan).is_some() {
-                cassie.runtime.record_covering_index_fallback();
-            }
-        }
-    }
+    record_covering_index_usage(cassie, plan, rows.len(), index_usage);
 
     Ok(rows)
 }
@@ -227,7 +205,7 @@ fn execute_projected_point_lookup_read(
     params: &[Value],
     controls: &QueryExecutionControls,
     plan: &LogicalPlan,
-    spec: PointLookupReadSpec,
+    spec: &PointLookupReadSpec,
 ) -> Result<Vec<BatchRow>, QueryError> {
     let Some(document) = cassie
         .get_document_for_session(session, &spec.collection, &spec.row_id)
@@ -297,39 +275,25 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
             params,
             controls,
             plan,
-            spec,
+            &spec,
         )?;
         breakdown.result_build += result_started.elapsed();
         return Ok(Some((rows, breakdown)));
     }
 
-    let scan_started = Instant::now();
-    let pushdown_filter = plan
-        .filter
-        .as_ref()
-        .and_then(projected_scan_pushdown_filter);
-    let column_filter = plan.filter.as_ref().and_then(column_batch_scan_filter);
-    let (mut batches, scan_timings) = scan::scan_projected_filtered_with_timings(
-        cassie,
-        session,
-        &spec.collection,
-        &spec.scan_fields,
-        spec.scan_limit,
-        pushdown_filter.as_ref(),
-        column_filter.as_ref(),
-    )?;
-    breakdown.row_decode += scan_timings.row_decode;
-    let measured_scan = scan_timings.scan.saturating_add(scan_timings.row_decode);
-    breakdown.scan += scan_timings
+    let scan = scan_projected_read_batches(cassie, session, &spec, plan, controls)?;
+    let mut batches = scan.batches;
+    breakdown.row_decode += scan.scan_timings.row_decode;
+    let measured_scan = scan
+        .scan_timings
         .scan
-        .saturating_add(scan_started.elapsed().saturating_sub(measured_scan));
-    let rows = batches.iter().map(Vec::len).sum::<usize>();
-    cassie
-        .runtime
-        .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len(), rows);
-    ensure_temp_budget(controls, &batches)?;
+        .saturating_add(scan.scan_timings.row_decode);
+    breakdown.scan += scan
+        .scan_timings
+        .scan
+        .saturating_add(scan.started.elapsed().saturating_sub(measured_scan));
 
-    if pushdown_filter.is_none() {
+    if scan.pushdown_filter_absent {
         if let Some(filter_expr) = &plan.filter {
             let filter_started = Instant::now();
             batches = filter::filter_batches(
@@ -373,22 +337,11 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
     breakdown.projection += projection_started.elapsed();
 
     let result_started = Instant::now();
-    if let Some(offset) = plan.offset {
-        let offset = offset.max(0) as usize;
-        let limit = plan.limit.map(|value| value.max(0) as usize);
-        batches = batch::slice_batches(batches, offset, limit);
-    } else if let Some(limit) = plan.limit {
-        let limit = limit.max(0) as usize;
-        batches = batch::slice_batches(batches, 0, Some(limit));
-    }
+    batches = slice_batches_for_plan(batches, plan.offset, plan.limit);
     let rows = batch::flatten_batches(batches);
     breakdown.result_build += result_started.elapsed();
 
-    if covering_index_for_plan(cassie, plan).is_some() {
-        cassie.runtime.record_covering_index_scan(rows.len());
-    } else if selected_scalar_index_for_plan(cassie, plan).is_some() {
-        cassie.runtime.record_covering_index_fallback();
-    }
+    record_covering_index_usage(cassie, plan, rows.len(), None);
 
     Ok(Some((rows, breakdown)))
 }
@@ -528,8 +481,7 @@ fn row_id_from_number(value: f64) -> Option<String> {
     }
 
     if value.fract() == 0.0 {
-        let integer = value as i64;
-        if (integer as f64) == value {
+        if let Ok(integer) = format!("{value:.0}").parse::<i64>() {
             return Some(integer.to_string());
         }
     }
@@ -657,7 +609,7 @@ fn collect_column_batch_predicates(
             collect_column_batch_predicates(right, predicates)
         }
         Expr::Binary { left, op, right } => {
-            let (field, op, value) = column_batch_binary_predicate(left, op.clone(), right)?;
+            let (field, op, value) = column_batch_binary_predicate(left, op, right)?;
             predicates.push(crate::midge::adapter::ColumnBatchScanPredicate {
                 field,
                 op,
@@ -713,7 +665,7 @@ fn collect_column_batch_predicates(
 
 fn column_batch_binary_predicate(
     left: &Expr,
-    op: BinaryOp,
+    op: &BinaryOp,
     right: &Expr,
 ) -> Option<(
     String,
@@ -735,7 +687,7 @@ fn column_batch_binary_predicate(
     }
 }
 
-fn column_batch_scan_op(op: BinaryOp) -> Option<crate::midge::adapter::ColumnBatchScanOp> {
+fn column_batch_scan_op(op: &BinaryOp) -> Option<crate::midge::adapter::ColumnBatchScanOp> {
     match op {
         BinaryOp::Eq => Some(crate::midge::adapter::ColumnBatchScanOp::Eq),
         BinaryOp::Lt => Some(crate::midge::adapter::ColumnBatchScanOp::Lt),
@@ -746,7 +698,7 @@ fn column_batch_scan_op(op: BinaryOp) -> Option<crate::midge::adapter::ColumnBat
     }
 }
 
-fn reverse_column_batch_scan_op(op: BinaryOp) -> Option<crate::midge::adapter::ColumnBatchScanOp> {
+fn reverse_column_batch_scan_op(op: &BinaryOp) -> Option<crate::midge::adapter::ColumnBatchScanOp> {
     match op {
         BinaryOp::Eq => Some(crate::midge::adapter::ColumnBatchScanOp::Eq),
         BinaryOp::Lt => Some(crate::midge::adapter::ColumnBatchScanOp::Gt),
@@ -824,5 +776,84 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
             collect_projected_scan_filter_columns(high, fields)
         }
         Expr::Function(_) | Expr::Exists(_) => None,
+    }
+}
+
+struct ProjectedReadScan {
+    batches: Vec<Vec<BatchRow>>,
+    scan_timings: scan::ScanTimings,
+    started: Instant,
+    pushdown_filter_absent: bool,
+}
+
+fn scan_projected_read_batches(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    spec: &ProjectedFilteredReadSpec,
+    plan: &LogicalPlan,
+    controls: &QueryExecutionControls,
+) -> Result<ProjectedReadScan, QueryError> {
+    let started = Instant::now();
+    let pushdown_filter = plan
+        .filter
+        .as_ref()
+        .and_then(projected_scan_pushdown_filter);
+    let column_filter = plan.filter.as_ref().and_then(column_batch_scan_filter);
+    let (batches, scan_timings) = scan::scan_projected_filtered_with_timings(
+        cassie,
+        session,
+        &spec.collection,
+        &spec.scan_fields,
+        spec.scan_limit,
+        pushdown_filter.as_ref(),
+        column_filter.as_ref(),
+    )?;
+    let rows = batches.iter().map(Vec::len).sum::<usize>();
+    cassie
+        .runtime
+        .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len(), rows);
+    ensure_temp_budget(controls, &batches)?;
+    Ok(ProjectedReadScan {
+        batches,
+        scan_timings,
+        started,
+        pushdown_filter_absent: pushdown_filter.is_none(),
+    })
+}
+
+fn slice_batches_for_plan(
+    batches: Vec<Vec<BatchRow>>,
+    offset: Option<i64>,
+    limit: Option<i64>,
+) -> Vec<Vec<BatchRow>> {
+    let offset = offset.and_then(plan_bound_to_usize).unwrap_or(0);
+    let limit = limit.and_then(plan_bound_to_usize);
+    batch::slice_batches(batches, offset, limit)
+}
+
+fn plan_bound_to_usize(value: i64) -> Option<usize> {
+    usize::try_from(value.max(0)).ok()
+}
+
+fn record_covering_index_usage(
+    cassie: &Cassie,
+    plan: &LogicalPlan,
+    row_count: usize,
+    index_usage: Option<ProjectedReadIndexUsage>,
+) {
+    match index_usage {
+        Some(ProjectedReadIndexUsage::CoveringScalarIndex) => {
+            cassie.runtime.record_covering_index_scan(row_count);
+        }
+        Some(ProjectedReadIndexUsage::SelectedScalarIndexFallback) => {
+            cassie.runtime.record_covering_index_fallback();
+        }
+        None => {
+            if covering_index_for_plan(cassie, plan).is_some() {
+                cassie.runtime.record_covering_index_scan(row_count);
+            } else if selected_scalar_index_for_plan(cassie, plan).is_some() {
+                cassie.runtime.record_covering_index_fallback();
+            }
+        }
     }
 }

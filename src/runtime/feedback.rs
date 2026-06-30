@@ -311,6 +311,11 @@ struct NormalizedPredicateShape {
     order: Vec<NormalizedOrderShape>,
     group_by: Vec<NormalizedExprShape>,
     having: Option<NormalizedExprShape>,
+    modifiers: NormalizedPredicateModifiers,
+}
+
+#[derive(Serialize)]
+struct NormalizedPredicateModifiers {
     has_limit: bool,
     has_offset: bool,
     has_set: bool,
@@ -349,9 +354,11 @@ impl From<&LogicalPlan> for NormalizedPredicateShape {
                 .map(NormalizedExprShape::from)
                 .collect(),
             having: plan.having.as_ref().map(NormalizedExprShape::from),
-            has_limit: plan.limit.is_some(),
-            has_offset: plan.offset.is_some(),
-            has_set: plan.set.is_some(),
+            modifiers: NormalizedPredicateModifiers {
+                has_limit: plan.limit.is_some(),
+                has_offset: plan.offset.is_some(),
+                has_set: plan.set.is_some(),
+            },
         }
     }
 }

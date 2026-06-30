@@ -168,3 +168,6 @@ path = "benches/tier4_integration_protocol_compare.rs"
 
 [profile.dev]
 opt-level = 0
+
+[workspace.lints.clippy]
+pedantic = "warn"

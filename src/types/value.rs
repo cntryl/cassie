@@ -30,7 +30,6 @@ impl Value {
             Value::Float64(v) if v.is_finite() && v.fract() == 0.0 => {
                 format!("{v:.0}").parse::<i64>().ok()
             }
-            Value::Float64(_) => None,
             _ => None,
         }
     }

@@ -6,6 +6,11 @@ pub struct NormalizedVector {
     pub magnitude: f64,
 }
 
+/// Normalizes each dimension and returns the resulting vector plus magnitude.
+///
+/// # Panics
+///
+/// This function does not panic.
 #[must_use]
 pub fn normalize(values: &[f32]) -> Option<NormalizedVector> {
     if values.is_empty() {
@@ -36,12 +41,9 @@ pub fn normalize(values: &[f32]) -> Option<NormalizedVector> {
             .iter()
             .map(|value| {
                 let normalized = f64::from(*value) / magnitude;
-                normalized
-                    .to_string()
-                    .parse::<f32>()
-                    .expect("normalized f32")
+                normalized.to_string().parse::<f32>().ok()
             })
-            .collect::<Vec<_>>()
+            .collect::<Option<Vec<_>>>()?
     };
 
     Some(NormalizedVector { values, magnitude })

@@ -303,194 +303,217 @@ impl Cassie {
         value: &serde_json::Value,
     ) -> Result<(), CassieError> {
         if value.is_null() {
-            if matches!(expected, crate::types::DataType::Null) {
-                return Ok(());
-            }
             return Ok(());
         }
 
         match expected {
-            crate::types::DataType::Null => Err(CassieError::InvalidVector(format!(
-                "field '{field}' expects null"
-            ))),
+            crate::types::DataType::Null => Self::invalid_vector(field, "null"),
             crate::types::DataType::SmallInt => {
-                let number = value
-                    .as_i64()
-                    .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
-                    .ok_or_else(|| {
-                        CassieError::InvalidVector(format!("field '{field}' expects smallint"))
-                    })?;
-
-                if i16::try_from(number).is_ok() {
-                    return Ok(());
-                }
-
-                Err(CassieError::InvalidVector(format!(
-                    "field '{field}' expects smallint"
-                )))
+                Self::validate_integer_range(field, value, "smallint", |number| {
+                    i16::try_from(number).is_ok()
+                })
             }
             crate::types::DataType::Int => {
-                let number = value
-                    .as_i64()
-                    .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
-                    .ok_or_else(|| {
-                        CassieError::InvalidVector(format!("field '{field}' expects int"))
-                    })?;
-
-                if i32::try_from(number).is_ok() {
-                    Ok(())
-                } else {
-                    Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects int"
-                    )))
-                }
+                Self::validate_integer_range(field, value, "int", |number| {
+                    i32::try_from(number).is_ok()
+                })
             }
-            crate::types::DataType::BigInt => {
-                if value.is_i64() || value.as_u64().is_some() {
-                    Ok(())
-                } else {
-                    Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects bigint"
-                    )))
-                }
-            }
-            crate::types::DataType::Float => {
-                if value.is_number() {
-                    Ok(())
-                } else {
-                    Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects float"
-                    )))
-                }
-            }
-            crate::types::DataType::Boolean => {
-                if value.is_boolean() {
-                    Ok(())
-                } else {
-                    Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects boolean"
-                    )))
-                }
-            }
+            crate::types::DataType::BigInt => Self::validate_bigint(field, value),
+            crate::types::DataType::Float => Self::validate_float(field, value),
+            crate::types::DataType::Boolean => Self::validate_boolean(field, value),
             crate::types::DataType::Text | crate::types::DataType::Uuid => {
-                if !value.is_string() {
-                    return Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects {}",
-                        expected.type_name()
-                    )));
-                }
-
-                if let crate::types::DataType::Uuid = expected {
-                    let value = value.as_str().unwrap_or_default();
-                    if Uuid::parse_str(value).is_err() {
-                        return Err(CassieError::InvalidVector(format!(
-                            "field '{field}' expects UUID"
-                        )));
-                    }
-                }
-
-                Ok(())
+                Self::validate_text_or_uuid(field, expected, value)
             }
-            crate::types::DataType::Char { length } => {
-                let value = value.as_str().ok_or_else(|| {
-                    CassieError::InvalidVector(format!("field '{field}' expects char"))
-                })?;
-
-                let max = length.unwrap_or(1) as usize;
-                if value.chars().count() <= max {
-                    Ok(())
-                } else {
-                    Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects char({max})"
-                    )))
-                }
-            }
+            crate::types::DataType::Char { length } => Self::validate_char(field, *length, value),
             crate::types::DataType::Varchar { length } => {
-                let value = value.as_str().ok_or_else(|| {
-                    CassieError::InvalidVector(format!("field '{field}' expects varchar"))
-                })?;
-
-                if let Some(length) = length {
-                    if value.chars().count() <= (*length as usize) {
-                        Ok(())
-                    } else {
-                        Err(CassieError::InvalidVector(format!(
-                            "field '{field}' expects varchar({length})"
-                        )))
-                    }
-                } else {
-                    Ok(())
-                }
+                Self::validate_varchar(field, *length, value)
             }
-            crate::types::DataType::Bytea => {
-                if !value.is_string() {
-                    return Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects bytea"
-                    )));
-                }
-
-                Self::decode_bytea(value.as_str().unwrap_or_default())?;
-                Ok(())
-            }
+            crate::types::DataType::Bytea => Self::validate_bytea(field, value),
             crate::types::DataType::Date
             | crate::types::DataType::Time
-            | crate::types::DataType::Timestamp => {
-                if value.is_string() {
-                    Ok(())
-                } else {
-                    Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects {}",
-                        expected.type_name()
-                    )))
-                }
-            }
-            crate::types::DataType::Json => {
-                if value.is_object()
-                    || value.is_array()
-                    || value.is_string()
-                    || value.is_number()
-                    || value.is_boolean()
-                    || value.is_null()
-                {
-                    Ok(())
-                } else {
-                    Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects json"
-                    )))
-                }
-            }
-            crate::types::DataType::Vector(size) => {
-                let Some(array) = value.as_array() else {
-                    return Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects vector({size})"
-                    )));
-                };
-                if array.len() != *size {
-                    return Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects vector({size})"
-                    )));
-                }
-                if array.iter().any(|value| value.as_f64().is_none()) {
-                    return Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects vector({size})"
-                    )));
-                }
-                Ok(())
-            }
-            crate::types::DataType::Array(inner) => {
-                let Some(values) = value.as_array() else {
-                    return Err(CassieError::InvalidVector(format!(
-                        "field '{field}' expects array"
-                    )));
-                };
+            | crate::types::DataType::Timestamp => Self::validate_string_only(field, expected, value),
+            crate::types::DataType::Json => Self::validate_json(field, value),
+            crate::types::DataType::Vector(size) => Self::validate_vector(field, *size, value),
+            crate::types::DataType::Array(inner) => Self::validate_array(field, inner, value),
+        }
+    }
 
-                for value in values {
-                    Self::validate_value_against_data_type(field, inner, value)?;
-                }
+    fn invalid_vector<T>(field: &str, expected: T) -> Result<(), CassieError>
+    where
+        T: std::fmt::Display,
+    {
+        Err(CassieError::InvalidVector(format!(
+            "field '{field}' expects {expected}"
+        )))
+    }
 
-                Ok(())
+    fn validate_integer_range<F>(
+        field: &str,
+        value: &serde_json::Value,
+        type_name: &str,
+        in_range: F,
+    ) -> Result<(), CassieError>
+    where
+        F: FnOnce(i64) -> bool,
+    {
+        let number = value
+            .as_i64()
+            .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+            .ok_or_else(|| {
+                CassieError::InvalidVector(format!("field '{field}' expects {type_name}"))
+            })?;
+
+        if in_range(number) {
+            Ok(())
+        } else {
+            Self::invalid_vector(field, type_name)
+        }
+    }
+
+    fn validate_bigint(field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
+        if value.is_i64() || value.as_u64().is_some() {
+            Ok(())
+        } else {
+            Self::invalid_vector(field, "bigint")
+        }
+    }
+
+    fn validate_float(field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
+        if value.is_number() {
+            Ok(())
+        } else {
+            Self::invalid_vector(field, "float")
+        }
+    }
+
+    fn validate_boolean(field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
+        if value.is_boolean() {
+            Ok(())
+        } else {
+            Self::invalid_vector(field, "boolean")
+        }
+    }
+
+    fn validate_text_or_uuid(
+        field: &str,
+        expected: &crate::types::DataType,
+        value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        if !value.is_string() {
+            return Self::invalid_vector(field, expected.type_name());
+        }
+
+        if let crate::types::DataType::Uuid = expected {
+            let value = value.as_str().unwrap_or_default();
+            if Uuid::parse_str(value).is_err() {
+                return Self::invalid_vector(field, "UUID");
             }
         }
+
+        Ok(())
+    }
+
+    fn validate_char(
+        field: &str,
+        length: Option<u32>,
+        value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        let value = value
+            .as_str()
+            .ok_or_else(|| CassieError::InvalidVector(format!("field '{field}' expects char")))?;
+
+        let max = length.unwrap_or(1) as usize;
+        if value.chars().count() <= max {
+            Ok(())
+        } else {
+            Self::invalid_vector(field, format!("char({max})"))
+        }
+    }
+
+    fn validate_varchar(
+        field: &str,
+        length: Option<u32>,
+        value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        let value = value
+            .as_str()
+            .ok_or_else(|| CassieError::InvalidVector(format!("field '{field}' expects varchar")))?;
+
+        if let Some(length) = length {
+            if value.chars().count() <= (length as usize) {
+                Ok(())
+            } else {
+                Self::invalid_vector(field, format!("varchar({length})"))
+            }
+        } else {
+            Ok(())
+        }
+    }
+
+    fn validate_bytea(field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
+        if !value.is_string() {
+            return Self::invalid_vector(field, "bytea");
+        }
+
+        Self::decode_bytea(value.as_str().unwrap_or_default())?;
+        Ok(())
+    }
+
+    fn validate_string_only(
+        field: &str,
+        expected: &crate::types::DataType,
+        value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        if value.is_string() {
+            Ok(())
+        } else {
+            Self::invalid_vector(field, expected.type_name())
+        }
+    }
+
+    fn validate_json(field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
+        if value.is_object()
+            || value.is_array()
+            || value.is_string()
+            || value.is_number()
+            || value.is_boolean()
+            || value.is_null()
+        {
+            Ok(())
+        } else {
+            Self::invalid_vector(field, "json")
+        }
+    }
+
+    fn validate_vector(
+        field: &str,
+        size: usize,
+        value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        let Some(array) = value.as_array() else {
+            return Self::invalid_vector(field, format!("vector({size})"));
+        };
+        if array.len() != size || array.iter().any(|value| value.as_f64().is_none()) {
+            Self::invalid_vector(field, format!("vector({size})"))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn validate_array(
+        field: &str,
+        inner: &crate::types::DataType,
+        value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        let Some(values) = value.as_array() else {
+            return Self::invalid_vector(field, "array");
+        };
+
+        for value in values {
+            Self::validate_value_against_data_type(field, inner, value)?;
+        }
+
+        Ok(())
     }
 
     fn decode_bytea(value: &str) -> Result<Vec<u8>, CassieError> {
@@ -578,7 +601,7 @@ impl Cassie {
                 let Some(value) = existing else {
                     continue;
                 };
-                if !self.satisfies_check_constraint(value, check) {
+                if !Self::satisfies_check_constraint(value, check) {
                     return Err(CassieError::CheckViolation {
                         table: collection.to_string(),
                         column: check.field.clone(),
@@ -596,7 +619,6 @@ impl Cassie {
     }
 
     fn satisfies_check_constraint(
-        &self,
         value: &serde_json::Value,
         check: &ConstraintCheck,
     ) -> bool {

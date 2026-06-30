@@ -135,7 +135,11 @@ fn estimate_filter_rows(expr: &Expr, stats: &CollectionCardinalityStats) -> Opti
             let low = canonical_literal(low)?;
             let high = canonical_literal(high)?;
             let field_stats = usable_field_stats(stats, field)?;
-            histogram_range_estimate(field_stats, Some(low.as_str()), Some(high.as_str()))
+            Some(histogram_range_estimate(
+                field_stats,
+                Some(low.as_str()),
+                Some(high.as_str()),
+            ))
         }
         _ => None,
     }
@@ -157,10 +161,18 @@ fn estimate_binary_filter_rows(
     match (op, reversed) {
         (BinaryOp::Eq, _) => equality_estimate(field_stats, &literal),
         (BinaryOp::Lt | BinaryOp::Lte, false) | (BinaryOp::Gt | BinaryOp::Gte, true) => {
-            histogram_range_estimate(field_stats, None, Some(literal.as_str()))
+            Some(histogram_range_estimate(
+                field_stats,
+                None,
+                Some(literal.as_str()),
+            ))
         }
         (BinaryOp::Gt | BinaryOp::Gte, false) | (BinaryOp::Lt | BinaryOp::Lte, true) => {
-            histogram_range_estimate(field_stats, Some(literal.as_str()), None)
+            Some(histogram_range_estimate(
+                field_stats,
+                Some(literal.as_str()),
+                None,
+            ))
         }
         _ => None,
     }
@@ -199,11 +211,11 @@ fn histogram_range_estimate(
     stats: &crate::catalog::FieldCardinalityStats,
     lower: Option<&str>,
     upper: Option<&str>,
-) -> Option<u64> {
+) -> u64 {
     if stats.histogram_buckets.is_empty() {
-        return Some(stats.non_null_count.saturating_div(2).max(1));
+        return stats.non_null_count.saturating_div(2).max(1);
     }
-    let count = stats
+    stats
         .histogram_buckets
         .iter()
         .filter(|bucket| {
@@ -211,8 +223,8 @@ fn histogram_range_estimate(
                 && upper.is_none_or(|upper| bucket.lower.as_str() <= upper)
         })
         .map(|bucket| bucket.count)
-        .sum::<u64>();
-    Some(count.max(1))
+        .sum::<u64>()
+        .max(1)
 }
 
 fn canonical_literal(expr: &Expr) -> Option<String> {

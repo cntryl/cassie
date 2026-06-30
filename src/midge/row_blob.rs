@@ -200,8 +200,8 @@ pub(crate) fn encode_row(
         .as_object()
         .ok_or_else(|| CassieError::InvalidVector("document must be object".to_string()))?;
 
-    let mut fields = Vec::new();
-    for field in schema.active_fields_by_id() {
+        let mut fields = Vec::new();
+        for field in schema.active_fields_by_id() {
         let Some(value) = object.get(&field.name) else {
             continue;
         };
@@ -210,11 +210,11 @@ pub(crate) fn encode_row(
     }
 
     let mut out = Vec::new();
-    out.extend_from_slice(MAGIC);
-    out.push(FORMAT_VERSION);
-    out.extend_from_slice(&schema.schema_version.to_be_bytes());
-    out.push(0);
-    write_varint(fields.len() as u64, &mut out);
+        out.extend_from_slice(MAGIC);
+        out.push(FORMAT_VERSION);
+        out.extend_from_slice(&schema.schema_version.to_be_bytes());
+        out.push(0);
+        write_varint(u64::try_from(fields.len()).unwrap_or(u64::MAX), &mut out);
 
     for (field_id, type_tag, encoded) in fields {
         write_field_value(field_id, type_tag, &encoded, &mut out)?;
@@ -236,7 +236,7 @@ fn write_field_value(
         TYPE_NULL => {}
         TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID | TYPE_ARRAY => out.extend_from_slice(encoded),
         TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME | TYPE_TIMESTAMP | TYPE_BYTEA => {
-            write_varint(encoded.len() as u64, out);
+            write_varint(u64::try_from(encoded.len()).unwrap_or(u64::MAX), out);
             out.extend_from_slice(encoded);
         }
         _ => {
@@ -335,7 +335,8 @@ pub(crate) fn decode_projected_row_matching_with_aliases(
     let mut saw_filter = false;
 
     for _ in 0..field_count {
-        let field_id = cursor.read_varint()? as u32;
+        let field_id = u32::try_from(cursor.read_varint()?)
+            .map_err(|_| CassieError::Parse("field id out of range in row blob".to_string()))?;
         let type_tag = cursor.read_u8()?;
         let Some(field) = schema.field_by_id(field_id) else {
             skip_value(type_tag, &mut cursor)?;
@@ -390,7 +391,8 @@ fn decode_row_with_projection(
     let mut object = serde_json::Map::new();
 
     for _ in 0..field_count {
-        let field_id = cursor.read_varint()? as u32;
+        let field_id = u32::try_from(cursor.read_varint()?)
+            .map_err(|_| CassieError::Parse("field id out of range in row blob".to_string()))?;
         let type_tag = cursor.read_u8()?;
         let Some(field) = schema.field_by_id(field_id) else {
             skip_value(type_tag, &mut cursor)?;
@@ -542,7 +544,8 @@ fn skip_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<(), CassieError> 
         TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME | TYPE_TIMESTAMP
         | TYPE_BYTEA => cursor.skip_len_prefixed(),
         TYPE_ARRAY => {
-            let count = cursor.read_varint()? as usize;
+            let count = usize::try_from(cursor.read_varint()?)
+                .map_err(|_| CassieError::Parse("array length out of range in row blob".to_string()))?;
             for _ in 0..count {
                 let value_type = cursor.read_u8()?;
                 skip_array_value(value_type, cursor)?;
@@ -683,7 +686,7 @@ fn encode_value(
                 .ok_or_else(|| CassieError::InvalidVector("array field expects array".into()))?;
 
             let mut out = Vec::new();
-            write_varint(values.len() as u64, &mut out);
+            write_varint(u64::try_from(values.len()).unwrap_or(u64::MAX), &mut out);
             for value in values {
                 let (value_type, value_data) = encode_value(inner, value)?;
                 out.push(value_type);
@@ -693,7 +696,10 @@ fn encode_value(
                     }
                     TYPE_NULL | TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE
                     | TYPE_TIME | TYPE_TIMESTAMP | TYPE_ARRAY | TYPE_BYTEA => {
-                        write_varint(value_data.len() as u64, &mut out);
+                        write_varint(
+                            u64::try_from(value_data.len()).unwrap_or(u64::MAX),
+                            &mut out,
+                        );
                         out.extend_from_slice(&value_data);
                     }
                     _ => {
@@ -722,12 +728,16 @@ fn encode_value(
             }
 
             let mut out = Vec::with_capacity(4 + values.len() * 4);
-            out.extend_from_slice(&(*dimensions as u32).to_be_bytes());
+            let dimensions = u32::try_from(*dimensions).map_err(|_| {
+                CassieError::InvalidVector("vector field expects dimensions that fit u32".into())
+            })?;
+            out.extend_from_slice(&dimensions.to_be_bytes());
             for value in values {
                 let value = value.as_f64().ok_or_else(|| {
                     CassieError::InvalidVector("vector field expects numeric values".into())
                 })?;
-                out.extend_from_slice(&(value as f32).to_be_bytes());
+                let value = value as f32;
+                out.extend_from_slice(&value.to_be_bytes());
             }
             Ok((TYPE_VECTOR_F32, out))
         }
@@ -791,7 +801,8 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
             Ok(serde_json::Value::String(encode_bytea(&bytes)))
         }
         TYPE_ARRAY => {
-            let count = cursor.read_varint()? as usize;
+            let count = usize::try_from(cursor.read_varint()?)
+                .map_err(|_| CassieError::Parse("array length out of range in row blob".to_string()))?;
             let mut values = Vec::with_capacity(count);
             for _ in 0..count {
                 let value_type = cursor.read_u8()?;
@@ -836,10 +847,11 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
 
 fn write_varint(mut value: u64, out: &mut Vec<u8>) {
     while value >= 0x80 {
-        out.push((value as u8) | 0x80);
+        let byte = u8::try_from(value & 0x7f).expect("masked to 7 bits");
+        out.push(byte | 0x80);
         value >>= 7;
     }
-    out.push(value as u8);
+    out.push(u8::try_from(value).expect("final varint byte fits in u8"));
 }
 
 fn decode_bytea(value: &str) -> Result<Vec<u8>, CassieError> {

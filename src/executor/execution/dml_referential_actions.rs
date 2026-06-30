@@ -52,7 +52,7 @@ pub(super) fn assert_no_referencing_rows(
                     &child_table,
                     &constraint.field,
                     child_rows,
-                    value,
+                    &value,
                 )?;
             }
             ForeignKeyAction::NoAction | ForeignKeyAction::Restrict => {
@@ -162,7 +162,7 @@ pub(super) fn apply_referenced_update_actions(
                     &child_table,
                     &constraint.field,
                     child_rows,
-                    new_value.clone(),
+                    new_value,
                 )?;
             }
             ForeignKeyAction::SetNull | ForeignKeyAction::SetDefault => {
@@ -176,7 +176,7 @@ pub(super) fn apply_referenced_update_actions(
                     &child_table,
                     &constraint.field,
                     child_rows,
-                    value,
+                    &value,
                 )?;
             }
             ForeignKeyAction::NoAction | ForeignKeyAction::Restrict => {}
@@ -261,7 +261,7 @@ fn set_child_reference_values(
     child_table: &str,
     child_field: &str,
     child_rows: Vec<crate::midge::adapter::DocumentRef>,
-    value: serde_json::Value,
+    value: &serde_json::Value,
 ) -> Result<(), QueryError> {
     for child in child_rows {
         let mut payload =

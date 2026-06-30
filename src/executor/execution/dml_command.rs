@@ -206,7 +206,7 @@ pub(super) fn execute_command(
             for index in &primary_key_indexes {
                 cassie
                     .midge
-                    .put_index(index.clone())
+                    .put_index(index)
                     .map_err(|error| QueryError::General(error.to_string()))?;
             }
             super::sequence_command::persist_created_sequences(cassie, table_sequences)?;

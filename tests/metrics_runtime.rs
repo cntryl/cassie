@@ -447,7 +447,7 @@ fn should_expose_cardinality_metrics_with_explain_plan_estimates() {
             .unwrap();
         cassie
             .midge
-            .put_index(IndexMeta {
+            .put_index(&IndexMeta {
                 collection: collection.to_string(),
                 name: "idx_title".to_string(),
                 field: "title".to_string(),

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
 
-use super::{Cassie, CassieSession, CassieError, Uuid, TransactionRowChange};
+use super::{Cassie, CassieError, CassieSession, TransactionRowChange, Uuid};
 use crate::catalog::FieldMeta;
 use crate::midge::adapter::{DocumentWriteBatchOptions, DocumentWriteOp};
 use crate::sql::ast::{CopyFormat, CopyStatement};
@@ -238,7 +238,8 @@ fn copy_value_to_json(
             .map_err(|error| {
                 CassieError::Parse(format!("field '{}' expects JSON: {error}", field.name))
             }),
-        DataType::Null | DataType::Text
+        DataType::Null
+        | DataType::Text
         | DataType::Char { .. }
         | DataType::Varchar { .. }
         | DataType::Uuid

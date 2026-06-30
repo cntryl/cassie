@@ -1,5 +1,8 @@
+use super::{
+    aggregate, BatchRow, Cassie, CmpOrdering, FunctionMeta, HashMap, HashSet, PhysicalPlan,
+    QueryError, QueryExecutionControls, QueryResult, Value,
+};
 use crate::executor::batch::RowAccess;
-use super::{Cassie, PhysicalPlan, BatchRow, HashMap, FunctionMeta, QueryExecutionControls, QueryResult, QueryError, aggregate, Value, CmpOrdering, HashSet};
 
 pub(super) fn build_select_result(
     cassie: &Cassie,

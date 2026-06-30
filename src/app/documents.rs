@@ -1,5 +1,9 @@
 use super::vector_helpers::project_payload_fields;
-use super::{Cassie, CassieError, CassieSession, Uuid, DocumentRef, TransactionRowChange, MidgeScanTimings, RowFilter, Instant, BTreeMap, RowDecode, FieldConstraint, ConstraintCheck, ConstraintOperator, VectorIndexRecord};
+use super::{
+    BTreeMap, Cassie, CassieError, CassieSession, ConstraintCheck, ConstraintOperator, DocumentRef,
+    FieldConstraint, Instant, MidgeScanTimings, RowDecode, RowFilter, TransactionRowChange, Uuid,
+    VectorIndexRecord,
+};
 
 impl Cassie {
     /// # Errors
@@ -331,7 +335,9 @@ impl Cassie {
             crate::types::DataType::Bytea => Self::validate_bytea(field, value),
             crate::types::DataType::Date
             | crate::types::DataType::Time
-            | crate::types::DataType::Timestamp => Self::validate_string_only(field, expected, value),
+            | crate::types::DataType::Timestamp => {
+                Self::validate_string_only(field, expected, value)
+            }
             crate::types::DataType::Json => Self::validate_json(field, value),
             crate::types::DataType::Vector(size) => Self::validate_vector(field, *size, value),
             crate::types::DataType::Array(inner) => Self::validate_array(field, inner, value),
@@ -435,9 +441,9 @@ impl Cassie {
         length: Option<u32>,
         value: &serde_json::Value,
     ) -> Result<(), CassieError> {
-        let value = value
-            .as_str()
-            .ok_or_else(|| CassieError::InvalidVector(format!("field '{field}' expects varchar")))?;
+        let value = value.as_str().ok_or_else(|| {
+            CassieError::InvalidVector(format!("field '{field}' expects varchar"))
+        })?;
 
         if let Some(length) = length {
             if value.chars().count() <= (length as usize) {
@@ -618,10 +624,7 @@ impl Cassie {
         self.validate_uniques(session, collection, object, constraints, exclude_id)
     }
 
-    fn satisfies_check_constraint(
-        value: &serde_json::Value,
-        check: &ConstraintCheck,
-    ) -> bool {
+    fn satisfies_check_constraint(value: &serde_json::Value, check: &ConstraintCheck) -> bool {
         match check.operator {
             ConstraintOperator::Eq => value == &check.value,
             ConstraintOperator::NotEq => value != &check.value,

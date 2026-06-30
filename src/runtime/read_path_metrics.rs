@@ -1,4 +1,4 @@
-use super::{RuntimeState, RuntimeMetricsState};
+use super::{RuntimeMetricsState, RuntimeState};
 
 impl RuntimeState {
     /// # Panics

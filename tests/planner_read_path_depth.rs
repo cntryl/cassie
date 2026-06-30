@@ -130,15 +130,15 @@ fn should_use_range_scan_when_mixed_order_prefix_is_equality_bound() {
 
     // Assert
     assert_eq!(
-        physical_plan.selected_index.as_deref(),
+        physical_plan.read.selected_index.as_deref(),
         Some("planner_mixed_order_prefix_idx")
     );
     assert_eq!(
-        physical_plan.access_path,
+        physical_plan.read.access_path,
         physical::ReadAccessPath::RangeScan
     );
-    assert_eq!(physical_plan.access_path_reason, "scalar-index-range");
-    assert_eq!(physical_plan.fallback_reason, None);
+    assert_eq!(physical_plan.read.access_path_reason, "scalar-index-range");
+    assert_eq!(physical_plan.read.fallback_reason, None);
 }
 
 #[test]
@@ -189,15 +189,15 @@ fn should_report_fallback_when_mixed_order_suffix_lacks_index_proof() {
 
     // Assert
     assert_eq!(
-        physical_plan.selected_index.as_deref(),
+        physical_plan.read.selected_index.as_deref(),
         Some("planner_mixed_order_fallback_idx")
     );
     assert_eq!(
-        physical_plan.access_path,
+        physical_plan.read.access_path,
         physical::ReadAccessPath::CollectionScan
     );
     assert_eq!(
-        physical_plan.fallback_reason.as_deref(),
+        physical_plan.read.fallback_reason.as_deref(),
         Some("index-order-proof-missing")
     );
 }
@@ -242,15 +242,15 @@ fn should_lower_expression_equality_to_scalar_index_seek() {
 
     // Assert
     assert_eq!(
-        physical_plan.selected_index.as_deref(),
+        physical_plan.read.selected_index.as_deref(),
         Some("planner_expression_index_seek_idx")
     );
     assert_eq!(
-        physical_plan.access_path,
+        physical_plan.read.access_path,
         physical::ReadAccessPath::IndexSeek
     );
-    assert_eq!(physical_plan.access_path_reason, "scalar-index-seek");
-    assert_eq!(physical_plan.fallback_reason, None);
+    assert_eq!(physical_plan.read.access_path_reason, "scalar-index-seek");
+    assert_eq!(physical_plan.read.fallback_reason, None);
 }
 
 #[test]
@@ -294,15 +294,15 @@ fn should_lower_expression_range_to_scalar_index_range_scan() {
 
     // Assert
     assert_eq!(
-        physical_plan.selected_index.as_deref(),
+        physical_plan.read.selected_index.as_deref(),
         Some("planner_expression_index_range_idx")
     );
     assert_eq!(
-        physical_plan.access_path,
+        physical_plan.read.access_path,
         physical::ReadAccessPath::RangeScan
     );
-    assert_eq!(physical_plan.access_path_reason, "scalar-index-range");
-    assert_eq!(physical_plan.fallback_reason, None);
+    assert_eq!(physical_plan.read.access_path_reason, "scalar-index-range");
+    assert_eq!(physical_plan.read.fallback_reason, None);
 }
 
 #[test]
@@ -346,16 +346,16 @@ fn should_lower_expression_order_limit_to_ordered_bounded_scan() {
 
     // Assert
     assert_eq!(
-        physical_plan.selected_index.as_deref(),
+        physical_plan.read.selected_index.as_deref(),
         Some("planner_expression_index_order_idx")
     );
     assert_eq!(
-        physical_plan.access_path,
+        physical_plan.read.access_path,
         physical::ReadAccessPath::OrderedBoundedScan
     );
     assert_eq!(
-        physical_plan.access_path_reason,
+        physical_plan.read.access_path_reason,
         "scalar-index-ordered-bounded"
     );
-    assert_eq!(physical_plan.fallback_reason, None);
+    assert_eq!(physical_plan.read.fallback_reason, None);
 }

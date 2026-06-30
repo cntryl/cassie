@@ -1,4 +1,4 @@
-use super::{QueryError, EmbeddingError};
+use super::{EmbeddingError, QueryError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CassieError {

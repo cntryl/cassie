@@ -1,4 +1,8 @@
-use super::{Catalog, CassieError, virtual_views, HashSet, InsertSource, bind_select, HashMap, Expr, SelectItem, validate_expression, DataType, CollectionSchema, collect_item, validate_function_calls};
+use super::{
+    bind_select, collect_item, validate_expression, validate_function_calls, virtual_views,
+    CassieError, Catalog, CollectionSchema, DataType, Expr, HashMap, HashSet, InsertSource,
+    SelectItem,
+};
 
 pub(super) fn bind_insert(
     mut statement: crate::sql::ast::InsertStatement,

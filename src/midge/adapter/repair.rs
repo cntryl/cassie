@@ -1,4 +1,4 @@
-use super::{Midge, CassieError, StorageFamily, key_encoding};
+use super::{key_encoding, CassieError, Midge, StorageFamily};
 
 impl Midge {
     /// # Errors
@@ -6,11 +6,11 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_projection_repair_report(
         &self,
-        report: crate::catalog::ProjectionRepairReportMeta,
+        report: &crate::catalog::ProjectionRepairReportMeta,
     ) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
-            serde_json::to_vec(&report).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(report).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(projection_repair_report_key(&report.report_id), value, None)
             .map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())

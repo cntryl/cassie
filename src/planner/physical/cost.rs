@@ -160,20 +160,12 @@ fn estimate_binary_filter_rows(
 
     match (op, reversed) {
         (BinaryOp::Eq, _) => equality_estimate(field_stats, &literal),
-        (BinaryOp::Lt | BinaryOp::Lte, false) | (BinaryOp::Gt | BinaryOp::Gte, true) => {
-            Some(histogram_range_estimate(
-                field_stats,
-                None,
-                Some(literal.as_str()),
-            ))
-        }
-        (BinaryOp::Gt | BinaryOp::Gte, false) | (BinaryOp::Lt | BinaryOp::Lte, true) => {
-            Some(histogram_range_estimate(
-                field_stats,
-                Some(literal.as_str()),
-                None,
-            ))
-        }
+        (BinaryOp::Lt | BinaryOp::Lte, false) | (BinaryOp::Gt | BinaryOp::Gte, true) => Some(
+            histogram_range_estimate(field_stats, None, Some(literal.as_str())),
+        ),
+        (BinaryOp::Gt | BinaryOp::Gte, false) | (BinaryOp::Lt | BinaryOp::Lte, true) => Some(
+            histogram_range_estimate(field_stats, Some(literal.as_str()), None),
+        ),
         _ => None,
     }
 }

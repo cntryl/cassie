@@ -100,7 +100,7 @@ pub(super) fn repair_projection(
     };
     cassie
         .midge
-        .put_projection_repair_report(report.clone())
+        .put_projection_repair_report(&report)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_projection_repair_report(report);
 

@@ -1,4 +1,6 @@
-use super::{Serialize, Arc, Mutex, TransactionIsolation, BTreeMap, normalize_role_name, CassieError};
+use super::{
+    normalize_role_name, Arc, BTreeMap, CassieError, Mutex, Serialize, TransactionIsolation,
+};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CassieSession {

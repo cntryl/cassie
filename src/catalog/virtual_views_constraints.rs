@@ -285,8 +285,7 @@ fn key_column_usage_row(
         int_value("ordinal_position", i64::from(ordinal_position)),
         (
             "position_in_unique_constraint".to_string(),
-            unique_position
-                .map_or(Value::Null, |value| Value::Int64(i64::from(value))),
+            unique_position.map_or(Value::Null, |value| Value::Int64(i64::from(value))),
         ),
     ]
 }

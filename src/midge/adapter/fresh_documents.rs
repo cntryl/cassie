@@ -1,7 +1,7 @@
 use cntryl_midge::WriteOptions;
 use uuid::Uuid;
 
-use super::{Midge, CassieError, encode_row};
+use super::{encode_row, CassieError, Midge};
 
 impl Midge {
     /// Load documents into a newly-created row-store collection without replacement checks.

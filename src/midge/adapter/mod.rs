@@ -406,30 +406,28 @@ impl Midge {
         Ok(next)
     }
 
-    fn load_collections(&self, tx: &cntryl_midge::Transaction) -> Result<Vec<String>, CassieError> {
-        let raw = tx
+    fn load_collections(tx: &cntryl_midge::Transaction) -> Result<Vec<String>, CassieError> {
+        let Some(raw) = tx
             .get(&Self::collections_key())
-            .map_err(CassieError::from)?;
-        if raw.is_none() {
+            .map_err(CassieError::from)?
+        else {
             return Ok(Vec::new());
-        }
-        let parsed: Vec<String> = serde_json::from_slice(&raw.unwrap())
-            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        };
+        let parsed: Vec<String> =
+            serde_json::from_slice(&raw).map_err(|error| CassieError::Parse(error.to_string()))?;
         Ok(parsed)
     }
 
-    fn load_namespaces(&self, tx: &cntryl_midge::Transaction) -> Result<Vec<String>, CassieError> {
-        let raw = tx.get(&Self::namespaces_key()).map_err(CassieError::from)?;
-        if raw.is_none() {
+    fn load_namespaces(tx: &cntryl_midge::Transaction) -> Result<Vec<String>, CassieError> {
+        let Some(raw) = tx.get(&Self::namespaces_key()).map_err(CassieError::from)? else {
             return Ok(Vec::new());
-        }
-        let parsed: Vec<String> = serde_json::from_slice(&raw.unwrap())
-            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        };
+        let parsed: Vec<String> =
+            serde_json::from_slice(&raw).map_err(|error| CassieError::Parse(error.to_string()))?;
         Ok(parsed)
     }
 
     fn save_collections(
-        &self,
         tx: &mut cntryl_midge::Transaction,
         collections: &[String],
     ) -> Result<(), CassieError> {
@@ -441,7 +439,6 @@ impl Midge {
     }
 
     fn save_namespaces(
-        &self,
         tx: &mut cntryl_midge::Transaction,
         namespaces: &[String],
     ) -> Result<(), CassieError> {
@@ -603,7 +600,7 @@ pub fn vector_from_json(value: &serde_json::Value) -> Option<Vector> {
     let arr = value.as_array()?;
     let mut nums = Vec::with_capacity(arr.len());
     for n in arr {
-        nums.push(n.as_f64()? as f32);
+        nums.push(n.as_f64()?.to_string().parse::<f32>().ok()?);
     }
     Some(Vector::new(nums))
 }

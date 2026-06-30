@@ -1,6 +1,15 @@
-use super::expr::{split_csv, parse_expr_token};
-use super::schema::{parse_if_not_exists, starts_with_keyword, parse_if_exists, parse_constraint_literal, tokenize_schema_field, parse_data_type};
-use super::{ParsedStatement, SqlError, parse_statement, QueryStatement, ExplainStatement, TransactionStatement, TransactionAction, TransactionIsolation, ShowStatement, SetStatement, CreateFunctionStatement, CreateProcedureStatement, find_top_level_keyword, CreateViewStatement, DropFunctionStatement, DropProcedureStatement, DropViewStatement, CallProcedureStatement, Value, FunctionArg, DataType, Volatility};
+use super::expr::{parse_expr_token, split_csv};
+use super::schema::{
+    parse_constraint_literal, parse_data_type, parse_if_exists, parse_if_not_exists,
+    starts_with_keyword, tokenize_schema_field,
+};
+use super::{
+    find_top_level_keyword, parse_statement, CallProcedureStatement, CreateFunctionStatement,
+    CreateProcedureStatement, CreateViewStatement, DataType, DropFunctionStatement,
+    DropProcedureStatement, DropViewStatement, ExplainStatement, FunctionArg, ParsedStatement,
+    QueryStatement, SetStatement, ShowStatement, SqlError, TransactionAction, TransactionIsolation,
+    TransactionStatement, Value, Volatility,
+};
 
 pub(super) fn parse_explain_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let rest = sql["EXPLAIN".len()..].trim();
@@ -91,11 +100,13 @@ pub(super) fn parse_transaction_statement(sql: &str) -> Result<ParsedStatement, 
     let token_refs = tokens.iter().map(String::as_str).collect::<Vec<_>>();
 
     let statement = match token_refs.as_slice() {
-        ["begin", "isolation", "level", isolation @ ..] |
-["begin" | "start", "transaction", "isolation", "level", isolation @ ..] => TransactionStatement {
-            action: TransactionAction::Begin,
-            isolation: Some(parse_transaction_isolation(isolation)?),
-        },
+        ["begin", "isolation", "level", isolation @ ..]
+        | ["begin" | "start", "transaction", "isolation", "level", isolation @ ..] => {
+            TransactionStatement {
+                action: TransactionAction::Begin,
+                isolation: Some(parse_transaction_isolation(isolation)?),
+            }
+        }
         ["begin"] | ["begin" | "start", "transaction"] => TransactionStatement {
             action: TransactionAction::Begin,
             isolation: None,

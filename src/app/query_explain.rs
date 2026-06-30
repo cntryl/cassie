@@ -1,4 +1,4 @@
-use super::{Cassie, vector_prefilter_supported, vector_prefilter_fallback_reason};
+use super::{vector_prefilter_fallback_reason, vector_prefilter_supported, Cassie};
 
 pub(super) fn plan_line(
     cassie: &Cassie,
@@ -10,18 +10,20 @@ pub(super) fn plan_line(
         .map(|operator| format!("{operator:?}"))
         .collect::<Vec<_>>()
         .join(">");
-    let projection_pruning = !physical.projected_scan_fields.is_empty();
+    let projection_pruning = !physical.read.projected_scan_fields.is_empty();
     let scan_fields = if projection_pruning {
-        physical.projected_scan_fields.join(",")
+        physical.read.projected_scan_fields.join(",")
     } else {
         "all".to_string()
     };
-    let limit_pushdown = physical.scan_limit.is_some();
+    let limit_pushdown = physical.read.scan_limit.is_some();
     let scan_limit = physical
-        .scan_limit.map_or_else(|| "none".to_string(), |limit| limit.to_string());
-    let index_aware = physical.selected_index.is_some();
-    let index = physical.selected_index.as_deref().unwrap_or("none");
-    let index_feedback = if physical.selected_index.is_some() {
+        .read
+        .scan_limit
+        .map_or_else(|| "none".to_string(), |limit| limit.to_string());
+    let index_aware = physical.read.selected_index.is_some();
+    let index = physical.read.selected_index.as_deref().unwrap_or("none");
+    let index_feedback = if physical.read.selected_index.is_some() {
         "enabled"
     } else {
         "none"
@@ -84,30 +86,36 @@ pub(super) fn plan_line(
     } else {
         adaptive_plan.diagnostic.as_str()
     };
-    let covered_index = physical.covered_index;
-    let column_batch_index = physical.column_batch_index.as_deref().unwrap_or("none");
+    let covered_index = physical.read.covered_index;
+    let column_batch_index = physical
+        .read
+        .column_batch_index
+        .as_deref()
+        .unwrap_or("none");
     let prefilter = prefilter_description(cassie, physical);
     let time_series = time_series_description(cassie, physical);
     let time_series_storage = time_series_storage_description(cassie, physical);
     let top_k_limit = physical
-        .top_k_limit.map_or_else(|| "none".to_string(), |limit| limit.to_string());
-    let access_path = physical.access_path.as_str();
-    let access_path_reason = physical.access_path_reason.as_str();
-    let fallback_reason = physical.fallback_reason.as_deref().unwrap_or("none");
-    let pagination_strategy = physical.pagination_strategy.as_str();
-    let top_k_mode = physical.top_k_mode.as_str();
-    let early_stop = physical.early_stop.as_str();
-    let projection_shape = physical.projection_shape.as_str();
-    let join_strategy = physical.join_strategy.as_deref().unwrap_or("none");
-    let join_keys = if physical.join_keys.is_empty() {
+        .top_k
+        .limit
+        .map_or_else(|| "none".to_string(), |limit| limit.to_string());
+    let access_path = physical.read.access_path.as_str();
+    let access_path_reason = physical.read.access_path_reason.as_str();
+    let fallback_reason = physical.read.fallback_reason.as_deref().unwrap_or("none");
+    let pagination_strategy = physical.read.pagination_strategy.as_str();
+    let top_k_mode = physical.top_k.mode.as_str();
+    let early_stop = physical.read.early_stop.as_str();
+    let projection_shape = physical.projection.shape.as_str();
+    let join_strategy = physical.join.strategy.as_deref().unwrap_or("none");
+    let join_keys = if physical.join.keys.is_empty() {
         "none".to_string()
     } else {
-        physical.join_keys.join(",")
+        physical.join.keys.join(",")
     };
-    let join_sort_required = physical.join_sort_required;
-    let join_fallback_reason = physical.join_fallback_reason.as_deref().unwrap_or("none");
+    let join_sort_required = physical.join.sort_required;
+    let join_fallback_reason = physical.join.fallback_reason.as_deref().unwrap_or("none");
     let limits = cassie.runtime.limits();
-    let vectorized_join_candidate = physical.vectorized_join_candidate;
+    let vectorized_join_candidate = physical.join.vectorized.candidate;
     let vectorized_join_enabled = vectorized_join_candidate && limits.vectorized_joins_enabled;
     let vectorized_join_batch_size = limits.vectorized_join_batch_size.max(1);
     let vectorized_join_fallback_reason = if vectorized_join_enabled {
@@ -116,12 +124,15 @@ pub(super) fn plan_line(
         "disabled"
     } else {
         physical
-            .vectorized_join_fallback_reason
+            .join
+            .vectorized
+            .fallback_reason
             .as_deref()
             .unwrap_or("none")
     };
     let operator_switch_candidate = vectorized_join_candidate;
-    let operator_switch_enabled = operator_switch_candidate && limits.operator_switching_enabled;
+    let operator_switch_enabled =
+        operator_switch_candidate && limits.operator_switching_enabled.is_enabled();
     let operator_switch_pair = if operator_switch_candidate {
         "vectorized_join_to_merge_join"
     } else {
@@ -137,9 +148,10 @@ pub(super) fn plan_line(
     };
     let storage_mode = cassie
         .catalog
-        .collection_storage_mode(&physical.collection).map_or_else(|| "unknown".to_string(), |mode| mode.as_str().to_string());
-    let aggregate_parallel = physical.parallel_aggregate_candidate;
-    let aggregate_acceleration = physical.aggregate_acceleration;
+        .collection_storage_mode(&physical.collection)
+        .map_or_else(|| "unknown".to_string(), |mode| mode.as_str().to_string());
+    let aggregate_parallel = physical.aggregate.parallel_candidate;
+    let aggregate_acceleration = physical.aggregate.acceleration;
     let rollup_rewrite = crate::executor::rollup_rewrite_name_for_plan(cassie, &physical.logical)
         .unwrap_or_else(|| "none".to_string());
     let diagnostics = phase03_diagnostics(cassie, physical);
@@ -152,7 +164,11 @@ pub(super) fn plan_line(
             cassie
                 .catalog
                 .materialized_projection_for_output(&physical.collection)
-        }).map_or_else(|| "unavailable".to_string(), |projection| projection.freshness.as_str().to_string());
+        })
+        .map_or_else(
+            || "unavailable".to_string(),
+            |projection| projection.freshness.as_str().to_string(),
+        );
     let estimates = &physical.estimates;
     let selected_cost = if operator_feedback == "used"
         && adaptive_selected_alternative == operator_feedback_selected_candidate
@@ -175,7 +191,7 @@ pub(super) fn plan_line(
         } else {
             operators
         },
-        physical.predicate_pushdown,
+        physical.read.predicate_pushdown,
         projection_pruning,
         scan_fields,
         limit_pushdown,
@@ -220,7 +236,7 @@ pub(super) fn plan_line(
         prefilter,
         time_series,
         time_series_storage,
-        physical.top_k,
+        physical.top_k.enabled,
         top_k_limit,
         candidate_budget,
         join_strategy,
@@ -265,7 +281,7 @@ fn prefilter_description(
     match physical.logical.filter.as_ref() {
         None => "none".to_string(),
         Some(filter) => {
-            if let Some(index) = physical.selected_index.as_deref() {
+            if let Some(index) = physical.read.selected_index.as_deref() {
                 format!("index={index}")
             } else if let Some(schema) = cassie.catalog.get_schema(&physical.collection) {
                 if vector_prefilter_supported(filter, &schema) {
@@ -287,7 +303,7 @@ fn time_series_description(
     cassie: &Cassie,
     physical: &crate::planner::physical::PhysicalPlan,
 ) -> String {
-    let Some(index_name) = physical.selected_index.as_deref() else {
+    let Some(index_name) = physical.read.selected_index.as_deref() else {
         return "none".to_string();
     };
     let Some(index) = cassie.catalog.get_index(&physical.collection, index_name) else {
@@ -314,7 +330,7 @@ fn time_series_storage_description(
     cassie: &Cassie,
     physical: &crate::planner::physical::PhysicalPlan,
 ) -> String {
-    let Some(index_name) = physical.selected_index.as_deref() else {
+    let Some(index_name) = physical.read.selected_index.as_deref() else {
         return "none".to_string();
     };
     let Some(index) = cassie.catalog.get_index(&physical.collection, index_name) else {
@@ -347,7 +363,8 @@ fn time_series_bucket_width_supported(raw: Option<&str>) -> bool {
 
 fn candidate_budget(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan) -> String {
     physical
-        .top_k_limit
+        .top_k
+        .limit
         .map(|top_needed| {
             let limits = cassie.runtime.limits();
             let feedback_budget = cassie
@@ -358,7 +375,8 @@ fn candidate_budget(cassie: &Cassie, physical: &crate::planner::physical::Physic
                 .max(limits.adaptive_candidate_min)
                 .max(feedback_budget)
                 .min(limits.adaptive_candidate_max)
-        }).map_or_else(|| "none".to_string(), |budget| budget.to_string())
+        })
+        .map_or_else(|| "none".to_string(), |budget| budget.to_string())
 }
 
 struct Phase03Diagnostics {
@@ -373,12 +391,12 @@ fn phase03_diagnostics(
     cassie: &Cassie,
     physical: &crate::planner::physical::PhysicalPlan,
 ) -> Phase03Diagnostics {
-    let column_native = physical.column_batch_index.is_some();
+    let column_native = physical.read.column_batch_index.is_some();
     let hybrid_row_column = column_native
         && (physical.logical.filter.is_some()
             || !physical.logical.order.is_empty()
             || !physical.logical.projection.is_empty());
-    let parallel_pipeline = physical.parallel_aggregate_candidate
+    let parallel_pipeline = physical.aggregate.parallel_candidate
         || physical
             .operators
             .iter()
@@ -397,12 +415,13 @@ fn phase03_diagnostics(
                     .source_collections
                     .iter()
                     .any(|source| source == &physical.collection)
-        }).map_or_else(|| "none".to_string(), |(name, _)| name);
+        })
+        .map_or_else(|| "none".to_string(), |(name, _)| name);
 
     Phase03Diagnostics {
         column_native,
         hybrid_row_column,
-        vectorized_aggregate: physical.aggregate_acceleration,
+        vectorized_aggregate: physical.aggregate.acceleration,
         parallel_pipeline,
         analytical_projection,
     }

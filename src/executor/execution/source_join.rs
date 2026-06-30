@@ -32,7 +32,7 @@ pub(super) fn execute_join_source<'a>(
     cte_context: &'a mut CteContext,
     outer_row: Option<&'a BatchRow>,
     row_budget: Option<usize>,
-) -> SourceExecution<'a> {
+) -> SourceExecution {
     if !source_contains_lateral(right) {
         if let Some(joined) = bounded::try_execute_indexed_bounded_inner_join(
             env,
@@ -129,7 +129,7 @@ fn execute_lateral_join<'a>(
     cte_context: &'a mut CteContext,
     _outer_row: Option<&'a BatchRow>,
     left_batches: Vec<Batch>,
-) -> SourceExecution<'a> {
+) -> SourceExecution {
     let left_rows = batch::flatten_batches(left_batches);
     let mut joined = Vec::new();
     let mut matched_rows = 0usize;

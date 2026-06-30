@@ -12,13 +12,12 @@ pub(crate) const DEFAULT_FAMILY_NAME: &str = "default";
 pub(crate) type RawStorageEntry = (Vec<u8>, Vec<u8>);
 
 pub(crate) fn allow_memory_fallback() -> bool {
-    env::var("CASSIE_MIDGE_ALLOW_FALLBACK")
-        .is_ok_and(|value| {
-            matches!(
-                value.to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes" | "on"
-            )
-        })
+    env::var("CASSIE_MIDGE_ALLOW_FALLBACK").is_ok_and(|value| {
+        matches!(
+            value.to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        )
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

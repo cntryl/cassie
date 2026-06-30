@@ -118,7 +118,7 @@ fn register_operator_feedback_indexes(
             unique: false,
             options: Default::default(),
         };
-        cassie.midge.put_index(index.clone()).unwrap();
+        cassie.midge.put_index(&index).unwrap();
         cassie.catalog.register_index(index);
     }
 }
@@ -297,7 +297,7 @@ fn should_capture_runtime_feedback_for_selected_index() {
             unique: false,
             options: Default::default(),
         };
-        cassie.midge.put_index(index.clone()).unwrap();
+        cassie.midge.put_index(&index).unwrap();
         cassie.catalog.register_index(index);
         let session = cassie.create_session("tester", None);
         let sql = "SELECT body FROM metrics_feedback_selected_index WHERE title = $1";

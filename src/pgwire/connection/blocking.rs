@@ -1,4 +1,4 @@
-use super::{Arc, Cassie, str, CassieError};
+use super::{str, Arc, Cassie, CassieError};
 use tokio::task;
 
 pub(super) async fn run_pgwire_blocking<T>(

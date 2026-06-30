@@ -41,7 +41,7 @@ impl Cassie {
             limits.adaptive_min_cost_savings_bps,
             limits.adaptive_min_confidence_bps,
             limits.operator_feedback_enabled,
-            limits.operator_switching_enabled,
+            limits.operator_switching_enabled.is_enabled(),
             limits.operator_switch_join_row_threshold,
         ))
     }
@@ -331,44 +331,6 @@ impl Cassie {
         let parsed = parser::parse_statement(sql)?;
         let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
         self.execute_parsed_statement_core(session, parsed, sql_fingerprint, params, mode, controls)
-    }
-
-    pub(crate) fn execute_preparsed_statement_with_mode(
-        &self,
-        session: &CassieSession,
-        parsed: crate::sql::ast::ParsedStatement,
-        sql_fingerprint: u64,
-        params: Vec<crate::types::Value>,
-        mode: ExecutionMode,
-    ) -> Result<QueryResult, CassieError> {
-        let query_started = Instant::now();
-        let running_guard = self.runtime.begin_running_query();
-        let controls = self.runtime.query_controls(query_started);
-        let result = self.execute_parsed_statement_core(
-            session,
-            parsed,
-            sql_fingerprint,
-            params,
-            mode,
-            &controls,
-        );
-        let elapsed = query_started.elapsed();
-
-        match &result {
-            Ok(result) => self
-                .runtime
-                .record_query_success(elapsed, result.rows.len()),
-            Err(error) => {
-                self.runtime.record_query_error(elapsed, error);
-                if session.is_transaction_active() {
-                    session.mark_transaction_failed();
-                }
-            }
-        }
-
-        drop(running_guard);
-        let _ = self.run_deferred_schema_cleanup();
-        result
     }
 
     fn execute_parsed_statement_core(

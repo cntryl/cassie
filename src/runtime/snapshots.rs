@@ -1,4 +1,4 @@
-use super::{Serialize, BTreeMap};
+use super::{BTreeMap, Serialize};
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct RuntimeSnapshot {

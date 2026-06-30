@@ -97,7 +97,7 @@ fn should_select_scalar_index_for_equality_filter() {
 
         // Assert
         assert_eq!(
-            physical_plan.selected_index.as_deref(),
+            physical_plan.read.selected_index.as_deref(),
             Some("planner_index_aware_title_idx")
         );
     });
@@ -136,10 +136,10 @@ fn should_mark_scalar_index_plan_as_covered() {
 
         // Assert
         assert_eq!(
-            physical_plan.selected_index.as_deref(),
+            physical_plan.read.selected_index.as_deref(),
             Some("planner_covering_title_idx")
         );
-        assert!(physical_plan.covered_index);
+        assert!(physical_plan.read.covered_index);
     });
 }
 
@@ -176,10 +176,10 @@ fn should_leave_noncovered_scalar_index_plan_uncovered() {
 
         // Assert
         assert_eq!(
-            physical_plan.selected_index.as_deref(),
+            physical_plan.read.selected_index.as_deref(),
             Some("planner_covering_fallback_title_idx")
         );
-        assert!(!physical_plan.covered_index);
+        assert!(!physical_plan.read.covered_index);
     });
 }
 
@@ -222,10 +222,10 @@ fn should_mark_include_column_plan_as_covered() {
 
         // Assert
         assert_eq!(
-            physical_plan.selected_index.as_deref(),
+            physical_plan.read.selected_index.as_deref(),
             Some("planner_include_covering_title_idx")
         );
-        assert!(physical_plan.covered_index);
+        assert!(physical_plan.read.covered_index);
     });
 }
 
@@ -277,7 +277,7 @@ fn should_select_partial_index_for_exact_predicate() {
 
         // Assert
         assert_eq!(
-            physical_plan.selected_index.as_deref(),
+            physical_plan.read.selected_index.as_deref(),
             Some("planner_partial_index_title_idx")
         );
     });
@@ -321,7 +321,7 @@ fn should_skip_partial_index_for_unsafe_predicate() {
             physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
-        assert!(physical_plan.selected_index.is_none());
+        assert!(physical_plan.read.selected_index.is_none());
     });
 }
 
@@ -372,7 +372,7 @@ fn should_select_expression_index_for_matching_predicate() {
 
         // Assert
         assert_eq!(
-            physical_plan.selected_index.as_deref(),
+            physical_plan.read.selected_index.as_deref(),
             Some("planner_expression_index_lower_idx")
         );
     });
@@ -424,7 +424,7 @@ fn should_skip_expression_index_for_non_equivalent_predicate() {
             physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
         // Assert
-        assert!(physical_plan.selected_index.is_none());
+        assert!(physical_plan.read.selected_index.is_none());
     });
 }
 
@@ -467,7 +467,7 @@ fn should_keep_scalar_index_selection_deterministic_when_candidates_tie() {
 
         // Assert
         assert_eq!(
-            physical_plan.selected_index.as_deref(),
+            physical_plan.read.selected_index.as_deref(),
             Some("planner_operator_feedback_body_idx_a")
         );
     });

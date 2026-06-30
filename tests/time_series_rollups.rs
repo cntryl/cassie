@@ -239,7 +239,7 @@ fn should_fallback_to_source_when_rollup_is_stale() {
             .unwrap();
         meta.state = RollupState::Stale;
         meta.refresh_cursor.lag_rows = 1;
-        cassie.midge.put_rollup(meta.clone()).unwrap();
+        cassie.midge.put_rollup(&meta).unwrap();
         cassie.catalog.register_rollup(meta);
 
         // Act

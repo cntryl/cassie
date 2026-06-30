@@ -1,4 +1,7 @@
-use super::{Cassie, HashSet, FulltextIndexOptions, QueryError, FulltextIndexOptionsCacheKey, HashMap, catalog, AnalyzerConfig};
+use super::{
+    catalog, AnalyzerConfig, Cassie, FulltextIndexOptions, FulltextIndexOptionsCacheKey, HashMap,
+    HashSet, QueryError,
+};
 
 pub(crate) fn load_fulltext_index_options(
     cassie: &Cassie,

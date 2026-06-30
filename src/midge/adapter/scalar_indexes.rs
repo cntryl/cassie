@@ -1,4 +1,4 @@
-use super::{Midge, CassieError, RowDecode, key_encoding};
+use super::{key_encoding, CassieError, Midge, RowDecode};
 use crate::catalog::{IndexKind, IndexMeta};
 use crate::executor::filter;
 use crate::sql::ast::Expr;
@@ -35,7 +35,6 @@ struct ScalarIndexStoredRow {
 
 impl Midge {
     pub(crate) fn sync_scalar_indexes_for_document(
-        &self,
         tx: &mut cntryl_midge::Transaction,
         id: &str,
         old_payload: Option<&serde_json::Value>,
@@ -135,7 +134,7 @@ impl Midge {
     pub(crate) fn scan_scalar_index(
         &self,
         index: &IndexMeta,
-        request: ScalarIndexScanRequest,
+        request: &ScalarIndexScanRequest,
     ) -> Result<Vec<ScalarIndexScanHit>, CassieError> {
         if !Self::scalar_index_supports_storage(index) {
             return Err(CassieError::Unsupported(format!(

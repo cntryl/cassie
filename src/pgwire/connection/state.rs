@@ -1,4 +1,5 @@
-use super::{HashMap, CassieSession, ReadyState, PreparedStatement, Portal};
+use super::{CassieSession, ReadyState};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub(super) enum HandshakeState {
@@ -25,30 +26,11 @@ pub(super) enum HandshakeError {
 
 #[derive(Debug)]
 pub(super) enum FrontendMessage {
-    Parse {
-        name: String,
-        query: String,
-        parameter_types: Vec<i32>,
-    },
-    Bind {
-        portal_name: String,
-        statement_name: String,
-        parameter_formats: Vec<i16>,
-        params: Vec<Option<Vec<u8>>>,
-        result_formats: Vec<i16>,
-    },
-    Describe {
-        target: DescribeTarget,
-        name: String,
-    },
-    Execute {
-        portal_name: String,
-        limit: Option<i64>,
-    },
-    Close {
-        target: CloseTarget,
-        name: String,
-    },
+    Parse,
+    Bind,
+    Describe,
+    Execute,
+    Close,
     CopyData(Vec<u8>),
     CopyDone,
     CopyFail(String),
@@ -56,19 +38,7 @@ pub(super) enum FrontendMessage {
     Sync,
     Flush,
     Terminate,
-    Unknown(u8),
-}
-
-#[derive(Debug)]
-pub(super) enum DescribeTarget {
-    Statement,
-    Portal,
-}
-
-#[derive(Debug)]
-pub(super) enum CloseTarget {
-    Statement,
-    Portal,
+    Unknown,
 }
 
 #[derive(Debug)]
@@ -78,9 +48,6 @@ pub(super) struct SessionState {
     pub(super) startup_database: Option<String>,
     pub(super) authenticated: bool,
     pub(super) ready: ReadyState,
-    pub(super) next_prepared_id: u64,
-    pub(super) prepared: HashMap<String, PreparedStatement>,
-    pub(super) portals: HashMap<String, Portal>,
 }
 
 impl SessionState {
@@ -91,9 +58,6 @@ impl SessionState {
             startup_database: None,
             authenticated: false,
             ready: ReadyState::InTransaction,
-            next_prepared_id: 1,
-            prepared: HashMap::new(),
-            portals: HashMap::new(),
         }
     }
 }

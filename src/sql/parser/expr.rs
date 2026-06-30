@@ -1,6 +1,9 @@
 use super::clauses::{split_top_level, strip_parentheses};
 use super::schema::{parse_data_type, starts_with_keyword};
-use super::{FunctionCall, SqlError, Expr, BinaryOp, OrderExpr, NullsOrder, SortDirection, parse_statement, QueryStatement};
+use super::{
+    parse_statement, BinaryOp, Expr, FunctionCall, NullsOrder, OrderExpr, QueryStatement,
+    SortDirection, SqlError,
+};
 
 pub(super) fn take_int(input: &str) -> Result<Option<i64>, ParserError> {
     let trimmed = input.trim();
@@ -76,8 +79,12 @@ pub(super) fn split_csv_quoted_by_space(s: &str) -> Vec<&str> {
 }
 
 pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError> {
-    let Some(open) = raw.find('(') else { return Ok(None) };
-    let Some(close) = raw.rfind(')') else { return Ok(None) };
+    let Some(open) = raw.find('(') else {
+        return Ok(None);
+    };
+    let Some(close) = raw.rfind(')') else {
+        return Ok(None);
+    };
     if close < open {
         return Ok(None);
     }

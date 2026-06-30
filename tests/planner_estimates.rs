@@ -267,7 +267,7 @@ fn should_choose_lower_cost_competing_scalar_index_from_stats() {
 
         // Assert
         assert_eq!(
-            physical_plan.selected_index.as_deref(),
+            physical_plan.read.selected_index.as_deref(),
             Some("planner_competing_body_idx")
         );
         assert_eq!(physical_plan.estimates.index_rows, 5);

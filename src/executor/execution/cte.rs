@@ -1,4 +1,8 @@
-use super::{Value, HashMap, QueryError, Cassie, CassieSession, CommonTableExpression, FunctionMeta, QueryExecutionControls, check_timeout, CteQuery, build_logical_plan, execute_plan, BatchRow, HashSet, row_signature, ensure_temp_budget_for_rows};
+use super::{
+    build_logical_plan, check_timeout, ensure_temp_budget_for_rows, execute_plan, row_signature,
+    BatchRow, Cassie, CassieSession, CommonTableExpression, CteQuery, FunctionMeta, HashMap,
+    HashSet, QueryError, QueryExecutionControls, Value,
+};
 
 pub(super) type CteRows = Vec<Vec<(String, Value)>>;
 pub(super) type CteContext = HashMap<String, CteRows>;

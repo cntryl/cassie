@@ -1,5 +1,8 @@
 use super::embeddings::build_embedding_provider;
-use super::{Cassie, CassieError, CassieRuntimeConfig, Path, Arc, Midge, RuntimeState, Catalog, Mutex, BTreeMap, AtomicBool, Instant, Ordering};
+use super::{
+    Arc, AtomicBool, BTreeMap, Cassie, CassieError, CassieRuntimeConfig, Catalog, Instant, Midge,
+    Mutex, Ordering, Path, RuntimeState,
+};
 
 impl Cassie {
     /// # Errors

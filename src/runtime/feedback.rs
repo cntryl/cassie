@@ -1,4 +1,4 @@
-use super::{Hash, Serialize, Deserialize, stable_fingerprint};
+use super::{stable_fingerprint, Deserialize, Hash, Serialize};
 use crate::catalog::IndexMeta;
 use crate::planner::logical::LogicalPlan;
 use crate::sql::ast::{Expr, QuerySource, SelectItem, SortDirection};

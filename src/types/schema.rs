@@ -108,9 +108,15 @@ impl DataType {
             Self::Int | Self::Date => 4,
             Self::BigInt | Self::Float | Self::Time | Self::Timestamp => 8,
             Self::Boolean => 1,
-            Self::Char { .. } | Self::Varchar { .. } | Self::Text | Self::Bytea | Self::Vector(_) | Self::Json | Self::Array(_) => -1,
+            Self::Char { .. }
+            | Self::Varchar { .. }
+            | Self::Text
+            | Self::Bytea
+            | Self::Vector(_)
+            | Self::Json
+            | Self::Array(_) => -1,
             Self::Uuid => 16,
-            }
+        }
     }
 
     #[must_use]
@@ -224,8 +230,8 @@ fn parse_string_type_with_length(raw: &str, kind: &str) -> Option<Result<DataTyp
     };
 
     let Ok(length) = rest.trim().parse::<u32>() else {
-            return Some(Err(format!("invalid {kind} length '{raw}'")));
-        };
+        return Some(Err(format!("invalid {kind} length '{raw}'")));
+    };
     if length == 0 {
         return Some(Err(format!("{kind} length cannot be zero")));
     }

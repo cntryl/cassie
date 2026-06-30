@@ -514,8 +514,9 @@ fn covering_index_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Option<catalo
         indexes.as_slice(),
         &cardinality_stats,
     );
-    let selected = physical.selected_index?;
+    let selected = physical.read.selected_index?;
     physical
+        .read
         .covered_index
         .then(|| indexes.into_iter().find(|index| index.name == selected))
         .flatten()
@@ -536,7 +537,7 @@ fn selected_scalar_index_for_plan(
         indexes.as_slice(),
         &cardinality_stats,
     );
-    let selected = physical.selected_index?;
+    let selected = physical.read.selected_index?;
     indexes.into_iter().find(|index| index.name == selected)
 }
 

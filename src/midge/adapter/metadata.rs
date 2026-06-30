@@ -1,4 +1,10 @@
-use super::{Midge, CassieError, IndexMeta, IndexKind, StorageFamily, RollupMeta, RetentionPolicyMeta, FieldConstraint, CollectionCardinalityStats, key_encoding, WriteOptions, payload_contains_index_membership, payload_contains_vector_membership, NormalizedVectorRecord, normalize_vector, Query, VectorIndexRecord, RoleMeta, Schema, ProjectionMeta};
+use super::{
+    key_encoding, normalize_vector, payload_contains_index_membership,
+    payload_contains_vector_membership, CassieError, CollectionCardinalityStats, FieldConstraint,
+    IndexKind, IndexMeta, Midge, NormalizedVectorRecord, ProjectionMeta, Query,
+    RetentionPolicyMeta, RoleMeta, RollupMeta, Schema, StorageFamily, VectorIndexRecord,
+    WriteOptions,
+};
 
 impl Midge {
     /// # Errors
@@ -57,19 +63,19 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub fn put_index(&self, metadata: IndexMeta) -> Result<(), CassieError> {
+    pub fn put_index(&self, metadata: &IndexMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::index_key(&metadata.collection, &metadata.name);
         let value =
-            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
         if metadata.kind == IndexKind::Scalar {
-            self.rebuild_scalar_index_for_index(&metadata)?;
+            self.rebuild_scalar_index_for_index(metadata)?;
         }
         if metadata.kind == IndexKind::TimeSeries {
-            self.rebuild_time_series_index_for_index(&metadata)?;
+            self.rebuild_time_series_index_for_index(metadata)?;
         }
         Ok(())
     }
@@ -136,10 +142,10 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub fn put_rollup(&self, metadata: RollupMeta) -> Result<(), CassieError> {
+    pub fn put_rollup(&self, metadata: &RollupMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
-            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::rollup_key(&metadata.name), value, None)
             .map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
@@ -177,10 +183,10 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub fn put_retention_policy(&self, metadata: RetentionPolicyMeta) -> Result<(), CassieError> {
+    pub fn put_retention_policy(&self, metadata: &RetentionPolicyMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
-            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::retention_key(&metadata.name), value, None)
             .map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
@@ -218,10 +224,10 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub fn put_graph(&self, metadata: crate::catalog::GraphMeta) -> Result<(), CassieError> {
+    pub fn put_graph(&self, metadata: &crate::catalog::GraphMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
-            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::graph_key(&metadata.name), value, None)
             .map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
@@ -270,11 +276,11 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_projection_comparison_report(
         &self,
-        report: crate::catalog::ProjectionComparisonReportMeta,
+        report: &crate::catalog::ProjectionComparisonReportMeta,
     ) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
-            serde_json::to_vec(&report).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(report).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(
             Self::projection_comparison_report_key(&report.report_id),
             value,
@@ -314,11 +320,11 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_projection_consistency_report(
         &self,
-        report: crate::catalog::ProjectionConsistencyReportMeta,
+        report: &crate::catalog::ProjectionConsistencyReportMeta,
     ) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
-            serde_json::to_vec(&report).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(report).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(
             Self::projection_consistency_report_key(&report.report_id),
             value,
@@ -523,7 +529,7 @@ impl Midge {
         field: &str,
         id: &str,
         dimensions: usize,
-        metric: &crate::embeddings::DistanceMetric,
+        metric: crate::embeddings::DistanceMetric,
         value: Option<&serde_json::Value>,
     ) -> Result<Option<NormalizedVectorRecord>, CassieError> {
         let Some(value) = value else {
@@ -556,7 +562,11 @@ impl Midge {
                     "vector field '{field}' on collection '{collection}' expects finite numeric values"
                 )));
             }
-            vector.push(number as f32);
+            vector.push(number.to_string().parse::<f32>().map_err(|_| {
+                CassieError::InvalidVector(format!(
+                    "vector field '{field}' on collection '{collection}' expects f32-range values"
+                ))
+            })?);
         }
 
         let Some(normalized) = normalize_vector(&vector) else {
@@ -570,7 +580,7 @@ impl Midge {
             field: field.to_string(),
             id: id.to_string(),
             dimensions,
-            metric: *metric,
+            metric,
             normalization_version: NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION,
             payload_available: true,
             magnitude: normalized.magnitude,
@@ -648,7 +658,7 @@ impl Midge {
                 &index.field,
                 &document.id,
                 index.metadata.dimensions,
-                &index.metadata.metric,
+                index.metadata.metric,
                 document.payload.get(&index.field),
             )?
             else {
@@ -808,11 +818,11 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub fn put_function(&self, metadata: crate::catalog::FunctionMeta) -> Result<(), CassieError> {
+    pub fn put_function(&self, metadata: &crate::catalog::FunctionMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::function_key(&metadata.name);
         let value =
-            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
@@ -872,12 +882,12 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_procedure(
         &self,
-        metadata: crate::catalog::ProcedureMeta,
+        metadata: &crate::catalog::ProcedureMeta,
     ) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::procedure_key(&metadata.name);
         let value =
-            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
@@ -935,11 +945,11 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub fn put_view(&self, metadata: crate::catalog::ViewMeta) -> Result<(), CassieError> {
+    pub fn put_view(&self, metadata: &crate::catalog::ViewMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::view_key(&metadata.name);
         let value =
-            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
@@ -991,11 +1001,11 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub fn put_role(&self, metadata: RoleMeta) -> Result<(), CassieError> {
+    pub fn put_role(&self, metadata: &RoleMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::role_key(&metadata.name);
         let value =
-            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
@@ -1065,16 +1075,23 @@ impl Midge {
     }
 
     pub fn list_collections(&self) -> Vec<String> {
-        let Ok(tx) = self.begin_schema_readonly_tx() else { return Vec::new() };
+        let Ok(tx) = self.begin_schema_readonly_tx() else {
+            return Vec::new();
+        };
 
-        self.load_collections(&tx).map_or_else(|_| Vec::new(), |mut values| {
+        Self::load_collections(&tx).map_or_else(
+            |_| Vec::new(),
+            |mut values| {
                 values.sort();
                 values
-            })
+            },
+        )
     }
 
     pub fn list_collections_from_schema(&self) -> Vec<String> {
-        let Ok(tx) = self.begin_schema_readonly_tx() else { return Vec::new() };
+        let Ok(tx) = self.begin_schema_readonly_tx() else {
+            return Vec::new();
+        };
         let Ok(mut scan) = tx.scan(&Query::new().prefix(Self::schema_collection_prefix().into()))
         else {
             return Vec::new();

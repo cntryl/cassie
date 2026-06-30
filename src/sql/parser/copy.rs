@@ -1,5 +1,5 @@
 use super::expr::split_csv;
-use super::{ParsedStatement, SqlError, QueryStatement};
+use super::{ParsedStatement, QueryStatement, SqlError};
 
 pub(super) fn parse_copy_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();

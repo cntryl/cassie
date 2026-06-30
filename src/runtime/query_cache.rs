@@ -150,7 +150,9 @@ pub(crate) fn lookup_plan(
         return Ok(None);
     };
 
-    let entry: CachedPlanEntry = if let Ok(entry) = serde_json::from_slice(&raw) { entry } else {
+    let entry: CachedPlanEntry = if let Ok(entry) = serde_json::from_slice(&raw) {
+        entry
+    } else {
         runtime.record_query_cache_deserialize_reject();
         runtime.record_query_cache_l2_miss();
         let _ = delete_temp_key(midge, runtime, storage_key);
@@ -220,8 +222,7 @@ pub(crate) fn lookup_fulltext_stats(
         return Ok(None);
     }
 
-    let storage_key =
-        fulltext_stats_key(collection, field, analyzer_key, schema_epoch, data_epoch);
+    let storage_key = fulltext_stats_key(collection, field, analyzer_key, schema_epoch, data_epoch);
     let Some(raw) = (match midge.raw_get(StorageFamily::Temp, &storage_key) {
         Ok(value) => {
             runtime.record_storage_access("temp", false, true);
@@ -236,7 +237,9 @@ pub(crate) fn lookup_fulltext_stats(
         return Ok(None);
     };
 
-    let record: FulltextStatsRecord = if let Ok(record) = serde_json::from_slice(&raw) { record } else {
+    let record: FulltextStatsRecord = if let Ok(record) = serde_json::from_slice(&raw) {
+        record
+    } else {
         runtime.record_query_cache_deserialize_reject();
         runtime.record_query_cache_fulltext_stats_miss();
         let _ = delete_temp_key(midge, runtime, storage_key);

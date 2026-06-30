@@ -1,5 +1,10 @@
 use super::types::ExecutionBreakdownDurations;
-use super::{Expr, QueryError, BatchRow, Cassie, CassieSession, PhysicalPlan, LogicalPlan, CteContext, HashMap, FunctionMeta, Value, QueryExecutionControls, execute_cte, source, scored, analytical_projection, index_read, ordered_read, projected_read, rollups, plan_inspection, SelectItem, QuerySource, Instant, batch};
+use super::{
+    analytical_projection, batch, execute_cte, index_read, ordered_read, plan_inspection,
+    projected_read, rollups, scored, source, BatchRow, Cassie, CassieSession, CteContext, Expr,
+    FunctionMeta, HashMap, Instant, LogicalPlan, PhysicalPlan, QueryError, QueryExecutionControls,
+    QuerySource, SelectItem, Value,
+};
 
 type ExprResolution<'a> = Result<Expr, QueryError>;
 type AccessPathResult = Result<Option<Vec<BatchRow>>, QueryError>;
@@ -203,8 +208,8 @@ pub(super) fn preferred_access_path_route(
     physical: Option<&PhysicalPlan>,
 ) -> Option<AccessPathRoute> {
     let physical = physical?;
-    physical.selected_index.as_ref()?;
-    match physical.access_path {
+    physical.read.selected_index.as_ref()?;
+    match physical.read.access_path {
         crate::planner::physical::ReadAccessPath::IndexSeek
         | crate::planner::physical::ReadAccessPath::PrefixScan
         | crate::planner::physical::ReadAccessPath::RangeScan
@@ -467,13 +472,40 @@ pub(super) fn resolve_exists_expr<'a>(
 ) -> ExprResolution<'a> {
     match expr {
         Expr::Binary { left, op, right } => resolve_binary_exists_expr(
-            cassie, session, left, op, right, cte_context, user_functions, params, controls,
+            cassie,
+            session,
+            left,
+            op,
+            right,
+            cte_context,
+            user_functions,
+            params,
+            controls,
         ),
         Expr::IsNull { expr, negated } => resolve_is_null_exists_expr(
-            cassie, session, expr, *negated, cte_context, user_functions, params, controls,
+            cassie,
+            session,
+            expr,
+            *negated,
+            cte_context,
+            user_functions,
+            params,
+            controls,
         ),
-        Expr::InList { expr, values, negated } => resolve_in_list_exists_expr(
-            cassie, session, expr, values, *negated, cte_context, user_functions, params, controls,
+        Expr::InList {
+            expr,
+            values,
+            negated,
+        } => resolve_in_list_exists_expr(
+            cassie,
+            session,
+            expr,
+            values,
+            *negated,
+            cte_context,
+            user_functions,
+            params,
+            controls,
         ),
         Expr::Between {
             expr,
@@ -481,14 +513,35 @@ pub(super) fn resolve_exists_expr<'a>(
             high,
             negated,
         } => resolve_between_exists_expr(
-            cassie, session, expr, low, high, *negated, cte_context, user_functions, params,
+            cassie,
+            session,
+            expr,
+            low,
+            high,
+            *negated,
+            cte_context,
+            user_functions,
+            params,
             controls,
         ),
         Expr::Not { expr } => resolve_not_exists_expr(
-            cassie, session, expr, cte_context, user_functions, params, controls,
+            cassie,
+            session,
+            expr,
+            cte_context,
+            user_functions,
+            params,
+            controls,
         ),
         Expr::Cast { expr, data_type } => resolve_cast_exists_expr(
-            cassie, session, expr, data_type, cte_context, user_functions, params, controls,
+            cassie,
+            session,
+            expr,
+            data_type,
+            cte_context,
+            user_functions,
+            params,
+            controls,
         ),
         Expr::Exists(statement) => {
             let logical = build_logical_plan(statement.as_ref())?;
@@ -727,11 +780,7 @@ pub(super) fn build_logical_plan(
 }
 
 fn bounded_exists_logical(mut logical: LogicalPlan) -> LogicalPlan {
-    logical.limit = Some(
-        logical
-            .limit
-            .map_or(1, |limit| i64::from(limit > 0)),
-    );
+    logical.limit = Some(logical.limit.map_or(1, |limit| i64::from(limit > 0)));
     logical
 }
 

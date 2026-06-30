@@ -1,4 +1,7 @@
-use super::{Midge, TransactionMode, CassieError, StorageFamily, DEFAULT_FAMILY_NAME, FamilyScope, ColumnFamilyHandle};
+use super::{
+    CassieError, ColumnFamilyHandle, FamilyScope, Midge, StorageFamily, TransactionMode,
+    DEFAULT_FAMILY_NAME,
+};
 
 impl Midge {
     /// # Errors

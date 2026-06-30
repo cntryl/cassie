@@ -1,4 +1,9 @@
-use super::{WriteOptions, Midge, CassieError, Uuid, DocumentRef, decode_row, IndexKind, encode_row, RowSchema, RowDecode, MidgeScanTimings, RowFilter, Instant, HashSet, Query, key_encoding, decode_projected_row_matching_with_aliases, decode_projected_row_with_aliases, decode_projected_row, Schema, DataType};
+use super::{
+    decode_projected_row, decode_projected_row_matching_with_aliases,
+    decode_projected_row_with_aliases, decode_row, encode_row, key_encoding, CassieError, DataType,
+    DocumentRef, HashSet, IndexKind, Instant, Midge, MidgeScanTimings, Query, RowDecode, RowFilter,
+    RowSchema, Schema, Uuid, WriteOptions,
+};
 use std::time::Duration;
 
 #[derive(Debug)]
@@ -251,7 +256,7 @@ impl Midge {
                                 &index.field,
                                 &id,
                                 index.metadata.dimensions,
-                                &index.metadata.metric,
+                                index.metadata.metric,
                                 payload.get(&index.field),
                             )
                         })
@@ -344,15 +349,15 @@ impl Midge {
                     tx.delete(legacy_key).map_err(CassieError::from)?;
                 }
                 Self::write_normalized_vector_records(&mut tx, &prepared.normalized_records)?;
-                let (scalar_deleted, scalar_puts) = self.sync_scalar_indexes_for_document(
+                let (scalar_deleted, scalar_puts) = Self::sync_scalar_indexes_for_document(
                     &mut tx,
                     &prepared.id,
                     existing_payload.as_ref(),
                     Some(&payload),
                     &scalar_indexes,
                 )?;
-                let (time_series_deleted, time_series_puts) = self
-                    .sync_time_series_indexes_for_document(
+                let (time_series_deleted, time_series_puts) =
+                    Self::sync_time_series_indexes_for_document(
                         &mut tx,
                         &prepared.id,
                         existing_payload.as_ref(),
@@ -428,15 +433,15 @@ impl Midge {
                     &prepared.id,
                     &vector_fields,
                 )?;
-                let (scalar_deleted, scalar_puts) = self.sync_scalar_indexes_for_document(
+                let (scalar_deleted, scalar_puts) = Self::sync_scalar_indexes_for_document(
                     &mut tx,
                     &prepared.id,
                     existing_payload.as_ref(),
                     None,
                     &scalar_indexes,
                 )?;
-                let (time_series_deleted, time_series_puts) = self
-                    .sync_time_series_indexes_for_document(
+                let (time_series_deleted, time_series_puts) =
+                    Self::sync_time_series_indexes_for_document(
                         &mut tx,
                         &prepared.id,
                         existing_payload.as_ref(),

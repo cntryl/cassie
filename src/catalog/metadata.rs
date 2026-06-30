@@ -123,9 +123,7 @@ impl Catalog {
             .into_iter()
             .filter(Self::is_constraint_populated)
             .collect::<Vec<_>>();
-        self.constraints
-            .write()
-            .insert(name.clone(), normalized);
+        self.constraints.write().insert(name.clone(), normalized);
         self.register_projection_metadata(ProjectionMeta::new(&name, 1));
         self.cardinality.write().insert(
             name.clone(),

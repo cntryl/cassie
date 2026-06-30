@@ -249,8 +249,10 @@ impl OpenAiProvider {
         elapsed_ms: u64,
         input_count: usize,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
-        let parsed: OpenAiEmbeddingResponse = serde_json::from_str(response_body)
-            .map_err(|error| EmbeddingError::ParseError(format!("OpenAI response parse failure: {error}")))?;
+        let parsed: OpenAiEmbeddingResponse =
+            serde_json::from_str(response_body).map_err(|error| {
+                EmbeddingError::ParseError(format!("OpenAI response parse failure: {error}"))
+            })?;
         self.log_success(elapsed_ms, input_count, parsed.usage.as_ref());
         let mut ordered = parsed.data;
         ordered.sort_by_key(|entry| entry.index);

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{Midge, CassieError, Uuid, encode_row, WriteOptions, StorageFamily};
+use super::{encode_row, CassieError, Midge, StorageFamily, Uuid, WriteOptions};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct GraphEdgeRecord {

@@ -197,7 +197,7 @@ unsafe fn cosine_components_x86(query: &[f32], target: &[f32]) -> (f64, f64, f64
 
 #[cfg(target_arch = "aarch64")]
 unsafe fn dot_aarch64(query: &[f32], target: &[f32]) -> f64 {
-    use std::arch::aarch64::{vdupq_n_f32, vld1q_f32, vaddq_f32, vmulq_f32, vaddvq_f32};
+    use std::arch::aarch64::{vaddq_f32, vaddvq_f32, vdupq_n_f32, vld1q_f32, vmulq_f32};
 
     let mut acc = vdupq_n_f32(0.0);
     let mut index = 0usize;
@@ -219,7 +219,7 @@ unsafe fn dot_aarch64(query: &[f32], target: &[f32]) -> f64 {
 
 #[cfg(target_arch = "aarch64")]
 unsafe fn squared_l2_aarch64(query: &[f32], target: &[f32]) -> f64 {
-    use std::arch::aarch64::{vdupq_n_f32, vld1q_f32, vsubq_f32, vaddq_f32, vmulq_f32, vaddvq_f32};
+    use std::arch::aarch64::{vaddq_f32, vaddvq_f32, vdupq_n_f32, vld1q_f32, vmulq_f32, vsubq_f32};
 
     let mut acc = vdupq_n_f32(0.0);
     let mut index = 0usize;
@@ -243,7 +243,7 @@ unsafe fn squared_l2_aarch64(query: &[f32], target: &[f32]) -> f64 {
 
 #[cfg(target_arch = "aarch64")]
 unsafe fn cosine_components_aarch64(query: &[f32], target: &[f32]) -> (f64, f64, f64) {
-    use std::arch::aarch64::{vdupq_n_f32, vld1q_f32, vaddq_f32, vmulq_f32, vaddvq_f32};
+    use std::arch::aarch64::{vaddq_f32, vaddvq_f32, vdupq_n_f32, vld1q_f32, vmulq_f32};
 
     let mut dot_acc = vdupq_n_f32(0.0);
     let mut qnorm_acc = vdupq_n_f32(0.0);

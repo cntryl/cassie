@@ -413,7 +413,47 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
     match statement {
         QueryStatement::Explain(statement) => parameter_count(&statement.statement),
         QueryStatement::Select(statement) => parameter_count_select(statement),
-        QueryStatement::Show(_) | QueryStatement::Set(_) | QueryStatement::Copy(_) | QueryStatement::Transaction(_) | QueryStatement::CreateTable(_) | QueryStatement::CreateGraph(_) | QueryStatement::DropTable(_) | QueryStatement::AlterTable(_) | QueryStatement::CreateSequence(_) | QueryStatement::DropSequence(_) | QueryStatement::CreateSchema(_) | QueryStatement::CreateView(_) | QueryStatement::CreateRole(_) | QueryStatement::AlterRole(_) | QueryStatement::DropRole(_) | QueryStatement::CreateIndex(_) | QueryStatement::DropIndex(_) | QueryStatement::CreateRollup(_) | QueryStatement::RefreshRollup(_) | QueryStatement::DropRollup(_) | QueryStatement::CreateMaterializedProjection(_) | QueryStatement::RefreshMaterializedProjection(_) | QueryStatement::DropMaterializedProjection(_) | QueryStatement::AlterMaterializedProjection(_) | QueryStatement::DropMaterializedProjectionVersion(_) | QueryStatement::VerifyProjection(_) | QueryStatement::DiffProjection(_) | QueryStatement::CompareProjection(_) | QueryStatement::PlanRepairProjection(_) | QueryStatement::RepairProjection(_) | QueryStatement::CreateRetentionPolicy(_) | QueryStatement::AlterRetentionPolicy(_) | QueryStatement::DropRetentionPolicy(_) | QueryStatement::EnforceRetentionPolicy(_) | QueryStatement::CreateFunction(_) | QueryStatement::DropFunction(_) | QueryStatement::CreateProcedure(_) | QueryStatement::DropProcedure(_) | QueryStatement::DropView(_) | QueryStatement::DropSchema(_) | QueryStatement::AlterSchema(_) => 0,
+        QueryStatement::Show(_)
+        | QueryStatement::Set(_)
+        | QueryStatement::Copy(_)
+        | QueryStatement::Transaction(_)
+        | QueryStatement::CreateTable(_)
+        | QueryStatement::CreateGraph(_)
+        | QueryStatement::DropTable(_)
+        | QueryStatement::AlterTable(_)
+        | QueryStatement::CreateSequence(_)
+        | QueryStatement::DropSequence(_)
+        | QueryStatement::CreateSchema(_)
+        | QueryStatement::CreateView(_)
+        | QueryStatement::CreateRole(_)
+        | QueryStatement::AlterRole(_)
+        | QueryStatement::DropRole(_)
+        | QueryStatement::CreateIndex(_)
+        | QueryStatement::DropIndex(_)
+        | QueryStatement::CreateRollup(_)
+        | QueryStatement::RefreshRollup(_)
+        | QueryStatement::DropRollup(_)
+        | QueryStatement::CreateMaterializedProjection(_)
+        | QueryStatement::RefreshMaterializedProjection(_)
+        | QueryStatement::DropMaterializedProjection(_)
+        | QueryStatement::AlterMaterializedProjection(_)
+        | QueryStatement::DropMaterializedProjectionVersion(_)
+        | QueryStatement::VerifyProjection(_)
+        | QueryStatement::DiffProjection(_)
+        | QueryStatement::CompareProjection(_)
+        | QueryStatement::PlanRepairProjection(_)
+        | QueryStatement::RepairProjection(_)
+        | QueryStatement::CreateRetentionPolicy(_)
+        | QueryStatement::AlterRetentionPolicy(_)
+        | QueryStatement::DropRetentionPolicy(_)
+        | QueryStatement::EnforceRetentionPolicy(_)
+        | QueryStatement::CreateFunction(_)
+        | QueryStatement::DropFunction(_)
+        | QueryStatement::CreateProcedure(_)
+        | QueryStatement::DropProcedure(_)
+        | QueryStatement::DropView(_)
+        | QueryStatement::DropSchema(_)
+        | QueryStatement::AlterSchema(_) => 0,
         QueryStatement::Insert(statement) => parameter_count_insert(statement),
         QueryStatement::Update(statement) => parameter_count_update(statement),
         QueryStatement::Delete(statement) => parameter_count_delete(statement),
@@ -577,7 +617,9 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
         ast::Expr::Binary { left, right, .. } => {
             parameter_count_expr(left).max(parameter_count_expr(right))
         }
-        ast::Expr::IsNull { expr, .. } | ast::Expr::Not { expr } | ast::Expr::Cast { expr, .. } => parameter_count_expr(expr),
+        ast::Expr::IsNull { expr, .. } | ast::Expr::Not { expr } | ast::Expr::Cast { expr, .. } => {
+            parameter_count_expr(expr)
+        }
         ast::Expr::InList { expr, values, .. } => values
             .iter()
             .fold(parameter_count_expr(expr), |count, value| {

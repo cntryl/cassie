@@ -1,4 +1,4 @@
-use super::{Midge, CassieError, StorageFamily};
+use super::{CassieError, Midge, StorageFamily};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

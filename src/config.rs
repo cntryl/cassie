@@ -26,6 +26,32 @@ pub struct CassieRuntimeConfig {
     pub embeddings: EmbeddingsRuntimeConfig,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OperatorSwitchingEnabled(bool);
+
+impl OperatorSwitchingEnabled {
+    #[must_use]
+    pub const fn disabled() -> Self {
+        Self(false)
+    }
+
+    #[must_use]
+    pub const fn enabled() -> Self {
+        Self(true)
+    }
+
+    #[must_use]
+    pub const fn is_enabled(self) -> bool {
+        self.0
+    }
+}
+
+impl Default for OperatorSwitchingEnabled {
+    fn default() -> Self {
+        Self::disabled()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CassieRuntimeLimits {
     pub query_timeout_ms: u64,
@@ -44,7 +70,7 @@ pub struct CassieRuntimeLimits {
     pub adaptive_execution_enabled: bool,
     pub adaptive_min_cost_savings_bps: usize,
     pub adaptive_min_confidence_bps: u16,
-    pub operator_switching_enabled: bool,
+    pub operator_switching_enabled: OperatorSwitchingEnabled,
     pub operator_switch_join_row_threshold: usize,
     pub adaptive_candidate_min: usize,
     pub adaptive_candidate_max: usize,
@@ -128,7 +154,7 @@ impl Default for CassieRuntimeLimits {
             adaptive_execution_enabled: false,
             adaptive_min_cost_savings_bps: 500,
             adaptive_min_confidence_bps: 0,
-            operator_switching_enabled: false,
+            operator_switching_enabled: OperatorSwitchingEnabled::disabled(),
             operator_switch_join_row_threshold: 4096,
             adaptive_candidate_min: 16,
             adaptive_candidate_max: 100_000,
@@ -302,9 +328,8 @@ fn adaptive_limits_from_env(
             "CASSIE_ADAPTIVE_MIN_CONFIDENCE_BPS",
             defaults.adaptive_min_confidence_bps,
         ),
-        operator_switching_enabled: parse_bool_from(
+        operator_switching_enabled: parse_operator_switching_enabled_from(
             env_reader,
-            "CASSIE_OPERATOR_SWITCHING_ENABLED",
             defaults.operator_switching_enabled,
         ),
         operator_switch_join_row_threshold: parse_usize_from(
@@ -460,6 +485,21 @@ fn parse_bool_from(
             _ => None,
         })
         .unwrap_or(fallback)
+}
+
+fn parse_operator_switching_enabled_from(
+    env_reader: &impl Fn(&str) -> Option<String>,
+    fallback: OperatorSwitchingEnabled,
+) -> OperatorSwitchingEnabled {
+    if parse_bool_from(
+        env_reader,
+        "CASSIE_OPERATOR_SWITCHING_ENABLED",
+        fallback.is_enabled(),
+    ) {
+        OperatorSwitchingEnabled::enabled()
+    } else {
+        OperatorSwitchingEnabled::disabled()
+    }
 }
 
 #[cfg(test)]

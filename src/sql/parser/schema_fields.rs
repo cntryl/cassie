@@ -4,6 +4,7 @@ use super::{
     parse_check_constraint, parse_constraint_literal, parse_data_type, tokenize_schema_field,
     FieldConstraint, FieldDefinition, SqlError,
 };
+use crate::catalog::DefaultSequenceOwnership;
 
 pub(super) fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlError> {
     parse_field_definition_for_table(raw, None)
@@ -24,7 +25,7 @@ pub(super) fn parse_field_definition_for_table(
         saw_constraint = true;
         constraint.not_null = true;
         constraint.default_sequence = Some(sequence.clone());
-        constraint.default_sequence_owned = true;
+        constraint.default_sequence_owned = DefaultSequenceOwnership::owned();
         constraint.default_expression =
             Some(crate::catalog::canonical_nextval_expression(&sequence));
     }
@@ -174,7 +175,7 @@ pub(super) fn apply_default_constraint(
     if let Some(sequence) = crate::catalog::parse_nextval_default_expression(raw) {
         constraint.default_value = None;
         constraint.default_sequence = Some(sequence.clone());
-        constraint.default_sequence_owned = false;
+        constraint.default_sequence_owned = DefaultSequenceOwnership::shared();
         constraint.default_expression =
             Some(crate::catalog::canonical_nextval_expression(&sequence));
         return Ok(());

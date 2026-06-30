@@ -26,7 +26,7 @@ pub(super) fn create_rollup(
     create_rollup_collection(cassie, &meta)?;
     cassie
         .midge
-        .put_rollup(meta.clone())
+        .put_rollup(&meta)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_rollup(meta.clone());
     refresh_rollup(cassie, &meta.name, user_functions, controls)?;
@@ -47,7 +47,7 @@ pub(super) fn refresh_rollup(
     cassie.catalog.register_rollup(meta.clone());
     cassie
         .midge
-        .put_rollup(meta.clone())
+        .put_rollup(&meta)
         .map_err(|error| QueryError::General(error.to_string()))?;
 
     let rows = build_rollup_rows(cassie, &meta, user_functions, controls)?;
@@ -62,7 +62,7 @@ pub(super) fn refresh_rollup(
     meta.refresh_cursor.lag_rows = 0;
     cassie
         .midge
-        .put_rollup(meta.clone())
+        .put_rollup(&meta)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_rollup(meta.clone());
     cassie.runtime.record_rollup_refresh(meta.name);
@@ -162,7 +162,7 @@ pub(super) fn mark_source_rollups_stale(cassie: &Cassie, source: &str) -> Result
         rollup.refresh_cursor.lag_rows = rollup.refresh_cursor.lag_rows.saturating_add(1);
         cassie
             .midge
-            .put_rollup(rollup.clone())
+            .put_rollup(&rollup)
             .map_err(|error| QueryError::General(error.to_string()))?;
         cassie.catalog.register_rollup(rollup);
     }

@@ -1,4 +1,4 @@
-use super::{DocumentRef, FieldCardinalityStats, FieldHistogramBucket, FieldHeavyHitter};
+use super::{DocumentRef, FieldCardinalityStats, FieldHeavyHitter, FieldHistogramBucket};
 
 const MAX_HISTOGRAM_BUCKETS: usize = 8;
 const MAX_HEAVY_HITTERS: usize = 8;

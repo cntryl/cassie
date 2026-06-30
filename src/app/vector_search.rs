@@ -1,5 +1,14 @@
-use super::vector_helpers::{vector_from_json, vector_search_row, vector_search_columns, vector_distance_for_metric, ScoredVectorCandidate, compare_scored_vector_candidates};
-use super::{Cassie, DistanceMetric, QueryResult, CassieError, VectorSearchResultCacheKey, Embedding, QueryEmbeddingCacheKey, Arc, VectorIndexRecord, VectorIndexType, RowDecode, BTreeMap, normalize_vector, BinaryHeap, NormalizedVectorRecord, cosine_distance_from_normalized_query, dot_distance_from_normalized_target, CollectionSchema, CmpOrdering, NormalizedVectorCacheEntry, NormalizedVectorCacheKey};
+use super::vector_helpers::{
+    compare_scored_vector_candidates, vector_distance_for_metric, vector_from_json,
+    vector_search_columns, vector_search_row, ScoredVectorCandidate,
+};
+use super::{
+    cosine_distance_from_normalized_query, dot_distance_from_normalized_target, normalize_vector,
+    Arc, BTreeMap, BinaryHeap, Cassie, CassieError, CmpOrdering, CollectionSchema, DistanceMetric,
+    Embedding, NormalizedVectorCacheEntry, NormalizedVectorCacheKey, NormalizedVectorRecord,
+    QueryEmbeddingCacheKey, QueryResult, RowDecode, VectorIndexRecord, VectorIndexType,
+    VectorSearchResultCacheKey,
+};
 
 impl Cassie {
     /// # Errors
@@ -264,10 +273,9 @@ impl Cassie {
             });
             let (distance, used_normalized) = if can_use_normalized {
                 match &metric {
-                    DistanceMetric::Cosine => normalized_query
-                        .as_ref().map_or_else(|| {
-                            (vector_distance_for_metric(metric, query, &vector), false)
-                        }, |normalized_query| {
+                    DistanceMetric::Cosine => normalized_query.as_ref().map_or_else(
+                        || (vector_distance_for_metric(metric, query, &vector), false),
+                        |normalized_query| {
                             let record = normalized_record.expect("normalized record");
                             (
                                 cosine_distance_from_normalized_query(
@@ -276,7 +284,8 @@ impl Cassie {
                                 ),
                                 true,
                             )
-                        }),
+                        },
+                    ),
                     DistanceMetric::Dot => {
                         let record = normalized_record.expect("normalized record");
                         (

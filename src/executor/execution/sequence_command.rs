@@ -1,4 +1,5 @@
-use super::{Cassie, QueryResult, QueryError};
+use super::{Cassie, QueryError, QueryResult};
+use crate::catalog::DefaultSequenceOwnership;
 
 pub(super) fn create_sequence(
     cassie: &Cassie,
@@ -17,7 +18,7 @@ pub(super) fn create_sequence(
     let metadata = crate::catalog::SequenceMeta::new(&statement.name, statement.data_type.clone());
     cassie
         .midge
-        .put_sequence(metadata.clone())
+        .put_sequence(&metadata)
         .map_err(QueryError::from)?;
     cassie.catalog.register_sequence(metadata);
     Ok(empty_command("CREATE SEQUENCE"))
@@ -55,7 +56,7 @@ pub(super) fn prepare_create_table_sequences(
             let Some(sequence) = constraint.default_sequence.as_deref() else {
                 continue;
             };
-            if constraint.default_sequence_owned {
+            if constraint.default_sequence_owned.is_owned() {
                 if cassie.catalog.sequence_exists(sequence) {
                     return Err(QueryError::General(format!(
                         "sequence '{sequence}' already exists"
@@ -82,7 +83,7 @@ pub(super) fn persist_created_sequences(
     for sequence in sequences {
         cassie
             .midge
-            .put_sequence(sequence.clone())
+            .put_sequence(&sequence)
             .map_err(QueryError::from)?;
         cassie.catalog.register_sequence(sequence);
     }
@@ -109,7 +110,7 @@ pub(super) fn alter_column_set_default(
         constraint.default_value = default_value;
         constraint.default_expression = default_expression;
         constraint.default_sequence = default_sequence;
-        constraint.default_sequence_owned = false;
+        constraint.default_sequence_owned = DefaultSequenceOwnership::shared();
     })
 }
 
@@ -122,7 +123,7 @@ pub(super) fn alter_column_drop_default(
         constraint.default_value = None;
         constraint.default_expression = None;
         constraint.default_sequence = None;
-        constraint.default_sequence_owned = false;
+        constraint.default_sequence_owned = DefaultSequenceOwnership::shared();
     })
 }
 

@@ -1,4 +1,4 @@
-use super::{Midge, OperationalAssignmentMeta, CassieError, WriteOptions, StorageFamily};
+use super::{CassieError, Midge, OperationalAssignmentMeta, StorageFamily, WriteOptions};
 
 impl Midge {
     /// # Errors
@@ -6,10 +6,10 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_operational_assignment(
         &self,
-        metadata: OperationalAssignmentMeta,
+        metadata: &OperationalAssignmentMeta,
     ) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
-        let value = serde_json::to_vec(&metadata)
+        let value = serde_json::to_vec(metadata)
             .map_err(|error| CassieError::Storage(format!("encode assignment: {error}")))?;
         tx.put(
             Self::operational_assignment_key(&metadata.assignment_id),

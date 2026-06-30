@@ -1,4 +1,4 @@
-use super::{QueryResult, QueryError, ColumnMeta, Value};
+use super::{ColumnMeta, QueryError, QueryResult, Value};
 
 pub(super) fn execute_show(
     statement: &crate::sql::ast::ShowStatement,

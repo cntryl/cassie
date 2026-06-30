@@ -289,7 +289,7 @@ fn should_reject_non_finite_fulltext_index_options_during_search_score() {
 
         cassie
             .midge
-            .put_index(IndexMeta {
+            .put_index(&IndexMeta {
                 collection: collection.to_string(),
                 name: "idx_exec_fulltext_non_finite".to_string(),
                 field: "body".to_string(),
@@ -380,7 +380,7 @@ fn should_reject_duplicate_fulltext_indexes_during_search_score() {
 
         cassie
             .midge
-            .put_index(IndexMeta {
+            .put_index(&IndexMeta {
                 collection: collection.to_string(),
                 name: "idx_exec_fulltext_duplicate_a".to_string(),
                 field: "body".to_string(),
@@ -400,7 +400,7 @@ fn should_reject_duplicate_fulltext_indexes_during_search_score() {
             .unwrap();
         cassie
             .midge
-            .put_index(IndexMeta {
+            .put_index(&IndexMeta {
                 collection: collection.to_string(),
                 name: "idx_exec_fulltext_duplicate_b".to_string(),
                 field: "body".to_string(),
@@ -487,7 +487,7 @@ fn should_allow_plain_select_with_non_finite_fulltext_metadata() {
             .unwrap();
         cassie
             .midge
-            .put_index(IndexMeta {
+            .put_index(&IndexMeta {
                 collection: collection.to_string(),
                 name: "idx_exec_plain_select_bad_fulltext".to_string(),
                 field: "body".to_string(),

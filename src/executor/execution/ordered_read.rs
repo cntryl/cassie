@@ -1,4 +1,8 @@
-use super::{Cassie, CassieSession, Value, LogicalPlan, BatchRow, QueryError, batch, BinaryHeap, SortDirection, CollectionSchema, scan, QuerySource, Expr, SelectItem, BinaryOp, CmpOrdering, compare_query_values};
+use super::{
+    batch, compare_query_values, scan, BatchRow, BinaryHeap, BinaryOp, Cassie, CassieSession,
+    CmpOrdering, CollectionSchema, Expr, LogicalPlan, QueryError, QuerySource, SelectItem,
+    SortDirection, Value,
+};
 use crate::midge::adapter::{DocumentRef, OrderedRowBound, RowDecode};
 
 pub(super) fn execute_ordered_column_top_k(
@@ -88,9 +92,7 @@ fn execute_ordered_row_id_page(
         return Ok(Some(Vec::new()));
     }
 
-    if session
-        .is_some_and(|session| !session.collection_changes(&spec.collection).is_empty())
-    {
+    if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
         return Ok(None);
     }
 

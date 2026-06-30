@@ -251,7 +251,7 @@ impl Cassie {
         &self,
         metadata: crate::catalog::ProjectionMeta,
     ) -> Result<(), CassieError> {
-        self.midge.put_projection_metadata(metadata.clone())?;
+        self.midge.put_projection_metadata(&metadata)?;
         self.catalog.register_projection_metadata(metadata);
         Ok(())
     }

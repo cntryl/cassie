@@ -181,7 +181,7 @@ fn should_mark_simple_aggregate_as_parallel_candidate() {
             .operators
             .iter()
             .any(|operator| matches!(operator, Operator::Aggregate)));
-        assert!(physical_plan.parallel_aggregate_candidate);
+        assert!(physical_plan.aggregate.parallel_candidate);
     });
 }
 
@@ -211,6 +211,6 @@ fn should_keep_distinct_aggregate_on_serial_candidate_path() {
             .operators
             .iter()
             .any(|operator| matches!(operator, Operator::Aggregate)));
-        assert!(!physical_plan.parallel_aggregate_candidate);
+        assert!(!physical_plan.aggregate.parallel_candidate);
     });
 }

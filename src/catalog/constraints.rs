@@ -19,6 +19,33 @@ pub struct ConstraintCheck {
     pub value: serde_json::Value,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(transparent)]
+pub struct DefaultSequenceOwnership(bool);
+
+impl DefaultSequenceOwnership {
+    #[must_use]
+    pub const fn shared() -> Self {
+        Self(false)
+    }
+
+    #[must_use]
+    pub const fn owned() -> Self {
+        Self(true)
+    }
+
+    #[must_use]
+    pub const fn is_owned(self) -> bool {
+        self.0
+    }
+}
+
+impl Default for DefaultSequenceOwnership {
+    fn default() -> Self {
+        Self::shared()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FieldConstraint {
     pub field: String,
@@ -53,7 +80,7 @@ pub struct FieldConstraint {
     #[serde(default)]
     pub default_sequence: Option<String>,
     #[serde(default)]
-    pub default_sequence_owned: bool,
+    pub default_sequence_owned: DefaultSequenceOwnership,
     #[serde(default)]
     pub check: Option<ConstraintCheck>,
     #[serde(default)]
@@ -81,7 +108,7 @@ impl FieldConstraint {
             default_value: None,
             default_expression: None,
             default_sequence: None,
-            default_sequence_owned: false,
+            default_sequence_owned: DefaultSequenceOwnership::shared(),
             check: None,
             references_table: None,
             references_field: None,
@@ -154,7 +181,9 @@ fn merge_constraint(existing: &mut FieldConstraint, next: FieldConstraint) {
     if next.default_sequence.is_some() {
         existing.default_sequence = next.default_sequence;
     }
-    existing.default_sequence_owned |= next.default_sequence_owned;
+    if next.default_sequence_owned.is_owned() {
+        existing.default_sequence_owned = next.default_sequence_owned;
+    }
     if next.check.is_some() {
         existing.check = next.check;
     }
@@ -176,5 +205,26 @@ fn merge_constraint(existing: &mut FieldConstraint, next: FieldConstraint) {
     }
     if next.foreign_key_on_update.is_some() {
         existing.foreign_key_on_update = next.foreign_key_on_update;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DefaultSequenceOwnership, FieldConstraint};
+
+    #[test]
+    fn should_serialize_default_sequence_ownership_as_bool() {
+        // Arrange
+        let mut constraint = FieldConstraint::new("id");
+        constraint.default_sequence_owned = DefaultSequenceOwnership::owned();
+
+        // Act
+        let json = serde_json::to_value(&constraint).expect("serialize field constraint");
+
+        // Assert
+        assert_eq!(
+            json["default_sequence_owned"],
+            serde_json::Value::Bool(true)
+        );
     }
 }

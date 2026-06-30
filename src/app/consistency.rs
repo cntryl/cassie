@@ -133,8 +133,7 @@ impl Cassie {
         });
         let created_ms = current_time_millis();
         let report = build_consistency_report(&manifests, created_ms);
-        self.midge
-            .put_projection_consistency_report(report.clone())?;
+        self.midge.put_projection_consistency_report(&report)?;
         self.catalog
             .register_projection_consistency_report(report.clone());
         self.runtime.record_projection_consistency_check(

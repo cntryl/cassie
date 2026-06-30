@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use super::{Cassie, CassieError, Midge, current_time_millis};
+use super::{current_time_millis, Cassie, CassieError, Midge};
 
 const SNAPSHOT_FORMAT_VERSION: u16 = 1;
 const SNAPSHOT_MANIFEST_FILE: &str = "cassie-snapshot-manifest.json";

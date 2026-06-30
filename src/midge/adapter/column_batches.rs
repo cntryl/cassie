@@ -1,7 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
 
-use super::{Midge, CassieError, IndexKind, IndexMeta, ColumnBatchMetadata, ColumnBatchRow, ColumnBatchSegmentMeta, ColumnBatchCodecMeta, WriteOptions, RowFilter, ColumnBatchScanFilter, ColumnBatchScanDecision, ColumnBatchScanFallbackReason, ColumnBatchPayload, DocumentRef, ColumnBatchScanOutcome, MidgeScanTimings, Query, ColumnBatchColumn, ColumnBatchValueRun, ColumnBatchFieldSummary, ColumnBatchScanPredicate, ColumnBatchScanOp};
+use super::{
+    CassieError, ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchFieldSummary,
+    ColumnBatchMetadata, ColumnBatchPayload, ColumnBatchRow, ColumnBatchScanDecision,
+    ColumnBatchScanFallbackReason, ColumnBatchScanFilter, ColumnBatchScanOp,
+    ColumnBatchScanOutcome, ColumnBatchScanPredicate, ColumnBatchSegmentMeta, ColumnBatchValueRun,
+    DocumentRef, IndexKind, IndexMeta, Midge, MidgeScanTimings, Query, RowFilter, WriteOptions,
+};
 
 const COLUMN_BATCH_ENCODING_VERSION: u32 = 1;
 const COLUMN_BATCH_CODEC_VERSION: u32 = 1;

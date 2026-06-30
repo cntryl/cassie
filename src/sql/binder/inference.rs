@@ -1,4 +1,8 @@
-use super::{SelectStatement, Catalog, Schema, CassieError, HashMap, Expr, CommonTableExpression, CteQuery, QueryStatement, QuerySource, FieldSchema, virtual_views, DataType, SelectItem, FunctionCall};
+use super::{
+    virtual_views, CassieError, Catalog, CommonTableExpression, CteQuery, DataType, Expr,
+    FieldSchema, FunctionCall, HashMap, QuerySource, QueryStatement, Schema, SelectItem,
+    SelectStatement,
+};
 
 /// # Errors
 ///
@@ -277,9 +281,16 @@ pub(super) fn infer_function_return_type(
     }
 
     match name.as_str() {
-        "sum" | "avg" | "search" | "search_score" | "vector_distance" | "vector_score" | "cosine_distance"
-        | "dot_product" | "hybrid_score" => Some(DataType::Float),
-        "min" | "max" | "lower" | "upper" | "substring" | "trim" | "concat" | "snippet"
+        "sum" | "avg" | "search" | "search_score" | "vector_distance" | "vector_score"
+        | "cosine_distance" | "dot_product" | "hybrid_score" => Some(DataType::Float),
+        "min"
+        | "max"
+        | "lower"
+        | "upper"
+        | "substring"
+        | "trim"
+        | "concat"
+        | "snippet"
         | "version"
         | "pg_catalog.version"
         | "current_schema"

@@ -59,11 +59,26 @@ impl RuntimeState {
         if diagnostics.selected_alternative != diagnostics.base_alternative {
             metrics.adaptive_candidates.plan_selected_alternatives += 1;
         }
-        metrics.adaptive_candidates.last_plan_decision_point.clone_from(&diagnostics.decision_point);
-        metrics.adaptive_candidates.last_plan_base_alternative.clone_from(&diagnostics.base_alternative);
-        metrics.adaptive_candidates.last_plan_selected_alternative.clone_from(&diagnostics.selected_alternative);
-        metrics.adaptive_candidates.last_plan_guard.clone_from(&diagnostics.guard);
-        metrics.adaptive_candidates.last_plan_reason.clone_from(&diagnostics.reason);
+        metrics
+            .adaptive_candidates
+            .last_plan_decision_point
+            .clone_from(&diagnostics.decision_point);
+        metrics
+            .adaptive_candidates
+            .last_plan_base_alternative
+            .clone_from(&diagnostics.base_alternative);
+        metrics
+            .adaptive_candidates
+            .last_plan_selected_alternative
+            .clone_from(&diagnostics.selected_alternative);
+        metrics
+            .adaptive_candidates
+            .last_plan_guard
+            .clone_from(&diagnostics.guard);
+        metrics
+            .adaptive_candidates
+            .last_plan_reason
+            .clone_from(&diagnostics.reason);
     }
 
     /// # Panics

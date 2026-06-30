@@ -1,5 +1,9 @@
+use super::{
+    Arc, AtomicBool, BTreeMap, Catalog, Midge, Mutex, NormalizedVectorCacheEntry,
+    NormalizedVectorCacheKey, QueryEmbeddingCacheKey, QueryResult, RuntimeState, Serialize,
+    VectorSearchResultCacheKey,
+};
 use crate::embeddings::EmbeddingProvider;
-use super::{Serialize, Arc, Midge, Catalog, RuntimeState, Mutex, BTreeMap, NormalizedVectorCacheKey, NormalizedVectorCacheEntry, QueryEmbeddingCacheKey, VectorSearchResultCacheKey, QueryResult, AtomicBool};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CassieRuntimeConfigState {

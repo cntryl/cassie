@@ -1,4 +1,8 @@
-use super::{Midge, Schema, CollectionMeta, CassieError, RowSchema, ProjectionMeta, CollectionCardinalityStats, WriteOptions, CollectionStorageMode, HashSet, RowFilter, DocumentRef, MidgeScanTimings, Instant, Query, key_encoding, OrderedRowBound};
+use super::{
+    key_encoding, CassieError, CollectionCardinalityStats, CollectionMeta, CollectionStorageMode,
+    DocumentRef, HashSet, Instant, Midge, MidgeScanTimings, OrderedRowBound, ProjectionMeta, Query,
+    RowFilter, RowSchema, Schema, WriteOptions,
+};
 use std::time::Duration;
 
 impl Midge {
@@ -53,11 +57,11 @@ impl Midge {
             Self::save_collection_metadata_to_tx(&mut tx, &metadata)?;
         }
 
-        let mut collections = self.load_collections(&tx)?;
+        let mut collections = Self::load_collections(&tx)?;
         if !collections.iter().any(|entry| entry == name) {
             collections.push(name.to_string());
             collections.sort();
-            self.save_collections(&mut tx, &collections)?;
+            Self::save_collections(&mut tx, &collections)?;
         }
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
@@ -85,7 +89,9 @@ impl Midge {
     ) -> Result<CollectionStorageMode, CassieError> {
         Ok(self
             .collection_metadata(collection)?
-            .map_or(CollectionStorageMode::RowStore, |metadata| metadata.storage_mode))
+            .map_or(CollectionStorageMode::RowStore, |metadata| {
+                metadata.storage_mode
+            }))
     }
 
     pub(crate) fn collection_uses_column_store(

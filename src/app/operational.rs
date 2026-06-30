@@ -9,7 +9,7 @@ impl Cassie {
         metadata: crate::catalog::OperationalAssignmentMeta,
     ) -> Result<(), CassieError> {
         validate_operational_assignment(&metadata)?;
-        self.midge.put_operational_assignment(metadata.clone())?;
+        self.midge.put_operational_assignment(&metadata)?;
         self.catalog.register_operational_assignment(metadata);
         Ok(())
     }

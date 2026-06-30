@@ -385,7 +385,7 @@ fn should_block_unverified_projection_version_activation_without_unsafe_override
             .unwrap();
         target.verification.state = ProjectionVerificationState::Failed;
         target.verification.failure_reason = Some("test corruption".to_string());
-        cassie.midge.put_projection_metadata(metadata.clone()).unwrap();
+        cassie.midge.put_projection_metadata(&metadata).unwrap();
         cassie.catalog.register_projection_metadata(metadata);
 
         // Act

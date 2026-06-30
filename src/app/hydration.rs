@@ -1,5 +1,5 @@
 use super::auth::hash_password;
-use super::{Cassie, CassieError, Instant, normalize_role_name, RoleMeta, current_time_millis};
+use super::{current_time_millis, normalize_role_name, Cassie, CassieError, Instant, RoleMeta};
 
 impl Cassie {
     /// # Errors
@@ -217,7 +217,7 @@ impl Cassie {
                 Some(hash_password(&self.auth_password)?)
             };
             let role = RoleMeta::bootstrap_admin(&self.auth_user, password_hash);
-            self.midge.put_role(role.clone()).map_err(|error| {
+            self.midge.put_role(&role).map_err(|error| {
                 self.runtime.record_storage_access("schema", false, false);
                 CassieError::Storage(format!("create bootstrap role: {error}"))
             })?;

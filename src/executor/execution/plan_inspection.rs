@@ -146,7 +146,9 @@ fn expr_needs_user_functions(expr: &Expr) -> bool {
         Expr::Binary { left, right, .. } => {
             expr_needs_user_functions(left) || expr_needs_user_functions(right)
         }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => expr_needs_user_functions(expr),
+        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => {
+            expr_needs_user_functions(expr)
+        }
         Expr::InList { expr, values, .. } => {
             expr_needs_user_functions(expr) || values.iter().any(expr_needs_user_functions)
         }
@@ -295,7 +297,9 @@ fn expr_uses_vector_operator(expr: &crate::sql::ast::Expr) -> bool {
                 || expr_uses_vector_operator(right)
         }
         crate::sql::ast::Expr::Function(function) => function_uses_vector_operator(function),
-        crate::sql::ast::Expr::IsNull { expr, .. } | crate::sql::ast::Expr::Cast { expr, .. } => expr_uses_vector_operator(expr),
+        crate::sql::ast::Expr::IsNull { expr, .. } | crate::sql::ast::Expr::Cast { expr, .. } => {
+            expr_uses_vector_operator(expr)
+        }
         crate::sql::ast::Expr::InList { expr, values, .. } => {
             expr_uses_vector_operator(expr) || values.iter().any(expr_uses_vector_operator)
         }
@@ -377,7 +381,9 @@ fn expr_uses_function(expr: &crate::sql::ast::Expr, function_name: &str) -> bool
         crate::sql::ast::Expr::Function(function) => {
             function_uses_function(function, function_name)
         }
-        crate::sql::ast::Expr::IsNull { expr, .. } | crate::sql::ast::Expr::Cast { expr, .. } => expr_uses_function(expr, function_name),
+        crate::sql::ast::Expr::IsNull { expr, .. } | crate::sql::ast::Expr::Cast { expr, .. } => {
+            expr_uses_function(expr, function_name)
+        }
         crate::sql::ast::Expr::InList { expr, values, .. } => {
             expr_uses_function(expr, function_name)
                 || values
@@ -478,7 +484,9 @@ pub(super) fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan 
 
 fn execution_source_name(source: &QuerySource) -> String {
     match source {
-        QuerySource::Collection(name) | QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
+        QuerySource::Collection(name)
+        | QuerySource::Cte(name)
+        | QuerySource::TableFunction { name, .. } => name.clone(),
         QuerySource::Subquery { alias, .. } => alias.clone(),
         QuerySource::SingleRow => "single_row".to_string(),
         QuerySource::Join { .. } => "join".to_string(),

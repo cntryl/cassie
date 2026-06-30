@@ -1,4 +1,11 @@
-use super::{SelectStatement, Catalog, CteScope, CassieError, HashSet, mem, CteQuery, bind_statement, recursive_cte_references_self, collect_projection_aliases, validate_projection_references, validate_expression_references, validate_expression, validate_order_by_references, validate_distinct_on_order_prefix, SelectSet, validate_functions, QueryStatement, SelectItem, QuerySource, virtual_views, qualified_fields, FunctionCall, Expr, DataType};
+use super::{
+    bind_statement, collect_projection_aliases, mem, qualified_fields,
+    recursive_cte_references_self, validate_distinct_on_order_prefix, validate_expression,
+    validate_expression_references, validate_functions, validate_order_by_references,
+    validate_projection_references, virtual_views, CassieError, Catalog, CteQuery, CteScope,
+    DataType, Expr, FunctionCall, HashSet, QuerySource, QueryStatement, SelectItem, SelectSet,
+    SelectStatement,
+};
 
 pub(super) fn bind_select(
     select: SelectStatement,

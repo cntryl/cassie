@@ -1,6 +1,8 @@
 #![allow(unused_imports, dead_code)]
 use cassie::app::Cassie;
-use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
+use cassie::config::{
+    CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig, OperatorSwitchingEnabled,
+};
 use cassie::embeddings::{
     openai::OpenAiConfig, DistanceMetric, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
     DEFAULT_EMBEDDING_MODEL,
@@ -22,7 +24,11 @@ fn vectorized_join_config() -> CassieRuntimeConfig {
 
 fn operator_switch_join_config(enabled: bool, threshold: usize) -> CassieRuntimeConfig {
     let mut config = vectorized_join_config();
-    config.limits.operator_switching_enabled = enabled;
+    config.limits.operator_switching_enabled = if enabled {
+        OperatorSwitchingEnabled::enabled()
+    } else {
+        OperatorSwitchingEnabled::disabled()
+    };
     config.limits.operator_switch_join_row_threshold = threshold;
     config
 }

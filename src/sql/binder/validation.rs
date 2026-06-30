@@ -1,4 +1,7 @@
-use super::{SelectStatement, CommonTableExpression, CteQuery, ParsedStatement, QueryStatement, SelectItem, QuerySource, Expr, HashSet, Catalog, CassieError, FunctionCall, HashMap, OrderExpr};
+use super::{
+    CassieError, Catalog, CommonTableExpression, CteQuery, Expr, FunctionCall, HashMap, HashSet,
+    OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
+};
 
 pub(super) fn select_contains_parameters(select: &SelectStatement) -> bool {
     select.ctes.iter().any(cte_contains_parameters)
@@ -124,7 +127,9 @@ pub(super) fn expr_contains_parameters(expr: &Expr) -> bool {
         Expr::Binary { left, right, .. } => {
             expr_contains_parameters(left) || expr_contains_parameters(right)
         }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => expr_contains_parameters(expr),
+        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => {
+            expr_contains_parameters(expr)
+        }
         Expr::InList { expr, values, .. } => {
             expr_contains_parameters(expr) || values.iter().any(expr_contains_parameters)
         }
@@ -386,12 +391,14 @@ pub(super) fn validate_expression(
                 allow_projection_alias,
             )
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => validate_expression(
-            expr,
-            known_fields,
-            projection_aliases,
-            allow_projection_alias,
-        ),
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            validate_expression(
+                expr,
+                known_fields,
+                projection_aliases,
+                allow_projection_alias,
+            )
+        }
         Expr::InList { expr, values, .. } => {
             validate_expression(
                 expr,
@@ -431,7 +438,8 @@ pub(super) fn validate_expression(
                 allow_projection_alias,
             )
         }
-        Expr::Exists(_) | Expr::Param(_)
+        Expr::Exists(_)
+        | Expr::Param(_)
         | Expr::Null
         | Expr::BoolLiteral(_)
         | Expr::NumberLiteral(_)
@@ -451,7 +459,7 @@ pub(super) fn validate_expression(
             }
             Ok(())
         }
-        }
+    }
 }
 
 pub(super) fn validate_aggregate_function_args(

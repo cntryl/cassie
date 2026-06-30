@@ -11,7 +11,7 @@ impl Cassie {
     ) -> Vec<RuntimeFeedbackKey> {
         let schema_epoch = self.runtime.schema_epoch();
         let mut keys = Vec::new();
-        if let Some(index_name) = physical.selected_index.as_deref() {
+        if let Some(index_name) = physical.read.selected_index.as_deref() {
             let index = self.catalog.get_index(&physical.collection, index_name);
             keys.push(crate::runtime::normalized_feedback_key(
                 database.map(str::to_string),

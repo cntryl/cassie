@@ -1,12 +1,12 @@
-use super::{Midge, ProjectionMeta, CassieError, WriteOptions, StorageFamily};
+use super::{CassieError, Midge, ProjectionMeta, StorageFamily, WriteOptions};
 
 impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub fn put_projection_metadata(&self, metadata: ProjectionMeta) -> Result<(), CassieError> {
+    pub fn put_projection_metadata(&self, metadata: &ProjectionMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
-        Self::save_projection_metadata_to_tx(&mut tx, &metadata)?;
+        Self::save_projection_metadata_to_tx(&mut tx, metadata)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
     }

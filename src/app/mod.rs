@@ -30,8 +30,8 @@ use crate::embeddings::{
     openai::{OpenAiProvider, OpenAiProviderConfig},
     tei::{TeiProvider, TeiProviderConfig},
     voyage::VoyageProvider,
-    DistanceMetric, Embedding, EmbeddingError, NormalizedVectorRecord,
-    VectorIndexRecord, VectorIndexType,
+    DistanceMetric, Embedding, EmbeddingError, NormalizedVectorRecord, VectorIndexRecord,
+    VectorIndexType,
 };
 use crate::executor::{
     vector_prefilter_fallback_reason, vector_prefilter_supported, ColumnMeta, QueryError,

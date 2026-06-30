@@ -1,6 +1,8 @@
-use super::codecs::{value_to_text, value_to_binary};
+use super::codecs::{value_to_binary, value_to_text};
 use super::errors::PgWireError;
-use super::{AsyncWrite, io, AsyncWriteExt, TryFrom, str, Value, CassieSession};
+use super::{AsyncWrite, AsyncWriteExt, CassieSession};
+use crate::types::Value;
+use std::{convert::TryFrom, io, str};
 
 pub(super) async fn write_auth_ok(write_half: &mut (impl AsyncWrite + Unpin)) -> io::Result<()> {
     let mut frame = Vec::new();
@@ -124,24 +126,12 @@ pub(super) async fn write_simple_query_result(
     Ok(())
 }
 
-pub(super) async fn write_row_description(
-    write_half: &mut (impl AsyncWrite + Unpin),
-    columns: &[crate::executor::ColumnMeta],
-    result_formats: &[i16],
-) -> io::Result<()> {
-    let mut frame = Vec::new();
-    append_row_description_frame(&mut frame, columns, result_formats)?;
-    write_half.write_all(&frame).await?;
-    write_half.flush().await?;
-    Ok(())
-}
-
 pub(super) fn append_row_description_frame(
     frame: &mut Vec<u8>,
     columns: &[crate::executor::ColumnMeta],
     result_formats: &[i16],
 ) -> io::Result<()> {
-    validate_result_formats(result_formats, columns.len())?;
+    ensure_valid_result_formats(result_formats, columns.len())?;
     let mut payload = Vec::new();
     payload.extend_from_slice(
         &i16::try_from(columns.len())
@@ -170,43 +160,13 @@ pub(super) fn append_row_description_frame(
     append_backend_frame(frame, b'T', &payload)
 }
 
-pub(super) async fn write_parameter_description(
-    write_half: &mut (impl AsyncWrite + Unpin),
-    parameter_types: &[i32],
-) -> io::Result<()> {
-    let mut payload = Vec::new();
-    payload.extend_from_slice(
-        &i16::try_from(parameter_types.len())
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "too many parameters"))?
-            .to_be_bytes(),
-    );
-    for oid in parameter_types {
-        payload.extend_from_slice(&oid.to_be_bytes());
-    }
-
-    write_backend_frame(write_half, b't', &payload).await
-}
-
-pub(super) async fn write_data_row(
-    write_half: &mut (impl AsyncWrite + Unpin),
-    row: Vec<Value>,
-    columns: &[crate::executor::ColumnMeta],
-    result_formats: &[i16],
-) -> io::Result<()> {
-    let mut frame = Vec::new();
-    append_data_row_frame(&mut frame, row, columns, result_formats)?;
-    write_half.write_all(&frame).await?;
-    write_half.flush().await?;
-    Ok(())
-}
-
 pub(super) fn append_data_row_frame(
     frame: &mut Vec<u8>,
     row: Vec<Value>,
     columns: &[crate::executor::ColumnMeta],
     result_formats: &[i16],
 ) -> io::Result<()> {
-    validate_result_formats(result_formats, columns.len())?;
+    ensure_valid_result_formats(result_formats, columns.len())?;
 
     let mut payload = Vec::new();
     payload.extend_from_slice(
@@ -260,12 +220,6 @@ pub(super) async fn write_command_complete(
     Ok(())
 }
 
-pub(super) async fn write_portal_suspended(
-    write_half: &mut (impl AsyncWrite + Unpin),
-) -> io::Result<()> {
-    write_backend_frame(write_half, b's', &[]).await
-}
-
 pub(super) async fn write_copy_in_response(
     write_half: &mut (impl AsyncWrite + Unpin),
     column_count: usize,
@@ -304,7 +258,7 @@ pub(super) async fn write_ready_for_query(
     write_backend_frame(write_half, b'Z', &[status]).await
 }
 
-pub(super) async fn write_backend_frame(
+async fn write_backend_frame(
     write_half: &mut (impl AsyncWrite + Unpin),
     tag: u8,
     payload: &[u8],
@@ -327,10 +281,7 @@ pub(super) fn append_backend_frame(frame: &mut Vec<u8>, tag: u8, payload: &[u8])
     Ok(())
 }
 
-pub(super) fn validate_result_formats(
-    result_formats: &[i16],
-    column_count: usize,
-) -> io::Result<()> {
+fn ensure_valid_result_formats(result_formats: &[i16], column_count: usize) -> io::Result<()> {
     if !result_formats.iter().all(|format| matches!(*format, 0 | 1)) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,

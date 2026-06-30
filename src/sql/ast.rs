@@ -66,7 +66,8 @@ pub enum QuerySource {
 impl PartialEq for QuerySource {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Collection(left), Self::Collection(right)) | (Self::Cte(left), Self::Cte(right)) => left == right,
+            (Self::Collection(left), Self::Collection(right))
+            | (Self::Cte(left), Self::Cte(right)) => left == right,
             (Self::TableFunction { name: left, .. }, Self::TableFunction { name: right, .. }) => {
                 left == right
             }

@@ -100,7 +100,10 @@ pub(crate) use feedback::{
 pub use feedback::{RuntimeFeedbackKey, RuntimeFeedbackObservation, RuntimeFeedbackRecord};
 pub use fulltext::{FulltextIndexOptions, FulltextIndexOptionsCacheKey};
 pub(crate) use helpers::stable_fingerprint;
-use helpers::{current_time_millis, touch_feedback, prune_feedback_by_age, apply_feedback_observation, duration_ms, status_class, adjust_signed, touch};
+use helpers::{
+    adjust_signed, apply_feedback_observation, current_time_millis, duration_ms,
+    prune_feedback_by_age, status_class, touch, touch_feedback,
+};
 pub use helpers::{error_class, hash_params, parameter_shape, sql_fingerprint};
 pub(crate) use projection_metrics::ProjectionWriteStats;
 pub use schema_epochs::RunningQueryGuard;

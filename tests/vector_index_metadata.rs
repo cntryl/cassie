@@ -534,7 +534,7 @@ fn should_reload_generic_index_registry_after_restart() {
             unique: true,
             options: BTreeMap::from_iter(vec![("case_sensitive".to_string(), "true".to_string())]),
         };
-        cassie.midge.put_index(record.clone()).unwrap();
+        cassie.midge.put_index(&record).unwrap();
 
         drop(cassie);
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
@@ -612,7 +612,7 @@ fn should_persist_fulltext_index_metadata_after_restart() {
                 ("b".to_string(), "0.2".to_string()),
             ]),
         };
-        cassie.midge.put_index(expected.clone()).unwrap();
+        cassie.midge.put_index(&expected).unwrap();
 
         drop(cassie);
 

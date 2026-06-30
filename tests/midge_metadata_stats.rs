@@ -77,7 +77,7 @@ fn should_restore_cardinality_stats_after_restart() {
             .unwrap();
         cassie
             .midge
-            .put_index(IndexMeta {
+            .put_index(&IndexMeta {
                 collection: collection.to_string(),
                 name: "idx_title".to_string(),
                 field: "title".to_string(),
@@ -522,7 +522,7 @@ fn should_cleanup_projection_checkpoint_metadata_on_rename_drop() {
         metadata.last_applied_event_id = Some("event-7".to_string());
         metadata.replay_batch_id = Some("batch-7".to_string());
         metadata.freshness = ProjectionFreshness::Fresh;
-        cassie.midge.put_projection_metadata(metadata).unwrap();
+        cassie.midge.put_projection_metadata(&metadata).unwrap();
 
         // Act
         cassie.midge.rename_collection(current, next).unwrap();

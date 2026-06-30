@@ -7,11 +7,7 @@ use tokio::net::TcpStream;
 
 use crate::app::{Cassie, CassieError, CassieSession};
 use crate::config::CassieRuntimeConfig;
-use crate::pgwire::handlers::query;
-use crate::pgwire::protocol::{Portal, PortalSuspended, PreparedStatement, ReadyState, WireError};
-use crate::types::Value;
-use std::collections::HashMap;
-use std::convert::TryFrom;
+use crate::pgwire::protocol::{ReadyState, WireError};
 
 const PROTOCOL_VERSION_3: i32 = 0x0003_0000;
 const SSL_REQUEST_CODE: i32 = 80_877_103;
@@ -28,10 +24,6 @@ mod codecs;
 mod copy;
 #[path = "connection/errors.rs"]
 mod errors;
-#[path = "connection/execute.rs"]
-mod execute;
-#[path = "connection/formats.rs"]
-mod formats;
 #[path = "connection/readers.rs"]
 mod readers;
 #[path = "connection/startup_params.rs"]
@@ -46,10 +38,16 @@ mod writers;
 
 use blocking::run_pgwire_blocking;
 use errors::{cassie_pg_error, PgWireError, PgWireSeverity};
-use readers::{parse_bind_param_value, read_frontend_message, read_password_message, read_simple_query_message, read_startup_frame};
+use readers::{
+    read_frontend_message, read_password_message, read_simple_query_message, read_startup_frame,
+};
 use startup_params::validate_startup_parameters;
-use state::{CloseTarget, DescribeTarget, FrontendMessage, HandshakeError, HandshakeState, SessionState, StartupFrame};
-use writers::{write_auth_cleartext, write_auth_ok, write_backend_frame, write_command_complete, write_copy_in_response, write_data_row, write_error_response, write_parameter_description, write_parameter_statuses, write_portal_suspended, write_ready_for_query, write_row_description, write_simple_query_result, write_ssl_not_supported, validate_result_formats};
+use state::{FrontendMessage, HandshakeError, HandshakeState, SessionState, StartupFrame};
+use writers::{
+    write_auth_cleartext, write_auth_ok, write_copy_in_response, write_error_response,
+    write_parameter_statuses, write_ready_for_query, write_simple_query_result,
+    write_ssl_not_supported,
+};
 
 pub async fn run_connection(
     mut socket: TcpStream,
@@ -77,7 +75,10 @@ pub async fn run_connection(
                 )
                 .await
             }
-            HandshakeState::AwaitPassword { ref user, ref database } => {
+            HandshakeState::AwaitPassword {
+                ref user,
+                ref database,
+            } => {
                 handle_password(
                     cassie.clone(),
                     &runtime,
@@ -89,15 +90,17 @@ pub async fn run_connection(
                 )
                 .await
             }
-            HandshakeState::Ready => handle_ready(
-                cassie.clone(),
-                &runtime,
-                &mut reader,
-                &mut write_half,
-                &mut state,
-                &mut awaiting_sync,
-            )
-            .await,
+            HandshakeState::Ready => {
+                handle_ready(
+                    cassie.clone(),
+                    &runtime,
+                    &mut reader,
+                    &mut write_half,
+                    &mut state,
+                    &mut awaiting_sync,
+                )
+                .await
+            }
         };
 
         match state_result {
@@ -260,7 +263,7 @@ async fn handle_ready(
     if *awaiting_sync {
         return handle_sync_wait(runtime, reader, write_half, awaiting_sync, &session).await;
     }
-    ConnectionStep::Continue(HandshakeState::Ready)
+    handle_unsupported_frontend_message(runtime, reader, write_half, awaiting_sync).await
 }
 
 async fn handle_sync_wait(
@@ -285,6 +288,60 @@ async fn handle_sync_wait(
         state::FrontendMessage::Flush => runtime.record_pgwire_message("flush"),
         _ => {}
     }
+    ConnectionStep::Continue(HandshakeState::Ready)
+}
+
+async fn handle_unsupported_frontend_message(
+    runtime: &crate::runtime::RuntimeState,
+    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    write_half: &mut (impl AsyncWrite + Unpin),
+    awaiting_sync: &mut bool,
+) -> ConnectionStep {
+    let message = match read_frontend_message(reader).await {
+        Ok(message) => message,
+        Err(HandshakeError::Closed) => return ConnectionStep::Break,
+        Err(HandshakeError::Invalid(error)) => {
+            runtime.record_pgwire_protocol_error();
+            let _ = write_error_response(
+                write_half,
+                &PgWireError::protocol(format!("invalid frontend message: {error}")),
+            )
+            .await;
+            *awaiting_sync = true;
+            return ConnectionStep::Continue(HandshakeState::Ready);
+        }
+    };
+
+    match message {
+        FrontendMessage::Flush => runtime.record_pgwire_message("flush"),
+        FrontendMessage::Sync => {
+            runtime.record_pgwire_message("sync");
+            *awaiting_sync = false;
+            return ConnectionStep::Continue(HandshakeState::Ready);
+        }
+        FrontendMessage::Terminate => return ConnectionStep::Break,
+        FrontendMessage::Parse
+        | FrontendMessage::Bind
+        | FrontendMessage::Describe
+        | FrontendMessage::Execute
+        | FrontendMessage::Close
+        | FrontendMessage::CopyData(_)
+        | FrontendMessage::CopyDone
+        | FrontendMessage::CopyFail(_)
+        | FrontendMessage::FunctionCall
+        | FrontendMessage::Unknown => {
+            runtime.record_pgwire_protocol_error();
+            let _ = write_error_response(
+                write_half,
+                &PgWireError::protocol(
+                    "extended query protocol is not currently supported".to_string(),
+                ),
+            )
+            .await;
+            *awaiting_sync = true;
+        }
+    }
+
     ConnectionStep::Continue(HandshakeState::Ready)
 }
 
@@ -323,7 +380,14 @@ async fn handle_simple_query(
     let session_for_query = session.clone();
     let sql_for_query = sql.clone();
     if matches!(
-        copy::try_handle_simple_copy_query(cassie.clone(), session.clone(), &sql, reader, write_half).await,
+        copy::try_handle_simple_copy_query(
+            cassie.clone(),
+            session.clone(),
+            &sql,
+            reader,
+            write_half
+        )
+        .await,
         copy::SimpleCopyOutcome::Handled
     ) {
         return ConnectionStep::Continue(HandshakeState::Ready);

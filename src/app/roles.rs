@@ -1,5 +1,5 @@
 use super::auth::{hash_password, verify_password};
-use super::{Cassie, CassieSession, RoleMeta, CassieError, normalize_role_name};
+use super::{normalize_role_name, Cassie, CassieError, CassieSession, RoleMeta};
 
 impl Cassie {
     #[must_use]
@@ -100,7 +100,7 @@ impl Cassie {
 
         let role = RoleMeta::new(normalized, login, false, password_hash);
         self.midge
-            .put_role(role.clone())
+            .put_role(&role)
             .map_err(|error| CassieError::Storage(format!("persist role '{name}': {error}")))?;
         self.catalog.register_role(role);
         self.bump_schema_epoch_and_invalidate_query_cache()?;
@@ -146,7 +146,7 @@ impl Cassie {
         }
 
         self.midge
-            .put_role(role.clone())
+            .put_role(&role)
             .map_err(|error| CassieError::Storage(format!("persist role '{name}': {error}")))?;
         self.catalog.register_role(role);
         self.bump_schema_epoch_and_invalidate_query_cache()?;

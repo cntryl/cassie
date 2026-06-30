@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{Midge, CassieError, StorageFamily, WriteOptions, encode_row, RowSchema, ProjectionMeta, Query};
+use super::{
+    encode_row, CassieError, Midge, ProjectionMeta, Query, RowSchema, StorageFamily, WriteOptions,
+};
 
 const ROW_HASH_ALGORITHM: &str = "cassie-fnv128";
 const ROW_HASH_DIGEST_LENGTH: u16 = 16;
@@ -237,8 +239,8 @@ impl Midge {
         let mut tx = self.begin_data_rw_tx()?;
         let existing =
             self.raw_scan_prefix(StorageFamily::Data, &Self::row_hash_prefix(collection))?;
-        for (key, _value) in existing {
-            let Ok(record) = serde_json::from_slice::<RowHashRecord>(&_value) else {
+        for (key, value) in existing {
+            let Ok(record) = serde_json::from_slice::<RowHashRecord>(&value) else {
                 continue;
             };
             if !live_ids.contains(&record.row_id) {
@@ -317,10 +319,11 @@ impl Midge {
         let metadata = self.projection_metadata(collection)?;
         let current_rows = metadata
             .as_ref()
-            .map(|metadata| metadata.hashes.rows.row_count as i64)
+            .map(|metadata| i64::try_from(metadata.hashes.rows.row_count).unwrap_or(i64::MAX))
             .unwrap_or_default()
             .saturating_add(row_delta)
-            .max(0) as u64;
+            .max(0)
+            .unsigned_abs();
         if current_rows <= EAGER_HASH_REBUILD_ROW_LIMIT {
             self.rebuild_projection_hashes(collection)?;
         } else {
@@ -389,98 +392,32 @@ impl Midge {
         let started = std::time::Instant::now();
         let mut checked_components = Vec::new();
         let mut skipped_components = Vec::new();
-        let mut mismatch_count = 0_u64;
-        let mut missing_count = 0_u64;
-        let mut stale_count = 0_u64;
-        let mut last_error = None;
+        let mut stats = IntegrityCounts::default();
+        let last_error = verify_projection_metadata_component(
+            self,
+            collection,
+            metadata,
+            &mut checked_components,
+            &mut skipped_components,
+            &mut stats,
+        )?;
+        verify_projection_hash_component(
+            self,
+            collection,
+            hashes,
+            &mut checked_components,
+            &mut skipped_components,
+            &mut stats,
+        )?;
+        verify_projection_index_component(
+            self,
+            collection,
+            indexes,
+            &mut checked_components,
+            &mut skipped_components,
+        )?;
 
-        if metadata {
-            checked_components.push("metadata".to_string());
-            if self.projection_metadata(collection)?.is_none() {
-                missing_count += 1;
-                last_error = Some("projection metadata is missing".to_string());
-            }
-        } else {
-            skipped_components.push("metadata".to_string());
-        }
-
-        if hashes {
-            checked_components.push("hashes".to_string());
-            let row_schema = self.row_schema(collection)?;
-            let documents = self.scan_documents(collection)?;
-            let stored = self
-                .list_row_hashes(collection)?
-                .into_iter()
-                .map(|record| (record.row_id.clone(), record))
-                .collect::<BTreeMap<_, _>>();
-            for document in &documents {
-                let expected = compute_row_hash_record(
-                    collection,
-                    collection,
-                    None,
-                    &row_schema,
-                    &document.id,
-                    &document.payload,
-                );
-                match stored.get(&document.id) {
-                    Some(actual) if actual.digest == expected.digest => {
-                        if actual.state != StoredHashState::Current {
-                            stale_count += 1;
-                        }
-                    }
-                    Some(_) => mismatch_count += 1,
-                    None => missing_count += 1,
-                }
-            }
-            let ranges = self.list_range_hashes(collection)?;
-            let root = self.root_hash(collection)?;
-            if documents.is_empty() {
-                if root.is_none() {
-                    missing_count += 1;
-                }
-            } else {
-                if ranges.is_empty() {
-                    missing_count += 1;
-                }
-                let expected_ranges = build_range_hash_records(
-                    collection,
-                    None,
-                    row_schema.schema_version,
-                    &stored.values().cloned().collect::<Vec<_>>(),
-                );
-                let expected_root = build_root_hash_record(
-                    collection,
-                    None,
-                    row_schema.schema_version,
-                    &stored.values().cloned().collect::<Vec<_>>(),
-                    &expected_ranges,
-                );
-                match root {
-                    Some(actual) if actual.digest == expected_root.digest => {}
-                    Some(_) => mismatch_count += 1,
-                    None => missing_count += 1,
-                }
-            }
-        } else {
-            skipped_components.push("hashes".to_string());
-        }
-
-        if indexes {
-            checked_components.push("indexes".to_string());
-            let indexes = self.list_indexes()?;
-            let vector_indexes = self.list_vector_indexes()?;
-            if indexes.iter().all(|index| index.collection != collection)
-                && vector_indexes
-                    .iter()
-                    .all(|index| index.collection != collection)
-            {
-                skipped_components.push("index_entries".to_string());
-            }
-        } else {
-            skipped_components.push("indexes".to_string());
-        }
-
-        let failed = mismatch_count > 0 || missing_count > 0 || stale_count > 0;
+        let failed = stats.mismatches > 0 || stats.missing > 0 || stats.stale > 0;
         Ok(IntegrityCheckReport {
             state: if failed {
                 crate::catalog::ProjectionVerificationState::Failed
@@ -489,10 +426,10 @@ impl Midge {
             },
             checked_components,
             skipped_components,
-            mismatch_count,
-            missing_count,
-            stale_count,
-            repairable: missing_count > 0 || stale_count > 0,
+            mismatch_count: stats.mismatches,
+            missing_count: stats.missing,
+            stale_count: stats.stale,
+            repairable: stats.missing > 0 || stats.stale > 0,
             elapsed_ms: duration_ms(started.elapsed()),
             last_error,
         })
@@ -527,9 +464,12 @@ impl Midge {
         ranges: &[RangeHashRecord],
         root: &RootHashRecord,
     ) -> Result<(), CassieError> {
-        let mut metadata = self
-            .projection_metadata(collection)?
-            .unwrap_or_else(|| ProjectionMeta::new(collection, root.schema_epoch as u32));
+        let mut metadata = self.projection_metadata(collection)?.unwrap_or_else(|| {
+            ProjectionMeta::new(
+                collection,
+                u32::try_from(root.schema_epoch).unwrap_or(u32::MAX),
+            )
+        });
         let state = root.state.as_projection_state();
         let computed_ms = Some(root.computed_ms);
         metadata.hashes = crate::catalog::ProjectionHashMeta {
@@ -573,7 +513,7 @@ impl Midge {
                 last_error: None,
             },
         };
-        self.put_projection_metadata(metadata)
+        self.put_projection_metadata(&metadata)
     }
 
     fn mark_projection_hashes_stale(
@@ -597,7 +537,7 @@ impl Midge {
         metadata.hashes.root.state = crate::catalog::ProjectionVerificationState::Stale;
         metadata.hashes.root.row_count = row_count;
         metadata.hashes.root.last_computed_ms = Some(now_ms());
-        self.put_projection_metadata(metadata)
+        self.put_projection_metadata(&metadata)
     }
 }
 
@@ -656,9 +596,130 @@ fn compute_row_hash_record(
     }
 }
 
+#[derive(Default)]
+struct IntegrityCounts {
+    mismatches: u64,
+    missing: u64,
+    stale: u64,
+}
+
+fn verify_projection_metadata_component(
+    midge: &Midge,
+    collection: &str,
+    metadata: bool,
+    checked_components: &mut Vec<String>,
+    skipped_components: &mut Vec<String>,
+    stats: &mut IntegrityCounts,
+) -> Result<Option<String>, CassieError> {
+    if !metadata {
+        skipped_components.push("metadata".to_string());
+        return Ok(None);
+    }
+    checked_components.push("metadata".to_string());
+    if midge.projection_metadata(collection)?.is_none() {
+        stats.missing += 1;
+        return Ok(Some("projection metadata is missing".to_string()));
+    }
+    Ok(None)
+}
+
+fn verify_projection_hash_component(
+    midge: &Midge,
+    collection: &str,
+    hashes: bool,
+    checked_components: &mut Vec<String>,
+    skipped_components: &mut Vec<String>,
+    stats: &mut IntegrityCounts,
+) -> Result<(), CassieError> {
+    if !hashes {
+        skipped_components.push("hashes".to_string());
+        return Ok(());
+    }
+    checked_components.push("hashes".to_string());
+
+    let row_schema = midge.row_schema(collection)?;
+    let documents = midge.scan_documents(collection)?;
+    let stored = midge
+        .list_row_hashes(collection)?
+        .into_iter()
+        .map(|record| (record.row_id.clone(), record))
+        .collect::<BTreeMap<_, _>>();
+    for document in &documents {
+        let expected = compute_row_hash_record(
+            collection,
+            collection,
+            None,
+            &row_schema,
+            &document.id,
+            &document.payload,
+        );
+        match stored.get(&document.id) {
+            Some(actual) if actual.digest == expected.digest => {
+                if actual.state != StoredHashState::Current {
+                    stats.stale += 1;
+                }
+            }
+            Some(_) => stats.mismatches += 1,
+            None => stats.missing += 1,
+        }
+    }
+
+    let ranges = midge.list_range_hashes(collection)?;
+    let root = midge.root_hash(collection)?;
+    if documents.is_empty() {
+        if root.is_none() {
+            stats.missing += 1;
+        }
+        return Ok(());
+    }
+    if ranges.is_empty() {
+        stats.missing += 1;
+    }
+    let stored_rows = stored.values().cloned().collect::<Vec<_>>();
+    let expected_ranges =
+        build_range_hash_records(collection, None, row_schema.schema_version, &stored_rows);
+    let expected_root = build_root_hash_record(
+        collection,
+        None,
+        row_schema.schema_version,
+        &stored_rows,
+        &expected_ranges,
+    );
+    match root {
+        Some(actual) if actual.digest == expected_root.digest => {}
+        Some(_) => stats.mismatches += 1,
+        None => stats.missing += 1,
+    }
+    Ok(())
+}
+
+fn verify_projection_index_component(
+    midge: &Midge,
+    collection: &str,
+    indexes: bool,
+    checked_components: &mut Vec<String>,
+    skipped_components: &mut Vec<String>,
+) -> Result<(), CassieError> {
+    if !indexes {
+        skipped_components.push("indexes".to_string());
+        return Ok(());
+    }
+    checked_components.push("indexes".to_string());
+    let indexes = midge.list_indexes()?;
+    let vector_indexes = midge.list_vector_indexes()?;
+    if indexes.iter().all(|index| index.collection != collection)
+        && vector_indexes
+            .iter()
+            .all(|index| index.collection != collection)
+    {
+        skipped_components.push("index_entries".to_string());
+    }
+    Ok(())
+}
+
 fn build_range_hash_records(
     collection: &str,
-    version_id: Option<String>,
+    version_id: Option<&str>,
     schema_epoch: u32,
     rows: &[RowHashRecord],
 ) -> Vec<RangeHashRecord> {
@@ -668,7 +729,7 @@ fn build_range_hash_records(
             let mut input = Vec::new();
             write_str("range", &mut input);
             write_str(collection, &mut input);
-            write_option_str(version_id.as_deref(), &mut input);
+            write_option_str(version_id, &mut input);
             write_u64(u64::from(schema_epoch), &mut input);
             write_u64(index as u64, &mut input);
             write_u64(RANGE_SEGMENT_SIZE as u64, &mut input);
@@ -678,7 +739,7 @@ fn build_range_hash_records(
             }
             RangeHashRecord {
                 projection_id: collection.to_string(),
-                version_id: version_id.clone(),
+                version_id: version_id.map(str::to_string),
                 collection: collection.to_string(),
                 schema_epoch: u64::from(schema_epoch),
                 range_id: index as u64,
@@ -869,7 +930,9 @@ fn write_u64(value: u64, out: &mut Vec<u8>) {
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| duration.as_millis().try_into().unwrap_or(u64::MAX))
+        .map_or(0, |duration| {
+            duration.as_millis().try_into().unwrap_or(u64::MAX)
+        })
 }
 
 fn duration_ms(duration: std::time::Duration) -> u64 {

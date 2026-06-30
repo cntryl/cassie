@@ -25,6 +25,8 @@ mod join_paths;
 mod read_paths;
 #[path = "physical/scalar_paths.rs"]
 mod scalar_paths;
+#[path = "physical/state.rs"]
+mod state;
 #[path = "physical/time_series.rs"]
 mod time_series;
 
@@ -40,6 +42,11 @@ pub(crate) use index_selection::{
     read_operator_selection, ReadOperatorCandidate, ReadOperatorSelection,
 };
 pub(crate) use scalar_paths::{scalar_index_plan_shape, ScalarIndexPlanPath, ScalarIndexPlanShape};
+pub use state::{
+    EarlyStopMode, PaginationStrategy, PhysicalAggregatePlan, PhysicalJoinPlan, PhysicalPlan,
+    PhysicalProjectionPlan, PhysicalReadPlan, PhysicalTopKPlan, PhysicalVectorizedJoinPlan,
+    PlanEstimates, ProjectionShape, ReadAccessPath, TopKMode,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Operator {
@@ -55,192 +62,6 @@ pub enum Operator {
     Aggregate,
     Distinct,
     SetOperation,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ReadAccessPath {
-    #[default]
-    Unknown,
-    CollectionScan,
-    PointLookup,
-    IndexSeek,
-    PrefixScan,
-    RangeScan,
-    OrderedBoundedScan,
-    GraphAdjacency,
-    RuntimeJoin,
-}
-
-impl ReadAccessPath {
-    pub(crate) fn as_str(&self) -> &'static str {
-        match self {
-            Self::Unknown => "unknown",
-            Self::CollectionScan => "collection_scan",
-            Self::PointLookup => "point_lookup",
-            Self::IndexSeek => "index_seek",
-            Self::PrefixScan => "prefix_scan",
-            Self::RangeScan => "range_scan",
-            Self::OrderedBoundedScan => "ordered_bounded_scan",
-            Self::GraphAdjacency => "graph_adjacency",
-            Self::RuntimeJoin => "runtime_join",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum PaginationStrategy {
-    #[default]
-    None,
-    Limit,
-    Offset,
-    Keyset,
-    DegradedOffset,
-}
-
-impl PaginationStrategy {
-    pub(crate) fn as_str(&self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::Limit => "limit",
-            Self::Offset => "offset",
-            Self::Keyset => "keyset",
-            Self::DegradedOffset => "degraded_offset",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum TopKMode {
-    #[default]
-    None,
-    Heap,
-    Storage,
-}
-
-impl TopKMode {
-    pub(crate) fn as_str(&self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::Heap => "heap",
-            Self::Storage => "storage",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ProjectionShape {
-    #[default]
-    Unknown,
-    RuntimeJoinDegraded,
-    Collection,
-    MaterializedProjection,
-    Other,
-}
-
-impl ProjectionShape {
-    pub(crate) fn as_str(&self) -> &'static str {
-        match self {
-            Self::Unknown => "unknown",
-            Self::RuntimeJoinDegraded => "runtime_join_degraded",
-            Self::Collection => "collection",
-            Self::MaterializedProjection => "materialized_projection",
-            Self::Other => "other",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum EarlyStopMode {
-    #[default]
-    None,
-    PointLookup,
-    ScanLimit,
-    Exists,
-    StorageTopK,
-    Keyset,
-}
-
-impl EarlyStopMode {
-    pub(crate) fn as_str(&self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::PointLookup => "point_lookup",
-            Self::ScanLimit => "scan_limit",
-            Self::Exists => "exists",
-            Self::StorageTopK => "storage_top_k",
-            Self::Keyset => "keyset",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PhysicalPlan {
-    pub collection: String,
-    pub operators: Vec<Operator>,
-    pub logical: LogicalPlan,
-    #[serde(default)]
-    pub collection_schema: Option<crate::catalog::CollectionSchema>,
-    pub estimates: PlanEstimates,
-    #[serde(default)]
-    pub operator_feedback: OperatorFeedbackPlanDiagnostics,
-    #[serde(default)]
-    pub adaptive_plan: AdaptivePlanDiagnostics,
-    pub predicate_pushdown: bool,
-    pub projected_scan_fields: Vec<String>,
-    pub scan_limit: Option<usize>,
-    pub selected_index: Option<String>,
-    pub covered_index: bool,
-    pub column_batch_index: Option<String>,
-    pub top_k: bool,
-    pub top_k_limit: Option<usize>,
-    pub join_strategy: Option<String>,
-    #[serde(default)]
-    pub join_keys: Vec<String>,
-    #[serde(default)]
-    pub join_sort_required: bool,
-    #[serde(default)]
-    pub join_fallback_reason: Option<String>,
-    #[serde(default)]
-    pub vectorized_join_candidate: bool,
-    #[serde(default)]
-    pub vectorized_join_fallback_reason: Option<String>,
-    pub parallel_aggregate_candidate: bool,
-    pub aggregate_acceleration: bool,
-    #[serde(default)]
-    pub access_path: ReadAccessPath,
-    #[serde(default)]
-    pub access_path_reason: String,
-    #[serde(default)]
-    pub fallback_reason: Option<String>,
-    #[serde(default)]
-    pub pagination_strategy: PaginationStrategy,
-    #[serde(default)]
-    pub top_k_mode: TopKMode,
-    #[serde(default)]
-    pub early_stop: EarlyStopMode,
-    #[serde(default)]
-    pub projection_shape: ProjectionShape,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct PlanEstimates {
-    pub cost_model_version: u32,
-    pub scan_rows: u64,
-    pub index_rows: u64,
-    pub join_rows: u64,
-    pub search_rows: u64,
-    pub vector_rows: u64,
-    pub aggregate_rows: u64,
-    pub scan_cost: u64,
-    pub index_cost: u64,
-    pub selected_cost: u64,
-    pub cost_source: String,
-    pub rejected_alternatives: Vec<String>,
 }
 
 #[must_use]
@@ -275,86 +96,146 @@ pub(crate) fn build_with_selection<S: BuildHasher>(
     adaptive_plan: AdaptivePlanDiagnostics,
 ) -> PhysicalPlan {
     if plan.command.is_some() {
-        return PhysicalPlan {
-            collection: plan.collection.clone(),
-            operators: Vec::new(),
-            logical: plan,
-            collection_schema: None,
-            estimates: PlanEstimates::default(),
-            operator_feedback,
-            adaptive_plan,
-            predicate_pushdown: false,
-            projected_scan_fields: Vec::new(),
-            scan_limit: None,
-            selected_index: None,
-            covered_index: false,
-            column_batch_index: None,
-            top_k: false,
-            top_k_limit: None,
-            join_strategy: None,
-            join_keys: Vec::new(),
-            join_sort_required: false,
-            join_fallback_reason: None,
-            vectorized_join_candidate: false,
-            vectorized_join_fallback_reason: None,
-            parallel_aggregate_candidate: false,
-            aggregate_acceleration: false,
-            access_path: ReadAccessPath::Unknown,
-            access_path_reason: "command-path".to_string(),
-            fallback_reason: Some("command".to_string()),
-            pagination_strategy: PaginationStrategy::None,
-            top_k_mode: TopKMode::None,
-            early_stop: EarlyStopMode::None,
-            projection_shape: ProjectionShape::Unknown,
-        };
+        return command_physical_plan(plan, operator_feedback, adaptive_plan);
     }
 
-    let predicate_pushdown = plan_supports_predicate_pushdown(&plan);
-    let projected_scan_fields = projected_scan_fields(&plan).unwrap_or_default();
-    let scan_limit = scan_limit(&plan, &projected_scan_fields);
-    let covered_index = selected_index
-        .as_deref()
-        .and_then(|name| indexes.iter().find(|index| index.name == name))
-        .is_some_and(|index| plan_is_covered_by_index(&plan, index));
-    let column_batch_index = column_batch_index(&plan, indexes);
-    let top_k_limit = top_k_limit(&plan);
-    let top_k = top_k_limit.is_some();
-    let join_strategy = join_paths::join_strategy(&plan);
-    let join_keys = join_paths::join_keys(&plan);
-    let join_sort_required = join_paths::join_sort_required(&plan, join_strategy.as_deref());
-    let join_fallback_reason = join_paths::join_fallback_reason(&plan, join_strategy.as_deref());
-    let vectorized_join_candidate = join_paths::vectorized_join_candidate(&plan);
-    let vectorized_join_fallback_reason = join_paths::vectorized_join_fallback_reason(&plan);
-    let parallel_aggregate_candidate = plan_supports_parallel_aggregation(&plan);
-    let aggregate_acceleration = plan_supports_aggregate_acceleration(&plan, indexes);
+    let read = read_plan(&plan, indexes, selected_index);
+    let top_k = top_k_plan(&plan, &read.access_path);
+    let join = join_plan(&plan);
+    let aggregate = aggregate_plan(&plan, indexes);
+    let projection = PhysicalProjectionPlan {
+        shape: read_paths::determine_projection_shape(&plan),
+    };
+    let operators = physical_operators(&plan);
+    let estimates =
+        PlanEstimates::from_plan(&plan, read.selected_index.as_deref(), cardinality_stats);
+
+    query_physical_plan(QueryPhysicalPlanInput {
+        plan,
+        operators,
+        estimates,
+        operator_feedback,
+        adaptive_plan,
+        read,
+        top_k,
+        join,
+        aggregate,
+        projection,
+    })
+}
+
+fn command_physical_plan(
+    plan: LogicalPlan,
+    operator_feedback: OperatorFeedbackPlanDiagnostics,
+    adaptive_plan: AdaptivePlanDiagnostics,
+) -> PhysicalPlan {
+    PhysicalPlan {
+        collection: plan.collection.clone(),
+        operators: Vec::new(),
+        logical: plan,
+        collection_schema: None,
+        estimates: PlanEstimates::default(),
+        operator_feedback,
+        adaptive_plan,
+        read: PhysicalReadPlan {
+            access_path_reason: "command-path".to_string(),
+            fallback_reason: Some("command".to_string()),
+            ..PhysicalReadPlan::default()
+        },
+        top_k: PhysicalTopKPlan::default(),
+        join: PhysicalJoinPlan::default(),
+        aggregate: PhysicalAggregatePlan::default(),
+        projection: PhysicalProjectionPlan::default(),
+    }
+}
+
+fn read_plan(
+    plan: &LogicalPlan,
+    indexes: &[IndexMeta],
+    selected_index: Option<String>,
+) -> PhysicalReadPlan {
+    let projected_scan_fields = projected_scan_fields(plan).unwrap_or_default();
     let access_path =
-        read_paths::determine_read_access_path(&plan, indexes, selected_index.as_deref());
-    let access_path_reason = read_paths::read_access_path_reason(&plan, &access_path);
-    let fallback_reason = read_paths::read_access_path_fallback_reason(
-        &plan,
-        &access_path,
-        selected_index.as_deref(),
-    );
-    let pagination_strategy = read_paths::determine_pagination_strategy(&plan, &access_path);
-    let top_k_mode = read_paths::determine_top_k_mode(&plan, &access_path);
-    let early_stop =
-        read_paths::determine_early_stop(&plan, &access_path, &pagination_strategy, &top_k_mode);
-    let projection_shape = read_paths::determine_projection_shape(&plan);
-    let estimates = PlanEstimates::from_plan(&plan, selected_index.as_deref(), cardinality_stats);
+        read_paths::determine_read_access_path(plan, indexes, selected_index.as_deref());
+    let pagination_strategy = read_paths::determine_pagination_strategy(plan, &access_path);
+    let top_k_mode = read_paths::determine_top_k_mode(plan, &access_path);
+
+    PhysicalReadPlan {
+        predicate_pushdown: plan_supports_predicate_pushdown(plan),
+        scan_limit: scan_limit(plan, &projected_scan_fields),
+        covered_index: covered_index(plan, indexes, selected_index.as_deref()),
+        column_batch_index: column_batch_index(plan, indexes),
+        access_path_reason: read_paths::read_access_path_reason(plan, &access_path),
+        fallback_reason: read_paths::read_access_path_fallback_reason(
+            plan,
+            &access_path,
+            selected_index.as_deref(),
+        ),
+        early_stop: read_paths::determine_early_stop(
+            plan,
+            &access_path,
+            &pagination_strategy,
+            &top_k_mode,
+        ),
+        projected_scan_fields,
+        selected_index,
+        access_path,
+        pagination_strategy,
+    }
+}
+
+fn covered_index(plan: &LogicalPlan, indexes: &[IndexMeta], selected_index: Option<&str>) -> bool {
+    let covered_index = selected_index
+        .and_then(|name| indexes.iter().find(|index| index.name == name))
+        .is_some_and(|index| plan_is_covered_by_index(plan, index));
+    covered_index
+}
+
+fn top_k_plan(plan: &LogicalPlan, access_path: &ReadAccessPath) -> PhysicalTopKPlan {
+    let limit = top_k_limit(plan);
+    PhysicalTopKPlan {
+        enabled: limit.is_some(),
+        limit,
+        mode: read_paths::determine_top_k_mode(plan, access_path),
+    }
+}
+
+fn join_plan(plan: &LogicalPlan) -> PhysicalJoinPlan {
+    let strategy = join_paths::join_strategy(plan);
+    PhysicalJoinPlan {
+        keys: join_paths::join_keys(plan),
+        sort_required: join_paths::join_sort_required(plan, strategy.as_deref()),
+        fallback_reason: join_paths::join_fallback_reason(plan, strategy.as_deref()),
+        vectorized: PhysicalVectorizedJoinPlan {
+            candidate: join_paths::vectorized_join_candidate(plan),
+            fallback_reason: join_paths::vectorized_join_fallback_reason(plan),
+        },
+        strategy,
+    }
+}
+
+fn aggregate_plan(plan: &LogicalPlan, indexes: &[IndexMeta]) -> PhysicalAggregatePlan {
+    PhysicalAggregatePlan {
+        parallel_candidate: plan_supports_parallel_aggregation(plan),
+        acceleration: plan_supports_aggregate_acceleration(plan, indexes),
+    }
+}
+
+fn physical_operators(plan: &LogicalPlan) -> Vec<Operator> {
     let mut operators = vec![Operator::Scan];
     if source_contains_join(&plan.source) {
         operators.push(Operator::Join);
     }
-    if plan_uses_fulltext(&plan) {
+    if plan_uses_fulltext(plan) {
         operators.push(Operator::FullTextSearch);
     }
-    if plan_uses_vector(&plan) {
+    if plan_uses_vector(plan) {
         operators.push(Operator::VectorSearch);
     }
     if plan.filter.is_some() {
         operators.push(Operator::Filter);
     }
-    if plan_uses_aggregate(&plan) {
+    if plan_uses_aggregate(plan) {
         operators.push(Operator::Aggregate);
     }
     if plan.distinct || !plan.distinct_on.is_empty() {
@@ -375,37 +256,36 @@ pub(crate) fn build_with_selection<S: BuildHasher>(
     if plan.limit.is_some() {
         operators.push(Operator::Limit);
     }
+    operators
+}
+
+struct QueryPhysicalPlanInput {
+    plan: LogicalPlan,
+    operators: Vec<Operator>,
+    estimates: PlanEstimates,
+    operator_feedback: OperatorFeedbackPlanDiagnostics,
+    adaptive_plan: AdaptivePlanDiagnostics,
+    read: PhysicalReadPlan,
+    top_k: PhysicalTopKPlan,
+    join: PhysicalJoinPlan,
+    aggregate: PhysicalAggregatePlan,
+    projection: PhysicalProjectionPlan,
+}
+
+fn query_physical_plan(input: QueryPhysicalPlanInput) -> PhysicalPlan {
     PhysicalPlan {
-        collection: plan.collection.clone(),
-        operators,
-        logical: plan,
+        collection: input.plan.collection.clone(),
+        operators: input.operators,
+        logical: input.plan,
         collection_schema: None,
-        estimates,
-        operator_feedback,
-        adaptive_plan,
-        predicate_pushdown,
-        projected_scan_fields,
-        scan_limit,
-        selected_index,
-        covered_index,
-        column_batch_index,
-        top_k,
-        top_k_limit,
-        join_strategy,
-        join_keys,
-        join_sort_required,
-        join_fallback_reason,
-        vectorized_join_candidate,
-        vectorized_join_fallback_reason,
-        parallel_aggregate_candidate,
-        aggregate_acceleration,
-        access_path,
-        access_path_reason,
-        fallback_reason,
-        pagination_strategy,
-        top_k_mode,
-        early_stop,
-        projection_shape,
+        estimates: input.estimates,
+        operator_feedback: input.operator_feedback,
+        adaptive_plan: input.adaptive_plan,
+        read: input.read,
+        top_k: input.top_k,
+        join: input.join,
+        aggregate: input.aggregate,
+        projection: input.projection,
     }
 }
 

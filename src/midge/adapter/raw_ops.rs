@@ -1,4 +1,6 @@
-use super::{Midge, StorageFamily, CassieError, TransactionMode, RawStorageEntry, Query, WriteOptions};
+use super::{
+    CassieError, Midge, Query, RawStorageEntry, StorageFamily, TransactionMode, WriteOptions,
+};
 
 impl Midge {
     /// # Errors

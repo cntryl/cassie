@@ -1,4 +1,10 @@
-use super::{BufReader, HandshakeError, AsyncReadExt, io, TryFrom, MAX_FRONTEND_MESSAGE_BYTES, FrontendMessage, DescribeTarget, CloseTarget, StartupFrame, MIN_STARTUP_MESSAGE_BYTES, SSL_REQUEST_CODE, CANCEL_REQUEST_CODE, PROTOCOL_VERSION_3, PASSWORD_MESSAGE_TAG, HashMap, Value, str, query};
+use super::{
+    io, str, AsyncReadExt, BufReader, FrontendMessage, HandshakeError, StartupFrame,
+    MAX_FRONTEND_MESSAGE_BYTES, MIN_STARTUP_MESSAGE_BYTES, PASSWORD_MESSAGE_TAG,
+    PROTOCOL_VERSION_3, SSL_REQUEST_CODE,
+};
+use crate::pgwire::connection::CANCEL_REQUEST_CODE;
+use std::collections::HashMap;
 
 pub(super) async fn read_simple_query_message(
     reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
@@ -109,42 +115,34 @@ pub(super) async fn read_frontend_message(
     let payload_len = payload.len();
     let message = match tag[0] {
         b'P' => {
-            let name = read_null_terminated(&payload, &mut cursor)?;
-            let query = read_null_terminated(&payload, &mut cursor)?;
+            let _ = read_null_terminated(&payload, &mut cursor)?;
+            let _ = read_null_terminated(&payload, &mut cursor)?;
             let parameter_count = read_frontend_i16(&payload, &mut cursor)?;
             let parameter_count = usize::try_from(parameter_count).map_err(|_| {
                 HandshakeError::Invalid("invalid parse parameter count".to_string())
             })?;
-            let mut parameter_types = Vec::with_capacity(parameter_count);
             for _ in 0..parameter_count {
-                parameter_types.push(read_frontend_i32(&payload, &mut cursor)?);
+                let _ = read_frontend_i32(&payload, &mut cursor)?;
             }
-            FrontendMessage::Parse {
-                name,
-                query,
-                parameter_types,
-            }
+            FrontendMessage::Parse
         }
         b'B' => {
-            let portal_name = read_null_terminated(&payload, &mut cursor)?;
-            let statement_name = read_null_terminated(&payload, &mut cursor)?;
+            let _ = read_null_terminated(&payload, &mut cursor)?;
+            let _ = read_null_terminated(&payload, &mut cursor)?;
             let format_count = read_frontend_i16(&payload, &mut cursor)?;
             let format_count = usize::try_from(format_count)
                 .map_err(|_| HandshakeError::Invalid("invalid bind format count".to_string()))?;
-            let mut format_codes = Vec::with_capacity(format_count);
             for _ in 0..format_count {
-                format_codes.push(read_frontend_i16(&payload, &mut cursor)?);
+                let _ = read_frontend_i16(&payload, &mut cursor)?;
             }
 
             let parameter_count = read_frontend_i16(&payload, &mut cursor)?;
             let parameter_count = usize::try_from(parameter_count)
                 .map_err(|_| HandshakeError::Invalid("invalid bind parameter count".to_string()))?;
 
-            let mut params = Vec::with_capacity(parameter_count);
             for _ in 0..parameter_count {
                 let value_len = read_frontend_i32(&payload, &mut cursor)?;
                 if value_len == -1 {
-                    params.push(None);
                     continue;
                 }
                 let value_len = usize::try_from(value_len).map_err(|_| {
@@ -153,38 +151,25 @@ pub(super) async fn read_frontend_message(
                 let end = cursor
                     .checked_add(value_len)
                     .ok_or_else(|| HandshakeError::Invalid("invalid bind payload".to_string()))?;
-                let value = payload
+                let _ = payload
                     .get(cursor..end)
                     .ok_or_else(|| HandshakeError::Invalid("invalid bind payload".to_string()))?;
-                params.push(Some(value.to_vec()));
                 cursor = end;
             }
 
             let result_format_count = read_frontend_i16(&payload, &mut cursor)?;
             let result_format_count = usize::try_from(result_format_count)
                 .map_err(|_| HandshakeError::Invalid("invalid result format count".to_string()))?;
-            let mut result_formats = Vec::with_capacity(result_format_count);
             for _ in 0..result_format_count {
-                result_formats.push(read_frontend_i16(&payload, &mut cursor)?);
+                let _ = read_frontend_i16(&payload, &mut cursor)?;
             }
 
-            FrontendMessage::Bind {
-                portal_name,
-                statement_name,
-                parameter_formats: format_codes,
-                params,
-                result_formats,
-            }
+            FrontendMessage::Bind
         }
         b'D' => {
-            let target = match payload.get(cursor).copied() {
-                Some(b'S') => {
+            match payload.get(cursor).copied() {
+                Some(b'S' | b'P') => {
                     cursor += 1;
-                    DescribeTarget::Statement
-                }
-                Some(b'P') => {
-                    cursor += 1;
-                    DescribeTarget::Portal
                 }
                 Some(other) => {
                     return Err(HandshakeError::Invalid(format!(
@@ -197,23 +182,23 @@ pub(super) async fn read_frontend_message(
                         "missing describe target".to_string(),
                     ))
                 }
-            };
-            let name = read_null_terminated(&payload, &mut cursor)?;
-            FrontendMessage::Describe { target, name }
+            }
+            let _ = read_null_terminated(&payload, &mut cursor)?;
+            FrontendMessage::Describe
         }
         b'E' => {
-            let portal_name = read_null_terminated(&payload, &mut cursor)?;
+            let _ = read_null_terminated(&payload, &mut cursor)?;
             let limit = read_frontend_i32(&payload, &mut cursor)?;
-            let limit = match limit.cmp(&0) {
-                std::cmp::Ordering::Equal => None,
+            match limit.cmp(&0) {
+                std::cmp::Ordering::Equal => {}
                 std::cmp::Ordering::Less => {
                     return Err(HandshakeError::Invalid(
                         "invalid execute row limit".to_string(),
                     ))
                 }
-                std::cmp::Ordering::Greater => Some(i64::from(limit)),
-            };
-            FrontendMessage::Execute { portal_name, limit }
+                std::cmp::Ordering::Greater => {}
+            }
+            FrontendMessage::Execute
         }
         b'S' => {
             if !payload.is_empty() {
@@ -224,14 +209,9 @@ pub(super) async fn read_frontend_message(
             FrontendMessage::Sync
         }
         b'C' => {
-            let target = match payload.get(cursor).copied() {
-                Some(b'S') => {
+            match payload.get(cursor).copied() {
+                Some(b'S' | b'P') => {
                     cursor += 1;
-                    CloseTarget::Statement
-                }
-                Some(b'P') => {
-                    cursor += 1;
-                    CloseTarget::Portal
                 }
                 Some(other) => {
                     return Err(HandshakeError::Invalid(format!(
@@ -240,9 +220,9 @@ pub(super) async fn read_frontend_message(
                     )))
                 }
                 None => return Err(HandshakeError::Invalid("missing close target".to_string())),
-            };
-            let name = read_null_terminated(&payload, &mut cursor)?;
-            FrontendMessage::Close { target, name }
+            }
+            let _ = read_null_terminated(&payload, &mut cursor)?;
+            FrontendMessage::Close
         }
         b'd' => {
             cursor = payload.len();
@@ -276,7 +256,7 @@ pub(super) async fn read_frontend_message(
             }
             FrontendMessage::Terminate
         }
-        other => FrontendMessage::Unknown(other),
+        _ => FrontendMessage::Unknown,
     };
 
     if cursor != payload_len {
@@ -452,156 +432,6 @@ pub(super) fn parse_startup_payload(
 
     Ok(parameters)
 }
-
-pub(super) fn parse_bind_param_value(
-    value: Option<&[u8]>,
-    format_code: i16,
-    type_oid: i32,
-) -> Result<Value, HandshakeError> {
-    let Some(value) = value else {
-        return Ok(Value::Null);
-    };
-    match format_code {
-        0 => {
-            let text = str::from_utf8(value).map_err(|_| {
-                HandshakeError::Invalid("invalid UTF-8 in bind parameter".to_string())
-            })?;
-            Ok(query::parse_bind_param(text))
-        }
-        1 => parse_binary_bind_param(value, type_oid),
-        _ => Err(HandshakeError::Invalid(
-            "unsupported bind format code".to_string(),
-        )),
-    }
-}
-
-fn parse_binary_bind_param(value: &[u8], type_oid: i32) -> Result<Value, HandshakeError> {
-    match type_oid {
-        16 => {
-            if value.len() != 1 {
-                return Err(HandshakeError::Invalid(
-                    "invalid bool bind parameter".to_string(),
-                ));
-            }
-            return Ok(Value::Bool(value[0] != 0));
-        }
-        17 => return Ok(Value::String(format_bytea_hex(value))),
-        20 => {
-            return value
-                .try_into()
-                .map(i64::from_be_bytes)
-                .map(Value::Int64)
-                .map_err(|_| HandshakeError::Invalid("invalid int8 bind parameter".to_string()));
-        }
-        21 => {
-            return value
-                .try_into()
-                .map(i16::from_be_bytes)
-                .map(|value| Value::Int64(i64::from(value)))
-                .map_err(|_| HandshakeError::Invalid("invalid int2 bind parameter".to_string()));
-        }
-        23 => {
-            return value
-                .try_into()
-                .map(i32::from_be_bytes)
-                .map(|value| Value::Int64(i64::from(value)))
-                .map_err(|_| HandshakeError::Invalid("invalid int4 bind parameter".to_string()));
-        }
-        701 => {
-            return value
-                .try_into()
-                .map(f64::from_be_bytes)
-                .map(Value::Float64)
-                .map_err(|_| HandshakeError::Invalid("invalid float8 bind parameter".to_string()));
-        }
-        25 | 1042 | 1043 | 705 => {
-            let text = str::from_utf8(value).map_err(|_| {
-                HandshakeError::Invalid("invalid UTF-8 in binary text parameter".to_string())
-            })?;
-            return Ok(Value::String(text.to_string()));
-        }
-        114 => {
-            let text = str::from_utf8(value).map_err(|_| {
-                HandshakeError::Invalid("invalid UTF-8 in binary json parameter".to_string())
-            })?;
-            let json = serde_json::from_str(text)
-                .map_err(|_| HandshakeError::Invalid("invalid json bind parameter".to_string()))?;
-            return Ok(Value::Json(json));
-        }
-        3802 => {
-            let json = value.strip_prefix(&[1]).unwrap_or(value);
-            let text = str::from_utf8(json).map_err(|_| {
-                HandshakeError::Invalid("invalid UTF-8 in binary jsonb parameter".to_string())
-            })?;
-            let json = serde_json::from_str(text)
-                .map_err(|_| HandshakeError::Invalid("invalid jsonb bind parameter".to_string()))?;
-            return Ok(Value::Json(json));
-        }
-        2950 => {
-            if value.len() != 16 {
-                return Err(HandshakeError::Invalid(
-                    "invalid uuid bind parameter".to_string(),
-                ));
-            }
-            return Ok(Value::String(format_uuid(value)));
-        }
-        _ => {}
-    }
-
-    if let Ok(text) = str::from_utf8(value) {
-        if text.chars().all(|character| !character.is_control()) {
-            return Ok(query::parse_bind_param(text));
-        }
-    }
-
-    match value.len() {
-        2 => Ok(Value::Int64(i64::from(i16::from_be_bytes(
-            value
-                .try_into()
-                .map_err(|_| HandshakeError::Invalid("invalid int2 bind parameter".to_string()))?,
-        )))),
-        4 => Ok(Value::Int64(i64::from(i32::from_be_bytes(
-            value
-                .try_into()
-                .map_err(|_| HandshakeError::Invalid("invalid int4 bind parameter".to_string()))?,
-        )))),
-        8 => Ok(Value::Int64(i64::from_be_bytes(value.try_into().map_err(
-            |_| HandshakeError::Invalid("invalid int8 bind parameter".to_string()),
-        )?))),
-        _ => {
-            let text = str::from_utf8(value).map_err(|_| {
-                HandshakeError::Invalid("unsupported binary bind parameter".to_string())
-            })?;
-            Ok(query::parse_bind_param(text))
-        }
-    }
-}
-
-fn format_bytea_hex(value: &[u8]) -> String {
-    let mut out = String::with_capacity(2 + value.len() * 2);
-    out.push_str("\\x");
-    for byte in value {
-        out.push(HEX[usize::from(byte >> 4)]);
-        out.push(HEX[usize::from(byte & 0x0f)]);
-    }
-    out
-}
-
-fn format_uuid(value: &[u8]) -> String {
-    let mut out = String::with_capacity(36);
-    for (index, byte) in value.iter().enumerate() {
-        if matches!(index, 4 | 6 | 8 | 10) {
-            out.push('-');
-        }
-        out.push(HEX[usize::from(byte >> 4)]);
-        out.push(HEX[usize::from(byte & 0x0f)]);
-    }
-    out
-}
-
-const HEX: [char; 16] = [
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-];
 
 pub(super) fn read_null_terminated(
     payload: &[u8],

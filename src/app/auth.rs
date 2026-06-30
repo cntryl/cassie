@@ -1,4 +1,6 @@
-use super::{Argon2, CassieError, OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
+use super::{
+    Argon2, CassieError, OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
+};
 
 pub(super) fn hash_password(password: &str) -> Result<String, CassieError> {
     let salt = SaltString::generate(&mut OsRng);

@@ -1,4 +1,8 @@
-use super::{Value, Hash, Hasher, ParameterShape, CassieError, Duration, Serialize, Write, io, VecDeque, PlanCacheKey, RuntimeFeedbackKey, RuntimeFeedbackRecord, RuntimeFeedbackObservation, observation_is_outlier, recompute_feedback_confidence, RuntimeFeedbackState};
+use super::{
+    io, observation_is_outlier, recompute_feedback_confidence, CassieError, Duration, Hash, Hasher,
+    ParameterShape, PlanCacheKey, RuntimeFeedbackKey, RuntimeFeedbackObservation,
+    RuntimeFeedbackRecord, RuntimeFeedbackState, Serialize, Value, VecDeque, Write,
+};
 
 #[must_use]
 pub fn hash_params(params: &[Value]) -> u64 {
@@ -278,29 +282,17 @@ mod tests {
             estimates: crate::planner::physical::PlanEstimates::default(),
             operator_feedback: crate::planner::physical::OperatorFeedbackPlanDiagnostics::default(),
             adaptive_plan: crate::planner::physical::AdaptivePlanDiagnostics::default(),
-            predicate_pushdown: false,
-            projected_scan_fields: Vec::new(),
-            scan_limit: None,
-            selected_index: None,
-            covered_index: false,
-            column_batch_index: None,
-            top_k: false,
-            top_k_limit: None,
-            join_strategy: None,
-            join_keys: Vec::new(),
-            join_sort_required: false,
-            join_fallback_reason: None,
-            vectorized_join_candidate: false,
-            vectorized_join_fallback_reason: None,
-            parallel_aggregate_candidate: false,
-            aggregate_acceleration: false,
-            access_path: crate::planner::physical::ReadAccessPath::CollectionScan,
-            access_path_reason: "sample-plan".to_string(),
-            fallback_reason: None,
-            pagination_strategy: crate::planner::physical::PaginationStrategy::None,
-            top_k_mode: crate::planner::physical::TopKMode::None,
-            early_stop: crate::planner::physical::EarlyStopMode::None,
-            projection_shape: crate::planner::physical::ProjectionShape::Collection,
+            read: crate::planner::physical::PhysicalReadPlan {
+                access_path: crate::planner::physical::ReadAccessPath::CollectionScan,
+                access_path_reason: "sample-plan".to_string(),
+                ..crate::planner::physical::PhysicalReadPlan::default()
+            },
+            top_k: crate::planner::physical::PhysicalTopKPlan::default(),
+            join: crate::planner::physical::PhysicalJoinPlan::default(),
+            aggregate: crate::planner::physical::PhysicalAggregatePlan::default(),
+            projection: crate::planner::physical::PhysicalProjectionPlan {
+                shape: crate::planner::physical::ProjectionShape::Collection,
+            },
             collection_schema: None,
             logical: LogicalPlan {
                 command: None,

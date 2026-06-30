@@ -195,7 +195,7 @@ fn should_mark_literal_equality_filter_as_pushed_down() {
         let physical_plan = physical::build(logical);
 
         // Assert
-        assert!(physical_plan.predicate_pushdown);
+        assert!(physical_plan.read.predicate_pushdown);
     });
 }
 
@@ -223,7 +223,7 @@ fn should_mark_projected_scan_fields_for_projection_pruning() {
 
         // Assert
         assert_eq!(
-            physical_plan.projected_scan_fields,
+            physical_plan.read.projected_scan_fields,
             vec!["title".to_string(), "body".to_string()]
         );
     });
@@ -251,7 +251,7 @@ fn should_mark_scan_limit_for_limit_pushdown() {
         let physical_plan = physical::build(logical);
 
         // Assert
-        assert_eq!(physical_plan.scan_limit, Some(25));
+        assert_eq!(physical_plan.read.scan_limit, Some(25));
     });
 }
 
@@ -277,10 +277,10 @@ fn should_mark_order_limit_query_as_top_k() {
         let physical_plan = physical::build(logical);
 
         // Assert
-        assert!(physical_plan.top_k);
-        assert_eq!(physical_plan.top_k_limit, Some(5));
-        assert_eq!(physical_plan.top_k_mode, physical::TopKMode::Heap);
-        assert_eq!(physical_plan.early_stop, physical::EarlyStopMode::None);
+        assert!(physical_plan.top_k.enabled);
+        assert_eq!(physical_plan.top_k.limit, Some(5));
+        assert_eq!(physical_plan.top_k.mode, physical::TopKMode::Heap);
+        assert_eq!(physical_plan.read.early_stop, physical::EarlyStopMode::None);
     });
 }
 
@@ -319,10 +319,10 @@ fn should_plan_join_source_with_physical_join_operator() {
             physical_plan.operators.get(1),
             Some(Operator::Join)
         ));
-        assert_eq!(physical_plan.join_strategy.as_deref(), Some("hash"));
-        assert!(physical_plan.vectorized_join_candidate);
+        assert_eq!(physical_plan.join.strategy.as_deref(), Some("hash"));
+        assert!(physical_plan.join.vectorized.candidate);
         assert_eq!(
-            physical_plan.vectorized_join_fallback_reason.as_deref(),
+            physical_plan.join.vectorized.fallback_reason.as_deref(),
             None
         );
     });
@@ -352,22 +352,22 @@ fn should_mark_row_id_filter_as_point_lookup_access_path() {
 
         // Assert
         assert_eq!(
-            physical_plan.access_path,
+            physical_plan.read.access_path,
             physical::ReadAccessPath::PointLookup
         );
-        assert_eq!(physical_plan.access_path_reason, "point-lookup-id");
-        assert_eq!(physical_plan.fallback_reason, None);
+        assert_eq!(physical_plan.read.access_path_reason, "point-lookup-id");
+        assert_eq!(physical_plan.read.fallback_reason, None);
         assert_eq!(
-            physical_plan.pagination_strategy,
+            physical_plan.read.pagination_strategy,
             physical::PaginationStrategy::None
         );
-        assert_eq!(physical_plan.top_k_mode, physical::TopKMode::None);
+        assert_eq!(physical_plan.top_k.mode, physical::TopKMode::None);
         assert_eq!(
-            physical_plan.early_stop,
+            physical_plan.read.early_stop,
             physical::EarlyStopMode::PointLookup
         );
         assert_eq!(
-            physical_plan.projection_shape,
+            physical_plan.projection.shape,
             physical::ProjectionShape::MaterializedProjection
         );
     });
@@ -397,17 +397,17 @@ fn should_mark_row_id_order_limit_as_storage_top_k() {
 
         // Assert
         assert_eq!(
-            physical_plan.access_path,
+            physical_plan.read.access_path,
             physical::ReadAccessPath::CollectionScan
         );
-        assert_eq!(physical_plan.access_path_reason, "row-key-top-k");
+        assert_eq!(physical_plan.read.access_path_reason, "row-key-top-k");
         assert_eq!(
-            physical_plan.pagination_strategy,
+            physical_plan.read.pagination_strategy,
             physical::PaginationStrategy::Limit
         );
-        assert_eq!(physical_plan.top_k_mode, physical::TopKMode::Storage);
+        assert_eq!(physical_plan.top_k.mode, physical::TopKMode::Storage);
         assert_eq!(
-            physical_plan.early_stop,
+            physical_plan.read.early_stop,
             physical::EarlyStopMode::StorageTopK
         );
     });
@@ -436,13 +436,13 @@ fn should_mark_row_id_cursor_as_keyset_pagination() {
         let physical_plan = physical::build(logical);
 
         // Assert
-        assert_eq!(physical_plan.access_path_reason, "row-key-keyset");
+        assert_eq!(physical_plan.read.access_path_reason, "row-key-keyset");
         assert_eq!(
-            physical_plan.pagination_strategy,
+            physical_plan.read.pagination_strategy,
             physical::PaginationStrategy::Keyset
         );
-        assert_eq!(physical_plan.top_k_mode, physical::TopKMode::None);
-        assert_eq!(physical_plan.early_stop, physical::EarlyStopMode::Keyset);
+        assert_eq!(physical_plan.top_k.mode, physical::TopKMode::None);
+        assert_eq!(physical_plan.read.early_stop, physical::EarlyStopMode::Keyset);
     });
 }
 
@@ -469,16 +469,19 @@ fn should_mark_row_id_offset_page_as_degraded_offset() {
         let physical_plan = physical::build(logical);
 
         // Assert
-        assert_eq!(physical_plan.access_path_reason, "row-key-ordered-page");
         assert_eq!(
-            physical_plan.fallback_reason,
+            physical_plan.read.access_path_reason,
+            "row-key-ordered-page"
+        );
+        assert_eq!(
+            physical_plan.read.fallback_reason,
             Some("offset-degraded".to_string())
         );
         assert_eq!(
-            physical_plan.pagination_strategy,
+            physical_plan.read.pagination_strategy,
             physical::PaginationStrategy::DegradedOffset
         );
-        assert_eq!(physical_plan.early_stop, physical::EarlyStopMode::None);
+        assert_eq!(physical_plan.read.early_stop, physical::EarlyStopMode::None);
     });
 }
 
@@ -506,15 +509,15 @@ fn should_fallback_from_point_lookup_to_collection_scan_with_offset() {
 
         // Assert
         assert_eq!(
-            physical_plan.access_path,
+            physical_plan.read.access_path,
             physical::ReadAccessPath::CollectionScan
         );
         assert_eq!(
-            physical_plan.fallback_reason,
+            physical_plan.read.fallback_reason,
             Some("offset-degraded".to_string())
         );
         assert_eq!(
-            physical_plan.pagination_strategy,
+            physical_plan.read.pagination_strategy,
             physical::PaginationStrategy::Offset
         );
     });
@@ -573,11 +576,11 @@ fn should_mark_composite_equality_as_prefix_scan() {
 
         // Assert
         assert_eq!(
-            physical_plan.selected_index.as_deref(),
+            physical_plan.read.selected_index.as_deref(),
             Some("planner_prefix_scan_tenant_status_idx")
         );
-        assert_eq!(physical_plan.access_path, physical::ReadAccessPath::PrefixScan);
-        assert_eq!(physical_plan.access_path_reason, "scalar-index-prefix");
+        assert_eq!(physical_plan.read.access_path, physical::ReadAccessPath::PrefixScan);
+        assert_eq!(physical_plan.read.access_path_reason, "scalar-index-prefix");
     });
 }
 
@@ -629,14 +632,14 @@ fn should_mark_range_filter_as_range_scan() {
 
         // Assert
         assert_eq!(
-            physical_plan.selected_index.as_deref(),
+            physical_plan.read.selected_index.as_deref(),
             Some("planner_range_scan_title_idx")
         );
         assert_eq!(
-            physical_plan.access_path,
+            physical_plan.read.access_path,
             physical::ReadAccessPath::RangeScan
         );
-        assert_eq!(physical_plan.access_path_reason, "scalar-index-range");
+        assert_eq!(physical_plan.read.access_path_reason, "scalar-index-range");
     });
 }
 
@@ -688,14 +691,14 @@ fn should_mark_order_limit_as_ordered_bounded_scan_when_index_matches() {
 
         // Assert
         assert_eq!(
-            physical_plan.selected_index.as_deref(),
+            physical_plan.read.selected_index.as_deref(),
             Some("planner_ordered_bounded_title_idx")
         );
         assert_eq!(
-            physical_plan.access_path,
+            physical_plan.read.access_path,
             physical::ReadAccessPath::OrderedBoundedScan
         );
-        assert_eq!(physical_plan.top_k_mode, physical::TopKMode::Storage);
+        assert_eq!(physical_plan.top_k.mode, physical::TopKMode::Storage);
     });
 }
 
@@ -747,12 +750,12 @@ fn should_report_fallback_when_secondary_ordering_proof_is_missing() {
 
         // Assert
         assert_eq!(
-            physical_plan.selected_index.as_deref(),
+            physical_plan.read.selected_index.as_deref(),
             Some("planner_ordering_fallback_title_idx")
         );
-        assert_eq!(physical_plan.access_path, physical::ReadAccessPath::CollectionScan);
+        assert_eq!(physical_plan.read.access_path, physical::ReadAccessPath::CollectionScan);
         assert_eq!(
-            physical_plan.fallback_reason.as_deref(),
+            physical_plan.read.fallback_reason.as_deref(),
             Some("index-order-proof-missing")
         );
     });
@@ -782,8 +785,8 @@ fn should_mark_exists_predicate_as_semi_join() {
         let physical_plan = physical::build(logical);
 
         // Assert
-        assert_eq!(physical_plan.join_strategy.as_deref(), Some("semi"));
-        assert_eq!(physical_plan.early_stop, physical::EarlyStopMode::Exists);
+        assert_eq!(physical_plan.join.strategy.as_deref(), Some("semi"));
+        assert_eq!(physical_plan.read.early_stop, physical::EarlyStopMode::Exists);
     });
 }
 
@@ -811,8 +814,8 @@ fn should_mark_not_exists_predicate_as_anti_join() {
         let physical_plan = physical::build(logical);
 
         // Assert
-        assert_eq!(physical_plan.join_strategy.as_deref(), Some("anti"));
-        assert_eq!(physical_plan.early_stop, physical::EarlyStopMode::Exists);
+        assert_eq!(physical_plan.join.strategy.as_deref(), Some("anti"));
+        assert_eq!(physical_plan.read.early_stop, physical::EarlyStopMode::Exists);
     });
 }
 

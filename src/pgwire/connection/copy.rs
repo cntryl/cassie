@@ -1,4 +1,9 @@
-use super::{Arc, Cassie, CassieSession, str, BufReader, AsyncWrite, run_pgwire_blocking, cassie_pg_error, write_error_response, write_ready_for_query, write_copy_in_response, read_frontend_message, FrontendMessage, PgWireError, MAX_FRONTEND_MESSAGE_BYTES, write_command_complete, PgWireSeverity, HandshakeError};
+use super::writers::write_command_complete;
+use super::{
+    cassie_pg_error, read_frontend_message, run_pgwire_blocking, str, write_copy_in_response,
+    write_error_response, write_ready_for_query, Arc, AsyncWrite, BufReader, Cassie, CassieSession,
+    FrontendMessage, HandshakeError, PgWireError, PgWireSeverity, MAX_FRONTEND_MESSAGE_BYTES,
+};
 use crate::sql::ast::{CopyStatement, QueryStatement};
 
 pub(super) enum SimpleCopyOutcome {

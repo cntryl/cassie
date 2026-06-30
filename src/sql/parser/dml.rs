@@ -1,6 +1,9 @@
-use super::expr::{split_csv, parse_expr_token, parse_expression};
+use super::expr::{parse_expr_token, parse_expression, split_csv};
 use super::query::parse_projection_items;
-use super::{ParsedStatement, SqlError, find_top_level_keyword, QueryStatement, InsertSource, parse_statement, strip_parentheses, SelectItem, Expr};
+use super::{
+    find_top_level_keyword, parse_statement, strip_parentheses, Expr, InsertSource,
+    ParsedStatement, QueryStatement, SelectItem, SqlError,
+};
 
 pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
@@ -492,7 +495,7 @@ pub(super) fn split_trailing_update_clauses(raw: &str) -> Result<(&str, &str), S
         }
         (Some(_), Some(_)) => Err(SqlError("unexpected RETURNING order".into())),
         (Some(pos), None) | (None, Some(pos)) => Ok((&raw[..pos], &raw[pos..])),
-        }
+    }
 }
 
 pub(super) fn parse_assignment(raw: &str) -> Result<(String, Expr), SqlError> {

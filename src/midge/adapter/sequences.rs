@@ -1,13 +1,13 @@
-use super::{Midge, CassieError, key_encoding, WriteOptions, StorageFamily};
+use super::{key_encoding, CassieError, Midge, StorageFamily, WriteOptions};
 
 impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub fn put_sequence(&self, metadata: crate::catalog::SequenceMeta) -> Result<(), CassieError> {
+    pub fn put_sequence(&self, metadata: &crate::catalog::SequenceMeta) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
-            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key_encoding::sequence_key(&metadata.name), value, None)
             .map_err(CassieError::from)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;

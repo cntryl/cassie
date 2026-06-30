@@ -1,4 +1,7 @@
-use super::{CreateSequenceStatement, Catalog, CassieError, DropSequenceStatement, AlterTableOperation, HashSet};
+use super::{
+    AlterTableOperation, CassieError, Catalog, CreateSequenceStatement, DropSequenceStatement,
+    HashSet,
+};
 
 pub(super) fn bind_create_sequence(
     mut statement: CreateSequenceStatement,

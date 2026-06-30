@@ -38,7 +38,7 @@ fn should_route_scalar_physical_read_paths_directly_to_scalar_index_executor() {
         &std::collections::HashMap::<String, crate::catalog::CollectionCardinalityStats>::default(),
     );
     assert_eq!(
-        physical.access_path,
+        physical.read.access_path,
         crate::planner::physical::ReadAccessPath::RangeScan
     );
 

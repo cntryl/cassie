@@ -2,7 +2,10 @@ use cntryl_midge::{Query, WriteOptions};
 use serde::{Deserialize, Serialize};
 use time::{format_description::well_known::Rfc3339, Duration as TimeDuration, OffsetDateTime};
 
-use super::{Midge, CassieError, Uuid, encode_row, RowDecode, DocumentRef, key_encoding, decode_projected_row};
+use super::{
+    decode_projected_row, encode_row, key_encoding, CassieError, DocumentRef, Midge, RowDecode,
+    Uuid,
+};
 use crate::catalog::{IndexKind, IndexMeta};
 
 #[derive(Debug, Clone)]
@@ -86,7 +89,7 @@ impl Midge {
             tx.put(Self::row_key(collection, &id), row_blob, None)
                 .map_err(CassieError::from)?;
             Self::write_document_hash_to_tx(&mut tx, collection, &id, &row_schema, &payload)?;
-            self.sync_time_series_indexes_for_document(
+            Self::sync_time_series_indexes_for_document(
                 &mut tx,
                 &id,
                 None,
@@ -103,7 +106,6 @@ impl Midge {
     }
 
     pub(crate) fn sync_time_series_indexes_for_document(
-        &self,
         tx: &mut cntryl_midge::Transaction,
         id: &str,
         old_payload: Option<&serde_json::Value>,

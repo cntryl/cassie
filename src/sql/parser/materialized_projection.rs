@@ -1,4 +1,8 @@
-use super::{ParsedStatement, SqlError, parse_index_options, QueryStatement, CreateMaterializedProjectionStatement, DropMaterializedProjectionStatement, VerifyProjectionStatement};
+use super::{
+    parse_index_options, CreateMaterializedProjectionStatement,
+    DropMaterializedProjectionStatement, ParsedStatement, QueryStatement, SqlError,
+    VerifyProjectionStatement,
+};
 
 pub(super) fn parse_create_materialized_projection_statement(
     trimmed: &str,

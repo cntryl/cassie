@@ -17,6 +17,18 @@ Feature priority is determined by read-model need. If users need a capability to
 
 See [Production Readiness](production-readiness.md) for feature-family readiness, evidence, operational signals, restart coverage, and blockers. See [Experimental Promotion Criteria](experimental-promotion-criteria.md) for the evidence gates required before a future issue promotes or narrows an experimental surface. Roadmap implementation status does not by itself promote a feature to production-ready.
 
+## Near-Term Backlog
+
+The current engineering backlog is cleanup-first. New feature work should not start while these items remain open unless the work is required to complete one of the cleanup items below.
+
+| Priority | Backlog Item | Status | Why it blocks feature work |
+| --- | --- | --- | --- |
+| P0 | Drive repo-wide `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` to zero | In progress | Pedantic findings are treated as defects in owned code; they currently obscure regressions and make routine validation non-authoritative. |
+| P0 | Restore deterministic repo-wide test execution so `cargo test --locked` completes or fails without hangs | In progress | A hanging suite prevents confident refactors and makes cleanup slices slower to verify. |
+| P0 | Repair pgwire compatibility drift between documented extended-query support and the current implementation | In progress | The repo currently documents prepared and extended-query support, but current pgwire behavior fails those paths and recently exposed a spin-loop hang. |
+| P1 | Reduce architecture drift in oversized orchestration modules and compatibility shims before adding behavior | In progress | Large cross-cutting files and drifted boundaries increase refactor risk, hide ownership, and make pedantic cleanup more expensive. |
+| P1 | Reconcile docs, tests, and implementation whenever compatibility claims are narrower than the code or broader than actual behavior | In progress | Cleanup must leave explicit contracts, not stale claims that silently regress under new work. |
+
 ## Projection Lifecycle & Replay Safety
 
 Goal: make projection construction, replay, rebuilds, freshness, and activation deterministic and observable.

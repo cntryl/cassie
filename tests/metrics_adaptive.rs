@@ -1,6 +1,7 @@
 #![allow(unused_imports, dead_code)]
 use cassie::app::{Cassie, CassieSession};
 use cassie::catalog::{IndexKind, IndexMeta};
+use cassie::config::OperatorSwitchingEnabled;
 use cassie::runtime::{RuntimeFeedbackKey, RuntimeFeedbackObservation};
 use cassie::sql::parser;
 use cassie::types::{DataType, FieldSchema, Schema};
@@ -73,7 +74,11 @@ fn operator_switch_config(enabled: bool, threshold: usize) -> cassie::config::Ca
     let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.vectorized_joins_enabled = true;
     config.limits.vectorized_join_batch_size = 2;
-    config.limits.operator_switching_enabled = enabled;
+    config.limits.operator_switching_enabled = if enabled {
+        OperatorSwitchingEnabled::enabled()
+    } else {
+        OperatorSwitchingEnabled::disabled()
+    };
     config.limits.operator_switch_join_row_threshold = threshold;
     config
 }
@@ -145,7 +150,7 @@ fn register_operator_feedback_indexes(
             unique: false,
             options: Default::default(),
         };
-        cassie.midge.put_index(index.clone()).unwrap();
+        cassie.midge.put_index(&index).unwrap();
         cassie.catalog.register_index(index);
     }
 }

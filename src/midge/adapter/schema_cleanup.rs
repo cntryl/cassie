@@ -1,4 +1,4 @@
-use super::{Midge, CassieError, Uuid, StorageFamily, WriteOptions, IndexKind};
+use super::{CassieError, IndexKind, Midge, StorageFamily, Uuid, WriteOptions};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PendingSchemaCleanup {
@@ -41,7 +41,7 @@ impl Midge {
             return Err(CassieError::CollectionNotFound(table.to_string()));
         }
         drop(tx);
-        self.save_pending_schema_cleanup(PendingSchemaCleanup {
+        self.save_pending_schema_cleanup(&PendingSchemaCleanup {
             cleanup_id: Uuid::new_v4().to_string(),
             blocked_by_epoch,
             action: PendingSchemaCleanupAction::Table {
@@ -59,7 +59,7 @@ impl Midge {
         index: &str,
         blocked_by_epoch: u64,
     ) -> Result<(), CassieError> {
-        self.save_pending_schema_cleanup(PendingSchemaCleanup {
+        self.save_pending_schema_cleanup(&PendingSchemaCleanup {
             cleanup_id: Uuid::new_v4().to_string(),
             blocked_by_epoch,
             action: PendingSchemaCleanupAction::Index {
@@ -73,7 +73,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn defer_drop_view(&self, view: &str, blocked_by_epoch: u64) -> Result<(), CassieError> {
-        self.save_pending_schema_cleanup(PendingSchemaCleanup {
+        self.save_pending_schema_cleanup(&PendingSchemaCleanup {
             cleanup_id: Uuid::new_v4().to_string(),
             blocked_by_epoch,
             action: PendingSchemaCleanupAction::View {
@@ -134,11 +134,11 @@ impl Midge {
 
     fn save_pending_schema_cleanup(
         &self,
-        cleanup: PendingSchemaCleanup,
+        cleanup: &PendingSchemaCleanup,
     ) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
-            serde_json::to_vec(&cleanup).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(cleanup).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::schema_cleanup_key(&cleanup.cleanup_id), value, None)
             .map_err(CassieError::from)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;

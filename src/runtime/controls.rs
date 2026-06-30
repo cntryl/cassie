@@ -1,4 +1,4 @@
-use super::{Instant, CassieRuntimeLimits, Duration};
+use super::{CassieRuntimeLimits, Duration, Instant};
 
 #[derive(Debug, Clone, Copy)]
 pub struct QueryExecutionControls {

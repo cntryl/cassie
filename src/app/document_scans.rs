@@ -1,4 +1,6 @@
-use super::{Cassie, CassieSession, DocumentRef, CassieError, BTreeMap, RowDecode, TransactionRowChange};
+use super::{
+    BTreeMap, Cassie, CassieError, CassieSession, DocumentRef, RowDecode, TransactionRowChange,
+};
 
 impl Cassie {
     pub(crate) fn scan_documents_batched_for_session(

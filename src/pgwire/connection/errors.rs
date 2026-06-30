@@ -67,26 +67,6 @@ impl PgWireError {
         Self::new(PgWireSeverity::Error, "28000", message)
     }
 
-    pub(super) fn unsupported(message: impl Into<String>) -> Self {
-        Self::new(PgWireSeverity::Error, "0A000", message)
-    }
-
-    pub(super) fn invalid_statement(name: &str) -> Self {
-        Self::new(
-            PgWireSeverity::Error,
-            "26000",
-            format!("statement '{name}' is not prepared"),
-        )
-    }
-
-    pub(super) fn invalid_portal(name: &str) -> Self {
-        Self::new(
-            PgWireSeverity::Error,
-            "26000",
-            format!("portal '{name}' is not bound"),
-        )
-    }
-
     pub(super) fn from_cassie_error(severity: PgWireSeverity, error: &CassieError) -> Self {
         match error {
             CassieError::Parse(message) => Self::new(severity, "42601", message.clone()),

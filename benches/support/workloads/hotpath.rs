@@ -139,11 +139,7 @@ pub fn batch_filter() -> usize {
 pub fn batch_projection() -> usize {
     let row = json!({"id":"doc-1","title":"alpha","body":"beta"});
     let projected = json!({"title": row["title"].clone()});
-    std::hint::black_box(
-        projected
-            .as_object()
-            .map_or(0, serde_json::Map::len),
-    )
+    std::hint::black_box(projected.as_object().map_or(0, serde_json::Map::len))
 }
 
 pub fn value_comparison() -> usize {

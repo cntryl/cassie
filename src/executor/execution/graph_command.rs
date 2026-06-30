@@ -1,4 +1,4 @@
-use super::{Cassie, DataType, QueryError, FieldSchema, Schema, catalog};
+use super::{catalog, Cassie, DataType, FieldSchema, QueryError, Schema};
 
 pub(super) fn create_graph_collection(
     cassie: &Cassie,

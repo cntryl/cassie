@@ -196,146 +196,15 @@ pub async fn route_request(
         })?
         .to_bytes();
 
-    let response = match (method.clone(), segments.as_slice()) {
-        (Method::GET, ["health"]) => {
-            let value = crate::rest::health::health(&cassie);
-            json_response(StatusCode::OK, &value)
-        }
-        (Method::GET, ["liveness"]) => {
-            let value = crate::rest::health::liveness(&cassie);
-            json_response(StatusCode::OK, &value)
-        }
-        (Method::GET, ["metrics"]) => {
-            let value = crate::rest::health::metrics(&cassie);
-            json_response(StatusCode::OK, &value)
-        }
-        (Method::GET, ["v1", "collections"]) => {
-            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
-                Ok(crate::rest::collections::list(&cassie))
-            })
-            .await
-            .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
-            })?;
-            json_response(StatusCode::OK, &value)
-        }
-        (Method::POST, ["v1", "collections"]) => {
-            let body = body.clone();
-            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
-                crate::rest::collections::create(&cassie, body.as_ref())
-            })
-            .await
-            .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
-            })?;
-            json_response(StatusCode::OK, &value)
-        }
-        (Method::POST, ["v1", "collections", collection, "documents"]) => {
-            let collection = collection.to_string();
-            let body = body.clone();
-            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
-                crate::rest::documents::create(&cassie, &collection, body.as_ref())
-            })
-            .await
-            .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
-            })?;
-            json_response(StatusCode::OK, &value)
-        }
-        (Method::POST, ["v1", "collections", collection, "indexes"]) => {
-            let collection = collection.to_string();
-            let body = body.clone();
-            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
-                crate::rest::indexes::create(&cassie, &collection, body.as_ref())
-            })
-            .await
-            .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
-            })?;
-            json_response(StatusCode::OK, &value)
-        }
-        (Method::POST, ["v1", "collections", collection, "search"]) => {
-            let collection = collection.to_string();
-            let body = body.clone();
-            let value = run_rest_blocking(cassie.clone(), "rest_embedding_search", move |cassie| {
-                crate::rest::search::vector_search(&cassie, &collection, body.as_ref())
-            })
-            .await
-            .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
-            })?;
-            json_response(StatusCode::OK, &value)
-        }
-        (Method::POST, ["v1", "admin", "projections", projection, "verification-manifest"]) => {
-            let projection = projection.to_string();
-            let body = body.clone();
-            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
-                crate::rest::consistency::export_manifest(&cassie, &projection, body.as_ref())
-            })
-            .await
-            .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
-            })?;
-            json_response(StatusCode::OK, &value)
-        }
-        (Method::POST, ["v1", "admin", "projection-consistency-checks"]) => {
-            let body = body.clone();
-            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
-                crate::rest::consistency::compare_manifests(&cassie, body.as_ref())
-            })
-            .await
-            .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
-            })?;
-            json_response(StatusCode::OK, &value)
-        }
-        (Method::GET, ["v1", "admin", "projection-consistency-reports"]) => {
-            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
-                Ok(crate::rest::consistency::reports(&cassie))
-            })
-            .await
-            .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
-            })?;
-            json_response(StatusCode::OK, &value)
-        }
-        (Method::GET, ["v1", "collections", collection, "documents", id]) => {
-            let collection = collection.to_string();
-            let id = id.to_string();
-            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
-                crate::rest::documents::get(&cassie, &collection, &id)
-            })
-            .await
-            .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
-            })?;
-            json_response(StatusCode::OK, &value)
-        }
-        (Method::DELETE, ["v1", "collections", collection, "documents", id]) => {
-            let collection = collection.to_string();
-            let id = id.to_string();
-            let value = run_rest_blocking(cassie.clone(), "rest_route", move |cassie| {
-                crate::rest::documents::delete(&cassie, &collection, &id)
-            })
-            .await
-            .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
-            })?;
-            json_response(StatusCode::OK, &value)
-        }
-        _ => {
-            cassie.runtime.record_rest_request(
-                method.as_str(),
-                &path,
-                StatusCode::NOT_FOUND.as_u16(),
-                started_at.elapsed(),
-            );
-            return Err((
-                StatusCode::NOT_FOUND,
-                format!("unsupported route: {method} {path}"),
-            ));
-        }
-    };
+    let response = route_dispatch(
+        &method,
+        segments.as_slice(),
+        cassie.clone(),
+        body,
+        &path,
+        started_at,
+    )
+    .await?;
 
     cassie.runtime.record_rest_request(
         method.as_str(),
@@ -345,6 +214,182 @@ pub async fn route_request(
     );
 
     Ok(response)
+}
+
+async fn route_dispatch(
+    method: &Method,
+    segments: &[&str],
+    cassie: Arc<Cassie>,
+    body: RestBytes,
+    path: &str,
+    started_at: Instant,
+) -> Result<Response<RestBody>, (StatusCode, String)> {
+    match (method.as_str(), segments) {
+        ("GET", ["health"]) => Ok(json_response(
+            StatusCode::OK,
+            &crate::rest::health::health(&cassie),
+        )),
+        ("GET", ["liveness"]) => Ok(json_response(
+            StatusCode::OK,
+            &crate::rest::health::liveness(&cassie),
+        )),
+        ("GET", ["metrics"]) => Ok(json_response(
+            StatusCode::OK,
+            &crate::rest::health::metrics(&cassie),
+        )),
+        ("GET", ["v1", "collections"]) => route_blocking(
+            cassie,
+            method,
+            path,
+            started_at,
+            "rest_route",
+            move |cassie| Ok(crate::rest::collections::list(&cassie)),
+        )
+        .await
+        .map(|value| json_response(StatusCode::OK, &value)),
+        ("POST", ["v1", "collections"]) => route_blocking(
+            cassie,
+            method,
+            path,
+            started_at,
+            "rest_route",
+            move |cassie| crate::rest::collections::create(&cassie, body.as_ref()),
+        )
+        .await
+        .map(|value| json_response(StatusCode::OK, &value)),
+        ("POST", ["v1", "collections", collection, "documents"]) => {
+            let collection = collection.to_string();
+            route_blocking(
+                cassie,
+                method,
+                path,
+                started_at,
+                "rest_route",
+                move |cassie| crate::rest::documents::create(&cassie, &collection, body.as_ref()),
+            )
+            .await
+            .map(|value| json_response(StatusCode::OK, &value))
+        }
+        ("POST", ["v1", "collections", collection, "indexes"]) => {
+            let collection = collection.to_string();
+            route_blocking(
+                cassie,
+                method,
+                path,
+                started_at,
+                "rest_route",
+                move |cassie| crate::rest::indexes::create(&cassie, &collection, body.as_ref()),
+            )
+            .await
+            .map(|value| json_response(StatusCode::OK, &value))
+        }
+        ("POST", ["v1", "collections", collection, "search"]) => {
+            let collection = collection.to_string();
+            route_blocking(
+                cassie,
+                method,
+                path,
+                started_at,
+                "rest_embedding_search",
+                move |cassie| {
+                    crate::rest::search::vector_search(&cassie, &collection, body.as_ref())
+                },
+            )
+            .await
+            .map(|value| json_response(StatusCode::OK, &value))
+        }
+        ("POST", ["v1", "admin", "projections", projection, "verification-manifest"]) => {
+            let projection = projection.to_string();
+            route_blocking(
+                cassie,
+                method,
+                path,
+                started_at,
+                "rest_route",
+                move |cassie| {
+                    crate::rest::consistency::export_manifest(&cassie, &projection, body.as_ref())
+                },
+            )
+            .await
+            .map(|value| json_response(StatusCode::OK, &value))
+        }
+        ("POST", ["v1", "admin", "projection-consistency-checks"]) => route_blocking(
+            cassie,
+            method,
+            path,
+            started_at,
+            "rest_route",
+            move |cassie| crate::rest::consistency::compare_manifests(&cassie, body.as_ref()),
+        )
+        .await
+        .map(|value| json_response(StatusCode::OK, &value)),
+        ("GET", ["v1", "admin", "projection-consistency-reports"]) => route_blocking(
+            cassie,
+            method,
+            path,
+            started_at,
+            "rest_route",
+            move |cassie| Ok(crate::rest::consistency::reports(&cassie)),
+        )
+        .await
+        .map(|value| json_response(StatusCode::OK, &value)),
+        ("GET", ["v1", "collections", collection, "documents", id]) => {
+            let collection = collection.to_string();
+            let id = id.to_string();
+            route_blocking(
+                cassie,
+                method,
+                path,
+                started_at,
+                "rest_route",
+                move |cassie| crate::rest::documents::get(&cassie, &collection, &id),
+            )
+            .await
+            .map(|value| json_response(StatusCode::OK, &value))
+        }
+        ("DELETE", ["v1", "collections", collection, "documents", id]) => {
+            let collection = collection.to_string();
+            let id = id.to_string();
+            route_blocking(
+                cassie,
+                method,
+                path,
+                started_at,
+                "rest_route",
+                move |cassie| crate::rest::documents::delete(&cassie, &collection, &id),
+            )
+            .await
+            .map(|value| json_response(StatusCode::OK, &value))
+        }
+        _ => {
+            cassie.runtime.record_rest_request(
+                method.as_str(),
+                path,
+                StatusCode::NOT_FOUND.as_u16(),
+                started_at.elapsed(),
+            );
+            Err((
+                StatusCode::NOT_FOUND,
+                format!("unsupported route: {method} {path}"),
+            ))
+        }
+    }
+}
+
+async fn route_blocking<T>(
+    cassie: Arc<Cassie>,
+    method: &Method,
+    path: &str,
+    started_at: Instant,
+    operation_name: &'static str,
+    operation: impl FnOnce(Arc<Cassie>) -> Result<T, crate::app::CassieError> + Send + 'static,
+) -> Result<T, (StatusCode, String)>
+where
+    T: Send + 'static,
+{
+    run_rest_blocking(cassie.clone(), operation_name, operation)
+        .await
+        .map_err(|error| record_rest_error(&cassie, method.as_str(), path, started_at, &error))
 }
 
 async fn run_rest_blocking<T>(

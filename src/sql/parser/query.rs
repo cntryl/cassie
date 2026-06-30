@@ -1,6 +1,24 @@
-use super::clauses::{find_top_level_keyword, split_top_level, strip_parentheses, parse_clauses, ClauseToken, Clause};
-use super::expr::{split_csv, parse_alias, parse_expression, parse_function, parse_order_by, split_csv_quoted_by_space, take_int};
-use super::{ParsedStatement, SqlError, SelectItem, Expr, FunctionCall, WindowFunctionCall, OrderExpr, QuerySource, JoinKind, parse_statement, QueryStatement, CommonTableExpression, HashSet, SelectStatement, SetOperator, SelectSet, CteQuery};
+use super::clauses::{find_top_level_keyword, split_top_level, strip_parentheses};
+use super::expr::{
+    parse_alias, parse_expression, parse_function, parse_order_by, split_csv,
+    split_csv_quoted_by_space,
+};
+use super::{
+    parse_statement, CommonTableExpression, CteQuery, Expr, FunctionCall, HashSet, JoinKind,
+    OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SqlError,
+    WindowFunctionCall,
+};
+
+#[path = "query_select.rs"]
+mod query_select;
+
+pub(super) fn parse_select_statement(
+    sql: &str,
+    withs: Vec<CommonTableExpression>,
+    recursive: bool,
+) -> Result<ParsedStatement, SqlError> {
+    query_select::parse_select_statement(sql, withs, recursive)
+}
 
 pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let remainder = sql[4..].trim_start();
@@ -338,377 +356,6 @@ pub(super) fn matching_closing_paren(raw: &str) -> Option<usize> {
     None
 }
 
-pub(super) fn parse_select_statement(
-    sql: &str,
-    withs: Vec<CommonTableExpression>,
-    recursive: bool,
-) -> Result<ParsedStatement, SqlError> {
-    if !sql.to_lowercase().starts_with("select ") {
-        return Err(SqlError(
-            "only SELECT statements are supported in this stage".into(),
-        ));
-    }
-
-    let trimmed = sql.trim().trim_end_matches(';').trim();
-    if let Some((set_pos, set_token, set_operator)) = find_set_operation(trimmed) {
-        return parse_set_select_statement(
-            trimmed,
-            withs,
-            recursive,
-            set_pos,
-            set_token,
-            set_operator,
-        );
-    }
-
-    let after_select = trimmed[6..].trim();
-    let from_pos = find_top_level_keyword(after_select, 0, "from");
-    let (mut select_part, rest, source) = if let Some(from_pos) = from_pos {
-        let select_part = after_select[..from_pos].trim();
-        if select_part.is_empty() {
-            return Err(SqlError("missing projection in SELECT statement".into()));
-        }
-
-        let rest = after_select[from_pos + 4..].trim();
-        if rest.is_empty() {
-            return Err(SqlError("missing collection in FROM".into()));
-        }
-
-        (select_part.to_string(), rest.to_string(), None)
-    } else {
-        let clauses = parse_clauses(after_select)?;
-        let first_clause = clauses
-            .first().map_or_else(|| after_select.len(), |clause| clause.position);
-        let select_part = after_select[..first_clause].trim();
-        if select_part.is_empty() {
-            return Err(SqlError("missing projection in SELECT statement".into()));
-        }
-
-        let rest = after_select[first_clause..].trim();
-        if !rest.is_empty() && clauses.is_empty() {
-            return Err(SqlError("unexpected tokens after SELECT projection".into()));
-        }
-
-        (
-            select_part.to_string(),
-            rest.to_string(),
-            Some(QuerySource::SingleRow),
-        )
-    };
-
-    let mut distinct_on = Vec::new();
-    let mut select_part_lower = select_part.to_lowercase();
-    let distinct = if select_part_lower.starts_with("distinct on") {
-        let after_distinct_on = select_part["distinct on".len()..].trim_start();
-        let (raw_distinct_on, remainder) = parse_parenthesized_prefix(after_distinct_on)
-            .ok_or_else(|| {
-                SqlError("DISTINCT ON requires a parenthesized expression list".into())
-            })?;
-        if raw_distinct_on.trim().is_empty() {
-            return Err(SqlError(
-                "DISTINCT ON requires at least one expression".into(),
-            ));
-        }
-        distinct_on = split_csv(&raw_distinct_on)
-            .into_iter()
-            .map(parse_expression)
-            .collect::<Result<Vec<_>, _>>()?;
-        select_part = remainder.trim().to_string();
-        if select_part.is_empty() {
-            return Err(SqlError("missing projection in SELECT statement".into()));
-        }
-        select_part_lower = select_part.to_lowercase();
-        if select_part_lower.starts_with("distinct") {
-            return Err(SqlError("duplicate DISTINCT clause".into()));
-        }
-        false
-    } else if select_part_lower == "distinct" || select_part_lower.starts_with("distinct ") {
-        select_part = select_part["distinct".len()..].trim().to_string();
-        true
-    } else {
-        false
-    };
-
-    let clauses = parse_clauses(&rest)?;
-
-    let first_clause = clauses
-        .first().map_or_else(|| rest.len(), |clause| clause.position);
-    let source = if let Some(source) = source {
-        source
-    } else {
-        let from_source = rest[..first_clause].trim();
-        if from_source.is_empty() {
-            return Err(SqlError("missing collection in FROM".into()));
-        }
-        parse_query_source(from_source)?
-    };
-
-    let mut where_clause: Option<String> = None;
-    let mut group_clause: Option<String> = None;
-    let mut having_clause: Option<String> = None;
-    let mut order_clause: Option<String> = None;
-    let mut limit_clause: Option<i64> = None;
-    let mut offset_clause: Option<i64> = None;
-
-    let mut seen = HashSet::new();
-    for (idx, clause) in clauses.iter().enumerate() {
-        let next_pos = clauses
-            .get(idx + 1).map_or_else(|| rest.len(), |clause| clause.position);
-
-        let token_text = match clause.token {
-            ClauseToken::Recognized(clause_kind) => clause_kind.token(),
-            ClauseToken::Unsupported(kind) => kind,
-        };
-        let start = clause.position + token_text.len();
-        if start > rest.len() || next_pos > rest.len() || start > next_pos {
-            return Err(SqlError(format!(
-                "unsupported or malformed clause placement: {}",
-                clause.text()
-            )));
-        }
-
-        let raw_value = rest[start..next_pos].trim();
-        if raw_value.is_empty() {
-            return Err(SqlError(format!(
-                "missing value for clause '{}'",
-                clause.text()
-            )));
-        }
-
-        match clause.token {
-            ClauseToken::Unsupported(kind) => {
-                return Err(SqlError(format!("unsupported clause '{kind}'")));
-            }
-            ClauseToken::Recognized(kind) => match kind {
-                Clause::Where => {
-                    if !seen.insert("where") {
-                        return Err(SqlError("duplicate WHERE clause".into()));
-                    }
-                    where_clause = Some(raw_value.to_string());
-                }
-                Clause::Group => {
-                    if !seen.insert("group by") {
-                        return Err(SqlError("duplicate GROUP BY clause".into()));
-                    }
-                    if raw_value.to_lowercase().contains("grouping sets")
-                        || raw_value.to_lowercase().contains("rollup")
-                        || raw_value.to_lowercase().contains("cube")
-                    {
-                        return Err(SqlError("unsupported GROUP BY syntax".into()));
-                    }
-                    group_clause = Some(raw_value.to_string());
-                }
-                Clause::Having => {
-                    if !seen.insert("having") {
-                        return Err(SqlError("duplicate HAVING clause".into()));
-                    }
-                    having_clause = Some(raw_value.to_string());
-                }
-                Clause::Order => {
-                    if !seen.insert("order by") {
-                        return Err(SqlError("duplicate ORDER BY clause".into()));
-                    }
-                    order_clause = Some(raw_value.to_string());
-                }
-                Clause::Limit => {
-                    if !seen.insert("limit") {
-                        return Err(SqlError("duplicate LIMIT clause".into()));
-                    }
-                    limit_clause =
-                        take_int(raw_value).map_err(|error| SqlError(error.to_string()))?;
-                }
-                Clause::Offset => {
-                    if !seen.insert("offset") {
-                        return Err(SqlError("duplicate OFFSET clause".into()));
-                    }
-                    offset_clause =
-                        take_int(raw_value).map_err(|error| SqlError(error.to_string()))?;
-                }
-            },
-        }
-    }
-
-    let projection_tokens: Vec<&str> = split_csv(&select_part);
-    let mut projection = Vec::with_capacity(projection_tokens.len());
-    for token in projection_tokens {
-        let token = token.trim();
-        projection.push(parse_projection_item(token)?);
-    }
-
-    let filter = where_clause.as_deref().map(parse_expression).transpose()?;
-    let group_by = group_clause
-        .as_deref()
-        .map(|raw| {
-            split_csv(raw)
-                .into_iter()
-                .map(parse_expression)
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .transpose()?
-        .unwrap_or_default();
-    let having = having_clause.as_deref().map(parse_expression).transpose()?;
-    let order = order_clause.as_deref().map(parse_order_by).transpose()?;
-
-    Ok(ParsedStatement {
-        raw_sql: trimmed.to_string(),
-        statement: QueryStatement::Select(SelectStatement {
-            source,
-            ctes: withs,
-            recursive,
-            distinct,
-            distinct_on,
-            projection,
-            filter,
-            group_by,
-            having,
-            order: order.unwrap_or_default(),
-            limit: limit_clause,
-            offset: offset_clause,
-            set: None,
-        }),
-    })
-}
-
-pub(super) fn parse_set_select_statement(
-    trimmed: &str,
-    withs: Vec<CommonTableExpression>,
-    recursive: bool,
-    union_pos: usize,
-    set_token: &'static str,
-    operator: SetOperator,
-) -> Result<ParsedStatement, SqlError> {
-    let token_len = set_token.len();
-    let left_sql = trimmed[..union_pos].trim();
-    let right_sql = trimmed[union_pos + token_len..].trim();
-    if left_sql.is_empty() || right_sql.is_empty() {
-        return Err(SqlError(
-            "set operation requires both SELECT operands".into(),
-        ));
-    }
-
-    let (right_sql, global_order, global_limit, global_offset) =
-        split_set_right_and_global_clauses(right_sql)?;
-    let mut left = parse_select_statement(left_sql, withs, recursive)?;
-    let right = parse_select_statement(&right_sql, Vec::new(), false)?;
-    let QueryStatement::Select(left_select) = &mut left.statement else {
-        return Err(SqlError("set operation requires SELECT operands".into()));
-    };
-    let QueryStatement::Select(right_select) = right.statement else {
-        return Err(SqlError("set operation requires SELECT operands".into()));
-    };
-    left_select.set = Some(Box::new(SelectSet {
-        operator,
-        right: Box::new(right_select),
-    }));
-    left_select.order = global_order;
-    left_select.limit = global_limit;
-    left_select.offset = global_offset;
-    Ok(left)
-}
-
-pub(super) fn find_set_operation(sql: &str) -> Option<(usize, &'static str, SetOperator)> {
-    [
-        ("union all", SetOperator::UnionAll),
-        ("intersect", SetOperator::Intersect),
-        ("except", SetOperator::Except),
-        ("union", SetOperator::Union),
-    ]
-    .into_iter()
-    .filter_map(|(token, operator)| {
-        find_top_level_keyword(sql, 0, token).map(|pos| (pos, token, operator))
-    })
-    .min_by(|left, right| {
-        left.0
-            .cmp(&right.0)
-            .then_with(|| right.1.len().cmp(&left.1.len()))
-    })
-}
-
-type ResultClauses = (Vec<OrderExpr>, Option<i64>, Option<i64>);
-type SetRightAndResultClauses = (String, Vec<OrderExpr>, Option<i64>, Option<i64>);
-
-pub(super) fn split_set_right_and_global_clauses(
-    right_sql: &str,
-) -> Result<SetRightAndResultClauses, SqlError> {
-    let trimmed = right_sql.trim();
-    if !trimmed.to_lowercase().starts_with("select ") {
-        return Err(SqlError("set operation requires SELECT operands".into()));
-    }
-    let after_select = trimmed[6..].trim();
-    let clauses = parse_clauses(after_select)?;
-    let Some(global_start) = clauses
-        .iter()
-        .find(|clause| {
-            matches!(
-                clause.token,
-                ClauseToken::Recognized(Clause::Order | Clause::Limit | Clause::Offset)
-            )
-        })
-        .map(|clause| clause.position)
-    else {
-        return Ok((trimmed.to_string(), Vec::new(), None, None));
-    };
-
-    let right_without_global = format!("SELECT {}", after_select[..global_start].trim());
-    let global_rest = after_select[global_start..].trim();
-    let (order, limit, offset) = parse_global_result_clauses(global_rest)?;
-    Ok((right_without_global, order, limit, offset))
-}
-
-pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, SqlError> {
-    let clauses = parse_clauses(rest)?;
-    let mut order = Vec::new();
-    let mut limit = None;
-    let mut offset = None;
-    let mut seen = HashSet::new();
-
-    for (idx, clause) in clauses.iter().enumerate() {
-        let next_pos = clauses
-            .get(idx + 1).map_or_else(|| rest.len(), |clause| clause.position);
-        let ClauseToken::Recognized(kind) = clause.token else {
-            return Err(SqlError(format!("unsupported clause '{}'", clause.text())));
-        };
-        if !matches!(kind, Clause::Order | Clause::Limit | Clause::Offset) {
-            return Err(SqlError(format!(
-                "unsupported global set operation clause '{}'",
-                clause.text()
-            )));
-        }
-        let start = clause.position + kind.token().len();
-        let raw_value = rest[start..next_pos].trim();
-        if raw_value.is_empty() {
-            return Err(SqlError(format!(
-                "missing value for clause '{}'",
-                clause.text()
-            )));
-        }
-
-        match kind {
-            Clause::Order => {
-                if !seen.insert("order by") {
-                    return Err(SqlError("duplicate ORDER BY clause".into()));
-                }
-                order = parse_order_by(raw_value)?;
-            }
-            Clause::Limit => {
-                if !seen.insert("limit") {
-                    return Err(SqlError("duplicate LIMIT clause".into()));
-                }
-                limit = take_int(raw_value).map_err(|error| SqlError(error.to_string()))?;
-            }
-            Clause::Offset => {
-                if !seen.insert("offset") {
-                    return Err(SqlError("duplicate OFFSET clause".into()));
-                }
-                offset = take_int(raw_value).map_err(|error| SqlError(error.to_string()))?;
-            }
-            Clause::Where | Clause::Group | Clause::Having => unreachable!(),
-        }
-    }
-
-    Ok((order, limit, offset))
-}
-
 pub(super) fn parse_cte_definitions(
     raw: &str,
     recursive: bool,
@@ -729,10 +376,11 @@ pub(super) fn parse_cte_definitions(
         let (name, aliases) = parse_cte_header(head)?;
         let body_sql = parse_enclosed_parenthesized(body)
             .ok_or_else(|| SqlError(format!("invalid CTE body for '{name}'")))?;
-        let query = if let Some(query) = parse_recursive_cte_query(&body_sql) { query } else {
-            let parsed_body = parse_statement(&body_sql).map_err(|error| {
-                SqlError(format!("invalid CTE body for '{name}': {}", error.0))
-            })?;
+        let query = if let Some(query) = parse_recursive_cte_query(&body_sql) {
+            query
+        } else {
+            let parsed_body = parse_statement(&body_sql)
+                .map_err(|error| SqlError(format!("invalid CTE body for '{name}': {}", error.0)))?;
 
             CteQuery::Simple(Box::new(parsed_body))
         };

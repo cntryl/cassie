@@ -11,9 +11,9 @@ use crate::sql::ast::{
     DropSchemaStatement, DropSequenceStatement, DropTableStatement, DropViewStatement,
     EnforceRetentionPolicyStatement, ExplainStatement, Expr, FieldDefinition, FunctionArg,
     FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement, QuerySource,
-    QueryStatement, RefreshRollupStatement, SelectItem, SelectSet, SelectStatement, SetOperator,
-    SetStatement, ShowStatement, SortDirection, TransactionAction, TransactionIsolation,
-    TransactionStatement, VerifyProjectionStatement, Volatility, WindowFunctionCall,
+    QueryStatement, RefreshRollupStatement, SelectItem, SetStatement, ShowStatement, SortDirection,
+    TransactionAction, TransactionIsolation, TransactionStatement, VerifyProjectionStatement,
+    Volatility, WindowFunctionCall,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -45,14 +45,44 @@ mod statements;
 
 use clauses::{find_top_level_keyword, strip_parentheses};
 use copy::parse_copy_statement;
-use dml::{find_matching_paren, parse_insert_statement, parse_update_statement, parse_delete_statement};
+use dml::{
+    find_matching_paren, parse_delete_statement, parse_insert_statement, parse_update_statement,
+};
 pub(crate) use expr::parse_expression;
-use materialized_projection::{parse_create_materialized_projection_statement, parse_refresh_materialized_projection_statement, parse_drop_materialized_projection_version_statement, parse_drop_materialized_projection_statement, parse_alter_materialized_projection_statement, parse_verify_projection_statement, parse_diff_projection_statement, parse_compare_projection_statement, parse_plan_repair_projection_statement, parse_repair_projection_statement};
-use query::{parse_projection_items, parse_enclosed_parenthesized, parse_with_statement, parse_select_statement};
-use retention::{parse_create_retention_policy_statement, parse_alter_retention_policy_statement, parse_drop_retention_policy_statement, parse_enforce_retention_policy_statement};
-use rollups::{parse_create_rollup_statement, parse_refresh_rollup_statement, parse_drop_rollup_statement};
-use schema::{parse_index_options, parse_create_role_statement, parse_alter_role_statement, parse_drop_role_statement, parse_create_index_statement, parse_drop_index_statement, parse_create_table_statement, parse_create_graph_statement, parse_create_sequence_statement, parse_drop_table_statement, parse_drop_sequence_statement, parse_alter_table_statement, parse_create_schema_statement, parse_drop_schema_statement, parse_alter_schema_statement};
-use statements::{split_keyword, parse_optional_role_password, parse_explain_statement, is_transaction_control_statement, parse_transaction_statement, is_unsupported_transaction_control_statement, unsupported_privilege_statement, parse_create_function_statement, parse_create_procedure_statement, parse_drop_function_statement, parse_drop_procedure_statement, parse_call_statement, parse_create_view_statement, parse_drop_view_statement, parse_show_statement, parse_set_statement};
+use materialized_projection::{
+    parse_alter_materialized_projection_statement, parse_compare_projection_statement,
+    parse_create_materialized_projection_statement, parse_diff_projection_statement,
+    parse_drop_materialized_projection_statement,
+    parse_drop_materialized_projection_version_statement, parse_plan_repair_projection_statement,
+    parse_refresh_materialized_projection_statement, parse_repair_projection_statement,
+    parse_verify_projection_statement,
+};
+use query::{
+    parse_enclosed_parenthesized, parse_projection_items, parse_select_statement,
+    parse_with_statement,
+};
+use retention::{
+    parse_alter_retention_policy_statement, parse_create_retention_policy_statement,
+    parse_drop_retention_policy_statement, parse_enforce_retention_policy_statement,
+};
+use rollups::{
+    parse_create_rollup_statement, parse_drop_rollup_statement, parse_refresh_rollup_statement,
+};
+use schema::{
+    parse_alter_role_statement, parse_alter_schema_statement, parse_alter_table_statement,
+    parse_create_graph_statement, parse_create_index_statement, parse_create_role_statement,
+    parse_create_schema_statement, parse_create_sequence_statement, parse_create_table_statement,
+    parse_drop_index_statement, parse_drop_role_statement, parse_drop_schema_statement,
+    parse_drop_sequence_statement, parse_drop_table_statement, parse_index_options,
+};
+use statements::{
+    is_transaction_control_statement, is_unsupported_transaction_control_statement,
+    parse_call_statement, parse_create_function_statement, parse_create_procedure_statement,
+    parse_create_view_statement, parse_drop_function_statement, parse_drop_procedure_statement,
+    parse_drop_view_statement, parse_explain_statement, parse_optional_role_password,
+    parse_set_statement, parse_show_statement, parse_transaction_statement, split_keyword,
+    unsupported_privilege_statement,
+};
 
 /// # Errors
 ///

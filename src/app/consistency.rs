@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Write};
 
-use super::{Cassie, CassieError, current_time_millis};
+use super::{current_time_millis, Cassie, CassieError};
 use crate::catalog::{
     ProjectionConsistencyReportMeta, ProjectionManifestHashMetadata,
     ProjectionManifestRangeSummary, ProjectionManifestRootSummary,
@@ -85,16 +85,17 @@ impl Cassie {
             source_position: metadata.source_position,
             generated_ms,
             expires_at_ms: generated_ms.saturating_add(ttl_ms),
-            hash: root.as_ref().map_or_else(|| {
-                ProjectionManifestHashMetadata {
+            hash: root.as_ref().map_or_else(
+                || ProjectionManifestHashMetadata {
                     algorithm: metadata.hashes.algorithm.algorithm.clone(),
                     digest_length: metadata.hashes.algorithm.digest_length,
                     canonical_encoder_version: metadata.hashes.algorithm.canonical_encoder_version,
                     row_hash_version: metadata.hashes.algorithm.hash_version,
                     range_hash_version: metadata.hashes.algorithm.hash_version,
                     root_hash_version: metadata.hashes.algorithm.hash_version,
-                }
-            }, root_hash_metadata),
+                },
+                root_hash_metadata,
+            ),
             root: root.as_ref().map(root_summary),
             ranges: ranges.iter().map(range_summary).collect(),
             row_hashes: if options.include_row_hashes {
@@ -182,7 +183,7 @@ fn build_consistency_report(
         .filter(|manifest| manifest_is_unverifiable(manifest))
         .count() as u64;
     let (divergent_range_count, divergent_row_count) =
-        divergence_counts(&manifests, &mut diagnostics);
+        divergence_counts(manifests, &mut diagnostics);
     let root_mismatch = manifests
         .first()
         .and_then(|manifest| manifest.root.as_ref())
@@ -226,7 +227,7 @@ fn build_consistency_report(
         instance_ids,
         root_digest: base
             .and_then(|manifest| manifest.root.as_ref().map(|root| root.digest.clone())),
-        manifest_digest: Some(manifest_set_digest(&manifests)),
+        manifest_digest: Some(manifest_set_digest(manifests)),
         mismatch_count,
         divergent_range_count,
         divergent_row_count,

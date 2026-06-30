@@ -455,11 +455,11 @@ fn type_row(data_type: &DataType, namespace: &str) -> VirtualRow {
         int_value("oid", data_type.type_oid()),
         string("typname", typname),
         string("typnamespace", namespace),
-        int_value("typlen", type_length(&data_type)),
-        bool_value("typbyval", is_type_passed_by_value(&data_type)),
-        string("typtype", type_kind(&data_type)),
-        string("typcategory", type_category(&data_type)),
-        int_value("typelem", element_type_oid(&data_type)),
+        int_value("typlen", type_length(data_type)),
+        bool_value("typbyval", is_type_passed_by_value(data_type)),
+        string("typtype", type_kind(data_type)),
+        string("typcategory", type_category(data_type)),
+        int_value("typelem", element_type_oid(data_type)),
     ]
 }
 

@@ -83,7 +83,7 @@ impl Cassie {
         &self,
         parsed: crate::sql::ast::ParsedStatement,
         key: PlanCacheKey,
-        database: Option<String>,
+        database: Option<&str>,
         controls: Option<&QueryExecutionControls>,
     ) -> Result<
         (
@@ -102,7 +102,7 @@ impl Cassie {
         }
 
         self.runtime.record_query_cache_compile_miss();
-        let plan = self.compile_physical_plan(parsed, database.as_deref(), controls)?;
+        let plan = self.compile_physical_plan(parsed, database, controls)?;
         self.runtime.plan_cache_store(key, plan.clone(), false);
         Ok((plan, PlanCacheProvenance::Compiled))
     }
@@ -439,7 +439,7 @@ impl Cassie {
                         let (physical, provenance) = self.resolve_physical_plan(
                             parsed,
                             key.clone(),
-                            session.database.clone(),
+                            session.database.as_deref(),
                             Some(controls),
                         )?;
                         self.runtime
@@ -452,7 +452,7 @@ impl Cassie {
         }
 
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
-            self.resolve_physical_plan(parsed, key, session.database.clone(), Some(controls))?
+            self.resolve_physical_plan(parsed, key, session.database.as_deref(), Some(controls))?
         } else {
             (
                 self.compile_physical_plan(parsed, session.database.as_deref(), Some(controls))?,

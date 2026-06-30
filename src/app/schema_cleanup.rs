@@ -38,7 +38,7 @@ impl Cassie {
     pub fn execute_physical_plan_for_diagnostics(
         &self,
         session: &CassieSession,
-        plan: std::sync::Arc<crate::planner::physical::PhysicalPlan>,
+        plan: &std::sync::Arc<crate::planner::physical::PhysicalPlan>,
     ) -> Result<QueryResult, CassieError> {
         let controls = self.runtime.query_controls(std::time::Instant::now());
         crate::executor::run_with_session_controls(

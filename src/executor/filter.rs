@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
-use crate::executor::batch::{Batch};
+use crate::executor::batch::Batch;
 use crate::executor::QueryError;
 use crate::search::analyzer::AnalyzerConfig;
 use crate::sql::ast::FunctionCall;
@@ -117,7 +117,9 @@ fn is_constant_expr(expr: &Expr) -> bool {
         | Expr::Param(_) => true,
         Expr::Function(f) => f.args.iter().all(is_constant_expr),
         Expr::Binary { left, right, .. } => is_constant_expr(left) && is_constant_expr(right),
-        Expr::Cast { expr, .. } | Expr::Not { expr } | Expr::IsNull { expr, .. } => is_constant_expr(expr),
+        Expr::Cast { expr, .. } | Expr::Not { expr } | Expr::IsNull { expr, .. } => {
+            is_constant_expr(expr)
+        }
         Expr::InList { expr, values, .. } => {
             is_constant_expr(expr) && values.iter().all(is_constant_expr)
         }
@@ -158,7 +160,7 @@ impl ScalarValue {
     pub(crate) fn to_f64(&self) -> Option<f64> {
         match self {
             ScalarValue::Float(v) => Some(*v),
-            ScalarValue::Int(v) => Some(*v as f64),
+            ScalarValue::Int(v) => parse_i64_to_f64(*v),
             ScalarValue::Bool(v) => Some(if *v { 1.0 } else { 0.0 }),
             _ => None,
         }
@@ -186,20 +188,20 @@ pub(crate) fn filter_rows<R>(
 where
     R: RowAccess,
 {
-    Ok(rows
-        .into_iter()
-        .filter(|row| {
-            eval_filter(
-                row,
-                expression,
-                params,
-                search_context,
-                user_functions,
-                session,
-            )
-            .unwrap_or(false)
-        })
-        .collect())
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        if eval_filter(
+            &row,
+            expression,
+            params,
+            search_context,
+            user_functions,
+            session,
+        )? {
+            out.push(row);
+        }
+    }
+    Ok(out)
 }
 
 pub(crate) fn filter_batches(
@@ -287,171 +289,95 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
     session: Option<&CassieSession>,
 ) -> Result<ScalarValue, QueryError> {
     match expr {
-        Expr::Column(name) => {
-            if let Some(local_args) = local_args {
-                let key = name.to_ascii_lowercase();
-                if let Some(value) = local_args.get(&key) {
-                    return Ok(scalar_from_value(value).unwrap_or(ScalarValue::Null));
-                }
-            }
-
-            Ok(row
-                .get(name)
-                .and_then(scalar_from_value)
-                .unwrap_or(ScalarValue::Null))
-        }
+        Expr::Column(name) => Ok(eval_column_value(row, name, local_args)),
         Expr::StringLiteral(value) => Ok(ScalarValue::Str(value.clone())),
         Expr::NumberLiteral(value) => Ok(ScalarValue::Float(*value)),
         Expr::BoolLiteral(value) => Ok(ScalarValue::Bool(*value)),
         Expr::Null => Ok(ScalarValue::Null),
-        Expr::Param(index) => params
+        Expr::Param(index) => Ok(params
             .get(*index)
-            .and_then(scalar_from_value).map_or_else(|| Ok(ScalarValue::Null), Ok),
-        Expr::Function(function) => Ok(scalar_from_value(&evaluate_function(
-            function,
+            .map_or(ScalarValue::Null, scalar_from_value)),
+        Expr::Function(function) => evaluate_function_scalar(
             row,
+            function,
             params,
             search_context,
             user_functions,
-            session,
             local_args,
-        )?)
-        .unwrap_or(ScalarValue::Null)),
-        Expr::Binary { left, op, right } => Ok(binary_scalar(
-            &eval_scalar(
-                row,
-                left,
-                params,
-                search_context,
-                user_functions,
-                local_args,
-                session,
-            )?,
+            session,
+        ),
+        Expr::Binary { left, op, right } => eval_binary_expr(
+            row,
+            left,
             op,
-            &eval_scalar(
-                row,
-                right,
-                params,
-                search_context,
-                user_functions,
-                local_args,
-                session,
-            )?,
-        )),
-        Expr::IsNull { expr, negated } => {
-            let value = eval_scalar(
-                row,
-                expr,
-                params,
-                search_context,
-                user_functions,
-                local_args,
-                session,
-            )?;
-            let is_null = matches!(value, ScalarValue::Null);
-            Ok(ScalarValue::Bool(if *negated { !is_null } else { is_null }))
-        }
+            right,
+            params,
+            search_context,
+            user_functions,
+            local_args,
+            session,
+        ),
+        Expr::IsNull { expr, negated } => eval_is_null_expr(
+            row,
+            expr,
+            *negated,
+            params,
+            search_context,
+            user_functions,
+            local_args,
+            session,
+        ),
         Expr::InList {
             expr,
             values,
             negated,
-        } => {
-            let left = eval_scalar(
-                row,
-                expr,
-                params,
-                search_context,
-                user_functions,
-                local_args,
-                session,
-            )?;
-            let contains = values
-                .iter()
-                .map(|value| {
-                    eval_scalar(
-                        row,
-                        value,
-                        params,
-                        search_context,
-                        user_functions,
-                        local_args,
-                        session,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?
-                .iter()
-                .any(|right| eq_value(&left, right));
-            Ok(ScalarValue::Bool(if *negated {
-                !contains
-            } else {
-                contains
-            }))
-        }
+        } => eval_in_list_expr(
+            row,
+            expr,
+            values,
+            *negated,
+            params,
+            search_context,
+            user_functions,
+            local_args,
+            session,
+        ),
         Expr::Between {
             expr,
             low,
             high,
             negated,
-        } => {
-            let value = eval_scalar(
-                row,
-                expr,
-                params,
-                search_context,
-                user_functions,
-                local_args,
-                session,
-            )?;
-            let low = eval_scalar(
-                row,
-                low,
-                params,
-                search_context,
-                user_functions,
-                local_args,
-                session,
-            )?;
-            let high = eval_scalar(
-                row,
-                high,
-                params,
-                search_context,
-                user_functions,
-                local_args,
-                session,
-            )?;
-            let in_range = number_cmp(&value, &low, |left, right| left >= right)
-                && number_cmp(&value, &high, |left, right| left <= right);
-            Ok(ScalarValue::Bool(if *negated {
-                !in_range
-            } else {
-                in_range
-            }))
-        }
-        Expr::Not { expr } => {
-            let value = eval_scalar(
-                row,
-                expr,
-                params,
-                search_context,
-                user_functions,
-                local_args,
-                session,
-            )?;
-            Ok(ScalarValue::Bool(!value.as_bool()))
-        }
-        Expr::Cast { expr, data_type } => {
-            let value = eval_scalar(
-                row,
-                expr,
-                params,
-                search_context,
-                user_functions,
-                local_args,
-                session,
-            )?;
-            cast_scalar(&value, data_type)
-        }
+        } => eval_between_expr(
+            row,
+            expr,
+            low,
+            high,
+            *negated,
+            params,
+            search_context,
+            user_functions,
+            local_args,
+            session,
+        ),
+        Expr::Not { expr } => eval_not_expr(
+            row,
+            expr,
+            params,
+            search_context,
+            user_functions,
+            local_args,
+            session,
+        ),
+        Expr::Cast { expr, data_type } => eval_cast_expr(
+            row,
+            expr,
+            data_type,
+            params,
+            search_context,
+            user_functions,
+            local_args,
+            session,
+        ),
         Expr::Exists(_) => Err(QueryError::General(
             "EXISTS predicate was not resolved before filtering".to_string(),
         )),
@@ -486,19 +412,7 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
                     .map(ScalarValue::Float)
             })
             .ok_or_else(|| QueryError::General("cannot cast value to FLOAT".to_string())),
-        DataType::Boolean => match value {
-            ScalarValue::Bool(value) => Ok(ScalarValue::Bool(*value)),
-            ScalarValue::Int(value) => Ok(ScalarValue::Bool(*value != 0)),
-            ScalarValue::Float(value) => Ok(ScalarValue::Bool(*value != 0.0)),
-            ScalarValue::Str(value) => match value.to_ascii_lowercase().as_str() {
-                "true" | "t" | "1" => Ok(ScalarValue::Bool(true)),
-                "false" | "f" | "0" => Ok(ScalarValue::Bool(false)),
-                _ => Err(QueryError::General(
-                    "cannot cast value to BOOLEAN".to_string(),
-                )),
-            },
-            ScalarValue::Null => Ok(ScalarValue::Null),
-        },
+        DataType::Boolean => cast_boolean_scalar(value),
         DataType::Text => Ok(ScalarValue::Str(match value {
             ScalarValue::Bool(value) => value.to_string(),
             ScalarValue::Int(value) => value.to_string(),
@@ -506,20 +420,8 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             ScalarValue::Str(value) => value.clone(),
             ScalarValue::Null => String::new(),
         })),
-        DataType::Char { length } => {
-            let value = cast_to_text(value)
-                .filter(|value| value.chars().count() <= length.unwrap_or(1) as usize)
-                .ok_or_else(|| QueryError::General("cannot cast value to CHAR".to_string()))?;
-            Ok(ScalarValue::Str(value))
-        }
-        DataType::Varchar { length } => {
-            let value = cast_to_text(value)
-                .filter(|value| {
-                    length.is_none_or(|length| value.chars().count() <= length as usize)
-                })
-                .ok_or_else(|| QueryError::General("cannot cast value to VARCHAR".to_string()))?;
-            Ok(ScalarValue::Str(value))
-        }
+        DataType::Char { length } => cast_bounded_text(value, length.unwrap_or(1), "CHAR"),
+        DataType::Varchar { length } => cast_varchar_text(value, *length),
         DataType::Bytea => {
             let value = value
                 .as_str()
@@ -541,13 +443,7 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
                 "cannot cast value to timestamp/time/date type".to_string(),
             )),
         },
-        DataType::Json => Ok(ScalarValue::Str(match value {
-            ScalarValue::Bool(value) => value.to_string(),
-            ScalarValue::Int(value) => value.to_string(),
-            ScalarValue::Float(value) => value.to_string(),
-            ScalarValue::Str(value) => value.clone(),
-            ScalarValue::Null => "null".to_string(),
-        })),
+        DataType::Json => Ok(ScalarValue::Str(cast_json_text(value))),
         DataType::Array(_) => Err(QueryError::General(
             "cannot cast scalar value to ARRAY".to_string(),
         )),
@@ -567,16 +463,73 @@ fn cast_to_text(value: &ScalarValue) -> Option<String> {
     }
 }
 
+fn cast_boolean_scalar(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
+    match value {
+        ScalarValue::Bool(value) => Ok(ScalarValue::Bool(*value)),
+        ScalarValue::Int(value) => Ok(ScalarValue::Bool(*value != 0)),
+        ScalarValue::Float(value) => Ok(ScalarValue::Bool(*value != 0.0)),
+        ScalarValue::Str(value) => match value.to_ascii_lowercase().as_str() {
+            "true" | "t" | "1" => Ok(ScalarValue::Bool(true)),
+            "false" | "f" | "0" => Ok(ScalarValue::Bool(false)),
+            _ => Err(QueryError::General(
+                "cannot cast value to BOOLEAN".to_string(),
+            )),
+        },
+        ScalarValue::Null => Ok(ScalarValue::Null),
+    }
+}
+
+fn cast_bounded_text(
+    value: &ScalarValue,
+    max_length: u32,
+    type_name: &str,
+) -> Result<ScalarValue, QueryError> {
+    let value = cast_to_text(value)
+        .filter(|value| {
+            usize::try_from(max_length)
+                .ok()
+                .is_some_and(|max_length| value.chars().count() <= max_length)
+        })
+        .ok_or_else(|| QueryError::General(format!("cannot cast value to {type_name}")))?;
+    Ok(ScalarValue::Str(value))
+}
+
+fn cast_varchar_text(
+    value: &ScalarValue,
+    max_length: Option<u32>,
+) -> Result<ScalarValue, QueryError> {
+    let value = cast_to_text(value)
+        .filter(|value| {
+            max_length.is_none_or(|max_length| {
+                usize::try_from(max_length)
+                    .ok()
+                    .is_some_and(|max_length| value.chars().count() <= max_length)
+            })
+        })
+        .ok_or_else(|| QueryError::General("cannot cast value to VARCHAR".to_string()))?;
+    Ok(ScalarValue::Str(value))
+}
+
+fn cast_json_text(value: &ScalarValue) -> String {
+    match value {
+        ScalarValue::Bool(value) => value.to_string(),
+        ScalarValue::Int(value) => value.to_string(),
+        ScalarValue::Float(value) => value.to_string(),
+        ScalarValue::Str(value) => value.clone(),
+        ScalarValue::Null => "null".to_string(),
+    }
+}
+
 fn scalar_to_i64(value: &ScalarValue) -> Option<i64> {
     match value {
         ScalarValue::Int(value) => Some(*value),
         ScalarValue::Bool(value) => Some(i64::from(*value)),
         ScalarValue::Float(value) if value.is_finite() && value.fract() == 0.0 => {
-            Some(*value as i64)
+            parse_f64_to_i64(*value)
         }
         ScalarValue::Float(_) | ScalarValue::Null => None,
         ScalarValue::Str(value) => value.parse().ok(),
-        }
+    }
 }
 
 fn decode_bytea(value: &str) -> Result<(), QueryError> {
@@ -601,7 +554,6 @@ fn decode_bytea(value: &str) -> Result<(), QueryError> {
 }
 
 fn binary_scalar(left: &ScalarValue, op: &BinaryOp, right: &ScalarValue) -> ScalarValue {
-    let op = op.clone();
     match op {
         BinaryOp::And => ScalarValue::Bool(left.as_bool() && right.as_bool()),
         BinaryOp::Or => ScalarValue::Bool(left.as_bool() || right.as_bool()),
@@ -628,8 +580,10 @@ fn binary_scalar(left: &ScalarValue, op: &BinaryOp, right: &ScalarValue) -> Scal
                 },
             ))
         }
-        BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => ScalarValue::Float(vector_distance(op, left, right)),
+        BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
+            ScalarValue::Float(vector_distance(op, left, right))
         }
+    }
 }
 
 fn like_match(value: Option<&str>, pattern: Option<&str>) -> bool {
@@ -683,7 +637,7 @@ fn binary_math(left: &ScalarValue, right: &ScalarValue, op: impl Fn(f64, f64) ->
     op(left.to_f64().unwrap_or(0.0), right.to_f64().unwrap_or(0.0))
 }
 
-fn vector_distance(op: BinaryOp, left: &ScalarValue, right: &ScalarValue) -> f64 {
+fn vector_distance(op: &BinaryOp, left: &ScalarValue, right: &ScalarValue) -> f64 {
     let left = left
         .as_str()
         .and_then(parse_vector_text)
@@ -711,8 +665,12 @@ fn eq_value(left: &ScalarValue, right: &ScalarValue) -> bool {
         (ScalarValue::Int(left), ScalarValue::Int(right)) => left == right,
         (ScalarValue::Float(left), ScalarValue::Float(right)) => left == right,
         (ScalarValue::Str(left), ScalarValue::Str(right)) => left == right,
-        (ScalarValue::Int(left), ScalarValue::Float(right)) => (*left as f64) == *right,
-        (ScalarValue::Float(left), ScalarValue::Int(right)) => *left == (*right as f64),
+        (ScalarValue::Int(left), ScalarValue::Float(right)) => {
+            parse_i64_to_f64(*left).is_some_and(|left| left == *right)
+        }
+        (ScalarValue::Float(left), ScalarValue::Int(right)) => {
+            parse_i64_to_f64(*right).is_some_and(|right| *left == right)
+        }
         (ScalarValue::Bool(left), ScalarValue::Int(right)) => {
             (*left && *right != 0) || (!*left && *right == 0)
         }
@@ -729,23 +687,265 @@ fn eq_value(left: &ScalarValue, right: &ScalarValue) -> bool {
     }
 }
 
-fn scalar_from_value(value: &Value) -> Option<ScalarValue> {
+fn scalar_from_value(value: &Value) -> ScalarValue {
     match value {
-        Value::Bool(v) => Some(ScalarValue::Bool(*v)),
-        Value::Int64(v) => Some(ScalarValue::Int(*v)),
-        Value::Float64(v) => Some(ScalarValue::Float(*v)),
-        Value::String(v) => Some(ScalarValue::Str(v.clone())),
-        Value::Vector(v) => Some(ScalarValue::Str(format!(
+        Value::Bool(v) => ScalarValue::Bool(*v),
+        Value::Int64(v) => ScalarValue::Int(*v),
+        Value::Float64(v) => ScalarValue::Float(*v),
+        Value::String(v) => ScalarValue::Str(v.clone()),
+        Value::Vector(v) => ScalarValue::Str(format!(
             "[{}]",
             v.values
                 .iter()
                 .map(std::string::ToString::to_string)
                 .collect::<Vec<_>>()
                 .join(",")
-        ))),
-        Value::Json(v) => Some(ScalarValue::Str(v.to_string())),
-        Value::Null => Some(ScalarValue::Null),
+        )),
+        Value::Json(v) => ScalarValue::Str(v.to_string()),
+        Value::Null => ScalarValue::Null,
     }
+}
+
+fn eval_column_value<R: RowAccess + ?Sized>(
+    row: &R,
+    name: &str,
+    local_args: Option<&HashMap<String, Value>>,
+) -> ScalarValue {
+    if let Some(local_args) = local_args {
+        let key = name.to_ascii_lowercase();
+        if let Some(value) = local_args.get(&key) {
+            return scalar_from_value(value);
+        }
+    }
+
+    row.get(name).map_or(ScalarValue::Null, scalar_from_value)
+}
+
+fn evaluate_function_scalar<R: RowAccess + ?Sized>(
+    row: &R,
+    function: &FunctionCall,
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+    session: Option<&CassieSession>,
+) -> Result<ScalarValue, QueryError> {
+    evaluate_function(
+        function,
+        row,
+        params,
+        search_context,
+        user_functions,
+        session,
+        local_args,
+    )
+    .map(|value| scalar_from_value(&value))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn eval_binary_expr<R: RowAccess + ?Sized>(
+    row: &R,
+    left: &Expr,
+    op: &BinaryOp,
+    right: &Expr,
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+    session: Option<&CassieSession>,
+) -> Result<ScalarValue, QueryError> {
+    let left = eval_scalar(
+        row,
+        left,
+        params,
+        search_context,
+        user_functions,
+        local_args,
+        session,
+    )?;
+    let right = eval_scalar(
+        row,
+        right,
+        params,
+        search_context,
+        user_functions,
+        local_args,
+        session,
+    )?;
+    Ok(binary_scalar(&left, op, &right))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn eval_is_null_expr<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    negated: bool,
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+    session: Option<&CassieSession>,
+) -> Result<ScalarValue, QueryError> {
+    let value = eval_scalar(
+        row,
+        expr,
+        params,
+        search_context,
+        user_functions,
+        local_args,
+        session,
+    )?;
+    let is_null = matches!(value, ScalarValue::Null);
+    Ok(ScalarValue::Bool(if negated { !is_null } else { is_null }))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn eval_in_list_expr<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    values: &[Expr],
+    negated: bool,
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+    session: Option<&CassieSession>,
+) -> Result<ScalarValue, QueryError> {
+    let left = eval_scalar(
+        row,
+        expr,
+        params,
+        search_context,
+        user_functions,
+        local_args,
+        session,
+    )?;
+    let contains = values
+        .iter()
+        .map(|value| {
+            eval_scalar(
+                row,
+                value,
+                params,
+                search_context,
+                user_functions,
+                local_args,
+                session,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .iter()
+        .any(|right| eq_value(&left, right));
+    Ok(ScalarValue::Bool(if negated {
+        !contains
+    } else {
+        contains
+    }))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn eval_between_expr<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    low: &Expr,
+    high: &Expr,
+    negated: bool,
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+    session: Option<&CassieSession>,
+) -> Result<ScalarValue, QueryError> {
+    let value = eval_scalar(
+        row,
+        expr,
+        params,
+        search_context,
+        user_functions,
+        local_args,
+        session,
+    )?;
+    let low = eval_scalar(
+        row,
+        low,
+        params,
+        search_context,
+        user_functions,
+        local_args,
+        session,
+    )?;
+    let high = eval_scalar(
+        row,
+        high,
+        params,
+        search_context,
+        user_functions,
+        local_args,
+        session,
+    )?;
+    let in_range = number_cmp(&value, &low, |left, right| left >= right)
+        && number_cmp(&value, &high, |left, right| left <= right);
+    Ok(ScalarValue::Bool(if negated {
+        !in_range
+    } else {
+        in_range
+    }))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn eval_not_expr<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+    session: Option<&CassieSession>,
+) -> Result<ScalarValue, QueryError> {
+    eval_scalar(
+        row,
+        expr,
+        params,
+        search_context,
+        user_functions,
+        local_args,
+        session,
+    )
+    .map(|value| ScalarValue::Bool(!value.as_bool()))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn eval_cast_expr<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    data_type: &DataType,
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+    session: Option<&CassieSession>,
+) -> Result<ScalarValue, QueryError> {
+    let value = eval_scalar(
+        row,
+        expr,
+        params,
+        search_context,
+        user_functions,
+        local_args,
+        session,
+    )?;
+    cast_scalar(&value, data_type)
+}
+
+fn parse_i64_to_f64(value: i64) -> Option<f64> {
+    value.to_string().parse::<f64>().ok()
+}
+
+fn parse_f64_to_i64(value: f64) -> Option<i64> {
+    if !value.is_finite() || value.fract() != 0.0 {
+        return None;
+    }
+    format!("{value:.0}").parse::<i64>().ok()
 }
 
 #[cfg(test)]

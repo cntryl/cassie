@@ -1,5 +1,5 @@
+use super::{AnalyzerConfig, Deserialize, HashMap, HashSet, Serialize, Value};
 use crate::executor::batch::RowAccess;
-use super::{Serialize, Deserialize, HashMap, AnalyzerConfig, HashSet, Value};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub(crate) struct SearchContext {
@@ -99,7 +99,7 @@ impl SingleFieldSearchContext {
         }
 
         if docs_with_field > 0 {
-            context.avg_doc_length = length_sum as f64 / docs_with_field as f64;
+            context.avg_doc_length = usize_to_f64(length_sum) / usize_to_f64(docs_with_field);
         }
 
         context
@@ -114,8 +114,8 @@ impl SingleFieldSearchContext {
             return 0.0;
         }
 
-        let dl = source_stats.doc_length as f64;
-        let docs = self.total_documents.max(1) as f64;
+        let dl = usize_to_f64(source_stats.doc_length);
+        let docs = usize_to_f64(self.total_documents.max(1));
         let avg_dl = if self.avg_doc_length > 0.0 {
             self.avg_doc_length
         } else {
@@ -124,12 +124,12 @@ impl SingleFieldSearchContext {
 
         let mut score = 0.0;
         for term in query_terms {
-            let tf = source_stats.term_counts.get(term).copied().unwrap_or(0) as f64;
+            let tf = usize_to_f64(source_stats.term_counts.get(term).copied().unwrap_or(0));
             if tf == 0.0 {
                 continue;
             }
 
-            let df = self.doc_frequency.get(term).copied().unwrap_or(0) as f64;
+            let df = usize_to_f64(self.doc_frequency.get(term).copied().unwrap_or(0));
             score += crate::search::bm25_score(tf, df, docs, self.k1, self.b, dl, avg_dl);
         }
 
@@ -196,11 +196,11 @@ impl SearchContext {
         }
 
         for (name, length_sum) in text_length {
-            let docs_with_field = *term_occurrence.get(&name).unwrap_or(&1) as f64;
+            let docs_with_field = usize_to_f64(*term_occurrence.get(&name).unwrap_or(&1));
             if docs_with_field > 0.0 {
                 context
                     .avg_doc_length
-                    .insert(name, length_sum as f64 / docs_with_field);
+                    .insert(name, usize_to_f64(length_sum) / docs_with_field);
             }
         }
 
@@ -253,9 +253,10 @@ impl SearchContext {
         }
 
         if docs_with_field > 0 {
-            context
-                .avg_doc_length
-                .insert(field, length_sum as f64 / docs_with_field as f64);
+            context.avg_doc_length.insert(
+                field,
+                usize_to_f64(length_sum) / usize_to_f64(docs_with_field),
+            );
         }
 
         context
@@ -317,9 +318,8 @@ impl SearchContext {
         if query_terms.is_empty() || !source_stats.has_text || source_stats.doc_length == 0 {
             return 0.0;
         }
-        let dl = source_stats.doc_length as f64;
-
-        let docs = self.total_documents.max(1) as f64;
+        let dl = usize_to_f64(source_stats.doc_length);
+        let docs = usize_to_f64(self.total_documents.max(1));
         let field = field.map(str::to_lowercase);
         let avg_dl = field
             .as_deref()
@@ -328,16 +328,17 @@ impl SearchContext {
         let boost = field
             .as_deref()
             .map_or(1.0, |field| self.field_boost(field));
-        let (k1, b) = field
-            .as_deref()
-            .map_or((
+        let (k1, b) = field.as_deref().map_or(
+            (
                 crate::search::bm25::DEFAULT_BM25_K1,
                 crate::search::bm25::DEFAULT_BM25_B,
-            ), |field| (self.field_k1(field), self.field_b(field)));
+            ),
+            |field| (self.field_k1(field), self.field_b(field)),
+        );
 
         let mut score = 0.0;
         for term in query_terms {
-            let tf = source_stats.term_counts.get(term).copied().unwrap_or(0) as f64;
+            let tf = usize_to_f64(source_stats.term_counts.get(term).copied().unwrap_or(0));
             if tf == 0.0 {
                 continue;
             }
@@ -345,7 +346,7 @@ impl SearchContext {
             let df = field
                 .as_deref()
                 .and_then(|field| self.document_frequency(field, term))
-                .unwrap_or(0) as f64;
+                .map_or(0.0, usize_to_f64);
             score += crate::search::bm25_score(tf, df, docs, k1, b, dl, avg_dl);
         }
 
@@ -373,7 +374,11 @@ pub(super) fn simple_search_score(haystack: &str, query: &str) -> f64 {
             hits += 1.0;
         }
     }
-    hits / (query_tokens.len() as f64)
+    hits / usize_to_f64(query_tokens.len())
+}
+
+fn usize_to_f64(value: usize) -> f64 {
+    value.to_string().parse::<f64>().unwrap_or(f64::INFINITY)
 }
 
 pub(super) fn token_counts(tokens: &[String]) -> HashMap<String, usize> {

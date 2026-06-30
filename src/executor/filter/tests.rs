@@ -133,6 +133,6 @@ fn should_score_single_field_term_stats_as_zero_for_empty_or_missing_text() {
     let missing_score = context.score_term_stats(&missing_stats, &query_terms);
 
     // Assert
-    assert_eq!(empty_score, 0.0);
-    assert_eq!(missing_score, 0.0);
+    assert!(empty_score.abs() < f64::EPSILON);
+    assert!(missing_score.abs() < f64::EPSILON);
 }

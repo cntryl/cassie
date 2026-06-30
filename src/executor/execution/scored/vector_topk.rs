@@ -1,4 +1,8 @@
-use super::{Cassie, CassieSession, HashMap, FunctionMeta, Value, LogicalPlan, BatchRow, QueryError, batch, scan, vector_prefilter_supported, filter, BinaryHeap, value_to_vector, SortDirection, QuerySource, SelectItem, FunctionCall, Expr, CmpOrdering};
+use super::{
+    batch, filter, scan, value_to_vector, vector_prefilter_supported, BatchRow, BinaryHeap, Cassie,
+    CassieSession, CmpOrdering, Expr, FunctionCall, FunctionMeta, HashMap, LogicalPlan, QueryError,
+    QuerySource, SelectItem, SortDirection, Value,
+};
 
 pub(crate) fn execute_vector_distance_top_k(
     cassie: &Cassie,
@@ -53,26 +57,19 @@ pub(crate) fn execute_vector_distance_top_k(
         } else {
             f64::INFINITY
         };
-        let candidate = SqlVectorCandidate {
-            sort_value: match spec.direction {
-                SortDirection::Asc => score,
-                SortDirection::Desc => -score,
+        push_top_candidate(
+            &mut top,
+            SqlVectorCandidate {
+                sort_value: candidate_sort_value(&spec.direction, score),
+                score,
+                id: candidate
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
             },
-            score,
-            id: candidate
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string(),
-        };
-        if top.len() < top_needed {
-            top.push(candidate);
-        } else if let Some(worst) = top.peek() {
-            if candidate.is_better_than(worst) {
-                top.pop();
-                top.push(candidate);
-            }
-        }
+            top_needed,
+        );
     }
 
     let mut ranked = top.into_vec();
@@ -88,7 +85,7 @@ pub(crate) fn execute_vector_distance_top_k(
             ])
         })
         .collect();
-    record_adaptive_candidate_decision(cassie, adaptive, final_candidate_count, rows.len());
+    record_adaptive_candidate_decision(cassie, &adaptive, final_candidate_count, rows.len());
     Ok(Some(rows))
 }
 
@@ -96,39 +93,14 @@ fn execute_ivfflat_vector_top_k(
     cassie: &Cassie,
     spec: &VectorDistanceTopKSpec,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let index = cassie
-        .midge
-        .get_vector_index(&spec.collection, &spec.vector_field)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    let Some(index) = index else {
+    let Some(training) = ivfflat_training(cassie, spec)? else {
         return Ok(None);
     };
-    if index.metadata.index_type != crate::embeddings::VectorIndexType::IvfFlat {
-        return Ok(None);
-    }
-    if index.metadata.metric != crate::embeddings::DistanceMetric::L2 {
-        cassie
-            .runtime
-            .record_ivfflat_fallback("incompatible-metric");
-        return Ok(None);
-    }
-    let Some(training) = index.metadata.ivfflat_training.as_ref() else {
-        cassie.runtime.record_ivfflat_fallback("missing-training");
-        return Ok(None);
-    };
-    if !training.trained
-        || training.centroids.is_empty()
-        || spec.query.len() != index.metadata.dimensions
-    {
-        cassie
-            .runtime
-            .record_ivfflat_fallback("incomplete-or-incompatible-training");
-        return Ok(None);
-    }
 
     let started_at = std::time::Instant::now();
-    let normalized_query = crate::vector::normalize(&spec.query).map_or_else(|| spec.query.clone(), |normalized| normalized.values);
-    let probed_lists = ivfflat_probe_lists(&normalized_query, training);
+    let normalized_query = crate::vector::normalize(&spec.query)
+        .map_or_else(|| spec.query.clone(), |normalized| normalized.values);
+    let probed_lists = ivfflat_probe_lists(&normalized_query, &training);
     let normalized_vectors = cassie
         .midge
         .list_normalized_vectors(&spec.collection, &spec.vector_field)
@@ -137,7 +109,6 @@ fn execute_ivfflat_vector_top_k(
     let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
     let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
     let mut candidate_count = 0usize;
-
     for record in normalized_vectors {
         let Some(list) = training.assignments.get(&record.id) else {
             continue;
@@ -145,34 +116,22 @@ fn execute_ivfflat_vector_top_k(
         if !probed_lists.contains(list) {
             continue;
         }
-        let magnitude = record.magnitude as f32;
-        let vector = record
-            .values
-            .iter()
-            .map(|value| *value * magnitude)
-            .collect::<Vec<_>>();
+        let vector = denormalized_vector(&record.values, record.magnitude)?;
         let score = if vector.len() == spec.query.len() {
             crate::vector::l2_distance(&vector, &spec.query)
         } else {
             f64::INFINITY
         };
         candidate_count += 1;
-        let candidate = SqlVectorCandidate {
-            sort_value: match spec.direction {
-                SortDirection::Asc => score,
-                SortDirection::Desc => -score,
+        push_top_candidate(
+            &mut top,
+            SqlVectorCandidate {
+                sort_value: candidate_sort_value(&spec.direction, score),
+                score,
+                id: record.id,
             },
-            score,
-            id: record.id,
-        };
-        if top.len() < top_needed {
-            top.push(candidate);
-        } else if let Some(worst) = top.peek() {
-            if candidate.is_better_than(worst) {
-                top.pop();
-                top.push(candidate);
-            }
-        }
+            top_needed,
+        );
     }
 
     if candidate_count == 0 {
@@ -199,8 +158,49 @@ fn execute_ivfflat_vector_top_k(
     cassie
         .runtime
         .record_ivfflat_execution(training.lists, probed_lists.len(), candidate_count);
-    record_adaptive_candidate_decision(cassie, adaptive, candidate_count, rows.len());
+    record_adaptive_candidate_decision(cassie, &adaptive, candidate_count, rows.len());
     Ok(Some(rows))
+}
+
+fn ivfflat_training(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+) -> Result<Option<crate::embeddings::IvfFlatTrainingState>, QueryError> {
+    let index = cassie
+        .midge
+        .get_vector_index(&spec.collection, &spec.vector_field)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let Some(index) = index else {
+        return Ok(None);
+    };
+    if index.metadata.index_type != crate::embeddings::VectorIndexType::IvfFlat {
+        return Ok(None);
+    }
+    if index.metadata.metric != crate::embeddings::DistanceMetric::L2 {
+        cassie
+            .runtime
+            .record_ivfflat_fallback("incompatible-metric");
+        return Ok(None);
+    }
+    let Some(training) = index.metadata.ivfflat_training else {
+        cassie.runtime.record_ivfflat_fallback("missing-training");
+        return Ok(None);
+    };
+    if !training.trained
+        || training.centroids.is_empty()
+        || spec.query.len() != index.metadata.dimensions
+    {
+        cassie
+            .runtime
+            .record_ivfflat_fallback("incomplete-or-incompatible-training");
+        return Ok(None);
+    }
+    Ok(Some(training))
+}
+
+fn denormalized_vector(values: &[f32], magnitude: f64) -> Result<Vec<f32>, QueryError> {
+    let magnitude = finite_f32(magnitude, "vector magnitude")?;
+    values.iter().map(|value| Ok(*value * magnitude)).collect()
 }
 
 fn ivfflat_probe_lists(
@@ -272,7 +272,7 @@ pub(super) fn adaptive_candidate_decision(
 
 pub(super) fn record_adaptive_candidate_decision(
     cassie: &Cassie,
-    decision: AdaptiveCandidateDecision,
+    decision: &AdaptiveCandidateDecision,
     final_candidate_count: usize,
     result_count: usize,
 ) {
@@ -409,9 +409,43 @@ pub(super) fn vector_from_json(value: &serde_json::Value) -> Option<Vec<f32>> {
     let values = value.as_array()?;
     let mut out = Vec::with_capacity(values.len());
     for value in values {
-        out.push(value.as_f64()? as f32);
+        out.push(finite_f32(value.as_f64()?, "vector element").ok()?);
     }
     Some(out)
+}
+
+fn push_top_candidate(
+    top: &mut BinaryHeap<SqlVectorCandidate>,
+    candidate: SqlVectorCandidate,
+    top_needed: usize,
+) {
+    if top.len() < top_needed {
+        top.push(candidate);
+    } else if let Some(worst) = top.peek() {
+        if candidate.is_better_than(worst) {
+            top.pop();
+            top.push(candidate);
+        }
+    }
+}
+
+fn candidate_sort_value(direction: &SortDirection, score: f64) -> f64 {
+    match direction {
+        SortDirection::Asc => score,
+        SortDirection::Desc => -score,
+    }
+}
+
+fn finite_f32(value: f64, context: &str) -> Result<f32, QueryError> {
+    if !value.is_finite() || value < f64::from(f32::MIN) || value > f64::from(f32::MAX) {
+        return Err(QueryError::General(format!(
+            "{context} is outside f32 range"
+        )));
+    }
+    value
+        .to_string()
+        .parse::<f32>()
+        .map_err(|_| QueryError::General(format!("failed to parse {context} as f32")))
 }
 
 #[derive(Debug, Clone, PartialEq)]

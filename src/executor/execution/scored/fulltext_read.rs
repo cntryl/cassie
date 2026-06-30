@@ -1,5 +1,9 @@
 use super::super::projected_read::{is_row_id_column, json_to_query_value};
-use super::{filter, PostingListDocument, HashMap, Cassie, CassieSession, FulltextFilteredReadSpec, BatchRow, QueryError, Instant, batch, search_context_for_fields, analyzer_for_search_field, json_search_term_stats, cached_search_context, posting_list_candidate_ids, Value};
+use super::{
+    analyzer_for_search_field, batch, cached_search_context, filter, json_search_term_stats,
+    posting_list_candidate_ids, search_context_for_fields, BatchRow, Cassie, CassieSession,
+    FulltextFilteredReadSpec, HashMap, Instant, PostingListDocument, QueryError, Value,
+};
 
 struct TokenizedFulltextReadDocument {
     id: String,
@@ -22,10 +26,10 @@ impl PostingListDocument for TokenizedFulltextReadDocument {
 pub(super) fn execute_fulltext_filtered_read(
     cassie: &Cassie,
     session: Option<&CassieSession>,
-    spec: FulltextFilteredReadSpec,
+    spec: &FulltextFilteredReadSpec,
 ) -> Result<Vec<BatchRow>, QueryError> {
     let started_at = Instant::now();
-    let scan_fields = fulltext_filtered_scan_fields(&spec);
+    let scan_fields = fulltext_filtered_scan_fields(spec);
     let document_batches = cassie
         .scan_projected_documents_batched_for_session(
             session,

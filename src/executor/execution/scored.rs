@@ -1,4 +1,10 @@
-use super::{filter, HashMap, Cassie, CassieSession, BatchRow, QueryError, Instant, batch, Value, FunctionMeta, LogicalPlan, scan, BinaryHeap, SortDirection, QuerySource, SelectItem, FunctionCall, Expr, CmpOrdering, virtual_views, HashSet, AnalyzerConfig, query_cache, RowDecode, FulltextIndexOptions, load_fulltext_index_options, expr_key, CollectionSchema, DataType, BinaryOp};
+use super::{
+    batch, expr_key, filter, load_fulltext_index_options, query_cache, scan, virtual_views,
+    AnalyzerConfig, BatchRow, BinaryHeap, BinaryOp, Cassie, CassieSession, CmpOrdering,
+    CollectionSchema, DataType, Expr, FulltextIndexOptions, FunctionCall, FunctionMeta, HashMap,
+    HashSet, Instant, LogicalPlan, QueryError, QuerySource, RowDecode, SelectItem, SortDirection,
+    Value,
+};
 
 #[path = "scored/fulltext_read.rs"]
 mod fulltext_read;
@@ -19,10 +25,10 @@ pub(super) fn execute_scored_search_top_k(
     plan: &LogicalPlan,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     if let Some(spec) = fulltext_top_k_spec(plan) {
-        return execute_fulltext_top_k(cassie, spec).map(Some);
+        return execute_fulltext_top_k(cassie, &spec).map(Some);
     }
     if let Some(spec) = hybrid_top_k_spec(plan) {
-        return execute_hybrid_top_k(cassie, session, user_functions, params, spec);
+        return execute_hybrid_top_k(cassie, session, user_functions, params, &spec);
     }
     if let Some(spec) = fulltext_filtered_read_spec(plan) {
         if virtual_views::schema(&spec.collection).is_some()
@@ -30,7 +36,7 @@ pub(super) fn execute_scored_search_top_k(
         {
             return Ok(None);
         }
-        return execute_fulltext_filtered_read(cassie, session, spec).map(Some);
+        return execute_fulltext_filtered_read(cassie, session, &spec).map(Some);
     }
     Ok(None)
 }
@@ -155,7 +161,7 @@ where
 
 fn execute_fulltext_top_k(
     cassie: &Cassie,
-    spec: FulltextTopKSpec,
+    spec: &FulltextTopKSpec,
 ) -> Result<Vec<BatchRow>, QueryError> {
     let started_at = Instant::now();
     let adaptive = adaptive_candidate_decision(cassie, &spec.collection, spec.top_needed())?;
@@ -219,7 +225,7 @@ fn execute_fulltext_top_k(
     cassie
         .runtime
         .record_search_execution(started_at.elapsed(), candidate_count, rows.len());
-    record_adaptive_candidate_decision(cassie, adaptive, candidate_count, rows.len());
+    record_adaptive_candidate_decision(cassie, &adaptive, candidate_count, rows.len());
     Ok(rows)
 }
 
@@ -325,7 +331,7 @@ fn execute_hybrid_top_k(
     session: Option<&CassieSession>,
     user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
-    spec: HybridTopKSpec,
+    spec: &HybridTopKSpec,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let started_at = Instant::now();
     let adaptive = adaptive_candidate_decision(cassie, &spec.collection, spec.top_needed())?;
@@ -427,7 +433,7 @@ fn execute_hybrid_top_k(
     cassie
         .runtime
         .record_hybrid_execution(started_at.elapsed(), text_candidate_count, rows.len());
-    record_adaptive_candidate_decision(cassie, adaptive, text_candidate_count, rows.len());
+    record_adaptive_candidate_decision(cassie, &adaptive, text_candidate_count, rows.len());
     Ok(Some(rows))
 }
 

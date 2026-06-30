@@ -7,15 +7,33 @@ impl Cassie {
     /// Returns an error when validation, storage, or execution fails.
     pub fn hydrate_catalog(&self) -> Result<(), CassieError> {
         let started_at = Instant::now();
+        self.reset_catalog_hydration();
+        self.hydrate_namespaces();
+        self.hydrate_collections()?;
+        self.hydrate_projection_state()?;
+        self.hydrate_operational_metadata()?;
+        self.hydrate_collection_cardinality_stats()?;
+        self.hydrate_programmable_metadata()?;
+        self.hydrate_time_series_metadata()?;
+        self.hydrate_roles()?;
+        self.runtime.record_catalog_hydration(started_at.elapsed());
+        Ok(())
+    }
+
+    fn reset_catalog_hydration(&self) {
         self.catalog.clear();
         self.invalidate_plan_cache();
+    }
 
+    fn hydrate_namespaces(&self) {
         let namespaces = self.midge.list_namespaces();
         self.runtime.record_storage_access("schema", false, true);
         for namespace in namespaces {
             self.catalog.register_namespace(&namespace, None);
         }
+    }
 
+    fn hydrate_collections(&self) -> Result<(), CassieError> {
         let mut collections = self.midge.list_collections();
         self.runtime.record_storage_access("schema", false, true);
         if collections.is_empty() {
@@ -24,37 +42,44 @@ impl Cassie {
         }
 
         for name in collections {
-            self.runtime.record_storage_access("schema", false, true);
-            if let Some(schema) = self.midge.collection_schema(&name) {
-                let constraints = self.midge.load_constraints(&name).map_err(|error| {
-                    self.runtime.record_storage_access("schema", false, false);
-                    CassieError::Storage(format!(
-                        "load constraints for collection '{name}': {error}"
-                    ))
-                })?;
-                let metadata = self.midge.collection_metadata(&name).map_err(|error| {
-                    self.runtime.record_storage_access("schema", false, false);
-                    CassieError::Storage(format!("load collection metadata for '{name}': {error}"))
-                })?;
-                self.runtime.record_storage_access("schema", false, true);
-                self.catalog.register_collection_meta_with_constraints(
-                    metadata.unwrap_or_else(|| crate::catalog::CollectionMeta::new(&name, None)),
-                    schema
-                        .fields
-                        .into_iter()
-                        .map(|field| (field.name, field.data_type))
-                        .collect(),
-                    constraints,
-                );
-                let projection_metadata = self
-                    .midge
-                    .projection_metadata(&name)?
-                    .unwrap_or_else(|| crate::catalog::ProjectionMeta::new(&name, 1));
-                self.catalog
-                    .register_projection_metadata(projection_metadata);
-            }
+            self.hydrate_collection(&name)?;
         }
+        Ok(())
+    }
 
+    fn hydrate_collection(&self, name: &str) -> Result<(), CassieError> {
+        self.runtime.record_storage_access("schema", false, true);
+        let Some(schema) = self.midge.collection_schema(name) else {
+            return Ok(());
+        };
+        let constraints = self.midge.load_constraints(name).map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("load constraints for collection '{name}': {error}"))
+        })?;
+        let metadata = self.midge.collection_metadata(name).map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("load collection metadata for '{name}': {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        self.catalog.register_collection_meta_with_constraints(
+            metadata.unwrap_or_else(|| crate::catalog::CollectionMeta::new(name, None)),
+            schema
+                .fields
+                .into_iter()
+                .map(|field| (field.name, field.data_type))
+                .collect(),
+            constraints,
+        );
+        let projection_metadata = self
+            .midge
+            .projection_metadata(name)?
+            .unwrap_or_else(|| crate::catalog::ProjectionMeta::new(name, 1));
+        self.catalog
+            .register_projection_metadata(projection_metadata);
+        Ok(())
+    }
+
+    fn hydrate_projection_state(&self) -> Result<(), CassieError> {
         let projection_metadata = self.midge.list_projection_metadata().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list projection metadata: {error}"))
@@ -101,7 +126,10 @@ impl Cassie {
         for report in repair_reports {
             self.catalog.register_projection_repair_report(report);
         }
+        Ok(())
+    }
 
+    fn hydrate_operational_metadata(&self) -> Result<(), CassieError> {
         let assignments = self.midge.list_operational_assignments().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list operational assignments: {error}"))
@@ -147,11 +175,17 @@ impl Cassie {
         for sequence in sequences {
             self.catalog.register_sequence(sequence);
         }
+        Ok(())
+    }
 
+    fn hydrate_collection_cardinality_stats(&self) -> Result<(), CassieError> {
         for collection in self.catalog.list_collections() {
             self.hydrate_cardinality_stats(&collection.name)?;
         }
+        Ok(())
+    }
 
+    fn hydrate_programmable_metadata(&self) -> Result<(), CassieError> {
         let functions = self.midge.list_functions().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list functions: {error}"))
@@ -178,7 +212,10 @@ impl Cassie {
         for metadata in views {
             self.catalog.register_view(metadata);
         }
+        Ok(())
+    }
 
+    fn hydrate_time_series_metadata(&self) -> Result<(), CassieError> {
         let rollups = self.midge.list_rollups().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list rollups: {error}"))
@@ -196,9 +233,6 @@ impl Cassie {
         for metadata in retention_policies {
             self.catalog.register_retention_policy(metadata);
         }
-
-        self.hydrate_roles()?;
-        self.runtime.record_catalog_hydration(started_at.elapsed());
         Ok(())
     }
 

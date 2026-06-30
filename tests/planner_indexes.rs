@@ -81,7 +81,7 @@ fn should_select_scalar_index_for_equality_filter() {
             predicate: None,
             kind: cassie::catalog::IndexKind::Scalar,
             unique: false,
-            options: Default::default(),
+            options: std::collections::BTreeMap::default(),
         });
         let parsed =
             parser::parse_statement("SELECT body FROM planner_index_aware WHERE title = 'alpha'")

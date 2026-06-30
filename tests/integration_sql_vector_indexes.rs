@@ -13,6 +13,13 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 mod support;
 use support::*;
 
+fn assert_f64_close(actual: f64, expected: f64) {
+    assert!(
+        (actual - expected).abs() <= f64::EPSILON,
+        "expected {actual} to equal {expected}"
+    );
+}
+
 #[test]
 fn should_explain_vector_prefilter_for_indexed_equality_filter() {
     // Arrange
@@ -447,9 +454,9 @@ fn should_rebuild_normalized_vector_sidecars_after_sql_writes() {
         assert!(stored.payload_available);
         assert_eq!(stored.normalization_version, 1);
         assert_eq!(stored.values, vec![0.0, 0.0, 1.0]);
-        assert_eq!(stored.magnitude, 5.0);
+        assert_f64_close(stored.magnitude, 5.0);
         assert_eq!(rebuilt.values, stored.values);
-        assert_eq!(rebuilt.magnitude, stored.magnitude);
+        assert_f64_close(rebuilt.magnitude, stored.magnitude);
 
         let _ = std::fs::remove_dir_all(path);
     });

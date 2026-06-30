@@ -2,6 +2,7 @@
 
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::future::{ready, Ready};
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -26,44 +27,44 @@ use uuid::Uuid;
 
 use super::context::{BenchContext, QueryBreakdownMicros};
 
-pub async fn sql_binding(ctx: &BenchContext) -> usize {
+pub fn sql_binding(ctx: &BenchContext) -> Ready<usize> {
     let parsed =
         parse_statement("SELECT id, title FROM bench_documents WHERE score >= 10").expect("parse");
     let bound = binder::bind(parsed, &ctx.cassie.catalog).expect("bind");
     std::hint::black_box(bound);
-    1
+    ready(1)
 }
 
-pub async fn logical_planning(ctx: &BenchContext) -> usize {
+pub fn logical_planning(ctx: &BenchContext) -> Ready<usize> {
     let parsed =
         parse_statement("SELECT id, title FROM bench_documents WHERE score >= 10").expect("parse");
     let bound = binder::bind(parsed, &ctx.cassie.catalog).expect("bind");
     let plan = logical::plan(&bound).expect("logical plan");
     std::hint::black_box(plan);
-    1
+    ready(1)
 }
 
-pub async fn physical_planning(ctx: &BenchContext) -> usize {
+pub fn physical_planning(ctx: &BenchContext) -> Ready<usize> {
     let parsed =
         parse_statement("SELECT id, title FROM bench_documents WHERE score >= 10").expect("parse");
     let bound = binder::bind(parsed, &ctx.cassie.catalog).expect("bind");
     let logical = logical::plan(&bound).expect("logical plan");
     let physical = physical::build(logical);
     std::hint::black_box(physical);
-    1
+    ready(1)
 }
 
-pub async fn plan_cache_hit(ctx: &BenchContext) -> usize {
+pub fn plan_cache_hit(ctx: &BenchContext) -> Ready<usize> {
     let sql = "SELECT id, title FROM bench_documents WHERE score >= $1 LIMIT 20";
     let params = vec![Value::Int64(10)];
     let result = ctx
         .cassie
         .execute_sql(&ctx.session, sql, params)
         .expect("plan cache hit");
-    std::hint::black_box(result.rows.len())
+    ready(std::hint::black_box(result.rows.len()))
 }
 
-pub async fn plan_cache_miss(ctx: &BenchContext, nonce: usize) -> usize {
+pub fn plan_cache_miss(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
     let sql = format!(
         "SELECT id, title FROM bench_documents WHERE score >= 10 AND status IN ('approved', 'pending', 'miss-{nonce}') LIMIT 20"
     );
@@ -71,18 +72,18 @@ pub async fn plan_cache_miss(ctx: &BenchContext, nonce: usize) -> usize {
         .cassie
         .execute_sql(&ctx.session, &sql, vec![])
         .expect("plan cache miss");
-    std::hint::black_box(result.rows.len())
+    ready(std::hint::black_box(result.rows.len()))
 }
 
-pub async fn execute_sql(ctx: &BenchContext, sql: &str) -> usize {
+pub fn execute_sql(ctx: &BenchContext, sql: &str) -> Ready<usize> {
     let result = ctx
         .cassie
         .execute_sql(&ctx.session, sql, vec![])
         .expect("execute sql");
-    std::hint::black_box(result.rows.len())
+    ready(std::hint::black_box(result.rows.len()))
 }
 
-pub async fn simple_10k_query_breakdown(ctx: &BenchContext) -> QueryBreakdownMicros {
+pub fn simple_10k_query_breakdown(ctx: &BenchContext) -> Ready<QueryBreakdownMicros> {
     let sql = "SELECT id, title FROM bench_documents WHERE title = 'title-1'";
     let params = Vec::new();
 
@@ -134,22 +135,22 @@ pub async fn simple_10k_query_breakdown(ctx: &BenchContext) -> QueryBreakdownMic
     std::hint::black_box(total_result.rows.len());
     std::hint::black_box(encoded.len());
 
-    QueryBreakdownMicros {
-        parse_us,
-        bind_us,
-        plan_us,
-        cache_us,
-        execute_us,
-        scan_us: execution_breakdown.scan_us,
-        row_decode_us: execution_breakdown.row_decode_us,
-        filter_us: execution_breakdown.filter_us,
-        projection_us: execution_breakdown.projection_us,
-        sort_us: execution_breakdown.sort_us,
-        result_build_us: execution_breakdown.result_build_us,
-        stats_us: execution_breakdown.stats_us,
-        encode_us,
-        total_us: total_query_us.saturating_add(encode_us),
-    }
+    ready(QueryBreakdownMicros {
+        parse: parse_us,
+        bind: bind_us,
+        plan: plan_us,
+        cache: cache_us,
+        execute: execute_us,
+        scan: execution_breakdown.scan_us,
+        row_decode: execution_breakdown.row_decode_us,
+        filter: execution_breakdown.filter_us,
+        projection: execution_breakdown.projection_us,
+        sort: execution_breakdown.sort_us,
+        result_build: execution_breakdown.result_build_us,
+        stats: execution_breakdown.stats_us,
+        encode: encode_us,
+        total: total_query_us.saturating_add(encode_us),
+    })
 }
 
 fn micros(duration: Duration) -> u64 {

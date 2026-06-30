@@ -1,10 +1,16 @@
 #![allow(unused_imports, dead_code)]
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
+
+type WireFrame = (u8, Vec<u8>);
+type PgwireReader<'a> = tokio::io::BufReader<tokio::net::tcp::ReadHalf<'a>>;
+type PgwireWriter<'a> = tokio::net::tcp::WriteHalf<'a>;
+type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 
 fn with_fallback() {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
@@ -305,6 +311,131 @@ fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
     fields
 }
 
+fn seed_close_cascade_collection(cassie: &Cassie) {
+    let collection = "extended_query_close_docs";
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .unwrap();
+    cassie.register_collection(collection, schema);
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("doc-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .unwrap();
+}
+
+async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.password.clear();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind listener");
+    let addr = listener.local_addr().expect("listener address");
+    drop(listener);
+
+    let server = tokio::spawn(cassie::pgwire::server::run(
+        addr.to_string(),
+        std::sync::Arc::new(cassie.clone()),
+        config,
+    ));
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    (addr, server)
+}
+
+async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {
+    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "testdb"))
+        .await
+        .expect("write startup");
+    let auth = read_wire_frame(reader).await;
+    assert_eq!(auth.0, b'R', "startup should return an auth response");
+    let startup_ready = read_until_ready(reader).await;
+    assert_eq!(startup_ready, vec![b'I']);
+}
+
+async fn write_close_cascade_batch(writer: &mut PgwireWriter<'_>) {
+    tokio::io::AsyncWriteExt::write_all(
+        writer,
+        &parse_frame(
+            "stmt_close_cascade",
+            "SELECT title FROM extended_query_close_docs WHERE title = $1 ORDER BY title",
+        ),
+    )
+    .await
+    .expect("write parse");
+    tokio::io::AsyncWriteExt::write_all(
+        writer,
+        &bind_frame("portal_close_cascade", "stmt_close_cascade", &["alpha"]),
+    )
+    .await
+    .expect("write bind");
+    tokio::io::AsyncWriteExt::write_all(writer, &close_frame(b'S', "stmt_close_cascade"))
+        .await
+        .expect("write statement close");
+    tokio::io::AsyncWriteExt::write_all(writer, &execute_frame("portal_close_cascade"))
+        .await
+        .expect("write execute");
+    tokio::io::AsyncWriteExt::write_all(writer, &sync_frame())
+        .await
+        .expect("write sync");
+    tokio::io::AsyncWriteExt::flush(writer)
+        .await
+        .expect("flush close batch");
+}
+
+async fn read_ready_frames(reader: &mut PgwireReader<'_>) -> Vec<WireFrame> {
+    let mut frames = Vec::new();
+    loop {
+        let frame = read_wire_frame(reader).await;
+        let tag = frame.0;
+        frames.push(frame);
+        if tag == b'Z' {
+            return frames;
+        }
+    }
+}
+
+fn assert_close_cascade_frames(frames: &[WireFrame], cassie: &Cassie) {
+    assert_eq!(
+        frames.len(),
+        5,
+        "statement close should remove dependent portals before execute"
+    );
+    assert_eq!(frames[0].0, b'1');
+    assert_eq!(frames[1].0, b'2');
+    assert_eq!(frames[2].0, b'3');
+    assert_eq!(frames[3].0, b'E');
+    assert_eq!(frames[4].0, b'Z');
+    assert_eq!(frames[4].1, vec![b'I']);
+
+    let error_fields = parse_error_fields(&frames[3].1);
+    assert!(
+        error_fields
+            .iter()
+            .any(|(field, value)| *field == 'M' && value.contains("portal")),
+        "execute after statement close should fail because the portal was removed"
+    );
+    assert!(
+        error_fields
+            .iter()
+            .any(|(field, value)| *field == 'M' && value.contains("not bound")),
+        "execute after statement close should mention the missing portal"
+    );
+    let metrics = cassie.metrics();
+    assert_eq!(metrics["pgwire"]["prepared_statements"].as_u64(), Some(0));
+    assert_eq!(metrics["pgwire"]["portals"].as_u64(), Some(0));
+}
+
 #[test]
 fn should_close_statement_cascade_referenced_portals_before_reuse() {
     // Arrange
@@ -318,44 +449,9 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
+        seed_close_cascade_collection(&cassie);
 
-        let collection = "extended_query_close_docs";
-        let schema = Schema {
-            fields: vec![FieldSchema {
-                name: "title".to_string(),
-                data_type: DataType::Text,
-                nullable: true,
-            }],
-        };
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie.register_collection(collection, schema);
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-1".to_string()),
-                serde_json::json!({"title": "alpha"}),
-            )
-            .unwrap();
-
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind listener");
-        let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
-            std::sync::Arc::new(cassie.clone()),
-            config,
-        ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
+        let (addr, server) = spawn_pgwire_server(&cassie).await;
         let mut socket = tokio::net::TcpStream::connect(addr)
             .await
             .expect("connect pgwire");
@@ -363,87 +459,12 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
         let mut reader = tokio::io::BufReader::new(read_half);
 
         // Act
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
-            .await
-            .expect("write startup");
-        let auth = read_wire_frame(&mut reader).await;
-        assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_until_ready(&mut reader).await;
-        assert_eq!(startup_ready, vec![b'I']);
-
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &parse_frame(
-                "stmt_close_cascade",
-                "SELECT title FROM extended_query_close_docs WHERE title = $1 ORDER BY title",
-            ),
-        )
-        .await
-        .expect("write parse");
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &bind_frame("portal_close_cascade", "stmt_close_cascade", &["alpha"]),
-        )
-        .await
-        .expect("write bind");
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &close_frame(b'S', "stmt_close_cascade"),
-        )
-        .await
-        .expect("write statement close");
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &execute_frame("portal_close_cascade"),
-        )
-        .await
-        .expect("write execute");
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &sync_frame())
-            .await
-            .expect("write sync");
-        tokio::io::AsyncWriteExt::flush(&mut write_half)
-            .await
-            .expect("flush close batch");
-
-        let mut frames = Vec::new();
-        loop {
-            let frame = read_wire_frame(&mut reader).await;
-            let tag = frame.0;
-            frames.push(frame);
-            if tag == b'Z' {
-                break;
-            }
-        }
+        start_pgwire_session(&mut reader, &mut write_half).await;
+        write_close_cascade_batch(&mut write_half).await;
+        let frames = read_ready_frames(&mut reader).await;
 
         // Assert
-        assert_eq!(
-            frames.len(),
-            5,
-            "statement close should remove dependent portals before execute"
-        );
-        assert_eq!(frames[0].0, b'1');
-        assert_eq!(frames[1].0, b'2');
-        assert_eq!(frames[2].0, b'3');
-        assert_eq!(frames[3].0, b'E');
-        assert_eq!(frames[4].0, b'Z');
-        assert_eq!(frames[4].1, vec![b'I']);
-
-        let error_fields = parse_error_fields(&frames[3].1);
-        assert!(
-            error_fields
-                .iter()
-                .any(|(field, value)| *field == 'M' && value.contains("portal")),
-            "execute after statement close should fail because the portal was removed"
-        );
-        assert!(
-            error_fields
-                .iter()
-                .any(|(field, value)| *field == 'M' && value.contains("not bound")),
-            "execute after statement close should mention the missing portal"
-        );
-        let metrics = cassie.metrics();
-        assert_eq!(metrics["pgwire"]["prepared_statements"].as_u64(), Some(0));
-        assert_eq!(metrics["pgwire"]["portals"].as_u64(), Some(0));
+        assert_close_cascade_frames(&frames, &cassie);
 
         drop(socket);
         server.abort();

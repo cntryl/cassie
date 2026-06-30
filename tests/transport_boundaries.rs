@@ -1,7 +1,13 @@
+use std::net::SocketAddr;
+
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
+
+type PgwireReader<'a> = tokio::io::BufReader<tokio::net::tcp::ReadHalf<'a>>;
+type PgwireWriter<'a> = tokio::net::tcp::WriteHalf<'a>;
+type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 
 fn with_fallback() {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
@@ -115,6 +121,125 @@ fn read_boundary_counter(
     metrics[interface][kind][op].as_u64().unwrap_or_default()
 }
 
+fn seed_transport_boundary_docs(cassie: &Cassie) {
+    let collection = "transport_boundary_docs";
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .unwrap();
+    cassie.register_collection(collection, schema);
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("doc-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .unwrap();
+}
+
+async fn spawn_pgwire_boundary_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.password.clear();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind listener");
+    let addr = listener.local_addr().expect("listener address");
+    drop(listener);
+
+    let server = tokio::spawn(cassie::pgwire::server::run(
+        addr.to_string(),
+        std::sync::Arc::new(cassie.clone()),
+        config,
+    ));
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    (addr, server)
+}
+
+async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {
+    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "testdb"))
+        .await
+        .expect("startup write");
+    let _auth_frame = read_auth_frame(reader).await;
+    let _ready = read_until_ready(reader).await;
+}
+
+async fn run_pgwire_boundary_query(addr: SocketAddr) {
+    let mut socket = tokio::net::TcpStream::connect(addr)
+        .await
+        .expect("connect pgwire");
+    let (read_half, mut write_half) = socket.split();
+    let mut reader = tokio::io::BufReader::new(read_half);
+    start_pgwire_session(&mut reader, &mut write_half).await;
+
+    tokio::io::AsyncWriteExt::write_all(
+        &mut write_half,
+        &simple_query_frame("SELECT title FROM transport_boundary_docs ORDER BY title"),
+    )
+    .await
+    .expect("simple query write");
+    tokio::io::AsyncWriteExt::flush(&mut write_half)
+        .await
+        .expect("flush query");
+
+    loop {
+        let frame = read_wire_frame(&mut reader).await;
+        if frame.0 == b'Z' {
+            break;
+        }
+    }
+}
+
+fn assert_pgwire_boundary_metrics(metrics: &serde_json::Value) {
+    let started = read_boundary_counter(
+        metrics,
+        "pgwire",
+        "blocking_started_total",
+        "pgwire_simple_query",
+    );
+    let completed = read_boundary_counter(
+        metrics,
+        "pgwire",
+        "blocking_completed_total",
+        "pgwire_simple_query",
+    );
+    let errors = read_boundary_counter(
+        metrics,
+        "pgwire",
+        "blocking_error_total",
+        "pgwire_simple_query",
+    );
+    let join_failed = read_boundary_counter(
+        metrics,
+        "pgwire",
+        "blocking_join_failed_total",
+        "pgwire_simple_query",
+    );
+    assert_eq!(
+        metrics["pgwire"]["simple_queries_total"]
+            .as_u64()
+            .unwrap_or_default(),
+        1
+    );
+    assert_eq!(started, 1);
+    assert_eq!(completed, 1);
+    assert_eq!(errors, 0);
+    assert_eq!(join_failed, 0);
+    assert!(
+        metrics["pgwire"]["blocking_elapsed_ms_total"]
+            .get("pgwire_simple_query")
+            .is_some(),
+        "elapsed metric should be present"
+    );
+}
+
 #[test]
 fn should_record_pgwire_blocking_boundary_metrics_for_simple_query() {
     // Arrange
@@ -129,119 +254,16 @@ fn should_record_pgwire_blocking_boundary_metrics_for_simple_query() {
         std::env::set_var("CASSIE_ADMIN_PASSWORD", "route-password");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
-
-        let collection = "transport_boundary_docs";
-        let schema = Schema {
-            fields: vec![FieldSchema {
-                name: "title".to_string(),
-                data_type: DataType::Text,
-                nullable: true,
-            }],
-        };
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie.register_collection(collection, schema);
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-1".to_string()),
-                serde_json::json!({"title": "alpha"}),
-            )
-            .unwrap();
-
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind listener");
-        let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
-            std::sync::Arc::new(cassie.clone()),
-            config,
-        ));
-
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-
-        let mut socket = tokio::net::TcpStream::connect(addr)
-            .await
-            .expect("connect pgwire");
-        let (read_half, mut write_half) = socket.split();
-        let mut reader = tokio::io::BufReader::new(read_half);
+        seed_transport_boundary_docs(&cassie);
+        let (addr, server) = spawn_pgwire_boundary_server(&cassie).await;
 
         // Act
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
-            .await
-            .expect("startup write");
-        let _auth_frame = read_auth_frame(&mut reader).await;
-        let _ready = read_until_ready(&mut reader).await;
-
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &simple_query_frame("SELECT title FROM transport_boundary_docs ORDER BY title"),
-        )
-        .await
-        .expect("simple query write");
-        tokio::io::AsyncWriteExt::flush(&mut write_half)
-            .await
-            .expect("flush query");
-
-        loop {
-            let frame = read_wire_frame(&mut reader).await;
-            if frame.0 == b'Z' {
-                break;
-            }
-        }
+        run_pgwire_boundary_query(addr).await;
 
         // Assert
         let metrics = cassie.metrics();
-        let started = read_boundary_counter(
-            &metrics,
-            "pgwire",
-            "blocking_started_total",
-            "pgwire_simple_query",
-        );
-        let completed = read_boundary_counter(
-            &metrics,
-            "pgwire",
-            "blocking_completed_total",
-            "pgwire_simple_query",
-        );
-        let errors = read_boundary_counter(
-            &metrics,
-            "pgwire",
-            "blocking_error_total",
-            "pgwire_simple_query",
-        );
-        let join_failed = read_boundary_counter(
-            &metrics,
-            "pgwire",
-            "blocking_join_failed_total",
-            "pgwire_simple_query",
-        );
-        assert_eq!(
-            metrics["pgwire"]["simple_queries_total"]
-                .as_u64()
-                .unwrap_or_default(),
-            1
-        );
-        assert_eq!(started, 1);
-        assert_eq!(completed, 1);
-        assert_eq!(errors, 0);
-        assert_eq!(join_failed, 0);
-        assert!(
-            metrics["pgwire"]["blocking_elapsed_ms_total"]
-                .get("pgwire_simple_query")
-                .is_some(),
-            "elapsed metric should be present"
-        );
+        assert_pgwire_boundary_metrics(&metrics);
 
-        drop(socket);
         server.abort();
         let _ = server.await;
         let _ = std::fs::remove_dir_all(path);

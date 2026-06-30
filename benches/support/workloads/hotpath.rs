@@ -25,7 +25,7 @@ use cntryl_lexkey::Encoder;
 use serde_json::json;
 use uuid::Uuid;
 
-use super::context::{BenchContext, QueryBreakdownMicros};
+use super::context::{usize_to_f32, BenchContext, QueryBreakdownMicros};
 
 pub fn row_encode_decode() -> usize {
     let encoded = serde_json::to_vec(&json!({"id":"doc-1","title":"alpha"})).expect("encode row");
@@ -46,8 +46,8 @@ pub fn key_encode_decode() -> usize {
     let mut reencoder = Encoder::with_capacity(prefix.len() + decoded.len());
     reencoder.encode_bytes_into(&prefix);
     reencoder.encode_string_into(decoded);
-    let reencoded = reencoder.into_vec();
-    std::hint::black_box(reencoded);
+    let encoded_again = reencoder.into_vec();
+    std::hint::black_box(encoded_again);
     1
 }
 
@@ -200,9 +200,10 @@ pub fn l2_distance() -> usize {
 pub fn hnsw_candidate_search() -> usize {
     let candidates = (0..128)
         .map(|index| {
+            let component = usize_to_f32(index) / 128.0;
             (
                 format!("doc-{index}"),
-                vec![index as f32 / 128.0, 1.0 - (index as f32 / 128.0), 0.5],
+                vec![component, 1.0 - component, 0.5],
             )
         })
         .collect::<Vec<_>>();

@@ -17,17 +17,7 @@ use uuid::Uuid;
 mod support;
 use support::*;
 
-#[test]
-fn should_execute_query_with_alias_filters() {
-    // Arrange
-    // Act
-    // Assert
-    with_fallback();
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-exec-{}", Uuid::new_v4()));
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    let collection = "exec_docs_alias";
-
+fn seed_alias_query_docs(cassie: &Cassie, collection: &str) {
     let schema = Schema {
         fields: vec![
             FieldSchema {
@@ -61,53 +51,27 @@ fn should_execute_query_with_alias_filters() {
             .collect(),
     );
 
-    cassie
-        .midge
-        .put_document(
-            collection,
-            None,
-            serde_json::json!({
-                "title": "alpha",
-                "body": "world news",
-                "embedding": [1.0, 2.0],
-            }),
-        )
-        .unwrap();
-    cassie
-        .midge
-        .put_document(
-            collection,
-            None,
-            serde_json::json!({
-                "title": "beta",
-                "body": "world peace",
-                "embedding": [0.5, 1.5],
-            }),
-        )
-        .unwrap();
-    cassie
-        .midge
-        .put_document(
-            collection,
-            None,
-            serde_json::json!({
-                "title": "gamma",
-                "body": "misc",
-                "embedding": [2.0, 0.5],
-            }),
-        )
-        .unwrap();
+    for (title, body, embedding) in [
+        ("alpha", "world news", [1.0, 2.0]),
+        ("beta", "world peace", [0.5, 1.5]),
+        ("gamma", "misc", [2.0, 0.5]),
+    ] {
+        cassie
+            .midge
+            .put_document(
+                collection,
+                None,
+                serde_json::json!({
+                    "title": title,
+                    "body": body,
+                    "embedding": embedding,
+                }),
+            )
+            .unwrap();
+    }
+}
 
-    let session = cassie.create_session("tester", None);
-    let result = cassie
-        .execute_sql(
-            &session,
-            "SELECT title AS title_out, search_score(body, 'world') AS score FROM exec_docs_alias WHERE body LIKE '%world%' OR title = 'gamma' ORDER BY score DESC, id ASC LIMIT 2",
-            vec![],
-        )
-
-.expect("query should execute");
-
+fn assert_alias_query_result(result: executor::QueryResult) {
     assert_eq!(result.columns[0].name, "title_out");
     assert_eq!(result.columns[1].name, "score");
     assert_eq!(result.rows.len(), 2);
@@ -118,6 +82,37 @@ fn should_execute_query_with_alias_filters() {
             _ => panic!("expected float score"),
         }
     }
+}
+
+fn assert_parameterized_alias_result(result: &executor::QueryResult) {
+    assert_eq!(result.rows.len(), 1);
+    match &result.rows[0][0] {
+        Value::String(value) => assert_eq!(value, "alpha"),
+        _ => panic!("expected string in first column"),
+    }
+}
+
+#[test]
+fn should_execute_query_with_alias_filters() {
+    // Arrange
+    // Act
+    // Assert
+    with_fallback();
+    let mut path = std::env::temp_dir();
+    path.push(format!("cassie-exec-{}", Uuid::new_v4()));
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let collection = "exec_docs_alias";
+    seed_alias_query_docs(&cassie, collection);
+
+    let session = cassie.create_session("tester", None);
+    let result = cassie
+        .execute_sql(
+            &session,
+            "SELECT title AS title_out, search_score(body, 'world') AS score FROM exec_docs_alias WHERE body LIKE '%world%' OR title = 'gamma' ORDER BY score DESC, id ASC LIMIT 2",
+            vec![],
+        )
+        .expect("query should execute");
+    assert_alias_query_result(result);
 
     let params = vec![Value::String("alpha".to_string())];
     let parsed =
@@ -130,12 +125,7 @@ fn should_execute_query_with_alias_filters() {
             params,
         )
         .expect("parameterized query should run");
-
-    assert_eq!(param_result.rows.len(), 1);
-    match &param_result.rows[0][0] {
-        Value::String(value) => assert_eq!(value, "alpha"),
-        _ => panic!("expected string in first column"),
-    }
+    assert_parameterized_alias_result(&param_result);
     let _ = std::fs::remove_dir_all(path);
 }
 

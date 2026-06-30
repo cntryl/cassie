@@ -42,13 +42,13 @@ fn register_scalar_index(catalog: &Catalog, collection: &str, name: &str, fields
     });
 }
 
-fn register_expression_index(catalog: &Catalog, collection: &str, name: &str, expression: Expr) {
+fn register_expression_index(catalog: &Catalog, collection: &str, name: &str, expression: &Expr) {
     catalog.register_index(IndexMeta {
         collection: collection.to_string(),
         name: name.to_string(),
         field: String::new(),
         fields: Vec::new(),
-        expressions: vec![serde_json::to_string(&expression).unwrap()],
+        expressions: vec![serde_json::to_string(expression).unwrap()],
         include_fields: Vec::new(),
         predicate: None,
         kind: IndexKind::Scalar,
@@ -230,7 +230,7 @@ fn should_lower_expression_equality_to_scalar_index_seek() {
         &catalog,
         "planner_expression_index_seek",
         "planner_expression_index_seek_idx",
-        expression,
+        &expression,
     );
 
     // Act
@@ -281,7 +281,7 @@ fn should_lower_expression_range_to_scalar_index_range_scan() {
         &catalog,
         "planner_expression_index_range",
         "planner_expression_index_range_idx",
-        expression,
+        &expression,
     );
 
     // Act
@@ -333,7 +333,7 @@ fn should_lower_expression_order_limit_to_ordered_bounded_scan() {
         &catalog,
         "planner_expression_index_order",
         "planner_expression_index_order_idx",
-        expression,
+        &expression,
     );
 
     // Act

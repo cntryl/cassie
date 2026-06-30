@@ -19,6 +19,14 @@ use support::*;
 
 const PARALLEL_ROW_COUNT: usize = 1025;
 
+fn parallel_row_count_i64() -> i64 {
+    i64::try_from(PARALLEL_ROW_COUNT).expect("parallel row count should fit i64")
+}
+
+fn usize_to_i64(value: usize) -> i64 {
+    i64::try_from(value).expect("test row count should fit i64")
+}
+
 fn create_registered_collection(cassie: &Cassie, collection: &str, fields: &[(&str, DataType)]) {
     let schema = Schema {
         fields: fields
@@ -452,7 +460,7 @@ fn should_execute_ungrouped_parallel_aggregates_with_nulls() {
         );
         let non_null_rows = (0..PARALLEL_ROW_COUNT)
             .filter(|index| index % 10 != 0)
-            .count() as i64;
+            .count();
 
         // Act
         let result = cassie
@@ -468,9 +476,9 @@ fn should_execute_ungrouped_parallel_aggregates_with_nulls() {
         assert_eq!(
             result.rows,
             vec![vec![
-                Value::Int64(PARALLEL_ROW_COUNT as i64),
-                Value::Int64(non_null_rows),
-                Value::Int64(non_null_rows),
+                Value::Int64(parallel_row_count_i64()),
+                Value::Int64(usize_to_i64(non_null_rows)),
+                Value::Int64(usize_to_i64(non_null_rows)),
                 Value::Float64(1.0),
                 Value::Int64(1),
                 Value::Int64(1),
@@ -709,7 +717,7 @@ fn should_fallback_parallel_aggregation_for_user_defined_function() {
         // Assert
         assert_eq!(
             result.rows,
-            vec![vec![Value::Int64(PARALLEL_ROW_COUNT as i64)]]
+            vec![vec![Value::Int64(parallel_row_count_i64())]]
         );
         assert_eq!(
             metrics["parallel_aggregation"]["aggregations"].as_u64(),

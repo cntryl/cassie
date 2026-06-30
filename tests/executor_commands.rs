@@ -5,7 +5,10 @@ use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntime
 use cassie::embeddings::{openai::OpenAiConfig, DistanceMetric, DEFAULT_EMBEDDING_MODEL};
 use cassie::executor;
 use cassie::planner::logical::LogicalPlan;
-use cassie::planner::physical::PhysicalPlan;
+use cassie::planner::physical::{
+    AdaptivePlanDiagnostics, OperatorFeedbackPlanDiagnostics, PhysicalAggregatePlan,
+    PhysicalJoinPlan, PhysicalPlan, PhysicalTopKPlan, PlanEstimates,
+};
 use cassie::sql::ast::{Expr, FunctionCall, QuerySource, SelectItem};
 use cassie::sql::binder;
 use cassie::sql::parser;
@@ -248,18 +251,18 @@ fn should_fail_unknown_function_during_execution() {
         let physical = PhysicalPlan {
             collection: logical.collection.clone(),
             operators: vec![cassie::planner::physical::Operator::Project],
-            estimates: Default::default(),
-            operator_feedback: Default::default(),
-            adaptive_plan: Default::default(),
+            estimates: PlanEstimates::default(),
+            operator_feedback: OperatorFeedbackPlanDiagnostics::default(),
+            adaptive_plan: AdaptivePlanDiagnostics::default(),
             read: cassie::planner::physical::PhysicalReadPlan {
                 access_path: cassie::planner::physical::ReadAccessPath::CollectionScan,
                 access_path_reason: "command-path".to_string(),
                 fallback_reason: Some("command".to_string()),
                 ..Default::default()
             },
-            top_k: Default::default(),
-            join: Default::default(),
-            aggregate: Default::default(),
+            top_k: PhysicalTopKPlan::default(),
+            join: PhysicalJoinPlan::default(),
+            aggregate: PhysicalAggregatePlan::default(),
             projection: cassie::planner::physical::PhysicalProjectionPlan {
                 shape: cassie::planner::physical::ProjectionShape::Other,
             },

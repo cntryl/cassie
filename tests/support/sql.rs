@@ -46,7 +46,7 @@ pub fn put_legacy_document(
     cassie: &Cassie,
     collection: &str,
     id: &str,
-    payload: serde_json::Value,
+    payload: &serde_json::Value,
 ) {
     let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
     tx.put(

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::catalog::{RollupAggregateMeta, RollupMeta, RollupState};
-use crate::executor::batch::{self, BatchRow};
+use crate::executor::batch::{self, Batch, BatchRow};
 use crate::sql::ast::{Expr, FunctionCall, QuerySource, SelectItem};
 use crate::types::{DataType, FieldSchema, Schema, Value};
 
@@ -310,6 +310,40 @@ fn build_rollup_rows(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<BatchRow>, QueryError> {
+    let plan = build_rollup_refresh_plan(meta)?;
+    let (batches, search_context) =
+        read_rollup_source_batches(cassie, &plan, user_functions, controls)?;
+    let batches = materialize_rollup_batches(
+        cassie,
+        batches,
+        &plan,
+        search_context.as_ref(),
+        user_functions,
+        controls,
+    )?;
+    Ok(batch::flatten_batches(batches))
+}
+
+fn build_rollup_refresh_plan(meta: &RollupMeta) -> Result<LogicalPlan, QueryError> {
+    Ok(LogicalPlan {
+        command: None,
+        source: QuerySource::Collection(meta.source_collection.clone()),
+        collection: meta.source_collection.clone(),
+        ctes: Vec::new(),
+        distinct: false,
+        distinct_on: Vec::new(),
+        projection: rollup_projection(meta)?,
+        filter: rollup_filter(meta)?,
+        group_by: rollup_group_by(meta)?,
+        having: None,
+        order: Vec::new(),
+        limit: None,
+        offset: None,
+        set: None,
+    })
+}
+
+fn rollup_projection(meta: &RollupMeta) -> Result<Vec<SelectItem>, QueryError> {
     let mut projection = Vec::new();
     projection.push(SelectItem::Expr {
         expr: crate::sql::parser::parse_expression(&meta.bucket_expr)
@@ -331,37 +365,32 @@ fn build_rollup_rows(
             alias: Some(aggregate.alias.clone()),
         });
     }
+    Ok(projection)
+}
 
-    let group_by = std::iter::once(
+fn rollup_group_by(meta: &RollupMeta) -> Result<Vec<Expr>, QueryError> {
+    Ok(std::iter::once(
         crate::sql::parser::parse_expression(&meta.bucket_expr)
             .map_err(|error| QueryError::General(error.0))?,
     )
     .chain(meta.group_keys.iter().map(|key| Expr::Column(key.clone())))
-    .collect::<Vec<_>>();
-    let filter = meta
-        .filter_expr
+    .collect::<Vec<_>>())
+}
+
+fn rollup_filter(meta: &RollupMeta) -> Result<Option<Expr>, QueryError> {
+    meta.filter_expr
         .as_ref()
         .map(|raw| crate::sql::parser::parse_expression(raw))
         .transpose()
-        .map_err(|error| QueryError::General(error.0))?;
+        .map_err(|error| QueryError::General(error.0))
+}
 
-    let plan = LogicalPlan {
-        command: None,
-        source: QuerySource::Collection(meta.source_collection.clone()),
-        collection: meta.source_collection.clone(),
-        ctes: Vec::new(),
-        distinct: false,
-        distinct_on: Vec::new(),
-        projection,
-        filter,
-        group_by,
-        having: None,
-        order: Vec::new(),
-        limit: None,
-        offset: None,
-        set: None,
-    };
-
+fn read_rollup_source_batches(
+    cassie: &Cassie,
+    plan: &LogicalPlan,
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<(Vec<Batch>, Option<filter::SearchContext>), QueryError> {
     let env = super::source::SourceExecutionEnv {
         cassie,
         session: None,
@@ -369,7 +398,7 @@ fn build_rollup_rows(
         params: &[],
         controls,
     };
-    let (mut batches, text_fields) = super::source::execute_query_source(
+    let (batches, text_fields) = super::source::execute_query_source(
         &env,
         &plan.source,
         &mut HashMap::new(),
@@ -390,7 +419,7 @@ fn build_rollup_rows(
         ))
     };
     if let Some(filter_expr) = &plan.filter {
-        batches = filter::filter_batches(
+        let filtered = filter::filter_batches(
             batches,
             filter_expr,
             &[],
@@ -398,28 +427,39 @@ fn build_rollup_rows(
             user_functions,
             None,
         )?;
+        return Ok((filtered, search_context));
     }
-    batches = aggregate_exec::aggregate_query_batches(
+    Ok((batches, search_context))
+}
+
+fn materialize_rollup_batches(
+    cassie: &Cassie,
+    batches: Vec<Batch>,
+    plan: &LogicalPlan,
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<Batch>, QueryError> {
+    let batches = aggregate_exec::aggregate_query_batches(
         cassie,
         batches,
         &aggregate_exec::AggregateExecutionContext {
-            plan: &plan,
+            plan,
             params: &[],
-            search_context: search_context.as_ref(),
+            search_context,
             user_functions,
             session: None,
             controls,
         },
     )?;
-    batches = projection::project_batches(
+    projection::project_batches(
         batches,
         &plan.projection,
         &[],
-        search_context.as_ref(),
+        search_context,
         user_functions,
         None,
-    )?;
-    Ok(batch::flatten_batches(batches))
+    )
 }
 
 fn replace_rollup_rows(

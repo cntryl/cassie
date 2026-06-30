@@ -1,5 +1,5 @@
 #![allow(unused_imports, dead_code)]
-use cassie::app::Cassie;
+use cassie::app::{Cassie, CassieSession};
 use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
 use cassie::embeddings::{
     openai::OpenAiConfig, DistanceMetric, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
@@ -13,6 +13,48 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 #[path = "support/sql.rs"]
 mod support;
 use support::*;
+
+fn seed_column_store_projection_crud(cassie: &Cassie, session: &CassieSession) {
+    for sql in [
+        "CREATE TABLE sql_column_store_projection_crud (doc_id TEXT, title TEXT, summary TEXT, score INT) WITH (storage = column_store)",
+        "INSERT INTO sql_column_store_projection_crud (doc_id, title, summary, score) VALUES ('d1', 'alpha', NULL, 10)",
+        "INSERT INTO sql_column_store_projection_crud (doc_id, title, score) VALUES ('d2', 'beta', 20)",
+    ] {
+        cassie.execute_sql(session, sql, vec![]).unwrap();
+    }
+}
+
+fn assert_column_store_before_rows(result: &cassie::executor::QueryResult) {
+    assert_eq!(
+        result.rows,
+        vec![
+            vec![
+                Value::String("d1".to_string()),
+                Value::String("alpha".to_string()),
+                Value::Null,
+                Value::Int64(10),
+            ],
+            vec![
+                Value::String("d2".to_string()),
+                Value::String("beta".to_string()),
+                Value::Null,
+                Value::Int64(20),
+            ],
+        ]
+    );
+}
+
+fn assert_column_store_after_rows(result: &cassie::executor::QueryResult) {
+    assert_eq!(
+        result.rows,
+        vec![vec![
+            Value::String("d2".to_string()),
+            Value::String("beta".to_string()),
+            Value::String("filled".to_string()),
+            Value::Int64(20),
+        ]]
+    );
+}
 
 fn adaptive_execution_config() -> CassieRuntimeConfig {
     let mut config = CassieRuntimeConfig::default();
@@ -511,27 +553,7 @@ fn should_execute_projected_crud_queries_against_column_store_tables() {
         let session = cassie.create_session("tester", None);
         let collection = "sql_column_store_projection_crud";
 
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE sql_column_store_projection_crud (doc_id TEXT, title TEXT, summary TEXT, score INT) WITH (storage = column_store)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO sql_column_store_projection_crud (doc_id, title, summary, score) VALUES ('d1', 'alpha', NULL, 10)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO sql_column_store_projection_crud (doc_id, title, score) VALUES ('d2', 'beta', 20)",
-                vec![],
-            )
-            .unwrap();
+        seed_column_store_projection_crud(&cassie, &session);
 
         // Act
         let before = cassie
@@ -572,23 +594,7 @@ fn should_execute_projected_crud_queries_against_column_store_tables() {
             .unwrap();
 
         // Assert
-        assert_eq!(
-            before.rows,
-            vec![
-                vec![
-                    Value::String("d1".to_string()),
-                    Value::String("alpha".to_string()),
-                    Value::Null,
-                    Value::Int64(10),
-                ],
-                vec![
-                    Value::String("d2".to_string()),
-                    Value::String("beta".to_string()),
-                    Value::Null,
-                    Value::Int64(20),
-                ],
-            ]
-        );
+        assert_column_store_before_rows(&before);
         let explicit_null = documents
             .iter()
             .find(|document| {
@@ -610,15 +616,7 @@ fn should_execute_projected_crud_queries_against_column_store_tables() {
         let plan = explain_plan_text(&explain);
         assert_explain_contains(plan, "storage_mode", "column-store");
 
-        assert_eq!(
-            after.rows,
-            vec![vec![
-                Value::String("d2".to_string()),
-                Value::String("beta".to_string()),
-                Value::String("filled".to_string()),
-                Value::Int64(20),
-            ]]
-        );
+        assert_column_store_after_rows(&after);
 
         let _ = std::fs::remove_dir_all(path);
     });

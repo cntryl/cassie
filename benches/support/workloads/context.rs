@@ -2,6 +2,8 @@
 
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::fmt::Write as _;
+use std::future::{ready, Ready};
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -36,20 +38,34 @@ pub struct BenchContext {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct QueryBreakdownMicros {
-    pub parse_us: u64,
-    pub bind_us: u64,
-    pub plan_us: u64,
-    pub cache_us: u64,
-    pub execute_us: u64,
-    pub scan_us: u64,
-    pub row_decode_us: u64,
-    pub filter_us: u64,
-    pub projection_us: u64,
-    pub sort_us: u64,
-    pub result_build_us: u64,
-    pub stats_us: u64,
-    pub encode_us: u64,
-    pub total_us: u64,
+    #[serde(rename = "parse_us")]
+    pub parse: u64,
+    #[serde(rename = "bind_us")]
+    pub bind: u64,
+    #[serde(rename = "plan_us")]
+    pub plan: u64,
+    #[serde(rename = "cache_us")]
+    pub cache: u64,
+    #[serde(rename = "execute_us")]
+    pub execute: u64,
+    #[serde(rename = "scan_us")]
+    pub scan: u64,
+    #[serde(rename = "row_decode_us")]
+    pub row_decode: u64,
+    #[serde(rename = "filter_us")]
+    pub filter: u64,
+    #[serde(rename = "projection_us")]
+    pub projection: u64,
+    #[serde(rename = "sort_us")]
+    pub sort: u64,
+    #[serde(rename = "result_build_us")]
+    pub result_build: u64,
+    #[serde(rename = "stats_us")]
+    pub stats: u64,
+    #[serde(rename = "encode_us")]
+    pub encode: u64,
+    #[serde(rename = "total_us")]
+    pub total: u64,
 }
 
 pub struct MockTeiEmbeddingServer {
@@ -65,19 +81,34 @@ pub fn runtime() -> tokio::runtime::Runtime {
         .expect("benchmark runtime")
 }
 
-pub async fn context(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
-    context_with_index_options(label, dataset_rows, BenchIndexOptions::full()).await
+pub fn context(label: &str, dataset_rows: usize) -> Ready<Result<BenchContext, CassieError>> {
+    ready(context_with_index_options(
+        label,
+        dataset_rows,
+        BenchIndexOptions::full(),
+    ))
 }
 
-pub async fn scalar_context(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
-    context_with_index_options(label, dataset_rows, BenchIndexOptions::scalar()).await
-}
-
-pub async fn column_batch_context(
+pub fn scalar_context(
     label: &str,
     dataset_rows: usize,
-) -> Result<BenchContext, CassieError> {
-    let ctx = context_with_index_options(label, dataset_rows, BenchIndexOptions::none()).await?;
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(context_with_index_options(
+        label,
+        dataset_rows,
+        BenchIndexOptions::scalar(),
+    ))
+}
+
+pub fn column_batch_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(column_batch_context_now(label, dataset_rows))
+}
+
+fn column_batch_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
+    let ctx = context_with_index_options(label, dataset_rows, BenchIndexOptions::none())?;
     let statement = format!(
         "CREATE INDEX {}_column_idx ON {} USING column (title, body, status, score) WITH (segment_size = 256)",
         ctx.collection, ctx.collection
@@ -86,14 +117,25 @@ pub async fn column_batch_context(
     Ok(ctx)
 }
 
-pub async fn unindexed_context(
+pub fn unindexed_context(
     label: &str,
     dataset_rows: usize,
-) -> Result<BenchContext, CassieError> {
-    context_with_index_options(label, dataset_rows, BenchIndexOptions::none()).await
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(context_with_index_options(
+        label,
+        dataset_rows,
+        BenchIndexOptions::none(),
+    ))
 }
 
-pub async fn replay_context(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
+pub fn replay_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(replay_context_now(label, dataset_rows))
+}
+
+fn replay_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
     let dir = benchmark_data_dir(label);
 
@@ -106,14 +148,18 @@ pub async fn replay_context(label: &str, dataset_rows: usize) -> Result<BenchCon
         collection: "bench_documents".to_string(),
         _embedding_server: None,
     };
-    prepare_replay_collection(&ctx, dataset_rows).await?;
+    prepare_replay_collection(&ctx, dataset_rows)?;
     Ok(ctx)
 }
 
-pub async fn time_series_context(
+pub fn time_series_context(
     label: &str,
     dataset_rows: usize,
-) -> Result<BenchContext, CassieError> {
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(time_series_context_now(label, dataset_rows))
+}
+
+fn time_series_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
     let dir = benchmark_data_dir(label);
 
@@ -126,11 +172,15 @@ pub async fn time_series_context(
         collection: "bench_time_series_events".to_string(),
         _embedding_server: None,
     };
-    prepare_time_series_collection(&ctx, dataset_rows).await?;
+    prepare_time_series_collection(&ctx, dataset_rows)?;
     Ok(ctx)
 }
 
-pub async fn graph_context(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
+pub fn graph_context(label: &str, dataset_rows: usize) -> Ready<Result<BenchContext, CassieError>> {
+    ready(graph_context_now(label, dataset_rows))
+}
+
+fn graph_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
     let dir = benchmark_data_dir(label);
 
@@ -143,7 +193,7 @@ pub async fn graph_context(label: &str, dataset_rows: usize) -> Result<BenchCont
         collection: "bench_graph".to_string(),
         _embedding_server: None,
     };
-    prepare_graph(&ctx, dataset_rows).await?;
+    prepare_graph(&ctx, dataset_rows)?;
     Ok(ctx)
 }
 
@@ -176,7 +226,7 @@ impl BenchIndexOptions {
     }
 }
 
-async fn context_with_index_options(
+fn context_with_index_options(
     label: &str,
     dataset_rows: usize,
     index_options: BenchIndexOptions,
@@ -193,11 +243,15 @@ async fn context_with_index_options(
         collection: "bench_documents".to_string(),
         _embedding_server: None,
     };
-    prepare_collection(&ctx, dataset_rows, index_options).await?;
+    prepare_collection(&ctx, dataset_rows, index_options)?;
     Ok(ctx)
 }
 
-pub async fn empty_context(label: &str) -> Result<BenchContext, CassieError> {
+pub fn empty_context(label: &str) -> Ready<Result<BenchContext, CassieError>> {
+    ready(empty_context_now(label))
+}
+
+fn empty_context_now(label: &str) -> Result<BenchContext, CassieError> {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
     let dir = benchmark_data_dir(label);
 
@@ -212,7 +266,14 @@ pub async fn empty_context(label: &str) -> Result<BenchContext, CassieError> {
     })
 }
 
-pub async fn context_with_mock_tei_embeddings(
+pub fn context_with_mock_tei_embeddings(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(context_with_mock_tei_embeddings_now(label, dataset_rows))
+}
+
+fn context_with_mock_tei_embeddings_now(
     label: &str,
     dataset_rows: usize,
 ) -> Result<BenchContext, CassieError> {
@@ -240,7 +301,7 @@ pub async fn context_with_mock_tei_embeddings(
         collection: "bench_documents".to_string(),
         _embedding_server: Some(server),
     };
-    prepare_collection(&ctx, dataset_rows, BenchIndexOptions::full()).await?;
+    prepare_collection(&ctx, dataset_rows, BenchIndexOptions::full())?;
     let statement = format!(
         "CREATE INDEX {}_embedding_idx ON {} USING vector (embedding) WITH (source_field = body, metric = cosine)",
         ctx.collection, ctx.collection
@@ -259,6 +320,34 @@ pub(super) fn benchmark_data_dir(label: &str) -> PathBuf {
     std::fs::write(&path, b"force benchmark in-memory fallback")
         .expect("write benchmark fallback marker");
     path
+}
+
+pub(super) fn usize_to_i64(value: usize) -> i64 {
+    i64::try_from(value).expect("benchmark row index should fit i64")
+}
+
+pub(super) fn usize_mod_i64(value: usize, modulus: usize) -> i64 {
+    usize_to_i64(value % modulus)
+}
+
+pub(super) fn usize_to_u64(value: usize) -> u64 {
+    u64::try_from(value).expect("benchmark row index should fit u64")
+}
+
+pub(super) fn usize_to_f32(value: usize) -> f32 {
+    f32::from(u16::try_from(value).expect("benchmark vector component should fit u16"))
+}
+
+pub(super) fn usize_mod_f32(value: usize, modulus: usize) -> f32 {
+    usize_to_f32(value % modulus)
+}
+
+pub(super) fn u64_to_usize_saturating(value: u64) -> usize {
+    usize::try_from(value).unwrap_or(usize::MAX)
+}
+
+pub(super) fn duration_divisor(value: usize) -> u32 {
+    u32::try_from(value).unwrap_or(u32::MAX).max(1)
 }
 
 impl MockTeiEmbeddingServer {
@@ -321,7 +410,7 @@ impl Drop for MockTeiEmbeddingServer {
     }
 }
 
-async fn prepare_collection(
+fn prepare_collection(
     ctx: &BenchContext,
     dataset_rows: usize,
     index_options: BenchIndexOptions,
@@ -330,7 +419,16 @@ async fn prepare_collection(
         return Ok(());
     }
 
-    let schema = Schema {
+    let schema = bench_document_schema();
+    create_and_register_bench_collection(ctx, &schema)?;
+    create_bench_fulltext_index(ctx, index_options)?;
+    put_bench_documents(ctx, dataset_rows)?;
+    create_bench_scalar_indexes(ctx, index_options)?;
+    Ok(())
+}
+
+fn bench_document_schema() -> Schema {
+    Schema {
         fields: vec![
             FieldSchema {
                 name: "id".to_string(),
@@ -363,11 +461,21 @@ async fn prepare_collection(
                 nullable: true,
             },
         ],
-    };
+    }
+}
 
+fn create_and_register_bench_collection(
+    ctx: &BenchContext,
+    schema: &Schema,
+) -> Result<(), CassieError> {
     ctx.cassie
         .midge
         .create_collection(&ctx.collection, schema.clone())?;
+    register_schema(ctx, schema);
+    Ok(())
+}
+
+fn register_schema(ctx: &BenchContext, schema: &Schema) {
     ctx.cassie.register_collection(
         &ctx.collection,
         schema
@@ -376,80 +484,104 @@ async fn prepare_collection(
             .map(|field| (field.name.clone(), field.data_type.clone()))
             .collect(),
     );
+}
 
-    if index_options.include_fulltext_index {
-        let statement = format!(
-            "CREATE INDEX {}_body_idx ON {} USING fulltext (body)",
+fn create_bench_fulltext_index(
+    ctx: &BenchContext,
+    index_options: BenchIndexOptions,
+) -> Result<(), CassieError> {
+    if !index_options.include_fulltext_index {
+        return Ok(());
+    }
+
+    let statement = format!(
+        "CREATE INDEX {}_body_idx ON {} USING fulltext (body)",
+        ctx.collection, ctx.collection
+    );
+    let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
+    Ok(())
+}
+
+fn put_bench_documents(ctx: &BenchContext, dataset_rows: usize) -> Result<(), CassieError> {
+    let documents = build_bench_documents(dataset_rows);
+    if documents.is_empty() {
+        return Ok(());
+    }
+
+    ctx.cassie
+        .midge
+        .put_documents(&ctx.collection, documents)
+        .map(|_| ())
+}
+
+fn build_bench_documents(dataset_rows: usize) -> Vec<(Option<String>, serde_json::Value)> {
+    (0..dataset_rows)
+        .map(|index| {
+            let title = format!("title-{}", index % 16);
+            let body = if index % 3 == 0 {
+                format!("alpha beta gamma {index}")
+            } else {
+                format!("delta epsilon {index}")
+            };
+            let status = if index % 2 == 0 {
+                "approved"
+            } else {
+                "pending"
+            };
+
+            (
+                Some(format!("doc-{index}")),
+                json!({
+                    "title": title,
+                    "body": body,
+                    "score": usize_mod_i64(index, 100),
+                    "status": status,
+                    "embedding": [
+                        usize_mod_f32(index, 7),
+                        usize_mod_f32(index, 11),
+                        usize_mod_f32(index, 13),
+                    ],
+                }),
+            )
+        })
+        .collect()
+}
+
+fn create_bench_scalar_indexes(
+    ctx: &BenchContext,
+    index_options: BenchIndexOptions,
+) -> Result<(), CassieError> {
+    if !index_options.include_scalar_indexes {
+        return Ok(());
+    }
+
+    let statements = [
+        format!(
+            "CREATE INDEX {}_title_idx ON {} USING btree (title)",
             ctx.collection, ctx.collection
-        );
+        ),
+        format!(
+            "CREATE INDEX {}_score_idx ON {} USING btree (score)",
+            ctx.collection, ctx.collection
+        ),
+        format!(
+            "CREATE INDEX {}_status_score_idx ON {} USING btree (status, score)",
+            ctx.collection, ctx.collection
+        ),
+        format!(
+            "CREATE INDEX {}_lower_title_idx ON {} USING btree (lower(title))",
+            ctx.collection, ctx.collection
+        ),
+    ];
+
+    for statement in statements {
         let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
-    }
-
-    let mut documents = Vec::with_capacity(dataset_rows);
-    for index in 0..dataset_rows {
-        let title = format!("title-{}", index % 16);
-        let body = if index % 3 == 0 {
-            format!("alpha beta gamma {index}")
-        } else {
-            format!("delta epsilon {index}")
-        };
-        let status = if index % 2 == 0 {
-            "approved"
-        } else {
-            "pending"
-        };
-
-        documents.push((
-            Some(format!("doc-{index}")),
-            json!({
-                "title": title,
-                "body": body,
-                "score": (index % 100) as i64,
-                "status": status,
-                "embedding": [
-                    (index % 7) as f32,
-                    (index % 11) as f32,
-                    (index % 13) as f32,
-                ],
-            }),
-        ));
-    }
-    if !documents.is_empty() {
-        ctx.cassie.midge.put_documents(&ctx.collection, documents)?;
-    }
-
-    if index_options.include_scalar_indexes {
-        let statements = [
-            format!(
-                "CREATE INDEX {}_title_idx ON {} USING btree (title)",
-                ctx.collection, ctx.collection
-            ),
-            format!(
-                "CREATE INDEX {}_score_idx ON {} USING btree (score)",
-                ctx.collection, ctx.collection
-            ),
-            format!(
-                "CREATE INDEX {}_status_score_idx ON {} USING btree (status, score)",
-                ctx.collection, ctx.collection
-            ),
-            format!(
-                "CREATE INDEX {}_lower_title_idx ON {} USING btree (lower(title))",
-                ctx.collection, ctx.collection
-            ),
-        ];
-
-        for statement in statements {
-            let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
-        }
     }
 
     Ok(())
 }
 
-async fn prepare_replay_collection(
-    ctx: &BenchContext,
-    dataset_rows: usize,
-) -> Result<(), CassieError> {
+fn prepare_replay_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<(), CassieError> {
     if ctx.cassie.catalog.exists(&ctx.collection) {
         return Ok(());
     }
@@ -487,14 +619,7 @@ async fn prepare_replay_collection(
     ctx.cassie
         .midge
         .create_collection(&ctx.collection, schema.clone())?;
-    ctx.cassie.register_collection(
-        &ctx.collection,
-        schema
-            .fields
-            .iter()
-            .map(|field| (field.name.clone(), field.data_type.clone()))
-            .collect(),
-    );
+    register_schema(ctx, &schema);
 
     let mut csv = String::new();
     for index in 0..dataset_rows {
@@ -508,12 +633,14 @@ async fn prepare_replay_collection(
         } else {
             "pending"
         };
-        csv.push_str(&format!(
-            "doc-{index},title-{},{body},{},{}\n",
+        writeln!(
+            csv,
+            "doc-{index},title-{},{body},{},{}",
             index % 16,
             index % 100,
             status
-        ));
+        )
+        .expect("write benchmark csv row");
     }
     if !csv.is_empty() {
         ctx.cassie.copy_from_csv_stdin(
@@ -552,7 +679,7 @@ async fn prepare_replay_collection(
     Ok(())
 }
 
-async fn prepare_time_series_collection(
+fn prepare_time_series_collection(
     ctx: &BenchContext,
     dataset_rows: usize,
 ) -> Result<(), CassieError> {
@@ -596,7 +723,7 @@ async fn prepare_time_series_collection(
             json!({
                 "tenant": tenant,
                 "event_at": format!("2026-01-{day:02}T{hour:02}:00:00Z"),
-                "amount": (index % 100) as i64,
+                "amount": usize_mod_i64(index, 100),
                 "status": if index % 2 == 0 { "open" } else { "closed" },
             }),
         ));
@@ -610,7 +737,7 @@ async fn prepare_time_series_collection(
     Ok(())
 }
 
-async fn prepare_graph(ctx: &BenchContext, dataset_rows: usize) -> Result<(), CassieError> {
+fn prepare_graph(ctx: &BenchContext, dataset_rows: usize) -> Result<(), CassieError> {
     if ctx.cassie.catalog.graph_exists(&ctx.collection) {
         return Ok(());
     }

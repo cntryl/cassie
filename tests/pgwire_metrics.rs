@@ -1,7 +1,12 @@
+use std::net::SocketAddr;
+
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
+
+type WireFrame = (u8, Vec<u8>);
+type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 
 fn with_fallback() {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
@@ -107,6 +112,128 @@ async fn read_until_ready(
     }
 }
 
+fn seed_pgwire_metrics_collection(cassie: &Cassie) {
+    let collection = "pgwire_metrics_docs";
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .unwrap();
+    cassie.catalog.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("doc-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .unwrap();
+}
+
+async fn spawn_pgwire_metrics_server(
+    cassie: &Cassie,
+    config: CassieRuntimeConfig,
+) -> (SocketAddr, PgwireServer) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind listener");
+    let addr = listener.local_addr().expect("listener address");
+    drop(listener);
+
+    let server = tokio::spawn(cassie::pgwire::server::run(
+        addr.to_string(),
+        std::sync::Arc::new(cassie.clone()),
+        config,
+    ));
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    (addr, server)
+}
+
+async fn run_pgwire_metrics_query(addr: SocketAddr) -> Vec<WireFrame> {
+    let mut socket = tokio::net::TcpStream::connect(addr)
+        .await
+        .expect("connect pgwire");
+    let (read_half, mut write_half) = socket.split();
+    let mut reader = tokio::io::BufReader::new(read_half);
+
+    let startup = startup_frame("postgres", "testdb");
+    tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
+        .await
+        .expect("startup write");
+
+    let auth = read_auth_frame(&mut reader).await;
+    assert_eq!(
+        auth.0, b'R',
+        "startup should return an authentication frame"
+    );
+    let startup_ready = read_until_ready(&mut reader).await;
+    assert_eq!(startup_ready, vec![b'I']);
+
+    tokio::io::AsyncWriteExt::write_all(
+        &mut write_half,
+        &simple_query_frame("SELECT title FROM pgwire_metrics_docs ORDER BY title"),
+    )
+    .await
+    .expect("query write");
+    tokio::io::AsyncWriteExt::flush(&mut write_half)
+        .await
+        .expect("flush");
+
+    read_ready_frames(&mut reader).await
+}
+
+async fn read_ready_frames(
+    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
+) -> Vec<WireFrame> {
+    let mut frames = Vec::new();
+    loop {
+        let frame = read_wire_frame(reader).await;
+        let tag = frame.0;
+        frames.push(frame);
+        if tag == b'Z' {
+            return frames;
+        }
+    }
+}
+
+fn assert_pgwire_query_frames(frames: &[WireFrame]) {
+    assert!(
+        frames.iter().any(|frame| frame.0 == b'T'),
+        "pgwire query should return a row description frame"
+    );
+    assert!(
+        frames.iter().any(|frame| frame.0 == b'D'),
+        "pgwire query should return a data row frame"
+    );
+    assert!(frames.iter().any(|frame| frame.0 == b'C'));
+    assert!(frames.iter().any(|frame| frame.0 == b'Z'));
+}
+
+fn assert_pgwire_metrics(metrics: &serde_json::Value) {
+    assert_eq!(
+        metrics["pgwire"]["sessions_started_total"].as_u64(),
+        Some(1)
+    );
+    assert_eq!(metrics["pgwire"]["auth_ok_total"].as_u64(), Some(1));
+    assert_eq!(metrics["pgwire"]["simple_queries_total"].as_u64(), Some(1));
+    assert_eq!(metrics["pgwire"]["active_sessions"].as_u64(), Some(0));
+    assert_eq!(metrics["pgwire"]["prepared_statements"].as_u64(), Some(0));
+}
+
 #[test]
 fn should_record_pgwire_connection_metrics() {
     // Arrange
@@ -122,119 +249,17 @@ fn should_record_pgwire_connection_metrics() {
         config.password.clear();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
+        seed_pgwire_metrics_collection(&cassie);
+        let (addr, server) = spawn_pgwire_metrics_server(&cassie, config).await;
 
-        let collection = "pgwire_metrics_docs";
-        let schema = Schema {
-            fields: vec![FieldSchema {
-                name: "title".to_string(),
-                data_type: DataType::Text,
-                nullable: true,
-            }],
-        };
-
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie.catalog.register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-1".to_string()),
-                serde_json::json!({"title": "alpha"}),
-            )
-            .unwrap();
-
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind listener");
-        let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
-            std::sync::Arc::new(cassie.clone()),
-            config,
-        ));
-
+        // Act
+        let frames = run_pgwire_metrics_query(addr).await;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-
-        let mut socket = tokio::net::TcpStream::connect(addr)
-            .await
-            .expect("connect pgwire");
-        let lines = {
-            let (read_half, mut write_half) = socket.split();
-            let mut reader = tokio::io::BufReader::new(read_half);
-
-            // Act
-            let startup = startup_frame("postgres", "testdb");
-            tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
-                .await
-                .expect("startup write");
-
-            let auth = read_auth_frame(&mut reader).await;
-            assert_eq!(
-                auth.0, b'R',
-                "startup should return an authentication frame"
-            );
-            let startup_ready = read_until_ready(&mut reader).await;
-            assert_eq!(startup_ready, vec![b'I']);
-
-            tokio::io::AsyncWriteExt::write_all(
-                &mut write_half,
-                &simple_query_frame("SELECT title FROM pgwire_metrics_docs ORDER BY title"),
-            )
-            .await
-            .expect("query write");
-            tokio::io::AsyncWriteExt::flush(&mut write_half)
-                .await
-                .expect("flush");
-
-            let mut frames = Vec::new();
-            loop {
-                let frame = read_wire_frame(&mut reader).await;
-                let tag = frame.0;
-                frames.push(frame);
-                if tag == b'Z' {
-                    break;
-                }
-            }
-
-            frames
-        };
-
-        drop(socket);
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-
         let metrics = cassie.metrics();
 
         // Assert
-        assert!(
-            lines.iter().any(|frame| frame.0 == b'T'),
-            "pgwire query should return a row description frame"
-        );
-        assert!(
-            lines.iter().any(|frame| frame.0 == b'D'),
-            "pgwire query should return a data row frame"
-        );
-        assert!(lines.iter().any(|frame| frame.0 == b'C'));
-        assert!(lines.iter().any(|frame| frame.0 == b'Z'));
-        assert_eq!(
-            metrics["pgwire"]["sessions_started_total"].as_u64(),
-            Some(1)
-        );
-        assert_eq!(metrics["pgwire"]["auth_ok_total"].as_u64(), Some(1));
-        assert_eq!(metrics["pgwire"]["simple_queries_total"].as_u64(), Some(1));
-        assert_eq!(metrics["pgwire"]["active_sessions"].as_u64(), Some(0));
-        assert_eq!(metrics["pgwire"]["prepared_statements"].as_u64(), Some(0));
+        assert_pgwire_query_frames(&frames);
+        assert_pgwire_metrics(&metrics);
 
         server.abort();
         let _ = server.await;

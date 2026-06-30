@@ -26,7 +26,7 @@ pub(super) fn create_graph_collection(
     let metadata = catalog::CollectionMeta::new(collection, None);
     cassie
         .midge
-        .create_collection_with_meta(collection, schema.clone(), metadata.clone())
+        .create_collection_with_meta(collection, &schema, &metadata)
         .map_err(|error| QueryError::General(error.to_string()))?;
     let constraints = user_fields
         .iter()

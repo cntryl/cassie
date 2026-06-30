@@ -1,3 +1,4 @@
+use std::future::{ready, Ready};
 use std::sync::Arc;
 
 use cassie::app::{Cassie, CassieError};
@@ -5,9 +6,16 @@ use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use serde_json::json;
 
-use super::context::{benchmark_data_dir, BenchContext};
+use super::context::{benchmark_data_dir, usize_mod_i64, usize_to_i64, BenchContext};
 
-pub async fn vectorized_join_context(
+pub fn vectorized_join_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(vectorized_join_context_now(label, dataset_rows))
+}
+
+fn vectorized_join_context_now(
     label: &str,
     dataset_rows: usize,
 ) -> Result<BenchContext, CassieError> {
@@ -18,16 +26,22 @@ pub async fn vectorized_join_context(
             order_rows: dataset_rows,
         },
         None,
-    )
-    .await?;
+    )?;
     Ok(ctx)
 }
 
-pub async fn vectorized_indexed_join_context(
+pub fn vectorized_indexed_join_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(vectorized_indexed_join_context_now(label, dataset_rows))
+}
+
+fn vectorized_indexed_join_context_now(
     label: &str,
     dataset_rows: usize,
 ) -> Result<BenchContext, CassieError> {
-    let ctx = vectorized_join_context(label, dataset_rows).await?;
+    let ctx = vectorized_join_context_now(label, dataset_rows)?;
     let _ = ctx.cassie.execute_sql(
         &ctx.session,
         "CREATE INDEX bench_join_users_key_idx ON bench_join_users USING btree (user_key)",
@@ -36,35 +50,33 @@ pub async fn vectorized_indexed_join_context(
     Ok(ctx)
 }
 
-pub async fn vectorized_sparse_join_context(
+pub fn vectorized_sparse_join_context(
     label: &str,
     dataset_rows: usize,
-) -> Result<BenchContext, CassieError> {
-    vectorized_join_context_with_budget(
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(vectorized_join_context_with_budget(
         label,
         dataset_rows,
         JoinLoadShape::OneToOne { order_rows: 50 },
         None,
-    )
-    .await
+    ))
 }
 
-pub async fn vectorized_dense_join_context(
+pub fn vectorized_dense_join_context(
     label: &str,
     dataset_rows: usize,
-) -> Result<BenchContext, CassieError> {
-    vectorized_join_context_with_budget(
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(vectorized_join_context_with_budget(
         label,
         dataset_rows,
         JoinLoadShape::DenseRight {
             order_rows: dataset_rows,
         },
         Some(4 * 1024),
-    )
-    .await
+    ))
 }
 
-async fn vectorized_join_context_with_budget(
+fn vectorized_join_context_with_budget(
     label: &str,
     dataset_rows: usize,
     shape: JoinLoadShape,
@@ -93,7 +105,7 @@ async fn vectorized_join_context_with_budget(
         collection: "bench_join_users".to_string(),
         _embedding_server: None,
     };
-    prepare_vectorized_join_collections(&ctx, dataset_rows, shape).await?;
+    prepare_vectorized_join_collections(&ctx, dataset_rows, shape)?;
     Ok(ctx)
 }
 
@@ -103,7 +115,7 @@ enum JoinLoadShape {
     DenseRight { order_rows: usize },
 }
 
-async fn prepare_vectorized_join_collections(
+fn prepare_vectorized_join_collections(
     ctx: &BenchContext,
     dataset_rows: usize,
     shape: JoinLoadShape,
@@ -168,7 +180,7 @@ async fn prepare_vectorized_join_collections(
         users.push((
             Some(format!("user-{index}")),
             json!({
-                "user_key": index as i64,
+                "user_key": usize_to_i64(index),
                 "name": format!("user-{index}"),
             }),
         ));
@@ -182,14 +194,14 @@ async fn prepare_vectorized_join_collections(
     let mut orders = Vec::with_capacity(order_rows);
     for index in 0..order_rows {
         let order_user_key = match shape {
-            JoinLoadShape::OneToOne { .. } => index as i64,
+            JoinLoadShape::OneToOne { .. } => usize_to_i64(index),
             JoinLoadShape::DenseRight { .. } => 0_i64,
         };
         orders.push((
             Some(format!("order-{index}")),
             json!({
                 "order_user_key": order_user_key,
-                "total": (index % 100) as i64,
+                "total": usize_mod_i64(index, 100),
             }),
         ));
     }

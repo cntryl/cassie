@@ -4,263 +4,206 @@ pub(super) fn plan_line(
     cassie: &Cassie,
     physical: &crate::planner::physical::PhysicalPlan,
 ) -> String {
-    let operators = physical
-        .operators
-        .iter()
-        .map(|operator| format!("{operator:?}"))
-        .collect::<Vec<_>>()
-        .join(">");
+    [
+        read_plan_section(cassie, physical),
+        operator_feedback_section(physical),
+        adaptive_plan_section(physical),
+        phase03_section(cassie, physical),
+        join_section(physical),
+        vectorized_join_section(cassie, physical),
+        acceleration_section(cassie, physical),
+        cost_section(physical),
+    ]
+    .join(" ")
+}
+
+fn read_plan_section(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan) -> String {
     let projection_pruning = !physical.read.projected_scan_fields.is_empty();
     let scan_fields = if projection_pruning {
         physical.read.projected_scan_fields.join(",")
     } else {
         "all".to_string()
     };
-    let limit_pushdown = physical.read.scan_limit.is_some();
     let scan_limit = physical
         .read
         .scan_limit
         .map_or_else(|| "none".to_string(), |limit| limit.to_string());
-    let index_aware = physical.read.selected_index.is_some();
-    let index = physical.read.selected_index.as_deref().unwrap_or("none");
-    let index_feedback = if physical.read.selected_index.is_some() {
+    let storage_mode = cassie
+        .catalog
+        .collection_storage_mode(&physical.collection)
+        .map_or_else(|| "unknown".to_string(), |mode| mode.as_str().to_string());
+    format!(
+        "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} access_path={} access_path_reason={} fallback_reason={} pagination_strategy={} top_k_mode={} early_stop={} projection_shape={} storage_mode={} index_aware={} index={} index_feedback={}",
+        physical.collection,
+        operators_description(physical),
+        physical.read.predicate_pushdown,
+        projection_pruning,
+        scan_fields,
+        physical.read.scan_limit.is_some(),
+        scan_limit,
+        physical.read.access_path.as_str(),
+        physical.read.access_path_reason.as_str(),
+        physical.read.fallback_reason.as_deref().unwrap_or("none"),
+        physical.read.pagination_strategy.as_str(),
+        physical.top_k.mode.as_str(),
+        physical.read.early_stop.as_str(),
+        physical.projection.shape.as_str(),
+        storage_mode,
+        physical.read.selected_index.is_some(),
+        physical.read.selected_index.as_deref().unwrap_or("none"),
+        index_feedback(physical)
+    )
+}
+
+fn operators_description(physical: &crate::planner::physical::PhysicalPlan) -> String {
+    let operators = physical
+        .operators
+        .iter()
+        .map(|operator| format!("{operator:?}"))
+        .collect::<Vec<_>>()
+        .join(">");
+    if operators.is_empty() {
+        "Command".to_string()
+    } else {
+        operators
+    }
+}
+
+fn index_feedback(physical: &crate::planner::physical::PhysicalPlan) -> &'static str {
+    if physical.read.selected_index.is_some() {
         "enabled"
     } else {
         "none"
-    };
-    let operator_feedback = if physical.operator_feedback.state.is_empty() {
-        "none"
-    } else {
-        physical.operator_feedback.state.as_str()
-    };
-    let operator_feedback_reason = if physical.operator_feedback.reason.is_empty() {
-        "none"
-    } else {
-        physical.operator_feedback.reason.as_str()
-    };
-    let operator_feedback_base_candidate = if physical.operator_feedback.base_candidate.is_empty() {
-        "none"
-    } else {
-        physical.operator_feedback.base_candidate.as_str()
-    };
-    let operator_feedback_selected_candidate =
-        if physical.operator_feedback.selected_candidate.is_empty() {
-            "none"
-        } else {
-            physical.operator_feedback.selected_candidate.as_str()
-        };
+    }
+}
+
+fn operator_feedback_section(physical: &crate::planner::physical::PhysicalPlan) -> String {
+    let feedback = &physical.operator_feedback;
+    format!(
+        "operator_feedback={} operator_feedback_reason={} operator_feedback_base_candidate={} operator_feedback_selected_candidate={} operator_feedback_base_cost={} operator_feedback_adjusted_cost={} operator_feedback_confidence_bps={} operator_feedback_age_ms={} operator_feedback_samples={} operator_feedback_outliers={}",
+        non_empty_or_none(&feedback.state),
+        non_empty_or_none(&feedback.reason),
+        non_empty_or_none(&feedback.base_candidate),
+        non_empty_or_none(&feedback.selected_candidate),
+        feedback.base_selected_cost,
+        feedback.adjusted_selected_cost,
+        feedback.confidence_bps,
+        feedback.age_ms,
+        feedback.samples,
+        feedback.outlier_samples
+    )
+}
+
+fn adaptive_plan_section(physical: &crate::planner::physical::PhysicalPlan) -> String {
     let adaptive_plan = &physical.adaptive_plan;
-    let adaptive_plan_enabled = adaptive_plan.enabled;
-    let adaptive_decision_point = if adaptive_plan.decision_point.is_empty() {
-        "none"
-    } else {
-        adaptive_plan.decision_point.as_str()
-    };
     let adaptive_candidates = if adaptive_plan.candidates.is_empty() {
         "none".to_string()
     } else {
         adaptive_plan.candidates.join("|")
     };
-    let adaptive_base_alternative = if adaptive_plan.base_alternative.is_empty() {
-        "none"
-    } else {
-        adaptive_plan.base_alternative.as_str()
-    };
-    let adaptive_selected_alternative = if adaptive_plan.selected_alternative.is_empty() {
-        "none"
-    } else {
-        adaptive_plan.selected_alternative.as_str()
-    };
-    let adaptive_guard = if adaptive_plan.guard.is_empty() {
-        "none"
-    } else {
-        adaptive_plan.guard.as_str()
-    };
-    let adaptive_reason = if adaptive_plan.reason.is_empty() {
-        "none"
-    } else {
-        adaptive_plan.reason.as_str()
-    };
-    let adaptive_diagnostic = if adaptive_plan.diagnostic.is_empty() {
-        "none"
-    } else {
-        adaptive_plan.diagnostic.as_str()
-    };
-    let covered_index = physical.read.covered_index;
-    let column_batch_index = physical
-        .read
-        .column_batch_index
-        .as_deref()
-        .unwrap_or("none");
-    let prefilter = prefilter_description(cassie, physical);
-    let time_series = time_series_description(cassie, physical);
-    let time_series_storage = time_series_storage_description(cassie, physical);
+    format!(
+        "adaptive_plan_enabled={} adaptive_decision_point={} adaptive_candidates={} adaptive_base_alternative={} adaptive_selected_alternative={} adaptive_guard={} adaptive_guard_passed={} adaptive_reason={} adaptive_diagnostic={}",
+        adaptive_plan.enabled,
+        non_empty_or_none(&adaptive_plan.decision_point),
+        adaptive_candidates,
+        non_empty_or_none(&adaptive_plan.base_alternative),
+        non_empty_or_none(&adaptive_plan.selected_alternative),
+        non_empty_or_none(&adaptive_plan.guard),
+        adaptive_plan.guard_passed,
+        non_empty_or_none(&adaptive_plan.reason),
+        non_empty_or_none(&adaptive_plan.diagnostic)
+    )
+}
+
+fn phase03_section(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan) -> String {
+    let diagnostics = phase03_diagnostics(cassie, physical);
     let top_k_limit = physical
         .top_k
         .limit
         .map_or_else(|| "none".to_string(), |limit| limit.to_string());
-    let access_path = physical.read.access_path.as_str();
-    let access_path_reason = physical.read.access_path_reason.as_str();
-    let fallback_reason = physical.read.fallback_reason.as_deref().unwrap_or("none");
-    let pagination_strategy = physical.read.pagination_strategy.as_str();
-    let top_k_mode = physical.top_k.mode.as_str();
-    let early_stop = physical.read.early_stop.as_str();
-    let projection_shape = physical.projection.shape.as_str();
-    let join_strategy = physical.join.strategy.as_deref().unwrap_or("none");
-    let join_keys = if physical.join.keys.is_empty() {
-        "none".to_string()
-    } else {
-        physical.join.keys.join(",")
-    };
-    let join_sort_required = physical.join.sort_required;
-    let join_fallback_reason = physical.join.fallback_reason.as_deref().unwrap_or("none");
-    let limits = cassie.runtime.limits();
-    let vectorized_join_candidate = physical.join.vectorized.candidate;
-    let vectorized_join_enabled = vectorized_join_candidate && limits.vectorized_joins_enabled;
-    let vectorized_join_batch_size = limits.vectorized_join_batch_size.max(1);
-    let vectorized_join_fallback_reason = if vectorized_join_enabled {
-        "none"
-    } else if vectorized_join_candidate {
-        "disabled"
-    } else {
-        physical
-            .join
-            .vectorized
-            .fallback_reason
-            .as_deref()
-            .unwrap_or("none")
-    };
-    let operator_switch_candidate = vectorized_join_candidate;
-    let operator_switch_enabled =
-        operator_switch_candidate && limits.operator_switching_enabled.is_enabled();
-    let operator_switch_pair = if operator_switch_candidate {
-        "vectorized_join_to_merge_join"
-    } else {
-        "none"
-    };
-    let operator_switch_threshold = limits.operator_switch_join_row_threshold;
-    let operator_switch_reason = if operator_switch_enabled {
-        "armed"
-    } else if operator_switch_candidate {
-        "disabled"
-    } else {
-        "not_prevalidated"
-    };
-    let storage_mode = cassie
-        .catalog
-        .collection_storage_mode(&physical.collection)
-        .map_or_else(|| "unknown".to_string(), |mode| mode.as_str().to_string());
-    let aggregate_parallel = physical.aggregate.parallel_candidate;
-    let aggregate_acceleration = physical.aggregate.acceleration;
-    let rollup_rewrite = crate::executor::rollup_rewrite_name_for_plan(cassie, &physical.logical)
-        .unwrap_or_else(|| "none".to_string());
-    let diagnostics = phase03_diagnostics(cassie, physical);
-    let candidate_budget = candidate_budget(cassie, physical);
-    let mixed = mixed_execution_diagnostics(physical);
-    let projection_freshness = cassie
-        .catalog
-        .get_materialized_projection(&physical.collection)
-        .or_else(|| {
-            cassie
-                .catalog
-                .materialized_projection_for_output(&physical.collection)
-        })
-        .map_or_else(
-            || "unavailable".to_string(),
-            |projection| projection.freshness.as_str().to_string(),
-        );
-    let estimates = &physical.estimates;
-    let selected_cost = if operator_feedback == "used"
-        && adaptive_selected_alternative == operator_feedback_selected_candidate
-    {
-        physical.operator_feedback.adjusted_selected_cost
-    } else {
-        estimates.selected_cost
-    };
-    let rejected_alternatives = if estimates.rejected_alternatives.is_empty() {
-        "none".to_string()
-    } else {
-        estimates.rejected_alternatives.join(",")
-    };
-
     format!(
-        "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} access_path={} access_path_reason={} fallback_reason={} pagination_strategy={} top_k_mode={} early_stop={} projection_shape={} storage_mode={} index_aware={} index={} index_feedback={} operator_feedback={} operator_feedback_reason={} operator_feedback_base_candidate={} operator_feedback_selected_candidate={} operator_feedback_base_cost={} operator_feedback_adjusted_cost={} operator_feedback_confidence_bps={} operator_feedback_age_ms={} operator_feedback_samples={} operator_feedback_outliers={} adaptive_plan_enabled={} adaptive_decision_point={} adaptive_candidates={} adaptive_base_alternative={} adaptive_selected_alternative={} adaptive_guard={} adaptive_guard_passed={} adaptive_reason={} adaptive_diagnostic={} covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} time_series_storage={} top_k={} top_k_limit={} candidate_budget={} join_strategy={} join_keys={} join_sort_required={} join_fallback_reason={} vectorized_join_candidate={} vectorized_join_enabled={} vectorized_join_batch_size={} vectorized_join_fallback_reason={} operator_switch_candidate={} operator_switch_enabled={} operator_switch_pair={} operator_switch_threshold={} operator_switch_reason={} aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={} cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
-        physical.collection,
-        if operators.is_empty() {
-            "Command".to_string()
-        } else {
-            operators
-        },
-        physical.read.predicate_pushdown,
-        projection_pruning,
-        scan_fields,
-        limit_pushdown,
-        scan_limit,
-        access_path,
-        access_path_reason,
-        fallback_reason,
-        pagination_strategy,
-        top_k_mode,
-        early_stop,
-        projection_shape,
-        storage_mode,
-        index_aware,
-        index,
-        index_feedback,
-        operator_feedback,
-        operator_feedback_reason,
-        operator_feedback_base_candidate,
-        operator_feedback_selected_candidate,
-        physical.operator_feedback.base_selected_cost,
-        physical.operator_feedback.adjusted_selected_cost,
-        physical.operator_feedback.confidence_bps,
-        physical.operator_feedback.age_ms,
-        physical.operator_feedback.samples,
-        physical.operator_feedback.outlier_samples,
-        adaptive_plan_enabled,
-        adaptive_decision_point,
-        adaptive_candidates,
-        adaptive_base_alternative,
-        adaptive_selected_alternative,
-        adaptive_guard,
-        adaptive_plan.guard_passed,
-        adaptive_reason,
-        adaptive_diagnostic,
-        covered_index,
-        column_batch_index,
+        "covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} time_series_storage={} top_k={} top_k_limit={} candidate_budget={}",
+        physical.read.covered_index,
+        physical.read.column_batch_index.as_deref().unwrap_or("none"),
         diagnostics.column_native,
         diagnostics.hybrid_row_column,
         diagnostics.vectorized_aggregate,
         diagnostics.parallel_pipeline,
         diagnostics.analytical_projection,
-        prefilter,
-        time_series,
-        time_series_storage,
+        prefilter_description(cassie, physical),
+        time_series_description(cassie, physical),
+        time_series_storage_description(cassie, physical),
         physical.top_k.enabled,
         top_k_limit,
-        candidate_budget,
-        join_strategy,
+        candidate_budget(cassie, physical)
+    )
+}
+
+fn join_section(physical: &crate::planner::physical::PhysicalPlan) -> String {
+    let join_keys = if physical.join.keys.is_empty() {
+        "none".to_string()
+    } else {
+        physical.join.keys.join(",")
+    };
+    format!(
+        "join_strategy={} join_keys={} join_sort_required={} join_fallback_reason={}",
+        physical.join.strategy.as_deref().unwrap_or("none"),
         join_keys,
-        join_sort_required,
-        join_fallback_reason,
-        vectorized_join_candidate,
-        vectorized_join_enabled,
-        vectorized_join_batch_size,
-        vectorized_join_fallback_reason,
-        operator_switch_candidate,
-        operator_switch_enabled,
-        operator_switch_pair,
-        operator_switch_threshold,
-        operator_switch_reason,
-        aggregate_parallel,
-        aggregate_acceleration,
-        rollup_rewrite,
+        physical.join.sort_required,
+        physical.join.fallback_reason.as_deref().unwrap_or("none")
+    )
+}
+
+fn vectorized_join_section(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+) -> String {
+    let limits = cassie.runtime.limits();
+    let vectorized = vectorized_join_status(physical, &limits);
+    let operator_switch = operator_switch_status(physical, &limits);
+    format!(
+        "vectorized_join_candidate={} vectorized_join_enabled={} vectorized_join_batch_size={} vectorized_join_fallback_reason={} operator_switch_candidate={} operator_switch_enabled={} operator_switch_pair={} operator_switch_threshold={} operator_switch_reason={}",
+        vectorized.candidate,
+        vectorized.enabled,
+        vectorized.batch_size,
+        vectorized.fallback_reason,
+        operator_switch.candidate,
+        operator_switch.enabled,
+        operator_switch.pair,
+        operator_switch.threshold,
+        operator_switch.reason
+    )
+}
+
+fn acceleration_section(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+) -> String {
+    let mixed = mixed_execution_diagnostics(physical);
+    format!(
+        "aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={}",
+        physical.aggregate.parallel_candidate,
+        physical.aggregate.acceleration,
+        crate::executor::rollup_rewrite_name_for_plan(cassie, &physical.logical)
+            .unwrap_or_else(|| "none".to_string()),
         mixed.enabled,
         mixed.stages,
         mixed.exact_baseline,
-        projection_freshness,
+        projection_freshness(cassie, physical)
+    )
+}
+
+fn cost_section(physical: &crate::planner::physical::PhysicalPlan) -> String {
+    let estimates = &physical.estimates;
+    let rejected_alternatives = if estimates.rejected_alternatives.is_empty() {
+        "none".to_string()
+    } else {
+        estimates.rejected_alternatives.join(",")
+    };
+    format!(
+        "cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
         estimates.cost_model_version,
-        selected_cost,
+        selected_cost(physical),
         estimates.scan_cost,
         estimates.index_cost,
         estimates.cost_source,
@@ -272,6 +215,113 @@ pub(super) fn plan_line(
         estimates.vector_rows,
         estimates.aggregate_rows
     )
+}
+
+fn non_empty_or_none(value: &str) -> &str {
+    if value.is_empty() {
+        "none"
+    } else {
+        value
+    }
+}
+
+fn selected_cost(physical: &crate::planner::physical::PhysicalPlan) -> u64 {
+    let operator_feedback = non_empty_or_none(&physical.operator_feedback.state);
+    let selected_alternative = non_empty_or_none(&physical.adaptive_plan.selected_alternative);
+    let feedback_selected = non_empty_or_none(&physical.operator_feedback.selected_candidate);
+    if operator_feedback == "used" && selected_alternative == feedback_selected {
+        physical.operator_feedback.adjusted_selected_cost
+    } else {
+        physical.estimates.selected_cost
+    }
+}
+
+fn projection_freshness(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+) -> String {
+    cassie
+        .catalog
+        .get_materialized_projection(&physical.collection)
+        .or_else(|| {
+            cassie
+                .catalog
+                .materialized_projection_for_output(&physical.collection)
+        })
+        .map_or_else(
+            || "unavailable".to_string(),
+            |projection| projection.freshness.as_str().to_string(),
+        )
+}
+
+struct VectorizedJoinStatus {
+    candidate: bool,
+    enabled: bool,
+    batch_size: usize,
+    fallback_reason: String,
+}
+
+fn vectorized_join_status(
+    physical: &crate::planner::physical::PhysicalPlan,
+    limits: &crate::config::CassieRuntimeLimits,
+) -> VectorizedJoinStatus {
+    let candidate = physical.join.vectorized.candidate;
+    let enabled = candidate && limits.vectorized_joins_enabled;
+    let fallback_reason = if enabled {
+        "none".to_string()
+    } else if candidate {
+        "disabled".to_string()
+    } else {
+        physical
+            .join
+            .vectorized
+            .fallback_reason
+            .clone()
+            .unwrap_or_else(|| "none".to_string())
+    };
+    VectorizedJoinStatus {
+        candidate,
+        enabled,
+        batch_size: limits.vectorized_join_batch_size.max(1),
+        fallback_reason,
+    }
+}
+
+struct OperatorSwitchStatus {
+    candidate: bool,
+    enabled: bool,
+    pair: &'static str,
+    threshold: usize,
+    reason: &'static str,
+}
+
+fn operator_switch_status(
+    physical: &crate::planner::physical::PhysicalPlan,
+    limits: &crate::config::CassieRuntimeLimits,
+) -> OperatorSwitchStatus {
+    let candidate = physical.join.vectorized.candidate;
+    let enabled = candidate && limits.operator_switching_enabled.is_enabled();
+    OperatorSwitchStatus {
+        candidate,
+        enabled,
+        pair: if candidate {
+            "vectorized_join_to_merge_join"
+        } else {
+            "none"
+        },
+        threshold: limits.operator_switch_join_row_threshold,
+        reason: operator_switch_reason(candidate, enabled),
+    }
+}
+
+fn operator_switch_reason(candidate: bool, enabled: bool) -> &'static str {
+    if enabled {
+        "armed"
+    } else if candidate {
+        "disabled"
+    } else {
+        "not_prevalidated"
+    }
 }
 
 fn prefilter_description(
@@ -379,11 +429,40 @@ fn candidate_budget(cassie: &Cassie, physical: &crate::planner::physical::Physic
         .map_or_else(|| "none".to_string(), |budget| budget.to_string())
 }
 
+#[derive(Clone, Copy)]
+enum DiagnosticFlag {
+    Enabled,
+    Disabled,
+}
+
+impl DiagnosticFlag {
+    const fn from_bool(value: bool) -> Self {
+        if value {
+            Self::Enabled
+        } else {
+            Self::Disabled
+        }
+    }
+
+    const fn is_enabled(self) -> bool {
+        matches!(self, Self::Enabled)
+    }
+}
+
+impl std::fmt::Display for DiagnosticFlag {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Enabled => "true",
+            Self::Disabled => "false",
+        })
+    }
+}
+
 struct Phase03Diagnostics {
-    column_native: bool,
-    hybrid_row_column: bool,
-    vectorized_aggregate: bool,
-    parallel_pipeline: bool,
+    column_native: DiagnosticFlag,
+    hybrid_row_column: DiagnosticFlag,
+    vectorized_aggregate: DiagnosticFlag,
+    parallel_pipeline: DiagnosticFlag,
     analytical_projection: String,
 }
 
@@ -419,10 +498,10 @@ fn phase03_diagnostics(
         .map_or_else(|| "none".to_string(), |(name, _)| name);
 
     Phase03Diagnostics {
-        column_native,
-        hybrid_row_column,
-        vectorized_aggregate: physical.aggregate.acceleration,
-        parallel_pipeline,
+        column_native: DiagnosticFlag::from_bool(column_native),
+        hybrid_row_column: DiagnosticFlag::from_bool(hybrid_row_column),
+        vectorized_aggregate: DiagnosticFlag::from_bool(physical.aggregate.acceleration),
+        parallel_pipeline: DiagnosticFlag::from_bool(parallel_pipeline),
         analytical_projection,
     }
 }
@@ -436,29 +515,9 @@ struct MixedExecutionDiagnostics {
 fn mixed_execution_diagnostics(
     physical: &crate::planner::physical::PhysicalPlan,
 ) -> MixedExecutionDiagnostics {
-    let uses_fulltext = physical
-        .operators
-        .iter()
-        .any(|operator| matches!(operator, crate::planner::physical::Operator::FullTextSearch));
-    let uses_vector = physical
-        .operators
-        .iter()
-        .any(|operator| matches!(operator, crate::planner::physical::Operator::VectorSearch));
-    let uses_aggregate = physical
-        .operators
-        .iter()
-        .any(|operator| matches!(operator, crate::planner::physical::Operator::Aggregate));
-    let enabled =
-        (uses_fulltext && uses_vector) || ((uses_fulltext || uses_vector) && uses_aggregate);
-    let stages = mixed_execution_stages(
-        uses_fulltext,
-        uses_vector,
-        uses_aggregate,
-        physical.logical.filter.is_some(),
-        !physical.logical.order.is_empty(),
-        physical.logical.offset.is_some(),
-        physical.logical.limit.is_some(),
-    );
+    let inputs = MixedExecutionInputs::from_plan(physical);
+    let enabled = inputs.is_enabled();
+    let stages = mixed_execution_stages(&inputs);
 
     MixedExecutionDiagnostics {
         enabled,
@@ -471,35 +530,88 @@ fn mixed_execution_diagnostics(
     }
 }
 
-fn mixed_execution_stages(
-    uses_fulltext: bool,
-    uses_vector: bool,
-    uses_aggregate: bool,
-    has_filter: bool,
-    has_order: bool,
-    has_offset: bool,
-    has_limit: bool,
-) -> String {
+struct MixedExecutionInputs {
+    operators: MixedOperatorUse,
+    clauses: MixedClauseUse,
+}
+
+struct MixedOperatorUse {
+    fulltext: DiagnosticFlag,
+    vector: DiagnosticFlag,
+    aggregate: DiagnosticFlag,
+}
+
+struct MixedClauseUse {
+    filter: DiagnosticFlag,
+    order: DiagnosticFlag,
+    offset: DiagnosticFlag,
+    limit: DiagnosticFlag,
+}
+
+impl MixedExecutionInputs {
+    fn from_plan(physical: &crate::planner::physical::PhysicalPlan) -> Self {
+        Self {
+            operators: MixedOperatorUse {
+                fulltext: DiagnosticFlag::from_bool(has_operator(
+                    physical,
+                    &crate::planner::physical::Operator::FullTextSearch,
+                )),
+                vector: DiagnosticFlag::from_bool(has_operator(
+                    physical,
+                    &crate::planner::physical::Operator::VectorSearch,
+                )),
+                aggregate: DiagnosticFlag::from_bool(has_operator(
+                    physical,
+                    &crate::planner::physical::Operator::Aggregate,
+                )),
+            },
+            clauses: MixedClauseUse {
+                filter: DiagnosticFlag::from_bool(physical.logical.filter.is_some()),
+                order: DiagnosticFlag::from_bool(!physical.logical.order.is_empty()),
+                offset: DiagnosticFlag::from_bool(physical.logical.offset.is_some()),
+                limit: DiagnosticFlag::from_bool(physical.logical.limit.is_some()),
+            },
+        }
+    }
+
+    fn is_enabled(&self) -> bool {
+        let uses_fulltext = self.operators.fulltext.is_enabled();
+        let uses_vector = self.operators.vector.is_enabled();
+        let uses_aggregate = self.operators.aggregate.is_enabled();
+        (uses_fulltext && uses_vector) || ((uses_fulltext || uses_vector) && uses_aggregate)
+    }
+}
+
+fn has_operator(
+    physical: &crate::planner::physical::PhysicalPlan,
+    target: &crate::planner::physical::Operator,
+) -> bool {
+    physical.operators.contains(target)
+}
+
+fn mixed_execution_stages(inputs: &MixedExecutionInputs) -> String {
     let mut stages = Vec::new();
-    if uses_fulltext || uses_vector {
+    let uses_search =
+        inputs.operators.fulltext.is_enabled() || inputs.operators.vector.is_enabled();
+    if uses_search {
         stages.push("candidate_generation");
     }
-    if has_filter {
+    if inputs.clauses.filter.is_enabled() {
         stages.push("metadata_prefilter");
     }
-    if uses_fulltext || uses_vector {
+    if uses_search {
         stages.push("exact_scoring");
     }
-    if uses_aggregate {
+    if inputs.operators.aggregate.is_enabled() {
         stages.push("analytical_grouping");
     }
-    if has_order {
+    if inputs.clauses.order.is_enabled() {
         stages.push("ordering");
     }
-    if has_offset {
+    if inputs.clauses.offset.is_enabled() {
         stages.push("offset");
     }
-    if has_limit {
+    if inputs.clauses.limit.is_enabled() {
         stages.push("limit");
     }
     if stages.is_empty() {

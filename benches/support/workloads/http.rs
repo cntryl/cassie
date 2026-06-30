@@ -2,6 +2,7 @@
 
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::future::{ready, Ready};
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -26,7 +27,7 @@ use uuid::Uuid;
 
 use super::context::{BenchContext, QueryBreakdownMicros};
 
-pub async fn http_vector_search(ctx: &BenchContext) -> usize {
+pub fn http_vector_search(ctx: &BenchContext) -> Ready<usize> {
     let body = json!({
         "field": "embedding",
         "query": "[1,0,0]",
@@ -36,13 +37,13 @@ pub async fn http_vector_search(ctx: &BenchContext) -> usize {
     let result = search::vector_search(&ctx.cassie, &ctx.collection, body.to_string().as_bytes())
         .expect("vector search");
     let rows = result["rows"].as_array().expect("vector search rows");
-    std::hint::black_box(rows.len())
+    ready(std::hint::black_box(rows.len()))
 }
 
-pub async fn http_document_get(ctx: &BenchContext) -> usize {
+pub fn http_document_get(ctx: &BenchContext) -> Ready<usize> {
     let loaded = documents::get(&ctx.cassie, &ctx.collection, "doc-1").expect("get document");
     std::hint::black_box(loaded);
-    1
+    ready(1)
 }
 
 pub async fn http_concurrent_document_gets(ctx: &BenchContext, concurrency: usize) -> usize {
@@ -64,7 +65,7 @@ pub async fn http_concurrent_document_gets(ctx: &BenchContext, concurrency: usiz
     std::hint::black_box(loaded)
 }
 
-pub async fn http_large_result_json(ctx: &BenchContext) -> usize {
+pub fn http_large_result_json(ctx: &BenchContext) -> Ready<usize> {
     let result = ctx
         .cassie
         .execute_sql(
@@ -74,7 +75,7 @@ pub async fn http_large_result_json(ctx: &BenchContext) -> usize {
         )
         .expect("large result query");
     let encoded = serde_json::to_vec(&result).expect("json encode result");
-    std::hint::black_box(encoded.len())
+    ready(std::hint::black_box(encoded.len()))
 }
 
 pub fn json_serialization_overhead() -> usize {

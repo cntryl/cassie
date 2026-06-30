@@ -15,7 +15,7 @@ fn bench_query_breakdown(c: &mut Criterion) {
 
     let breakdown = (0..12)
         .map(|_| runtime.block_on(workloads::simple_10k_query_breakdown(&ctx)))
-        .min_by_key(|breakdown| breakdown.total_us)
+        .min_by_key(|breakdown| breakdown.total)
         .expect("query breakdown sample");
     println!(
         "{}",

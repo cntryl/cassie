@@ -12,19 +12,19 @@ impl Midge {
     pub fn create_collection_with_meta(
         &self,
         name: &str,
-        schema: Schema,
-        metadata: CollectionMeta,
+        schema: &Schema,
+        metadata: &CollectionMeta,
     ) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
 
         let schema_key = Self::collection_schema_key(name);
         if tx.get(&schema_key).map_err(CassieError::from)?.is_none() {
-            let schema_bytes = serde_json::to_vec(&schema)
+            let schema_bytes = serde_json::to_vec(schema)
                 .map_err(|error| CassieError::Parse(error.to_string()))?;
             tx.put(schema_key, schema_bytes, None)
                 .map_err(CassieError::from)?;
         }
-        let row_schema = RowSchema::from_schema(&schema);
+        let row_schema = RowSchema::from_schema(schema);
         if tx
             .get(&Self::row_schema_key(name))
             .map_err(CassieError::from)?
@@ -54,7 +54,7 @@ impl Midge {
             )?;
         }
         if Self::load_collection_metadata_from_tx(&tx, name)?.is_none() {
-            Self::save_collection_metadata_to_tx(&mut tx, &metadata)?;
+            Self::save_collection_metadata_to_tx(&mut tx, metadata)?;
         }
 
         let mut collections = Self::load_collections(&tx)?;
@@ -247,7 +247,6 @@ impl Midge {
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn scan_column_store_rows_batched(
-        &self,
         tx: &cntryl_midge::Transaction,
         collection: &str,
         row_schema: &RowSchema,
@@ -326,15 +325,14 @@ impl Midge {
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn scan_ordered_column_store_rows_batched_by_id(
-        &self,
         tx: &cntryl_midge::Transaction,
         collection: &str,
         row_schema: &RowSchema,
         batch_size: usize,
         projection: Option<&HashSet<String>>,
         _include_historical_aliases: bool,
-        start_bound: Option<OrderedRowBound>,
-        end_bound: Option<OrderedRowBound>,
+        start_bound: Option<&OrderedRowBound>,
+        end_bound: Option<&OrderedRowBound>,
         reverse: bool,
         limit: usize,
     ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
@@ -360,7 +358,7 @@ impl Midge {
             let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &row_prefix) else {
                 continue;
             };
-            if Self::within_ordered_bounds(&id, start_bound.as_ref(), end_bound.as_ref()) {
+            if Self::within_ordered_bounds(&id, start_bound, end_bound) {
                 ids.push(id);
             }
         }

@@ -22,7 +22,7 @@ fn normalize_family_ids(layout: &StorageLayout) -> (u32, u32, u32) {
     (layout.schema.id(), layout.data.id(), layout.temp.id())
 }
 
-fn put_legacy_document(cassie: &Cassie, collection: &str, id: &str, payload: serde_json::Value) {
+fn put_legacy_document(cassie: &Cassie, collection: &str, id: &str, payload: &serde_json::Value) {
     let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
     tx.put(
         format!("doc:{collection}:{id}").into_bytes(),
@@ -87,7 +87,7 @@ fn should_restore_cardinality_stats_after_restart() {
                 predicate: None,
                 kind: IndexKind::Scalar,
                 unique: false,
-                options: Default::default(),
+                options: std::collections::BTreeMap::default(),
             })
             .unwrap();
         cassie
@@ -280,30 +280,28 @@ fn should_cleanup_column_store_keys_after_collection_rename_then_drop() {
         cassie.midge.ensure_families_ready().unwrap();
         let collection = "cf_layout_column_store_cleanup";
         let renamed = "cf_layout_column_store_cleanup_archive";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "score".to_string(),
+                    data_type: DataType::Int,
+                    nullable: true,
+                },
+            ],
+        };
+        let metadata = CollectionMeta::new_with_storage_mode(
+            collection,
+            None,
+            CollectionStorageMode::ColumnStore,
+        );
         cassie
             .midge
-            .create_collection_with_meta(
-                collection,
-                Schema {
-                    fields: vec![
-                        FieldSchema {
-                            name: "title".to_string(),
-                            data_type: DataType::Text,
-                            nullable: true,
-                        },
-                        FieldSchema {
-                            name: "score".to_string(),
-                            data_type: DataType::Int,
-                            nullable: true,
-                        },
-                    ],
-                },
-                CollectionMeta::new_with_storage_mode(
-                    collection,
-                    None,
-                    CollectionStorageMode::ColumnStore,
-                ),
-            )
+            .create_collection_with_meta(collection, &schema, &metadata)
             .unwrap();
         cassie
             .midge

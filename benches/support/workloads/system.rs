@@ -2,6 +2,7 @@
 
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::future::{ready, Ready};
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -26,7 +27,10 @@ use cassie::types::{DataType, FieldSchema, Schema, Value};
 use serde_json::json;
 use uuid::Uuid;
 
-use super::context::{BenchContext, QueryBreakdownMicros};
+use super::context::{
+    duration_divisor, u64_to_usize_saturating, usize_mod_i64, usize_to_i64, usize_to_u64,
+    BenchContext, QueryBreakdownMicros,
+};
 use super::pgwire::pgwire_simple_query;
 use super::sql::execute_sql;
 
@@ -44,29 +48,28 @@ fn counter_delta(
     section: &str,
     key: &str,
 ) -> usize {
-    after[section][key]
+    let delta = after[section][key]
         .as_u64()
         .unwrap_or_default()
-        .saturating_sub(before[section][key].as_u64().unwrap_or_default()) as usize
+        .saturating_sub(before[section][key].as_u64().unwrap_or_default());
+    u64_to_usize_saturating(delta)
 }
 
-pub async fn protocol_comparison_sql(ctx: &BenchContext) -> usize {
+pub fn protocol_comparison_sql(ctx: &BenchContext) -> Ready<usize> {
     execute_sql(
         ctx,
         "SELECT id, title FROM bench_documents WHERE title = 'title-1' LIMIT 20",
     )
-    .await
 }
 
-pub async fn protocol_comparison_pgwire(ctx: &BenchContext) -> usize {
+pub fn protocol_comparison_pgwire(ctx: &BenchContext) -> Ready<usize> {
     pgwire_simple_query(
         ctx,
         "SELECT id, title FROM bench_documents WHERE title = 'title-1' LIMIT 20",
     )
-    .await
 }
 
-pub async fn protocol_comparison_http(ctx: &BenchContext) -> usize {
+pub fn protocol_comparison_http(ctx: &BenchContext) -> Ready<usize> {
     let result = ctx
         .cassie
         .execute_sql(
@@ -76,10 +79,10 @@ pub async fn protocol_comparison_http(ctx: &BenchContext) -> usize {
         )
         .expect("http comparison query");
     let encoded = serde_json::to_vec(&result).expect("json encode comparison");
-    std::hint::black_box(encoded.len())
+    ready(std::hint::black_box(encoded.len()))
 }
 
-pub async fn http_document_create_get(ctx: &BenchContext) -> usize {
+pub fn http_document_create_get(ctx: &BenchContext) -> Ready<usize> {
     let payload = json!({
         "title": "http-benchmark-title",
         "body": "alpha beta gamma",
@@ -92,17 +95,17 @@ pub async fn http_document_create_get(ctx: &BenchContext) -> usize {
     let id = created["id"].as_str().expect("created id");
     let loaded = documents::get(&ctx.cassie, &ctx.collection, id).expect("get document");
     std::hint::black_box(loaded);
-    1
+    ready(1)
 }
 
-pub async fn timed_http_document_create_get(ctx: &BenchContext) -> Duration {
-    timed_http_document_create_get_batch(ctx, 1).await
+pub fn timed_http_document_create_get(ctx: &BenchContext) -> Ready<Duration> {
+    timed_http_document_create_get_batch(ctx, 1)
 }
 
-pub async fn timed_http_document_create_get_batch(
+pub fn timed_http_document_create_get_batch(
     ctx: &BenchContext,
     batch_size: usize,
-) -> Duration {
+) -> Ready<Duration> {
     let batch_size = batch_size.max(1);
     let payload = json!({
         "title": "http-benchmark-title",
@@ -129,10 +132,14 @@ pub async fn timed_http_document_create_get_batch(
             .expect("cleanup document");
     }
     let elapsed = started.elapsed();
-    elapsed / batch_size as u32
+    ready(elapsed / duration_divisor(batch_size))
 }
 
-pub async fn ingest_document(ctx: &BenchContext) -> usize {
+pub fn ingest_document(ctx: &BenchContext) -> Ready<usize> {
+    ready(ingest_document_now(ctx))
+}
+
+fn ingest_document_now(ctx: &BenchContext) -> usize {
     let payload = json!({
         "title": "benchmark-title",
         "body": "alpha beta gamma",
@@ -148,14 +155,17 @@ pub async fn ingest_document(ctx: &BenchContext) -> usize {
     1
 }
 
-pub async fn mixed_ingest_query(ctx: &BenchContext) -> usize {
-    let written = ingest_document(ctx).await;
-    let read = execute_sql(
-        ctx,
-        "SELECT id, title FROM bench_documents WHERE title = 'benchmark-title' LIMIT 20",
-    )
-    .await;
-    std::hint::black_box(written + read)
+pub fn mixed_ingest_query(ctx: &BenchContext) -> Ready<usize> {
+    let written = ingest_document_now(ctx);
+    let result = ctx
+        .cassie
+        .execute_sql(
+            &ctx.session,
+            "SELECT id, title FROM bench_documents WHERE title = 'benchmark-title' LIMIT 20",
+            vec![],
+        )
+        .expect("mixed ingest query");
+    ready(std::hint::black_box(written + result.rows.len()))
 }
 
 pub async fn concurrent_queries(ctx: &BenchContext, concurrency: usize) -> usize {
@@ -183,15 +193,18 @@ pub async fn concurrent_queries(ctx: &BenchContext, concurrency: usize) -> usize
     std::hint::black_box(rows)
 }
 
-pub async fn projection_rebuild_query(ctx: &BenchContext) -> usize {
+pub fn projection_rebuild_query(ctx: &BenchContext) -> Ready<usize> {
     execute_sql(
         ctx,
         "SELECT title, body, score, status FROM bench_documents ORDER BY id LIMIT 512",
     )
-    .await
 }
 
-pub async fn projection_refresh_workflow(ctx: &BenchContext) -> usize {
+pub fn projection_refresh_workflow(ctx: &BenchContext) -> Ready<usize> {
+    ready(projection_refresh_workflow_now(ctx))
+}
+
+fn projection_refresh_workflow_now(ctx: &BenchContext) -> usize {
     let before = ctx.cassie.metrics();
     let _ = ctx.cassie.execute_sql(
         &ctx.session,
@@ -215,9 +228,10 @@ pub async fn projection_refresh_workflow(ctx: &BenchContext) -> usize {
     command_result
 }
 
-pub async fn projection_rebuild_verification(ctx: &BenchContext) -> usize {
-    let _ = projection_refresh_workflow(ctx).await;
-    ctx.cassie
+pub fn projection_rebuild_verification(ctx: &BenchContext) -> Ready<usize> {
+    let _ = projection_refresh_workflow_now(ctx);
+    let rows = ctx
+        .cassie
         .execute_sql(
             &ctx.session,
             "VERIFY PROJECTION bench_projection MODE full",
@@ -225,12 +239,13 @@ pub async fn projection_rebuild_verification(ctx: &BenchContext) -> usize {
         )
         .expect("verify projection")
         .rows
-        .len()
+        .len();
+    ready(rows)
 }
 
-pub async fn projection_version_swap(ctx: &BenchContext, _nonce: usize) -> usize {
+pub fn projection_version_swap(ctx: &BenchContext, _nonce: usize) -> Ready<usize> {
     let before = ctx.cassie.metrics();
-    let _ = projection_refresh_workflow(ctx).await;
+    let _ = projection_refresh_workflow_now(ctx);
     ctx.cassie
         .execute_sql(
             &ctx.session,
@@ -261,10 +276,10 @@ pub async fn projection_version_swap(ctx: &BenchContext, _nonce: usize) -> usize
     let activations = projection_counter_delta(&after, &before, "write_activation_metadata_writes");
     let swaps = projection_counter_delta(&after, &before, "version_swaps");
     std::hint::black_box(activations + swaps + command_len);
-    command_len
+    ready(command_len)
 }
 
-pub async fn projection_duplicate_replay(ctx: &BenchContext, nonce: usize) -> usize {
+pub fn projection_duplicate_replay(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
     let before = ctx.cassie.metrics();
     let batch = ProjectionReplayBatch {
         projection: ctx.collection.clone(),
@@ -274,7 +289,7 @@ pub async fn projection_duplicate_replay(ctx: &BenchContext, nonce: usize) -> us
         events: vec![ProjectionReplayEvent {
             event_id: format!("bench-duplicate-event-{nonce}"),
             checkpoint: format!("bench-duplicate-checkpoint-{nonce}"),
-            position: Some(nonce as u64),
+            position: Some(usize_to_u64(nonce)),
             document_id: format!("bench-duplicate-doc-{nonce}"),
             payload: Some(json!({
                 "id": format!("bench-duplicate-doc-{nonce}"),
@@ -298,22 +313,26 @@ pub async fn projection_duplicate_replay(ctx: &BenchContext, nonce: usize) -> us
     let replay_batches = projection_counter_delta(&after, &before, "replay_batches");
     let event_delta = projection_counter_delta(&after, &before, "replay_events_applied");
     std::hint::black_box(duplicate_checks + replay_batches + event_delta);
-    std::hint::black_box((first.applied_event_count + second.skipped_duplicate_count) as usize)
+    ready(std::hint::black_box(u64_to_usize_saturating(
+        first
+            .applied_event_count
+            .saturating_add(second.skipped_duplicate_count),
+    )))
 }
 
-pub async fn projection_lag_catchup(ctx: &BenchContext, nonce: usize) -> usize {
+pub fn projection_lag_catchup(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
     let before = ctx.cassie.metrics();
     let events = (0..64)
         .map(|index| ProjectionReplayEvent {
             event_id: format!("bench-catchup-event-{nonce}-{index}"),
             checkpoint: format!("bench-catchup-checkpoint-{nonce}-{index}"),
-            position: Some((nonce * 64 + index) as u64),
+            position: Some(usize_to_u64(nonce.saturating_mul(64).saturating_add(index))),
             document_id: format!("bench-catchup-doc-{nonce}-{index}"),
             payload: Some(json!({
                 "id": format!("bench-catchup-doc-{nonce}-{index}"),
                 "title": format!("catchup-title-{nonce}-{index}"),
                 "body": "alpha beta gamma",
-                "score": index as i64,
+                "score": usize_to_i64(index),
                 "status": "approved",
             })),
         })
@@ -334,10 +353,14 @@ pub async fn projection_lag_catchup(ctx: &BenchContext, nonce: usize) -> usize {
     let duplicates = projection_counter_delta(&after, &before, "replay_duplicates_skipped");
     let batch_count = projection_counter_delta(&after, &before, "replay_batches");
     std::hint::black_box(applied + duplicates + batch_count);
-    std::hint::black_box((result.applied_event_count + result.skipped_duplicate_count) as usize)
+    ready(std::hint::black_box(u64_to_usize_saturating(
+        result
+            .applied_event_count
+            .saturating_add(result.skipped_duplicate_count),
+    )))
 }
 
-pub async fn index_rebuild_ddl(ctx: &BenchContext, nonce: usize) -> usize {
+pub fn index_rebuild_ddl(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
     let before = ctx.cassie.metrics();
     let name = format!("bench_rebuild_idx_{nonce}");
     let create = format!(
@@ -360,26 +383,24 @@ pub async fn index_rebuild_ddl(ctx: &BenchContext, nonce: usize) -> usize {
     let after = ctx.cassie.metrics();
     let row_puts = projection_counter_delta(&after, &before, "write_rebuild_target_puts");
     std::hint::black_box(row_puts + created + dropped);
-    std::hint::black_box(created + dropped)
+    ready(std::hint::black_box(created + dropped))
 }
 
-pub async fn large_result_set_query(ctx: &BenchContext) -> usize {
+pub fn large_result_set_query(ctx: &BenchContext) -> Ready<usize> {
     execute_sql(
         ctx,
         "SELECT id, title, body, score, status FROM bench_documents ORDER BY id LIMIT 512",
     )
-    .await
 }
 
-pub async fn ten_million_row_query_shape(ctx: &BenchContext) -> usize {
+pub fn ten_million_row_query_shape(ctx: &BenchContext) -> Ready<usize> {
     execute_sql(
         ctx,
         "SELECT id FROM bench_documents WHERE score >= 10 ORDER BY score DESC LIMIT 100",
     )
-    .await
 }
 
-pub async fn time_series_window_scan(ctx: &BenchContext) -> usize {
+pub fn time_series_window_scan(ctx: &BenchContext) -> Ready<usize> {
     let sql = format!(
         "SELECT tenant, amount FROM {} WHERE event_at >= '2026-01-10T00:00:00Z' AND event_at < '2026-01-12T00:00:00Z' ORDER BY event_at LIMIT 512",
         ctx.collection
@@ -397,10 +418,10 @@ pub async fn time_series_window_scan(ctx: &BenchContext) -> usize {
         .unwrap_or_default();
     std::hint::black_box(buckets);
     std::hint::black_box(bucket_native_hits);
-    std::hint::black_box(result.rows.len())
+    ready(std::hint::black_box(result.rows.len()))
 }
 
-pub async fn time_series_retention_enforcement(ctx: &BenchContext, nonce: usize) -> usize {
+pub fn time_series_retention_enforcement(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
     put_time_series_event(
         ctx,
         &format!("ts-retention-expired-{nonce}"),
@@ -421,10 +442,10 @@ pub async fn time_series_retention_enforcement(ctx: &BenchContext, nonce: usize)
         .len();
     let after = ctx.cassie.metrics();
     let deleted = counter_delta(&after, &before, "retention", "deleted_rows");
-    std::hint::black_box(deleted + command_len)
+    ready(std::hint::black_box(deleted + command_len))
 }
 
-pub async fn time_series_rollup_refresh(ctx: &BenchContext, nonce: usize) -> usize {
+pub fn time_series_rollup_refresh(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
     put_time_series_event(
         ctx,
         &format!("ts-rollup-refresh-{nonce}"),
@@ -445,7 +466,7 @@ pub async fn time_series_rollup_refresh(ctx: &BenchContext, nonce: usize) -> usi
         .len();
     let after = ctx.cassie.metrics();
     let refreshes = counter_delta(&after, &before, "rollups", "refreshes");
-    std::hint::black_box(refreshes + command_len)
+    ready(std::hint::black_box(refreshes + command_len))
 }
 
 fn put_time_series_event(
@@ -464,7 +485,7 @@ fn put_time_series_event(
                 json!({
                     "tenant": tenant,
                     "event_at": event_at,
-                    "amount": (amount % 100) as i64,
+                    "amount": usize_mod_i64(amount, 100),
                     "status": "bench",
                 }),
             )],
@@ -472,11 +493,11 @@ fn put_time_series_event(
         .expect("put time-series benchmark event");
 }
 
-pub async fn timed_ingest_document(ctx: &BenchContext) -> Duration {
-    timed_ingest_document_batch(ctx, 1).await
+pub fn timed_ingest_document(ctx: &BenchContext) -> Ready<Duration> {
+    timed_ingest_document_batch(ctx, 1)
 }
 
-pub async fn timed_ingest_document_batch(ctx: &BenchContext, batch_size: usize) -> Duration {
+pub fn timed_ingest_document_batch(ctx: &BenchContext, batch_size: usize) -> Ready<Duration> {
     let batch_size = batch_size.max(1);
     let payload = json!({
         "title": "benchmark-title",
@@ -502,5 +523,5 @@ pub async fn timed_ingest_document_batch(ctx: &BenchContext, batch_size: usize) 
             .expect("cleanup ingested document");
     }
     let elapsed = started.elapsed();
-    elapsed / batch_size as u32
+    ready(elapsed / duration_divisor(batch_size))
 }

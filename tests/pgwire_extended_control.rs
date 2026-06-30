@@ -1,10 +1,16 @@
 #![allow(unused_imports, dead_code)]
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
+
+type WireFrame = (u8, Vec<u8>);
+type PgwireReader<'a> = tokio::io::BufReader<tokio::net::tcp::ReadHalf<'a>>;
+type PgwireWriter<'a> = tokio::net::tcp::WriteHalf<'a>;
+type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 
 fn with_fallback() {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
@@ -305,6 +311,161 @@ fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
     fields
 }
 
+fn seed_recovery_collection(cassie: &Cassie) {
+    let collection = "extended_query_recovery_docs";
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .unwrap();
+    cassie.register_collection(collection, schema);
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("doc-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .unwrap();
+}
+
+async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.password.clear();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind listener");
+    let addr = listener.local_addr().expect("listener address");
+    drop(listener);
+
+    let server = tokio::spawn(cassie::pgwire::server::run(
+        addr.to_string(),
+        std::sync::Arc::new(cassie.clone()),
+        config,
+    ));
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    (addr, server)
+}
+
+async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {
+    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "testdb"))
+        .await
+        .expect("write startup");
+    let auth = read_wire_frame(reader).await;
+    assert_eq!(auth.0, b'R', "startup should return an auth response");
+    let startup_ready = read_until_ready(reader).await;
+    assert_eq!(startup_ready, vec![b'I']);
+}
+
+async fn write_parse_error_recovery_batch(writer: &mut PgwireWriter<'_>) {
+    tokio::io::AsyncWriteExt::write_all(
+        writer,
+        &parse_frame("stmt_recovery_error", "SELECT * FROM"),
+    )
+    .await
+    .expect("write invalid parse");
+    tokio::io::AsyncWriteExt::write_all(
+        writer,
+        &parse_frame(
+            "stmt_recovery_valid",
+            "SELECT title FROM extended_query_recovery_docs WHERE title = $1 ORDER BY title",
+        ),
+    )
+    .await
+    .expect("write ignored parse");
+    tokio::io::AsyncWriteExt::write_all(
+        writer,
+        &bind_frame("portal_recovery", "stmt_recovery_valid", &["alpha"]),
+    )
+    .await
+    .expect("write ignored bind");
+    tokio::io::AsyncWriteExt::write_all(writer, &execute_frame("portal_recovery"))
+        .await
+        .expect("write ignored execute");
+    tokio::io::AsyncWriteExt::write_all(writer, &sync_frame())
+        .await
+        .expect("write sync");
+    tokio::io::AsyncWriteExt::flush(writer)
+        .await
+        .expect("flush recovery batch");
+}
+
+fn assert_parse_error_recovery(error: &WireFrame, ready: &WireFrame) {
+    assert_eq!(error.0, b'E', "parse failure should return an error frame");
+    assert_eq!(
+        ready.0, b'Z',
+        "sync after a parse failure should restore ready-for-query"
+    );
+    assert_eq!(
+        parse_error_fields(&error.1)
+            .iter()
+            .find(|(field, _)| *field == 'C')
+            .map(|(_, value)| value.as_str()),
+        Some("42601"),
+        "parse failure should be reported as a syntax error"
+    );
+    assert_eq!(ready.1, vec![b'I']);
+}
+
+async fn write_recovered_query_batch(writer: &mut PgwireWriter<'_>) {
+    tokio::io::AsyncWriteExt::write_all(
+        writer,
+        &parse_frame(
+            "stmt_recovery_valid",
+            "SELECT title FROM extended_query_recovery_docs WHERE title = $1 ORDER BY title",
+        ),
+    )
+    .await
+    .expect("write recovery parse");
+    tokio::io::AsyncWriteExt::write_all(
+        writer,
+        &bind_frame("portal_recovery", "stmt_recovery_valid", &["alpha"]),
+    )
+    .await
+    .expect("write recovery bind");
+    tokio::io::AsyncWriteExt::write_all(writer, &execute_frame("portal_recovery"))
+        .await
+        .expect("write recovery execute");
+    tokio::io::AsyncWriteExt::write_all(writer, &sync_frame())
+        .await
+        .expect("write recovery sync");
+    tokio::io::AsyncWriteExt::flush(writer)
+        .await
+        .expect("flush recovery follow-up");
+}
+
+async fn read_ready_frames(reader: &mut PgwireReader<'_>) -> Vec<WireFrame> {
+    let mut frames = Vec::new();
+    loop {
+        let frame = read_wire_frame(reader).await;
+        let tag = frame.0;
+        frames.push(frame);
+        if tag == b'Z' {
+            return frames;
+        }
+    }
+}
+
+fn assert_recovered_query_frames(frames: &[WireFrame]) {
+    assert_eq!(frames.len(), 6, "recovered query should execute normally");
+    assert_eq!(frames[0].0, b'1');
+    assert_eq!(frames[1].0, b'2');
+    assert_eq!(frames[2].0, b'T');
+    assert_eq!(frames[3].0, b'D');
+    assert_eq!(frames[4].0, b'C');
+    assert_eq!(frames[5].0, b'Z');
+    assert_eq!(frames[5].1, vec![b'I']);
+
+    let values = parse_data_row(&frames[3].1);
+    assert_eq!(values, vec![Some("alpha".to_string())]);
+}
+
 #[test]
 fn should_close_connection_on_cancel_request_without_response() {
     // Arrange
@@ -466,44 +627,9 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
+        seed_recovery_collection(&cassie);
 
-        let collection = "extended_query_recovery_docs";
-        let schema = Schema {
-            fields: vec![FieldSchema {
-                name: "title".to_string(),
-                data_type: DataType::Text,
-                nullable: true,
-            }],
-        };
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie.register_collection(collection, schema);
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-1".to_string()),
-                serde_json::json!({"title": "alpha"}),
-            )
-            .unwrap();
-
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind listener");
-        let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
-            std::sync::Arc::new(cassie.clone()),
-            config,
-        ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
+        let (addr, server) = spawn_pgwire_server(&cassie).await;
         let mut socket = tokio::net::TcpStream::connect(addr)
             .await
             .expect("connect pgwire");
@@ -511,110 +637,16 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
         let mut reader = tokio::io::BufReader::new(read_half);
 
         // Act
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
-            .await
-            .expect("write startup");
-        let auth = read_wire_frame(&mut reader).await;
-        assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_until_ready(&mut reader).await;
-        assert_eq!(startup_ready, vec![b'I']);
-
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &parse_frame("stmt_recovery_error", "SELECT * FROM"),
-        )
-        .await
-        .expect("write invalid parse");
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &parse_frame(
-                "stmt_recovery_valid",
-                "SELECT title FROM extended_query_recovery_docs WHERE title = $1 ORDER BY title",
-            ),
-        )
-        .await
-        .expect("write ignored parse");
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &bind_frame("portal_recovery", "stmt_recovery_valid", &["alpha"]),
-        )
-        .await
-        .expect("write ignored bind");
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &execute_frame("portal_recovery"))
-            .await
-            .expect("write ignored execute");
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &sync_frame())
-            .await
-            .expect("write sync");
-        tokio::io::AsyncWriteExt::flush(&mut write_half)
-            .await
-            .expect("flush recovery batch");
-
+        start_pgwire_session(&mut reader, &mut write_half).await;
+        write_parse_error_recovery_batch(&mut write_half).await;
         let error = read_wire_frame(&mut reader).await;
         let ready = read_wire_frame(&mut reader).await;
 
         // Assert
-        assert_eq!(error.0, b'E', "parse failure should return an error frame");
-        assert_eq!(
-            ready.0, b'Z',
-            "sync after a parse failure should restore ready-for-query"
-        );
-        assert_eq!(
-            parse_error_fields(&error.1)
-                .iter()
-                .find(|(field, _)| *field == 'C')
-                .map(|(_, value)| value.as_str()),
-            Some("42601"),
-            "parse failure should be reported as a syntax error"
-        );
-        assert_eq!(ready.1, vec![b'I']);
-
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &parse_frame(
-                "stmt_recovery_valid",
-                "SELECT title FROM extended_query_recovery_docs WHERE title = $1 ORDER BY title",
-            ),
-        )
-        .await
-        .expect("write recovery parse");
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &bind_frame("portal_recovery", "stmt_recovery_valid", &["alpha"]),
-        )
-        .await
-        .expect("write recovery bind");
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &execute_frame("portal_recovery"))
-            .await
-            .expect("write recovery execute");
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &sync_frame())
-            .await
-            .expect("write recovery sync");
-        tokio::io::AsyncWriteExt::flush(&mut write_half)
-            .await
-            .expect("flush recovery follow-up");
-
-        let mut frames = Vec::new();
-        loop {
-            let frame = read_wire_frame(&mut reader).await;
-            let tag = frame.0;
-            frames.push(frame);
-            if tag == b'Z' {
-                break;
-            }
-        }
-
-        assert_eq!(frames.len(), 6, "recovered query should execute normally");
-        assert_eq!(frames[0].0, b'1');
-        assert_eq!(frames[1].0, b'2');
-        assert_eq!(frames[2].0, b'T');
-        assert_eq!(frames[3].0, b'D');
-        assert_eq!(frames[4].0, b'C');
-        assert_eq!(frames[5].0, b'Z');
-        assert_eq!(frames[5].1, vec![b'I']);
-
-        let values = parse_data_row(&frames[3].1);
-        assert_eq!(values, vec![Some("alpha".to_string())]);
+        assert_parse_error_recovery(&error, &ready);
+        write_recovered_query_batch(&mut write_half).await;
+        let frames = read_ready_frames(&mut reader).await;
+        assert_recovered_query_frames(&frames);
 
         drop(socket);
         server.abort();

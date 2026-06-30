@@ -38,7 +38,7 @@ fn voyage_runtime() -> CassieRuntimeConfig {
     config
 }
 
-async fn ensure_collection(cassie: &Cassie, collection: &str, schema: Schema) {
+fn ensure_collection(cassie: &Cassie, collection: &str, schema: &Schema) {
     // Arrange.
     cassie
         .midge
@@ -113,7 +113,7 @@ fn should_reject_ingest_when_query_provider_model_mismatch() {
         };
 
         openai.startup().unwrap();
-        ensure_collection(&openai, collection, schema.clone()).await;
+        ensure_collection(&openai, collection, &schema);
 
         openai
             .midge
@@ -185,7 +185,7 @@ fn should_reject_ingest_when_dimensions_change() {
         };
 
         cassie.startup().unwrap();
-        ensure_collection(&cassie, collection, schema.clone()).await;
+        ensure_collection(&cassie, collection, &schema);
         let index_record = vector_index_record(collection, "openai", 2, DistanceMetric::Cosine);
         cassie.midge.put_vector_index(index_record.clone()).unwrap();
         cassie.register_vector_index(index_record);
@@ -234,7 +234,7 @@ fn should_reject_query_when_metric_different() {
         };
 
         cassie.startup().unwrap();
-        ensure_collection(&cassie, collection, schema).await;
+        ensure_collection(&cassie, collection, &schema);
         let index_record = vector_index_record(collection, "openai", 1536, DistanceMetric::Cosine);
         cassie.midge.put_vector_index(index_record.clone()).unwrap();
         cassie.register_vector_index(index_record);

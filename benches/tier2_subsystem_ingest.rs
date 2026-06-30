@@ -13,10 +13,10 @@ fn bench_ingest(c: &mut Criterion) {
     const BENCHMARK: &str = "tier2_subsystem_ingest";
 
     let runtime = workloads::runtime();
-    let ctx_10k = runtime
+    let write_context = runtime
         .block_on(workloads::context("tier2-ingest", 10_000))
         .expect("benchmark context");
-    let ctx_100k = runtime
+    let replay_context = runtime
         .block_on(workloads::replay_context("tier2-ingest-100k", 100_000))
         .expect("100k benchmark context");
 
@@ -29,7 +29,8 @@ fn bench_ingest(c: &mut Criterion) {
         b.iter_custom(|iterations| {
             let mut elapsed = std::time::Duration::ZERO;
             for _ in 0..iterations {
-                elapsed += runtime.block_on(workloads::timed_ingest_document_batch(&ctx_10k, 64));
+                elapsed +=
+                    runtime.block_on(workloads::timed_ingest_document_batch(&write_context, 64));
             }
             elapsed
         });
@@ -38,12 +39,12 @@ fn bench_ingest(c: &mut Criterion) {
         b.iter(|| {
             replay_nonce = replay_nonce.wrapping_add(1);
             runtime.block_on(workloads::projection_duplicate_replay(
-                &ctx_10k,
+                &write_context,
                 replay_nonce,
             ))
         });
     });
-    for (dataset, ctx) in [("10k", &ctx_10k), ("100k", &ctx_100k)] {
+    for (dataset, ctx) in [("10k", &write_context), ("100k", &replay_context)] {
         let benchmark =
             performance_benchmarks::expect_benchmark(BENCHMARK, "projection_lag_catchup", dataset);
         group.bench_function(

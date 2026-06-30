@@ -3,6 +3,21 @@ use cassie::search::bm25;
 use cassie::search::tokenizer;
 use cassie::vector::{cosine_distance, dot_distance, dot_score, l2_distance};
 
+fn assert_f64_close(actual: f64, expected: f64) {
+    let tolerance = f64::EPSILON.max(expected.abs() * 1e-12);
+    assert!(
+        (actual - expected).abs() <= tolerance,
+        "expected {actual} to equal {expected}"
+    );
+}
+
+fn usize_to_f64(value: usize) -> f64 {
+    value
+        .to_string()
+        .parse::<f64>()
+        .expect("test count should fit f64")
+}
+
 #[test]
 fn should_tokenize_text_into_lowercase_terms() {
     // Arrange
@@ -30,11 +45,11 @@ fn should_compute_vector_distances_deterministically() {
     let dot = dot_score(&a, &b);
 
     // Assert
-    assert_eq!(same_distance, 0.0);
-    assert_eq!(different_distance, 5.196152422706632);
-    assert_eq!(cosine, 0.0);
-    assert_eq!(dot_distance_score, -14.0);
-    assert_eq!(dot, 14.0);
+    assert_f64_close(same_distance, 0.0);
+    assert_f64_close(different_distance, 5.196_152_422_706_632);
+    assert_f64_close(cosine, 0.0);
+    assert_f64_close(dot_distance_score, -14.0);
+    assert_f64_close(dot, 14.0);
 }
 
 #[test]
@@ -49,9 +64,9 @@ fn should_compute_vector_distances_with_simd_tail_elements() {
     let dot = dot_score(&a, &b);
 
     // Assert
-    assert_eq!(l2, 3.0);
-    assert_eq!(cosine, 0.0);
-    assert_eq!(dot, 18.0);
+    assert_f64_close(l2, 3.0);
+    assert_f64_close(cosine, 0.0);
+    assert_f64_close(dot, 18.0);
 }
 
 #[test]
@@ -66,9 +81,9 @@ fn should_return_sentinel_values_for_mismatched_vector_lengths() {
     let dot = dot_score(&a, &b);
 
     // Assert
-    assert_eq!(l2, f64::MAX);
-    assert_eq!(cosine, 1.0);
-    assert_eq!(dot, 0.0);
+    assert_f64_close(l2, f64::MAX);
+    assert_f64_close(cosine, 1.0);
+    assert_f64_close(dot, 0.0);
 }
 
 #[test]
@@ -81,7 +96,7 @@ fn should_compute_hybrid_score_deterministically() {
     let score = hybrid_score(search_score, vector_score, None);
 
     // Assert
-    assert_eq!(score, 0.41);
+    assert_f64_close(score, 0.41);
 }
 
 #[test]
@@ -98,7 +113,7 @@ fn should_hybrid_score_use_custom_weights() {
     let score = hybrid_score(search_score, vector_score, Some(&policy));
 
     // Assert
-    assert_eq!(score, 0.65);
+    assert_f64_close(score, 0.65);
 }
 
 #[test]
@@ -108,9 +123,9 @@ fn should_compute_tokenized_bm25_like_score_for_query_terms() {
     let tokens = tokenizer::tokenize(haystack);
 
     // Act
-    let tf_quick = tokens.iter().filter(|term| *term == "quick").count() as f64;
-    let tf_dog = tokens.iter().filter(|term| *term == "dog").count() as f64;
-    let dl = tokens.len() as f64;
+    let tf_quick = usize_to_f64(tokens.iter().filter(|term| *term == "quick").count());
+    let tf_dog = usize_to_f64(tokens.iter().filter(|term| *term == "dog").count());
+    let dl = usize_to_f64(tokens.len());
     let avg_dl = dl;
     let k1 = 1.2;
     let b = 0.75;
@@ -123,7 +138,7 @@ fn should_compute_tokenized_bm25_like_score_for_query_terms() {
 
     // Assert
     let observed = query_score;
-    assert_eq!(observed, expected);
+    assert_f64_close(observed, expected);
     assert!(observed > score_common_term);
 }
 

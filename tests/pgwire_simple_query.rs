@@ -1,9 +1,15 @@
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
+
+type WireFrame = (u8, Vec<u8>);
+type PgwireReader<'a> = tokio::io::BufReader<tokio::net::tcp::ReadHalf<'a>>;
+type PgwireWriter<'a> = tokio::net::tcp::WriteHalf<'a>;
+type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 
 fn with_fallback() {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
@@ -195,6 +201,206 @@ fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
     fields
 }
 
+fn seed_copy_collection(cassie: &Cassie) {
+    let collection = "simple_copy_docs";
+    let schema = Schema {
+        fields: vec![
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: false,
+            },
+            FieldSchema {
+                name: "score".to_string(),
+                data_type: DataType::Int,
+                nullable: true,
+            },
+        ],
+    };
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .unwrap();
+    cassie.register_collection(collection, schema);
+}
+
+fn seed_simple_query_collection(cassie: &Cassie) {
+    let collection = "simple_query_docs";
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .unwrap();
+    cassie.register_collection(collection, schema);
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("doc-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .unwrap();
+}
+
+async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.password.clear();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind listener");
+    let addr = listener.local_addr().expect("listener address");
+    drop(listener);
+
+    let server = tokio::spawn(cassie::pgwire::server::run(
+        addr.to_string(),
+        std::sync::Arc::new(cassie.clone()),
+        config,
+    ));
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    (addr, server)
+}
+
+async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {
+    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "testdb"))
+        .await
+        .expect("write startup");
+    let (auth_tag, auth_payload) = read_wire_frame(reader).await;
+    assert_eq!(auth_tag, b'R', "startup should return an auth response");
+    assert_eq!(
+        i32::from_be_bytes(auth_payload[0..4].try_into().expect("auth status")),
+        0,
+        "passwordless auth should succeed"
+    );
+    let startup_ready = read_until_ready(reader).await;
+    assert_eq!(startup_ready, vec![b'I']);
+}
+
+async fn read_ready_frames(reader: &mut PgwireReader<'_>) -> Vec<WireFrame> {
+    let mut frames = Vec::new();
+    loop {
+        let frame = read_wire_frame(reader).await;
+        let tag = frame.0;
+        frames.push(frame);
+        if tag == b'Z' {
+            return frames;
+        }
+    }
+}
+
+async fn write_simple_query_and_read_frames(
+    reader: &mut PgwireReader<'_>,
+    writer: &mut PgwireWriter<'_>,
+    sql: &str,
+) -> Vec<WireFrame> {
+    tokio::io::AsyncWriteExt::write_all(writer, &simple_query_frame(sql))
+        .await
+        .expect("write query");
+    tokio::io::AsyncWriteExt::flush(writer)
+        .await
+        .expect("flush query");
+    read_ready_frames(reader).await
+}
+
+async fn request_copy_from_stdin(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {
+    tokio::io::AsyncWriteExt::write_all(
+        writer,
+        &simple_query_frame(
+            "COPY simple_copy_docs (_id, title, score) FROM STDIN WITH (FORMAT csv, HEADER true)",
+        ),
+    )
+    .await
+    .expect("write copy query");
+    tokio::io::AsyncWriteExt::flush(writer)
+        .await
+        .expect("flush copy query");
+
+    let copy_in = read_wire_frame(reader).await;
+    assert_eq!(copy_in.0, b'G', "copy should return CopyInResponse");
+    assert_eq!(copy_in.1[0], 0, "COPY should use text format");
+    assert_eq!(
+        i16::from_be_bytes(copy_in.1[1..3].try_into().expect("copy column count")),
+        3
+    );
+}
+
+async fn send_copy_rows(
+    reader: &mut PgwireReader<'_>,
+    writer: &mut PgwireWriter<'_>,
+) -> (WireFrame, WireFrame) {
+    let copy_payload = b"_id,title,score\ncopy-1,alpha,7\ncopy-2,beta,9\n";
+    tokio::io::AsyncWriteExt::write_all(writer, &copy_data_frame(copy_payload))
+        .await
+        .expect("write copy data");
+    tokio::io::AsyncWriteExt::write_all(writer, &copy_done_frame())
+        .await
+        .expect("write copy done");
+    tokio::io::AsyncWriteExt::flush(writer)
+        .await
+        .expect("flush copy data");
+
+    let complete = read_wire_frame(reader).await;
+    let ready = read_wire_frame(reader).await;
+    (complete, ready)
+}
+
+fn assert_copy_complete_frames(complete: &WireFrame, ready: &WireFrame) {
+    assert_eq!(complete.0, b'C', "copy should complete command");
+    let mut command_cursor = 0usize;
+    assert_eq!(read_cstring(&complete.1, &mut command_cursor), "COPY 2");
+    assert_eq!(ready.0, b'Z');
+    assert_eq!(ready.1, vec![b'I']);
+}
+
+fn assert_copy_select_frames(frames: &[WireFrame]) {
+    assert_eq!(frames[0].0, b'T');
+    assert_eq!(frames[1].0, b'D');
+    assert_eq!(frames[2].0, b'D');
+    assert_eq!(
+        parse_data_row(&frames[1].1),
+        vec![Some("alpha".to_string()), Some("7".to_string())]
+    );
+    assert_eq!(
+        parse_data_row(&frames[2].1),
+        vec![Some("beta".to_string()), Some("9".to_string())]
+    );
+    assert_eq!(frames[3].0, b'C');
+    assert_eq!(frames[4].0, b'Z');
+}
+
+fn assert_simple_query_backend_frames(frames: &[WireFrame]) {
+    assert_eq!(
+        frames.len(),
+        4,
+        "simple query should return four backend frames"
+    );
+    assert_eq!(frames[0].0, b'T', "first frame should be row description");
+    assert_eq!(frames[1].0, b'D', "second frame should be a data row");
+    assert_eq!(frames[2].0, b'C', "third frame should be command complete");
+    assert_eq!(frames[3].0, b'Z', "final frame should be ready for query");
+
+    let fields = parse_row_description(&frames[0].1);
+    assert_eq!(fields.len(), 1);
+    assert_eq!(fields[0].0, "title");
+    assert_eq!(fields[0].3, 25, "text columns should use the text OID");
+
+    let values = parse_data_row(&frames[1].1);
+    assert_eq!(values, vec![Some("alpha".to_string())]);
+
+    let mut command_cursor = 0usize;
+    let command = read_cstring(&frames[2].1, &mut command_cursor);
+    assert!(
+        command.starts_with("SELECT"),
+        "command completion should identify the select command"
+    );
+    assert_eq!(frames[3].1, vec![b'I']);
+}
+
 #[test]
 fn should_copy_csv_from_stdin_rows() {
     // Arrange
@@ -208,43 +414,9 @@ fn should_copy_csv_from_stdin_rows() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
+        seed_copy_collection(&cassie);
 
-        let collection = "simple_copy_docs";
-        let schema = Schema {
-            fields: vec![
-                FieldSchema {
-                    name: "title".to_string(),
-                    data_type: DataType::Text,
-                    nullable: false,
-                },
-                FieldSchema {
-                    name: "score".to_string(),
-                    data_type: DataType::Int,
-                    nullable: true,
-                },
-            ],
-        };
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie.register_collection(collection, schema);
-
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind listener");
-        let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
-            std::sync::Arc::new(cassie.clone()),
-            config,
-        ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
+        let (addr, server) = spawn_pgwire_server(&cassie).await;
         let mut socket = tokio::net::TcpStream::connect(addr)
             .await
             .expect("connect pgwire");
@@ -252,84 +424,19 @@ fn should_copy_csv_from_stdin_rows() {
         let mut reader = tokio::io::BufReader::new(read_half);
 
         // Act
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
-            .await
-            .expect("write startup");
-        let auth = read_wire_frame(&mut reader).await;
-        assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_until_ready(&mut reader).await;
-        assert_eq!(startup_ready, vec![b'I']);
-
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &simple_query_frame(
-                "COPY simple_copy_docs (_id, title, score) FROM STDIN WITH (FORMAT csv, HEADER true)",
-            ),
-        )
-        .await
-        .expect("write copy query");
-        tokio::io::AsyncWriteExt::flush(&mut write_half)
-            .await
-            .expect("flush copy query");
-
-        let copy_in = read_wire_frame(&mut reader).await;
-        assert_eq!(copy_in.0, b'G', "copy should return CopyInResponse");
-        assert_eq!(copy_in.1[0], 0, "COPY should use text format");
-        assert_eq!(
-            i16::from_be_bytes(copy_in.1[1..3].try_into().expect("copy column count")),
-            3
-        );
-
-        let copy_payload = b"_id,title,score\ncopy-1,alpha,7\ncopy-2,beta,9\n";
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &copy_data_frame(copy_payload))
-            .await
-            .expect("write copy data");
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &copy_done_frame())
-            .await
-            .expect("write copy done");
-        tokio::io::AsyncWriteExt::flush(&mut write_half)
-            .await
-            .expect("flush copy data");
-
-        let complete = read_wire_frame(&mut reader).await;
-        let ready = read_wire_frame(&mut reader).await;
+        start_pgwire_session(&mut reader, &mut write_half).await;
+        request_copy_from_stdin(&mut reader, &mut write_half).await;
+        let (complete, ready) = send_copy_rows(&mut reader, &mut write_half).await;
 
         // Assert
-        assert_eq!(complete.0, b'C', "copy should complete command");
-        let mut command_cursor = 0usize;
-        assert_eq!(read_cstring(&complete.1, &mut command_cursor), "COPY 2");
-        assert_eq!(ready.0, b'Z');
-        assert_eq!(ready.1, vec![b'I']);
-
-        tokio::io::AsyncWriteExt::write_all(
+        assert_copy_complete_frames(&complete, &ready);
+        let select_frames = write_simple_query_and_read_frames(
+            &mut reader,
             &mut write_half,
-            &simple_query_frame("SELECT title, score FROM simple_copy_docs ORDER BY score"),
+            "SELECT title, score FROM simple_copy_docs ORDER BY score",
         )
-        .await
-        .expect("write select");
-        tokio::io::AsyncWriteExt::flush(&mut write_half)
-            .await
-            .expect("flush select");
-
-        let description = read_wire_frame(&mut reader).await;
-        let first = read_wire_frame(&mut reader).await;
-        let second = read_wire_frame(&mut reader).await;
-        let select_complete = read_wire_frame(&mut reader).await;
-        let select_ready = read_wire_frame(&mut reader).await;
-
-        assert_eq!(description.0, b'T');
-        assert_eq!(first.0, b'D');
-        assert_eq!(second.0, b'D');
-        assert_eq!(
-            parse_data_row(&first.1),
-            vec![Some("alpha".to_string()), Some("7".to_string())]
-        );
-        assert_eq!(
-            parse_data_row(&second.1),
-            vec![Some("beta".to_string()), Some("9".to_string())]
-        );
-        assert_eq!(select_complete.0, b'C');
-        assert_eq!(select_ready.0, b'Z');
+        .await;
+        assert_copy_select_frames(&select_frames);
 
         drop(socket);
         server.abort();
@@ -351,44 +458,9 @@ fn should_execute_binary_simple_query_return_backend_frames() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
+        seed_simple_query_collection(&cassie);
 
-        let collection = "simple_query_docs";
-        let schema = Schema {
-            fields: vec![FieldSchema {
-                name: "title".to_string(),
-                data_type: DataType::Text,
-                nullable: true,
-            }],
-        };
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie.register_collection(collection, schema);
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-1".to_string()),
-                serde_json::json!({"title": "alpha"}),
-            )
-            .unwrap();
-
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind listener");
-        let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
-            std::sync::Arc::new(cassie.clone()),
-            config,
-        ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
+        let (addr, server) = spawn_pgwire_server(&cassie).await;
         let mut socket = tokio::net::TcpStream::connect(addr)
             .await
             .expect("connect pgwire");
@@ -396,65 +468,16 @@ fn should_execute_binary_simple_query_return_backend_frames() {
         let mut reader = tokio::io::BufReader::new(read_half);
 
         // Act
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
-            .await
-            .expect("write startup");
-        let (auth_tag, auth_payload) = read_wire_frame(&mut reader).await;
-        assert_eq!(auth_tag, b'R', "startup should return an auth response");
-        assert_eq!(
-            i32::from_be_bytes(auth_payload[0..4].try_into().expect("auth status")),
-            0,
-            "passwordless auth should succeed"
-        );
-        let startup_ready = read_until_ready(&mut reader).await;
-        assert_eq!(startup_ready, vec![b'I']);
-
-        tokio::io::AsyncWriteExt::write_all(
+        start_pgwire_session(&mut reader, &mut write_half).await;
+        let frames = write_simple_query_and_read_frames(
+            &mut reader,
             &mut write_half,
-            &simple_query_frame("SELECT title FROM simple_query_docs ORDER BY title"),
+            "SELECT title FROM simple_query_docs ORDER BY title",
         )
-        .await
-        .expect("write query");
-        tokio::io::AsyncWriteExt::flush(&mut write_half)
-            .await
-            .expect("flush query");
-
-        let mut frames = Vec::new();
-        loop {
-            let frame = read_wire_frame(&mut reader).await;
-            let tag = frame.0;
-            frames.push(frame);
-            if tag == b'Z' {
-                break;
-            }
-        }
+        .await;
 
         // Assert
-        assert_eq!(
-            frames.len(),
-            4,
-            "simple query should return four backend frames"
-        );
-        assert_eq!(frames[0].0, b'T', "first frame should be row description");
-        assert_eq!(frames[1].0, b'D', "second frame should be a data row");
-        assert_eq!(frames[2].0, b'C', "third frame should be command complete");
-        assert_eq!(frames[3].0, b'Z', "final frame should be ready for query");
-
-        let fields = parse_row_description(&frames[0].1);
-        assert_eq!(fields.len(), 1);
-        assert_eq!(fields[0].0, "title");
-        assert_eq!(fields[0].3, 25, "text columns should use the text OID");
-
-        let values = parse_data_row(&frames[1].1);
-        assert_eq!(values, vec![Some("alpha".to_string())]);
-
-        let mut command_cursor = 0usize;
-        let command = read_cstring(&frames[2].1, &mut command_cursor);
-        assert!(
-            command.starts_with("SELECT"),
-            "command completion should identify the select command"
-        );
-        assert_eq!(frames[3].1, vec![b'I']);
+        assert_simple_query_backend_frames(&frames);
 
         drop(socket);
         server.abort();

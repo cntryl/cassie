@@ -12,6 +12,125 @@ use cassie::types::{DataType, FieldSchema, Schema, Value};
 mod support;
 use support::*;
 
+fn register_ivfflat_collection(cassie: &Cassie, collection: &str) {
+    let schema = Schema {
+        fields: vec![
+            FieldSchema {
+                name: "content".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "embedding".to_string(),
+                data_type: DataType::Vector(3),
+                nullable: true,
+            },
+        ],
+    };
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .unwrap();
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
+}
+
+fn put_ivfflat_document(cassie: &Cassie, collection: &str, id: &str, embedding: [f64; 3]) {
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some(id.to_string()),
+            serde_json::json!({"content": id, "embedding": embedding}),
+        )
+        .unwrap();
+}
+
+fn put_ivfflat_index(cassie: &Cassie, collection: &str, seed: u64) {
+    cassie
+        .midge
+        .put_vector_index(VectorIndexRecord {
+            collection: collection.to_string(),
+            field: "embedding".to_string(),
+            source_field: "content".to_string(),
+            metadata: VectorIndexMetadata {
+                provider: "manual".to_string(),
+                model: "manual".to_string(),
+                dimensions: 3,
+                metric: DistanceMetric::L2,
+                index_type: VectorIndexType::IvfFlat,
+                hnsw: None,
+                ivfflat: Some(IvfFlatIndexOptions {
+                    version: 1,
+                    lists: 2,
+                    probes: 1,
+                    training_sample_size: 3,
+                    training_seed: seed,
+                }),
+                ivfflat_training: None,
+            },
+        })
+        .unwrap();
+}
+
+fn stored_ivfflat_index(cassie: &Cassie, collection: &str) -> VectorIndexRecord {
+    cassie
+        .midge
+        .get_vector_index(collection, "embedding")
+        .unwrap()
+        .expect("ivfflat vector index should persist")
+}
+
+fn ivfflat_row_count(cassie: &Cassie, collection: &str) -> usize {
+    stored_ivfflat_index(cassie, collection)
+        .metadata
+        .ivfflat_training
+        .unwrap()
+        .row_count
+}
+
+fn assert_candidate_list_training(stored: VectorIndexRecord) {
+    let training = stored
+        .metadata
+        .ivfflat_training
+        .expect("ivfflat training state");
+    assert!(training.trained);
+    assert_eq!(training.row_count, 3);
+    assert_eq!(training.lists, 2);
+    assert_eq!(training.probes, 1);
+    assert_eq!(training.assignments.len(), 3);
+    assert_eq!(training.list_sizes.iter().sum::<usize>(), 3);
+}
+
+fn assert_candidate_list_metrics(before: &serde_json::Value, after: &serde_json::Value) {
+    let vector_count_delta =
+        after["vector"]["count"].as_u64().unwrap() - before["vector"]["count"].as_u64().unwrap();
+    let candidate_count_delta = after["vector"]["candidate_count_total"].as_u64().unwrap()
+        - before["vector"]["candidate_count_total"].as_u64().unwrap();
+    assert_eq!(vector_count_delta, 1);
+    assert!(candidate_count_delta < 3);
+    assert_eq!(
+        after["vector"]["ivfflat_executions"].as_u64().unwrap()
+            - before["vector"]["ivfflat_executions"].as_u64().unwrap(),
+        1
+    );
+    assert_eq!(after["vector"]["last_index_kind"].as_str(), Some("ivfflat"));
+    assert!(
+        after["vector"]["ivfflat_exact_reranks_total"]
+            .as_u64()
+            .unwrap()
+            > before["vector"]["ivfflat_exact_reranks_total"]
+                .as_u64()
+                .unwrap()
+    );
+}
+
 #[test]
 fn should_parse_ivfflat_vector_index_options() {
     // Arrange
@@ -88,89 +207,16 @@ fn should_use_trained_ivfflat_candidate_lists_for_top_k() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "ivfflat_candidate_lists";
-        let schema = Schema {
-            fields: vec![
-                FieldSchema {
-                    name: "content".to_string(),
-                    data_type: DataType::Text,
-                    nullable: true,
-                },
-                FieldSchema {
-                    name: "embedding".to_string(),
-                    data_type: DataType::Vector(3),
-                    nullable: true,
-                },
-            ],
-        };
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie.register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("near".to_string()),
-                serde_json::json!({"content": "near", "embedding": [1.0, 0.0, 0.0]}),
-            )
-            .unwrap();
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("orthogonal".to_string()),
-                serde_json::json!({"content": "orthogonal", "embedding": [0.0, 1.0, 0.0]}),
-            )
-            .unwrap();
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("far".to_string()),
-                serde_json::json!({"content": "far", "embedding": [-1.0, 0.0, 0.0]}),
-            )
-            .unwrap();
-        cassie
-            .midge
-            .put_vector_index(VectorIndexRecord {
-                collection: collection.to_string(),
-                field: "embedding".to_string(),
-                source_field: "content".to_string(),
-                metadata: VectorIndexMetadata {
-                    provider: "manual".to_string(),
-                    model: "manual".to_string(),
-                    dimensions: 3,
-                    metric: DistanceMetric::L2,
-                    index_type: VectorIndexType::IvfFlat,
-                    hnsw: None,
-                    ivfflat: Some(IvfFlatIndexOptions {
-                        version: 1,
-                        lists: 2,
-                        probes: 1,
-                        training_sample_size: 3,
-                        training_seed: 7,
-                    }),
-                    ivfflat_training: None,
-                },
-            })
-            .unwrap();
+        register_ivfflat_collection(&cassie, collection);
+        put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+        put_ivfflat_document(&cassie, collection, "orthogonal", [0.0, 1.0, 0.0]);
+        put_ivfflat_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+        put_ivfflat_index(&cassie, collection, 7);
         let before = cassie.metrics();
         let session = cassie.create_session("tester", None);
 
         // Act
-        let stored = cassie
-            .midge
-            .get_vector_index(collection, "embedding")
-            .unwrap()
-            .expect("ivfflat vector index should persist");
+        let stored = stored_ivfflat_index(&cassie, collection);
         let result = cassie
             .execute_sql(
                 &session,
@@ -181,40 +227,10 @@ fn should_use_trained_ivfflat_candidate_lists_for_top_k() {
         let after = cassie.metrics();
 
         // Assert
-        let training = stored
-            .metadata
-            .ivfflat_training
-            .expect("ivfflat training state");
-        assert!(training.trained);
-        assert_eq!(training.row_count, 3);
-        assert_eq!(training.lists, 2);
-        assert_eq!(training.probes, 1);
-        assert_eq!(training.assignments.len(), 3);
-        assert_eq!(training.list_sizes.iter().sum::<usize>(), 3);
+        assert_candidate_list_training(stored);
         assert_eq!(result.rows.len(), 1);
         assert_eq!(result.rows[0][0], Value::String("near".to_string()));
-        let vector_count_delta =
-            after["vector"]["count"].as_u64().unwrap() - before["vector"]["count"].as_u64().unwrap();
-        let candidate_count_delta = after["vector"]["candidate_count_total"].as_u64().unwrap()
-            - before["vector"]["candidate_count_total"]
-                .as_u64()
-                .unwrap();
-        assert_eq!(vector_count_delta, 1);
-        assert!(candidate_count_delta < 3);
-        assert_eq!(
-            after["vector"]["ivfflat_executions"].as_u64().unwrap()
-                - before["vector"]["ivfflat_executions"].as_u64().unwrap(),
-            1
-        );
-        assert_eq!(after["vector"]["last_index_kind"].as_str(), Some("ivfflat"));
-        assert!(
-            after["vector"]["ivfflat_exact_reranks_total"]
-                .as_u64()
-                .unwrap()
-                > before["vector"]["ivfflat_exact_reranks_total"]
-                    .as_u64()
-                    .unwrap()
-        );
+        assert_candidate_list_metrics(&before, &after);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -233,99 +249,15 @@ fn should_refresh_ivfflat_training_after_document_writes() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "ivfflat_write_refresh";
-        let schema = Schema {
-            fields: vec![
-                FieldSchema {
-                    name: "content".to_string(),
-                    data_type: DataType::Text,
-                    nullable: true,
-                },
-                FieldSchema {
-                    name: "embedding".to_string(),
-                    data_type: DataType::Vector(3),
-                    nullable: true,
-                },
-            ],
-        };
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie.register_collection(
-            collection,
-            schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-        );
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("near".to_string()),
-                serde_json::json!({"content": "near", "embedding": [1.0, 0.0, 0.0]}),
-            )
-            .unwrap();
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("far".to_string()),
-                serde_json::json!({"content": "far", "embedding": [-1.0, 0.0, 0.0]}),
-            )
-            .unwrap();
-        cassie
-            .midge
-            .put_vector_index(VectorIndexRecord {
-                collection: collection.to_string(),
-                field: "embedding".to_string(),
-                source_field: "content".to_string(),
-                metadata: VectorIndexMetadata {
-                    provider: "manual".to_string(),
-                    model: "manual".to_string(),
-                    dimensions: 3,
-                    metric: DistanceMetric::L2,
-                    index_type: VectorIndexType::IvfFlat,
-                    hnsw: None,
-                    ivfflat: Some(IvfFlatIndexOptions {
-                        version: 1,
-                        lists: 2,
-                        probes: 1,
-                        training_sample_size: 3,
-                        training_seed: 11,
-                    }),
-                    ivfflat_training: None,
-                },
-            })
-            .unwrap();
-        assert_eq!(
-            cassie
-                .midge
-                .get_vector_index(collection, "embedding")
-                .unwrap()
-                .unwrap()
-                .metadata
-                .ivfflat_training
-                .unwrap()
-                .row_count,
-            2
-        );
+        register_ivfflat_collection(&cassie, collection);
+        put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+        put_ivfflat_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+        put_ivfflat_index(&cassie, collection, 11);
+        assert_eq!(ivfflat_row_count(&cassie, collection), 2);
 
         // Act
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("new-nearest".to_string()),
-                serde_json::json!({"content": "new-nearest", "embedding": [0.9, 0.0, 0.0]}),
-            )
-            .unwrap();
-        let after_insert = cassie
-            .midge
-            .get_vector_index(collection, "embedding")
-            .unwrap()
-            .expect("ivfflat vector index should persist");
+        put_ivfflat_document(&cassie, collection, "new-nearest", [0.9, 0.0, 0.0]);
+        let after_insert = stored_ivfflat_index(&cassie, collection);
         let session = cassie.create_session("tester", None);
         let result = cassie
             .execute_sql(
@@ -338,11 +270,7 @@ fn should_refresh_ivfflat_training_after_document_writes() {
             .midge
             .delete_document(collection, "new-nearest")
             .unwrap();
-        let after_delete = cassie
-            .midge
-            .get_vector_index(collection, "embedding")
-            .unwrap()
-            .expect("ivfflat vector index should persist");
+        let after_delete = stored_ivfflat_index(&cassie, collection);
 
         // Assert
         let inserted_training = after_insert

@@ -1,7 +1,9 @@
-use criterion::{
-    criterion_group, criterion_main, BenchmarkId, Criterion, SamplingMode, Throughput,
-};
 use std::hint::black_box;
+
+use criterion::{
+    criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, BenchmarkId, Criterion,
+    SamplingMode, Throughput,
+};
 
 const BENCHMARK: &str = "tier2_subsystem_executor";
 
@@ -33,7 +35,7 @@ fn bench_executor(c: &mut Criterion) {
     std::env::set_var("CASSIE_PARALLEL_AGGREGATION_WORKERS", "4");
     let filters = criterion_filters();
     let runtime = workloads::runtime();
-    let ctx = runtime
+    let context = runtime
         .block_on(workloads::context("tier2-executor", 10_000))
         .expect("benchmark context");
 
@@ -41,6 +43,20 @@ fn bench_executor(c: &mut Criterion) {
     group.sampling_mode(SamplingMode::Flat);
     group.throughput(Throughput::Elements(1));
 
+    bench_fixed_executor_cases(&mut group, &runtime, &context, &filters);
+    for dataset_rows in [10_000, 100_000] {
+        bench_scaled_executor_cases(&mut group, &runtime, &filters, dataset_rows);
+    }
+
+    group.finish();
+}
+
+fn bench_fixed_executor_cases(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    runtime: &tokio::runtime::Runtime,
+    context: &workloads::BenchContext,
+    filters: &[String],
+) {
     let cases = [
         (
             "simple_scan_executor",
@@ -97,197 +113,207 @@ fn bench_executor(c: &mut Criterion) {
     ];
 
     for (name, sql) in cases {
-        if !benchmark_enabled(&filters, name, "10k") {
-            continue;
-        }
-        group.bench_function(BenchmarkId::new(name, "10k"), |b| {
-            b.iter(|| black_box(runtime.block_on(workloads::execute_sql(&ctx, sql))));
-        });
-    }
-
-    for dataset_rows in [10_000, 100_000] {
-        let scale = if dataset_rows == 10_000 {
-            "10k"
-        } else {
-            "100k"
-        };
-        if benchmark_enabled(&filters, "column_batch_covered_projection", scale) {
-            let column_ctx = runtime
-                .block_on(workloads::column_batch_context(
-                    &format!("tier2-executor-column-{scale}"),
-                    dataset_rows,
-                ))
-                .expect("column-batch benchmark context");
-            let column_sql =
-                "SELECT title, body FROM bench_documents WHERE status = 'approved' LIMIT 50";
-            black_box(runtime.block_on(workloads::execute_sql(&column_ctx, column_sql)));
-            let benchmark = performance_benchmarks::expect_benchmark(
-                BENCHMARK,
-                "column_batch_covered_projection",
-                scale,
-            );
-            group.bench_function(
-                BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-                |b| {
-                    b.iter(|| {
-                        black_box(runtime.block_on(workloads::execute_sql(&column_ctx, column_sql)))
-                    });
-                },
-            );
-        }
-
-        if benchmark_enabled(&filters, "vectorized_join_equi", scale)
-            || benchmark_enabled(&filters, "vectorized_left_join_limited", scale)
-        {
-            let join_ctx = runtime
-                .block_on(workloads::vectorized_join_context(
-                    &format!("tier2-executor-vectorized-join-{scale}"),
-                    dataset_rows,
-                ))
-                .expect("vectorized join benchmark context");
-            if benchmark_enabled(&filters, "vectorized_join_equi", scale) {
-                let join_sql = "SELECT bench_join_users.name, bench_join_orders.total \
-                                FROM bench_join_users JOIN bench_join_orders \
-                                ON bench_join_users.user_key = bench_join_orders.order_user_key \
-                                LIMIT 50";
-                black_box(runtime.block_on(workloads::execute_sql(&join_ctx, join_sql)));
-                let benchmark = performance_benchmarks::expect_benchmark(
-                    BENCHMARK,
-                    "vectorized_join_equi",
-                    scale,
-                );
-                group.bench_function(
-                    BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-                    |b| {
-                        b.iter(|| {
-                            black_box(runtime.block_on(workloads::execute_sql(&join_ctx, join_sql)))
-                        });
-                    },
-                );
-            }
-            if benchmark_enabled(&filters, "vectorized_left_join_limited", scale) {
-                let left_join_sql = "SELECT bench_join_users.name, bench_join_orders.total \
-                                     FROM bench_join_users LEFT JOIN bench_join_orders \
-                                     ON bench_join_users.user_key = bench_join_orders.order_user_key \
-                                     LIMIT 50";
-                black_box(runtime.block_on(workloads::execute_sql(&join_ctx, left_join_sql)));
-                let benchmark = performance_benchmarks::expect_benchmark(
-                    BENCHMARK,
-                    "vectorized_left_join_limited",
-                    scale,
-                );
-                group.bench_function(
-                    BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-                    |b| {
-                        b.iter(|| {
-                            black_box(
-                                runtime.block_on(workloads::execute_sql(&join_ctx, left_join_sql)),
-                            )
-                        });
-                    },
-                );
-            }
-        }
-
-        if benchmark_enabled(&filters, "vectorized_indexed_inner_join", scale) {
-            let indexed_join_ctx = runtime
-                .block_on(workloads::vectorized_indexed_join_context(
-                    &format!("tier2-executor-vectorized-indexed-join-{scale}"),
-                    dataset_rows,
-                ))
-                .expect("vectorized indexed join benchmark context");
-            let indexed_join_sql = "SELECT bench_join_users.name, bench_join_orders.total \
-                                    FROM bench_join_users JOIN bench_join_orders \
-                                    ON bench_join_users.user_key = bench_join_orders.order_user_key \
-                                    LIMIT 50";
-            black_box(
-                runtime.block_on(workloads::execute_sql(&indexed_join_ctx, indexed_join_sql)),
-            );
-            let benchmark = performance_benchmarks::expect_benchmark(
-                BENCHMARK,
-                "vectorized_indexed_inner_join",
-                scale,
-            );
-            group.bench_function(
-                BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-                |b| {
-                    b.iter(|| {
-                        black_box(
-                            runtime.block_on(workloads::execute_sql(
-                                &indexed_join_ctx,
-                                indexed_join_sql,
-                            )),
-                        )
-                    });
-                },
-            );
-        }
-
-        if benchmark_enabled(&filters, "vectorized_streaming_inner_join", scale) {
-            let streaming_join_ctx = runtime
-                .block_on(workloads::vectorized_sparse_join_context(
-                    &format!("tier2-executor-vectorized-streaming-join-{scale}"),
-                    dataset_rows,
-                ))
-                .expect("vectorized streaming join benchmark context");
-            let streaming_join_sql = "SELECT bench_join_users.name, bench_join_orders.total \
-                                      FROM bench_join_users JOIN bench_join_orders \
-                                      ON bench_join_users.user_key = bench_join_orders.order_user_key \
-                                      LIMIT 50";
-            black_box(runtime.block_on(workloads::execute_sql(
-                &streaming_join_ctx,
-                streaming_join_sql,
-            )));
-            let benchmark = performance_benchmarks::expect_benchmark(
-                BENCHMARK,
-                "vectorized_streaming_inner_join",
-                scale,
-            );
-            group.bench_function(
-                BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-                |b| {
-                    b.iter(|| {
-                        black_box(runtime.block_on(workloads::execute_sql(
-                            &streaming_join_ctx,
-                            streaming_join_sql,
-                        )))
-                    });
-                },
-            );
-        }
-
-        if benchmark_enabled(&filters, "vectorized_dense_streaming_inner_join", scale) {
-            let dense_join_ctx = runtime
-                .block_on(workloads::vectorized_dense_join_context(
-                    &format!("tier2-executor-vectorized-dense-streaming-join-{scale}"),
-                    dataset_rows,
-                ))
-                .expect("vectorized dense streaming join benchmark context");
-            let dense_join_sql = "SELECT bench_join_users.name, bench_join_orders.total \
-                                  FROM bench_join_users JOIN bench_join_orders \
-                                  ON bench_join_users.user_key = bench_join_orders.order_user_key \
-                                  LIMIT 2";
-            black_box(runtime.block_on(workloads::execute_sql(&dense_join_ctx, dense_join_sql)));
-            let benchmark = performance_benchmarks::expect_benchmark(
-                BENCHMARK,
-                "vectorized_dense_streaming_inner_join",
-                scale,
-            );
-            group.bench_function(
-                BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-                |b| {
-                    b.iter(|| {
-                        black_box(
-                            runtime
-                                .block_on(workloads::execute_sql(&dense_join_ctx, dense_join_sql)),
-                        )
-                    });
-                },
-            );
+        if benchmark_enabled(filters, name, "10k") {
+            group.bench_function(BenchmarkId::new(name, "10k"), |b| {
+                b.iter(|| black_box(runtime.block_on(workloads::execute_sql(context, sql))));
+            });
         }
     }
+}
 
-    group.finish();
+fn bench_scaled_executor_cases(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    runtime: &tokio::runtime::Runtime,
+    filters: &[String],
+    dataset_rows: usize,
+) {
+    let scale = scale_label(dataset_rows);
+    bench_column_batch_case(group, runtime, filters, dataset_rows, scale);
+    bench_join_pair_cases(group, runtime, filters, dataset_rows, scale);
+    bench_indexed_join_case(group, runtime, filters, dataset_rows, scale);
+    bench_streaming_join_case(group, runtime, filters, dataset_rows, scale);
+    bench_dense_streaming_join_case(group, runtime, filters, dataset_rows, scale);
+}
+
+fn scale_label(dataset_rows: usize) -> &'static str {
+    if dataset_rows == 10_000 {
+        "10k"
+    } else {
+        "100k"
+    }
+}
+
+fn bench_column_batch_case(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    runtime: &tokio::runtime::Runtime,
+    filters: &[String],
+    dataset_rows: usize,
+    scale: &str,
+) {
+    let workload = "column_batch_covered_projection";
+    if !benchmark_enabled(filters, workload, scale) {
+        return;
+    }
+
+    let context = runtime
+        .block_on(workloads::column_batch_context(
+            &format!("tier2-executor-column-{scale}"),
+            dataset_rows,
+        ))
+        .expect("column-batch benchmark context");
+    let sql = "SELECT title, body FROM bench_documents WHERE status = 'approved' LIMIT 50";
+    bench_expected_sql_case(group, runtime, &context, workload, scale, sql);
+}
+
+fn bench_join_pair_cases(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    runtime: &tokio::runtime::Runtime,
+    filters: &[String],
+    dataset_rows: usize,
+    scale: &str,
+) {
+    if !benchmark_enabled(filters, "vectorized_join_equi", scale)
+        && !benchmark_enabled(filters, "vectorized_left_join_limited", scale)
+    {
+        return;
+    }
+
+    let context = runtime
+        .block_on(workloads::vectorized_join_context(
+            &format!("tier2-executor-vectorized-join-{scale}"),
+            dataset_rows,
+        ))
+        .expect("vectorized join benchmark context");
+    bench_optional_join_case(
+        group,
+        runtime,
+        filters,
+        &context,
+        "vectorized_join_equi",
+        scale,
+        join_sql(50),
+    );
+    bench_optional_join_case(
+        group,
+        runtime,
+        filters,
+        &context,
+        "vectorized_left_join_limited",
+        scale,
+        "SELECT bench_join_users.name, bench_join_orders.total \
+         FROM bench_join_users LEFT JOIN bench_join_orders \
+         ON bench_join_users.user_key = bench_join_orders.order_user_key \
+         LIMIT 50",
+    );
+}
+
+fn bench_indexed_join_case(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    runtime: &tokio::runtime::Runtime,
+    filters: &[String],
+    dataset_rows: usize,
+    scale: &str,
+) {
+    let workload = "vectorized_indexed_inner_join";
+    if !benchmark_enabled(filters, workload, scale) {
+        return;
+    }
+
+    let context = runtime
+        .block_on(workloads::vectorized_indexed_join_context(
+            &format!("tier2-executor-vectorized-indexed-join-{scale}"),
+            dataset_rows,
+        ))
+        .expect("vectorized indexed join benchmark context");
+    bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(50));
+}
+
+fn bench_streaming_join_case(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    runtime: &tokio::runtime::Runtime,
+    filters: &[String],
+    dataset_rows: usize,
+    scale: &str,
+) {
+    let workload = "vectorized_streaming_inner_join";
+    if !benchmark_enabled(filters, workload, scale) {
+        return;
+    }
+
+    let context = runtime
+        .block_on(workloads::vectorized_sparse_join_context(
+            &format!("tier2-executor-vectorized-streaming-join-{scale}"),
+            dataset_rows,
+        ))
+        .expect("vectorized streaming join benchmark context");
+    bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(50));
+}
+
+fn bench_dense_streaming_join_case(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    runtime: &tokio::runtime::Runtime,
+    filters: &[String],
+    dataset_rows: usize,
+    scale: &str,
+) {
+    let workload = "vectorized_dense_streaming_inner_join";
+    if !benchmark_enabled(filters, workload, scale) {
+        return;
+    }
+
+    let context = runtime
+        .block_on(workloads::vectorized_dense_join_context(
+            &format!("tier2-executor-vectorized-dense-streaming-join-{scale}"),
+            dataset_rows,
+        ))
+        .expect("vectorized dense streaming join benchmark context");
+    bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(2));
+}
+
+fn bench_optional_join_case(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    runtime: &tokio::runtime::Runtime,
+    filters: &[String],
+    context: &workloads::BenchContext,
+    workload: &'static str,
+    scale: &str,
+    sql: &'static str,
+) {
+    if benchmark_enabled(filters, workload, scale) {
+        bench_expected_sql_case(group, runtime, context, workload, scale, sql);
+    }
+}
+
+fn bench_expected_sql_case(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    runtime: &tokio::runtime::Runtime,
+    context: &workloads::BenchContext,
+    workload: &'static str,
+    scale: &str,
+    sql: &'static str,
+) {
+    black_box(runtime.block_on(workloads::execute_sql(context, sql)));
+    let benchmark = performance_benchmarks::expect_benchmark(BENCHMARK, workload, scale);
+    group.bench_function(
+        BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
+        |b| {
+            b.iter(|| black_box(runtime.block_on(workloads::execute_sql(context, sql))));
+        },
+    );
+}
+
+fn join_sql(limit: u32) -> &'static str {
+    if limit == 2 {
+        "SELECT bench_join_users.name, bench_join_orders.total \
+         FROM bench_join_users JOIN bench_join_orders \
+         ON bench_join_users.user_key = bench_join_orders.order_user_key \
+         LIMIT 2"
+    } else {
+        "SELECT bench_join_users.name, bench_join_orders.total \
+         FROM bench_join_users JOIN bench_join_orders \
+         ON bench_join_users.user_key = bench_join_orders.order_user_key \
+         LIMIT 50"
+    }
 }
 
 criterion_group! {

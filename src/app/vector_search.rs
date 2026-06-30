@@ -5,10 +5,28 @@ use super::vector_helpers::{
 use super::{
     cosine_distance_from_normalized_query, dot_distance_from_normalized_target, normalize_vector,
     Arc, BTreeMap, BinaryHeap, Cassie, CassieError, CmpOrdering, CollectionSchema, DistanceMetric,
-    Embedding, NormalizedVectorCacheEntry, NormalizedVectorCacheKey, NormalizedVectorRecord,
-    QueryEmbeddingCacheKey, QueryResult, RowDecode, VectorIndexRecord, VectorIndexType,
-    VectorSearchResultCacheKey,
+    DocumentRef, Embedding, NormalizedVectorCacheEntry, NormalizedVectorCacheKey,
+    NormalizedVectorRecord, QueryEmbeddingCacheKey, QueryResult, RowDecode, VectorIndexRecord,
+    VectorIndexType, VectorSearchResultCacheKey,
 };
+use crate::vector::NormalizedVector;
+
+struct ProjectedVectorSearch<'a> {
+    schema: &'a CollectionSchema,
+    collection: &'a str,
+    vector_field: &'a str,
+    query: &'a [f32],
+    metric: DistanceMetric,
+    limit: usize,
+    offset: usize,
+    top_needed: usize,
+}
+
+struct RowVectorSearchResult {
+    rows: Vec<Vec<crate::types::Value>>,
+    normalized_candidate_count: usize,
+    fallback_candidate_count: usize,
+}
 
 impl Cassie {
     /// # Errors
@@ -193,117 +211,127 @@ impl Cassie {
                 return Ok(result);
             }
         }
-        let candidates = self.midge.scan_rows_for_rebuild(
+        let request = ProjectedVectorSearch {
+            schema: &schema,
             collection,
-            RowDecode::Projected(vec![vector_field.to_string()]),
-        )?;
-        let normalized_vectors = if matches!(&metric, DistanceMetric::Cosine | DistanceMetric::Dot)
-        {
-            Some(
-                self.midge
-                    .list_normalized_vectors(collection, vector_field)?
-                    .into_iter()
-                    .map(|record| (record.id.clone(), record))
-                    .collect::<BTreeMap<_, _>>(),
-            )
-        } else {
-            None
+            vector_field,
+            query,
+            metric,
+            limit,
+            offset,
+            top_needed,
         };
-        let normalized_query = if matches!(&metric, DistanceMetric::Cosine) {
-            normalize_vector(query)
-        } else {
-            None
-        };
+        let candidates = self.scan_vector_candidates(&request)?;
 
         if index.metadata.index_type == VectorIndexType::Hnsw {
-            let metric_fn: fn(&[f32], &[f32]) -> f64 = match metric {
-                DistanceMetric::Cosine => crate::vector::cosine_distance,
-                DistanceMetric::Dot => crate::vector::dot_distance,
-                DistanceMetric::L2 => crate::vector::l2_distance,
-            };
-            let hnsw_candidates = candidates
-                .into_iter()
-                .filter_map(|candidate| {
-                    candidate
-                        .payload
-                        .get(vector_field)
-                        .and_then(vector_from_json)
-                        .map(|vector| (candidate.id, vector))
-                })
-                .collect::<Vec<_>>();
-            let selected =
-                crate::vector::hnsw::search(query, hnsw_candidates, top_needed, metric_fn)
-                    .into_iter()
-                    .skip(offset)
-                    .take(limit);
-            let mut rows = Vec::new();
-            for candidate in selected {
-                if let Some(document) = self.midge.get_document(collection, &candidate.id)? {
-                    rows.push(vector_search_row(&schema, document));
-                }
-            }
-            self.runtime
-                .record_vector_normalization_usage(0, rows.len());
-            return Ok(QueryResult {
-                columns: vector_search_columns(&schema),
-                rows,
-                command: "SELECT".to_string(),
-            });
+            return self.execute_hnsw_vector_search(&request, candidates);
         }
 
-        let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
+        let normalized_vectors = self.normalized_vector_records_for_metric(&request)?;
+        let normalized_query = normalized_query_for_metric(metric, query);
+        let result = self.execute_row_vector_search(
+            &request,
+            candidates,
+            normalized_vectors.as_ref(),
+            normalized_query.as_ref(),
+        )?;
+        self.runtime.record_vector_normalization_usage(
+            result.normalized_candidate_count,
+            result.fallback_candidate_count,
+        );
+        Ok(QueryResult {
+            columns: vector_search_columns(&schema),
+            rows: result.rows,
+            command: "SELECT".to_string(),
+        })
+    }
+
+    fn scan_vector_candidates(
+        &self,
+        request: &ProjectedVectorSearch<'_>,
+    ) -> Result<Vec<DocumentRef>, CassieError> {
+        self.midge.scan_rows_for_rebuild(
+            request.collection,
+            RowDecode::Projected(vec![request.vector_field.to_string()]),
+        )
+    }
+
+    fn execute_hnsw_vector_search(
+        &self,
+        request: &ProjectedVectorSearch<'_>,
+        candidates: Vec<DocumentRef>,
+    ) -> Result<QueryResult, CassieError> {
+        let metric_fn: fn(&[f32], &[f32]) -> f64 = match request.metric {
+            DistanceMetric::Cosine => crate::vector::cosine_distance,
+            DistanceMetric::Dot => crate::vector::dot_distance,
+            DistanceMetric::L2 => crate::vector::l2_distance,
+        };
+        let hnsw_candidates = candidates
+            .into_iter()
+            .filter_map(|candidate| {
+                candidate
+                    .payload
+                    .get(request.vector_field)
+                    .and_then(vector_from_json)
+                    .map(|vector| (candidate.id, vector))
+            })
+            .collect::<Vec<_>>();
+        let selected = crate::vector::hnsw::search(
+            request.query,
+            hnsw_candidates,
+            request.top_needed,
+            metric_fn,
+        )
+        .into_iter()
+        .skip(request.offset)
+        .take(request.limit)
+        .map(|candidate| candidate.id);
+        let rows = self.vector_rows_for_ids(request.schema, request.collection, selected)?;
+        self.runtime
+            .record_vector_normalization_usage(0, rows.len());
+        Ok(QueryResult {
+            columns: vector_search_columns(request.schema),
+            rows,
+            command: "SELECT".to_string(),
+        })
+    }
+
+    fn normalized_vector_records_for_metric(
+        &self,
+        request: &ProjectedVectorSearch<'_>,
+    ) -> Result<Option<BTreeMap<String, NormalizedVectorRecord>>, CassieError> {
+        if !matches!(request.metric, DistanceMetric::Cosine | DistanceMetric::Dot) {
+            return Ok(None);
+        }
+        Ok(Some(
+            self.midge
+                .list_normalized_vectors(request.collection, request.vector_field)?
+                .into_iter()
+                .map(|record| (record.id.clone(), record))
+                .collect(),
+        ))
+    }
+
+    fn execute_row_vector_search(
+        &self,
+        request: &ProjectedVectorSearch<'_>,
+        candidates: Vec<DocumentRef>,
+        normalized_vectors: Option<&BTreeMap<String, NormalizedVectorRecord>>,
+        normalized_query: Option<&NormalizedVector>,
+    ) -> Result<RowVectorSearchResult, CassieError> {
+        let mut top = BinaryHeap::with_capacity(request.top_needed.saturating_add(1));
         let mut normalized_candidate_count = 0usize;
         let mut fallback_candidate_count = 0usize;
         for candidate in candidates {
             let vector = candidate
                 .payload
-                .get(vector_field)
+                .get(request.vector_field)
                 .and_then(vector_from_json)
                 .unwrap_or_default();
-            let normalized_record = normalized_vectors
-                .as_ref()
-                .and_then(|records| records.get(candidate.id.as_str()));
-            let can_use_normalized = normalized_record.is_some_and(|record| {
-                record.payload_available
-                    && record.normalization_version
-                        == NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION
-                    && record.metric == metric
-                    && record.dimensions == query.len()
-                    && record.values.len() == query.len()
-            });
-            let (distance, used_normalized) = if can_use_normalized {
-                match &metric {
-                    DistanceMetric::Cosine => normalized_query.as_ref().map_or_else(
-                        || (vector_distance_for_metric(metric, query, &vector), false),
-                        |normalized_query| {
-                            let record = normalized_record.expect("normalized record");
-                            (
-                                cosine_distance_from_normalized_query(
-                                    normalized_query.values.as_slice(),
-                                    record.values.as_slice(),
-                                ),
-                                true,
-                            )
-                        },
-                    ),
-                    DistanceMetric::Dot => {
-                        let record = normalized_record.expect("normalized record");
-                        (
-                            dot_distance_from_normalized_target(
-                                query,
-                                record.values.as_slice(),
-                                record.magnitude,
-                            ),
-                            true,
-                        )
-                    }
-                    DistanceMetric::L2 => {
-                        (vector_distance_for_metric(metric, query, &vector), false)
-                    }
-                }
-            } else {
-                (vector_distance_for_metric(metric, query, &vector), false)
-            };
+            let normalized_record =
+                normalized_vectors.and_then(|records| records.get(candidate.id.as_str()));
+            let (distance, used_normalized) =
+                row_vector_distance(request, normalized_record, normalized_query, &vector);
             if used_normalized {
                 normalized_candidate_count += 1;
             } else {
@@ -313,36 +341,35 @@ impl Cassie {
                 distance,
                 id: candidate.id,
             };
-            if top.len() < top_needed {
-                top.push(scored);
-            } else if let Some(worst) = top.peek() {
-                if scored.is_better_than(worst) {
-                    top.pop();
-                    top.push(scored);
-                }
-            }
+            push_scored_vector_candidate(&mut top, request.top_needed, scored);
         }
 
-        let mut ranked = top.into_vec();
-        ranked.sort_by(compare_scored_vector_candidates);
-        let selected = ranked.into_iter().skip(offset).take(limit);
-        let mut rows = Vec::new();
-        for candidate in selected {
-            if let Some(document) = self.midge.get_document(collection, &candidate.id)? {
-                rows.push(vector_search_row(&schema, document));
-            }
-        }
-
-        self.runtime.record_vector_normalization_usage(
+        let rows = self.vector_rows_for_ids(
+            request.schema,
+            request.collection,
+            ranked_vector_candidates(top, request.offset, request.limit)
+                .map(|candidate| candidate.id),
+        )?;
+        Ok(RowVectorSearchResult {
+            rows,
             normalized_candidate_count,
             fallback_candidate_count,
-        );
-
-        Ok(QueryResult {
-            columns: vector_search_columns(&schema),
-            rows,
-            command: "SELECT".to_string(),
         })
+    }
+
+    fn vector_rows_for_ids(
+        &self,
+        schema: &CollectionSchema,
+        collection: &str,
+        selected: impl IntoIterator<Item = String>,
+    ) -> Result<Vec<Vec<crate::types::Value>>, CassieError> {
+        let mut rows = Vec::new();
+        for id in selected {
+            if let Some(document) = self.midge.get_document(collection, &id)? {
+                rows.push(vector_search_row(schema, document));
+            }
+        }
+        Ok(rows)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -588,4 +615,99 @@ impl Cassie {
             last_record,
         })
     }
+}
+
+fn normalized_query_for_metric(metric: DistanceMetric, query: &[f32]) -> Option<NormalizedVector> {
+    if matches!(metric, DistanceMetric::Cosine) {
+        normalize_vector(query)
+    } else {
+        None
+    }
+}
+
+fn row_vector_distance(
+    request: &ProjectedVectorSearch<'_>,
+    normalized_record: Option<&NormalizedVectorRecord>,
+    normalized_query: Option<&NormalizedVector>,
+    vector: &[f32],
+) -> (f64, bool) {
+    if !can_use_normalized_record(request, normalized_record) {
+        return (
+            vector_distance_for_metric(request.metric, request.query, vector),
+            false,
+        );
+    }
+    match request.metric {
+        DistanceMetric::Cosine => normalized_query.map_or_else(
+            || {
+                (
+                    vector_distance_for_metric(request.metric, request.query, vector),
+                    false,
+                )
+            },
+            |normalized_query| {
+                let record = normalized_record.expect("normalized record");
+                (
+                    cosine_distance_from_normalized_query(
+                        normalized_query.values.as_slice(),
+                        record.values.as_slice(),
+                    ),
+                    true,
+                )
+            },
+        ),
+        DistanceMetric::Dot => {
+            let record = normalized_record.expect("normalized record");
+            (
+                dot_distance_from_normalized_target(
+                    request.query,
+                    record.values.as_slice(),
+                    record.magnitude,
+                ),
+                true,
+            )
+        }
+        DistanceMetric::L2 => (
+            vector_distance_for_metric(request.metric, request.query, vector),
+            false,
+        ),
+    }
+}
+
+fn can_use_normalized_record(
+    request: &ProjectedVectorSearch<'_>,
+    normalized_record: Option<&NormalizedVectorRecord>,
+) -> bool {
+    normalized_record.is_some_and(|record| {
+        record.payload_available
+            && record.normalization_version == NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION
+            && record.metric == request.metric
+            && record.dimensions == request.query.len()
+            && record.values.len() == request.query.len()
+    })
+}
+
+fn push_scored_vector_candidate(
+    top: &mut BinaryHeap<ScoredVectorCandidate>,
+    top_needed: usize,
+    scored: ScoredVectorCandidate,
+) {
+    if top.len() < top_needed {
+        top.push(scored);
+    } else if let Some(worst) = top.peek() {
+        if scored.is_better_than(worst) {
+            top.pop();
+            top.push(scored);
+        }
+    }
+}
+
+fn ranked_vector_candidates(
+    top: BinaryHeap<ScoredVectorCandidate>,
+    offset: usize,
+    limit: usize,
+) -> impl Iterator<Item = ScoredVectorCandidate> {
+    let mut ranked = top.into_vec();
+    ranked.sort_by(compare_scored_vector_candidates);
+    ranked.into_iter().skip(offset).take(limit)
 }

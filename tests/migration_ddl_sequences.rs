@@ -1,6 +1,6 @@
-use cassie::app::Cassie;
+use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 fn with_fallback() {
@@ -11,6 +11,185 @@ fn with_fallback() {
 
 fn data_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("cassie-migration-ddl-{name}-{}", Uuid::new_v4()))
+}
+
+struct SequenceRestartState {
+    after_restart: Vec<Vec<Value>>,
+    columns: Vec<Vec<Value>>,
+    attrdefs: Vec<Vec<Value>>,
+    sequences: Vec<Vec<Value>>,
+    sequence_class: Vec<Vec<Value>>,
+    dropped_sequence: Vec<Vec<Value>>,
+    unsupported_error: String,
+}
+
+fn execute_statement(cassie: &Cassie, session: &CassieSession, sql: &str) {
+    cassie.execute_sql(session, sql, vec![]).unwrap();
+}
+
+fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
+    cassie.execute_sql(session, sql, vec![]).unwrap().rows
+}
+
+fn create_sequence_default_schema(cassie: &Cassie, session: &CassieSession) {
+    execute_statement(cassie, session, "CREATE SEQUENCE order_ids");
+    execute_statement(
+        cassie,
+        session,
+        "CREATE TABLE migration_orders (
+            seq_id INT DEFAULT nextval('order_ids'::regclass),
+            label TEXT
+        )",
+    );
+    execute_statement(
+        cassie,
+        session,
+        "CREATE TABLE migration_source (label TEXT)",
+    );
+}
+
+fn apply_sequence_default_mutations(cassie: &Cassie, session: &CassieSession) {
+    for sql in [
+        "INSERT INTO migration_orders (label) VALUES ('alpha')",
+        "INSERT INTO migration_source (label) VALUES ('beta')",
+        "INSERT INTO migration_orders (label) SELECT label FROM migration_source",
+        "ALTER TABLE migration_orders ALTER COLUMN label SET DEFAULT 'pending'",
+        "INSERT INTO migration_orders (seq_id) VALUES (10)",
+        "ALTER TABLE migration_orders ALTER COLUMN label SET NOT NULL",
+        "ALTER TABLE migration_orders ALTER COLUMN label DROP NOT NULL",
+        "ALTER TABLE migration_orders ALTER COLUMN label DROP DEFAULT",
+    ] {
+        execute_statement(cassie, session, sql);
+    }
+}
+
+fn migration_orders_rows(cassie: &Cassie, session: &CassieSession) -> Vec<Vec<Value>> {
+    query_rows(
+        cassie,
+        session,
+        "SELECT seq_id, label FROM migration_orders ORDER BY seq_id",
+    )
+}
+
+fn restart_and_collect_sequence_state(path: &Path) -> SequenceRestartState {
+    let restarted = Cassie::new_with_data_dir(path).unwrap();
+    restarted.startup().unwrap();
+    let session = restarted.create_session("tester", None);
+    execute_statement(
+        &restarted,
+        &session,
+        "INSERT INTO migration_orders (label) VALUES ('gamma')",
+    );
+    execute_statement(&restarted, &session, "CREATE SEQUENCE temp_ids");
+    execute_statement(&restarted, &session, "DROP SEQUENCE temp_ids");
+
+    let unsupported = restarted
+        .execute_sql(
+            &session,
+            "CREATE SEQUENCE unsupported_ids START WITH 5",
+            vec![],
+        )
+        .expect_err("unsupported sequence option should fail")
+        .to_string();
+
+    SequenceRestartState {
+        after_restart: migration_orders_rows(&restarted, &session),
+        columns: query_rows(
+            &restarted,
+            &session,
+            "SELECT column_name, column_default, is_nullable FROM information_schema.columns WHERE table_name = 'migration_orders' ORDER BY ordinal_position",
+        ),
+        attrdefs: query_rows(
+            &restarted,
+            &session,
+            "SELECT adrelid, adnum, adsrc FROM pg_catalog.pg_attrdef WHERE adrelid = 'migration_orders' ORDER BY adnum",
+        ),
+        sequences: query_rows(
+            &restarted,
+            &session,
+            "SELECT sequence_name, data_type, start_value, increment FROM information_schema.sequences WHERE sequence_name = 'order_ids'",
+        ),
+        sequence_class: query_rows(
+            &restarted,
+            &session,
+            "SELECT relname, relkind FROM pg_catalog.pg_class WHERE relname = 'order_ids'",
+        ),
+        dropped_sequence: query_rows(
+            &restarted,
+            &session,
+            "SELECT sequence_name FROM information_schema.sequences WHERE sequence_name = 'temp_ids'",
+        ),
+        unsupported_error: unsupported,
+    }
+}
+
+fn assert_sequence_default_state(before_restart: &[Vec<Value>], state: &SequenceRestartState) {
+    assert_eq!(before_restart, expected_orders_before_restart().as_slice());
+    assert_eq!(state.after_restart, expected_orders_after_restart());
+    assert_eq!(state.columns, expected_column_rows());
+    assert_eq!(state.attrdefs, expected_attrdef_rows());
+    assert_eq!(state.sequences, expected_sequence_rows());
+    assert_eq!(state.sequence_class, expected_sequence_class_rows());
+    assert!(state.dropped_sequence.is_empty());
+    assert!(state
+        .unsupported_error
+        .contains("unsupported CREATE SEQUENCE option"));
+}
+
+fn expected_orders_before_restart() -> Vec<Vec<Value>> {
+    vec![
+        vec![Value::Int64(1), Value::String("alpha".to_string())],
+        vec![Value::Int64(2), Value::String("beta".to_string())],
+        vec![Value::Int64(10), Value::String("pending".to_string())],
+    ]
+}
+
+fn expected_orders_after_restart() -> Vec<Vec<Value>> {
+    vec![
+        vec![Value::Int64(1), Value::String("alpha".to_string())],
+        vec![Value::Int64(2), Value::String("beta".to_string())],
+        vec![Value::Int64(3), Value::String("gamma".to_string())],
+        vec![Value::Int64(10), Value::String("pending".to_string())],
+    ]
+}
+
+fn expected_column_rows() -> Vec<Vec<Value>> {
+    vec![
+        vec![
+            Value::String("seq_id".to_string()),
+            Value::String("nextval('order_ids'::regclass)".to_string()),
+            Value::String("YES".to_string()),
+        ],
+        vec![
+            Value::String("label".to_string()),
+            Value::Null,
+            Value::String("YES".to_string()),
+        ],
+    ]
+}
+
+fn expected_attrdef_rows() -> Vec<Vec<Value>> {
+    vec![vec![
+        Value::String("migration_orders".to_string()),
+        Value::Int64(1),
+        Value::String("nextval('order_ids'::regclass)".to_string()),
+    ]]
+}
+
+fn expected_sequence_rows() -> Vec<Vec<Value>> {
+    vec![vec![
+        Value::String("order_ids".to_string()),
+        Value::String("integer".to_string()),
+        Value::String("1".to_string()),
+        Value::String("1".to_string()),
+    ]]
+}
+
+fn expected_sequence_class_rows() -> Vec<Vec<Value>> {
+    vec![vec![
+        Value::String("order_ids".to_string()),
+        Value::String("S".to_string()),
+    ]]
 }
 
 #[test]
@@ -27,228 +206,16 @@ fn should_apply_sequence_defaults_metadata_through_restart() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
-
-        cassie
-            .execute_sql(&session, "CREATE SEQUENCE order_ids", vec![])
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE migration_orders (
-                    seq_id INT DEFAULT nextval('order_ids'::regclass),
-                    label TEXT
-                )",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE migration_source (label TEXT)",
-                vec![],
-            )
-            .unwrap();
+        create_sequence_default_schema(&cassie, &session);
 
         // Act
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO migration_orders (label) VALUES ('alpha')",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO migration_source (label) VALUES ('beta')",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO migration_orders (label) SELECT label FROM migration_source",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "ALTER TABLE migration_orders ALTER COLUMN label SET DEFAULT 'pending'",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO migration_orders (seq_id) VALUES (10)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "ALTER TABLE migration_orders ALTER COLUMN label SET NOT NULL",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "ALTER TABLE migration_orders ALTER COLUMN label DROP NOT NULL",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "ALTER TABLE migration_orders ALTER COLUMN label DROP DEFAULT",
-                vec![],
-            )
-            .unwrap();
-
-        let before_restart = cassie
-            .execute_sql(
-                &session,
-                "SELECT seq_id, label FROM migration_orders ORDER BY seq_id",
-                vec![],
-            )
-            .unwrap();
+        apply_sequence_default_mutations(&cassie, &session);
+        let before_restart = migration_orders_rows(&cassie, &session);
         drop(cassie);
-
-        let restarted = Cassie::new_with_data_dir(&path).unwrap();
-        restarted.startup().unwrap();
-        let restarted_session = restarted.create_session("tester", None);
-        restarted
-            .execute_sql(
-                &restarted_session,
-                "INSERT INTO migration_orders (label) VALUES ('gamma')",
-                vec![],
-            )
-            .unwrap();
-        restarted
-            .execute_sql(&restarted_session, "CREATE SEQUENCE temp_ids", vec![])
-            .unwrap();
-        restarted
-            .execute_sql(&restarted_session, "DROP SEQUENCE temp_ids", vec![])
-            .unwrap();
-
-        let after_restart = restarted
-            .execute_sql(
-                &restarted_session,
-                "SELECT seq_id, label FROM migration_orders ORDER BY seq_id",
-                vec![],
-            )
-            .unwrap();
-        let columns = restarted
-            .execute_sql(
-                &restarted_session,
-                "SELECT column_name, column_default, is_nullable FROM information_schema.columns WHERE table_name = 'migration_orders' ORDER BY ordinal_position",
-                vec![],
-            )
-            .unwrap();
-        let attrdefs = restarted
-            .execute_sql(
-                &restarted_session,
-                "SELECT adrelid, adnum, adsrc FROM pg_catalog.pg_attrdef WHERE adrelid = 'migration_orders' ORDER BY adnum",
-                vec![],
-            )
-            .unwrap();
-        let sequences = restarted
-            .execute_sql(
-                &restarted_session,
-                "SELECT sequence_name, data_type, start_value, increment FROM information_schema.sequences WHERE sequence_name = 'order_ids'",
-                vec![],
-            )
-            .unwrap();
-        let sequence_class = restarted
-            .execute_sql(
-                &restarted_session,
-                "SELECT relname, relkind FROM pg_catalog.pg_class WHERE relname = 'order_ids'",
-                vec![],
-            )
-            .unwrap();
-        let dropped_sequence = restarted
-            .execute_sql(
-                &restarted_session,
-                "SELECT sequence_name FROM information_schema.sequences WHERE sequence_name = 'temp_ids'",
-                vec![],
-            )
-            .unwrap();
-        let unsupported = restarted.execute_sql(
-            &restarted_session,
-            "CREATE SEQUENCE unsupported_ids START WITH 5",
-            vec![],
-        );
+        let state = restart_and_collect_sequence_state(&path);
 
         // Assert
-        assert_eq!(
-            before_restart.rows,
-            vec![
-                vec![
-                    Value::Int64(1),
-                    Value::String("alpha".to_string())
-                ],
-                vec![Value::Int64(2), Value::String("beta".to_string())],
-                vec![Value::Int64(10), Value::String("pending".to_string())],
-            ]
-        );
-        assert_eq!(
-            after_restart.rows,
-            vec![
-                vec![
-                    Value::Int64(1),
-                    Value::String("alpha".to_string())
-                ],
-                vec![Value::Int64(2), Value::String("beta".to_string())],
-                vec![Value::Int64(3), Value::String("gamma".to_string())],
-                vec![Value::Int64(10), Value::String("pending".to_string())],
-            ]
-        );
-        assert_eq!(
-            columns.rows,
-            vec![
-                vec![
-                    Value::String("seq_id".to_string()),
-                    Value::String("nextval('order_ids'::regclass)".to_string()),
-                    Value::String("YES".to_string()),
-                ],
-                vec![
-                    Value::String("label".to_string()),
-                    Value::Null,
-                    Value::String("YES".to_string()),
-                ],
-            ]
-        );
-        assert_eq!(
-            attrdefs.rows,
-            vec![vec![
-                Value::String("migration_orders".to_string()),
-                Value::Int64(1),
-                Value::String("nextval('order_ids'::regclass)".to_string()),
-            ]]
-        );
-        assert_eq!(
-            sequences.rows,
-            vec![vec![
-                Value::String("order_ids".to_string()),
-                Value::String("integer".to_string()),
-                Value::String("1".to_string()),
-                Value::String("1".to_string()),
-            ]]
-        );
-        assert_eq!(
-            sequence_class.rows,
-            vec![vec![
-                Value::String("order_ids".to_string()),
-                Value::String("S".to_string()),
-            ]]
-        );
-        assert!(dropped_sequence.rows.is_empty());
-        assert!(matches!(
-            unsupported,
-            Err(error) if error.to_string().contains("unsupported CREATE SEQUENCE option")
-        ));
+        assert_sequence_default_state(&before_restart, &state);
 
         let _ = std::fs::remove_dir_all(path);
     });

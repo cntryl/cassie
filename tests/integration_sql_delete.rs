@@ -208,7 +208,7 @@ fn should_ignore_legacy_fallback_key_for_sql_delete() {
             &cassie,
             "delete_legacy_cleanup",
             &row_id,
-            serde_json::json!({"title": "stale"}),
+            &serde_json::json!({"title": "stale"}),
         );
 
         // Act

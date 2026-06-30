@@ -117,7 +117,7 @@ impl CapacityReport {
             .record(key_bytes, value_bytes);
     }
 
-    fn record_family_error(&mut self, family: &str, error: impl ToString) {
+    fn record_family_error(&mut self, family: &str, error: &impl ToString) {
         self.families
             .entry(family.to_string())
             .or_insert_with(CapacityBucket::supported)
@@ -141,7 +141,7 @@ impl Midge {
             let entries = match family.scan(self) {
                 Ok(entries) => entries,
                 Err(error) => {
-                    report.record_family_error(logical_name, error);
+                    report.record_family_error(logical_name, &error);
                     continue;
                 }
             };

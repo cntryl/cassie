@@ -13,7 +13,7 @@ fn data_dir(label: &str) -> PathBuf {
     std::env::temp_dir().join(format!("cassie-view-{label}-{}", Uuid::new_v4()))
 }
 
-async fn seed_view_docs(cassie: &Cassie, collection: &str) {
+fn seed_view_docs(cassie: &Cassie, collection: &str) {
     let schema = Schema {
         fields: vec![
             FieldSchema {
@@ -67,7 +67,7 @@ fn should_create_select_drop_user_defined_view() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "view_docs";
-        seed_view_docs(&cassie, collection).await;
+        seed_view_docs(&cassie, collection);
         let session = cassie.create_session("tester", None);
 
         // Act
@@ -114,7 +114,7 @@ fn should_select_from_nested_user_defined_views() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "view_nested_docs";
-        seed_view_docs(&cassie, collection).await;
+        seed_view_docs(&cassie, collection);
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -164,7 +164,7 @@ fn should_hydrate_user_defined_views_after_restart() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "view_restart_docs";
-        seed_view_docs(&cassie, collection).await;
+        seed_view_docs(&cassie, collection);
         let session = cassie.create_session("tester", None);
 
         cassie
@@ -212,7 +212,7 @@ fn should_reject_dml_against_user_defined_view() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "view_read_only_docs";
-        seed_view_docs(&cassie, collection).await;
+        seed_view_docs(&cassie, collection);
         let session = cassie.create_session("tester", None);
 
         cassie

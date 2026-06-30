@@ -20,6 +20,84 @@ struct EncodedColumnBatch {
     checksum: String,
 }
 
+struct ColumnBatchScanPlan {
+    index: IndexMeta,
+    metadata: ColumnBatchMetadata,
+    wanted: BTreeSet<String>,
+    batch_size: usize,
+    limit: usize,
+}
+
+enum PreparedColumnBatchScan {
+    Ready(Box<ColumnBatchScanPlan>),
+    Fallback(ColumnBatchScanFallbackReason),
+}
+
+struct LoadedColumnBatchSegment {
+    compressed_len: usize,
+    uncompressed_len: usize,
+    rows: Vec<ColumnBatchRow>,
+}
+
+struct ColumnBatchScanState {
+    batches: Vec<Vec<DocumentRef>>,
+    current: Vec<DocumentRef>,
+    emitted: usize,
+    compressed_bytes: usize,
+    uncompressed_bytes: usize,
+    skipped_segments: usize,
+    decoded_columns: usize,
+}
+
+impl ColumnBatchScanState {
+    fn new(batch_size: usize) -> Self {
+        Self {
+            batches: Vec::new(),
+            current: Vec::with_capacity(batch_size),
+            emitted: 0,
+            compressed_bytes: 0,
+            uncompressed_bytes: 0,
+            skipped_segments: 0,
+            decoded_columns: 0,
+        }
+    }
+
+    fn record_segment(&mut self, segment: &LoadedColumnBatchSegment, decoded_columns: usize) {
+        self.compressed_bytes = self.compressed_bytes.saturating_add(segment.compressed_len);
+        self.uncompressed_bytes = self
+            .uncompressed_bytes
+            .saturating_add(segment.uncompressed_len);
+        self.decoded_columns = self.decoded_columns.saturating_add(decoded_columns);
+    }
+
+    fn push_row(&mut self, row: DocumentRef, batch_size: usize) {
+        self.current.push(row);
+        self.emitted += 1;
+        if self.current.len() >= batch_size {
+            self.batches.push(std::mem::take(&mut self.current));
+            self.current = Vec::with_capacity(batch_size);
+        }
+    }
+
+    fn finish(mut self, started: Instant, index_name: String) -> ColumnBatchScanDecision {
+        if !self.current.is_empty() {
+            self.batches.push(self.current);
+        }
+        ColumnBatchScanDecision::Hit(ColumnBatchScanOutcome {
+            batches: self.batches,
+            timings: MidgeScanTimings {
+                scan: started.elapsed(),
+                row_decode: std::time::Duration::default(),
+            },
+            index_name,
+            compressed_bytes: self.compressed_bytes,
+            uncompressed_bytes: self.uncompressed_bytes,
+            skipped_segments: self.skipped_segments,
+            decoded_columns: self.decoded_columns,
+        })
+    }
+}
+
 impl Midge {
     /// # Errors
     ///
@@ -70,7 +148,7 @@ impl Midge {
                 .collect::<Vec<_>>();
             let summaries = column_batch_summaries(rows.as_slice(), fields.as_slice());
             let value_count = rows.len().saturating_mul(fields.len());
-            let (payload, codec) = encode_column_batch_payload(rows, fields.as_slice())?;
+            let (payload, codec) = encode_column_batch_payload(rows.as_slice(), fields.as_slice())?;
             segments.push(ColumnBatchSegmentMeta {
                 segment_id,
                 row_id_start: chunk.first().map(|document| document.id.clone()),
@@ -201,140 +279,99 @@ impl Midge {
         limit: Option<usize>,
     ) -> Result<ColumnBatchScanDecision, CassieError> {
         let started = Instant::now();
+        let plan = match self.prepare_column_batch_scan(collection, batch_size, fields, limit)? {
+            PreparedColumnBatchScan::Ready(plan) => *plan,
+            PreparedColumnBatchScan::Fallback(reason) => {
+                return Ok(ColumnBatchScanDecision::Fallback(reason));
+            }
+        };
+        self.execute_column_batch_scan(collection, fields, filter, segment_filter, started, plan)
+    }
+
+    fn prepare_column_batch_scan(
+        &self,
+        collection: &str,
+        batch_size: usize,
+        fields: &[String],
+        limit: Option<usize>,
+    ) -> Result<PreparedColumnBatchScan, CassieError> {
         let Some(index) = self.covering_column_index(collection, fields)? else {
-            return Ok(ColumnBatchScanDecision::Fallback(
+            return Ok(PreparedColumnBatchScan::Fallback(
                 ColumnBatchScanFallbackReason::NoCoveringIndex,
             ));
         };
         let Some(metadata) = self.get_column_batch_metadata(collection, &index.name)? else {
-            return Ok(ColumnBatchScanDecision::Fallback(
+            return Ok(PreparedColumnBatchScan::Fallback(
                 ColumnBatchScanFallbackReason::MissingMetadata,
             ));
         };
         if metadata.fields.len() != index.normalized_fields().len()
             || metadata.segment_size != column_index_segment_size(&index)?
         {
-            return Ok(ColumnBatchScanDecision::Fallback(
+            return Ok(PreparedColumnBatchScan::Fallback(
                 ColumnBatchScanFallbackReason::SegmentSizeMismatch,
             ));
         }
-
-        let wanted = fields
-            .iter()
-            .filter(|field| !field.eq_ignore_ascii_case("id") && !field.eq_ignore_ascii_case("_id"))
-            .map(|field| field.to_ascii_lowercase())
-            .collect::<BTreeSet<_>>();
-        let available = metadata
-            .fields
-            .iter()
-            .map(|field| field.to_ascii_lowercase())
-            .collect::<BTreeSet<_>>();
-        if !wanted.is_subset(&available) {
-            return Ok(ColumnBatchScanDecision::Fallback(
+        let wanted = wanted_column_batch_fields(fields);
+        if !wanted.is_subset(&available_column_batch_fields(&metadata)) {
+            return Ok(PreparedColumnBatchScan::Fallback(
                 ColumnBatchScanFallbackReason::FieldCoverageMismatch,
             ));
         }
+        Ok(PreparedColumnBatchScan::Ready(Box::new(
+            ColumnBatchScanPlan {
+                index,
+                metadata,
+                wanted,
+                batch_size: batch_size.max(1),
+                limit: limit.unwrap_or(usize::MAX),
+            },
+        )))
+    }
 
-        let mut emitted = 0usize;
-        let limit = limit.unwrap_or(usize::MAX);
-        let batch_size = batch_size.max(1);
-        let mut batches = Vec::new();
-        let mut current = Vec::with_capacity(batch_size);
-        let mut compressed_bytes = 0usize;
-        let mut uncompressed_bytes = 0usize;
-        let mut skipped_segments = 0usize;
-        let mut decoded_columns = 0usize;
+    fn execute_column_batch_scan(
+        &self,
+        collection: &str,
+        fields: &[String],
+        filter: Option<&RowFilter>,
+        segment_filter: Option<&ColumnBatchScanFilter>,
+        started: Instant,
+        plan: ColumnBatchScanPlan,
+    ) -> Result<ColumnBatchScanDecision, CassieError> {
+        let mut state = ColumnBatchScanState::new(plan.batch_size);
         let data_tx = self.begin_data_readonly_tx()?;
-        for segment in &metadata.segments {
+        for segment in &plan.metadata.segments {
             if !column_batch_segment_may_match(segment, segment_filter) {
-                skipped_segments += 1;
+                state.skipped_segments += 1;
                 continue;
             }
-            let Some(raw) = data_tx
-                .get(&Self::column_batch_segment_key(
-                    collection,
-                    &index.name,
-                    segment.segment_id,
-                ))
-                .map_err(CassieError::from)?
-            else {
-                return Ok(ColumnBatchScanDecision::Fallback(
-                    ColumnBatchScanFallbackReason::SegmentMissing,
-                ));
-            };
-            compressed_bytes = compressed_bytes.saturating_add(segment.codec.compressed_len);
-            uncompressed_bytes = uncompressed_bytes.saturating_add(segment.codec.uncompressed_len);
-            if segment
-                .codec
-                .checksum
-                .as_ref()
-                .is_some_and(|checksum| checksum != &checksum_hex(&raw))
-            {
-                return Ok(ColumnBatchScanDecision::Fallback(
-                    ColumnBatchScanFallbackReason::SegmentChecksumMismatch,
-                ));
-            }
-            let Ok(payload) = serde_json::from_slice::<ColumnBatchPayload>(&raw) else {
-                return Ok(ColumnBatchScanDecision::Fallback(
-                    ColumnBatchScanFallbackReason::InvalidPayload,
-                ));
-            };
-            if payload.encoding_version != COLUMN_BATCH_ENCODING_VERSION {
-                return Ok(ColumnBatchScanDecision::Fallback(
-                    ColumnBatchScanFallbackReason::InvalidEncodingVersion,
-                ));
-            }
-            if payload.codec_name != segment.codec.codec_name
-                || payload.codec_version != segment.codec.codec_version
-            {
-                return Ok(ColumnBatchScanDecision::Fallback(
-                    ColumnBatchScanFallbackReason::SegmentCodecMismatch,
-                ));
-            }
-            let Some(rows) = decode_column_batch_payload(&payload, segment.row_count)? else {
-                return Ok(ColumnBatchScanDecision::Fallback(
-                    ColumnBatchScanFallbackReason::SegmentDecodeFailed,
-                ));
-            };
-            decoded_columns = decoded_columns.saturating_add(wanted.len());
-            for row in rows {
-                if emitted >= limit {
+            let loaded =
+                match load_column_batch_segment(&data_tx, collection, &plan.index.name, segment)? {
+                    Ok(loaded) => loaded,
+                    Err(reason) => return Ok(ColumnBatchScanDecision::Fallback(reason)),
+                };
+            state.record_segment(&loaded, plan.wanted.len());
+            for row in loaded.rows {
+                if state.emitted >= plan.limit {
                     break;
                 }
                 if !column_batch_row_matches(&row, filter) {
                     continue;
                 }
                 let payload = project_column_batch_row(&row, fields);
-                current.push(DocumentRef {
-                    id: row.row_id,
-                    payload,
-                });
-                emitted += 1;
-                if current.len() >= batch_size {
-                    batches.push(current);
-                    current = Vec::with_capacity(batch_size);
-                }
+                state.push_row(
+                    DocumentRef {
+                        id: row.row_id,
+                        payload,
+                    },
+                    plan.batch_size,
+                );
             }
-            if emitted >= limit {
+            if state.emitted >= plan.limit {
                 break;
             }
         }
-        if !current.is_empty() {
-            batches.push(current);
-        }
-
-        Ok(ColumnBatchScanDecision::Hit(ColumnBatchScanOutcome {
-            batches,
-            timings: MidgeScanTimings {
-                scan: started.elapsed(),
-                row_decode: std::time::Duration::default(),
-            },
-            index_name: index.name,
-            compressed_bytes,
-            uncompressed_bytes,
-            skipped_segments,
-            decoded_columns,
-        }))
+        Ok(state.finish(started, plan.index.name))
     }
 
     pub(crate) fn delete_keys_with_prefix(
@@ -383,6 +420,67 @@ impl Midge {
     }
 }
 
+fn wanted_column_batch_fields(fields: &[String]) -> BTreeSet<String> {
+    fields
+        .iter()
+        .filter(|field| !field.eq_ignore_ascii_case("id") && !field.eq_ignore_ascii_case("_id"))
+        .map(|field| field.to_ascii_lowercase())
+        .collect()
+}
+
+fn available_column_batch_fields(metadata: &ColumnBatchMetadata) -> BTreeSet<String> {
+    metadata
+        .fields
+        .iter()
+        .map(|field| field.to_ascii_lowercase())
+        .collect()
+}
+
+fn load_column_batch_segment(
+    data_tx: &cntryl_midge::Transaction,
+    collection: &str,
+    index_name: &str,
+    segment: &ColumnBatchSegmentMeta,
+) -> Result<Result<LoadedColumnBatchSegment, ColumnBatchScanFallbackReason>, CassieError> {
+    let Some(raw) = data_tx
+        .get(&Midge::column_batch_segment_key(
+            collection,
+            index_name,
+            segment.segment_id,
+        ))
+        .map_err(CassieError::from)?
+    else {
+        return Ok(Err(ColumnBatchScanFallbackReason::SegmentMissing));
+    };
+    if segment
+        .codec
+        .checksum
+        .as_ref()
+        .is_some_and(|checksum| checksum != &checksum_hex(&raw))
+    {
+        return Ok(Err(ColumnBatchScanFallbackReason::SegmentChecksumMismatch));
+    }
+    let Ok(payload) = serde_json::from_slice::<ColumnBatchPayload>(&raw) else {
+        return Ok(Err(ColumnBatchScanFallbackReason::InvalidPayload));
+    };
+    if payload.encoding_version != COLUMN_BATCH_ENCODING_VERSION {
+        return Ok(Err(ColumnBatchScanFallbackReason::InvalidEncodingVersion));
+    }
+    if payload.codec_name != segment.codec.codec_name
+        || payload.codec_version != segment.codec.codec_version
+    {
+        return Ok(Err(ColumnBatchScanFallbackReason::SegmentCodecMismatch));
+    }
+    let Some(rows) = decode_column_batch_payload(&payload, segment.row_count) else {
+        return Ok(Err(ColumnBatchScanFallbackReason::SegmentDecodeFailed));
+    };
+    Ok(Ok(LoadedColumnBatchSegment {
+        compressed_len: segment.codec.compressed_len,
+        uncompressed_len: segment.codec.uncompressed_len,
+        rows,
+    }))
+}
+
 fn column_index_segment_size(index: &IndexMeta) -> Result<usize, CassieError> {
     let raw = index
         .options
@@ -396,7 +494,7 @@ fn column_index_segment_size(index: &IndexMeta) -> Result<usize, CassieError> {
 }
 
 fn encode_column_batch_payload(
-    rows: Vec<ColumnBatchRow>,
+    rows: &[ColumnBatchRow],
     fields: &[String],
 ) -> Result<(ColumnBatchPayload, EncodedColumnBatch), CassieError> {
     let uncompressed = ColumnBatchPayload {
@@ -404,13 +502,13 @@ fn encode_column_batch_payload(
         codec_name: "uncompressed".to_string(),
         codec_version: COLUMN_BATCH_CODEC_VERSION,
         row_ids: Vec::new(),
-        rows: rows.clone(),
+        rows: rows.to_owned(),
         columns: Vec::new(),
     };
     let uncompressed_bytes =
         serde_json::to_vec(&uncompressed).map_err(|error| CassieError::Parse(error.to_string()))?;
 
-    let rle = dictionary_rle_payload(&rows, fields);
+    let rle = dictionary_rle_payload(rows, fields);
     let rle_bytes =
         serde_json::to_vec(&rle).map_err(|error| CassieError::Parse(error.to_string()))?;
 
@@ -422,7 +520,7 @@ fn encode_column_batch_payload(
     let codec = EncodedColumnBatch {
         codec_name: payload.codec_name.clone(),
         codec_version: payload.codec_version,
-        uncompressed_len: serde_json::to_vec(&rows)
+        uncompressed_len: serde_json::to_vec(rows)
             .map_err(|error| CassieError::Parse(error.to_string()))?
             .len(),
         compressed_len: bytes.len(),
@@ -475,22 +573,22 @@ fn value_runs(rows: &[ColumnBatchRow], field: &str) -> Vec<ColumnBatchValueRun> 
 fn decode_column_batch_payload(
     payload: &ColumnBatchPayload,
     row_count: usize,
-) -> Result<Option<Vec<ColumnBatchRow>>, CassieError> {
+) -> Option<Vec<ColumnBatchRow>> {
     match (payload.codec_name.as_str(), payload.codec_version) {
-        ("uncompressed", COLUMN_BATCH_CODEC_VERSION) => Ok(Some(payload.rows.clone())),
+        ("uncompressed", COLUMN_BATCH_CODEC_VERSION) => Some(payload.rows.clone()),
         ("dictionary_rle", COLUMN_BATCH_CODEC_VERSION) => {
             decode_dictionary_rle_payload(payload, row_count)
         }
-        _ => Ok(None),
+        _ => None,
     }
 }
 
 fn decode_dictionary_rle_payload(
     payload: &ColumnBatchPayload,
     row_count: usize,
-) -> Result<Option<Vec<ColumnBatchRow>>, CassieError> {
+) -> Option<Vec<ColumnBatchRow>> {
     if payload.row_ids.len() != row_count {
-        return Ok(None);
+        return None;
     }
     let mut rows = payload
         .row_ids
@@ -505,7 +603,7 @@ fn decode_dictionary_rle_payload(
         let mut offset = 0usize;
         for run in &column.runs {
             if run.len == 0 || offset.saturating_add(run.len) > row_count {
-                return Ok(None);
+                return None;
             }
             for row in rows.iter_mut().skip(offset).take(run.len) {
                 row.values.insert(column.field.clone(), run.value.clone());
@@ -513,11 +611,11 @@ fn decode_dictionary_rle_payload(
             offset += run.len;
         }
         if offset != row_count {
-            return Ok(None);
+            return None;
         }
     }
 
-    Ok(Some(rows))
+    Some(rows)
 }
 
 fn checksum_hex(bytes: &[u8]) -> String {
@@ -596,8 +694,12 @@ fn column_batch_field_summary(rows: &[ColumnBatchRow], field: &str) -> ColumnBat
             max = Some(value.clone());
         }
         if let Some(number) = value.as_i64() {
-            sum += number as f64;
-            has_sum = true;
+            if let Ok(parsed) = number.to_string().parse::<f64>() {
+                sum += parsed;
+                has_sum = true;
+            } else {
+                all_int = false;
+            }
         } else if let Some(number) = value.as_f64() {
             sum += number;
             has_sum = true;

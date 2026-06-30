@@ -9,6 +9,13 @@ use cassie::embeddings::openai::{OpenAiProvider, OpenAiProviderConfig};
 use cassie::embeddings::DEFAULT_EMBEDDING_MODEL;
 use cassie::embeddings::{EmbeddingError, EmbeddingProvider};
 
+fn assert_f32_close(actual: f32, expected: f32) {
+    assert!(
+        (actual - expected).abs() <= f32::EPSILON,
+        "expected {actual} to equal {expected}"
+    );
+}
+
 #[derive(Clone)]
 struct MockResponse {
     status: u16,
@@ -216,9 +223,9 @@ fn should_build_requests_in_batches() {
     // Assert
     assert_eq!(embeddings.len(), 3);
     assert_eq!(server.observed_input_counts(), vec![2, 1]);
-    assert_eq!(embeddings[0].values[0], 0.1);
-    assert_eq!(embeddings[1].values[0], 0.2);
-    assert_eq!(embeddings[2].values[0], 0.3);
+    assert_f32_close(embeddings[0].values[0], 0.1);
+    assert_f32_close(embeddings[1].values[0], 0.2);
+    assert_f32_close(embeddings[2].values[0], 0.3);
 }
 
 #[test]
@@ -254,7 +261,7 @@ fn should_retry_transient_failures() {
 
     // Assert
     assert_eq!(embeddings.len(), 1);
-    assert_eq!(embeddings[0].values[0], 0.4);
+    assert_f32_close(embeddings[0].values[0], 0.4);
     assert_eq!(server.observed_input_counts(), vec![1, 1]);
 }
 
@@ -310,7 +317,7 @@ fn should_parse_openai_response_with_usage() {
 
     // Assert
     assert_eq!(embeddings.len(), 1);
-    assert_eq!(embeddings[0].values[0], 0.6);
+    assert_f32_close(embeddings[0].values[0], 0.6);
 }
 
 #[test]

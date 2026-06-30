@@ -185,7 +185,7 @@ fn run_external_probe(mut command: Command, timeout: Duration) -> Result<ProbeOu
 }
 
 #[test]
-#[ignore]
+#[ignore = "requires external SQLAlchemy compatibility harness"]
 fn should_validate_sqlalchemy_read_model_probe_when_enabled() {
     // Arrange
     if std::env::var("CASSIE_RUN_SQLALCHEMY_COMPAT")

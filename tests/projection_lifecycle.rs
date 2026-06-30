@@ -39,7 +39,7 @@ fn should_parse_materialized_projection_lifecycle_commands() {
             assert_eq!(version_id, "v2");
             assert!(unsafe_override);
         }
-        _ => panic!("expected activate version"),
+        AlterMaterializedProjectionOperation::BuildVersion => panic!("expected activate version"),
     }
 
     let QueryStatement::DropMaterializedProjectionVersion(drop_version) = drop_version.statement

@@ -17,6 +17,13 @@ use uuid::Uuid;
 mod support;
 use support::*;
 
+fn assert_f64_close(actual: f64, expected: f64) {
+    assert!(
+        (actual - expected).abs() <= f64::EPSILON,
+        "expected {actual} to equal {expected}"
+    );
+}
+
 #[test]
 fn should_apply_fulltext_index_params_during_search_score() {
     // Arrange
@@ -105,7 +112,7 @@ fn should_apply_fulltext_index_params_during_search_score() {
         assert_eq!(result.rows.len(), 1);
         assert_eq!(result.rows[0].len(), 1);
         match &result.rows[0][0] {
-            Value::Float64(score) => assert_eq!(*score, expected),
+            Value::Float64(score) => assert_f64_close(*score, expected),
             _ => panic!("expected float score"),
         }
     });

@@ -30,10 +30,14 @@ impl Cassie {
     ) -> Result<Self, CassieError> {
         let midge = Arc::new(Midge::new_with_data_dir(data_dir.as_ref())?);
         let embedding_provider = build_embedding_provider(&runtime_config)?;
-        let runtime = Arc::new(RuntimeState::new(runtime_config.limits.clone()));
-        let auth_user = runtime_config.user.clone();
-        let auth_password = runtime_config.password.clone();
-        let default_database = runtime_config.database.clone();
+        let CassieRuntimeConfig {
+            user: auth_user,
+            database: default_database,
+            password: auth_password,
+            limits,
+            ..
+        } = runtime_config;
+        let runtime = Arc::new(RuntimeState::new(limits));
         Ok(Self {
             midge,
             catalog: Catalog::new(),

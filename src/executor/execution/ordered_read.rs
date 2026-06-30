@@ -104,8 +104,8 @@ fn execute_ordered_row_id_page(
             &spec.collection,
             batch::DEFAULT_BATCH_SIZE,
             RowDecode::ProjectedHistorical(spec.scan_fields()),
-            spec.start_bound.clone(),
-            spec.end_bound.clone(),
+            spec.start_bound.as_ref(),
+            spec.end_bound.as_ref(),
             matches!(spec.direction, SortDirection::Desc),
             Some(scan_limit),
         )

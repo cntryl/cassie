@@ -7,8 +7,8 @@ impl Cassie {
             &name,
             schema
                 .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .into_iter()
+                .map(|field| (field.name, field.data_type))
                 .collect(),
         );
         self.invalidate_plan_cache();

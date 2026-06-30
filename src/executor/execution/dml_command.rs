@@ -336,7 +336,7 @@ fn execute_create_table_command(
 
         cassie
             .midge
-            .create_collection_with_meta(&statement.table, schema.clone(), collection_meta.clone())
+            .create_collection_with_meta(&statement.table, &schema, &collection_meta)
             .map_err(|error| QueryError::General(error.to_string()))?;
 
         let constraints = statement

@@ -71,7 +71,7 @@ impl Midge {
                     .ok_or_else(|| {
                         CassieError::Unsupported("graph edge payload is incomplete".into())
                     })?;
-                self.put_graph_edge_record(&mut tx, &record)?;
+                Self::put_graph_edge_record(&mut tx, &record)?;
             }
             ids.push(id);
         }
@@ -93,7 +93,6 @@ impl Midge {
     }
 
     pub(crate) fn sync_graph_adjacency_for_document(
-        &self,
         tx: &mut cntryl_midge::Transaction,
         graph: Option<&crate::catalog::GraphMeta>,
         row_id: &str,
@@ -107,7 +106,7 @@ impl Midge {
         let mut deletes = 0usize;
         if let Some(previous) = previous {
             if let Some(record) = graph_edge_record_from_payload(graph, row_id, previous, false)? {
-                self.delete_graph_edge_record(tx, &record)?;
+                Self::delete_graph_edge_record(tx, &record)?;
                 deletes = deletes.saturating_add(2);
             }
         }
@@ -118,7 +117,7 @@ impl Midge {
                 graph_edge_record_from_payload(graph, row_id, next, true)?.ok_or_else(|| {
                     CassieError::Unsupported("graph edge payload is incomplete".into())
                 })?;
-            self.put_graph_edge_record(tx, &record)?;
+            Self::put_graph_edge_record(tx, &record)?;
             puts = puts.saturating_add(2);
         }
 
@@ -176,7 +175,6 @@ impl Midge {
     }
 
     fn put_graph_edge_record(
-        &self,
         tx: &mut cntryl_midge::Transaction,
         record: &GraphEdgeRecord,
     ) -> Result<(), CassieError> {
@@ -214,7 +212,6 @@ impl Midge {
     }
 
     fn delete_graph_edge_record(
-        &self,
         tx: &mut cntryl_midge::Transaction,
         record: &GraphEdgeRecord,
     ) -> Result<(), CassieError> {

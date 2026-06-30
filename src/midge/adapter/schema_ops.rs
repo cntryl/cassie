@@ -12,7 +12,11 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn create_collection(&self, name: &str, schema: Schema) -> Result<(), CassieError> {
-        self.create_collection_with_meta(name, schema, CollectionMeta::new(name, None))
+        let result =
+            self.create_collection_with_meta(name, &schema, &CollectionMeta::new(name, None));
+        let Schema { fields } = schema;
+        let _ = fields;
+        result
     }
 
     /// # Errors

@@ -68,6 +68,21 @@ pub(super) async fn read_simple_query_message(
 pub(super) async fn read_frontend_message(
     reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
 ) -> Result<FrontendMessage, HandshakeError> {
+    let (tag, payload) = read_frontend_frame(reader).await?;
+    let payload_len = payload.len();
+    let (message, cursor) = decode_frontend_message(tag, payload)?;
+    if cursor != payload_len {
+        return Err(HandshakeError::Invalid(
+            "invalid frontend message payload".to_string(),
+        ));
+    }
+
+    Ok(message)
+}
+
+async fn read_frontend_frame(
+    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+) -> Result<(u8, Vec<u8>), HandshakeError> {
     let mut tag = [0u8; 1];
     reader.read_exact(&mut tag).await.map_err(|error| {
         if error.kind() == io::ErrorKind::UnexpectedEof {
@@ -111,125 +126,28 @@ pub(super) async fn read_frontend_message(
         }
     })?;
 
+    Ok((tag[0], payload))
+}
+
+fn decode_frontend_message(
+    tag: u8,
+    payload: Vec<u8>,
+) -> Result<(FrontendMessage, usize), HandshakeError> {
     let mut cursor = 0usize;
     let payload_len = payload.len();
-    let message = match tag[0] {
-        b'P' => {
-            let _ = read_null_terminated(&payload, &mut cursor)?;
-            let _ = read_null_terminated(&payload, &mut cursor)?;
-            let parameter_count = read_frontend_i16(&payload, &mut cursor)?;
-            let parameter_count = usize::try_from(parameter_count).map_err(|_| {
-                HandshakeError::Invalid("invalid parse parameter count".to_string())
-            })?;
-            for _ in 0..parameter_count {
-                let _ = read_frontend_i32(&payload, &mut cursor)?;
-            }
-            FrontendMessage::Parse
-        }
-        b'B' => {
-            let _ = read_null_terminated(&payload, &mut cursor)?;
-            let _ = read_null_terminated(&payload, &mut cursor)?;
-            let format_count = read_frontend_i16(&payload, &mut cursor)?;
-            let format_count = usize::try_from(format_count)
-                .map_err(|_| HandshakeError::Invalid("invalid bind format count".to_string()))?;
-            for _ in 0..format_count {
-                let _ = read_frontend_i16(&payload, &mut cursor)?;
-            }
-
-            let parameter_count = read_frontend_i16(&payload, &mut cursor)?;
-            let parameter_count = usize::try_from(parameter_count)
-                .map_err(|_| HandshakeError::Invalid("invalid bind parameter count".to_string()))?;
-
-            for _ in 0..parameter_count {
-                let value_len = read_frontend_i32(&payload, &mut cursor)?;
-                if value_len == -1 {
-                    continue;
-                }
-                let value_len = usize::try_from(value_len).map_err(|_| {
-                    HandshakeError::Invalid("invalid bind parameter length".to_string())
-                })?;
-                let end = cursor
-                    .checked_add(value_len)
-                    .ok_or_else(|| HandshakeError::Invalid("invalid bind payload".to_string()))?;
-                let _ = payload
-                    .get(cursor..end)
-                    .ok_or_else(|| HandshakeError::Invalid("invalid bind payload".to_string()))?;
-                cursor = end;
-            }
-
-            let result_format_count = read_frontend_i16(&payload, &mut cursor)?;
-            let result_format_count = usize::try_from(result_format_count)
-                .map_err(|_| HandshakeError::Invalid("invalid result format count".to_string()))?;
-            for _ in 0..result_format_count {
-                let _ = read_frontend_i16(&payload, &mut cursor)?;
-            }
-
-            FrontendMessage::Bind
-        }
-        b'D' => {
-            match payload.get(cursor).copied() {
-                Some(b'S' | b'P') => {
-                    cursor += 1;
-                }
-                Some(other) => {
-                    return Err(HandshakeError::Invalid(format!(
-                        "unsupported describe target '{}'",
-                        char::from(other)
-                    )))
-                }
-                None => {
-                    return Err(HandshakeError::Invalid(
-                        "missing describe target".to_string(),
-                    ))
-                }
-            }
-            let _ = read_null_terminated(&payload, &mut cursor)?;
-            FrontendMessage::Describe
-        }
-        b'E' => {
-            let _ = read_null_terminated(&payload, &mut cursor)?;
-            let limit = read_frontend_i32(&payload, &mut cursor)?;
-            match limit.cmp(&0) {
-                std::cmp::Ordering::Equal => {}
-                std::cmp::Ordering::Less => {
-                    return Err(HandshakeError::Invalid(
-                        "invalid execute row limit".to_string(),
-                    ))
-                }
-                std::cmp::Ordering::Greater => {}
-            }
-            FrontendMessage::Execute
-        }
-        b'S' => {
-            if !payload.is_empty() {
-                return Err(HandshakeError::Invalid(
-                    "sync message should not contain a payload".to_string(),
-                ));
-            }
-            FrontendMessage::Sync
-        }
-        b'C' => {
-            match payload.get(cursor).copied() {
-                Some(b'S' | b'P') => {
-                    cursor += 1;
-                }
-                Some(other) => {
-                    return Err(HandshakeError::Invalid(format!(
-                        "unsupported close target '{}'",
-                        char::from(other)
-                    )))
-                }
-                None => return Err(HandshakeError::Invalid("missing close target".to_string())),
-            }
-            let _ = read_null_terminated(&payload, &mut cursor)?;
-            FrontendMessage::Close
-        }
+    let message = match tag {
+        b'P' => decode_parse_message(&payload, &mut cursor)?,
+        b'B' => decode_bind_message(&payload, &mut cursor)?,
+        b'D' => decode_describe_message(&payload, &mut cursor)?,
+        b'E' => decode_execute_message(&payload, &mut cursor)?,
+        b'S' => decode_empty_frontend_message(&payload, FrontendMessage::Sync, "sync")?,
+        b'C' => decode_close_message(&payload, &mut cursor)?,
         b'd' => {
-            cursor = payload.len();
+            cursor = payload_len;
             FrontendMessage::CopyData(payload)
         }
         b'c' => {
-            cursor = payload.len();
+            cursor = payload_len;
             FrontendMessage::CopyDone
         }
         b'f' => {
@@ -237,34 +155,138 @@ pub(super) async fn read_frontend_message(
             FrontendMessage::CopyFail(message)
         }
         b'F' => {
-            cursor = payload.len();
+            cursor = payload_len;
             FrontendMessage::FunctionCall
         }
-        b'H' => {
-            if !payload.is_empty() {
-                return Err(HandshakeError::Invalid(
-                    "flush message should not contain a payload".to_string(),
-                ));
-            }
-            FrontendMessage::Flush
-        }
-        b'X' => {
-            if !payload.is_empty() {
-                return Err(HandshakeError::Invalid(
-                    "terminate message should not contain a payload".to_string(),
-                ));
-            }
-            FrontendMessage::Terminate
-        }
+        b'H' => decode_empty_frontend_message(&payload, FrontendMessage::Flush, "flush")?,
+        b'X' => decode_empty_frontend_message(&payload, FrontendMessage::Terminate, "terminate")?,
         _ => FrontendMessage::Unknown,
     };
+    Ok((message, cursor))
+}
 
-    if cursor != payload_len {
+fn decode_parse_message(
+    payload: &[u8],
+    cursor: &mut usize,
+) -> Result<FrontendMessage, HandshakeError> {
+    let _ = read_null_terminated(payload, cursor)?;
+    let _ = read_null_terminated(payload, cursor)?;
+    let parameter_count = read_frontend_i16(payload, cursor)?;
+    let parameter_count = usize::try_from(parameter_count)
+        .map_err(|_| HandshakeError::Invalid("invalid parse parameter count".to_string()))?;
+    for _ in 0..parameter_count {
+        let _ = read_frontend_i32(payload, cursor)?;
+    }
+    Ok(FrontendMessage::Parse)
+}
+
+fn decode_bind_message(
+    payload: &[u8],
+    cursor: &mut usize,
+) -> Result<FrontendMessage, HandshakeError> {
+    let _ = read_null_terminated(payload, cursor)?;
+    let _ = read_null_terminated(payload, cursor)?;
+    read_bind_formats(payload, cursor, "invalid bind format count")?;
+    read_bind_parameters(payload, cursor)?;
+    read_bind_formats(payload, cursor, "invalid result format count")?;
+    Ok(FrontendMessage::Bind)
+}
+
+fn read_bind_formats(
+    payload: &[u8],
+    cursor: &mut usize,
+    count_error: &str,
+) -> Result<(), HandshakeError> {
+    let count = read_frontend_i16(payload, cursor)?;
+    let count =
+        usize::try_from(count).map_err(|_| HandshakeError::Invalid(count_error.to_string()))?;
+    for _ in 0..count {
+        let _ = read_frontend_i16(payload, cursor)?;
+    }
+    Ok(())
+}
+
+fn read_bind_parameters(payload: &[u8], cursor: &mut usize) -> Result<(), HandshakeError> {
+    let parameter_count = read_frontend_i16(payload, cursor)?;
+    let parameter_count = usize::try_from(parameter_count)
+        .map_err(|_| HandshakeError::Invalid("invalid bind parameter count".to_string()))?;
+    for _ in 0..parameter_count {
+        let value_len = read_frontend_i32(payload, cursor)?;
+        if value_len == -1 {
+            continue;
+        }
+        let value_len = usize::try_from(value_len)
+            .map_err(|_| HandshakeError::Invalid("invalid bind parameter length".to_string()))?;
+        let end = (*cursor)
+            .checked_add(value_len)
+            .ok_or_else(|| HandshakeError::Invalid("invalid bind payload".to_string()))?;
+        let _ = payload
+            .get(*cursor..end)
+            .ok_or_else(|| HandshakeError::Invalid("invalid bind payload".to_string()))?;
+        *cursor = end;
+    }
+    Ok(())
+}
+
+fn decode_describe_message(
+    payload: &[u8],
+    cursor: &mut usize,
+) -> Result<FrontendMessage, HandshakeError> {
+    read_describe_or_close_target(payload, cursor, "describe")?;
+    let _ = read_null_terminated(payload, cursor)?;
+    Ok(FrontendMessage::Describe)
+}
+
+fn decode_execute_message(
+    payload: &[u8],
+    cursor: &mut usize,
+) -> Result<FrontendMessage, HandshakeError> {
+    let _ = read_null_terminated(payload, cursor)?;
+    if read_frontend_i32(payload, cursor)? < 0 {
         return Err(HandshakeError::Invalid(
-            "invalid frontend message payload".to_string(),
+            "invalid execute row limit".to_string(),
         ));
     }
+    Ok(FrontendMessage::Execute)
+}
 
+fn decode_close_message(
+    payload: &[u8],
+    cursor: &mut usize,
+) -> Result<FrontendMessage, HandshakeError> {
+    read_describe_or_close_target(payload, cursor, "close")?;
+    let _ = read_null_terminated(payload, cursor)?;
+    Ok(FrontendMessage::Close)
+}
+
+fn read_describe_or_close_target(
+    payload: &[u8],
+    cursor: &mut usize,
+    message: &str,
+) -> Result<(), HandshakeError> {
+    match payload.get(*cursor).copied() {
+        Some(b'S' | b'P') => {
+            *cursor += 1;
+            Ok(())
+        }
+        Some(other) => Err(HandshakeError::Invalid(format!(
+            "unsupported {message} target '{}'",
+            char::from(other)
+        ))),
+        None => Err(HandshakeError::Invalid(format!("missing {message} target"))),
+    }
+}
+
+fn decode_empty_frontend_message(
+    payload: &[u8],
+    message: FrontendMessage,
+    name: &str,
+) -> Result<FrontendMessage, HandshakeError> {
+    if !payload.is_empty() {
+        return Err(HandshakeError::Invalid(format!(
+            "{name} message should not contain a payload"
+        )));
+    }
     Ok(message)
 }
 

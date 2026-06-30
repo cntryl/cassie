@@ -148,7 +148,7 @@ fn register_operator_feedback_indexes(
             predicate: None,
             kind: IndexKind::Scalar,
             unique: false,
-            options: Default::default(),
+            options: std::collections::BTreeMap::default(),
         };
         cassie.midge.put_index(&index).unwrap();
         cassie.catalog.register_index(index);

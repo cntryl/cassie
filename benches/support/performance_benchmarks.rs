@@ -826,7 +826,7 @@ pub fn summarize_criterion_sample(
                 return Err("criterion sample iteration count must be positive".to_string());
             }
             let per_iteration_ns = nanos / iters;
-            Ok((per_iteration_ns / 1_000.0).ceil() as u64)
+            ceil_microseconds(per_iteration_ns / 1_000.0)
         })
         .collect::<Result<Vec<_>, _>>()?;
     per_iteration_us.sort_unstable();
@@ -837,9 +837,9 @@ pub fn summarize_criterion_sample(
         return Err("criterion sample total time must be positive".to_string());
     }
 
-    let p50_us = percentile_us(&per_iteration_us, 0.50);
-    let p95_us = percentile_us(&per_iteration_us, 0.95);
-    let p99_us = percentile_us(&per_iteration_us, 0.99);
+    let p50_us = percentile_us(&per_iteration_us, 50, 100);
+    let p95_us = percentile_us(&per_iteration_us, 95, 100);
+    let p99_us = percentile_us(&per_iteration_us, 99, 100);
     let throughput_ops_per_sec = total_iters * 1_000_000_000.0 / total_nanos;
 
     Ok(BenchmarkSampleSummary {
@@ -861,8 +861,22 @@ pub fn summarize_criterion_sample(
     })
 }
 
-fn percentile_us(sorted: &[u64], percentile: f64) -> u64 {
-    let index = ((sorted.len().saturating_sub(1)) as f64 * percentile).ceil() as usize;
+fn ceil_microseconds(value: f64) -> Result<u64, String> {
+    if !value.is_finite() || value < 0.0 {
+        return Err("criterion sample duration must be finite and non-negative".to_string());
+    }
+
+    format!("{:.0}", value.ceil())
+        .parse::<u64>()
+        .map_err(|error| error.to_string())
+}
+
+fn percentile_us(sorted: &[u64], numerator: usize, denominator: usize) -> u64 {
+    let index = sorted
+        .len()
+        .saturating_sub(1)
+        .saturating_mul(numerator)
+        .div_ceil(denominator);
     sorted[index.min(sorted.len().saturating_sub(1))]
 }
 

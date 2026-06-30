@@ -2,6 +2,7 @@
 
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::future::{ready, Ready};
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -41,10 +42,10 @@ impl Drop for PgwirePreparedBenchContext {
     }
 }
 
-pub async fn pgwire_simple_query(ctx: &BenchContext, sql: &str) -> usize {
+pub fn pgwire_simple_query(ctx: &BenchContext, sql: &str) -> Ready<usize> {
     let messages =
         cassie::pgwire::handlers::query::run_simple_query(&ctx.cassie, &ctx.session, sql, vec![]);
-    std::hint::black_box(messages.len())
+    ready(std::hint::black_box(messages.len()))
 }
 
 pub async fn pgwire_prepared_context(
@@ -123,15 +124,14 @@ pub fn pgwire_prepared_statement_protocol_loop() -> usize {
     std::hint::black_box(decoded)
 }
 
-pub async fn pgwire_large_result_query(ctx: &BenchContext) -> usize {
+pub fn pgwire_large_result_query(ctx: &BenchContext) -> Ready<usize> {
     pgwire_simple_query(
         ctx,
         "SELECT id, title, body, score FROM bench_documents ORDER BY id LIMIT 512",
     )
-    .await
 }
 
-pub async fn pgwire_connection_churn(ctx: &BenchContext) -> usize {
+pub fn pgwire_connection_churn(ctx: &BenchContext) -> Ready<usize> {
     let session = ctx.cassie.create_session("benchmark", None);
     let messages = cassie::pgwire::handlers::query::run_simple_query(
         &ctx.cassie,
@@ -139,15 +139,14 @@ pub async fn pgwire_connection_churn(ctx: &BenchContext) -> usize {
         "SELECT id FROM bench_documents WHERE score = 1 LIMIT 20",
         vec![],
     );
-    std::hint::black_box(messages.len())
+    ready(std::hint::black_box(messages.len()))
 }
 
-pub async fn pgwire_connection_pooling(ctx: &BenchContext) -> usize {
+pub fn pgwire_connection_pooling(ctx: &BenchContext) -> Ready<usize> {
     pgwire_simple_query(
         ctx,
         "SELECT id FROM bench_documents WHERE score = 1 LIMIT 20",
     )
-    .await
 }
 
 pub async fn pgwire_concurrent_connections(ctx: &BenchContext, concurrency: usize) -> usize {

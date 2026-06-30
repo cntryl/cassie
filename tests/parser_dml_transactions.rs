@@ -66,7 +66,7 @@ fn should_parse_insert_with_explicit_columns() {
                 panic!("expected string literal");
             }
         }
-        _ => panic!("expected values source"),
+        InsertSource::Select(_) => panic!("expected values source"),
     };
     assert_eq!(value, "alpha");
 }

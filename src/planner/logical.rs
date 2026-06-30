@@ -87,57 +87,280 @@ pub enum LogicalCommand {
 /// Returns an error when validation, storage, or execution fails.
 pub fn plan(bound: &BoundStatement) -> Result<LogicalPlan, CassieError> {
     match &bound.statement.statement {
+        statement @ (QueryStatement::Explain(_)
+        | QueryStatement::Select(_)
+        | QueryStatement::Show(_)
+        | QueryStatement::Set(_)
+        | QueryStatement::Copy(_)
+        | QueryStatement::Insert(_)
+        | QueryStatement::Update(_)
+        | QueryStatement::Delete(_)
+        | QueryStatement::Transaction(_)) => plan_runtime_statement(statement),
+        statement @ (QueryStatement::CreateTable(_)
+        | QueryStatement::CreateGraph(_)
+        | QueryStatement::DropTable(_)
+        | QueryStatement::AlterTable(_)
+        | QueryStatement::CreateSequence(_)
+        | QueryStatement::DropSequence(_)
+        | QueryStatement::CreateSchema(_)
+        | QueryStatement::DropSchema(_)
+        | QueryStatement::AlterSchema(_)
+        | QueryStatement::CreateView(_)
+        | QueryStatement::DropView(_)
+        | QueryStatement::CreateRole(_)
+        | QueryStatement::AlterRole(_)
+        | QueryStatement::DropRole(_)
+        | QueryStatement::CreateFunction(_)
+        | QueryStatement::DropFunction(_)
+        | QueryStatement::CreateProcedure(_)
+        | QueryStatement::DropProcedure(_)
+        | QueryStatement::CallProcedure(_)
+        | QueryStatement::CreateIndex(_)
+        | QueryStatement::DropIndex(_)) => plan_catalog_statement(statement),
+        statement @ (QueryStatement::CreateRollup(_)
+        | QueryStatement::RefreshRollup(_)
+        | QueryStatement::DropRollup(_)
+        | QueryStatement::CreateMaterializedProjection(_)
+        | QueryStatement::RefreshMaterializedProjection(_)
+        | QueryStatement::DropMaterializedProjection(_)
+        | QueryStatement::AlterMaterializedProjection(_)
+        | QueryStatement::DropMaterializedProjectionVersion(_)
+        | QueryStatement::VerifyProjection(_)
+        | QueryStatement::DiffProjection(_)
+        | QueryStatement::CompareProjection(_)
+        | QueryStatement::PlanRepairProjection(_)
+        | QueryStatement::RepairProjection(_)) => plan_projection_statement(statement),
+        statement @ (QueryStatement::CreateRetentionPolicy(_)
+        | QueryStatement::AlterRetentionPolicy(_)
+        | QueryStatement::DropRetentionPolicy(_)
+        | QueryStatement::EnforceRetentionPolicy(_)) => plan_retention_statement(statement),
+    }
+}
+
+fn plan_runtime_statement(statement: &QueryStatement) -> Result<LogicalPlan, CassieError> {
+    match statement {
         QueryStatement::Explain(_) => Err(CassieError::Planner(
             "EXPLAIN is handled before logical planning".to_string(),
         )),
         QueryStatement::Select(select) => plan_select(select),
-        QueryStatement::Show(statement) => Ok(single_row_command_plan(LogicalCommand::Show(statement.clone()))),
-        QueryStatement::Set(statement) => Ok(single_row_command_plan(LogicalCommand::Set(statement.clone()))),
-        QueryStatement::Copy(statement) => plan_table_command(&statement.table, "COPY requires a target table", LogicalCommand::Copy(statement.clone())),
-        QueryStatement::Insert(statement) => plan_table_command(&statement.table, "INSERT requires a target table", LogicalCommand::Insert(statement.clone())),
-        QueryStatement::Update(statement) => plan_table_command(&statement.table, "UPDATE requires a target table", LogicalCommand::Update(statement.clone())),
-        QueryStatement::Delete(statement) => plan_table_command(&statement.table, "DELETE requires a target table", LogicalCommand::Delete(statement.clone())),
-        QueryStatement::CreateTable(statement) => plan_create_table(statement),
-        QueryStatement::CreateGraph(statement) => plan_named_command(&statement.name, "CREATE GRAPH requires a name", LogicalCommand::CreateGraph(statement.clone())),
-        QueryStatement::DropTable(statement) => plan_table_command(&statement.table, "DROP TABLE requires a table name", LogicalCommand::DropTable(statement.clone())),
-        QueryStatement::AlterTable(statement) => plan_alter_table(statement),
-        QueryStatement::CreateSequence(statement) => plan_named_command(&statement.name, "CREATE SEQUENCE requires a name", LogicalCommand::CreateSequence(statement.clone())),
-        QueryStatement::DropSequence(statement) => plan_named_command(&statement.name, "DROP SEQUENCE requires a name", LogicalCommand::DropSequence(statement.clone())),
-        QueryStatement::CreateSchema(statement) => plan_named_command(&statement.schema, "CREATE SCHEMA requires a name", LogicalCommand::CreateSchema(statement.clone())),
-        QueryStatement::DropSchema(statement) => plan_named_command(&statement.schema, "DROP SCHEMA requires a schema name", LogicalCommand::DropSchema(statement.clone())),
-        QueryStatement::AlterSchema(statement) => plan_named_command(&statement.schema, "ALTER SCHEMA requires a schema name", LogicalCommand::AlterSchema(statement.clone())),
-        QueryStatement::CreateView(statement) => plan_create_view(statement),
-        QueryStatement::DropView(statement) => plan_named_command(&statement.name, "DROP VIEW requires a name", LogicalCommand::DropView(statement.clone())),
-        QueryStatement::CreateRole(statement) => plan_named_command(&statement.name, "CREATE ROLE requires a name", LogicalCommand::CreateRole(statement.clone())),
-        QueryStatement::AlterRole(statement) => plan_named_command(&statement.name, "ALTER ROLE requires a name", LogicalCommand::AlterRole(statement.clone())),
-        QueryStatement::DropRole(statement) => plan_named_command(&statement.name, "DROP ROLE requires a name", LogicalCommand::DropRole(statement.clone())),
-        QueryStatement::CreateFunction(statement) => plan_named_command(&statement.name, "CREATE FUNCTION requires a name", LogicalCommand::CreateFunction(statement.clone())),
-        QueryStatement::DropFunction(statement) => plan_named_command(&statement.name, "DROP FUNCTION requires a name", LogicalCommand::DropFunction(statement.clone())),
-        QueryStatement::CreateProcedure(statement) => plan_named_command(&statement.name, "CREATE PROCEDURE requires a name", LogicalCommand::CreateProcedure(statement.clone())),
-        QueryStatement::DropProcedure(statement) => plan_named_command(&statement.name, "DROP PROCEDURE requires a name", LogicalCommand::DropProcedure(statement.clone())),
-        QueryStatement::CallProcedure(statement) => plan_named_command(&statement.name, "CALL requires a procedure name", LogicalCommand::CallProcedure(statement.clone())),
-        QueryStatement::CreateIndex(statement) => plan_create_index(statement),
-        QueryStatement::DropIndex(statement) => plan_drop_index(statement),
-        QueryStatement::CreateRollup(statement) => plan_named_command(&statement.name, "CREATE ROLLUP requires a name", LogicalCommand::CreateRollup(statement.clone())),
-        QueryStatement::RefreshRollup(statement) => plan_named_command(&statement.name, "REFRESH ROLLUP requires a name", LogicalCommand::RefreshRollup(statement.clone())),
-        QueryStatement::DropRollup(statement) => plan_named_command(&statement.name, "DROP ROLLUP requires a name", LogicalCommand::DropRollup(statement.clone())),
-        QueryStatement::CreateMaterializedProjection(statement) => plan_named_command(&statement.name, "CREATE MATERIALIZED PROJECTION requires a name", LogicalCommand::CreateMaterializedProjection(statement.clone())),
-        QueryStatement::RefreshMaterializedProjection(statement) => plan_named_command(&statement.name, "REFRESH MATERIALIZED PROJECTION requires a name", LogicalCommand::RefreshMaterializedProjection(statement.clone())),
-        QueryStatement::DropMaterializedProjection(statement) => plan_named_command(&statement.name, "DROP MATERIALIZED PROJECTION requires a name", LogicalCommand::DropMaterializedProjection(statement.clone())),
-        QueryStatement::AlterMaterializedProjection(statement) => plan_named_command(&statement.name, "ALTER MATERIALIZED PROJECTION requires a name", LogicalCommand::AlterMaterializedProjection(statement.clone())),
-        QueryStatement::DropMaterializedProjectionVersion(statement) => plan_named_command(&statement.name, "DROP MATERIALIZED PROJECTION VERSION requires a name", LogicalCommand::DropMaterializedProjectionVersion(statement.clone())),
-        QueryStatement::VerifyProjection(statement) => plan_named_command(&statement.name, "VERIFY PROJECTION requires a name", LogicalCommand::VerifyProjection(statement.clone())),
-        QueryStatement::DiffProjection(statement) => plan_named_command(&statement.left.name, "DIFF PROJECTION requires a name", LogicalCommand::DiffProjection(statement.clone())),
-        QueryStatement::CompareProjection(statement) => plan_named_command(&statement.target.name, "COMPARE PROJECTION requires a name", LogicalCommand::CompareProjection(statement.clone())),
-        QueryStatement::PlanRepairProjection(statement) => plan_named_command(&statement.target.name, "PLAN REPAIR PROJECTION requires a name", LogicalCommand::PlanRepairProjection(statement.clone())),
-        QueryStatement::RepairProjection(statement) => plan_named_command(&statement.target.name, "REPAIR PROJECTION requires a name", LogicalCommand::RepairProjection(statement.clone())),
-        QueryStatement::CreateRetentionPolicy(statement) => plan_named_command(&statement.name, "CREATE RETENTION POLICY requires a name", LogicalCommand::CreateRetentionPolicy(statement.clone())),
-        QueryStatement::AlterRetentionPolicy(statement) => plan_named_command(&statement.name, "ALTER RETENTION POLICY requires a name", LogicalCommand::AlterRetentionPolicy(statement.clone())),
-        QueryStatement::DropRetentionPolicy(statement) => plan_named_command(&statement.name, "DROP RETENTION POLICY requires a name", LogicalCommand::DropRetentionPolicy(statement.clone())),
-        QueryStatement::EnforceRetentionPolicy(statement) => plan_named_command(&statement.name, "ENFORCE RETENTION POLICY requires a name", LogicalCommand::EnforceRetentionPolicy(statement.clone())),
+        QueryStatement::Show(statement) => Ok(single_row_command_plan(LogicalCommand::Show(
+            statement.clone(),
+        ))),
+        QueryStatement::Set(statement) => Ok(single_row_command_plan(LogicalCommand::Set(
+            statement.clone(),
+        ))),
+        QueryStatement::Copy(statement) => plan_table_command(
+            &statement.table,
+            "COPY requires a target table",
+            LogicalCommand::Copy(statement.clone()),
+        ),
+        QueryStatement::Insert(statement) => plan_table_command(
+            &statement.table,
+            "INSERT requires a target table",
+            LogicalCommand::Insert(statement.clone()),
+        ),
+        QueryStatement::Update(statement) => plan_table_command(
+            &statement.table,
+            "UPDATE requires a target table",
+            LogicalCommand::Update(statement.clone()),
+        ),
+        QueryStatement::Delete(statement) => plan_table_command(
+            &statement.table,
+            "DELETE requires a target table",
+            LogicalCommand::Delete(statement.clone()),
+        ),
         QueryStatement::Transaction(_) => Err(CassieError::Planner(
             "transaction control statements are handled by the session runtime".into(),
         )),
+        _ => unreachable!("runtime statement dispatch must stay in sync with plan()"),
+    }
+}
+
+fn plan_catalog_statement(statement: &QueryStatement) -> Result<LogicalPlan, CassieError> {
+    match statement {
+        QueryStatement::CreateTable(statement) => plan_create_table(statement),
+        QueryStatement::CreateGraph(statement) => plan_named_command(
+            &statement.name,
+            "CREATE GRAPH requires a name",
+            LogicalCommand::CreateGraph(statement.clone()),
+        ),
+        QueryStatement::DropTable(statement) => plan_table_command(
+            &statement.table,
+            "DROP TABLE requires a table name",
+            LogicalCommand::DropTable(statement.clone()),
+        ),
+        QueryStatement::AlterTable(statement) => plan_alter_table(statement),
+        QueryStatement::CreateSequence(statement) => plan_named_command(
+            &statement.name,
+            "CREATE SEQUENCE requires a name",
+            LogicalCommand::CreateSequence(statement.clone()),
+        ),
+        QueryStatement::DropSequence(statement) => plan_named_command(
+            &statement.name,
+            "DROP SEQUENCE requires a name",
+            LogicalCommand::DropSequence(statement.clone()),
+        ),
+        QueryStatement::CreateSchema(statement) => plan_named_command(
+            &statement.schema,
+            "CREATE SCHEMA requires a name",
+            LogicalCommand::CreateSchema(statement.clone()),
+        ),
+        QueryStatement::DropSchema(statement) => plan_named_command(
+            &statement.schema,
+            "DROP SCHEMA requires a schema name",
+            LogicalCommand::DropSchema(statement.clone()),
+        ),
+        QueryStatement::AlterSchema(statement) => plan_named_command(
+            &statement.schema,
+            "ALTER SCHEMA requires a schema name",
+            LogicalCommand::AlterSchema(statement.clone()),
+        ),
+        QueryStatement::CreateView(statement) => plan_create_view(statement),
+        QueryStatement::DropView(statement) => plan_named_command(
+            &statement.name,
+            "DROP VIEW requires a name",
+            LogicalCommand::DropView(statement.clone()),
+        ),
+        QueryStatement::CreateRole(statement) => plan_named_command(
+            &statement.name,
+            "CREATE ROLE requires a name",
+            LogicalCommand::CreateRole(statement.clone()),
+        ),
+        QueryStatement::AlterRole(statement) => plan_named_command(
+            &statement.name,
+            "ALTER ROLE requires a name",
+            LogicalCommand::AlterRole(statement.clone()),
+        ),
+        QueryStatement::DropRole(statement) => plan_named_command(
+            &statement.name,
+            "DROP ROLE requires a name",
+            LogicalCommand::DropRole(statement.clone()),
+        ),
+        QueryStatement::CreateFunction(statement) => plan_named_command(
+            &statement.name,
+            "CREATE FUNCTION requires a name",
+            LogicalCommand::CreateFunction(statement.clone()),
+        ),
+        QueryStatement::DropFunction(statement) => plan_named_command(
+            &statement.name,
+            "DROP FUNCTION requires a name",
+            LogicalCommand::DropFunction(statement.clone()),
+        ),
+        QueryStatement::CreateProcedure(statement) => plan_named_command(
+            &statement.name,
+            "CREATE PROCEDURE requires a name",
+            LogicalCommand::CreateProcedure(statement.clone()),
+        ),
+        QueryStatement::DropProcedure(statement) => plan_named_command(
+            &statement.name,
+            "DROP PROCEDURE requires a name",
+            LogicalCommand::DropProcedure(statement.clone()),
+        ),
+        QueryStatement::CallProcedure(statement) => plan_named_command(
+            &statement.name,
+            "CALL requires a procedure name",
+            LogicalCommand::CallProcedure(statement.clone()),
+        ),
+        QueryStatement::CreateIndex(statement) => plan_create_index(statement),
+        QueryStatement::DropIndex(statement) => plan_drop_index(statement),
+        _ => unreachable!("catalog statement dispatch must stay in sync with plan()"),
+    }
+}
+
+fn plan_projection_statement(statement: &QueryStatement) -> Result<LogicalPlan, CassieError> {
+    match statement {
+        QueryStatement::CreateRollup(statement) => plan_named_command(
+            &statement.name,
+            "CREATE ROLLUP requires a name",
+            LogicalCommand::CreateRollup(statement.clone()),
+        ),
+        QueryStatement::RefreshRollup(statement) => plan_named_command(
+            &statement.name,
+            "REFRESH ROLLUP requires a name",
+            LogicalCommand::RefreshRollup(statement.clone()),
+        ),
+        QueryStatement::DropRollup(statement) => plan_named_command(
+            &statement.name,
+            "DROP ROLLUP requires a name",
+            LogicalCommand::DropRollup(statement.clone()),
+        ),
+        QueryStatement::CreateMaterializedProjection(statement) => plan_named_command(
+            &statement.name,
+            "CREATE MATERIALIZED PROJECTION requires a name",
+            LogicalCommand::CreateMaterializedProjection(statement.clone()),
+        ),
+        QueryStatement::RefreshMaterializedProjection(statement) => plan_named_command(
+            &statement.name,
+            "REFRESH MATERIALIZED PROJECTION requires a name",
+            LogicalCommand::RefreshMaterializedProjection(statement.clone()),
+        ),
+        QueryStatement::DropMaterializedProjection(statement) => plan_named_command(
+            &statement.name,
+            "DROP MATERIALIZED PROJECTION requires a name",
+            LogicalCommand::DropMaterializedProjection(statement.clone()),
+        ),
+        QueryStatement::AlterMaterializedProjection(statement) => plan_named_command(
+            &statement.name,
+            "ALTER MATERIALIZED PROJECTION requires a name",
+            LogicalCommand::AlterMaterializedProjection(statement.clone()),
+        ),
+        QueryStatement::DropMaterializedProjectionVersion(statement) => plan_named_command(
+            &statement.name,
+            "DROP MATERIALIZED PROJECTION VERSION requires a name",
+            LogicalCommand::DropMaterializedProjectionVersion(statement.clone()),
+        ),
+        QueryStatement::VerifyProjection(statement) => plan_named_command(
+            &statement.name,
+            "VERIFY PROJECTION requires a name",
+            LogicalCommand::VerifyProjection(statement.clone()),
+        ),
+        QueryStatement::DiffProjection(statement) => plan_named_command(
+            &statement.left.name,
+            "DIFF PROJECTION requires a name",
+            LogicalCommand::DiffProjection(statement.clone()),
+        ),
+        QueryStatement::CompareProjection(statement) => plan_named_command(
+            &statement.target.name,
+            "COMPARE PROJECTION requires a name",
+            LogicalCommand::CompareProjection(statement.clone()),
+        ),
+        QueryStatement::PlanRepairProjection(statement) => plan_named_command(
+            &statement.target.name,
+            "PLAN REPAIR PROJECTION requires a name",
+            LogicalCommand::PlanRepairProjection(statement.clone()),
+        ),
+        QueryStatement::RepairProjection(statement) => plan_named_command(
+            &statement.target.name,
+            "REPAIR PROJECTION requires a name",
+            LogicalCommand::RepairProjection(statement.clone()),
+        ),
+        _ => unreachable!("projection statement dispatch must stay in sync with plan()"),
+    }
+}
+
+fn plan_retention_statement(statement: &QueryStatement) -> Result<LogicalPlan, CassieError> {
+    match statement {
+        QueryStatement::CreateRetentionPolicy(statement) => plan_named_command(
+            &statement.name,
+            "CREATE RETENTION POLICY requires a name",
+            LogicalCommand::CreateRetentionPolicy(statement.clone()),
+        ),
+        QueryStatement::AlterRetentionPolicy(statement) => plan_named_command(
+            &statement.name,
+            "ALTER RETENTION POLICY requires a name",
+            LogicalCommand::AlterRetentionPolicy(statement.clone()),
+        ),
+        QueryStatement::DropRetentionPolicy(statement) => plan_named_command(
+            &statement.name,
+            "DROP RETENTION POLICY requires a name",
+            LogicalCommand::DropRetentionPolicy(statement.clone()),
+        ),
+        QueryStatement::EnforceRetentionPolicy(statement) => plan_named_command(
+            &statement.name,
+            "ENFORCE RETENTION POLICY requires a name",
+            LogicalCommand::EnforceRetentionPolicy(statement.clone()),
+        ),
+        _ => unreachable!("retention statement dispatch must stay in sync with plan()"),
     }
 }
 
@@ -287,7 +510,9 @@ fn require_name(value: &str, message: &'static str) -> Result<(), CassieError> {
 
 fn source_name(source: &QuerySource) -> String {
     match source {
-        QuerySource::Collection(name) | QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
+        QuerySource::Collection(name)
+        | QuerySource::Cte(name)
+        | QuerySource::TableFunction { name, .. } => name.clone(),
         QuerySource::SingleRow => "single_row".to_string(),
         QuerySource::Subquery { alias, .. } => alias.clone(),
         QuerySource::Join { .. } => "join".to_string(),

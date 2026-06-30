@@ -1,5 +1,13 @@
 use super::plan_inspection;
-use super::{QuerySource, JoinKind, Expr, CteContext, BatchRow, QueryError, batch, check_timeout, filter, scan, catalog, Value, Batch, BinaryOp, deduce_text_fields, Cassie, CassieSession, HashMap, FunctionMeta, QueryExecutionControls, virtual_views, ensure_temp_budget, build_logical_plan, execute_plan, DataType, graph, LogicalPlan, execute_plan_with_outer_row, SelectItem, Schema, BTreeMap, row_signature, HashSet, SelectSet, SetOperator, FunctionCall, Instant, aggregate_accel, load_fulltext_index_options, resolve_exists_expr, aggregate_exec, window_exec, sort, projection};
+use super::{
+    aggregate_accel, aggregate_exec, batch, build_logical_plan, catalog, check_timeout,
+    deduce_text_fields, ensure_temp_budget, execute_plan, execute_plan_with_outer_row, filter,
+    graph, load_fulltext_index_options, projection, resolve_exists_expr, row_signature, scan, sort,
+    virtual_views, window_exec, BTreeMap, Batch, BatchRow, BinaryOp, Cassie, CassieSession,
+    CteContext, DataType, Expr, FunctionCall, FunctionMeta, HashMap, HashSet, Instant, JoinKind,
+    LogicalPlan, QueryError, QueryExecutionControls, QuerySource, Schema, SelectItem, SelectSet,
+    SetOperator, Value,
+};
 
 #[path = "source_join.rs"]
 mod source_join;
@@ -193,7 +201,7 @@ pub(super) fn execute_query_source<'a>(
                 env,
                 left,
                 right,
-                kind,
+                *kind,
                 on,
                 cte_context,
                 outer_row,
@@ -266,7 +274,9 @@ fn source_contains_lateral(source: &QuerySource) -> bool {
         QuerySource::Join { left, right, .. } => {
             source_contains_lateral(left) || source_contains_lateral(right)
         }
-        QuerySource::Subquery { lateral, .. } | QuerySource::TableFunction { lateral, .. } => *lateral,
+        QuerySource::Subquery { lateral, .. } | QuerySource::TableFunction { lateral, .. } => {
+            *lateral
+        }
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
     }
 }

@@ -1,4 +1,9 @@
-use super::{SourceExecutionEnv, QuerySource, JoinKind, Expr, CteContext, BatchRow, QueryError, execute_query_source, batch, check_timeout, combine_rows, filter, qualify_row, scan, catalog, Value, SourceExecution, source_contains_lateral, row_columns, Batch, combine_row_with_nulls, combine_nulls_with_row, value_sort_key, BinaryOp, deduce_text_fields};
+use super::{
+    batch, catalog, check_timeout, combine_nulls_with_row, combine_row_with_nulls, combine_rows,
+    deduce_text_fields, execute_query_source, filter, qualify_row, row_columns, scan,
+    source_contains_lateral, value_sort_key, Batch, BatchRow, BinaryOp, CteContext, Expr, JoinKind,
+    QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
+};
 
 const VECTOR_TO_MERGE_SWITCH_PAIR: &str = "vectorized_join_to_merge_join";
 
@@ -22,7 +27,7 @@ pub(super) fn execute_join_source<'a>(
     env: &'a SourceExecutionEnv<'a>,
     left: &'a QuerySource,
     right: &'a QuerySource,
-    kind: &'a JoinKind,
+    kind: JoinKind,
     on: &'a Expr,
     cte_context: &'a mut CteContext,
     outer_row: Option<&'a BatchRow>,
@@ -39,7 +44,7 @@ pub(super) fn execute_join_source<'a>(
             outer_row,
             row_budget,
         )? {
-            return finish_join(joined);
+            return Ok(finish_join(joined));
         }
         if let Some(joined) = bounded::try_execute_streaming_bounded_inner_join(
             env,
@@ -51,7 +56,7 @@ pub(super) fn execute_join_source<'a>(
             outer_row,
             row_budget,
         )? {
-            return finish_join(joined);
+            return Ok(finish_join(joined));
         }
     }
 
@@ -80,42 +85,46 @@ pub(super) fn execute_join_source<'a>(
             env,
             kind,
             on,
-            keys.clone(),
+            &keys,
             &left_rows,
             &right_rows,
             &right_columns,
             row_budget,
-        )?.map_or_else(|| {
-            execute_merge_join(
-                env,
-                kind,
-                on,
-                keys,
-                left_rows.clone(),
-                right_rows.clone(),
-                &left_columns,
-                &right_columns,
-            )
-        }, Ok)?,
+        )?
+        .map_or_else(
+            || {
+                execute_merge_join(
+                    env,
+                    kind,
+                    on,
+                    &keys,
+                    &left_rows,
+                    &right_rows,
+                    &left_columns,
+                    &right_columns,
+                )
+            },
+            Ok,
+        )?,
         None => execute_nested_loop_join(
             env,
             kind,
             on,
-            left_rows,
-            right_rows,
+            &left_rows,
+            &right_rows,
             &left_columns,
             &right_columns,
         )?,
     };
 
-    finish_join(joined)
+    Ok(finish_join(joined))
 }
 
 #[allow(clippy::too_many_arguments)]
 fn execute_lateral_join<'a>(
     env: &'a SourceExecutionEnv<'a>,
     right: &'a QuerySource,
-    kind: &'a JoinKind,
+    kind: JoinKind,
     on: &'a Expr,
     cte_context: &'a mut CteContext,
     _outer_row: Option<&'a BatchRow>,
@@ -164,16 +173,16 @@ fn execute_lateral_join<'a>(
         joined.len(),
         None,
     );
-    finish_join(joined)
+    Ok(finish_join(joined))
 }
 
 #[allow(clippy::too_many_arguments)]
 fn execute_nested_loop_join(
     env: &SourceExecutionEnv<'_>,
-    kind: &JoinKind,
+    kind: JoinKind,
     on: &Expr,
-    left_rows: Vec<BatchRow>,
-    right_rows: Vec<BatchRow>,
+    left_rows: &[BatchRow],
+    right_rows: &[BatchRow],
     left_columns: &[String],
     right_columns: &[String],
 ) -> Result<Vec<BatchRow>, QueryError> {
@@ -181,7 +190,7 @@ fn execute_nested_loop_join(
     let mut right_matched = vec![false; right_rows.len()];
     let mut matched_rows = 0usize;
 
-    for left_row in &left_rows {
+    for left_row in left_rows {
         let mut matched = false;
         for (right_index, right_row) in right_rows.iter().enumerate() {
             let combined = combine_rows(left_row, right_row);
@@ -272,70 +281,17 @@ fn join_field_for_collection(key: &str, collection: &str) -> Option<String> {
 #[allow(clippy::too_many_arguments)]
 fn execute_vectorized_join(
     env: &SourceExecutionEnv<'_>,
-    kind: &JoinKind,
+    kind: JoinKind,
     _on: &Expr,
-    keys: EquiJoinKeys,
+    keys: &EquiJoinKeys,
     left_rows: &[BatchRow],
     right_rows: &[BatchRow],
     right_columns: &[String],
     row_budget: Option<usize>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let limits = env.cassie.runtime.limits();
-    let batch_size = limits.vectorized_join_batch_size.max(1);
-    if !limits.vectorized_joins_enabled {
+    let Some(batch_size) = vectorized_join_batch_size(env, kind, left_rows, right_rows)? else {
         return Ok(None);
-    }
-    if !matches!(kind, JoinKind::Inner | JoinKind::Left) {
-        if limits.operator_switching_enabled {
-            env.cassie.runtime.record_runtime_operator_switch_skip(
-                VECTOR_TO_MERGE_SWITCH_PAIR,
-                "unsupported_join_type",
-                "rows_emitted=0",
-            );
-        }
-        env.cassie.runtime.record_vectorized_join_fallback(
-            "unsupported_join_type",
-            batch_size,
-            false,
-        );
-        return Ok(None);
-    }
-
-    let observed_rows = left_rows.len().saturating_add(right_rows.len());
-    if limits.operator_switching_enabled
-        && observed_rows > limits.operator_switch_join_row_threshold
-    {
-        check_timeout(env.controls)?;
-        let state = format!(
-            "replay_left_rows={};replay_right_rows={};rows_emitted=0",
-            left_rows.len(),
-            right_rows.len()
-        );
-        env.cassie.runtime.record_runtime_operator_switch(
-            VECTOR_TO_MERGE_SWITCH_PAIR,
-            "row_threshold_exceeded",
-            &state,
-        );
-        return Ok(None);
-    }
-
-    let estimated_bytes = estimate_vectorized_join_bytes(left_rows.len(), right_rows.len());
-    if estimated_bytes > env.controls.temp_spill_budget_bytes {
-        if limits.operator_switching_enabled {
-            env.cassie.runtime.record_runtime_operator_switch_fallback(
-                VECTOR_TO_MERGE_SWITCH_PAIR,
-                "spill_budget_exceeded",
-                "rows_emitted=0",
-            );
-        }
-        env.cassie.runtime.record_vectorized_join_fallback(
-            "spill_budget_exceeded",
-            batch_size,
-            true,
-        );
-        return Ok(None);
-    }
-
+    };
     let output_budget = row_budget.unwrap_or(usize::MAX);
     if output_budget == 0 {
         env.cassie
@@ -397,11 +353,11 @@ fn execute_vectorized_join(
 #[allow(clippy::too_many_arguments)]
 fn execute_merge_join(
     env: &SourceExecutionEnv<'_>,
-    kind: &JoinKind,
+    kind: JoinKind,
     on: &Expr,
-    keys: EquiJoinKeys,
-    left_rows: Vec<BatchRow>,
-    right_rows: Vec<BatchRow>,
+    keys: &EquiJoinKeys,
+    left_rows: &[BatchRow],
+    right_rows: &[BatchRow],
     left_columns: &[String],
     right_columns: &[String],
 ) -> Result<Vec<BatchRow>, QueryError> {
@@ -443,70 +399,25 @@ fn execute_merge_join(
             std::cmp::Ordering::Equal => {
                 let left_end = keyed_group_end(&left_keyed, left_index);
                 let right_end = keyed_group_end(&right_keyed, right_index);
-                let mut left_matched = vec![false; left_end - left_index];
-                let mut right_matched = vec![false; right_end - right_index];
-
-                for (left_offset, left) in left_keyed[left_index..left_end].iter().enumerate() {
-                    for (right_offset, right) in
-                        right_keyed[right_index..right_end].iter().enumerate()
-                    {
-                        let combined = combine_rows(&left.row, &right.row);
-                        if filter::eval_scalar(
-                            &combined,
-                            on,
-                            env.params,
-                            None,
-                            env.user_functions,
-                            None,
-                            env.session,
-                        )?
-                        .as_bool()
-                        {
-                            left_matched[left_offset] = true;
-                            right_matched[right_offset] = true;
-                            matched_rows += 1;
-                            joined.push(combined);
-                        }
-                    }
-                }
-
-                if matches!(kind, JoinKind::Left | JoinKind::Full) {
-                    for (offset, matched) in left_matched.iter().enumerate() {
-                        if !matched {
-                            joined.push(combine_row_with_nulls(
-                                &left_keyed[left_index + offset].row,
-                                right_columns,
-                            ));
-                        }
-                    }
-                }
-                if matches!(kind, JoinKind::Right | JoinKind::Full) {
-                    for (offset, matched) in right_matched.iter().enumerate() {
-                        if !matched {
-                            joined.push(combine_nulls_with_row(
-                                left_columns,
-                                &right_keyed[right_index + offset].row,
-                            ));
-                        }
-                    }
-                }
-
+                let result = merge_equal_key_groups(
+                    env,
+                    kind,
+                    on,
+                    &left_keyed[left_index..left_end],
+                    &right_keyed[right_index..right_end],
+                    left_columns,
+                    right_columns,
+                )?;
+                matched_rows += result.matched_rows;
+                joined.extend(result.joined);
                 left_index = left_end;
                 right_index = right_end;
             }
         }
     }
 
-    if matches!(kind, JoinKind::Left | JoinKind::Full) {
-        for left in &left_keyed[left_index..] {
-            joined.push(combine_row_with_nulls(&left.row, right_columns));
-        }
-    }
-    if matches!(kind, JoinKind::Right | JoinKind::Full) {
-        for right in &right_keyed[right_index..] {
-            joined.push(combine_nulls_with_row(left_columns, &right.row));
-        }
-    }
+    append_left_unmatched(&mut joined, kind, &left_keyed[left_index..], right_columns);
+    append_right_unmatched(&mut joined, kind, left_columns, &right_keyed[right_index..]);
 
     env.cassie.runtime.record_join_execution(
         "merge",
@@ -519,18 +430,21 @@ fn execute_merge_join(
     Ok(joined)
 }
 
-fn keyed_rows(rows: Vec<BatchRow>, key_column: &str) -> Vec<KeyedRow> {
-    rows.into_iter()
+fn keyed_rows(rows: &[BatchRow], key_column: &str) -> Vec<KeyedRow> {
+    rows.iter()
+        .cloned()
         .map(|row| {
             let key = row
-                .get(key_column).map_or_else(|| value_sort_key(&Value::Null), value_sort_key);
+                .get(key_column)
+                .map_or_else(|| value_sort_key(&Value::Null), value_sort_key);
             KeyedRow { key, row }
         })
         .collect()
 }
 
 fn row_join_key(row: &BatchRow, key_column: &str) -> String {
-    row.get(key_column).map_or_else(|| value_sort_key(&Value::Null), value_sort_key)
+    row.get(key_column)
+        .map_or_else(|| value_sort_key(&Value::Null), value_sort_key)
 }
 
 fn estimate_vectorized_join_bytes(left_rows: usize, right_rows: usize) -> usize {
@@ -592,7 +506,7 @@ fn column_belongs_to(name: &str, own_columns: &[String], other_columns: &[String
         && (!other_columns.iter().any(|column| column == name) || name.contains('.'))
 }
 
-fn finish_join<'a>(joined: Vec<BatchRow>) -> SourceExecution<'a> {
+fn finish_join(joined: Vec<BatchRow>) -> (Vec<Batch>, Vec<String>) {
     let text_fields = deduce_text_fields(
         &joined
             .iter()
@@ -600,5 +514,164 @@ fn finish_join<'a>(joined: Vec<BatchRow>) -> SourceExecution<'a> {
             .collect::<Vec<_>>(),
     );
     let batches = batch::chunk_rows(joined, batch::DEFAULT_BATCH_SIZE);
-    Ok((batches, text_fields))
+    (batches, text_fields)
+}
+
+fn vectorized_join_batch_size(
+    env: &SourceExecutionEnv<'_>,
+    kind: JoinKind,
+    left_rows: &[BatchRow],
+    right_rows: &[BatchRow],
+) -> Result<Option<usize>, QueryError> {
+    let limits = env.cassie.runtime.limits();
+    let batch_size = limits.vectorized_join_batch_size.max(1);
+    if !limits.vectorized_joins_enabled {
+        return Ok(None);
+    }
+    if !matches!(kind, JoinKind::Inner | JoinKind::Left) {
+        if limits.operator_switching_enabled.is_enabled() {
+            env.cassie.runtime.record_runtime_operator_switch_skip(
+                VECTOR_TO_MERGE_SWITCH_PAIR,
+                "unsupported_join_type",
+                "rows_emitted=0",
+            );
+        }
+        env.cassie.runtime.record_vectorized_join_fallback(
+            "unsupported_join_type",
+            batch_size,
+            false,
+        );
+        return Ok(None);
+    }
+
+    let observed_rows = left_rows.len().saturating_add(right_rows.len());
+    if limits.operator_switching_enabled.is_enabled()
+        && observed_rows > limits.operator_switch_join_row_threshold
+    {
+        check_timeout(env.controls)?;
+        let state = format!(
+            "replay_left_rows={};replay_right_rows={};rows_emitted=0",
+            left_rows.len(),
+            right_rows.len()
+        );
+        env.cassie.runtime.record_runtime_operator_switch(
+            VECTOR_TO_MERGE_SWITCH_PAIR,
+            "row_threshold_exceeded",
+            &state,
+        );
+        return Ok(None);
+    }
+
+    let estimated_bytes = estimate_vectorized_join_bytes(left_rows.len(), right_rows.len());
+    if estimated_bytes > env.controls.temp_spill_budget_bytes {
+        if limits.operator_switching_enabled.is_enabled() {
+            env.cassie.runtime.record_runtime_operator_switch_fallback(
+                VECTOR_TO_MERGE_SWITCH_PAIR,
+                "spill_budget_exceeded",
+                "rows_emitted=0",
+            );
+        }
+        env.cassie.runtime.record_vectorized_join_fallback(
+            "spill_budget_exceeded",
+            batch_size,
+            true,
+        );
+        return Ok(None);
+    }
+
+    Ok(Some(batch_size))
+}
+
+struct MergeEqualGroupsResult {
+    joined: Vec<BatchRow>,
+    matched_rows: usize,
+}
+
+fn merge_equal_key_groups(
+    env: &SourceExecutionEnv<'_>,
+    kind: JoinKind,
+    on: &Expr,
+    left_group: &[KeyedRow],
+    right_group: &[KeyedRow],
+    left_columns: &[String],
+    right_columns: &[String],
+) -> Result<MergeEqualGroupsResult, QueryError> {
+    let mut left_matched = vec![false; left_group.len()];
+    let mut right_matched = vec![false; right_group.len()];
+    let mut joined = Vec::new();
+    let mut matched_rows = 0usize;
+
+    for (left_offset, left) in left_group.iter().enumerate() {
+        for (right_offset, right) in right_group.iter().enumerate() {
+            let combined = combine_rows(&left.row, &right.row);
+            if filter::eval_scalar(
+                &combined,
+                on,
+                env.params,
+                None,
+                env.user_functions,
+                None,
+                env.session,
+            )?
+            .as_bool()
+            {
+                left_matched[left_offset] = true;
+                right_matched[right_offset] = true;
+                matched_rows += 1;
+                joined.push(combined);
+            }
+        }
+    }
+
+    if matches!(kind, JoinKind::Left | JoinKind::Full) {
+        for (offset, matched) in left_matched.iter().enumerate() {
+            if !matched {
+                joined.push(combine_row_with_nulls(
+                    &left_group[offset].row,
+                    right_columns,
+                ));
+            }
+        }
+    }
+    if matches!(kind, JoinKind::Right | JoinKind::Full) {
+        for (offset, matched) in right_matched.iter().enumerate() {
+            if !matched {
+                joined.push(combine_nulls_with_row(
+                    left_columns,
+                    &right_group[offset].row,
+                ));
+            }
+        }
+    }
+
+    Ok(MergeEqualGroupsResult {
+        joined,
+        matched_rows,
+    })
+}
+
+fn append_left_unmatched(
+    joined: &mut Vec<BatchRow>,
+    kind: JoinKind,
+    rows: &[KeyedRow],
+    right_columns: &[String],
+) {
+    if matches!(kind, JoinKind::Left | JoinKind::Full) {
+        for left in rows {
+            joined.push(combine_row_with_nulls(&left.row, right_columns));
+        }
+    }
+}
+
+fn append_right_unmatched(
+    joined: &mut Vec<BatchRow>,
+    kind: JoinKind,
+    left_columns: &[String],
+    rows: &[KeyedRow],
+) {
+    if matches!(kind, JoinKind::Right | JoinKind::Full) {
+        for right in rows {
+            joined.push(combine_nulls_with_row(left_columns, &right.row));
+        }
+    }
 }

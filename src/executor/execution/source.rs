@@ -685,12 +685,14 @@ pub(super) fn execute_source_query_with_outer_row(
         batches = aggregate_exec::aggregate_query_batches(
             cassie,
             batches,
-            plan,
-            params,
-            search_context.as_ref(),
-            user_functions,
-            session,
-            controls,
+            &aggregate_exec::AggregateExecutionContext {
+                plan,
+                params,
+                search_context: search_context.as_ref(),
+                user_functions,
+                session,
+                controls,
+            },
         )?;
         ensure_temp_budget(controls, &batches)?;
         if let Some(having) = &plan.having {

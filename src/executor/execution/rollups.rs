@@ -7,7 +7,10 @@ use crate::sql::ast::{Expr, FunctionCall, QuerySource, SelectItem};
 use crate::types::{DataType, FieldSchema, Schema, Value};
 
 use super::source::{aggregate_signature, expr_key, group_expr_name};
-use super::{Cassie, FunctionMeta, QueryExecutionControls, QueryResult, QueryError, LogicalPlan, scan, sort, projection, check_timeout, filter, aggregate_exec};
+use super::{
+    aggregate_exec, check_timeout, filter, projection, scan, sort, Cassie, FunctionMeta,
+    LogicalPlan, QueryError, QueryExecutionControls, QueryResult,
+};
 
 pub(super) fn create_rollup(
     cassie: &Cassie,
@@ -399,12 +402,14 @@ fn build_rollup_rows(
     batches = aggregate_exec::aggregate_query_batches(
         cassie,
         batches,
-        &plan,
-        &[],
-        search_context.as_ref(),
-        user_functions,
-        None,
-        controls,
+        &aggregate_exec::AggregateExecutionContext {
+            plan: &plan,
+            params: &[],
+            search_context: search_context.as_ref(),
+            user_functions,
+            session: None,
+            controls,
+        },
     )?;
     batches = projection::project_batches(
         batches,

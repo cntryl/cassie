@@ -27,7 +27,7 @@ pub(super) fn execute_scalar_index_read(
 
     let hits = cassie
         .midge
-        .scan_scalar_index(&spec.index, spec.request.clone())
+        .scan_scalar_index(&spec.index, &spec.request)
         .map_err(|error| QueryError::General(error.to_string()))?;
     let schema = cassie.catalog.get_schema(&spec.collection);
     let mut rows = Vec::with_capacity(hits.len());
@@ -108,10 +108,10 @@ fn scalar_index_read_spec(
     let indexes = cassie.catalog.list_indexes(&projected.collection);
     let physical = physical.filter(|physical| physical.collection == projected.collection);
     let (index_name, covered_index) = if let Some(physical) = physical {
-        let Some(index_name) = physical.selected_index.as_deref() else {
+        let Some(index_name) = physical.read.selected_index.as_deref() else {
             return Ok(None);
         };
-        (index_name.to_string(), physical.covered_index)
+        (index_name.to_string(), physical.read.covered_index)
     } else {
         let cardinality_stats =
             std::collections::HashMap::<String, crate::catalog::CollectionCardinalityStats>::new();
@@ -120,10 +120,10 @@ fn scalar_index_read_spec(
             indexes.as_slice(),
             &cardinality_stats,
         );
-        let Some(index_name) = physical.selected_index else {
+        let Some(index_name) = physical.read.selected_index else {
             return Ok(None);
         };
-        (index_name, physical.covered_index)
+        (index_name, physical.read.covered_index)
     };
     let Some(index) = indexes.into_iter().find(|index| index.name == index_name) else {
         return Ok(None);
@@ -393,7 +393,10 @@ fn collect_concrete_expression_equalities(
             left,
             op: BinaryOp::Eq,
             right,
-        } => collect_concrete_expression_equality(left, right, params, equalities),
+        } => {
+            collect_concrete_expression_equality(left, right, params, equalities);
+            Some(())
+        }
         _ => None,
     }
 }
@@ -516,11 +519,10 @@ fn collect_concrete_expression_equality(
     right: &Expr,
     params: &[Value],
     equalities: &mut BTreeMap<String, serde_json::Value>,
-) -> Option<()> {
+) {
     if let Some((expression, value)) = concrete_expression_equality(left, right, params) {
         equalities.insert(expression, value);
     }
-    Some(())
 }
 
 fn concrete_expression_equality(
@@ -687,8 +689,7 @@ fn expr_to_json(expr: &Expr, params: &[Value]) -> Option<serde_json::Value> {
                 return None;
             }
             if value.fract() == 0.0 {
-                let integer = *value as i64;
-                if (integer as f64) == *value {
+                if let Ok(integer) = value.to_string().parse::<i64>() {
                     return Some(serde_json::Value::Number(integer.into()));
                 }
             }

@@ -1,4 +1,7 @@
-use super::{Cassie, CassieSession, LogicalPlan, BatchRow, QueryError, QuerySource, SelectItem, Expr, aggregate_signature, catalog, HashSet, Value};
+use super::{
+    aggregate_signature, catalog, BatchRow, Cassie, CassieSession, Expr, HashSet, LogicalPlan,
+    QueryError, QuerySource, SelectItem, Value,
+};
 use crate::catalog::{
     ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchSegmentMeta, IndexMeta,
 };
@@ -11,9 +14,7 @@ pub(super) fn try_execute_column_batch_aggregate(
     let QuerySource::Collection(collection) = &plan.source else {
         return Ok(None);
     };
-    if session
-        .is_some_and(|session| !session.collection_changes(collection).is_empty())
-    {
+    if session.is_some_and(|session| !session.collection_changes(collection).is_empty()) {
         cassie
             .runtime
             .record_aggregate_acceleration_row_blob_fallback();
@@ -23,7 +24,7 @@ pub(super) fn try_execute_column_batch_aggregate(
         return Ok(None);
     }
 
-    let specs = aggregate_specs(plan)?;
+    let specs = aggregate_specs(plan);
     let fields = specs
         .iter()
         .filter_map(|spec| spec.field.as_ref())
@@ -77,23 +78,23 @@ fn eligible_plan(plan: &LogicalPlan) -> bool {
         && plan.set.is_none()
 }
 
-fn aggregate_specs(plan: &LogicalPlan) -> Result<Vec<AggregateSummarySpec>, QueryError> {
+fn aggregate_specs(plan: &LogicalPlan) -> Vec<AggregateSummarySpec> {
     let mut specs = Vec::new();
     for item in &plan.projection {
         let SelectItem::Function { function, alias } = item else {
-            return Ok(Vec::new());
+            return Vec::new();
         };
         let function_name = function.name.to_ascii_lowercase();
         if !matches!(
             function_name.as_str(),
             "count" | "sum" | "avg" | "min" | "max"
         ) {
-            return Ok(Vec::new());
+            return Vec::new();
         }
         let field = match function.args.as_slice() {
             [Expr::Column(name)] if name == "*" && function_name == "count" => None,
             [Expr::Column(name)] if name != "*" => Some(name.clone()),
-            _ => return Ok(Vec::new()),
+            _ => return Vec::new(),
         };
         specs.push(AggregateSummarySpec {
             function: function_name,
@@ -103,7 +104,7 @@ fn aggregate_specs(plan: &LogicalPlan) -> Result<Vec<AggregateSummarySpec>, Quer
                 .unwrap_or_else(|| aggregate_signature(function)),
         });
     }
-    Ok(specs)
+    specs
 }
 
 fn covering_column_index(
@@ -160,7 +161,7 @@ fn count_value(
             .map(|segment| segment.row_count)
             .sum()
     };
-    Ok(Value::Int64(count as i64))
+    Ok(Value::Int64(usize_to_i64(count)))
 }
 
 fn sum_value(
@@ -188,7 +189,7 @@ fn sum_value(
         return Ok(Value::Null);
     }
     if all_int {
-        Ok(Value::Int64(sum as i64))
+        integer_float_to_value(sum)
     } else {
         Ok(Value::Float64(sum))
     }
@@ -216,7 +217,7 @@ fn avg_value(
     if count == 0 {
         Ok(Value::Null)
     } else {
-        Ok(Value::Float64(sum / count as f64))
+        Ok(Value::Float64(sum / usize_to_f64(count)))
     }
 }
 
@@ -284,11 +285,11 @@ fn compare_values(left: &Value, right: &Value, max: bool) -> bool {
         (Value::Float64(left), Value::Float64(right)) => {
             left.partial_cmp(right).unwrap_or(std::cmp::Ordering::Equal)
         }
-        (Value::Int64(left), Value::Float64(right)) => (*left as f64)
-            .partial_cmp(right)
+        (Value::Int64(left), Value::Float64(right)) => i64_to_f64(*left)
+            .and_then(|left| left.partial_cmp(right))
             .unwrap_or(std::cmp::Ordering::Equal),
-        (Value::Float64(left), Value::Int64(right)) => left
-            .partial_cmp(&(*right as f64))
+        (Value::Float64(left), Value::Int64(right)) => i64_to_f64(*right)
+            .and_then(|right| left.partial_cmp(&right))
             .unwrap_or(std::cmp::Ordering::Equal),
         (Value::String(left), Value::String(right)) => left.cmp(right),
         (Value::Bool(left), Value::Bool(right)) => left.cmp(right),
@@ -299,4 +300,24 @@ fn compare_values(left: &Value, right: &Value, max: bool) -> bool {
     } else {
         ordering.is_lt()
     }
+}
+
+fn usize_to_i64(value: usize) -> i64 {
+    i64::try_from(value).unwrap_or(i64::MAX)
+}
+
+fn usize_to_f64(value: usize) -> f64 {
+    value.to_string().parse::<f64>().unwrap_or(f64::INFINITY)
+}
+
+fn i64_to_f64(value: i64) -> Option<f64> {
+    value.to_string().parse::<f64>().ok()
+}
+
+fn integer_float_to_value(value: f64) -> Result<Value, QueryError> {
+    value
+        .to_string()
+        .parse::<i64>()
+        .map(Value::Int64)
+        .map_err(|_| QueryError::General("aggregate integer overflow".to_string()))
 }

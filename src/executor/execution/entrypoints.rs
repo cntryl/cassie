@@ -48,6 +48,7 @@ fn run_with_execution_breakdown_controls(
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<ExecutionBreakdownOutput, QueryError> {
+    let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, &plan.logical);
 
     if let Some(command) = plan.logical.command.as_ref() {
@@ -97,6 +98,7 @@ pub(crate) fn run_with_session_controls(
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, &plan.logical);
 
     if let Some(command) = plan.logical.command.as_ref() {

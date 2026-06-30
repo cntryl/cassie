@@ -40,7 +40,7 @@ fn should_flush_pgwire_simple_query_result_once_for_multiple_rows() {
         .build()
         .expect("runtime");
     let result = QueryResult {
-        columns: vec![ColumnMeta::from_data_type("id", DataType::Text)],
+        columns: vec![ColumnMeta::from_data_type("id", &DataType::Text)],
         rows: vec![
             vec![Value::String("doc-1".to_string())],
             vec![Value::String("doc-2".to_string())],

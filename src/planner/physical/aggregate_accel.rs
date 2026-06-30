@@ -1,4 +1,4 @@
-use super::{LogicalPlan, IndexMeta, QuerySource, IndexKind, BTreeSet, SelectItem, Expr};
+use super::{BTreeSet, Expr, IndexKind, IndexMeta, LogicalPlan, QuerySource, SelectItem};
 
 pub(super) fn plan_supports_aggregate_acceleration(
     plan: &LogicalPlan,

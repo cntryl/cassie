@@ -213,7 +213,7 @@ pub(super) fn pg_attrdef(catalog: &Catalog) -> Vec<VirtualRow> {
             };
             rows.push(vec![
                 string("adrelid", &schema.collection),
-                int_value("adnum", index + 1 ),
+                int_value("adnum", index + 1),
                 string("adsrc", default),
             ]);
         }
@@ -239,7 +239,7 @@ fn attribute_row(
         string("attrelid", relation),
         int_value("attrelid_oid", relation_oid(relation)),
         string("attname", field_name),
-        int_value("attnum", index + 1 ),
+        int_value("attnum", index + 1),
         int_value("atttypid", data_type.type_oid()),
         bool_value("attnotnull", is_not_null(constraint)),
         int_value("atttypmod", i64::from(data_type.atttypmod())),
@@ -343,7 +343,8 @@ fn index_keys(catalog: &Catalog, index: &IndexMeta) -> String {
             schema
                 .fields
                 .iter()
-                .position(|candidate| candidate.name.eq_ignore_ascii_case(&field)).map_or_else(|| "0".to_string(), |position| (position + 1).to_string())
+                .position(|candidate| candidate.name.eq_ignore_ascii_case(&field))
+                .map_or_else(|| "0".to_string(), |position| (position + 1).to_string())
         })
         .chain(
             index
@@ -378,15 +379,13 @@ fn constraint_for_field<'a>(
 }
 
 fn is_not_null(constraint: Option<&FieldConstraint>) -> bool {
-    constraint
-        .is_some_and(|constraint| constraint.not_null || constraint.primary_key)
+    constraint.is_some_and(|constraint| constraint.not_null || constraint.primary_key)
 }
 
 fn constraint_has_default(constraint: Option<&FieldConstraint>) -> bool {
-    constraint
-        .is_some_and(|constraint| {
-            constraint.default_expression.is_some() || constraint.default_value.is_some()
-        })
+    constraint.is_some_and(|constraint| {
+        constraint.default_expression.is_some() || constraint.default_value.is_some()
+    })
 }
 
 pub(super) fn constraint_default_expression(constraint: &FieldConstraint) -> Option<String> {
@@ -409,48 +408,48 @@ fn default_expression(value: &serde_json::Value) -> String {
 fn builtin_type_rows() -> Vec<VirtualRow> {
     let namespace = "pg_catalog";
     let mut rows = vec![
-        type_row(DataType::Null, namespace),
-        type_row(DataType::Boolean, namespace),
-        type_row(DataType::SmallInt, namespace),
-        type_row(DataType::Int, namespace),
-        type_row(DataType::BigInt, namespace),
-        type_row(DataType::Float, namespace),
-        type_row(DataType::Text, namespace),
-        type_row(DataType::Char { length: Some(1) }, namespace),
-        type_row(DataType::Varchar { length: Some(8) }, namespace),
-        type_row(DataType::Bytea, namespace),
-        type_row(DataType::Uuid, namespace),
-        type_row(DataType::Date, namespace),
-        type_row(DataType::Time, namespace),
-        type_row(DataType::Timestamp, namespace),
-        type_row(DataType::Json, namespace),
-        type_row(DataType::Vector(2), namespace),
+        type_row(&DataType::Null, namespace),
+        type_row(&DataType::Boolean, namespace),
+        type_row(&DataType::SmallInt, namespace),
+        type_row(&DataType::Int, namespace),
+        type_row(&DataType::BigInt, namespace),
+        type_row(&DataType::Float, namespace),
+        type_row(&DataType::Text, namespace),
+        type_row(&DataType::Char { length: Some(1) }, namespace),
+        type_row(&DataType::Varchar { length: Some(8) }, namespace),
+        type_row(&DataType::Bytea, namespace),
+        type_row(&DataType::Uuid, namespace),
+        type_row(&DataType::Date, namespace),
+        type_row(&DataType::Time, namespace),
+        type_row(&DataType::Timestamp, namespace),
+        type_row(&DataType::Json, namespace),
+        type_row(&DataType::Vector(2), namespace),
     ];
 
     rows.extend([
-        type_row(DataType::Array(Box::new(DataType::Boolean)), namespace),
-        type_row(DataType::Array(Box::new(DataType::SmallInt)), namespace),
-        type_row(DataType::Array(Box::new(DataType::Int)), namespace),
-        type_row(DataType::Array(Box::new(DataType::BigInt)), namespace),
-        type_row(DataType::Array(Box::new(DataType::Float)), namespace),
-        type_row(DataType::Array(Box::new(DataType::Text)), namespace),
+        type_row(&DataType::Array(Box::new(DataType::Boolean)), namespace),
+        type_row(&DataType::Array(Box::new(DataType::SmallInt)), namespace),
+        type_row(&DataType::Array(Box::new(DataType::Int)), namespace),
+        type_row(&DataType::Array(Box::new(DataType::BigInt)), namespace),
+        type_row(&DataType::Array(Box::new(DataType::Float)), namespace),
+        type_row(&DataType::Array(Box::new(DataType::Text)), namespace),
         type_row(
-            DataType::Array(Box::new(DataType::Char { length: Some(1) })),
+            &DataType::Array(Box::new(DataType::Char { length: Some(1) })),
             namespace,
         ),
         type_row(
-            DataType::Array(Box::new(DataType::Varchar { length: Some(8) })),
+            &DataType::Array(Box::new(DataType::Varchar { length: Some(8) })),
             namespace,
         ),
-        type_row(DataType::Array(Box::new(DataType::Bytea)), namespace),
-        type_row(DataType::Array(Box::new(DataType::Uuid)), namespace),
-        type_row(DataType::Array(Box::new(DataType::Json)), namespace),
+        type_row(&DataType::Array(Box::new(DataType::Bytea)), namespace),
+        type_row(&DataType::Array(Box::new(DataType::Uuid)), namespace),
+        type_row(&DataType::Array(Box::new(DataType::Json)), namespace),
     ]);
 
     rows
 }
 
-fn type_row(data_type: DataType, namespace: &str) -> VirtualRow {
+fn type_row(data_type: &DataType, namespace: &str) -> VirtualRow {
     let typname = data_type.type_name();
     vec![
         int_value("oid", data_type.type_oid()),
@@ -471,7 +470,14 @@ fn type_length(data_type: &DataType) -> i64 {
         DataType::Int | DataType::Date => 4,
         DataType::BigInt | DataType::Float | DataType::Time | DataType::Timestamp => 8,
         DataType::Uuid => 16,
-        DataType::Null | DataType::Char { .. } | DataType::Varchar { .. } | DataType::Text | DataType::Bytea | DataType::Json | DataType::Vector(_) | DataType::Array(_) => -1,
+        DataType::Null
+        | DataType::Char { .. }
+        | DataType::Varchar { .. }
+        | DataType::Text
+        | DataType::Bytea
+        | DataType::Json
+        | DataType::Vector(_)
+        | DataType::Array(_) => -1,
     }
 }
 

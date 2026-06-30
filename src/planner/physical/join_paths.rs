@@ -1,4 +1,7 @@
-use super::{LogicalPlan, QuerySource, JoinKind, is_equi_join_predicate, source_contains_join, Expr, BinaryOp};
+use super::{
+    is_equi_join_predicate, source_contains_join, BinaryOp, Expr, JoinKind, LogicalPlan,
+    QuerySource,
+};
 
 pub(super) fn join_strategy(plan: &LogicalPlan) -> Option<String> {
     match &plan.source {

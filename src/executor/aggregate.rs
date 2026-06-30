@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::hash::BuildHasher;
 
 use crate::catalog::{CollectionSchema, FunctionMeta};
 use crate::executor::ColumnMeta;
@@ -6,13 +7,13 @@ use crate::sql::ast::SelectItem;
 use crate::types::DataType;
 
 #[must_use]
-pub fn columns_from_projection(
+pub fn columns_from_projection<S: BuildHasher>(
     projection: &[SelectItem],
     collection_schema: Option<&CollectionSchema>,
-    user_functions: &HashMap<String, FunctionMeta>,
+    user_functions: &HashMap<String, FunctionMeta, S>,
 ) -> Vec<ColumnMeta> {
     if projection.is_empty() {
-        return vec![ColumnMeta::from_data_type("*", DataType::Text)];
+        return vec![ColumnMeta::from_data_type("*", &DataType::Text)];
     }
 
     projection
@@ -24,25 +25,25 @@ pub fn columns_from_projection(
                     let mut seen = HashSet::new();
                     let id = "id".to_string();
                     seen.insert(id.clone());
-                    columns.push(ColumnMeta::from_data_type(id, DataType::Text));
+                    columns.push(ColumnMeta::from_data_type(id, &DataType::Text));
                     for field in &collection_schema.fields {
                         if seen.insert(field.name.clone()) {
                             columns.push(ColumnMeta::from_data_type(
                                 field.name.clone(),
-                                field.data_type.clone(),
+                                &field.data_type,
                             ));
                         }
                     }
                     columns.into_iter().collect()
                 } else {
-                    vec![ColumnMeta::from_data_type("*", DataType::Text)]
+                    vec![ColumnMeta::from_data_type("*", &DataType::Text)]
                 }
             }
             SelectItem::Column { name, alias } => {
                 let data_type = column_data_type(name, collection_schema);
                 vec![ColumnMeta::from_data_type(
                     alias.clone().unwrap_or_else(|| name.clone()),
-                    data_type,
+                    &data_type,
                 )]
             }
             SelectItem::Function { function, alias } => {
@@ -50,24 +51,24 @@ pub fn columns_from_projection(
                     function_return_type(&function.name, user_functions).unwrap_or(DataType::Text);
                 vec![ColumnMeta::from_data_type(
                     alias.clone().unwrap_or_else(|| function.name.clone()),
-                    data_type,
+                    &data_type,
                 )]
             }
             SelectItem::Expr { alias, .. } => vec![ColumnMeta::from_data_type(
                 alias.clone().unwrap_or_else(|| "expr".to_string()),
-                DataType::Float,
+                &DataType::Float,
             )],
             SelectItem::WindowFunction { function, alias } => vec![ColumnMeta::from_data_type(
                 alias.clone().unwrap_or_else(|| function.name.clone()),
-                DataType::BigInt,
+                &DataType::BigInt,
             )],
         })
         .collect()
 }
 
-fn function_return_type(
+fn function_return_type<S: BuildHasher>(
     name: &str,
-    user_functions: &HashMap<String, FunctionMeta>,
+    user_functions: &HashMap<String, FunctionMeta, S>,
 ) -> Option<DataType> {
     if let Some(metadata) = user_functions.get(&name.to_ascii_lowercase()) {
         return Some(metadata.return_type.clone());
@@ -75,9 +76,11 @@ fn function_return_type(
 
     match name.to_ascii_lowercase().as_str() {
         "count" => Some(DataType::Int),
-        "sum" | "avg" | "search" | "search_score" | "vector_distance" | "vector_score" | "cosine_distance"
-        | "dot_product" | "hybrid_score" => Some(DataType::Float),
-        "min" | "max" | "snippet"
+        "sum" | "avg" | "search" | "search_score" | "vector_distance" | "vector_score"
+        | "cosine_distance" | "dot_product" | "hybrid_score" => Some(DataType::Float),
+        "min"
+        | "max"
+        | "snippet"
         | "version"
         | "pg_catalog.version"
         | "current_schema"
@@ -94,7 +97,8 @@ fn function_return_type(
         | "pg_get_userbyid"
         | "pg_catalog.pg_get_userbyid"
         | "obj_description"
-        | "pg_catalog.obj_description" | "cast" => Some(DataType::Text),
+        | "pg_catalog.obj_description"
+        | "cast" => Some(DataType::Text),
         "has_schema_privilege"
         | "pg_catalog.has_schema_privilege"
         | "has_table_privilege"

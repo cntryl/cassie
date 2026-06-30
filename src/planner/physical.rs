@@ -5,6 +5,7 @@ use crate::sql::ast::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
+use std::hash::BuildHasher;
 
 #[path = "physical/adaptive.rs"]
 mod adaptive;
@@ -244,17 +245,17 @@ pub struct PlanEstimates {
 
 #[must_use]
 pub fn build(plan: LogicalPlan) -> PhysicalPlan {
-    build_with_indexes(plan, Vec::new(), &std::collections::HashMap::default())
+    let cardinality_stats = std::collections::HashMap::<String, CollectionCardinalityStats>::new();
+    build_with_indexes(plan, &[], &cardinality_stats)
 }
 
 #[must_use]
-pub fn build_with_indexes(
+pub fn build_with_indexes<S: BuildHasher>(
     plan: LogicalPlan,
-    indexes: Vec<IndexMeta>,
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+    indexes: &[IndexMeta],
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> PhysicalPlan {
-    let selected_index =
-        index_selection::base_selected_index(&plan, indexes.as_slice(), cardinality_stats);
+    let selected_index = index_selection::base_selected_index(&plan, indexes, cardinality_stats);
     build_with_selection(
         plan,
         indexes,
@@ -265,10 +266,10 @@ pub fn build_with_indexes(
     )
 }
 
-pub(crate) fn build_with_selection(
+pub(crate) fn build_with_selection<S: BuildHasher>(
     plan: LogicalPlan,
-    indexes: Vec<IndexMeta>,
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+    indexes: &[IndexMeta],
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
     selected_index: Option<String>,
     operator_feedback: OperatorFeedbackPlanDiagnostics,
     adaptive_plan: AdaptivePlanDiagnostics,
@@ -315,7 +316,7 @@ pub(crate) fn build_with_selection(
         .as_deref()
         .and_then(|name| indexes.iter().find(|index| index.name == name))
         .is_some_and(|index| plan_is_covered_by_index(&plan, index));
-    let column_batch_index = column_batch_index(&plan, indexes.as_slice());
+    let column_batch_index = column_batch_index(&plan, indexes);
     let top_k_limit = top_k_limit(&plan);
     let top_k = top_k_limit.is_some();
     let join_strategy = join_paths::join_strategy(&plan);
@@ -325,12 +326,9 @@ pub(crate) fn build_with_selection(
     let vectorized_join_candidate = join_paths::vectorized_join_candidate(&plan);
     let vectorized_join_fallback_reason = join_paths::vectorized_join_fallback_reason(&plan);
     let parallel_aggregate_candidate = plan_supports_parallel_aggregation(&plan);
-    let aggregate_acceleration = plan_supports_aggregate_acceleration(&plan, indexes.as_slice());
-    let access_path = read_paths::determine_read_access_path(
-        &plan,
-        indexes.as_slice(),
-        selected_index.as_deref(),
-    );
+    let aggregate_acceleration = plan_supports_aggregate_acceleration(&plan, indexes);
+    let access_path =
+        read_paths::determine_read_access_path(&plan, indexes, selected_index.as_deref());
     let access_path_reason = read_paths::read_access_path_reason(&plan, &access_path);
     let fallback_reason = read_paths::read_access_path_fallback_reason(
         &plan,
@@ -489,11 +487,21 @@ fn filter_supports_covering_index(expr: &Expr) -> bool {
             right,
         } => matches!(
             (left.as_ref(), right.as_ref()),
-            (Expr::Column(_),
-Expr::StringLiteral(_) | Expr::NumberLiteral(_) | Expr::BoolLiteral(_) |
-Expr::Null | Expr::Param(_)) |
-(Expr::StringLiteral(_) | Expr::NumberLiteral(_) | Expr::BoolLiteral(_) |
-Expr::Null | Expr::Param(_), Expr::Column(_))
+            (
+                Expr::Column(_),
+                Expr::StringLiteral(_)
+                    | Expr::NumberLiteral(_)
+                    | Expr::BoolLiteral(_)
+                    | Expr::Null
+                    | Expr::Param(_)
+            ) | (
+                Expr::StringLiteral(_)
+                    | Expr::NumberLiteral(_)
+                    | Expr::BoolLiteral(_)
+                    | Expr::Null
+                    | Expr::Param(_),
+                Expr::Column(_)
+            )
         ),
         _ => false,
     }

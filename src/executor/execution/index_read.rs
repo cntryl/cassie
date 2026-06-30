@@ -1,4 +1,8 @@
-use super::{Cassie, CassieSession, PhysicalPlan, LogicalPlan, HashMap, FunctionMeta, Value, QueryExecutionControls, BatchRow, QueryError, scan, batch, projected_read, QuerySource, SelectItem, Expr, BinaryOp};
+use super::{
+    batch, projected_read, scan, BatchRow, BinaryOp, Cassie, CassieSession, Expr, FunctionMeta,
+    HashMap, LogicalPlan, PhysicalPlan, QueryError, QueryExecutionControls, QuerySource,
+    SelectItem, Value,
+};
 use crate::catalog::IndexMeta;
 use crate::midge::adapter::{DocumentRef, ScalarIndexBound, ScalarIndexScanRequest};
 use crate::planner::physical::{scalar_index_plan_shape, ScalarIndexPlanPath};
@@ -96,8 +100,7 @@ fn scalar_index_read_spec(
     else {
         return Ok(None);
     };
-    if session
-        .is_some_and(|session| !session.collection_changes(&projected.collection).is_empty())
+    if session.is_some_and(|session| !session.collection_changes(&projected.collection).is_empty())
     {
         return Ok(None);
     }
@@ -110,10 +113,12 @@ fn scalar_index_read_spec(
         };
         (index_name.to_string(), physical.covered_index)
     } else {
+        let cardinality_stats =
+            std::collections::HashMap::<String, crate::catalog::CollectionCardinalityStats>::new();
         let physical = crate::planner::physical::build_with_indexes(
             plan.clone(),
-            indexes.clone(),
-            &std::collections::HashMap::default(),
+            indexes.as_slice(),
+            &cardinality_stats,
         );
         let Some(index_name) = physical.selected_index else {
             return Ok(None);

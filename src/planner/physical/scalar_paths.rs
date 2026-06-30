@@ -1,4 +1,4 @@
-use super::{LogicalPlan, IndexMeta, QuerySource, IndexKind, Expr, BinaryOp};
+use super::{BinaryOp, Expr, IndexKind, IndexMeta, LogicalPlan, QuerySource};
 use crate::sql::ast::SortDirection;
 use std::collections::{BTreeMap, BTreeSet};
 

@@ -1,4 +1,4 @@
-use super::{Expr, IndexMeta, IndexKind, BTreeSet, BinaryOp};
+use super::{BTreeSet, BinaryOp, Expr, IndexKind, IndexMeta};
 
 pub(super) fn selected_time_series_index(
     collection: &str,

@@ -1,7 +1,11 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{Cassie, QueryError, catalog, FunctionMeta, QueryExecutionControls, QueryResult, virtual_views, ColumnMeta, DataType, Value, execute_plan, CteContext, LogicalPlan, Schema, QueryStatement, BatchRow, QuerySource, SelectItem, Expr, FunctionCall};
+use super::{
+    catalog, execute_plan, virtual_views, BatchRow, Cassie, ColumnMeta, CteContext, DataType, Expr,
+    FunctionCall, FunctionMeta, LogicalPlan, QueryError, QueryExecutionControls, QueryResult,
+    QuerySource, QueryStatement, Schema, SelectItem, Value,
+};
 use crate::midge::adapter::RootHashRecord;
 
 pub(super) fn reject_write(cassie: &Cassie, relation: &str) -> Result<(), QueryError> {
@@ -250,10 +254,10 @@ pub(super) fn verify_projection(
             ColumnMeta::text("state"),
             ColumnMeta::text("target_collection"),
             ColumnMeta::text("mode"),
-            ColumnMeta::from_data_type("mismatch_count", DataType::BigInt),
-            ColumnMeta::from_data_type("missing_count", DataType::BigInt),
-            ColumnMeta::from_data_type("stale_count", DataType::BigInt),
-            ColumnMeta::from_data_type("repairable", DataType::Boolean),
+            ColumnMeta::from_data_type("mismatch_count", &DataType::BigInt),
+            ColumnMeta::from_data_type("missing_count", &DataType::BigInt),
+            ColumnMeta::from_data_type("stale_count", &DataType::BigInt),
+            ColumnMeta::from_data_type("repairable", &DataType::Boolean),
             ColumnMeta::text("checked_components"),
             ColumnMeta::text("skipped_components"),
             ColumnMeta::text("last_error"),

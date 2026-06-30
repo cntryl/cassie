@@ -30,7 +30,7 @@ fn should_route_scalar_physical_read_paths_directly_to_scalar_index_executor() {
     );
     let physical = crate::planner::physical::build_with_indexes(
         logical,
-        vec![scalar_index(
+        &[scalar_index(
             "bench_documents",
             "bench_documents_status_score_idx",
             vec!["status", "score"],

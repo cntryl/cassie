@@ -1,4 +1,8 @@
-use super::{IndexMeta, LogicalPlan, CollectionCardinalityStats, PlanEstimates, QuerySource, time_series, IndexKind, BTreeSet, scalar_index_plan_shape, ScalarIndexPlanPath, Expr};
+use super::{
+    scalar_index_plan_shape, time_series, BTreeSet, CollectionCardinalityStats, Expr, IndexKind,
+    IndexMeta, LogicalPlan, PlanEstimates, QuerySource, ScalarIndexPlanPath,
+};
+use std::hash::BuildHasher;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ReadOperatorCandidate {
@@ -17,10 +21,10 @@ pub(crate) struct ReadOperatorSelection {
     pub candidates: Vec<ReadOperatorCandidate>,
 }
 
-pub(crate) fn read_operator_selection(
+pub(crate) fn read_operator_selection<S: BuildHasher>(
     plan: &LogicalPlan,
     indexes: &[IndexMeta],
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> ReadOperatorSelection {
     let base_selected_index = base_selected_index(plan, indexes, cardinality_stats);
     let scan_estimates = PlanEstimates::from_plan(plan, None, cardinality_stats);
@@ -75,10 +79,10 @@ pub(crate) fn read_operator_selection(
     }
 }
 
-pub(crate) fn base_selected_index(
+pub(crate) fn base_selected_index<S: BuildHasher>(
     plan: &LogicalPlan,
     indexes: &[IndexMeta],
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> Option<String> {
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
@@ -106,10 +110,10 @@ pub(crate) fn base_selected_index(
     })
 }
 
-fn scalar_candidates(
+fn scalar_candidates<S: BuildHasher>(
     plan: &LogicalPlan,
     indexes: &[IndexMeta],
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> Vec<IndexMeta> {
     let QuerySource::Collection(collection) = &plan.source else {
         return Vec::new();
@@ -166,12 +170,12 @@ fn scalar_index_matches_plan(
     scalar_index_plan_shape(plan, index).is_some() || (field_match && expression_match)
 }
 
-fn compare_scalar_index_candidates(
+fn compare_scalar_index_candidates<S: BuildHasher>(
     plan: &LogicalPlan,
     collection: &str,
     left: &IndexMeta,
     right: &IndexMeta,
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> std::cmp::Ordering {
     match (
         scalar_index_plan_shape(plan, left),
@@ -228,10 +232,10 @@ fn scalar_index_path_rank(path: ScalarIndexPlanPath) -> u8 {
     }
 }
 
-fn index_estimate(
+fn index_estimate<S: BuildHasher>(
     collection: &str,
     index: &IndexMeta,
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> u64 {
     cardinality_stats
         .get(collection)

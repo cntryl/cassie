@@ -1,4 +1,7 @@
-use super::{Cassie, RuntimeFeedbackKey, RuntimeFeedbackObservation, QueryExecutionControls, Arc, CassieError, binder, CassieSession, parser};
+use super::{
+    binder, parser, Arc, Cassie, CassieError, CassieSession, QueryExecutionControls,
+    RuntimeFeedbackKey, RuntimeFeedbackObservation,
+};
 
 impl Cassie {
     pub(crate) fn feedback_keys_for_plan(
@@ -184,7 +187,7 @@ impl Cassie {
     pub(crate) fn compile_physical_plan(
         &self,
         parsed: crate::sql::ast::ParsedStatement,
-        database: Option<String>,
+        database: Option<&str>,
         controls: Option<&QueryExecutionControls>,
     ) -> Result<Arc<crate::planner::physical::PhysicalPlan>, CassieError> {
         let bound = binder::bind(parsed, &self.catalog)?;
@@ -201,7 +204,7 @@ impl Cassie {
             &cardinality_stats,
         );
         let (operator_selected_index, operator_feedback) = self.select_operator_feedback_plan(
-            database.as_deref(),
+            database,
             &optimized.collection,
             &optimized,
             &selection,
@@ -217,7 +220,7 @@ impl Cassie {
 
         let mut physical = crate::planner::physical::build_with_selection(
             optimized,
-            bound.indexes,
+            bound.indexes.as_slice(),
             &cardinality_stats,
             selected_index,
             operator_feedback,

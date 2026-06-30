@@ -1,4 +1,8 @@
-use super::{Value, Cassie, CassieSession, LogicalPlan, HashMap, FunctionMeta, QueryExecutionControls, BatchRow, QueryError, virtual_views, scan, ensure_temp_budget, Instant, filter, sort, projection, batch, ExecutionBreakdownDurations, QuerySource, SelectItem, Expr, BinaryOp, catalog};
+use super::{
+    batch, catalog, ensure_temp_budget, filter, projection, scan, sort, virtual_views, BatchRow,
+    BinaryOp, Cassie, CassieSession, ExecutionBreakdownDurations, Expr, FunctionMeta, HashMap,
+    Instant, LogicalPlan, QueryError, QueryExecutionControls, QuerySource, SelectItem, Value,
+};
 
 pub(super) fn is_row_id_column(column: &str) -> bool {
     column.eq_ignore_ascii_case("id") || column.eq_ignore_ascii_case("_id")
@@ -551,10 +555,12 @@ fn covering_index_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Option<catalo
         return None;
     };
     let indexes = cassie.catalog.list_indexes(collection);
+    let cardinality_stats =
+        std::collections::HashMap::<String, crate::catalog::CollectionCardinalityStats>::new();
     let physical = crate::planner::physical::build_with_indexes(
         plan.clone(),
-        indexes.clone(),
-        &std::collections::HashMap::default(),
+        indexes.as_slice(),
+        &cardinality_stats,
     );
     let selected = physical.selected_index?;
     physical
@@ -571,10 +577,12 @@ fn selected_scalar_index_for_plan(
         return None;
     };
     let indexes = cassie.catalog.list_indexes(collection);
+    let cardinality_stats =
+        std::collections::HashMap::<String, crate::catalog::CollectionCardinalityStats>::new();
     let physical = crate::planner::physical::build_with_indexes(
         plan.clone(),
-        indexes.clone(),
-        &std::collections::HashMap::default(),
+        indexes.as_slice(),
+        &cardinality_stats,
     );
     let selected = physical.selected_index?;
     indexes.into_iter().find(|index| index.name == selected)
@@ -798,7 +806,9 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
             collect_projected_scan_filter_columns(left, fields)?;
             collect_projected_scan_filter_columns(right, fields)
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => collect_projected_scan_filter_columns(expr, fields),
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            collect_projected_scan_filter_columns(expr, fields)
+        }
         Expr::InList { expr, values, .. } => {
             collect_projected_scan_filter_columns(expr, fields)?;
             for value in values {

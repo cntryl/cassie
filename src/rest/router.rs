@@ -109,10 +109,14 @@ fn map_error(error: &crate::app::CassieError) -> (StatusCode, String) {
             (StatusCode::CONFLICT, error.to_string())
         }
         crate::app::CassieError::NotFound(_) => (StatusCode::NOT_FOUND, error.to_string()),
-        crate::app::CassieError::Parse(_) | crate::app::CassieError::InvalidVector(_) | crate::app::CassieError::InvalidEmbedding(_) | crate::app::CassieError::Planner(_) | crate::app::CassieError::Execution(_) => {
-            (StatusCode::BAD_REQUEST, error.to_string())
-        }
-        crate::app::CassieError::EmbeddingUnavailable(_) | crate::app::CassieError::Configuration(_) | crate::app::CassieError::StorageBootstrap(_)
+        crate::app::CassieError::Parse(_)
+        | crate::app::CassieError::InvalidVector(_)
+        | crate::app::CassieError::InvalidEmbedding(_)
+        | crate::app::CassieError::Planner(_)
+        | crate::app::CassieError::Execution(_) => (StatusCode::BAD_REQUEST, error.to_string()),
+        crate::app::CassieError::EmbeddingUnavailable(_)
+        | crate::app::CassieError::Configuration(_)
+        | crate::app::CassieError::StorageBootstrap(_)
         | crate::app::CassieError::StorageMissingFamily(_)
         | crate::app::CassieError::StorageRetryable(_)
         | crate::app::CassieError::Storage(_) => {
@@ -120,7 +124,7 @@ fn map_error(error: &crate::app::CassieError) -> (StatusCode, String) {
         }
         crate::app::CassieError::Unauthorized => (StatusCode::UNAUTHORIZED, error.to_string()),
         crate::app::CassieError::Unsupported(_) => (StatusCode::NOT_IMPLEMENTED, error.to_string()),
-        }
+    }
 }
 
 fn record_rest_error(
@@ -128,9 +132,9 @@ fn record_rest_error(
     method: &str,
     route: &str,
     started_at: Instant,
-    error: crate::app::CassieError,
+    error: &crate::app::CassieError,
 ) -> (StatusCode, String) {
-    let mapped = map_error(&error);
+    let mapped = map_error(error);
     cassie
         .runtime
         .record_rest_request(method, route, mapped.0.as_u16(), started_at.elapsed());
@@ -211,7 +215,7 @@ pub async fn route_request(
             })
             .await
             .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
             })?;
             json_response(StatusCode::OK, &value)
         }
@@ -222,7 +226,7 @@ pub async fn route_request(
             })
             .await
             .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
             })?;
             json_response(StatusCode::OK, &value)
         }
@@ -234,7 +238,7 @@ pub async fn route_request(
             })
             .await
             .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
             })?;
             json_response(StatusCode::OK, &value)
         }
@@ -246,7 +250,7 @@ pub async fn route_request(
             })
             .await
             .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
             })?;
             json_response(StatusCode::OK, &value)
         }
@@ -258,7 +262,7 @@ pub async fn route_request(
             })
             .await
             .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
             })?;
             json_response(StatusCode::OK, &value)
         }
@@ -270,7 +274,7 @@ pub async fn route_request(
             })
             .await
             .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
             })?;
             json_response(StatusCode::OK, &value)
         }
@@ -281,7 +285,7 @@ pub async fn route_request(
             })
             .await
             .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
             })?;
             json_response(StatusCode::OK, &value)
         }
@@ -291,7 +295,7 @@ pub async fn route_request(
             })
             .await
             .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
             })?;
             json_response(StatusCode::OK, &value)
         }
@@ -303,7 +307,7 @@ pub async fn route_request(
             })
             .await
             .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
             })?;
             json_response(StatusCode::OK, &value)
         }
@@ -315,7 +319,7 @@ pub async fn route_request(
             })
             .await
             .map_err(|error| {
-                record_rest_error(&cassie, method.as_str(), &path, started_at, error)
+                record_rest_error(&cassie, method.as_str(), &path, started_at, &error)
             })?;
             json_response(StatusCode::OK, &value)
         }

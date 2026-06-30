@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::{Cassie, QueryResult, QueryError, Value, ColumnMeta};
+use super::{Cassie, ColumnMeta, QueryError, QueryResult, Value};
 
 pub(super) fn diff_projection(
     cassie: &Cassie,
@@ -149,10 +149,7 @@ pub(super) fn diff_projection(
     let complete = next_cursor.is_none();
     let cursor = next_cursor.as_deref();
     for row in &mut rows {
-        row.push(
-            cursor
-                .map_or(Value::Null, |value| Value::String(value.to_string())),
-        );
+        row.push(cursor.map_or(Value::Null, |value| Value::String(value.to_string())));
         row.push(Value::Bool(complete));
     }
     if rows.is_empty() {
@@ -163,10 +160,7 @@ pub(super) fn diff_projection(
             Some(right_root.digest.as_str()),
             "range-or-root-mismatch-without-row-diff",
         );
-        row.push(
-            cursor
-                .map_or(Value::Null, |value| Value::String(value.to_string())),
-        );
+        row.push(cursor.map_or(Value::Null, |value| Value::String(value.to_string())));
         row.push(Value::Bool(complete));
         rows.push(row);
     }
@@ -260,7 +254,7 @@ pub(super) fn compare_projection(
             ColumnMeta::text("state"),
             ColumnMeta::text("root_digest"),
             ColumnMeta::text("manifest_digest"),
-            ColumnMeta::from_data_type("mismatches", crate::types::DataType::Int),
+            ColumnMeta::from_data_type("mismatches", &crate::types::DataType::Int),
             ColumnMeta::text("report_id"),
         ],
         rows: vec![vec![
@@ -323,12 +317,14 @@ fn manifest_field_matches(
         *compatibility_status = format!("incompatible-missing-{key}");
         return false;
     };
-    let matches = actual
-        .as_str().map_or_else(|| {
+    let matches = actual.as_str().map_or_else(
+        || {
             actual
                 .as_u64()
                 .is_some_and(|value| value.to_string() == expected)
-        }, |value| value == expected);
+        },
+        |value| value == expected,
+    );
     if !matches {
         *compatibility_status = format!("incompatible-{key}");
     }
@@ -374,7 +370,7 @@ fn diff_columns() -> Vec<ColumnMeta> {
         ColumnMeta::text("right_digest"),
         ColumnMeta::text("state"),
         ColumnMeta::text("next_cursor"),
-        ColumnMeta::from_data_type("complete", crate::types::DataType::Boolean),
+        ColumnMeta::from_data_type("complete", &crate::types::DataType::Boolean),
     ]
 }
 
@@ -388,10 +384,8 @@ fn diff_row(
     vec![
         Value::String(row_id.to_string()),
         Value::String(change.to_string()),
-        left_digest
-            .map_or(Value::Null, |digest| Value::String(digest.to_string())),
-        right_digest
-            .map_or(Value::Null, |digest| Value::String(digest.to_string())),
+        left_digest.map_or(Value::Null, |digest| Value::String(digest.to_string())),
+        right_digest.map_or(Value::Null, |digest| Value::String(digest.to_string())),
         Value::String(state.to_string()),
     ]
 }

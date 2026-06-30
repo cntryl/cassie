@@ -1,4 +1,9 @@
-use super::{Cassie, QueryStatement, ExecutionMode, PlanCacheKey, Arc, PlanCacheProvenance, QueryExecutionControls, CassieError, query_cache, current_time_millis, CassieSession, QueryResult, unsupported_sql_error, parser, ColumnMeta, Instant, TransactionStatement, TransactionAction, RuntimeFeedbackObservation, TransactionRowChange, Value};
+use super::{
+    current_time_millis, parser, query_cache, unsupported_sql_error, Arc, Cassie, CassieError,
+    CassieSession, ColumnMeta, ExecutionMode, Instant, PlanCacheKey, PlanCacheProvenance,
+    QueryExecutionControls, QueryResult, QueryStatement, RuntimeFeedbackObservation,
+    TransactionAction, TransactionRowChange, TransactionStatement, Value,
+};
 use crate::midge::adapter::DocumentWriteOp;
 use std::fmt::Write as _;
 
@@ -97,7 +102,7 @@ impl Cassie {
         }
 
         self.runtime.record_query_cache_compile_miss();
-        let plan = self.compile_physical_plan(parsed, database, controls)?;
+        let plan = self.compile_physical_plan(parsed, database.as_deref(), controls)?;
         self.runtime.plan_cache_store(key, plan.clone(), false);
         Ok((plan, PlanCacheProvenance::Compiled))
     }
@@ -450,7 +455,7 @@ impl Cassie {
             self.resolve_physical_plan(parsed, key, session.database.clone(), Some(controls))?
         } else {
             (
-                self.compile_physical_plan(parsed, session.database.clone(), Some(controls))?,
+                self.compile_physical_plan(parsed, session.database.as_deref(), Some(controls))?,
                 PlanCacheProvenance::Compiled,
             )
         };
@@ -474,7 +479,7 @@ impl Cassie {
         let execution = crate::executor::run_with_session_controls(
             self,
             Some(session),
-            physical.clone(),
+            &physical,
             params,
             controls,
         )
@@ -694,7 +699,7 @@ impl Cassie {
     ) -> Result<QueryResult, CassieError> {
         let before = analyze.then(|| self.runtime.snapshot());
         let physical =
-            self.compile_physical_plan(statement, session.database.clone(), Some(controls))?;
+            self.compile_physical_plan(statement, session.database.as_deref(), Some(controls))?;
         let mut plan = super::query_explain::plan_line(self, &physical);
 
         if analyze {
@@ -706,7 +711,7 @@ impl Cassie {
             let result = crate::executor::run_with_session_controls(
                 self,
                 Some(session),
-                physical.clone(),
+                &physical,
                 params,
                 controls,
             )

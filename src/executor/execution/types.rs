@@ -15,10 +15,10 @@ pub struct ColumnMeta {
 
 impl ColumnMeta {
     pub fn text(name: impl Into<String>) -> Self {
-        Self::from_data_type(name, DataType::Text)
+        Self::from_data_type(name, &DataType::Text)
     }
 
-    pub fn from_data_type(name: impl Into<String>, data_type: DataType) -> Self {
+    pub fn from_data_type(name: impl Into<String>, data_type: &DataType) -> Self {
         let data_type_name = data_type.type_name();
         Self {
             name: name.into(),

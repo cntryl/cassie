@@ -1,4 +1,9 @@
-use super::{LogicalPlan, IndexMeta, ReadAccessPath, source_contains_join, QuerySource, scalar_index_plan_shape, ScalarIndexPlanPath, PaginationStrategy, TopKMode, EarlyStopMode, join_paths, ProjectionShape, scan_limit, projected_scan_fields, SelectItem, Expr, is_row_id_column, BinaryOp};
+use super::{
+    is_row_id_column, join_paths, projected_scan_fields, scalar_index_plan_shape, scan_limit,
+    source_contains_join, BinaryOp, EarlyStopMode, Expr, IndexMeta, LogicalPlan,
+    PaginationStrategy, ProjectionShape, QuerySource, ReadAccessPath, ScalarIndexPlanPath,
+    SelectItem, TopKMode,
+};
 
 pub(super) fn determine_read_access_path(
     plan: &LogicalPlan,
@@ -324,7 +329,9 @@ fn is_id_point_lookup_filter(expr: &Expr) -> bool {
     };
 
     let (lhs, rhs) = (left.as_ref(), right.as_ref());
-    let ((Expr::Column(column), other) | (other, Expr::Column(column))) = (lhs, rhs) else { return false };
+    let ((Expr::Column(column), other) | (other, Expr::Column(column))) = (lhs, rhs) else {
+        return false;
+    };
 
     if !is_row_id_column(column) {
         return false;

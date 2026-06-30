@@ -1,12 +1,16 @@
-use super::{PlanEstimates, LogicalPlan, CollectionCardinalityStats, plan_uses_fulltext, plan_uses_vector, plan_uses_aggregate, Expr, BinaryOp, QuerySource, JoinKind, is_equi_join_predicate};
+use super::{
+    is_equi_join_predicate, plan_uses_aggregate, plan_uses_fulltext, plan_uses_vector, BinaryOp,
+    CollectionCardinalityStats, Expr, JoinKind, LogicalPlan, PlanEstimates, QuerySource,
+};
+use std::hash::BuildHasher;
 
 impl PlanEstimates {
     const DEFAULT_ROWS: u64 = 1_000;
 
-    pub(super) fn from_plan(
+    pub(super) fn from_plan<S: BuildHasher>(
         plan: &LogicalPlan,
         selected_index: Option<&str>,
-        cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+        cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
     ) -> Self {
         let scan_rows = estimated_source_rows(&plan.source, cardinality_stats);
         let stats = collection_stats(&plan.collection, cardinality_stats);
@@ -67,8 +71,7 @@ impl PlanEstimates {
             0
         };
         let scan_cost = scan_rows;
-        let index_cost = selected_index
-            .map_or(scan_rows, |_| index_rows.max(1));
+        let index_cost = selected_index.map_or(scan_rows, |_| index_rows.max(1));
         let selected_cost = if selected_index.is_some() {
             index_cost
         } else {
@@ -226,18 +229,18 @@ fn canonical_literal(expr: &Expr) -> Option<String> {
     serde_json::to_string(&value).ok()
 }
 
-fn collection_stats<'a>(
+fn collection_stats<'a, S: BuildHasher>(
     collection: &str,
-    cardinality_stats: &'a std::collections::HashMap<String, CollectionCardinalityStats>,
+    cardinality_stats: &'a std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> Option<&'a CollectionCardinalityStats> {
     cardinality_stats
         .get(collection)
         .filter(|stats| stats.hydrated)
 }
 
-fn estimated_source_rows(
+fn estimated_source_rows<S: BuildHasher>(
     source: &QuerySource,
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> u64 {
     match source {
         QuerySource::Collection(collection) => collection_stats(collection, cardinality_stats)
@@ -265,9 +268,9 @@ fn estimated_source_rows(
     }
 }
 
-fn join_rows(
+fn join_rows<S: BuildHasher>(
     source: &QuerySource,
-    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats>,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> u64 {
     match source {
         QuerySource::Join {

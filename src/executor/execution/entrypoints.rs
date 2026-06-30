@@ -1,5 +1,10 @@
 use super::types::ExecutionBreakdownDurations;
-use super::{Cassie, PhysicalPlan, Value, QueryResult, QueryError, Arc, QueryExecutionControls, ExecutionBreakdownOutput, Instant, dml_command, CteContext, HashMap, execute_plan_with_execution_breakdown, build_select_result, CassieSession, execute_physical_plan, rollups, materialized_projection, LogicalPlan, FunctionMeta, plan_needs_user_functions};
+use super::{
+    build_select_result, dml_command, execute_physical_plan, execute_plan_with_execution_breakdown,
+    materialized_projection, plan_needs_user_functions, rollups, Arc, Cassie, CassieSession,
+    CteContext, ExecutionBreakdownOutput, FunctionMeta, HashMap, Instant, LogicalPlan,
+    PhysicalPlan, QueryError, QueryExecutionControls, QueryResult, Value,
+};
 
 /// # Errors
 ///
@@ -10,7 +15,8 @@ pub fn run(
     params: Vec<Value>,
 ) -> Result<QueryResult, QueryError> {
     let controls = cassie.runtime.query_controls(std::time::Instant::now());
-    run_with_controls(cassie, Arc::new(plan), params, &controls)
+    let plan = Arc::new(plan);
+    run_with_controls(cassie, &plan, params, &controls)
 }
 
 /// # Errors
@@ -18,7 +24,7 @@ pub fn run(
 /// Returns an error when validation, storage, or execution fails.
 pub fn run_with_controls(
     cassie: &Cassie,
-    plan: Arc<PhysicalPlan>,
+    plan: &Arc<PhysicalPlan>,
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
@@ -32,12 +38,13 @@ pub fn run_with_execution_breakdown(
     params: Vec<Value>,
 ) -> Result<ExecutionBreakdownOutput, QueryError> {
     let controls = cassie.runtime.query_controls(std::time::Instant::now());
-    run_with_execution_breakdown_controls(cassie, Arc::new(plan), params, &controls)
+    let plan = Arc::new(plan);
+    run_with_execution_breakdown_controls(cassie, &plan, params, &controls)
 }
 
 fn run_with_execution_breakdown_controls(
     cassie: &Cassie,
-    plan: Arc<PhysicalPlan>,
+    plan: &Arc<PhysicalPlan>,
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<ExecutionBreakdownOutput, QueryError> {
@@ -86,7 +93,7 @@ fn run_with_execution_breakdown_controls(
 pub(crate) fn run_with_session_controls(
     cassie: &Cassie,
     session: Option<&CassieSession>,
-    plan: Arc<PhysicalPlan>,
+    plan: &Arc<PhysicalPlan>,
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {

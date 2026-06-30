@@ -1,4 +1,8 @@
-use super::{Cassie, CassieSession, LogicalPlan, HashMap, FunctionMeta, Value, QueryExecutionControls, BatchRow, QueryError, batch, ensure_temp_budget, filter, sort, projection, Expr, BinaryOp, RowDecode, catalog, QuerySource, CollectionSchema, DataType};
+use super::{
+    batch, catalog, ensure_temp_budget, filter, projection, sort, BatchRow, BinaryOp, Cassie,
+    CassieSession, CollectionSchema, DataType, Expr, FunctionMeta, HashMap, LogicalPlan,
+    QueryError, QueryExecutionControls, QuerySource, RowDecode, Value,
+};
 use crate::midge::adapter::DocumentRef;
 
 use super::projected_read::json_to_query_value;
@@ -17,9 +21,7 @@ pub(super) fn try_execute_time_series_read(
     let Some(index) = selected_time_series_index(cassie, plan) else {
         return Ok(None);
     };
-    if session
-        .is_some_and(|session| !session.collection_changes(&spec.collection).is_empty())
-    {
+    if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
         cassie
             .runtime
             .record_time_series_fallback("session-changes");
@@ -298,10 +300,12 @@ fn selected_time_series_index(cassie: &Cassie, plan: &LogicalPlan) -> Option<cat
         return None;
     };
     let indexes = cassie.catalog.list_indexes(collection);
+    let cardinality_stats =
+        std::collections::HashMap::<String, crate::catalog::CollectionCardinalityStats>::new();
     let physical = crate::planner::physical::build_with_indexes(
         plan.clone(),
-        indexes.clone(),
-        &std::collections::HashMap::default(),
+        indexes.as_slice(),
+        &cardinality_stats,
     );
     let selected = physical.selected_index?;
     indexes
@@ -335,11 +339,14 @@ fn typed_value(value: &serde_json::Value, schema: Option<&CollectionSchema>, fie
         .map(|entry| &entry.data_type)
     {
         Some(DataType::Int | DataType::BigInt) => value
-            .as_i64().map_or_else(|| json_to_query_value(value), Value::Int64),
+            .as_i64()
+            .map_or_else(|| json_to_query_value(value), Value::Int64),
         Some(DataType::Float) => value
-            .as_f64().map_or_else(|| json_to_query_value(value), Value::Float64),
+            .as_f64()
+            .map_or_else(|| json_to_query_value(value), Value::Float64),
         Some(DataType::Boolean) => value
-            .as_bool().map_or_else(|| json_to_query_value(value), Value::Bool),
+            .as_bool()
+            .map_or_else(|| json_to_query_value(value), Value::Bool),
         _ => json_to_query_value(value),
     }
 }

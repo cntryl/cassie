@@ -1,4 +1,6 @@
-use super::{CmpOrdering, DistanceMetric, CollectionSchema, ColumnMeta, DocumentRef, Value, Vector};
+use super::{
+    CmpOrdering, CollectionSchema, ColumnMeta, DistanceMetric, DocumentRef, Value, Vector,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct ScoredVectorCandidate {
@@ -65,13 +67,13 @@ pub(super) fn vector_search_columns(schema: &CollectionSchema) -> Vec<ColumnMeta
     let mut columns = Vec::with_capacity(schema.fields.len() + 1);
     columns.push(ColumnMeta::from_data_type(
         "id".to_string(),
-        crate::types::DataType::Text,
+        &crate::types::DataType::Text,
     ));
     for field in &schema.fields {
         if field.name != "id" {
             columns.push(ColumnMeta::from_data_type(
                 field.name.clone(),
-                field.data_type.clone(),
+                &field.data_type,
             ));
         }
     }
@@ -88,7 +90,9 @@ pub(super) fn vector_search_row(schema: &CollectionSchema, document: DocumentRef
         let value = document
             .payload
             .get(&field.name)
-            .map_or(Value::Null, |value| json_to_query_value(value, &field.data_type));
+            .map_or(Value::Null, |value| {
+                json_to_query_value(value, &field.data_type)
+            });
         row.push(value);
     }
     row

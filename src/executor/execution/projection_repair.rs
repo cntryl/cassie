@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{Cassie, QueryResult, QueryError, Value, catalog, ColumnMeta, DataType};
+use super::{catalog, Cassie, ColumnMeta, DataType, QueryError, QueryResult, Value};
 use crate::sql::ast::{
     ProjectionDiffTarget, ProjectionRepairScope, ProjectionVerificationMode,
     RepairProjectionStatement, VerifyProjectionStatement,
@@ -231,7 +231,7 @@ fn repair_result(command: &str, state: &str, report_id: &str, plan: &RepairPlan)
             ColumnMeta::text("scope"),
             ColumnMeta::text("target_collection"),
             ColumnMeta::text("action"),
-            ColumnMeta::from_data_type("executable", DataType::Boolean),
+            ColumnMeta::from_data_type("executable", &DataType::Boolean),
             ColumnMeta::text("verification_required"),
             ColumnMeta::text("post_verification_state"),
             ColumnMeta::text("report_id"),

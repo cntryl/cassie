@@ -81,6 +81,7 @@ mod operational;
 mod query;
 mod query_explain;
 mod query_feedback;
+mod query_prepared;
 mod registry;
 mod replay;
 mod roles;

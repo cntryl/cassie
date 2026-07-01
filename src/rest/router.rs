@@ -275,7 +275,7 @@ async fn dispatch_collection_routes(
     started_at: Instant,
 ) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
     match (method.as_str(), segments) {
-        ("GET", ["v1", "collections"]) => route_blocking(
+        ("GET", ["v1", "collections"]) => run_rest_blocking_route(
             cassie,
             method,
             path,
@@ -287,7 +287,7 @@ async fn dispatch_collection_routes(
         .map(|value| Some(json_response(StatusCode::OK, &value))),
         ("POST", ["v1", "collections"]) => {
             let body = body.clone();
-            route_blocking(
+            run_rest_blocking_route(
                 cassie,
                 method,
                 path,
@@ -301,7 +301,7 @@ async fn dispatch_collection_routes(
         ("POST", ["v1", "collections", collection, "documents"]) => {
             let body = body.clone();
             let collection = (*collection).to_string();
-            route_blocking(
+            run_rest_blocking_route(
                 cassie,
                 method,
                 path,
@@ -315,7 +315,7 @@ async fn dispatch_collection_routes(
         ("POST", ["v1", "collections", collection, "indexes"]) => {
             let body = body.clone();
             let collection = (*collection).to_string();
-            route_blocking(
+            run_rest_blocking_route(
                 cassie,
                 method,
                 path,
@@ -329,7 +329,7 @@ async fn dispatch_collection_routes(
         ("POST", ["v1", "collections", collection, "search"]) => {
             let body = body.clone();
             let collection = (*collection).to_string();
-            route_blocking(
+            run_rest_blocking_route(
                 cassie,
                 method,
                 path,
@@ -345,7 +345,7 @@ async fn dispatch_collection_routes(
         ("GET", ["v1", "collections", collection, "documents", id]) => {
             let collection = (*collection).to_string();
             let id = (*id).to_string();
-            route_blocking(
+            run_rest_blocking_route(
                 cassie,
                 method,
                 path,
@@ -359,7 +359,7 @@ async fn dispatch_collection_routes(
         ("DELETE", ["v1", "collections", collection, "documents", id]) => {
             let collection = (*collection).to_string();
             let id = (*id).to_string();
-            route_blocking(
+            run_rest_blocking_route(
                 cassie,
                 method,
                 path,
@@ -386,7 +386,7 @@ async fn dispatch_admin_routes(
         ("POST", ["v1", "admin", "projections", projection, "verification-manifest"]) => {
             let body = body.clone();
             let projection = (*projection).to_string();
-            route_blocking(
+            run_rest_blocking_route(
                 cassie,
                 method,
                 path,
@@ -401,7 +401,7 @@ async fn dispatch_admin_routes(
         }
         ("POST", ["v1", "admin", "projection-consistency-checks"]) => {
             let body = body.clone();
-            route_blocking(
+            run_rest_blocking_route(
                 cassie,
                 method,
                 path,
@@ -412,7 +412,7 @@ async fn dispatch_admin_routes(
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
-        ("GET", ["v1", "admin", "projection-consistency-reports"]) => route_blocking(
+        ("GET", ["v1", "admin", "projection-consistency-reports"]) => run_rest_blocking_route(
             cassie,
             method,
             path,
@@ -444,7 +444,7 @@ fn unsupported_route(
     ))
 }
 
-async fn route_blocking<T>(
+async fn run_rest_blocking_route<T>(
     cassie: Arc<Cassie>,
     method: &Method,
     path: &str,

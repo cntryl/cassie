@@ -1,6 +1,6 @@
 use super::{
-    io, str, AsyncReadExt, BufReader, FrontendMessage, HandshakeError, StartupFrame,
-    MAX_FRONTEND_MESSAGE_BYTES, MIN_STARTUP_MESSAGE_BYTES, PASSWORD_MESSAGE_TAG,
+    io, str, AsyncReadExt, BufReader, DescribeTarget, FrontendMessage, HandshakeError,
+    StartupFrame, MAX_FRONTEND_MESSAGE_BYTES, MIN_STARTUP_MESSAGE_BYTES, PASSWORD_MESSAGE_TAG,
     PROTOCOL_VERSION_3, SSL_REQUEST_CODE,
 };
 use crate::pgwire::connection::CANCEL_REQUEST_CODE;
@@ -160,7 +160,10 @@ fn decode_frontend_message(
         }
         b'H' => decode_empty_frontend_message(&payload, FrontendMessage::Flush, "flush")?,
         b'X' => decode_empty_frontend_message(&payload, FrontendMessage::Terminate, "terminate")?,
-        _ => FrontendMessage::Unknown,
+        _ => {
+            cursor = payload_len;
+            FrontendMessage::Unknown
+        }
     };
     Ok((message, cursor))
 }
@@ -169,50 +172,67 @@ fn decode_parse_message(
     payload: &[u8],
     cursor: &mut usize,
 ) -> Result<FrontendMessage, HandshakeError> {
-    let _ = read_null_terminated(payload, cursor)?;
-    let _ = read_null_terminated(payload, cursor)?;
+    let name = read_null_terminated(payload, cursor)?;
+    let query = read_null_terminated(payload, cursor)?;
     let parameter_count = read_frontend_i16(payload, cursor)?;
     let parameter_count = usize::try_from(parameter_count)
         .map_err(|_| HandshakeError::Invalid("invalid parse parameter count".to_string()))?;
+    let mut parameter_type_oids = Vec::with_capacity(parameter_count);
     for _ in 0..parameter_count {
-        let _ = read_frontend_i32(payload, cursor)?;
+        parameter_type_oids.push(read_frontend_i32(payload, cursor)?);
     }
-    Ok(FrontendMessage::Parse)
+    Ok(FrontendMessage::Parse {
+        name,
+        query,
+        parameter_type_oids,
+    })
 }
 
 fn decode_bind_message(
     payload: &[u8],
     cursor: &mut usize,
 ) -> Result<FrontendMessage, HandshakeError> {
-    let _ = read_null_terminated(payload, cursor)?;
-    let _ = read_null_terminated(payload, cursor)?;
-    read_bind_formats(payload, cursor, "invalid bind format count")?;
-    read_bind_parameters(payload, cursor)?;
-    read_bind_formats(payload, cursor, "invalid result format count")?;
-    Ok(FrontendMessage::Bind)
+    let portal = read_null_terminated(payload, cursor)?;
+    let statement = read_null_terminated(payload, cursor)?;
+    let parameter_formats = read_bind_formats(payload, cursor, "invalid bind format count")?;
+    let parameters = read_bind_parameters(payload, cursor)?;
+    let result_formats = read_bind_formats(payload, cursor, "invalid result format count")?;
+    Ok(FrontendMessage::Bind {
+        portal,
+        statement,
+        parameter_formats,
+        parameters,
+        result_formats,
+    })
 }
 
 fn read_bind_formats(
     payload: &[u8],
     cursor: &mut usize,
     count_error: &str,
-) -> Result<(), HandshakeError> {
+) -> Result<Vec<i16>, HandshakeError> {
     let count = read_frontend_i16(payload, cursor)?;
     let count =
         usize::try_from(count).map_err(|_| HandshakeError::Invalid(count_error.to_string()))?;
+    let mut formats = Vec::with_capacity(count);
     for _ in 0..count {
-        let _ = read_frontend_i16(payload, cursor)?;
+        formats.push(read_frontend_i16(payload, cursor)?);
     }
-    Ok(())
+    Ok(formats)
 }
 
-fn read_bind_parameters(payload: &[u8], cursor: &mut usize) -> Result<(), HandshakeError> {
+fn read_bind_parameters(
+    payload: &[u8],
+    cursor: &mut usize,
+) -> Result<Vec<Option<Vec<u8>>>, HandshakeError> {
     let parameter_count = read_frontend_i16(payload, cursor)?;
     let parameter_count = usize::try_from(parameter_count)
         .map_err(|_| HandshakeError::Invalid("invalid bind parameter count".to_string()))?;
+    let mut parameters = Vec::with_capacity(parameter_count);
     for _ in 0..parameter_count {
         let value_len = read_frontend_i32(payload, cursor)?;
         if value_len == -1 {
+            parameters.push(None);
             continue;
         }
         let value_len = usize::try_from(value_len)
@@ -223,51 +243,57 @@ fn read_bind_parameters(payload: &[u8], cursor: &mut usize) -> Result<(), Handsh
         let _ = payload
             .get(*cursor..end)
             .ok_or_else(|| HandshakeError::Invalid("invalid bind payload".to_string()))?;
+        parameters.push(Some(payload[*cursor..end].to_vec()));
         *cursor = end;
     }
-    Ok(())
+    Ok(parameters)
 }
 
 fn decode_describe_message(
     payload: &[u8],
     cursor: &mut usize,
 ) -> Result<FrontendMessage, HandshakeError> {
-    read_describe_or_close_target(payload, cursor, "describe")?;
-    let _ = read_null_terminated(payload, cursor)?;
-    Ok(FrontendMessage::Describe)
+    let target = read_describe_or_close_target(payload, cursor, "describe")?;
+    let name = read_null_terminated(payload, cursor)?;
+    Ok(FrontendMessage::Describe { target, name })
 }
 
 fn decode_execute_message(
     payload: &[u8],
     cursor: &mut usize,
 ) -> Result<FrontendMessage, HandshakeError> {
-    let _ = read_null_terminated(payload, cursor)?;
-    if read_frontend_i32(payload, cursor)? < 0 {
+    let portal = read_null_terminated(payload, cursor)?;
+    let max_rows = read_frontend_i32(payload, cursor)?;
+    if max_rows < 0 {
         return Err(HandshakeError::Invalid(
             "invalid execute row limit".to_string(),
         ));
     }
-    Ok(FrontendMessage::Execute)
+    Ok(FrontendMessage::Execute { portal, max_rows })
 }
 
 fn decode_close_message(
     payload: &[u8],
     cursor: &mut usize,
 ) -> Result<FrontendMessage, HandshakeError> {
-    read_describe_or_close_target(payload, cursor, "close")?;
-    let _ = read_null_terminated(payload, cursor)?;
-    Ok(FrontendMessage::Close)
+    let target = read_describe_or_close_target(payload, cursor, "close")?;
+    let name = read_null_terminated(payload, cursor)?;
+    Ok(FrontendMessage::Close { target, name })
 }
 
 fn read_describe_or_close_target(
     payload: &[u8],
     cursor: &mut usize,
     message: &str,
-) -> Result<(), HandshakeError> {
+) -> Result<DescribeTarget, HandshakeError> {
     match payload.get(*cursor).copied() {
-        Some(b'S' | b'P') => {
+        Some(b'S') => {
             *cursor += 1;
-            Ok(())
+            Ok(DescribeTarget::Statement)
+        }
+        Some(b'P') => {
+            *cursor += 1;
+            Ok(DescribeTarget::Portal)
         }
         Some(other) => Err(HandshakeError::Invalid(format!(
             "unsupported {message} target '{}'",

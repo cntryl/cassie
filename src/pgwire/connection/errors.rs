@@ -67,6 +67,10 @@ impl PgWireError {
         Self::new(PgWireSeverity::Error, "28000", message)
     }
 
+    pub(super) fn invalid_sql_statement_name(message: impl Into<String>) -> Self {
+        Self::new(PgWireSeverity::Error, "26000", message)
+    }
+
     pub(super) fn from_cassie_error(severity: PgWireSeverity, error: &CassieError) -> Self {
         match error {
             CassieError::Parse(message) => Self::new(severity, "42601", message.clone()),

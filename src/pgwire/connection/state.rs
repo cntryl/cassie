@@ -1,4 +1,6 @@
 use super::{CassieSession, ReadyState};
+use crate::pgwire::protocol::{Portal, PreparedStatement};
+use crate::runtime::RuntimeState;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -26,11 +28,30 @@ pub(super) enum HandshakeError {
 
 #[derive(Debug)]
 pub(super) enum FrontendMessage {
-    Parse,
-    Bind,
-    Describe,
-    Execute,
-    Close,
+    Parse {
+        name: String,
+        query: String,
+        parameter_type_oids: Vec<i32>,
+    },
+    Bind {
+        portal: String,
+        statement: String,
+        parameter_formats: Vec<i16>,
+        parameters: Vec<Option<Vec<u8>>>,
+        result_formats: Vec<i16>,
+    },
+    Describe {
+        target: DescribeTarget,
+        name: String,
+    },
+    Execute {
+        portal: String,
+        max_rows: i32,
+    },
+    Close {
+        target: DescribeTarget,
+        name: String,
+    },
     CopyData(Vec<u8>),
     CopyDone,
     CopyFail(String),
@@ -41,6 +62,12 @@ pub(super) enum FrontendMessage {
     Unknown,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum DescribeTarget {
+    Statement,
+    Portal,
+}
+
 #[derive(Debug)]
 pub(super) struct SessionState {
     pub(super) session: Option<CassieSession>,
@@ -48,6 +75,9 @@ pub(super) struct SessionState {
     pub(super) startup_database: Option<String>,
     pub(super) authenticated: bool,
     pub(super) ready: ReadyState,
+    pub(super) prepared_statements: HashMap<String, PreparedStatement>,
+    pub(super) portals: HashMap<String, Portal>,
+    pub(super) next_prepared_id: u64,
 }
 
 impl SessionState {
@@ -58,6 +88,34 @@ impl SessionState {
             startup_database: None,
             authenticated: false,
             ready: ReadyState::InTransaction,
+            prepared_statements: HashMap::new(),
+            portals: HashMap::new(),
+            next_prepared_id: 1,
         }
     }
+
+    pub(super) fn next_prepared_id(&mut self) -> u64 {
+        let id = self.next_prepared_id;
+        self.next_prepared_id = self.next_prepared_id.saturating_add(1);
+        id
+    }
+
+    pub(super) fn cleanup_pgwire_objects(&mut self, runtime: &RuntimeState) {
+        record_negative_delta(self.prepared_statements.len(), |delta| {
+            runtime.record_pgwire_prepared_delta(delta);
+        });
+        record_negative_delta(self.portals.len(), |delta| {
+            runtime.record_pgwire_portal_delta(delta);
+        });
+        self.prepared_statements.clear();
+        self.portals.clear();
+    }
+}
+
+fn record_negative_delta(count: usize, record: impl FnOnce(isize)) {
+    if count == 0 {
+        return;
+    }
+    let delta = isize::try_from(count).unwrap_or(isize::MAX);
+    record(-delta);
 }

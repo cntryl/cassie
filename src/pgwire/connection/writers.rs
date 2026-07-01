@@ -126,6 +126,44 @@ pub(super) async fn write_simple_query_result(
     Ok(())
 }
 
+pub(super) async fn write_parse_complete(
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> io::Result<()> {
+    write_backend_frame(write_half, b'1', &[]).await
+}
+
+pub(super) async fn write_bind_complete(
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> io::Result<()> {
+    write_backend_frame(write_half, b'2', &[]).await
+}
+
+pub(super) async fn write_close_complete(
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> io::Result<()> {
+    write_backend_frame(write_half, b'3', &[]).await
+}
+
+pub(super) async fn write_parameter_description(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    parameter_type_oids: &[i32],
+) -> io::Result<()> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(
+        &i16::try_from(parameter_type_oids.len())
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "too many parameters"))?
+            .to_be_bytes(),
+    );
+    for oid in parameter_type_oids {
+        payload.extend_from_slice(&oid.to_be_bytes());
+    }
+    write_backend_frame(write_half, b't', &payload).await
+}
+
+pub(super) async fn write_no_data(write_half: &mut (impl AsyncWrite + Unpin)) -> io::Result<()> {
+    write_backend_frame(write_half, b'n', &[]).await
+}
+
 pub(super) fn append_row_description_frame(
     frame: &mut Vec<u8>,
     columns: &[crate::executor::ColumnMeta],
@@ -242,6 +280,10 @@ pub(super) fn append_command_complete_frame(frame: &mut Vec<u8>, command: &str) 
     payload.extend_from_slice(command.as_bytes());
     payload.push(0);
     append_backend_frame(frame, b'C', &payload)
+}
+
+pub(super) fn append_portal_suspended_frame(frame: &mut Vec<u8>) -> io::Result<()> {
+    append_backend_frame(frame, b's', &[])
 }
 
 pub(super) async fn write_ready_for_query(

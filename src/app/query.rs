@@ -555,7 +555,7 @@ impl Cassie {
         self.execute_parsed_statement_core(session, parsed, sql_fingerprint, params, mode, controls)
     }
 
-    fn execute_parsed_statement_core(
+    pub(crate) fn execute_parsed_statement_core(
         &self,
         session: &CassieSession,
         parsed: crate::sql::ast::ParsedStatement,

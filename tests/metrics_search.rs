@@ -80,11 +80,124 @@ fn register_feedback_collection(cassie: &Cassie, collection: &str) {
         .unwrap();
 }
 
+fn register_collection_with_schema(cassie: &Cassie, collection: &str, schema: &Schema) {
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .unwrap();
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
+}
+
+fn insert_documents(cassie: &Cassie, collection: &str, docs: Vec<(&str, serde_json::Value)>) {
+    for (id, payload) in docs {
+        cassie
+            .midge
+            .put_document(collection, Some(id.to_string()), payload)
+            .unwrap();
+    }
+}
+
 fn adaptive_candidate_config(min: usize, max: usize) -> cassie::config::CassieRuntimeConfig {
     let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.adaptive_candidate_min = min;
     config.limits.adaptive_candidate_max = max;
     config
+}
+
+fn assert_prefilter_metrics(before: &serde_json::Value, after: &serde_json::Value) {
+    let before_input = before["vector"]["prefilter_input_candidate_count_total"]
+        .as_u64()
+        .unwrap_or_default();
+    let before_filtered = before["vector"]["prefilter_filtered_candidate_count_total"]
+        .as_u64()
+        .unwrap_or_default();
+    let before_fallback = before["vector"]["prefilter_fallback_count_total"]
+        .as_u64()
+        .unwrap_or_default();
+    assert_eq!(
+        after["vector"]["prefilter_input_candidate_count_total"]
+            .as_u64()
+            .unwrap_or_default()
+            - before_input,
+        3
+    );
+    assert_eq!(
+        after["vector"]["prefilter_filtered_candidate_count_total"]
+            .as_u64()
+            .unwrap_or_default()
+            - before_filtered,
+        2
+    );
+    assert_eq!(
+        after["vector"]["prefilter_fallback_count_total"]
+            .as_u64()
+            .unwrap_or_default()
+            - before_fallback,
+        0
+    );
+}
+
+fn assert_fulltext_scoring_cache_metrics(
+    before: &serde_json::Value,
+    after_first: &serde_json::Value,
+    after_second: &serde_json::Value,
+    after_third: &serde_json::Value,
+) {
+    let before_hits = before["query_cache"]["fulltext_stats_hits"]
+        .as_u64()
+        .unwrap_or_default();
+    let before_misses = before["query_cache"]["fulltext_stats_misses"]
+        .as_u64()
+        .unwrap_or_default();
+    assert_eq!(
+        after_first["query_cache"]["fulltext_stats_misses"]
+            .as_u64()
+            .unwrap_or_default()
+            - before_misses,
+        1
+    );
+    assert_eq!(
+        after_first["query_cache"]["fulltext_stats_hits"]
+            .as_u64()
+            .unwrap_or_default()
+            - before_hits,
+        0
+    );
+    assert_eq!(
+        after_second["query_cache"]["fulltext_stats_hits"]
+            .as_u64()
+            .unwrap_or_default()
+            - before_hits,
+        1
+    );
+    assert_eq!(
+        after_second["query_cache"]["fulltext_stats_misses"]
+            .as_u64()
+            .unwrap_or_default()
+            - before_misses,
+        1
+    );
+    assert_eq!(
+        after_third["query_cache"]["fulltext_stats_hits"]
+            .as_u64()
+            .unwrap_or_default()
+            - before_hits,
+        1
+    );
+    assert_eq!(
+        after_third["query_cache"]["fulltext_stats_misses"]
+            .as_u64()
+            .unwrap_or_default()
+            - before_misses,
+        2
+    );
 }
 
 fn register_adaptive_candidate_collection(cassie: &Cassie, collection: &str) {
@@ -305,7 +418,7 @@ fn should_record_vector_prefilter_candidate_counts() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "metrics_vector_prefilter_counts";
-        let schema = Schema {
+        register_collection_with_schema(&cassie, collection, &Schema {
             fields: vec![
                 FieldSchema {
                     name: "status".to_string(),
@@ -318,65 +431,36 @@ fn should_record_vector_prefilter_candidate_counts() {
                     nullable: true,
                 },
             ],
-        };
-
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-1".to_string()),
-                serde_json::json!({
-                    "status": "approved",
-                    "embedding": [1.0, 0.0],
-                }),
-            )
-            .unwrap();
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-2".to_string()),
-                serde_json::json!({
-                    "status": "approved",
-                    "embedding": [2.0, 0.0],
-                }),
-            )
-            .unwrap();
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-3".to_string()),
-                serde_json::json!({
-                    "status": "pending",
-                    "embedding": [3.0, 0.0],
-                }),
-            )
-            .unwrap();
+        });
+        insert_documents(
+            &cassie,
+            collection,
+            vec![
+                (
+                    "doc-1",
+                    serde_json::json!({
+                        "status": "approved",
+                        "embedding": [1.0, 0.0],
+                    }),
+                ),
+                (
+                    "doc-2",
+                    serde_json::json!({
+                        "status": "approved",
+                        "embedding": [2.0, 0.0],
+                    }),
+                ),
+                (
+                    "doc-3",
+                    serde_json::json!({
+                        "status": "pending",
+                        "embedding": [3.0, 0.0],
+                    }),
+                ),
+            ],
+        );
 
         let before = cassie.metrics();
-        let before_input = before["vector"]["prefilter_input_candidate_count_total"]
-            .as_u64()
-            .unwrap_or_default();
-        let before_filtered = before["vector"]["prefilter_filtered_candidate_count_total"]
-            .as_u64()
-            .unwrap_or_default();
-        let before_fallback = before["vector"]["prefilter_fallback_count_total"]
-            .as_u64()
-            .unwrap_or_default();
         let session = cassie.create_session("tester", None);
 
         // Act
@@ -391,27 +475,7 @@ fn should_record_vector_prefilter_candidate_counts() {
 
         // Assert
         assert_eq!(result.rows.len(), 1);
-        assert_eq!(
-            after["vector"]["prefilter_input_candidate_count_total"]
-                .as_u64()
-                .unwrap_or_default()
-                - before_input,
-            3
-        );
-        assert_eq!(
-            after["vector"]["prefilter_filtered_candidate_count_total"]
-                .as_u64()
-                .unwrap_or_default()
-                - before_filtered,
-            2
-        );
-        assert_eq!(
-            after["vector"]["prefilter_fallback_count_total"]
-                .as_u64()
-                .unwrap_or_default()
-                - before_fallback,
-            0
-        );
+        assert_prefilter_metrics(&before, &after);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -658,51 +722,23 @@ fn should_cache_fulltext_scoring_metadata_for_repeated_search_queries() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "metrics_fulltext_scoring_metadata_cache";
-        let schema = Schema {
+        register_collection_with_schema(&cassie, collection, &Schema {
             fields: vec![FieldSchema {
                 name: "body".to_string(),
                 data_type: DataType::Text,
                 nullable: true,
             }],
-        };
-
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-1".to_string()),
-                serde_json::json!({"body": "alpha bravo"}),
-            )
-            .unwrap();
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-2".to_string()),
-                serde_json::json!({"body": "alpha charlie"}),
-            )
-            .unwrap();
+        });
+        insert_documents(
+            &cassie,
+            collection,
+            vec![
+                ("doc-1", serde_json::json!({"body": "alpha bravo"})),
+                ("doc-2", serde_json::json!({"body": "alpha charlie"})),
+            ],
+        );
 
         let before = cassie.metrics();
-        let before_hits = before["query_cache"]["fulltext_stats_hits"]
-            .as_u64()
-            .unwrap_or_default();
-        let before_misses = before["query_cache"]["fulltext_stats_misses"]
-            .as_u64()
-            .unwrap_or_default();
         let session = cassie.create_session("tester", None);
 
         // Act
@@ -742,47 +778,11 @@ fn should_cache_fulltext_scoring_metadata_for_repeated_search_queries() {
         assert_eq!(first.rows.len(), 1);
         assert_eq!(second.rows.len(), 2);
         assert_eq!(third.rows.len(), 1);
-        assert_eq!(
-            after_first["query_cache"]["fulltext_stats_misses"]
-                .as_u64()
-                .unwrap_or_default()
-                - before_misses,
-            1
-        );
-        assert_eq!(
-            after_first["query_cache"]["fulltext_stats_hits"]
-                .as_u64()
-                .unwrap_or_default()
-                - before_hits,
-            0
-        );
-        assert_eq!(
-            after_second["query_cache"]["fulltext_stats_hits"]
-                .as_u64()
-                .unwrap_or_default()
-                - before_hits,
-            1
-        );
-        assert_eq!(
-            after_second["query_cache"]["fulltext_stats_misses"]
-                .as_u64()
-                .unwrap_or_default()
-                - before_misses,
-            1
-        );
-        assert_eq!(
-            after_third["query_cache"]["fulltext_stats_hits"]
-                .as_u64()
-                .unwrap_or_default()
-                - before_hits,
-            1
-        );
-        assert_eq!(
-            after_third["query_cache"]["fulltext_stats_misses"]
-                .as_u64()
-                .unwrap_or_default()
-                - before_misses,
-            2
+        assert_fulltext_scoring_cache_metrics(
+            &before,
+            &after_first,
+            &after_second,
+            &after_third,
         );
 
         let _ = std::fs::remove_dir_all(path);

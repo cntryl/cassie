@@ -180,7 +180,7 @@ fn collect_pgadmin_catalog_rows(cassie: &Cassie, session: &CassieSession) -> PgA
         defaults: query_rows(
             cassie,
             session,
-            "SELECT pg_catalog.pg_get_expr(adsrc, adrelid) FROM pg_catalog.pg_attrdef WHERE adrelid = 'catalog_pgadmin_docs' ORDER BY adnum",
+            "SELECT adsrc FROM pg_catalog.pg_attrdef WHERE adrelid = 'catalog_pgadmin_docs' ORDER BY adnum",
         ),
         indexes: query_rows(
             cassie,

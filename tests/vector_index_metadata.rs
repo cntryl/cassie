@@ -397,7 +397,7 @@ fn should_rebuild_missing_normalized_sidecars_on_restart() {
         assert!(rebuilt.payload_available);
         assert_eq!(rebuilt.normalization_version, 1);
         assert_eq!(rebuilt.values, vec![0.6, 0.8, 0.0]);
-        assert_eq!(rebuilt.magnitude, 5.0);
+        assert!((rebuilt.magnitude - 5.0).abs() < f64::EPSILON);
     });
 
     let _ = std::fs::remove_dir_all(path_for_cleanup);

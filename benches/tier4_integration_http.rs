@@ -13,10 +13,10 @@ fn bench_http(c: &mut Criterion) {
     const BENCHMARK: &str = "tier4_integration_http";
 
     let runtime = workloads::runtime();
-    let ctx_10k = runtime
+    let standard_context = runtime
         .block_on(workloads::unindexed_context("tier4-http", 10_000))
         .expect("benchmark context");
-    let ctx_100k = runtime
+    let large_fixture_context = runtime
         .block_on(workloads::unindexed_context("tier4-http-100k", 100_000))
         .expect("100k benchmark context");
     let vector_ctx = runtime
@@ -30,7 +30,7 @@ fn bench_http(c: &mut Criterion) {
     group.sampling_mode(SamplingMode::Flat);
     group.throughput(Throughput::Elements(1));
 
-    for (dataset, ctx) in [("10k", &ctx_10k), ("100k", &ctx_100k)] {
+    for (dataset, context) in [("10k", &standard_context), ("100k", &large_fixture_context)] {
         let benchmark = performance_benchmarks::expect_benchmark(
             BENCHMARK,
             "http_document_create_get",
@@ -43,7 +43,7 @@ fn bench_http(c: &mut Criterion) {
                     let mut elapsed = std::time::Duration::ZERO;
                     for _ in 0..iterations {
                         elapsed += runtime
-                            .block_on(workloads::timed_http_document_create_get_batch(ctx, 64));
+                            .block_on(workloads::timed_http_document_create_get_batch(context, 64));
                     }
                     elapsed
                 });
@@ -54,7 +54,7 @@ fn bench_http(c: &mut Criterion) {
         b.iter(|| runtime.block_on(workloads::http_vector_search(&vector_ctx)));
     });
     group.bench_function(BenchmarkId::new("http_large_result_set", "512_rows"), |b| {
-        b.iter(|| runtime.block_on(workloads::http_large_result_json(&ctx_10k)));
+        b.iter(|| runtime.block_on(workloads::http_large_result_json(&standard_context)));
     });
     group.bench_function(
         BenchmarkId::new("json_serialization_overhead", "512_rows"),
@@ -62,7 +62,12 @@ fn bench_http(c: &mut Criterion) {
     );
     group.throughput(Throughput::Elements(8));
     group.bench_function(BenchmarkId::new("http_concurrent_requests", "8x10k"), |b| {
-        b.iter(|| runtime.block_on(workloads::http_concurrent_document_gets(&ctx_10k, 8)));
+        b.iter(|| {
+            runtime.block_on(workloads::http_concurrent_document_gets(
+                &standard_context,
+                8,
+            ))
+        });
     });
 
     group.finish();

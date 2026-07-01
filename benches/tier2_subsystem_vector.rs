@@ -13,10 +13,10 @@ fn bench_vector(c: &mut Criterion) {
     const BENCHMARK: &str = "tier2_subsystem_vector";
 
     let runtime = workloads::runtime();
-    let ctx_10k = runtime
+    let standard_context = runtime
         .block_on(workloads::unindexed_context("tier2-vector", 10_000))
         .expect("benchmark context");
-    let ctx_100k = runtime
+    let large_fixture_context = runtime
         .block_on(workloads::unindexed_context("tier2-vector-100k", 100_000))
         .expect("100k benchmark context");
 
@@ -24,7 +24,7 @@ fn bench_vector(c: &mut Criterion) {
     group.sampling_mode(SamplingMode::Flat);
     group.throughput(Throughput::Elements(1));
 
-    for (dataset, ctx) in [("10k", &ctx_10k), ("100k", &ctx_100k)] {
+    for (dataset, context) in [("10k", &standard_context), ("100k", &large_fixture_context)] {
         let benchmark =
             performance_benchmarks::expect_benchmark(BENCHMARK, "vector_executor", dataset);
         group.bench_function(
@@ -32,7 +32,7 @@ fn bench_vector(c: &mut Criterion) {
             |b| {
                 b.iter(|| {
                     runtime.block_on(workloads::execute_sql(
-                        ctx,
+                        context,
                         "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20",
                     ))
                 });

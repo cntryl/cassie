@@ -20,6 +20,122 @@ struct OrmMetadataRows {
     indexes: Vec<Vec<Value>>,
 }
 
+fn assert_orm_columns(rows: &OrmMetadataRows) {
+    assert_eq!(
+        rows.columns,
+        vec![
+            vec![
+                Value::String("id".to_string()),
+                Value::Int64(1),
+                Value::String("NO".to_string()),
+                Value::String("int".to_string()),
+                Value::String("int4".to_string()),
+                Value::String("7".to_string()),
+                Value::Null,
+                Value::Int64(32),
+                Value::Int64(0),
+                Value::Null,
+            ],
+            vec![
+                Value::String("code".to_string()),
+                Value::Int64(2),
+                Value::String("NO".to_string()),
+                Value::String("varchar(16)".to_string()),
+                Value::String("varchar".to_string()),
+                Value::Null,
+                Value::Int64(16),
+                Value::Null,
+                Value::Null,
+                Value::Null,
+            ],
+            vec![
+                Value::String("label".to_string()),
+                Value::Int64(3),
+                Value::String("YES".to_string()),
+                Value::String("text".to_string()),
+                Value::String("text".to_string()),
+                Value::String("'new'".to_string()),
+                Value::Null,
+                Value::Null,
+                Value::Null,
+                Value::Null,
+            ],
+        ]
+    );
+}
+
+fn assert_orm_attributes(rows: &OrmMetadataRows) {
+    assert_eq!(
+        rows.attributes,
+        vec![
+            vec![
+                Value::String("id".to_string()),
+                Value::Int64(1),
+                Value::Int64(23),
+                Value::Bool(true),
+                Value::Int64(-1),
+                Value::Bool(true),
+            ],
+            vec![
+                Value::String("code".to_string()),
+                Value::Int64(2),
+                Value::Int64(1043),
+                Value::Bool(true),
+                Value::Int64(20),
+                Value::Bool(false),
+            ],
+            vec![
+                Value::String("label".to_string()),
+                Value::Int64(3),
+                Value::Int64(25),
+                Value::Bool(false),
+                Value::Int64(-1),
+                Value::Bool(true),
+            ],
+        ]
+    );
+}
+
+fn assert_orm_defaults(rows: &OrmMetadataRows) {
+    assert_eq!(
+        rows.defaults,
+        vec![
+            vec![
+                Value::String("catalog_orm_parents".to_string()),
+                Value::Int64(1),
+                Value::String("7".to_string()),
+            ],
+            vec![
+                Value::String("catalog_orm_parents".to_string()),
+                Value::Int64(3),
+                Value::String("'new'".to_string()),
+            ],
+        ]
+    );
+}
+
+fn assert_orm_indexes(rows: &OrmMetadataRows) {
+    assert_eq!(
+        rows.indexes,
+        vec![
+            vec![
+                Value::String("catalog_orm_children_parent_idx".to_string()),
+                Value::String("catalog_orm_children".to_string()),
+                Value::Bool(false),
+                Value::Bool(false),
+                Value::String("2".to_string()),
+            ],
+            vec![
+                Value::String("catalog_orm_children_pkey".to_string()),
+                Value::String("catalog_orm_children".to_string()),
+                Value::Bool(true),
+                Value::Bool(true),
+                Value::String("1".to_string()),
+            ],
+        ]
+    );
+}
+
 fn apply_orm_metadata_fixture(cassie: &Cassie) {
     let session = cassie.create_session("tester", None);
     for sql in [
@@ -72,111 +188,11 @@ fn collect_orm_metadata_rows(cassie: &Cassie) -> OrmMetadataRows {
     }
 }
 
-fn assert_orm_metadata_rows(rows: OrmMetadataRows) {
-    assert_eq!(
-        rows.columns,
-        vec![
-            vec![
-                Value::String("id".to_string()),
-                Value::Int64(1),
-                Value::String("NO".to_string()),
-                Value::String("int".to_string()),
-                Value::String("int4".to_string()),
-                Value::String("7".to_string()),
-                Value::Null,
-                Value::Int64(32),
-                Value::Int64(0),
-                Value::Null,
-            ],
-            vec![
-                Value::String("code".to_string()),
-                Value::Int64(2),
-                Value::String("NO".to_string()),
-                Value::String("varchar(16)".to_string()),
-                Value::String("varchar".to_string()),
-                Value::Null,
-                Value::Int64(16),
-                Value::Null,
-                Value::Null,
-                Value::Null,
-            ],
-            vec![
-                Value::String("label".to_string()),
-                Value::Int64(3),
-                Value::String("YES".to_string()),
-                Value::String("text".to_string()),
-                Value::String("text".to_string()),
-                Value::String("'new'".to_string()),
-                Value::Null,
-                Value::Null,
-                Value::Null,
-                Value::Null,
-            ],
-        ]
-    );
-    assert_eq!(
-        rows.attributes,
-        vec![
-            vec![
-                Value::String("id".to_string()),
-                Value::Int64(1),
-                Value::Int64(23),
-                Value::Bool(true),
-                Value::Int64(-1),
-                Value::Bool(true),
-            ],
-            vec![
-                Value::String("code".to_string()),
-                Value::Int64(2),
-                Value::Int64(1043),
-                Value::Bool(true),
-                Value::Int64(20),
-                Value::Bool(false),
-            ],
-            vec![
-                Value::String("label".to_string()),
-                Value::Int64(3),
-                Value::Int64(25),
-                Value::Bool(false),
-                Value::Int64(-1),
-                Value::Bool(true),
-            ],
-        ]
-    );
-    assert_eq!(
-        rows.defaults,
-        vec![
-            vec![
-                Value::String("catalog_orm_parents".to_string()),
-                Value::Int64(1),
-                Value::String("7".to_string()),
-            ],
-            vec![
-                Value::String("catalog_orm_parents".to_string()),
-                Value::Int64(3),
-                Value::String("'new'".to_string()),
-            ],
-        ]
-    );
-    assert_eq!(
-        rows.indexes,
-        vec![
-            vec![
-                Value::String("catalog_orm_children_parent_idx".to_string()),
-                Value::String("catalog_orm_children".to_string()),
-                Value::Bool(false),
-                Value::Bool(false),
-                Value::String("2".to_string()),
-            ],
-            vec![
-                Value::String("catalog_orm_children_pkey".to_string()),
-                Value::String("catalog_orm_children".to_string()),
-                Value::Bool(true),
-                Value::Bool(true),
-                Value::String("1".to_string()),
-            ],
-        ]
-    );
+fn assert_orm_metadata_rows(rows: &OrmMetadataRows) {
+    assert_orm_columns(rows);
+    assert_orm_attributes(rows);
+    assert_orm_defaults(rows);
+    assert_orm_indexes(rows);
 }
 
 #[test]
@@ -198,7 +214,7 @@ fn should_expose_orm_introspection_metadata_through_catalog_views() {
         let rows = collect_orm_metadata_rows(&cassie);
 
         // Assert
-        assert_orm_metadata_rows(rows);
+        assert_orm_metadata_rows(&rows);
 
         let _ = std::fs::remove_dir_all(path);
     });

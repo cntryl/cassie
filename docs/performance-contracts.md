@@ -133,7 +133,7 @@ Current boundary ownership:
 | Sync entrypoint | Async owner | Sync owner | Blocking owner | Required boundary name | Forbidden direct behavior |
 | --- | --- | --- | --- | --- | --- |
 | pgwire listener accept | `src/pgwire/server.rs` | transport parse/write only | socket tasks | `run` / `run_with_shutdown` | blocking IO work in accept loop |
-| pgwire startup + protocol | `src/pgwire/connection.rs` | `run_connection` | query auth/parse/execute modules | `pgwire_auth`, `pgwire_simple_query`, `pgwire_describe`, `pgwire_execute` | inline `authenticate_role`, `execute_sql`, `describe_parsed_statement`, `execute_preparsed_statement_with_mode` |
+| pgwire startup + protocol | `src/pgwire/connection.rs`, `src/pgwire/connection/*` | `run_connection` | query auth/parse/execute modules | `pgwire_auth`, `pgwire_simple_query`, `pgwire_describe`, `pgwire_extended_query`, `pgwire_copy_parse`, `pgwire_copy_from_stdin` | inline `authenticate_role`, `execute_sql`, `describe_parsed_statement`, `execute_parsed_sql_with_mode`, `copy_from_csv_stdin` |
 | REST listener accept | `src/rest/router.rs` | `run_with_shutdown`, `route` | HTTP body handling | `run` / `run_with_shutdown` | blocking accept handler loops |
 | REST public/admin routes | `src/rest/router.rs` | routing + body collection | route handlers in `run_rest_blocking` | `rest_route`, `rest_embedding_search`, `rest_auth` | inline `collections`, `documents`, `indexes`, `search`, manifest export, manifest comparison, auth/lookup calls |
 | Shutdown paths | `src/main.rs`, `src/pgwire/server.rs`, `src/rest/router.rs` | signal/shutdown listeners | runtime notification and task finish | `pgwire/shutdown`, `rest/shutdown` | unbounded task abandonment on signal |
@@ -142,7 +142,7 @@ Current boundary ownership:
 
 Validation is owned by the same transport slice:
 
-- pgwire boundary behavior: `tests/pgwire_simple_query.rs`, `tests/pgwire_extended_prepared.rs`, `tests/pgwire_startup.rs`, `tests/metrics_runtime.rs`.
+- pgwire boundary behavior: `tests/pgwire_simple_query.rs`, `tests/pgwire_extended_prepared.rs`, `tests/pgwire_extended_execution.rs`, `tests/pgwire_extended_control.rs`, `tests/pgwire_extended_lifecycle.rs`, `tests/pgwire_startup.rs`, `tests/compatibility_matrix.rs`, `tests/metrics_runtime.rs`.
 - REST boundary behavior: `tests/rest.rs`, `tests/rest_embeddings.rs`, `tests/rest_metrics.rs`, and `tests/metrics_runtime.rs`.
 - static/diff audit: `tests/transport_boundaries.rs` contains a focused scriptable check that verifies transport modules do not call synchronous engine/auth/search/storage APIs directly outside approved blocking helpers.
 

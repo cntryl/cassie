@@ -23,9 +23,9 @@ The current engineering backlog is cleanup-first. New feature work should not st
 
 | Priority | Backlog Item | Status | Why it blocks feature work |
 | --- | --- | --- | --- |
-| P0 | Drive repo-wide `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` to zero | In progress | Pedantic findings are treated as defects in owned code; they currently obscure regressions and make routine validation non-authoritative. |
-| P0 | Restore deterministic repo-wide test execution so `cargo test --locked` completes or fails without hangs | In progress | A hanging suite prevents confident refactors and makes cleanup slices slower to verify. |
-| P0 | Repair pgwire compatibility drift between documented extended-query support and the current implementation | In progress | The repo currently documents prepared and extended-query support, but current pgwire behavior fails those paths and recently exposed a spin-loop hang. |
+| P0 | Drive repo-wide `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` to zero | Implemented baseline | Repo-wide pedantic validation is part of the required completion loop; new findings are treated as defects before feature work continues. |
+| P0 | Restore deterministic repo-wide test execution so `cargo test --locked` completes or fails without hangs | Implemented baseline | Full-suite validation is expected to complete; new hangs are treated as blocking regressions. |
+| P0 | Repair pgwire compatibility drift between documented extended-query support and the current implementation | Implemented | Extended-query parse, bind, describe, execute, close, sync, flush, prepared-statement, and portal lifecycle paths now have pgwire and `tokio-postgres` coverage. |
 | P1 | Reduce architecture drift in oversized orchestration modules and compatibility shims before adding behavior | In progress | Large cross-cutting files and drifted boundaries increase refactor risk, hide ownership, and make pedantic cleanup more expensive. |
 | P1 | Reconcile docs, tests, and implementation whenever compatibility claims are narrower than the code or broader than actual behavior | In progress | Cleanup must leave explicit contracts, not stale claims that silently regress under new work. |
 

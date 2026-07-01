@@ -65,11 +65,12 @@ Supported:
 
 - Startup and authentication.
 - Simple query flow.
-- Extended query flow: parse, bind, describe, execute, sync, and close.
+- Extended query flow: parse, bind, describe, execute, sync, flush, and close.
 - Prepared statements and portals.
 - Statement descriptions include parameter metadata for explicit type OIDs and supported inferred CRUD parameters.
 - Row descriptions are covered for prepared SELECT plus INSERT/UPDATE/DELETE RETURNING flows.
 - Named and unnamed statement/portal lifecycle reuse is covered by pgwire tests.
+- Positive extended-query execute row limits can suspend portals and emit portal-suspended frames; `max_rows = 0` executes all remaining rows.
 - Extended-query protocol errors enter sync-drain mode and return deterministic PostgreSQL-style error fields before ReadyForQuery.
 - Row description, data row, command complete, error response, and ready-for-query messages.
 - Text and binary format paths covered by tests.
@@ -78,6 +79,7 @@ Unsupported or not yet guaranteed:
 
 - Full PostgreSQL backend protocol parity.
 - Every optional message type or server parameter exposed by PostgreSQL.
+- Function-call protocol messages and stray CopyData/CopyDone/CopyFail messages outside Cassie's supported COPY FROM STDIN flow.
 - Exhaustive SQLSTATE parity.
 
 Intentional differences:

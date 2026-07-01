@@ -18,7 +18,8 @@ Cassie keeps module boundaries small so feature work can be reviewed and tested 
 - `execution/dispatch.rs`: logical-plan dispatch and ordered access-path registry.
 - `execution/cte.rs`: CTE context, recursive CTE execution, and CTE row bookkeeping.
 - `execution/result.rs`: SELECT result assembly, row signatures, value comparison, and result helper utilities.
-- `execution/dml_command.rs`: SQL command and DDL execution.
+- `execution/dml_command.rs`: logical command dispatch, DML command orchestration, routine command execution, and write side effects.
+- `execution/schema_command.rs`: schema, table, view, role, graph, and index DDL execution.
 - `execution/dml.rs`: insert, update, and delete row mutations.
 - `execution/source.rs`: sources, joins, set operations, distinct, and slicing.
 - `execution/scored.rs`: full-text, hybrid, and vector top-k paths.

@@ -49,3 +49,27 @@ fn should_use_focused_facades_for_central_subsystems() {
         "central subsystem focused modules are missing: {missing_modules:?}"
     );
 }
+
+#[test]
+fn should_keep_command_dispatch_split_from_schema_command_details() {
+    // Arrange
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let dml_command = repo.join("src/executor/execution/dml_command.rs");
+    let schema_command = repo.join("src/executor/execution/schema_command.rs");
+
+    // Act
+    let dml_command_lines = std::fs::read_to_string(&dml_command)
+        .expect("read dml command module")
+        .lines()
+        .count();
+
+    // Assert
+    assert!(
+        schema_command.exists(),
+        "schema DDL execution should live in a focused schema_command module"
+    );
+    assert!(
+        dml_command_lines < 1_000,
+        "dml_command.rs should stay below 1,000 lines after schema command extraction; found {dml_command_lines}"
+    );
+}

@@ -82,6 +82,7 @@ mod projection_diff;
 mod projection_repair;
 mod retention;
 mod rollups;
+mod schema_command;
 mod sequence_command;
 mod session_command;
 mod vector_index_command;

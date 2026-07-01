@@ -251,7 +251,7 @@ fn should_parse_criterion_sample_percentiles() {
     assert_eq!(summary.p50_us, 2);
     assert_eq!(summary.p95_us, 3);
     assert_eq!(summary.p99_us, 3);
-    assert_eq!(summary.throughput_ops_per_sec, 500_000.0);
+    assert!((summary.throughput_ops_per_sec - 500_000.0).abs() < f64::EPSILON);
 }
 
 #[test]

@@ -174,7 +174,7 @@ fn sync_frame() -> Vec<u8> {
 }
 
 async fn read_wire_frame(
-    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut tokio::io::BufReader<impl tokio::io::AsyncRead + Unpin>,
 ) -> (u8, Vec<u8>) {
     let mut tag = [0u8; 1];
     tokio::io::AsyncReadExt::read_exact(reader, &mut tag)
@@ -197,7 +197,7 @@ async fn read_wire_frame(
 }
 
 async fn read_until_ready(
-    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut tokio::io::BufReader<impl tokio::io::AsyncRead + Unpin>,
 ) -> Vec<u8> {
     loop {
         let frame = read_wire_frame(reader).await;
@@ -305,6 +305,153 @@ fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
     fields
 }
 
+fn score_schema() -> Schema {
+    Schema {
+        fields: vec![FieldSchema {
+            name: "score".to_string(),
+            data_type: DataType::Int,
+            nullable: true,
+        }],
+    }
+}
+
+fn seed_score_collection(cassie: &Cassie, collection: &str) {
+    let schema = score_schema();
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .unwrap();
+    cassie.register_collection(collection, schema);
+    for (id, score) in [("doc-1", 1), ("doc-2", 2)] {
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some(id.to_string()),
+                serde_json::json!({"score": score}),
+            )
+            .unwrap();
+    }
+}
+
+async fn spawn_pgwire_server(
+    cassie: &Cassie,
+) -> (
+    std::net::SocketAddr,
+    tokio::task::JoinHandle<Result<(), cassie::CassieError>>,
+) {
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.password.clear();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind listener");
+    let addr = listener.local_addr().expect("listener address");
+    drop(listener);
+
+    let server = tokio::spawn(cassie::pgwire::server::run(
+        addr.to_string(),
+        std::sync::Arc::new(cassie.clone()),
+        config,
+    ));
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    (addr, server)
+}
+
+async fn connect_authenticated_pgwire(
+    addr: std::net::SocketAddr,
+) -> (
+    tokio::io::BufReader<tokio::net::tcp::OwnedReadHalf>,
+    tokio::net::tcp::OwnedWriteHalf,
+) {
+    let socket = tokio::net::TcpStream::connect(addr)
+        .await
+        .expect("connect pgwire");
+    let (read_half, mut write_half) = socket.into_split();
+    let mut reader = tokio::io::BufReader::new(read_half);
+    tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
+        .await
+        .expect("write startup");
+    let auth = read_wire_frame(&mut reader).await;
+    assert_eq!(auth.0, b'R', "startup should return an auth response");
+    let startup_ready = read_until_ready(&mut reader).await;
+    assert_eq!(startup_ready, vec![b'I']);
+    (reader, write_half)
+}
+
+async fn execute_reused_statement(
+    writer: &mut tokio::net::tcp::OwnedWriteHalf,
+    statement_name: &str,
+    sql: &str,
+    portals: [(&str, &str); 2],
+) {
+    tokio::io::AsyncWriteExt::write_all(writer, &parse_frame(statement_name, sql))
+        .await
+        .expect("write parse");
+    for (portal_name, param) in portals {
+        tokio::io::AsyncWriteExt::write_all(
+            writer,
+            &bind_frame(portal_name, statement_name, &[param]),
+        )
+        .await
+        .expect("write bind");
+        tokio::io::AsyncWriteExt::write_all(writer, &execute_frame(portal_name))
+            .await
+            .expect("write execute");
+    }
+    tokio::io::AsyncWriteExt::write_all(writer, &sync_frame())
+        .await
+        .expect("write sync");
+    tokio::io::AsyncWriteExt::flush(writer)
+        .await
+        .expect("flush frames");
+}
+
+async fn read_frames_until_ready(
+    reader: &mut tokio::io::BufReader<tokio::net::tcp::OwnedReadHalf>,
+) -> Vec<(u8, Vec<u8>)> {
+    let mut frames = Vec::new();
+    loop {
+        let frame = read_wire_frame(reader).await;
+        let tag = frame.0;
+        frames.push(frame);
+        if tag == b'Z' {
+            return frames;
+        }
+    }
+}
+
+fn assert_reused_statement_frames(frames: &[(u8, Vec<u8>)]) {
+    assert_eq!(
+        frames.len(),
+        10,
+        "reused prepared statements should return ten frames"
+    );
+    assert_eq!(frames[0].0, b'1', "parse should complete first");
+    assert_eq!(frames[1].0, b'2', "first bind should complete");
+    assert_eq!(frames[2].0, b'T', "first execute should describe rows");
+    assert_eq!(frames[3].0, b'D', "first execute should return a data row");
+    assert_eq!(
+        frames[4].0, b'C',
+        "first execute should finish with command complete"
+    );
+    assert_eq!(
+        frames[5].0, b'2',
+        "second bind should reuse the prepared statement"
+    );
+    assert_eq!(frames[6].0, b'T', "second execute should describe rows");
+    assert_eq!(frames[7].0, b'D', "second execute should return a data row");
+    assert_eq!(
+        frames[8].0, b'C',
+        "second execute should finish with command complete"
+    );
+    assert_eq!(frames[9].0, b'Z', "sync should finish with ready-for-query");
+}
+
+async fn shutdown_pgwire_server(server: tokio::task::JoinHandle<Result<(), cassie::CassieError>>) {
+    server.abort();
+    let _ = server.await;
+}
+
 #[test]
 fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
     // Arrange
@@ -318,145 +465,29 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
-
-        let collection = "extended_query_numbers";
-        let schema = Schema {
-            fields: vec![FieldSchema {
-                name: "score".to_string(),
-                data_type: DataType::Int,
-                nullable: true,
-            }],
-        };
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie.register_collection(collection, schema);
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-1".to_string()),
-                serde_json::json!({"score": 1}),
-            )
-            .unwrap();
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-2".to_string()),
-                serde_json::json!({"score": 2}),
-            )
-            .unwrap();
-
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind listener");
-        let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
-            std::sync::Arc::new(cassie.clone()),
-            config,
-        ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        let mut socket = tokio::net::TcpStream::connect(addr)
-            .await
-            .expect("connect pgwire");
-        let (read_half, mut write_half) = socket.split();
-        let mut reader = tokio::io::BufReader::new(read_half);
+        seed_score_collection(&cassie, "extended_query_numbers");
+        let (addr, server) = spawn_pgwire_server(&cassie).await;
+        let (mut reader, mut write_half) = connect_authenticated_pgwire(addr).await;
 
         // Act
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
-            .await
-            .expect("write startup");
-        let auth = read_wire_frame(&mut reader).await;
-        assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_until_ready(&mut reader).await;
-        assert_eq!(startup_ready, vec![b'I']);
-
-        tokio::io::AsyncWriteExt::write_all(
+        execute_reused_statement(
             &mut write_half,
-            &parse_frame(
-                "stmt_extended_reuse",
-                "SELECT score FROM extended_query_numbers WHERE score = $1 ORDER BY score",
-            ),
+            "stmt_extended_reuse",
+            "SELECT score FROM extended_query_numbers WHERE score = $1 ORDER BY score",
+            [("portal_one", "1"), ("portal_two", "2")],
         )
-        .await
-        .expect("write parse");
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &bind_frame("portal_one", "stmt_extended_reuse", &["1"]),
-        )
-        .await
-        .expect("write first bind");
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &execute_frame("portal_one"))
-            .await
-            .expect("write first execute");
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &bind_frame("portal_two", "stmt_extended_reuse", &["2"]),
-        )
-        .await
-        .expect("write second bind");
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &execute_frame("portal_two"))
-            .await
-            .expect("write second execute");
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &sync_frame())
-            .await
-            .expect("write sync");
-        tokio::io::AsyncWriteExt::flush(&mut write_half)
-            .await
-            .expect("flush frames");
-
-        let mut frames = Vec::new();
-        loop {
-            let frame = read_wire_frame(&mut reader).await;
-            let tag = frame.0;
-            frames.push(frame);
-            if tag == b'Z' {
-                break;
-            }
-        }
+        .await;
+        let frames = read_frames_until_ready(&mut reader).await;
 
         // Assert
-        assert_eq!(
-            frames.len(),
-            10,
-            "reused prepared statements should return ten frames"
-        );
-        assert_eq!(frames[0].0, b'1', "parse should complete first");
-        assert_eq!(frames[1].0, b'2', "first bind should complete");
-        assert_eq!(frames[2].0, b'T', "first execute should describe rows");
-        assert_eq!(frames[3].0, b'D', "first execute should return a data row");
-        assert_eq!(
-            frames[4].0, b'C',
-            "first execute should finish with command complete"
-        );
-        assert_eq!(
-            frames[5].0, b'2',
-            "second bind should reuse the prepared statement"
-        );
-        assert_eq!(frames[6].0, b'T', "second execute should describe rows");
-        assert_eq!(frames[7].0, b'D', "second execute should return a data row");
-        assert_eq!(
-            frames[8].0, b'C',
-            "second execute should finish with command complete"
-        );
-        assert_eq!(frames[9].0, b'Z', "sync should finish with ready-for-query");
-
+        assert_reused_statement_frames(&frames);
         let first_values = parse_data_row(&frames[3].1);
         let second_values = parse_data_row(&frames[7].1);
         assert_eq!(first_values, vec![Some("1".to_string())]);
         assert_eq!(second_values, vec![Some("2".to_string())]);
 
-        drop(socket);
-        server.abort();
-        let _ = server.await;
+        drop(write_half);
+        shutdown_pgwire_server(server).await;
         let _ = std::fs::remove_dir_all(path);
     });
 }
@@ -474,113 +505,22 @@ fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
-
-        let collection = "extended_query_parse_once";
-        let schema = Schema {
-            fields: vec![FieldSchema {
-                name: "score".to_string(),
-                data_type: DataType::Int,
-                nullable: true,
-            }],
-        };
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie.register_collection(collection, schema);
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-1".to_string()),
-                serde_json::json!({"score": 1}),
-            )
-            .unwrap();
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-2".to_string()),
-                serde_json::json!({"score": 2}),
-            )
-            .unwrap();
-
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind listener");
-        let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
-            std::sync::Arc::new(cassie.clone()),
-            config,
-        ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        let mut socket = tokio::net::TcpStream::connect(addr)
-            .await
-            .expect("connect pgwire");
-        let (read_half, mut write_half) = socket.split();
-        let mut reader = tokio::io::BufReader::new(read_half);
+        seed_score_collection(&cassie, "extended_query_parse_once");
+        let (addr, server) = spawn_pgwire_server(&cassie).await;
+        let (mut reader, mut write_half) = connect_authenticated_pgwire(addr).await;
 
         // Act
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
-            .await
-            .expect("write startup");
-        let auth = read_wire_frame(&mut reader).await;
-        assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_until_ready(&mut reader).await;
-        assert_eq!(startup_ready, vec![b'I']);
-
-        tokio::io::AsyncWriteExt::write_all(
+        execute_reused_statement(
             &mut write_half,
-            &parse_frame(
-                "stmt_extended_parse_once",
-                "SELECT score FROM extended_query_parse_once WHERE score = $1 ORDER BY score",
-            ),
+            "stmt_extended_parse_once",
+            "SELECT score FROM extended_query_parse_once WHERE score = $1 ORDER BY score",
+            [
+                ("portal_parse_once_one", "1"),
+                ("portal_parse_once_two", "2"),
+            ],
         )
-        .await
-        .expect("write parse");
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &bind_frame("portal_parse_once_one", "stmt_extended_parse_once", &["1"]),
-        )
-        .await
-        .expect("write first bind");
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &execute_frame("portal_parse_once_one"),
-        )
-        .await
-        .expect("write first execute");
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &bind_frame("portal_parse_once_two", "stmt_extended_parse_once", &["2"]),
-        )
-        .await
-        .expect("write second bind");
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &execute_frame("portal_parse_once_two"),
-        )
-        .await
-        .expect("write second execute");
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &sync_frame())
-            .await
-            .expect("write sync");
-        tokio::io::AsyncWriteExt::flush(&mut write_half)
-            .await
-            .expect("flush frames");
-
-        loop {
-            let frame = read_wire_frame(&mut reader).await;
-            if frame.0 == b'Z' {
-                break;
-            }
-        }
+        .await;
+        let _ = read_frames_until_ready(&mut reader).await;
         let metrics = cassie.metrics();
 
         // Assert
@@ -588,9 +528,8 @@ fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
         assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(1));
         assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(1));
 
-        drop(socket);
-        server.abort();
-        let _ = server.await;
+        drop(write_half);
+        shutdown_pgwire_server(server).await;
         let _ = std::fs::remove_dir_all(path);
     });
 }

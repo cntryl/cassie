@@ -13,10 +13,10 @@ fn bench_hybrid(c: &mut Criterion) {
     const BENCHMARK: &str = "tier2_subsystem_hybrid";
 
     let runtime = workloads::runtime();
-    let ctx_10k = runtime
+    let standard_context = runtime
         .block_on(workloads::context("tier2-hybrid", 10_000))
         .expect("benchmark context");
-    let ctx_100k = runtime
+    let large_fixture_context = runtime
         .block_on(workloads::context("tier2-hybrid-100k", 100_000))
         .expect("100k benchmark context");
 
@@ -24,7 +24,7 @@ fn bench_hybrid(c: &mut Criterion) {
     group.sampling_mode(SamplingMode::Flat);
     group.throughput(Throughput::Elements(1));
 
-    for (dataset, ctx) in [("10k", &ctx_10k), ("100k", &ctx_100k)] {
+    for (dataset, context) in [("10k", &standard_context), ("100k", &large_fixture_context)] {
         let benchmark =
             performance_benchmarks::expect_benchmark(BENCHMARK, "hybrid_executor", dataset);
         group.bench_function(
@@ -32,7 +32,7 @@ fn bench_hybrid(c: &mut Criterion) {
             |b| {
                 b.iter(|| {
                     runtime.block_on(workloads::execute_sql(
-                        ctx,
+                        context,
                         "SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0,0]')) AS score FROM bench_documents ORDER BY score DESC LIMIT 20",
                     ))
                 });

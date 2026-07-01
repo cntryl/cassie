@@ -104,7 +104,7 @@ fn should_use_hydrated_cardinality_estimates_for_index_plans() {
                 "scalar:planner_cardinality_hydrated_title_idx".to_string(),
                 cassie::catalog::IndexCardinalityStats { cardinality: 7 },
             )]),
-            fields: Default::default(),
+            fields: BTreeMap::default(),
         },
     );
     catalog.register_index(cassie::catalog::IndexMeta {
@@ -117,7 +117,7 @@ fn should_use_hydrated_cardinality_estimates_for_index_plans() {
         predicate: None,
         kind: cassie::catalog::IndexKind::Scalar,
         unique: false,
-        options: Default::default(),
+        options: BTreeMap::default(),
     });
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -243,7 +243,7 @@ fn should_choose_lower_cost_competing_scalar_index_from_stats() {
                     cassie::catalog::IndexCardinalityStats { cardinality: 5 },
                 ),
             ]),
-            fields: Default::default(),
+            fields: BTreeMap::default(),
         },
     );
     let runtime = tokio::runtime::Builder::new_current_thread()

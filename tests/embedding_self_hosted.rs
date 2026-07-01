@@ -15,7 +15,7 @@ struct MockResponse {
 }
 
 impl MockResponse {
-    fn ok(body: serde_json::Value) -> Self {
+    fn ok(body: &serde_json::Value) -> Self {
         Self {
             status: 200,
             body: body.to_string(),
@@ -23,7 +23,7 @@ impl MockResponse {
         }
     }
 
-    fn with_status(status: u16, body: serde_json::Value) -> Self {
+    fn with_status(status: u16, body: &serde_json::Value) -> Self {
         Self {
             status,
             body: body.to_string(),
@@ -31,7 +31,7 @@ impl MockResponse {
         }
     }
 
-    fn requiring_authorization(body: serde_json::Value, authorization: &str) -> Self {
+    fn requiring_authorization(body: &serde_json::Value, authorization: &str) -> Self {
         Self {
             status: 200,
             body: body.to_string(),
@@ -107,7 +107,7 @@ impl Drop for MockEmbeddingServer {
 #[test]
 fn should_embed_documents_with_tei_provider() {
     // Arrange
-    let server = MockEmbeddingServer::spawn(vec![MockResponse::ok(serde_json::json!([
+    let server = MockEmbeddingServer::spawn(vec![MockResponse::ok(&serde_json::json!([
         [0.1, 0.2, 0.3],
         [0.4, 0.5, 0.6]
     ]))]);
@@ -138,7 +138,7 @@ fn should_embed_documents_with_tei_provider() {
 #[test]
 fn should_embed_documents_with_openai_compatible_provider() {
     // Arrange
-    let server = MockEmbeddingServer::spawn(vec![MockResponse::ok(serde_json::json!({
+    let server = MockEmbeddingServer::spawn(vec![MockResponse::ok(&serde_json::json!({
             "data": [
                 {"index": 1, "embedding": [0.4, 0.5, 0.6]},
                 {"index": 0, "embedding": [0.1, 0.2, 0.3]}
@@ -173,7 +173,7 @@ fn should_embed_documents_with_openai_compatible_provider() {
 fn should_send_openai_compatible_authorization_header() {
     // Arrange
     let server = MockEmbeddingServer::spawn(vec![MockResponse::requiring_authorization(
-        serde_json::json!({
+        &serde_json::json!({
             "data": [
                 {"index": 0, "embedding": [0.1, 0.2, 0.3]}
             ]
@@ -204,8 +204,9 @@ fn should_send_openai_compatible_authorization_header() {
 #[test]
 fn should_embed_documents_inside_current_thread_runtime() {
     // Arrange
-    let server =
-        MockEmbeddingServer::spawn(vec![MockResponse::ok(serde_json::json!([[0.1, 0.2, 0.3]]))]);
+    let server = MockEmbeddingServer::spawn(vec![MockResponse::ok(&serde_json::json!([[
+        0.1, 0.2, 0.3
+    ]]))]);
     let provider = TeiProvider::with_config(TeiProviderConfig {
         base_url: server.base_url(),
         model: "BAAI/bge-small-en-v1.5".to_string(),
@@ -230,7 +231,7 @@ fn should_embed_documents_inside_current_thread_runtime() {
 #[test]
 fn should_embed_documents_with_ollama_provider() {
     // Arrange
-    let server = MockEmbeddingServer::spawn(vec![MockResponse::ok(serde_json::json!({
+    let server = MockEmbeddingServer::spawn(vec![MockResponse::ok(&serde_json::json!({
             "model": "nomic-embed-text",
             "embeddings": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
     }))]);
@@ -262,7 +263,7 @@ fn should_embed_documents_with_ollama_provider() {
 fn should_reject_self_hosted_embedding_dimension_mismatch() {
     // Arrange
     let server =
-        MockEmbeddingServer::spawn(vec![MockResponse::ok(serde_json::json!([[0.1, 0.2]]))]);
+        MockEmbeddingServer::spawn(vec![MockResponse::ok(&serde_json::json!([[0.1, 0.2]]))]);
     let provider = TeiProvider::with_config(TeiProviderConfig {
         base_url: server.base_url(),
         model: "BAAI/bge-small-en-v1.5".to_string(),
@@ -284,8 +285,9 @@ fn should_reject_self_hosted_embedding_dimension_mismatch() {
 #[test]
 fn should_reject_self_hosted_embedding_response_count_mismatch() {
     // Arrange
-    let server =
-        MockEmbeddingServer::spawn(vec![MockResponse::ok(serde_json::json!([[0.1, 0.2, 0.3]]))]);
+    let server = MockEmbeddingServer::spawn(vec![MockResponse::ok(&serde_json::json!([[
+        0.1, 0.2, 0.3
+    ]]))]);
     let provider = TeiProvider::with_config(TeiProviderConfig {
         base_url: server.base_url(),
         model: "BAAI/bge-small-en-v1.5".to_string(),
@@ -308,8 +310,8 @@ fn should_reject_self_hosted_embedding_response_count_mismatch() {
 fn should_retry_transient_self_hosted_embedding_failures() {
     // Arrange
     let server = MockEmbeddingServer::spawn(vec![
-        MockResponse::with_status(503, serde_json::json!({"error":"not ready"})),
-        MockResponse::ok(serde_json::json!([[0.1, 0.2, 0.3]])),
+        MockResponse::with_status(503, &serde_json::json!({"error":"not ready"})),
+        MockResponse::ok(&serde_json::json!([[0.1, 0.2, 0.3]])),
     ]);
     let provider = TeiProvider::with_config(TeiProviderConfig {
         base_url: server.base_url(),

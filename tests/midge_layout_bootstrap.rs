@@ -22,7 +22,7 @@ fn normalize_family_ids(layout: &StorageLayout) -> (u32, u32, u32) {
     (layout.schema.id(), layout.data.id(), layout.temp.id())
 }
 
-fn put_legacy_document(cassie: &Cassie, collection: &str, id: &str, payload: serde_json::Value) {
+fn put_legacy_document(cassie: &Cassie, collection: &str, id: &str, payload: &serde_json::Value) {
     let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
     tx.put(
         format!("doc:{collection}:{id}").into_bytes(),

@@ -108,7 +108,7 @@ fn scalar_cosine_components(query: &[f32], target: &[f32]) -> (f64, f64, f64) {
 
 #[cfg(target_arch = "x86_64")]
 unsafe fn dot_x86(query: &[f32], target: &[f32]) -> f64 {
-    use std::arch::x86_64::*;
+    use std::arch::x86_64::{_mm_add_ps, _mm_loadu_ps, _mm_mul_ps, _mm_setzero_ps, _mm_storeu_ps};
 
     let mut acc = _mm_setzero_ps();
     let mut index = 0usize;
@@ -121,9 +121,9 @@ unsafe fn dot_x86(query: &[f32], target: &[f32]) -> f64 {
 
     let mut lanes = [0f32; 4];
     _mm_storeu_ps(lanes.as_mut_ptr(), acc);
-    let mut sum = lanes.iter().map(|value| *value as f64).sum::<f64>();
+    let mut sum = lanes.iter().map(|value| f64::from(*value)).sum::<f64>();
     while index < query.len() {
-        sum += query[index] as f64 * target[index] as f64;
+        sum += f64::from(query[index]) * f64::from(target[index]);
         index += 1;
     }
 
@@ -132,7 +132,9 @@ unsafe fn dot_x86(query: &[f32], target: &[f32]) -> f64 {
 
 #[cfg(target_arch = "x86_64")]
 unsafe fn squared_l2_x86(query: &[f32], target: &[f32]) -> f64 {
-    use std::arch::x86_64::*;
+    use std::arch::x86_64::{
+        _mm_add_ps, _mm_loadu_ps, _mm_mul_ps, _mm_setzero_ps, _mm_storeu_ps, _mm_sub_ps,
+    };
 
     let mut acc = _mm_setzero_ps();
     let mut index = 0usize;
@@ -146,9 +148,9 @@ unsafe fn squared_l2_x86(query: &[f32], target: &[f32]) -> f64 {
 
     let mut lanes = [0f32; 4];
     _mm_storeu_ps(lanes.as_mut_ptr(), acc);
-    let mut sum = lanes.iter().map(|value| *value as f64).sum::<f64>();
+    let mut sum = lanes.iter().map(|value| f64::from(*value)).sum::<f64>();
     while index < query.len() {
-        let diff = query[index] as f64 - target[index] as f64;
+        let diff = f64::from(query[index]) - f64::from(target[index]);
         sum += diff * diff;
         index += 1;
     }
@@ -158,7 +160,7 @@ unsafe fn squared_l2_x86(query: &[f32], target: &[f32]) -> f64 {
 
 #[cfg(target_arch = "x86_64")]
 unsafe fn cosine_components_x86(query: &[f32], target: &[f32]) -> (f64, f64, f64) {
-    use std::arch::x86_64::*;
+    use std::arch::x86_64::{_mm_add_ps, _mm_loadu_ps, _mm_mul_ps, _mm_setzero_ps, _mm_storeu_ps};
 
     let mut dot_acc = _mm_setzero_ps();
     let mut qnorm_acc = _mm_setzero_ps();
@@ -179,13 +181,19 @@ unsafe fn cosine_components_x86(query: &[f32], target: &[f32]) -> (f64, f64, f64
     _mm_storeu_ps(dot_lanes.as_mut_ptr(), dot_acc);
     _mm_storeu_ps(qnorm_lanes.as_mut_ptr(), qnorm_acc);
     _mm_storeu_ps(tnorm_lanes.as_mut_ptr(), tnorm_acc);
-    let mut dot = dot_lanes.iter().map(|value| *value as f64).sum::<f64>();
-    let mut qnorm = qnorm_lanes.iter().map(|value| *value as f64).sum::<f64>();
-    let mut tnorm = tnorm_lanes.iter().map(|value| *value as f64).sum::<f64>();
+    let mut dot = dot_lanes.iter().map(|value| f64::from(*value)).sum::<f64>();
+    let mut qnorm = qnorm_lanes
+        .iter()
+        .map(|value| f64::from(*value))
+        .sum::<f64>();
+    let mut tnorm = tnorm_lanes
+        .iter()
+        .map(|value| f64::from(*value))
+        .sum::<f64>();
 
     while index < query.len() {
-        let qv = query[index] as f64;
-        let tv = target[index] as f64;
+        let qv = f64::from(query[index]);
+        let tv = f64::from(target[index]);
         dot += qv * tv;
         qnorm += qv * qv;
         tnorm += tv * tv;

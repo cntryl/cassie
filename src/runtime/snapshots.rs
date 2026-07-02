@@ -173,6 +173,7 @@ pub struct JoinSnapshot {
     pub output_rows_total: u64,
     pub last_strategy: String,
     pub last_fallback_reason: String,
+    pub last_bounded_side_selection_reason: String,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

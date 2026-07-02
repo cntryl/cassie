@@ -465,6 +465,10 @@ fn should_use_bounded_row_count_probe_when_cardinality_stats_are_missing() {
             after["read_paths"]["last_collection_scan_collection"].as_str(),
             Some("missing_probe_orders")
         );
+        assert_eq!(
+            after["joins"]["last_bounded_side_selection_reason"].as_str(),
+            Some("left_build_bounded_row_count_probe")
+        );
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -527,6 +531,10 @@ fn should_keep_existing_streaming_join_when_missing_stats_do_not_prove_smaller_l
         assert_eq!(
             after["read_paths"]["last_collection_scan_collection"].as_str(),
             Some("ambiguous_missing_stats_users")
+        );
+        assert_eq!(
+            after["joins"]["last_bounded_side_selection_reason"].as_str(),
+            Some("right_build_kept_unproven")
         );
 
         let _ = std::fs::remove_dir_all(path);

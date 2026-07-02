@@ -268,9 +268,16 @@ pub(super) fn try_execute_streaming_bounded_inner_join(
     };
     let limits = env.cassie.runtime.limits();
     if should_preemptively_dense_stream(env, spec.left_collection, spec.right_collection)? {
+        env.cassie
+            .runtime
+            .record_bounded_join_side_selection("dense_stream_preemptive_temp_budget");
         return execute_dense_streaming_bounded_inner_join(env, &spec).map(Some);
     }
-    if side_selection::should_build_left_for_streaming(env, &spec)? {
+    let side_selection = side_selection::build_side_for_streaming(env, &spec)?;
+    env.cassie
+        .runtime
+        .record_bounded_join_side_selection(side_selection.reason);
+    if side_selection.build_left {
         return execute_left_build_streaming_bounded_inner_join(env, &spec).map(Some);
     }
 

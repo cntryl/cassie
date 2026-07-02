@@ -90,6 +90,11 @@ impl RuntimeState {
         metrics.joins.last_vectorized_batch_size = batch_size as u64;
         metrics.joins.last_vectorized_fallback_reason = reason.to_string();
     }
+
+    pub(crate) fn record_bounded_join_side_selection(&self, reason: &str) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.joins.last_bounded_side_selection_reason = reason.to_string();
+    }
 }
 
 #[derive(Clone, Copy)]

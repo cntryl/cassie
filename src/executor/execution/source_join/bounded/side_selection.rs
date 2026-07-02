@@ -16,10 +16,31 @@ struct JoinFieldCardinality {
     distinct_values: u64,
 }
 
-pub(super) fn should_build_left_for_streaming(
+pub(super) struct StreamingSideSelection {
+    pub(super) build_left: bool,
+    pub(super) reason: &'static str,
+}
+
+impl StreamingSideSelection {
+    const fn build_left(reason: &'static str) -> Self {
+        Self {
+            build_left: true,
+            reason,
+        }
+    }
+
+    const fn keep_right(reason: &'static str) -> Self {
+        Self {
+            build_left: false,
+            reason,
+        }
+    }
+}
+
+pub(super) fn build_side_for_streaming(
     env: &SourceExecutionEnv<'_>,
     spec: &StreamingJoinSpec<'_>,
-) -> Result<bool, QueryError> {
+) -> Result<StreamingSideSelection, QueryError> {
     match (
         hydrated_row_count(env, spec.left_collection),
         hydrated_row_count(env, spec.right_collection),
@@ -36,45 +57,70 @@ fn should_build_left_from_hydrated_counts(
     spec: &StreamingJoinSpec<'_>,
     left_rows: u64,
     right_rows: u64,
-) -> Result<bool, QueryError> {
+) -> Result<StreamingSideSelection, QueryError> {
     let Ok(left_rows_usize) = usize::try_from(left_rows) else {
-        return Ok(false);
+        return Ok(StreamingSideSelection::keep_right(
+            "left_build_row_count_overflow",
+        ));
     };
     if estimate_vectorized_join_bytes(left_rows_usize, 0) > env.controls.temp_spill_budget_bytes {
-        return Ok(false);
+        return Ok(StreamingSideSelection::keep_right(
+            "left_build_budget_exceeded",
+        ));
     }
     if !can_dense_stream(env, spec.left_collection, spec.right_collection)? {
-        return Ok(false);
+        return Ok(StreamingSideSelection::keep_right(
+            "dense_stream_unavailable",
+        ));
     }
 
-    if right_rows >= left_rows.saturating_mul(ROW_COUNT_BUILD_SIDE_RATIO)
-        || should_build_left_from_fanout_stats(env, spec)
-    {
-        return Ok(true);
+    if right_rows >= left_rows.saturating_mul(ROW_COUNT_BUILD_SIDE_RATIO) {
+        return Ok(StreamingSideSelection::build_left(
+            "left_build_hydrated_row_count",
+        ));
+    }
+    if should_build_left_from_fanout_stats(env, spec) {
+        return Ok(StreamingSideSelection::build_left(
+            "left_build_fanout_stats",
+        ));
     }
 
-    should_build_left_from_row_count_sample(env, spec, left_rows, right_rows)
+    if should_build_left_from_row_count_sample(env, spec, left_rows, right_rows)? {
+        return Ok(StreamingSideSelection::build_left(
+            "left_build_row_count_sample",
+        ));
+    }
+
+    Ok(StreamingSideSelection::keep_right(
+        "right_build_kept_close_estimate",
+    ))
 }
 
 fn should_build_left_from_bounded_row_counts(
     env: &SourceExecutionEnv<'_>,
     spec: &StreamingJoinSpec<'_>,
-) -> Result<bool, QueryError> {
+) -> Result<StreamingSideSelection, QueryError> {
     if !can_dense_stream(env, spec.left_collection, spec.right_collection)? {
-        return Ok(false);
+        return Ok(StreamingSideSelection::keep_right(
+            "dense_stream_unavailable",
+        ));
     }
 
     let Some(left_rows) = exact_row_count_within_left_build_budget(env, spec.left_collection)?
     else {
-        return Ok(false);
+        return Ok(StreamingSideSelection::keep_right(
+            "left_build_count_unavailable",
+        ));
     };
     if left_rows == 0 {
-        return Ok(true);
+        return Ok(StreamingSideSelection::build_left("left_build_empty_left"));
     }
 
     let sample_threshold = row_threshold(left_rows, ROW_COUNT_SAMPLE_BUILD_SIDE_RATIO);
     if !has_at_least_rows(env, spec.right_collection, sample_threshold)? {
-        return Ok(false);
+        return Ok(StreamingSideSelection::keep_right(
+            "right_build_kept_unproven",
+        ));
     }
 
     let left_rows_u64 = u64::try_from(left_rows).unwrap_or(u64::MAX);
@@ -95,15 +141,25 @@ fn should_build_left_from_bounded_row_counts(
             sample_limit,
         )?;
         if samples_support_left_build(&left_keys, &right_keys) {
-            return Ok(true);
+            return Ok(StreamingSideSelection::build_left(
+                "left_build_bounded_row_count_sample",
+            ));
         }
     }
 
-    has_at_least_rows(
+    if has_at_least_rows(
         env,
         spec.right_collection,
         row_threshold(left_rows, ROW_COUNT_BUILD_SIDE_RATIO),
-    )
+    )? {
+        return Ok(StreamingSideSelection::build_left(
+            "left_build_bounded_row_count_probe",
+        ));
+    }
+
+    Ok(StreamingSideSelection::keep_right(
+        "right_build_kept_unproven",
+    ))
 }
 
 fn exact_row_count_within_left_build_budget(

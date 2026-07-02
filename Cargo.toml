@@ -169,5 +169,8 @@ path = "benches/tier4_integration_protocol_compare.rs"
 [profile.dev]
 opt-level = 0
 
+[profile.test]
+codegen-units = 1
+
 [workspace.lints.clippy]
 pedantic = "warn"

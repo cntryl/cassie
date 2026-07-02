@@ -161,6 +161,7 @@ fn fold_accents(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     #[test]
     fn should_tokenize_with_standard_boundaries() {
@@ -188,5 +189,31 @@ mod tests {
 
         // Assert
         assert_eq!(tokens, vec!["alpha-beta", "gamma"]);
+    }
+
+    #[test]
+    fn should_reject_unknown_fulltext_analyzer() {
+        // Arrange
+        let options = BTreeMap::from([("analyzer".to_string(), "unsupported".to_string())]);
+
+        // Act
+        let result = AnalyzerConfig::from_index_options(&options);
+
+        // Assert
+        let error = result.expect_err("unknown analyzer should fail");
+        assert_eq!(error, "unsupported fulltext analyzer 'unsupported'");
+    }
+
+    #[test]
+    fn should_reject_unknown_fulltext_tokenizer() {
+        // Arrange
+        let options = BTreeMap::from([("tokenizer".to_string(), "unsupported".to_string())]);
+
+        // Act
+        let result = AnalyzerConfig::from_index_options(&options);
+
+        // Assert
+        let error = result.expect_err("unknown tokenizer should fail");
+        assert_eq!(error, "unsupported tokenizer 'unsupported'");
     }
 }

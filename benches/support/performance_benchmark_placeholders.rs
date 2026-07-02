@@ -1,7 +1,33 @@
-use super::{benchmark, PerformanceBenchmarkScenario};
+use super::PerformanceBenchmarkScenario;
+
+macro_rules! benchmark {
+    (
+        $scenario_id:literal,
+        $family:literal,
+        $benchmark:literal,
+        $workload:literal,
+        $fixture_scale:literal,
+        $memory_evidence:literal,
+        $fallback_evidence:literal,
+        $explain_evidence:literal,
+        $metrics_evidence:literal $(,)?
+    ) => {
+        PerformanceBenchmarkScenario {
+            scenario_id: $scenario_id,
+            family: $family,
+            benchmark: $benchmark,
+            workload: $workload,
+            fixture_scale: $fixture_scale,
+            memory_evidence: $memory_evidence,
+            fallback_evidence: $fallback_evidence,
+            explain_evidence: $explain_evidence,
+            metrics_evidence: $metrics_evidence,
+        }
+    };
+}
 
 pub const BENCHMARK_SCENARIO_PLACEHOLDERS: &[PerformanceBenchmarkScenario] = &[
-    benchmark(
+    benchmark!(
         "perf.core_read.simple.1m",
         "core_read",
         "tier3_system_query",
@@ -12,7 +38,7 @@ pub const BENCHMARK_SCENARIO_PLACEHOLDERS: &[PerformanceBenchmarkScenario] = &[
         "access_path=point_lookup",
         "query.latency_ms_total",
     ),
-    benchmark(
+    benchmark!(
         "perf.replay.lag_catchup.1m",
         "replay",
         "tier2_subsystem_ingest",
@@ -23,7 +49,7 @@ pub const BENCHMARK_SCENARIO_PLACEHOLDERS: &[PerformanceBenchmarkScenario] = &[
         "replay_checkpoint",
         "projections.replay_events_applied",
     ),
-    benchmark(
+    benchmark!(
         "perf.rebuild.refresh.1m",
         "rebuild",
         "tier3_system_rebuild",
@@ -34,7 +60,7 @@ pub const BENCHMARK_SCENARIO_PLACEHOLDERS: &[PerformanceBenchmarkScenario] = &[
         "materialized_projection_refresh",
         "projections.refreshes",
     ),
-    benchmark(
+    benchmark!(
         "perf.verification.full.1m",
         "verification",
         "tier3_system_rebuild",
@@ -45,7 +71,7 @@ pub const BENCHMARK_SCENARIO_PLACEHOLDERS: &[PerformanceBenchmarkScenario] = &[
         "VERIFY PROJECTION",
         "projections.verifications",
     ),
-    benchmark(
+    benchmark!(
         "perf.search.fulltext.1m",
         "search",
         "tier2_subsystem_search",
@@ -56,7 +82,7 @@ pub const BENCHMARK_SCENARIO_PLACEHOLDERS: &[PerformanceBenchmarkScenario] = &[
         "access_path=fulltext",
         "search.latency_ms_total",
     ),
-    benchmark(
+    benchmark!(
         "perf.vector.executor.1m",
         "vector",
         "tier2_subsystem_vector",
@@ -67,7 +93,7 @@ pub const BENCHMARK_SCENARIO_PLACEHOLDERS: &[PerformanceBenchmarkScenario] = &[
         "access_path=vector",
         "vector.latency_ms_total",
     ),
-    benchmark(
+    benchmark!(
         "perf.hybrid.executor.1m",
         "hybrid",
         "tier2_subsystem_hybrid",
@@ -78,7 +104,7 @@ pub const BENCHMARK_SCENARIO_PLACEHOLDERS: &[PerformanceBenchmarkScenario] = &[
         "mixed_execution",
         "hybrid.latency_ms_total",
     ),
-    benchmark(
+    benchmark!(
         "perf.graph.expand.1m",
         "graph",
         "tier3_system_query",
@@ -89,7 +115,7 @@ pub const BENCHMARK_SCENARIO_PLACEHOLDERS: &[PerformanceBenchmarkScenario] = &[
         "access_path=graph_adjacency",
         "graph.traversals",
     ),
-    benchmark(
+    benchmark!(
         "perf.time_series.window_scan.1m",
         "time_series",
         "tier3_system_query",
@@ -100,7 +126,7 @@ pub const BENCHMARK_SCENARIO_PLACEHOLDERS: &[PerformanceBenchmarkScenario] = &[
         "time_series_storage=bucket-native-v1",
         "time_series.scans",
     ),
-    benchmark(
+    benchmark!(
         "perf.pgwire.simple_query.1m",
         "pgwire",
         "tier4_integration_pgwire",
@@ -111,7 +137,7 @@ pub const BENCHMARK_SCENARIO_PLACEHOLDERS: &[PerformanceBenchmarkScenario] = &[
         "pgwire_simple_query",
         "pgwire.simple_queries_total",
     ),
-    benchmark(
+    benchmark!(
         "perf.http.document_create_get.1m",
         "http",
         "tier4_integration_http",

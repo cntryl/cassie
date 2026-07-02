@@ -410,10 +410,10 @@ fn should_select_smaller_build_side_for_late_match_bounded_inner_join() {
 }
 
 #[test]
-fn should_keep_existing_streaming_join_when_cardinality_stats_are_missing() {
+fn should_use_bounded_row_count_probe_when_cardinality_stats_are_missing() {
     // Arrange
     with_fallback();
-    let path = data_dir("missing_stats_bounded_inner_join");
+    let path = data_dir("missing_stats_bounded_row_count_probe");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -426,27 +426,93 @@ fn should_keep_existing_streaming_join_when_cardinality_stats_are_missing() {
         create_join_tables(
             &cassie,
             &session,
-            "missing_stats_users",
-            "missing_stats_orders",
+            "missing_probe_users",
+            "missing_probe_orders",
         );
-        put_users(&cassie, "missing_stats_users", 2);
+        put_users(&cassie, "missing_probe_users", 2);
         let order_keys = std::iter::repeat_n(99_i64, 198)
             .chain([0_i64, 1_i64])
             .collect::<Vec<_>>();
-        put_orders(&cassie, "missing_stats_orders", &order_keys);
+        put_orders(&cassie, "missing_probe_orders", &order_keys);
         cassie
             .catalog
-            .clear_cardinality_stats("missing_stats_users");
+            .clear_cardinality_stats("missing_probe_users");
         cassie
             .catalog
-            .clear_cardinality_stats("missing_stats_orders");
+            .clear_cardinality_stats("missing_probe_orders");
         let before = cassie.metrics();
 
         // Act
         let result = cassie
             .execute_sql(
                 &session,
-                &select_inner_sql("missing_stats_users", "missing_stats_orders", 2),
+                &select_inner_sql("missing_probe_users", "missing_probe_orders", 2),
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("user-000".to_string()), Value::Int64(0)],
+                vec![Value::String("user-001".to_string()), Value::Int64(1)],
+            ]
+        );
+        assert!(metric_delta(&after, &before, &["joins", "vectorized_build_rows_total"]) <= 2);
+        assert_eq!(
+            after["read_paths"]["last_collection_scan_collection"].as_str(),
+            Some("missing_probe_orders")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_keep_existing_streaming_join_when_missing_stats_do_not_prove_smaller_left() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ambiguous_missing_stats_bounded_inner_join");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        create_join_tables(
+            &cassie,
+            &session,
+            "ambiguous_missing_stats_users",
+            "ambiguous_missing_stats_orders",
+        );
+        put_users(&cassie, "ambiguous_missing_stats_users", 4);
+        put_orders(
+            &cassie,
+            "ambiguous_missing_stats_orders",
+            &[0, 1, 2, 3, 99, 99],
+        );
+        cassie
+            .catalog
+            .clear_cardinality_stats("ambiguous_missing_stats_users");
+        cassie
+            .catalog
+            .clear_cardinality_stats("ambiguous_missing_stats_orders");
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                &select_inner_sql(
+                    "ambiguous_missing_stats_users",
+                    "ambiguous_missing_stats_orders",
+                    2,
+                ),
                 vec![],
             )
             .unwrap();
@@ -456,11 +522,11 @@ fn should_keep_existing_streaming_join_when_cardinality_stats_are_missing() {
         assert_eq!(result.rows.len(), 2);
         assert_eq!(
             metric_delta(&after, &before, &["joins", "vectorized_build_rows_total"]),
-            200
+            6
         );
         assert_eq!(
             after["read_paths"]["last_collection_scan_collection"].as_str(),
-            Some("missing_stats_users")
+            Some("ambiguous_missing_stats_users")
         );
 
         let _ = std::fs::remove_dir_all(path);

@@ -20,12 +20,23 @@ pub(super) fn should_build_left_for_streaming(
     env: &SourceExecutionEnv<'_>,
     spec: &StreamingJoinSpec<'_>,
 ) -> Result<bool, QueryError> {
-    let Some(left_rows) = hydrated_row_count(env, spec.left_collection) else {
-        return Ok(false);
-    };
-    let Some(right_rows) = hydrated_row_count(env, spec.right_collection) else {
-        return Ok(false);
-    };
+    match (
+        hydrated_row_count(env, spec.left_collection),
+        hydrated_row_count(env, spec.right_collection),
+    ) {
+        (Some(left_rows), Some(right_rows)) => {
+            should_build_left_from_hydrated_counts(env, spec, left_rows, right_rows)
+        }
+        _ => should_build_left_from_bounded_row_counts(env, spec),
+    }
+}
+
+fn should_build_left_from_hydrated_counts(
+    env: &SourceExecutionEnv<'_>,
+    spec: &StreamingJoinSpec<'_>,
+    left_rows: u64,
+    right_rows: u64,
+) -> Result<bool, QueryError> {
     let Ok(left_rows_usize) = usize::try_from(left_rows) else {
         return Ok(false);
     };
@@ -43,6 +54,111 @@ pub(super) fn should_build_left_for_streaming(
     }
 
     should_build_left_from_row_count_sample(env, spec, left_rows, right_rows)
+}
+
+fn should_build_left_from_bounded_row_counts(
+    env: &SourceExecutionEnv<'_>,
+    spec: &StreamingJoinSpec<'_>,
+) -> Result<bool, QueryError> {
+    if !can_dense_stream(env, spec.left_collection, spec.right_collection)? {
+        return Ok(false);
+    }
+
+    let Some(left_rows) = exact_row_count_within_left_build_budget(env, spec.left_collection)?
+    else {
+        return Ok(false);
+    };
+    if left_rows == 0 {
+        return Ok(true);
+    }
+
+    let sample_threshold = row_threshold(left_rows, ROW_COUNT_SAMPLE_BUILD_SIDE_RATIO);
+    if !has_at_least_rows(env, spec.right_collection, sample_threshold)? {
+        return Ok(false);
+    }
+
+    let left_rows_u64 = u64::try_from(left_rows).unwrap_or(u64::MAX);
+    if output_budget_can_use_left_build(spec.output_budget, left_rows_u64) {
+        let sample_limit = join_key_sample_limit(env, spec.output_budget);
+        let left_keys = sample_join_keys(
+            env,
+            spec.left_collection,
+            &spec.keys.left,
+            &spec.left_scan_fields,
+            sample_limit,
+        )?;
+        let right_keys = sample_join_keys(
+            env,
+            spec.right_collection,
+            &spec.keys.right,
+            &spec.right_scan_fields,
+            sample_limit,
+        )?;
+        if samples_support_left_build(&left_keys, &right_keys) {
+            return Ok(true);
+        }
+    }
+
+    has_at_least_rows(
+        env,
+        spec.right_collection,
+        row_threshold(left_rows, ROW_COUNT_BUILD_SIDE_RATIO),
+    )
+}
+
+fn exact_row_count_within_left_build_budget(
+    env: &SourceExecutionEnv<'_>,
+    collection: &str,
+) -> Result<Option<usize>, QueryError> {
+    let budget_rows = left_build_budget_rows(env);
+    if budget_rows == 0 {
+        return Ok(None);
+    }
+
+    let observed = count_rows_until(env, collection, budget_rows.saturating_add(1))?;
+    Ok((observed <= budget_rows).then_some(observed))
+}
+
+fn left_build_budget_rows(env: &SourceExecutionEnv<'_>) -> usize {
+    let bytes_per_row = estimate_vectorized_join_bytes(1, 0).max(1);
+    env.controls.temp_spill_budget_bytes / bytes_per_row
+}
+
+fn has_at_least_rows(
+    env: &SourceExecutionEnv<'_>,
+    collection: &str,
+    threshold: usize,
+) -> Result<bool, QueryError> {
+    if threshold == 0 {
+        return Ok(true);
+    }
+
+    Ok(count_rows_until(env, collection, threshold)? >= threshold)
+}
+
+fn count_rows_until(
+    env: &SourceExecutionEnv<'_>,
+    collection: &str,
+    limit: usize,
+) -> Result<usize, QueryError> {
+    let mut rows = 0usize;
+    let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
+        collection,
+        crate::midge::adapter::RowDecode::Projected(Vec::new()),
+        |_document| {
+            check_timeout(env.controls)?;
+            rows += 1;
+            Ok(rows < limit)
+        },
+    )?;
+    env.cassie
+        .runtime
+        .record_read_path_collection_scan(collection, 0, scanned);
+    Ok(rows)
+}
+
+fn row_threshold(rows: usize, ratio: u64) -> usize {
+    rows.saturating_mul(usize::try_from(ratio).unwrap_or(usize::MAX))
 }
 
 fn should_build_left_from_fanout_stats(

@@ -439,7 +439,7 @@ pub const BENCHMARK_SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         "10k",
         "joins.vectorized_build_rows_total",
         "read_paths.collection_scan_rows",
-        "left_build_right_stream",
+        "bounded_row_count_probe",
         "joins.vectorized_joins",
     ),
     benchmark(
@@ -450,7 +450,7 @@ pub const BENCHMARK_SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         "100k",
         "joins.vectorized_build_rows_total",
         "read_paths.collection_scan_rows",
-        "left_build_right_stream",
+        "bounded_row_count_probe",
         "joins.vectorized_joins",
     ),
     benchmark(

@@ -127,8 +127,6 @@ fn vectorized_late_match_join_context_now(
         },
         None,
     )?;
-    hydrate_join_cardinality(&ctx, "bench_join_users")?;
-    hydrate_join_cardinality(&ctx, "bench_join_orders")?;
     Ok(ctx)
 }
 
@@ -359,17 +357,6 @@ fn late_match_order_user_key(index: usize, order_rows: usize, user_rows: usize) 
     } else {
         usize_to_i64(order_rows.saturating_add(index))
     }
-}
-
-fn hydrate_join_cardinality(ctx: &BenchContext, collection: &str) -> Result<(), CassieError> {
-    let stats = ctx
-        .cassie
-        .midge
-        .rebuild_cardinality_stats_for_collection(collection)?;
-    ctx.cassie
-        .catalog
-        .hydrate_cardinality_stats(collection, stats);
-    Ok(())
 }
 
 fn hydrate_join_row_count(ctx: &BenchContext, collection: &str, row_count: usize) {

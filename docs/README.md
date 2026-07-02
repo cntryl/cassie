@@ -22,6 +22,7 @@ This directory is the product-facing source of truth for what Cassie supports, w
 - [Definition of Done](definition-of-done.md): completion standards for implemented, experimental, and production-ready features.
 - [Feature Ownership](feature-ownership.md): owning subsystems and default review boundaries for feature areas.
 - [Indexes and Constraints](indexes-and-constraints.md): index, constraint, and analytical overlay behavior.
+- [Architecture Diagrams](architecture-diagrams.md): Mermaid module, execution, operational surface, and drift-analysis reference.
 - [Module Organization](module-organization.md): code organization rules and large-file constraints.
 
 ## Product Posture

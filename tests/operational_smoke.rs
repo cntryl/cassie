@@ -43,12 +43,17 @@ fn spawn_cassie(data_dir: &Path, rest_port: u16, pgwire_port: u16) -> Child {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    command.kill_on_drop(true);
     command.spawn().expect("spawn cassie binary")
 }
 
-async fn wait_for_ready(client: &reqwest::Client, base_url: &str) {
-    tokio::time::timeout(Duration::from_secs(10), async {
+async fn wait_for_ready(child: &mut Child, client: &reqwest::Client, base_url: &str) {
+    tokio::time::timeout(Duration::from_secs(30), async {
         loop {
+            if let Some(status) = child.try_wait().expect("poll cassie child") {
+                panic!("cassie exited before becoming ready: {status}");
+            }
+
             if let Ok(response) = client.get(format!("{base_url}/health")).send().await {
                 if response.status().is_success() {
                     if let Ok(body) = response.json::<serde_json::Value>().await {
@@ -120,7 +125,7 @@ fn should_expose_health_liveness_through_the_binary() {
         let base_url = format!("http://127.0.0.1:{rest_port}");
 
         // Act
-        wait_for_ready(&client, &base_url).await;
+        wait_for_ready(&mut child, &client, &base_url).await;
         let liveness = client
             .get(format!("{base_url}/liveness"))
             .send()
@@ -157,7 +162,7 @@ fn should_restart_with_hydrated_catalog_through_the_binary() {
         let base_url = format!("http://127.0.0.1:{rest_port}");
 
         let mut child = spawn_cassie(&path, rest_port, pgwire_port);
-        wait_for_ready(&client, &base_url).await;
+        wait_for_ready(&mut child, &client, &base_url).await;
 
         // Act
         let create = client
@@ -198,7 +203,7 @@ fn should_restart_with_hydrated_catalog_through_the_binary() {
 
         let restart_client = reqwest::Client::new();
         let mut child = spawn_cassie(&path, rest_port, pgwire_port);
-        wait_for_ready(&restart_client, &base_url).await;
+        wait_for_ready(&mut child, &restart_client, &base_url).await;
 
         let (pg_client, pg_connection) = connect_pgwire(pgwire_port).await;
         let row = tokio::time::timeout(

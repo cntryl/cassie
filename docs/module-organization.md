@@ -2,6 +2,8 @@
 
 Cassie keeps module boundaries small so feature work can be reviewed and tested surgically.
 
+For a diagrammed map of the current module, execution, storage, runtime, and operational surfaces, see [Architecture Diagrams](architecture-diagrams.md).
+
 ## Targets
 
 - Source files should stay under 1,000 lines.

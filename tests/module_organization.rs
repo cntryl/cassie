@@ -73,3 +73,41 @@ fn should_keep_command_dispatch_split_from_schema_command_details() {
         "dml_command.rs should stay below 1,000 lines after schema command extraction; found {dml_command_lines}"
     );
 }
+
+#[test]
+fn should_document_architecture_diagrams_with_drift_analysis() {
+    // Arrange
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let architecture_doc = repo.join("docs/architecture-diagrams.md");
+    let docs_readme = repo.join("docs/README.md");
+    let module_organization = repo.join("docs/module-organization.md");
+
+    // Act
+    let architecture_doc_exists = architecture_doc.exists();
+    let architecture_doc_content = std::fs::read_to_string(&architecture_doc).unwrap_or_default();
+    let docs_readme_content = std::fs::read_to_string(&docs_readme).expect("read docs README");
+    let module_organization_content =
+        std::fs::read_to_string(&module_organization).expect("read module organization doc");
+
+    // Assert
+    assert!(
+        architecture_doc_exists,
+        "docs/architecture-diagrams.md should document module diagrams and drift analysis"
+    );
+    assert!(
+        architecture_doc_content.contains("```mermaid"),
+        "architecture diagrams doc should contain Mermaid code blocks"
+    );
+    assert!(
+        architecture_doc_content.contains("## Architecture Drift Analysis"),
+        "architecture diagrams doc should include architecture drift analysis"
+    );
+    assert!(
+        docs_readme_content.contains("[Architecture Diagrams](architecture-diagrams.md)"),
+        "docs README should link to architecture diagrams"
+    );
+    assert!(
+        module_organization_content.contains("[Architecture Diagrams](architecture-diagrams.md)"),
+        "module organization doc should cross-reference architecture diagrams"
+    );
+}

@@ -105,6 +105,7 @@ use helpers::{
     prune_feedback_by_age, status_class, touch, touch_feedback,
 };
 pub use helpers::{error_class, hash_params, parameter_shape, sql_fingerprint};
+pub(crate) use join_metrics::VectorizedJoinInputRows;
 pub(crate) use projection_metrics::ProjectionWriteStats;
 pub use schema_epochs::RunningQueryGuard;
 use schema_epochs::SchemaEpochTracker;

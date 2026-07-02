@@ -670,6 +670,8 @@ Round 01 owns these hot paths:
 - bounded streaming vectorized inner join without a left-key index: `perf.read_path.vectorized_streaming_inner_join.10k` and `perf.read_path.vectorized_streaming_inner_join.100k`
 - dense bounded streaming vectorized inner join under tight temp budget: `perf.read_path.vectorized_dense_streaming_inner_join.10k` and `perf.read_path.vectorized_dense_streaming_inner_join.100k`
 - bounded indexed vectorized inner join: `perf.read_path.vectorized_indexed_inner_join.10k` and `perf.read_path.vectorized_indexed_inner_join.100k`
+- bounded right-indexed vectorized inner join: `perf.read_path.vectorized_right_indexed_inner_join.10k` and `perf.read_path.vectorized_right_indexed_inner_join.100k`
+- late-match asymmetric bounded vectorized inner join: `perf.read_path.vectorized_late_match_inner_join.10k` and `perf.read_path.vectorized_late_match_inner_join.100k`
 - pgwire prepared read path: `perf.pgwire.prepared_query.10k` and `perf.pgwire.prepared_query.100k`
 
 The default decision rule is to prefer Midge-native access paths, covering reads, bounded scans,
@@ -681,7 +683,9 @@ Round 01 measured notes from 2026-06-27 local-dev fallback runs:
 - `vectorized_left_join_limited` validates bounded left-source scans: 35.604 us at 10k and 36.037 us at 100k.
 - `vectorized_streaming_inner_join` validates bounded streaming left-source scans for sparse unindexed inner joins: 36.597 us at 10k and 36.672 us at 100k.
 - `vectorized_dense_streaming_inner_join` validates dense bounded nested-stream scans under tight temp budget: 34.853 us at 10k and 34.631 us at 100k.
-- `vectorized_indexed_inner_join` validates indexed left-source probes for bounded inner joins: 35.745 us at 10k and 35.676 us at 100k.
+- `vectorized_indexed_inner_join` validates indexed left-source probes for bounded inner joins: local 2026-07-02 advisory run measured 63.365-65.769 us at 10k and 63.236-67.994 us at 100k.
+- `vectorized_right_indexed_inner_join` validates indexed right-source probes for bounded inner joins: local 2026-07-02 advisory run measured 54.349-56.399 us at 10k and 54.332-55.440 us at 100k.
+- `vectorized_late_match_inner_join` validates smaller build-side selection for asymmetric bounded joins: local 2026-07-02 advisory run measured 55.537-56.308 us at 10k and 53.990-55.857 us at 100k.
 - `expression_index_range_query` validates scalar expression range scans: 22.284 us at 10k and 21.667 us at 100k after explicit benchmark warmup.
 - `expression_index_order_query` validates scalar expression ordered bounded scans: 9.663 us at 10k and 9.812 us at 100k after explicit benchmark warmup.
 - `pgwire_prepared_query` remained scale-flat: 54.234 us at 10k and 55.031 us at 100k.
@@ -714,6 +718,10 @@ Round 01 measured notes from 2026-06-27 local-dev fallback runs:
 | `perf.read_path.vectorized_dense_streaming_inner_join.100k` | Core read | `tier2_subsystem_executor` | `vectorized_dense_streaming_inner_join` | 100k |
 | `perf.read_path.vectorized_indexed_inner_join.10k` | Core read | `tier2_subsystem_executor` | `vectorized_indexed_inner_join` | 10k |
 | `perf.read_path.vectorized_indexed_inner_join.100k` | Core read | `tier2_subsystem_executor` | `vectorized_indexed_inner_join` | 100k |
+| `perf.read_path.vectorized_right_indexed_inner_join.10k` | Core read | `tier2_subsystem_executor` | `vectorized_right_indexed_inner_join` | 10k |
+| `perf.read_path.vectorized_right_indexed_inner_join.100k` | Core read | `tier2_subsystem_executor` | `vectorized_right_indexed_inner_join` | 100k |
+| `perf.read_path.vectorized_late_match_inner_join.10k` | Core read | `tier2_subsystem_executor` | `vectorized_late_match_inner_join` | 10k |
+| `perf.read_path.vectorized_late_match_inner_join.100k` | Core read | `tier2_subsystem_executor` | `vectorized_late_match_inner_join` | 100k |
 | `perf.replay.lag_catchup.10k` | Replay | `tier2_subsystem_ingest` | `projection_lag_catchup` | 10k |
 | `perf.replay.lag_catchup.100k` | Replay | `tier2_subsystem_ingest` | `projection_lag_catchup` | 100k |
 | `perf.rebuild.refresh.10k` | Rebuild | `tier3_system_rebuild` | `projection_refresh` | 10k |

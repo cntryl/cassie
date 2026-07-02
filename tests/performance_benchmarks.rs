@@ -90,6 +90,35 @@ fn should_keep_benchmark_benchmark_owners_unique() {
 }
 
 #[test]
+fn should_register_bounded_join_benchmarks_for_supported_scales() {
+    // Arrange
+    let workloads = [
+        "vectorized_right_indexed_inner_join",
+        "vectorized_late_match_inner_join",
+    ];
+    let scales = ["10k", "100k"];
+
+    // Act
+    let missing = workloads
+        .into_iter()
+        .flat_map(|workload| {
+            scales
+                .into_iter()
+                .filter(move |scale| {
+                    benchmark_for_benchmark("tier2_subsystem_executor", workload, scale).is_none()
+                })
+                .map(move |scale| format!("{workload}/{scale}"))
+        })
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert!(
+        missing.is_empty(),
+        "missing bounded join benchmarks: {missing:?}"
+    );
+}
+
+#[test]
 fn should_lookup_benchmarks_by_scenario() {
     // Arrange
     let scenario_ids = BENCHMARK_SCENARIOS

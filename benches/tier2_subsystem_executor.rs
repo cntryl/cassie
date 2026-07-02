@@ -131,8 +131,10 @@ fn bench_scaled_executor_cases(
     bench_column_batch_case(group, runtime, filters, dataset_rows, scale);
     bench_join_pair_cases(group, runtime, filters, dataset_rows, scale);
     bench_indexed_join_case(group, runtime, filters, dataset_rows, scale);
+    bench_right_indexed_join_case(group, runtime, filters, dataset_rows, scale);
     bench_streaming_join_case(group, runtime, filters, dataset_rows, scale);
     bench_dense_streaming_join_case(group, runtime, filters, dataset_rows, scale);
+    bench_late_match_join_case(group, runtime, filters, dataset_rows, scale);
 }
 
 fn scale_label(dataset_rows: usize) -> &'static str {
@@ -228,6 +230,27 @@ fn bench_indexed_join_case(
     bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(50));
 }
 
+fn bench_right_indexed_join_case(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    runtime: &tokio::runtime::Runtime,
+    filters: &[String],
+    dataset_rows: usize,
+    scale: &str,
+) {
+    let workload = "vectorized_right_indexed_inner_join";
+    if !benchmark_enabled(filters, workload, scale) {
+        return;
+    }
+
+    let context = runtime
+        .block_on(workloads::vectorized_right_indexed_join_context(
+            &format!("tier2-executor-vectorized-right-indexed-join-{scale}"),
+            dataset_rows,
+        ))
+        .expect("vectorized right-indexed join benchmark context");
+    bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(50));
+}
+
 fn bench_streaming_join_case(
     group: &mut BenchmarkGroup<'_, WallTime>,
     runtime: &tokio::runtime::Runtime,
@@ -268,6 +291,27 @@ fn bench_dense_streaming_join_case(
         ))
         .expect("vectorized dense streaming join benchmark context");
     bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(2));
+}
+
+fn bench_late_match_join_case(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    runtime: &tokio::runtime::Runtime,
+    filters: &[String],
+    dataset_rows: usize,
+    scale: &str,
+) {
+    let workload = "vectorized_late_match_inner_join";
+    if !benchmark_enabled(filters, workload, scale) {
+        return;
+    }
+
+    let context = runtime
+        .block_on(workloads::vectorized_late_match_join_context(
+            &format!("tier2-executor-vectorized-late-match-join-{scale}"),
+            dataset_rows,
+        ))
+        .expect("vectorized late-match join benchmark context");
+    bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(50));
 }
 
 fn bench_optional_join_case(

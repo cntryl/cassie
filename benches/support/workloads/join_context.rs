@@ -50,6 +50,29 @@ fn vectorized_indexed_join_context_now(
     Ok(ctx)
 }
 
+pub fn vectorized_right_indexed_join_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(vectorized_right_indexed_join_context_now(
+        label,
+        dataset_rows,
+    ))
+}
+
+fn vectorized_right_indexed_join_context_now(
+    label: &str,
+    dataset_rows: usize,
+) -> Result<BenchContext, CassieError> {
+    let ctx = vectorized_join_context_now(label, dataset_rows)?;
+    let _ = ctx.cassie.execute_sql(
+        &ctx.session,
+        "CREATE INDEX bench_join_orders_key_idx ON bench_join_orders USING btree (order_user_key)",
+        vec![],
+    )?;
+    Ok(ctx)
+}
+
 pub fn vectorized_sparse_join_context(
     label: &str,
     dataset_rows: usize,
@@ -74,6 +97,31 @@ pub fn vectorized_dense_join_context(
         },
         Some(4 * 1024),
     ))
+}
+
+pub fn vectorized_late_match_join_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(vectorized_late_match_join_context_now(label, dataset_rows))
+}
+
+fn vectorized_late_match_join_context_now(
+    label: &str,
+    dataset_rows: usize,
+) -> Result<BenchContext, CassieError> {
+    let ctx = vectorized_join_context_with_budget(
+        label,
+        dataset_rows,
+        JoinLoadShape::LateMatchRight {
+            user_rows: 50,
+            order_rows: dataset_rows,
+        },
+        None,
+    )?;
+    hydrate_join_cardinality(&ctx, "bench_join_users")?;
+    hydrate_join_cardinality(&ctx, "bench_join_orders")?;
+    Ok(ctx)
 }
 
 fn vectorized_join_context_with_budget(
@@ -113,6 +161,7 @@ fn vectorized_join_context_with_budget(
 enum JoinLoadShape {
     OneToOne { order_rows: usize },
     DenseRight { order_rows: usize },
+    LateMatchRight { user_rows: usize, order_rows: usize },
 }
 
 fn prepare_vectorized_join_collections(
@@ -175,8 +224,12 @@ fn prepare_vectorized_join_collections(
             .collect(),
     );
 
-    let mut users = Vec::with_capacity(dataset_rows);
-    for index in 0..dataset_rows {
+    let user_rows = match shape {
+        JoinLoadShape::OneToOne { .. } | JoinLoadShape::DenseRight { .. } => dataset_rows,
+        JoinLoadShape::LateMatchRight { user_rows, .. } => user_rows,
+    };
+    let mut users = Vec::with_capacity(user_rows);
+    for index in 0..user_rows {
         users.push((
             Some(format!("user-{index}")),
             json!({
@@ -187,15 +240,18 @@ fn prepare_vectorized_join_collections(
     }
 
     let order_rows = match shape {
-        JoinLoadShape::OneToOne { order_rows } | JoinLoadShape::DenseRight { order_rows } => {
-            order_rows
-        }
+        JoinLoadShape::OneToOne { order_rows }
+        | JoinLoadShape::DenseRight { order_rows }
+        | JoinLoadShape::LateMatchRight { order_rows, .. } => order_rows,
     };
     let mut orders = Vec::with_capacity(order_rows);
     for index in 0..order_rows {
         let order_user_key = match shape {
             JoinLoadShape::OneToOne { .. } => usize_to_i64(index),
             JoinLoadShape::DenseRight { .. } => 0_i64,
+            JoinLoadShape::LateMatchRight { user_rows, .. } => {
+                late_match_order_user_key(index, order_rows, user_rows)
+            }
         };
         orders.push((
             Some(format!("order-{index}")),
@@ -217,5 +273,25 @@ fn prepare_vectorized_join_collections(
             .put_fresh_documents("bench_join_orders", orders)?;
     }
 
+    Ok(())
+}
+
+fn late_match_order_user_key(index: usize, order_rows: usize, user_rows: usize) -> i64 {
+    let first_match = order_rows.saturating_sub(user_rows);
+    if index >= first_match {
+        usize_to_i64(index - first_match)
+    } else {
+        usize_to_i64(order_rows.saturating_add(index))
+    }
+}
+
+fn hydrate_join_cardinality(ctx: &BenchContext, collection: &str) -> Result<(), CassieError> {
+    let stats = ctx
+        .cassie
+        .midge
+        .rebuild_cardinality_stats_for_collection(collection)?;
+    ctx.cassie
+        .catalog
+        .hydrate_cardinality_stats(collection, stats);
     Ok(())
 }

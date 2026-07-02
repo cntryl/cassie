@@ -30,10 +30,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Validate test conventions
-        run: |
-          while IFS= read -r -d '' test_file; do
-            cntryl-tools validate-tests -f "$test_file"
-          done < <(find tests -type f -name '*.rs' -print0 | sort -z)
+        run: cntryl-tools validate-tests
 
       - name: Cargo clippy pedantic
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic

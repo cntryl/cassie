@@ -178,7 +178,7 @@ fn scalar_index_read_spec(
         lower_bound,
         upper_bound,
         reverse: shape.reverse,
-        limit: storage_limit(plan),
+        limit: storage_limit(plan, &shape),
     };
 
     Ok(Some(ScalarIndexReadSpec {
@@ -188,7 +188,7 @@ fn scalar_index_read_spec(
         request,
         path: shape.path,
         covered: covered_index,
-        sort_applied: !plan.order.is_empty(),
+        sort_applied: plan.order.is_empty() || shape.order_satisfied,
     }))
 }
 
@@ -288,7 +288,14 @@ fn scalar_index_equality_prefix(
     Ok(equality_prefix)
 }
 
-fn storage_limit(plan: &LogicalPlan) -> Option<usize> {
+fn storage_limit(
+    plan: &LogicalPlan,
+    shape: &crate::planner::physical::ScalarIndexPlanShape,
+) -> Option<usize> {
+    if !plan.order.is_empty() && !shape.order_satisfied {
+        return None;
+    }
+
     let limit = usize::try_from(plan.limit?.max(0)).ok()?;
     let offset = usize::try_from(plan.offset.unwrap_or(0).max(0)).ok()?;
     limit.checked_add(offset)

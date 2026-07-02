@@ -20,6 +20,7 @@ pub(crate) struct ScalarIndexPlanShape {
     pub order_columns_used: usize,
     pub order_by_row_id: bool,
     pub reverse: bool,
+    pub order_satisfied: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -95,6 +96,7 @@ pub(crate) fn scalar_index_plan_shape(
             order_columns_used: order_shape.order_columns_used,
             order_by_row_id: order_shape.order_by_row_id,
             reverse: order_shape.reverse,
+            order_satisfied: order_shape.order_satisfied,
         });
     }
 
@@ -106,10 +108,27 @@ pub(crate) fn scalar_index_plan_shape(
             order_columns_used: order_shape.order_columns_used,
             order_by_row_id: order_shape.order_by_row_id,
             reverse: order_shape.reverse,
+            order_satisfied: order_shape.order_satisfied,
         });
     }
 
     if order_shape.order_columns_used > 0 && plan.limit.is_some() {
+        if !order_shape.order_satisfied && equality_prefix_len > 0 {
+            return Some(ScalarIndexPlanShape {
+                path: ScalarIndexPlanPath::PrefixScan,
+                equality_prefix_len,
+                range_field_index: None,
+                order_columns_used: order_shape.order_columns_used,
+                order_by_row_id: order_shape.order_by_row_id,
+                reverse: order_shape.reverse,
+                order_satisfied: false,
+            });
+        }
+
+        if !order_shape.order_satisfied {
+            return None;
+        }
+
         return Some(ScalarIndexPlanShape {
             path: ScalarIndexPlanPath::OrderedBoundedScan,
             equality_prefix_len,
@@ -117,6 +136,7 @@ pub(crate) fn scalar_index_plan_shape(
             order_columns_used: order_shape.order_columns_used,
             order_by_row_id: order_shape.order_by_row_id,
             reverse: order_shape.reverse,
+            order_satisfied: true,
         });
     }
 
@@ -226,6 +246,7 @@ fn expression_index_plan_shape(
                 order_columns_used: order_shape.order_columns_used,
                 order_by_row_id: false,
                 reverse: order_shape.reverse,
+                order_satisfied: order_shape.order_satisfied,
             });
         }
 
@@ -240,6 +261,7 @@ fn expression_index_plan_shape(
                     order_columns_used: order_shape.order_columns_used,
                     order_by_row_id: false,
                     reverse: order_shape.reverse,
+                    order_satisfied: order_shape.order_satisfied,
                 });
             }
             if constraint.has_range() {
@@ -250,6 +272,7 @@ fn expression_index_plan_shape(
                     order_columns_used: order_shape.order_columns_used,
                     order_by_row_id: false,
                     reverse: order_shape.reverse,
+                    order_satisfied: order_shape.order_satisfied,
                 });
             }
         }
@@ -280,6 +303,7 @@ fn expression_index_plan_shape(
         order_columns_used: 0,
         order_by_row_id: false,
         reverse: false,
+        order_satisfied: true,
     })
 }
 
@@ -302,6 +326,7 @@ fn single_expression_order_shape(plan: &LogicalPlan, expression: &str) -> Option
         order_columns_used: 1,
         order_by_row_id: false,
         reverse: matches!(order.direction, SortDirection::Desc),
+        order_satisfied: true,
     })
 }
 
@@ -465,6 +490,7 @@ struct OrderShape {
     order_columns_used: usize,
     order_by_row_id: bool,
     reverse: bool,
+    order_satisfied: bool,
 }
 
 fn order_shape(
@@ -505,17 +531,11 @@ fn order_shape(
             order_columns_used: 0,
             order_by_row_id: false,
             reverse: false,
+            order_satisfied: true,
         });
     }
 
     let reverse = effective_order[0].1;
-    if effective_order
-        .iter()
-        .any(|(_, direction)| *direction != reverse)
-    {
-        return None;
-    }
-
     if equality_prefix_len == fields.len()
         && effective_order.len() == 1
         && super::is_row_id_column(&effective_order[0].0)
@@ -524,6 +544,7 @@ fn order_shape(
             order_columns_used: 0,
             order_by_row_id: true,
             reverse,
+            order_satisfied: true,
         });
     }
 
@@ -536,12 +557,16 @@ fn order_shape(
     if matched == 0 {
         return None;
     }
+    let order_satisfied = effective_order
+        .iter()
+        .all(|(_, direction)| *direction == reverse);
 
     if matched == effective_order.len() {
         return Some(OrderShape {
             order_columns_used: matched,
             order_by_row_id: false,
             reverse,
+            order_satisfied,
         });
     }
 
@@ -557,6 +582,7 @@ fn order_shape(
             order_columns_used: matched,
             order_by_row_id: true,
             reverse,
+            order_satisfied,
         });
     }
 

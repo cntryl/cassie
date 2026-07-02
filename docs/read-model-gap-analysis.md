@@ -127,7 +127,7 @@ Evidence:
 - `issues/phase-06/README.md` archives point lookup, scalar index seek/prefix/range scans, ordered bounded scans, row-id keyset/top-k, EXPLAIN labels, metrics, and benchmark ownership.
 - Tenant filtered pages using composite scalar equality-prefix plus range/order fields are covered by integration tests and documented performance contracts.
 - Phase 09 issue 04 adds narrow mixed-order equality-prefix proof and exact expression-index equality seeks with EXPLAIN, metrics, restart, and benchmark ownership.
-- Broader mixed-direction suffix ordering, expression range scans, and expression ORDER BY lowering remain explicit follow-on depth.
+- Follow-on depth adds expression range/order lowering and mixed-direction suffix ordering when a selective equality-prefix index can bound the candidate set.
 
 Impact:
 
@@ -137,7 +137,7 @@ The MVP baseline covers the core single-node read-model shapes, but not every ad
 Recommendation:
 
 - Treat the Phase 06 archived scope plus tenant filtered-page coverage as the MVP read-optimization baseline.
-- Track broader mixed-direction suffix ordering and expression range/order lowering only as explicit future slices with EXPLAIN assertions and metrics.
+- Track mixed-direction suffixes without selective equality-prefix support only as explicit future slices with EXPLAIN assertions and metrics.
 - Prioritize tenant-scoped filtered pages, time-range pages, and projection-shaped reads over generic SQL breadth.
 
 ### 5. Time-Series Has An MVP Baseline

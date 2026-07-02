@@ -119,6 +119,27 @@ fn should_register_bounded_join_benchmarks_for_supported_scales() {
 }
 
 #[test]
+fn should_register_mixed_direction_benchmarks_for_supported_scales() {
+    // Arrange
+    let scales = ["10k", "100k"];
+
+    // Act
+    let missing = scales
+        .into_iter()
+        .filter(|scale| {
+            benchmark_for_benchmark("tier3_system_query", "mixed_direction_scalar_query", scale)
+                .is_none()
+        })
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert!(
+        missing.is_empty(),
+        "missing mixed-direction benchmarks: {missing:?}"
+    );
+}
+
+#[test]
 fn should_lookup_benchmarks_by_scenario() {
     // Arrange
     let scenario_ids = BENCHMARK_SCENARIOS

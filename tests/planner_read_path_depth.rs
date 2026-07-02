@@ -142,7 +142,7 @@ fn should_use_range_scan_when_mixed_order_prefix_is_equality_bound() {
 }
 
 #[test]
-fn should_report_fallback_when_mixed_order_suffix_lacks_index_proof() {
+fn should_use_prefix_scan_when_mixed_order_suffix_needs_final_sort() {
     // Arrange
     let catalog = Catalog::new();
     register_collection_fields(
@@ -194,12 +194,66 @@ fn should_report_fallback_when_mixed_order_suffix_lacks_index_proof() {
     );
     assert_eq!(
         physical_plan.read.access_path,
-        physical::ReadAccessPath::CollectionScan
+        physical::ReadAccessPath::PrefixScan
+    );
+    assert_eq!(physical_plan.read.access_path_reason, "scalar-index-prefix");
+    assert_eq!(physical_plan.read.fallback_reason, None);
+    assert_eq!(physical_plan.top_k.mode, physical::TopKMode::Heap);
+    assert_eq!(physical_plan.read.early_stop, physical::EarlyStopMode::None);
+}
+
+#[test]
+fn should_use_prefix_scan_when_mixed_row_id_suffix_needs_final_sort() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_collection_fields(
+        &catalog,
+        "planner_mixed_order_row_id",
+        vec![
+            FieldSchema {
+                name: "tenant".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "score".to_string(),
+                data_type: DataType::Int,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    );
+    register_scalar_index(
+        &catalog,
+        "planner_mixed_order_row_id",
+        "planner_mixed_order_row_id_idx",
+        vec!["tenant", "score"],
+    );
+
+    // Act
+    let physical_plan = build_plan(
+        &catalog,
+        "SELECT title FROM planner_mixed_order_row_id \
+         WHERE tenant = 'tenant-a' \
+         ORDER BY score DESC, id ASC LIMIT 2",
+        "planner_mixed_order_row_id",
+    );
+
+    // Assert
+    assert_eq!(
+        physical_plan.read.selected_index.as_deref(),
+        Some("planner_mixed_order_row_id_idx")
     );
     assert_eq!(
-        physical_plan.read.fallback_reason.as_deref(),
-        Some("index-order-proof-missing")
+        physical_plan.read.access_path,
+        physical::ReadAccessPath::PrefixScan
     );
+    assert_eq!(physical_plan.top_k.mode, physical::TopKMode::Heap);
+    assert_eq!(physical_plan.read.early_stop, physical::EarlyStopMode::None);
 }
 
 #[test]

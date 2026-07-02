@@ -87,10 +87,12 @@ For the current scalar and ordered-read scope, that vocabulary includes
 `point_lookup`, `index_seek`, `prefix_scan`, `range_scan`, `ordered_bounded_scan`,
 `storage_top_k`, `keyset`, and degraded `offset` paths.
 The implemented filtered-page baseline includes composite scalar indexes with equality prefixes
-and a single range/order field, such as tenant/status filters ordered by a timestamp. The current
-mixed-direction proof is intentionally narrow: ORDER BY terms over equality-bound leading index
-fields may use any direction, and the remaining suffix must match the scalar index order with one
-direction. Exact equality predicates on deterministic scalar expression indexes lower to
+and a single range/order field, such as tenant/status filters ordered by a timestamp.
+Mixed-direction suffix pages with a selective equality prefix may use a prefix index scan followed
+by the normal SQL sort/limit; these plans do not push the SQL limit into storage. Full storage-order
+proof remains intentionally narrow: ORDER BY terms over equality-bound leading index fields may use
+any direction, and a storage-limited suffix must match the scalar index order with one direction.
+Exact equality predicates on deterministic scalar expression indexes lower to
 `index_seek`/`prefix_scan`; single-key deterministic scalar expression ranges lower to
 `range_scan`; exact single-key deterministic scalar expression ordering with a limit lowers to
 `ordered_bounded_scan`. Collation and generic PostgreSQL expression equivalence are not claimed.
@@ -661,6 +663,7 @@ add or update Criterion ownership before optimizing implementation code.
 Round 01 owns these hot paths:
 
 - tenant/status/time ordered page: `perf.read_path.mixed_order.10k` and `perf.read_path.mixed_order.100k`
+- mixed-direction suffix ordered page: `perf.read_path.mixed_direction_suffix.10k` and `perf.read_path.mixed_direction_suffix.100k`
 - expression-index equality lookup: `perf.read_path.expression_index.10k` and `perf.read_path.expression_index.100k`
 - expression-index range scan: `perf.read_path.expression_index_range.10k` and `perf.read_path.expression_index_range.100k`
 - expression-index ordered bounded scan: `perf.read_path.expression_index_order.10k` and `perf.read_path.expression_index_order.100k`
@@ -688,9 +691,10 @@ Round 01 measured notes from 2026-06-27 local-dev fallback runs:
 - `vectorized_late_match_inner_join` validates smaller build-side selection for asymmetric bounded joins: local 2026-07-02 advisory run measured 55.537-56.308 us at 10k and 53.990-55.857 us at 100k.
 - `expression_index_range_query` validates scalar expression range scans: 22.284 us at 10k and 21.667 us at 100k after explicit benchmark warmup.
 - `expression_index_order_query` validates scalar expression ordered bounded scans: 9.663 us at 10k and 9.812 us at 100k after explicit benchmark warmup.
+- `mixed_direction_scalar_query` validates prefix index scans followed by final sort for mixed-direction suffix ordering: local 2026-07-02 advisory run measured 58.263-59.392 us at 10k and 82.606-85.997 us at 100k.
 - `pgwire_prepared_query` remained scale-flat: 54.234 us at 10k and 55.031 us at 100k.
 - `column_batch_covered_projection` now measures with tight intervals after explicit benchmark warmup: 16.202 us at 10k and 15.354 us at 100k.
-- Remaining executor bottleneck: late-match or larger-output bounded joins still need adaptive side selection before both inputs can avoid broad materialization safely.
+- Remaining executor bottleneck: larger-output bounded joins still need deeper adaptive side selection before both inputs can avoid broad materialization safely.
 
 ### Manual Benchmark Scenarios
 
@@ -700,6 +704,8 @@ Round 01 measured notes from 2026-06-27 local-dev fallback runs:
 | `perf.core_read.simple.100k` | Core read | `tier3_system_query` | `simple_sql_query` | 100k |
 | `perf.read_path.mixed_order.10k` | Core read | `tier3_system_query` | `mixed_order_scalar_query` | 10k |
 | `perf.read_path.mixed_order.100k` | Core read | `tier3_system_query` | `mixed_order_scalar_query` | 100k |
+| `perf.read_path.mixed_direction_suffix.10k` | Core read | `tier3_system_query` | `mixed_direction_scalar_query` | 10k |
+| `perf.read_path.mixed_direction_suffix.100k` | Core read | `tier3_system_query` | `mixed_direction_scalar_query` | 100k |
 | `perf.read_path.expression_index.10k` | Core read | `tier3_system_query` | `expression_index_query` | 10k |
 | `perf.read_path.expression_index.100k` | Core read | `tier3_system_query` | `expression_index_query` | 100k |
 | `perf.read_path.expression_index_range.10k` | Core read | `tier3_system_query` | `expression_index_range_query` | 10k |
@@ -999,11 +1005,11 @@ single range/order field, for example `(tenant_id, status, created_at)`.
 
 ### Non-goals
 Ad hoc combinations without supporting index/layout are not guaranteed to meet the contract.
-Mixed-direction suffix ordering beyond the equality-bound-prefix proof remains explicit follow-on
-scope.
+Mixed-direction suffix ordering without a selective equality-prefix index remains explicit
+follow-on scope.
 
 ### Validation
-- Benchmarks: `perf.read_path.mixed_order.10k`, `perf.read_path.mixed_order.100k`, `perf.read_path.expression_index.10k`, `perf.read_path.expression_index.100k`, `perf.read_path.expression_index_range.10k`, `perf.read_path.expression_index_range.100k`, `perf.read_path.expression_index_order.10k`, and `perf.read_path.expression_index_order.100k`
+- Benchmarks: `perf.read_path.mixed_order.10k`, `perf.read_path.mixed_order.100k`, `perf.read_path.mixed_direction_suffix.10k`, `perf.read_path.mixed_direction_suffix.100k`, `perf.read_path.expression_index.10k`, `perf.read_path.expression_index.100k`, `perf.read_path.expression_index_range.10k`, `perf.read_path.expression_index_range.100k`, `perf.read_path.expression_index_order.10k`, and `perf.read_path.expression_index_order.100k`
 - Tests: `tests/integration_sql_scalar_indexes.rs`, `tests/integration_sql_read_path_depth.rs`, `tests/planner_read_path_depth.rs`, `tests/planner_indexes.rs`
 
 ### Required access-path assertions

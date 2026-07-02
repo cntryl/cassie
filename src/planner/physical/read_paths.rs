@@ -2,7 +2,7 @@ use super::{
     is_row_id_column, join_paths, projected_scan_fields, scalar_index_plan_shape, scan_limit,
     source_contains_join, BinaryOp, EarlyStopMode, Expr, IndexMeta, LogicalPlan,
     PaginationStrategy, ProjectionShape, QuerySource, ReadAccessPath, ScalarIndexPlanPath,
-    SelectItem, TopKMode,
+    ScalarIndexPlanShape, SelectItem, TopKMode,
 };
 
 pub(super) fn determine_read_access_path(
@@ -97,9 +97,14 @@ pub(super) fn determine_early_stop(
     access_path: &ReadAccessPath,
     pagination_strategy: &PaginationStrategy,
     top_k_mode: &TopKMode,
+    scalar_shape: Option<&ScalarIndexPlanShape>,
 ) -> EarlyStopMode {
     if matches!(access_path, ReadAccessPath::PointLookup) {
         return EarlyStopMode::PointLookup;
+    }
+
+    if scalar_shape.is_some_and(|shape| !shape.order_satisfied && !plan.order.is_empty()) {
+        return EarlyStopMode::None;
     }
 
     if matches!(

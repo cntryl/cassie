@@ -155,6 +155,7 @@ fn read_plan(
     selected_index: Option<String>,
 ) -> PhysicalReadPlan {
     let projected_scan_fields = projected_scan_fields(plan).unwrap_or_default();
+    let scalar_shape = selected_scalar_index_shape(plan, indexes, selected_index.as_deref());
     let access_path =
         read_paths::determine_read_access_path(plan, indexes, selected_index.as_deref());
     let pagination_strategy = read_paths::determine_pagination_strategy(plan, &access_path);
@@ -176,12 +177,23 @@ fn read_plan(
             &access_path,
             &pagination_strategy,
             &top_k_mode,
+            scalar_shape.as_ref(),
         ),
         projected_scan_fields,
         selected_index,
         access_path,
         pagination_strategy,
     }
+}
+
+fn selected_scalar_index_shape(
+    plan: &LogicalPlan,
+    indexes: &[IndexMeta],
+    selected_index: Option<&str>,
+) -> Option<ScalarIndexPlanShape> {
+    selected_index
+        .and_then(|name| indexes.iter().find(|index| index.name == name))
+        .and_then(|index| scalar_index_plan_shape(plan, index))
 }
 
 fn covered_index(plan: &LogicalPlan, indexes: &[IndexMeta], selected_index: Option<&str>) -> bool {

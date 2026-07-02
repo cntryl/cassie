@@ -81,6 +81,8 @@ const SCALAR_100K_CASES: &[(&str, &str)] = &[
         "SELECT id FROM bench_documents ORDER BY lower(title) ASC LIMIT 50",
     ),
 ];
+const MIXED_DIRECTION_SCALAR_SQL: &str =
+    "SELECT id FROM bench_documents WHERE status = 'approved' ORDER BY score DESC, id ASC LIMIT 50";
 
 #[path = "support/criterion_config.rs"]
 mod criterion_config;
@@ -98,6 +100,8 @@ fn bench_query(c: &mut Criterion) {
     bench_base_10k_cases(&mut group, &runtime);
     bench_simple_100k_case(&mut group, &runtime);
     bench_scalar_100k_cases(&mut group, &runtime);
+    bench_mixed_direction_scalar_case(&mut group, &runtime, "10k", 10_000);
+    bench_mixed_direction_scalar_case(&mut group, &runtime, "100k", 100_000);
     bench_time_series_case(&mut group, &runtime, "10k", 10_000);
     bench_graph_case(&mut group, &runtime, "10k", 10_000);
     bench_graph_case(&mut group, &runtime, "100k", 100_000);
@@ -135,6 +139,7 @@ fn requires_manifest_check(name: &str) -> bool {
         name,
         "simple_sql_query"
             | "mixed_order_scalar_query"
+            | "mixed_direction_scalar_query"
             | "expression_index_query"
             | "expression_index_range_query"
             | "expression_index_order_query"
@@ -193,6 +198,33 @@ fn bench_scalar_100k_cases(
             |b| b.iter(|| runtime.block_on(workloads::execute_sql(&context, sql))),
         );
     }
+}
+
+fn bench_mixed_direction_scalar_case(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    runtime: &tokio::runtime::Runtime,
+    scale: &str,
+    rows: usize,
+) {
+    if !should_run_case("mixed_direction_scalar_query", scale) {
+        return;
+    }
+
+    let benchmark =
+        performance_benchmarks::expect_benchmark(BENCHMARK, "mixed_direction_scalar_query", scale);
+    let label = format!("tier3-query-mixed-direction-{scale}");
+    let context = runtime
+        .block_on(workloads::scalar_context(&label, rows))
+        .expect("mixed-direction scalar benchmark context");
+    let _ = runtime.block_on(workloads::execute_sql(&context, MIXED_DIRECTION_SCALAR_SQL));
+    group.bench_function(
+        BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
+        |b| {
+            b.iter(|| {
+                runtime.block_on(workloads::execute_sql(&context, MIXED_DIRECTION_SCALAR_SQL));
+            });
+        },
+    );
 }
 
 fn bench_time_series_case(

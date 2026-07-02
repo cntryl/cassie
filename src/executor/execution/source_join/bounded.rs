@@ -21,6 +21,15 @@ enum JoinSide {
     Right,
 }
 
+const ROW_COUNT_BUILD_SIDE_RATIO: u64 = 4;
+const FANOUT_BUILD_SIDE_COST_RATIO: u64 = 2;
+
+struct JoinFieldCardinality {
+    rows: u64,
+    non_null_rows: u64,
+    distinct_values: u64,
+}
+
 struct IndexedJoinPlan {
     indexed_side: JoinSide,
     index: catalog::IndexMeta,
@@ -321,16 +330,98 @@ fn should_build_left_for_streaming(
     let Some(right_rows) = hydrated_row_count(env, spec.right_collection) else {
         return Ok(false);
     };
-    if right_rows < left_rows.saturating_mul(4) {
+    let row_count_selects_left = right_rows >= left_rows.saturating_mul(ROW_COUNT_BUILD_SIDE_RATIO);
+    let fanout_selects_left = should_build_left_from_fanout_stats(env, spec);
+    if !row_count_selects_left && !fanout_selects_left {
         return Ok(false);
     }
-    let Ok(left_rows) = usize::try_from(left_rows) else {
+    let Ok(left_rows_usize) = usize::try_from(left_rows) else {
         return Ok(false);
     };
-    if estimate_vectorized_join_bytes(left_rows, 0) > env.controls.temp_spill_budget_bytes {
+    if estimate_vectorized_join_bytes(left_rows_usize, 0) > env.controls.temp_spill_budget_bytes {
         return Ok(false);
     }
     can_dense_stream(env, spec.left_collection, spec.right_collection)
+}
+
+fn should_build_left_from_fanout_stats(
+    env: &SourceExecutionEnv<'_>,
+    spec: &StreamingJoinSpec<'_>,
+) -> bool {
+    let Some(left_field) = join_field_for_collection(&spec.keys.left, spec.left_collection) else {
+        return false;
+    };
+    let Some(right_field) = join_field_for_collection(&spec.keys.right, spec.right_collection)
+    else {
+        return false;
+    };
+    let Some(left) = hydrated_join_field_cardinality(env, spec.left_collection, &left_field) else {
+        return false;
+    };
+    let Some(right) = hydrated_join_field_cardinality(env, spec.right_collection, &right_field)
+    else {
+        return false;
+    };
+    if left.rows >= right.rows {
+        return false;
+    }
+
+    let left_build_cost = estimated_bounded_join_cost(spec.output_budget, &left, &right);
+    let right_build_cost = estimated_bounded_join_cost(spec.output_budget, &right, &left);
+    left_build_cost.saturating_mul(FANOUT_BUILD_SIDE_COST_RATIO) <= right_build_cost
+}
+
+fn hydrated_join_field_cardinality(
+    env: &SourceExecutionEnv<'_>,
+    collection: &str,
+    field: &str,
+) -> Option<JoinFieldCardinality> {
+    let stats = env
+        .cassie
+        .catalog
+        .get_cardinality_stats(collection)
+        .filter(|stats| stats.hydrated)?;
+    let field_stats = join_field_stats(&stats, field)?;
+    if field_stats.stale_reason.is_some()
+        || field_stats.confidence < 100
+        || field_stats.sample_count < stats.row_count
+        || field_stats.non_null_count != stats.row_count
+        || field_stats.distinct_count == 0
+    {
+        return None;
+    }
+
+    Some(JoinFieldCardinality {
+        rows: stats.row_count,
+        non_null_rows: field_stats.non_null_count,
+        distinct_values: field_stats.distinct_count,
+    })
+}
+
+fn join_field_stats<'a>(
+    stats: &'a catalog::CollectionCardinalityStats,
+    field: &str,
+) -> Option<&'a catalog::FieldCardinalityStats> {
+    stats.field_stats(field).or_else(|| {
+        stats
+            .fields
+            .iter()
+            .find(|(candidate, _)| candidate.eq_ignore_ascii_case(field))
+            .map(|(_, stats)| stats)
+    })
+}
+
+fn estimated_bounded_join_cost(
+    output_budget: usize,
+    build: &JoinFieldCardinality,
+    stream: &JoinFieldCardinality,
+) -> u64 {
+    let output_budget = u64::try_from(output_budget).unwrap_or(u64::MAX);
+    let estimated_probe_rows = output_budget
+        .saturating_mul(build.distinct_values)
+        .div_ceil(build.non_null_rows.max(1))
+        .min(stream.rows);
+    build.rows.saturating_add(estimated_probe_rows)
 }
 
 fn execute_left_build_streaming_bounded_inner_join(

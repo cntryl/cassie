@@ -67,6 +67,23 @@ fn put_users(cassie: &Cassie, table: &str, count: usize) {
     cassie.midge.put_fresh_documents(table, users).unwrap();
 }
 
+fn put_users_with_keys(cassie: &Cassie, table: &str, keys: &[i64]) {
+    let users = keys
+        .iter()
+        .enumerate()
+        .map(|(index, key)| {
+            (
+                Some(format!("user-{index:04}")),
+                serde_json::json!({
+                    "user_key": *key,
+                    "name": format!("user-{index:04}"),
+                }),
+            )
+        })
+        .collect();
+    cassie.midge.put_fresh_documents(table, users).unwrap();
+}
+
 fn put_orders(cassie: &Cassie, table: &str, keys: &[i64]) {
     let orders = keys
         .iter()
@@ -91,6 +108,64 @@ fn select_inner_sql(users_table: &str, orders_table: &str, limit: usize) -> Stri
          ON {users_table}.user_key = {orders_table}.order_user_key \
          LIMIT {limit}"
     )
+}
+
+#[test]
+fn should_use_fanout_stats_to_reduce_larger_bounded_join_build_side() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("fanout_stats_bounded_inner_join");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        create_join_tables(
+            &cassie,
+            &session,
+            "fanout_small_users",
+            "fanout_large_orders",
+        );
+        let user_keys = (0..1_000)
+            .map(|index| i64::from(index % 10))
+            .collect::<Vec<_>>();
+        let order_keys = (0..3_000)
+            .map(|index| i64::from(index % 10))
+            .collect::<Vec<_>>();
+        put_users_with_keys(&cassie, "fanout_small_users", &user_keys);
+        put_orders(&cassie, "fanout_large_orders", &order_keys);
+        hydrate_cardinality(&cassie, "fanout_small_users");
+        hydrate_cardinality(&cassie, "fanout_large_orders");
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                &select_inner_sql("fanout_small_users", "fanout_large_orders", 500),
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(result.rows.len(), 500);
+        assert_eq!(
+            metric_delta(&after, &before, &["joins", "vectorized_build_rows_total"]),
+            1_000
+        );
+        assert!(metric_delta(&after, &before, &["joins", "vectorized_probe_rows_total"]) <= 5);
+        assert_eq!(
+            after["read_paths"]["last_collection_scan_collection"].as_str(),
+            Some("fanout_large_orders")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
 #[test]

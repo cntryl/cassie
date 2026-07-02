@@ -135,6 +135,7 @@ fn bench_scaled_executor_cases(
     bench_streaming_join_case(group, runtime, filters, dataset_rows, scale);
     bench_dense_streaming_join_case(group, runtime, filters, dataset_rows, scale);
     bench_late_match_join_case(group, runtime, filters, dataset_rows, scale);
+    bench_fanout_join_case(group, runtime, filters, dataset_rows, scale);
 }
 
 fn scale_label(dataset_rows: usize) -> &'static str {
@@ -314,6 +315,27 @@ fn bench_late_match_join_case(
     bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(50));
 }
 
+fn bench_fanout_join_case(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    runtime: &tokio::runtime::Runtime,
+    filters: &[String],
+    dataset_rows: usize,
+    scale: &str,
+) {
+    let workload = "vectorized_fanout_inner_join";
+    if !benchmark_enabled(filters, workload, scale) {
+        return;
+    }
+
+    let context = runtime
+        .block_on(workloads::vectorized_fanout_join_context(
+            &format!("tier2-executor-vectorized-fanout-join-{scale}"),
+            dataset_rows,
+        ))
+        .expect("vectorized fanout join benchmark context");
+    bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(500));
+}
+
 fn bench_optional_join_case(
     group: &mut BenchmarkGroup<'_, WallTime>,
     runtime: &tokio::runtime::Runtime,
@@ -347,16 +369,26 @@ fn bench_expected_sql_case(
 }
 
 fn join_sql(limit: u32) -> &'static str {
-    if limit == 2 {
-        "SELECT bench_join_users.name, bench_join_orders.total \
-         FROM bench_join_users JOIN bench_join_orders \
-         ON bench_join_users.user_key = bench_join_orders.order_user_key \
-         LIMIT 2"
-    } else {
-        "SELECT bench_join_users.name, bench_join_orders.total \
-         FROM bench_join_users JOIN bench_join_orders \
-         ON bench_join_users.user_key = bench_join_orders.order_user_key \
-         LIMIT 50"
+    match limit {
+        2 => {
+            "SELECT bench_join_users.name, bench_join_orders.total \
+             FROM bench_join_users JOIN bench_join_orders \
+             ON bench_join_users.user_key = bench_join_orders.order_user_key \
+             LIMIT 2"
+        }
+        50 => {
+            "SELECT bench_join_users.name, bench_join_orders.total \
+             FROM bench_join_users JOIN bench_join_orders \
+             ON bench_join_users.user_key = bench_join_orders.order_user_key \
+             LIMIT 50"
+        }
+        500 => {
+            "SELECT bench_join_users.name, bench_join_orders.total \
+             FROM bench_join_users JOIN bench_join_orders \
+             ON bench_join_users.user_key = bench_join_orders.order_user_key \
+             LIMIT 500"
+        }
+        _ => unreachable!("unsupported join limit"),
     }
 }
 

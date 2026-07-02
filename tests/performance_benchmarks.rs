@@ -95,6 +95,7 @@ fn should_register_bounded_join_benchmarks_for_supported_scales() {
     let workloads = [
         "vectorized_right_indexed_inner_join",
         "vectorized_late_match_inner_join",
+        "vectorized_fanout_inner_join",
     ];
     let scales = ["10k", "100k"];
 

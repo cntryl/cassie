@@ -6,6 +6,7 @@ This directory is the product-facing source of truth for what Cassie supports, w
 
 ## Start Here
 
+- [POC Quickstart](poc-quickstart.md): shortest local proof that Cassie can serve an embedded read-model workload.
 - [Feature Support](feature-support.md): supported SQL, catalog, index, search, vector, analytics, protocol, and API surfaces.
 - [Product Roadmap](product-roadmap.md): feature-area milestones and remaining roadmap themes.
 - [Read-Model Gap Analysis](read-model-gap-analysis.md): strategic gaps against Cassie's event-sourced read-model mission.

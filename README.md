@@ -4,6 +4,18 @@ Cassie is a purpose-built read-model database for CQRS and event-sourced systems
 
 The event stream is the source of truth. Cassie is the read model. That distinction shapes every architectural decision.
 
+## POC Quickstart
+
+Run a local embedded read-model proof of concept:
+
+```sh
+cargo run --locked --example poc_read_model
+```
+
+The example creates a projection-style table, inserts rows, adds a scalar index, runs filtered and
+aggregate SQL, prints EXPLAIN output, and reports health/metrics. It uses Midge's in-memory fallback
+and is a POC path, not a production deployment recipe.
+
 ## Design Principles
 
 ### Single-node first

@@ -78,6 +78,24 @@ Move before disk pressure blocks snapshots, restores, index builds, projection r
 5. Compare fallback counters, cache occupancy, candidate counts, storage-family operations, advisory capacity bytes, and rebuild/write-amplification counters against earlier evidence for the same profile.
 6. Decide whether to add an access path, reshape the projection, move a tenant/projection to another independent node, or keep the workload as explicit batch/offline work.
 
+## Production Evidence Backlog Checklist
+
+Close the remaining production evidence blockers by recording evidence, not by changing runtime
+behavior in this guide. The checklist is a backlog for future validation work and is not a production-ready promotion.
+
+- larger fixture runs: execute the relevant benchmark owners against the next declared fixture
+  scale, record p50/p95/p99, throughput, fallback counters, capacity bytes, host CPU/memory/disk
+  state, and the exact commit and command line.
+- capacity thresholds: define profile-specific alert values for disk headroom, cache occupancy,
+  candidate growth, fallback rate, rebuild/write pressure, and blocking elapsed time before using
+  advisory thresholds as production alerts.
+- deployment-profile notes: record host shape, storage mode, data shape, workload mix, fixture
+  scale, `CASSIE_MIDGE_DATA_DIR`, runtime threshold overrides, rollback/fallback evidence, and the
+  owner allowed to compare future runs against the profile.
+- Non-goals for this backlog: do not implement admission control, automatic disk movement,
+  replication, disk rebalancing, quorum reads, or production-ready promotion as part of evidence
+  closure.
+
 ## Current Limits
 
 - Cassie does not perform automatic tenant movement, admission control, distributed routing, replication, quorum reads, or cross-node repair.

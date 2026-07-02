@@ -451,6 +451,37 @@ fn should_keep_performance_contract_docs_aligned_with_profile_ids() {
 }
 
 #[test]
+fn should_document_capacity_evidence_backlog_without_promotion() {
+    // Arrange
+    let docs =
+        std::fs::read_to_string("docs/capacity-management.md").expect("read capacity management");
+    let backlog = docs
+        .split("## Production Evidence Backlog Checklist")
+        .nth(1)
+        .unwrap_or_default();
+
+    // Act
+    let missing = [
+        "larger fixture runs",
+        "capacity thresholds",
+        "deployment-profile notes",
+        "admission control",
+        "automatic disk movement",
+        "replication",
+        "not a production-ready promotion",
+    ]
+    .into_iter()
+    .filter(|token| !backlog.contains(token))
+    .collect::<Vec<_>>();
+
+    // Assert
+    assert!(
+        missing.is_empty(),
+        "capacity evidence backlog missing tokens: {missing:?}"
+    );
+}
+
+#[test]
 fn should_lookup_deployment_profiles_by_id() {
     // Arrange
     let profile_ids = DEPLOYMENT_PROFILES

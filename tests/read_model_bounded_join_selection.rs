@@ -17,6 +17,12 @@ fn vectorized_join_config() -> CassieRuntimeConfig {
     config
 }
 
+fn vectorized_join_budget_config(temp_spill_budget_bytes: usize) -> CassieRuntimeConfig {
+    let mut config = vectorized_join_config();
+    config.limits.temp_spill_budget_bytes = temp_spill_budget_bytes;
+    config
+}
+
 fn hydrate_cardinality(cassie: &Cassie, collection: &str) {
     let stats = cassie
         .midge
@@ -535,6 +541,65 @@ fn should_keep_existing_streaming_join_when_missing_stats_do_not_prove_smaller_l
         assert_eq!(
             after["joins"]["last_bounded_side_selection_reason"].as_str(),
             Some("right_build_kept_unproven")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_keep_existing_streaming_join_when_left_probe_exceeds_temp_budget() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("bounded_probe_temp_budget");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie =
+            Cassie::new_with_data_dir_and_config(&path, vectorized_join_budget_config(9 * 1024))
+                .unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        create_join_tables(
+            &cassie,
+            &session,
+            "budget_probe_users",
+            "budget_probe_orders",
+        );
+        put_users(&cassie, "budget_probe_users", 20);
+        let order_keys = std::iter::repeat_n(99_i64, 98)
+            .chain([0_i64, 1_i64])
+            .collect::<Vec<_>>();
+        put_orders(&cassie, "budget_probe_orders", &order_keys);
+        cassie.catalog.clear_cardinality_stats("budget_probe_users");
+        cassie
+            .catalog
+            .clear_cardinality_stats("budget_probe_orders");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                &select_inner_sql("budget_probe_users", "budget_probe_orders", 2),
+                vec![],
+            )
+            .unwrap();
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("user-000".to_string()), Value::Int64(0)],
+                vec![Value::String("user-001".to_string()), Value::Int64(1)],
+            ]
+        );
+        assert_eq!(
+            metrics["joins"]["last_bounded_side_selection_reason"].as_str(),
+            Some("left_build_budget_exceeded")
         );
 
         let _ = std::fs::remove_dir_all(path);

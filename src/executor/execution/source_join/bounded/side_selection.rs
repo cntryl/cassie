@@ -16,6 +16,11 @@ struct JoinFieldCardinality {
     distinct_values: u64,
 }
 
+enum LeftRowCountProbe {
+    WithinBuildBudget(usize),
+    ExceedsBuildBudget,
+}
+
 pub(super) struct StreamingSideSelection {
     pub(super) build_left: bool,
     pub(super) reason: &'static str,
@@ -106,11 +111,13 @@ fn should_build_left_from_bounded_row_counts(
         ));
     }
 
-    let Some(left_rows) = exact_row_count_within_left_build_budget(env, spec.left_collection)?
-    else {
-        return Ok(StreamingSideSelection::keep_right(
-            "left_build_count_unavailable",
-        ));
+    let left_rows = match left_row_count_within_build_budget(env, spec.left_collection)? {
+        LeftRowCountProbe::WithinBuildBudget(rows) => rows,
+        LeftRowCountProbe::ExceedsBuildBudget => {
+            return Ok(StreamingSideSelection::keep_right(
+                "left_build_budget_exceeded",
+            ));
+        }
     };
     if left_rows == 0 {
         return Ok(StreamingSideSelection::build_left("left_build_empty_left"));
@@ -162,17 +169,21 @@ fn should_build_left_from_bounded_row_counts(
     ))
 }
 
-fn exact_row_count_within_left_build_budget(
+fn left_row_count_within_build_budget(
     env: &SourceExecutionEnv<'_>,
     collection: &str,
-) -> Result<Option<usize>, QueryError> {
+) -> Result<LeftRowCountProbe, QueryError> {
     let budget_rows = left_build_budget_rows(env);
     if budget_rows == 0 {
-        return Ok(None);
+        return Ok(LeftRowCountProbe::ExceedsBuildBudget);
     }
 
     let observed = count_rows_until(env, collection, budget_rows.saturating_add(1))?;
-    Ok((observed <= budget_rows).then_some(observed))
+    if observed <= budget_rows {
+        return Ok(LeftRowCountProbe::WithinBuildBudget(observed));
+    }
+
+    Ok(LeftRowCountProbe::ExceedsBuildBudget)
 }
 
 fn left_build_budget_rows(env: &SourceExecutionEnv<'_>) -> usize {

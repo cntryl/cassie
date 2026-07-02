@@ -675,7 +675,7 @@ Round 01 owns these hot paths:
 - bounded indexed vectorized inner join: `perf.read_path.vectorized_indexed_inner_join.10k` and `perf.read_path.vectorized_indexed_inner_join.100k`
 - bounded right-indexed vectorized inner join: `perf.read_path.vectorized_right_indexed_inner_join.10k` and `perf.read_path.vectorized_right_indexed_inner_join.100k`
 - late-match asymmetric bounded vectorized inner join: `perf.read_path.vectorized_late_match_inner_join.10k` and `perf.read_path.vectorized_late_match_inner_join.100k`
-- fanout-aware larger-output bounded vectorized inner join: `perf.read_path.vectorized_fanout_inner_join.10k` and `perf.read_path.vectorized_fanout_inner_join.100k`
+- row-count-sampled larger-output bounded vectorized inner join: `perf.read_path.vectorized_fanout_inner_join.10k` and `perf.read_path.vectorized_fanout_inner_join.100k`
 - pgwire prepared read path: `perf.pgwire.prepared_query.10k` and `perf.pgwire.prepared_query.100k`
 
 The default decision rule is to prefer Midge-native access paths, covering reads, bounded scans,
@@ -690,13 +690,13 @@ Round 01 measured notes from 2026-06-27 local-dev fallback runs:
 - `vectorized_indexed_inner_join` validates indexed left-source probes for bounded inner joins: local 2026-07-02 advisory run measured 63.365-65.769 us at 10k and 63.236-67.994 us at 100k.
 - `vectorized_right_indexed_inner_join` validates indexed right-source probes for bounded inner joins: local 2026-07-02 advisory run measured 54.349-56.399 us at 10k and 54.332-55.440 us at 100k.
 - `vectorized_late_match_inner_join` validates smaller build-side selection for asymmetric bounded joins: local 2026-07-02 advisory run measured 55.537-56.308 us at 10k and 53.990-55.857 us at 100k.
-- `vectorized_fanout_inner_join` validates distinct-count build-side selection for larger-output asymmetric bounded joins: local 2026-07-02 advisory run measured 1.3807-3.3664 ms at 10k and 2.4591-11.105 ms at 100k.
+- `vectorized_fanout_inner_join` validates row-count-sampled build-side selection when join-key field stats are unavailable for larger-output asymmetric bounded joins: local 2026-07-02 advisory run measured 4.7098-5.6266 ms at 10k and 4.4832-4.9095 ms at 100k.
 - `expression_index_range_query` validates scalar expression range scans: 22.284 us at 10k and 21.667 us at 100k after explicit benchmark warmup.
 - `expression_index_order_query` validates scalar expression ordered bounded scans: 9.663 us at 10k and 9.812 us at 100k after explicit benchmark warmup.
 - `mixed_direction_scalar_query` validates prefix index scans followed by final sort for mixed-direction suffix ordering: local 2026-07-02 advisory run measured 58.263-59.392 us at 10k and 82.606-85.997 us at 100k.
 - `pgwire_prepared_query` remained scale-flat: 54.234 us at 10k and 55.031 us at 100k.
 - `column_batch_covered_projection` now measures with tight intervals after explicit benchmark warmup: 16.202 us at 10k and 15.354 us at 100k.
-- Remaining executor bottleneck: non-indexed bounded joins without reliable join-key cardinality stats still need deeper adaptive side selection before both inputs can avoid broad materialization safely.
+- Remaining executor bottleneck: non-indexed bounded joins without reliable row-count evidence or supportive join-key samples still need deeper adaptive side selection before both inputs can avoid broad materialization safely.
 
 ### Manual Benchmark Scenarios
 

@@ -1,6 +1,7 @@
 #![allow(unused_imports, dead_code)]
 
 use cassie::app::Cassie;
+use cassie::catalog::CollectionCardinalityStats;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 
@@ -22,6 +23,16 @@ fn hydrate_cardinality(cassie: &Cassie, collection: &str) {
         .rebuild_cardinality_stats_for_collection(collection)
         .expect("cardinality stats");
     cassie.catalog.hydrate_cardinality_stats(collection, stats);
+}
+
+fn hydrate_row_count_only(cassie: &Cassie, collection: &str, row_count: u64) {
+    cassie.catalog.hydrate_cardinality_stats(
+        collection,
+        CollectionCardinalityStats {
+            row_count,
+            ..CollectionCardinalityStats::default()
+        },
+    );
 }
 
 fn metric_delta(after: &serde_json::Value, before: &serde_json::Value, path: &[&str]) -> u64 {
@@ -108,6 +119,64 @@ fn select_inner_sql(users_table: &str, orders_table: &str, limit: usize) -> Stri
          ON {users_table}.user_key = {orders_table}.order_user_key \
          LIMIT {limit}"
     )
+}
+
+#[test]
+fn should_sample_row_count_stats_to_reduce_larger_bounded_join_without_field_stats() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("row_count_sample_bounded_inner_join");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        create_join_tables(
+            &cassie,
+            &session,
+            "row_count_sample_users",
+            "row_count_sample_orders",
+        );
+        let user_keys = (0..1_000)
+            .map(|index| i64::from(index % 10))
+            .collect::<Vec<_>>();
+        let order_keys = (0..3_000)
+            .map(|index| i64::from(index % 10))
+            .collect::<Vec<_>>();
+        put_users_with_keys(&cassie, "row_count_sample_users", &user_keys);
+        put_orders(&cassie, "row_count_sample_orders", &order_keys);
+        hydrate_row_count_only(&cassie, "row_count_sample_users", 1_000);
+        hydrate_row_count_only(&cassie, "row_count_sample_orders", 3_000);
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                &select_inner_sql("row_count_sample_users", "row_count_sample_orders", 500),
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(result.rows.len(), 500);
+        assert_eq!(
+            metric_delta(&after, &before, &["joins", "vectorized_build_rows_total"]),
+            1_000
+        );
+        assert!(metric_delta(&after, &before, &["joins", "vectorized_probe_rows_total"]) <= 5);
+        assert_eq!(
+            after["read_paths"]["last_collection_scan_collection"].as_str(),
+            Some("row_count_sample_orders")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
 #[test]

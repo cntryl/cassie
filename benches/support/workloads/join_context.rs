@@ -2,6 +2,7 @@ use std::future::{ready, Ready};
 use std::sync::Arc;
 
 use cassie::app::{Cassie, CassieError};
+use cassie::catalog::CollectionCardinalityStats;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use serde_json::json;
@@ -135,18 +136,19 @@ fn vectorized_fanout_join_context_now(
     label: &str,
     dataset_rows: usize,
 ) -> Result<BenchContext, CassieError> {
+    let user_rows = dataset_rows / 3;
     let ctx = vectorized_join_context_with_budget(
         label,
         dataset_rows,
         JoinLoadShape::FanoutRight {
-            user_rows: dataset_rows / 3,
+            user_rows,
             order_rows: dataset_rows,
             key_count: 10,
         },
         None,
     )?;
-    hydrate_join_cardinality(&ctx, "bench_join_users")?;
-    hydrate_join_cardinality(&ctx, "bench_join_orders")?;
+    hydrate_join_row_count(&ctx, "bench_join_users", user_rows);
+    hydrate_join_row_count(&ctx, "bench_join_orders", dataset_rows);
     Ok(ctx)
 }
 
@@ -368,4 +370,14 @@ fn hydrate_join_cardinality(ctx: &BenchContext, collection: &str) -> Result<(), 
         .catalog
         .hydrate_cardinality_stats(collection, stats);
     Ok(())
+}
+
+fn hydrate_join_row_count(ctx: &BenchContext, collection: &str, row_count: usize) {
+    ctx.cassie.catalog.hydrate_cardinality_stats(
+        collection,
+        CollectionCardinalityStats {
+            row_count: u64::try_from(row_count).unwrap_or(u64::MAX),
+            ..CollectionCardinalityStats::default()
+        },
+    );
 }

@@ -21,7 +21,7 @@ jobs:
         run: rustup update
 
       - name: Install Rust components
-        run: rustup component add rustfmt clippy criterion
+        run: rustup component add rustfmt clippy
 
       - name: Install cntryl-tools
         run: cargo install --git https://github.com/cntryl/tools

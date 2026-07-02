@@ -836,7 +836,10 @@ mod tests {
         let before = scalar_index_entry_key("events", "idx", &[json!("a\u{0}a")], "1").unwrap();
         let after = scalar_index_entry_key("events", "idx", &[json!("aa")], "1").unwrap();
 
-        // Act / Assert
-        assert!(before < after);
+        // Act
+        let is_ordered = before < after;
+
+        // Assert
+        assert!(is_ordered);
     }
 }

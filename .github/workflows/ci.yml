@@ -1,7 +1,11 @@
 name: CI
 
 on:
- workflow_dispatch
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -10,28 +14,38 @@ jobs:
   rust:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Checkout
+        uses: actions/checkout@v7
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Update Rust
+        run: rustup update
 
-      - name: Cache cargo registry and build outputs
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+      - name: Install Rust components
+        run: rustup component add rustfmt clippy criterion
+
+      - name: Install cntryl-tools
+        run: cargo install --git https://github.com/cntryl/tools
 
       - name: Cargo fmt check
         run: cargo fmt --all -- --check
 
-      - name: Compatibility matrix
-        run: cargo test --locked --test compatibility_matrix -- --nocapture
+      - name: Validate test conventions
+        run: |
+          while IFS= read -r -d '' test_file; do
+            cntryl-tools validate-tests -f "$test_file"
+          done < <(find tests -type f -name '*.rs' -print0 | sort -z)
+
+      - name: Cargo clippy pedantic
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic
+
+      - name: Cargo build
+        run: cargo build --locked
+
+      - name: Cargo bench compile
+        run: cargo bench --locked --no-run
+
+      - name: Cargo test compile
+        run: cargo test --locked --no-run
 
       - name: Cargo test
         run: cargo test --locked

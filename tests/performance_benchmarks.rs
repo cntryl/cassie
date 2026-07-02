@@ -1,5 +1,7 @@
 #[path = "../benches/support/performance_benchmarks.rs"]
 mod performance_benchmarks;
+#[path = "../benches/support/workloads.rs"]
+mod workloads;
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -20,6 +22,61 @@ fn metric_names(benchmark: &PerformanceBenchmarkScenario) -> BTreeSet<&'static s
     ]
     .into_iter()
     .collect()
+}
+
+fn metric_delta(after: &serde_json::Value, before: &serde_json::Value, path: &[&str]) -> u64 {
+    let after_value = path.iter().fold(after, |value, key| &value[*key]);
+    let before_value = path.iter().fold(before, |value, key| &value[*key]);
+    after_value.as_u64().unwrap() - before_value.as_u64().unwrap()
+}
+
+fn join_sql(limit: u32) -> &'static str {
+    match limit {
+        50 => {
+            "SELECT bench_join_users.name, bench_join_orders.total \
+             FROM bench_join_users JOIN bench_join_orders \
+             ON bench_join_users.user_key = bench_join_orders.order_user_key \
+             LIMIT 50"
+        }
+        500 => {
+            "SELECT bench_join_users.name, bench_join_orders.total \
+             FROM bench_join_users JOIN bench_join_orders \
+             ON bench_join_users.user_key = bench_join_orders.order_user_key \
+             LIMIT 500"
+        }
+        _ => unreachable!("unsupported join limit"),
+    }
+}
+
+fn render_bounded_join_metric_line(
+    workload: &str,
+    scale: &str,
+    ctx: &workloads::BenchContext,
+    sql: &str,
+) -> String {
+    let before = ctx.cassie.metrics();
+    let result = ctx
+        .cassie
+        .execute_sql(&ctx.session, sql, vec![])
+        .expect("bounded join benchmark query");
+    let after = ctx.cassie.metrics();
+
+    format!(
+        "{workload}/{scale} rows={} scanned_rows={} index_seeks={} build_rows={} probe_rows={} output_rows={} side_reason={}",
+        result.rows.len(),
+        metric_delta(
+            &after,
+            &before,
+            &["read_paths", "collection_scan_rows"]
+        ),
+        metric_delta(&after, &before, &["read_paths", "index_seek_scans"]),
+        metric_delta(&after, &before, &["joins", "vectorized_build_rows_total"]),
+        metric_delta(&after, &before, &["joins", "vectorized_probe_rows_total"]),
+        metric_delta(&after, &before, &["joins", "output_rows_total"]),
+        after["joins"]["last_bounded_side_selection_reason"]
+            .as_str()
+            .unwrap_or(""),
+    )
 }
 
 #[test]
@@ -409,6 +466,60 @@ fn should_lookup_deployment_profiles_by_id() {
 
     // Assert
     assert!(missing.is_empty(), "profile lookup failed for {missing:?}");
+}
+
+#[test]
+#[ignore = "manual bounded-join evidence; run with --ignored --nocapture"]
+fn should_render_bounded_join_metric_evidence_for_manual_review() {
+    // Arrange
+    let runtime = workloads::runtime();
+    let mut report = Vec::new();
+
+    // Act
+    for (scale, rows) in [("10k", 10_000), ("100k", 100_000)] {
+        let right_indexed = runtime
+            .block_on(workloads::vectorized_right_indexed_join_context(
+                &format!("metric-right-indexed-{scale}"),
+                rows,
+            ))
+            .expect("right-indexed bounded join context");
+        report.push(render_bounded_join_metric_line(
+            "vectorized_right_indexed_inner_join",
+            scale,
+            &right_indexed,
+            join_sql(50),
+        ));
+
+        let late_match = runtime
+            .block_on(workloads::vectorized_late_match_join_context(
+                &format!("metric-late-match-{scale}"),
+                rows,
+            ))
+            .expect("late-match bounded join context");
+        report.push(render_bounded_join_metric_line(
+            "vectorized_late_match_inner_join",
+            scale,
+            &late_match,
+            join_sql(50),
+        ));
+
+        let fanout = runtime
+            .block_on(workloads::vectorized_fanout_join_context(
+                &format!("metric-fanout-{scale}"),
+                rows,
+            ))
+            .expect("fanout bounded join context");
+        report.push(render_bounded_join_metric_line(
+            "vectorized_fanout_inner_join",
+            scale,
+            &fanout,
+            join_sql(500),
+        ));
+    }
+
+    // Assert
+    assert_eq!(report.len(), 6);
+    eprintln!("{}", report.join("\n"));
 }
 
 #[test]

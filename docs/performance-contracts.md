@@ -690,15 +690,29 @@ Round 01 measured notes from 2026-06-27 local-dev fallback runs:
 - `vectorized_streaming_inner_join` validates bounded streaming left-source scans for sparse unindexed inner joins: 36.597 us at 10k and 36.672 us at 100k.
 - `vectorized_dense_streaming_inner_join` validates dense bounded nested-stream scans under tight temp budget: 34.853 us at 10k and 34.631 us at 100k.
 - `vectorized_indexed_inner_join` validates indexed left-source probes for bounded inner joins: local 2026-07-02 advisory run measured 63.365-65.769 us at 10k and 63.236-67.994 us at 100k.
-- `vectorized_right_indexed_inner_join` validates indexed right-source probes for bounded inner joins: local 2026-07-02 advisory run measured 54.349-56.399 us at 10k and 54.332-55.440 us at 100k.
-- `vectorized_late_match_inner_join` validates bounded row-count probes for missing-stats asymmetric bounded joins: local 2026-07-02 advisory run measured 51.769-53.156 us at 10k and 51.793-53.125 us at 100k.
-- `vectorized_fanout_inner_join` validates row-count-sampled build-side selection when join-key field stats are unavailable for larger-output asymmetric bounded joins: local 2026-07-02 advisory run measured 4.7098-5.6266 ms at 10k and 4.4832-4.9095 ms at 100k.
 - `expression_index_range_query` validates scalar expression range scans: 22.284 us at 10k and 21.667 us at 100k after explicit benchmark warmup.
 - `expression_index_order_query` validates scalar expression ordered bounded scans: 9.663 us at 10k and 9.812 us at 100k after explicit benchmark warmup.
 - `mixed_direction_scalar_query` validates non-selective covered scalar-index prefix scans plus heap top-k for mixed-direction row-id suffix ordering: local 2026-07-02 advisory run measured 27.004-27.268 us at 10k and 43.977-51.392 us at 100k.
 - `pgwire_prepared_query` remained scale-flat: 54.234 us at 10k and 55.031 us at 100k.
 - `column_batch_covered_projection` now measures with tight intervals after explicit benchmark warmup: 16.202 us at 10k and 15.354 us at 100k.
-- Remaining executor bottleneck: non-indexed bounded joins that cannot prove a bounded left build through hydrated row counts, capped runtime row-count probes, or supportive join-key samples still need deeper adaptive side selection before both inputs can avoid broad materialization safely.
+
+Latest bounded-join local-dev fallback advisory run from 2026-07-02:
+
+| Workload | Scale | p50 | p95 | p99 | Scanned rows | Index seeks | Build rows | Probe rows | Output rows | Side-selection reason |
+| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `vectorized_right_indexed_inner_join` | 10k | 56 us | 58 us | 58 us | 50 | 50 | 50 | 50 | 50 | indexed right probe |
+| `vectorized_right_indexed_inner_join` | 100k | 56 us | 57 us | 57 us | 50 | 50 | 50 | 50 | 50 | indexed right probe |
+| `vectorized_late_match_inner_join` | 10k | 57 us | 60 us | 60 us | 10,500 | 0 | 50 | 10,000 | 50 | `left_build_bounded_row_count_probe` |
+| `vectorized_late_match_inner_join` | 100k | 56 us | 57 us | 57 us | 100,500 | 0 | 50 | 100,000 | 50 | `left_build_bounded_row_count_probe` |
+| `vectorized_fanout_inner_join` | 10k | 69 us | 80 us | 80 us | 10,001 | 0 | 10,000 | 1 | 500 | `right_build_kept_close_estimate` |
+| `vectorized_fanout_inner_join` | 100k | 69 us | 71 us | 71 us | 100,001 | 0 | 100,000 | 1 | 500 | `right_build_kept_close_estimate` |
+
+Remaining executor bottleneck: non-indexed bounded joins that cannot prove a bounded left build
+through hydrated row counts, capped runtime row-count probes, or supportive join-key samples still
+need deeper adaptive side selection before both inputs can avoid broad materialization safely.
+Those cases now expose `last_bounded_side_selection_reason`, including
+`right_build_kept_unproven` and `left_build_budget_exceeded`, so local evidence distinguishes
+unproven fallbacks from selected bounded probes.
 
 ### Manual Benchmark Scenarios
 

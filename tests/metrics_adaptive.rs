@@ -70,6 +70,12 @@ fn adaptive_execution_confidence_config(
     config
 }
 
+fn snapshot_delta(after: &serde_json::Value, before: &serde_json::Value, path: &[&str]) -> u64 {
+    let after_value = path.iter().fold(after, |value, key| &value[*key]);
+    let before_value = path.iter().fold(before, |value, key| &value[*key]);
+    after_value.as_u64().unwrap_or_default() - before_value.as_u64().unwrap_or_default()
+}
+
 fn operator_switch_config(enabled: bool, threshold: usize) -> cassie::config::CassieRuntimeConfig {
     let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.vectorized_joins_enabled = true;
@@ -509,6 +515,87 @@ fn should_select_adaptive_read_operator_alternative() {
         assert_eq!(
             after["adaptive_candidates"]["last_plan_selected_alternative"],
             format!("index:{preferred_index}")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_report_adaptive_read_operator_disabled_without_selected_delta() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("adaptive_read_operator_disabled");
+    let config = adaptive_execution_config(false, 0);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let collection = "metrics_adaptive_read_operator_disabled";
+        let base_index = "metrics_adaptive_read_operator_disabled_body_idx_a";
+        let preferred_index = "metrics_adaptive_read_operator_disabled_title_idx_b";
+        register_feedback_collection(&cassie, collection);
+        register_operator_feedback_indexes(&cassie, collection, base_index, preferred_index);
+        let session = cassie.create_session("tester", None);
+        let shape_sql = "SELECT title FROM metrics_adaptive_read_operator_disabled WHERE title = 'alpha' AND body = 'one'";
+        let explain_sql = "EXPLAIN ANALYZE SELECT title FROM metrics_adaptive_read_operator_disabled WHERE title = 'alpha' AND body = 'one'";
+        let base_key = feedback_key(&cassie, &session, shape_sql, Some(base_index));
+        let preferred_key = feedback_key(&cassie, &session, shape_sql, Some(preferred_index));
+        for _ in 0..4 {
+            cassie
+                .seed_feedback_for_diagnostics(&base_key, &confident_feedback(90, 24))
+                .expect("seed base feedback");
+            cassie
+                .seed_feedback_for_diagnostics(&preferred_key, &confident_feedback(5, 1))
+                .expect("seed preferred feedback");
+        }
+        let before = cassie.metrics();
+
+        // Act
+        let explain = cassie.execute_sql(&session, explain_sql, vec![]).unwrap();
+        let plan = explain.rows[0][0].as_str().unwrap().to_string();
+        let after = cassie.metrics();
+
+        // Assert
+        assert!(plan.contains("operator_feedback=used"), "plan={plan}");
+        assert!(
+            plan.contains(&format!(
+                "operator_feedback_selected_candidate=index:{preferred_index}"
+            )),
+            "plan={plan}"
+        );
+        assert!(plan.contains("adaptive_plan_enabled=false"), "plan={plan}");
+        assert!(
+            plan.contains(&format!("adaptive_base_alternative=index:{base_index}")),
+            "plan={plan}"
+        );
+        assert!(
+            plan.contains(&format!("adaptive_selected_alternative=index:{base_index}")),
+            "plan={plan}"
+        );
+        assert!(plan.contains("adaptive_reason=disabled"), "plan={plan}");
+        assert!(
+            plan.contains("adaptive_plan_selected_delta:0"),
+            "plan={plan}"
+        );
+        assert_eq!(
+            snapshot_delta(
+                &after,
+                &before,
+                &["adaptive_candidates", "plan_disabled_total"]
+            ),
+            1
+        );
+        assert_eq!(
+            snapshot_delta(
+                &after,
+                &before,
+                &["adaptive_candidates", "plan_selected_alternatives"]
+            ),
+            0
         );
 
         let _ = std::fs::remove_dir_all(path);

@@ -88,6 +88,10 @@ unproven fallbacks are visible.
 For the current scalar and ordered-read scope, that vocabulary includes
 `point_lookup`, `index_seek`, `prefix_scan`, `range_scan`, `ordered_bounded_scan`,
 `storage_top_k`, `keyset`, and degraded `offset` paths.
+Adaptive read-operator evidence remains a readiness guardrail, not a production threshold claim:
+local-dev runs may prove that scalar-index alternatives, guard failures, disabled fallback, and
+operator-switch diagnostics are observable, but production promotion requires deployment-profile
+thresholds for adaptive cost savings, feedback confidence, and runtime operator switching.
 The implemented filtered-page baseline includes composite scalar indexes with equality prefixes
 and a single range/order field, such as tenant/status filters ordered by a timestamp.
 Mixed-direction suffix pages with a selective equality prefix may use a prefix index scan followed
@@ -645,6 +649,11 @@ perf.core_read.simple.10k profile=local-dev-fallback-10k benchmark=tier3_system_
 
 Benchmark output is evidence collection, not a production-ready promotion or SLA claim.
 A deployment profile records enough context for a future reviewer to compare benchmark output against a declared environment and workload.
+Local-dev fallback profiles are valid regression evidence for access-path and diagnostic behavior,
+but they do not set adaptive read thresholds. Any future production profile must record the chosen
+`CASSIE_ADAPTIVE_MIN_COST_SAVINGS_BPS`, `CASSIE_ADAPTIVE_MIN_CONFIDENCE_BPS`,
+`CASSIE_OPERATOR_SWITCHING_ENABLED`, and `CASSIE_OPERATOR_SWITCH_JOIN_ROW_THRESHOLD` values along
+with fallback/rollback evidence.
 
 | Profile | Host shape | Storage mode | Data shape | Workload mix | Fixture scale | Benchmark command | Metrics captured | Known non-goals |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

@@ -85,6 +85,9 @@ pub(crate) fn select_adaptive_read_operator(
     };
 
     if !limits.adaptive_execution_enabled {
+        diagnostics
+            .selected_alternative
+            .clone_from(&base_candidate.label);
         return (operator_selected_index, diagnostics);
     }
 

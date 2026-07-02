@@ -149,6 +149,7 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
     apply_sort: bool,
     index_usage: Option<ProjectedReadIndexUsage>,
 ) -> Result<Vec<BatchRow>, QueryError> {
+    let mut heap_top_k_collection_name = None;
     if apply_filter {
         if let Some(filter_expr) = &plan.filter {
             let filter_started = Instant::now();
@@ -167,15 +168,10 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
 
     if apply_sort && !plan.order.is_empty() {
         let sort_started = Instant::now();
-        *batches = sort::sort_batches(
-            batches.clone(),
-            &plan.order,
-            &plan.projection,
-            params,
-            None,
-            user_functions,
-            session,
-        );
+        let (sorted_batches, collection_name) =
+            sort_projected_batches(batches.clone(), plan, params, user_functions, session);
+        *batches = sorted_batches;
+        heap_top_k_collection_name = collection_name;
         ensure_temp_budget(controls, batches)?;
         let _ = sort_started;
     }
@@ -193,6 +189,11 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
     *batches = slice_batches_for_plan(batches.clone(), plan.offset, plan.limit);
 
     let rows = batch::flatten_batches(std::mem::take(batches));
+    if let Some(collection) = heap_top_k_collection_name {
+        cassie
+            .runtime
+            .record_read_path_heap_top_k(&collection, rows.len());
+    }
     record_covering_index_usage(cassie, plan, rows.len(), index_usage);
 
     Ok(rows)
@@ -309,17 +310,13 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
         }
     }
 
+    let mut heap_top_k_collection_name = None;
     if !plan.order.is_empty() {
         let sort_started = Instant::now();
-        batches = sort::sort_batches(
-            batches,
-            &plan.order,
-            &plan.projection,
-            params,
-            None,
-            user_functions,
-            session,
-        );
+        let (sorted_batches, collection_name) =
+            sort_projected_batches(batches, plan, params, user_functions, session);
+        batches = sorted_batches;
+        heap_top_k_collection_name = collection_name;
         ensure_temp_budget(controls, &batches)?;
         breakdown.sort += sort_started.elapsed();
     }
@@ -341,6 +338,11 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
     let rows = batch::flatten_batches(batches);
     breakdown.result_build += result_started.elapsed();
 
+    if let Some(collection) = heap_top_k_collection_name {
+        cassie
+            .runtime
+            .record_read_path_heap_top_k(&collection, rows.len());
+    }
     record_covering_index_usage(cassie, plan, rows.len(), None);
 
     Ok(Some((rows, breakdown)))
@@ -502,6 +504,42 @@ fn projected_order_columns(plan: &LogicalPlan) -> Option<Vec<String>> {
     Some(fields)
 }
 
+fn sort_projected_batches(
+    batches: Vec<Vec<BatchRow>>,
+    plan: &LogicalPlan,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+) -> (Vec<Vec<BatchRow>>, Option<String>) {
+    if let Some(top_needed) = projected_scan_limit(plan.limit, plan.offset) {
+        let eval = sort::EvalInput {
+            order: &plan.order,
+            projection: &plan.projection,
+            params,
+            search_context: None,
+            user_functions,
+            session,
+        };
+        return (
+            sort::top_k_batches(batches, &eval, top_needed),
+            heap_top_k_collection(plan),
+        );
+    }
+
+    (
+        sort::sort_batches(
+            batches,
+            &plan.order,
+            &plan.projection,
+            params,
+            None,
+            user_functions,
+            session,
+        ),
+        None,
+    )
+}
+
 fn covering_index_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Option<catalog::IndexMeta> {
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
@@ -546,6 +584,13 @@ fn projected_scan_limit(limit: Option<i64>, offset: Option<i64>) -> Option<usize
     let limit = usize::try_from(limit.max(0)).ok()?;
     let offset = usize::try_from(offset.unwrap_or(0).max(0)).ok()?;
     limit.checked_add(offset)
+}
+
+fn heap_top_k_collection(plan: &LogicalPlan) -> Option<String> {
+    match &plan.source {
+        QuerySource::Collection(collection) => Some(collection.clone()),
+        _ => None,
+    }
 }
 
 pub(super) fn projected_scan_pushdown_filter(expr: &Expr) -> Option<scan::ProjectedDocumentFilter> {

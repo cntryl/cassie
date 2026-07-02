@@ -257,6 +257,100 @@ fn should_use_prefix_scan_when_mixed_row_id_suffix_needs_final_sort() {
 }
 
 #[test]
+fn should_use_nonselective_prefix_scan_when_mixed_row_id_suffix_needs_final_sort() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_collection_fields(
+        &catalog,
+        "planner_nonselective_mixed_order_row_id",
+        vec![
+            FieldSchema {
+                name: "score".to_string(),
+                data_type: DataType::Int,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    );
+    register_scalar_index(
+        &catalog,
+        "planner_nonselective_mixed_order_row_id",
+        "planner_nonselective_mixed_order_row_id_idx",
+        vec!["score"],
+    );
+
+    // Act
+    let physical_plan = build_plan(
+        &catalog,
+        "SELECT id FROM planner_nonselective_mixed_order_row_id \
+         ORDER BY score DESC, id ASC LIMIT 2",
+        "planner_nonselective_mixed_order_row_id",
+    );
+
+    // Assert
+    assert_eq!(
+        physical_plan.read.selected_index.as_deref(),
+        Some("planner_nonselective_mixed_order_row_id_idx")
+    );
+    assert_eq!(
+        physical_plan.read.access_path,
+        physical::ReadAccessPath::PrefixScan
+    );
+    assert_eq!(physical_plan.read.fallback_reason, None);
+    assert_eq!(physical_plan.top_k.mode, physical::TopKMode::Heap);
+    assert_eq!(physical_plan.read.early_stop, physical::EarlyStopMode::None);
+}
+
+#[test]
+fn should_keep_collection_scan_for_noncovered_nonselective_mixed_row_id_suffix() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_collection_fields(
+        &catalog,
+        "planner_noncovered_nonselective_mixed_order",
+        vec![
+            FieldSchema {
+                name: "score".to_string(),
+                data_type: DataType::Int,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    );
+    register_scalar_index(
+        &catalog,
+        "planner_noncovered_nonselective_mixed_order",
+        "planner_noncovered_nonselective_mixed_order_idx",
+        vec!["score"],
+    );
+
+    // Act
+    let physical_plan = build_plan(
+        &catalog,
+        "SELECT title FROM planner_noncovered_nonselective_mixed_order \
+         ORDER BY score DESC, id ASC LIMIT 2",
+        "planner_noncovered_nonselective_mixed_order",
+    );
+
+    // Assert
+    assert_eq!(physical_plan.read.selected_index, None);
+    assert_eq!(
+        physical_plan.read.access_path,
+        physical::ReadAccessPath::CollectionScan
+    );
+    assert_eq!(physical_plan.top_k.mode, physical::TopKMode::Heap);
+    assert_eq!(physical_plan.read.early_stop, physical::EarlyStopMode::None);
+}
+
+#[test]
 fn should_lower_expression_equality_to_scalar_index_seek() {
     // Arrange
     let catalog = Catalog::new();

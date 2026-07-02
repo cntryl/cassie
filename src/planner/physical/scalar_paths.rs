@@ -113,7 +113,10 @@ pub(crate) fn scalar_index_plan_shape(
     }
 
     if order_shape.order_columns_used > 0 && plan.limit.is_some() {
-        if !order_shape.order_satisfied && equality_prefix_len > 0 {
+        if !order_shape.order_satisfied
+            && (equality_prefix_len > 0
+                || (order_shape.order_by_row_id && super::plan_is_covered_by_index(plan, index)))
+        {
             return Some(ScalarIndexPlanShape {
                 path: ScalarIndexPlanPath::PrefixScan,
                 equality_prefix_len,

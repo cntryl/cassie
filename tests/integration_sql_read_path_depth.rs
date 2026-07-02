@@ -203,9 +203,116 @@ fn should_scan_index_prefix_then_sort_mixed_direction_suffix() {
             after["read_paths"]["prefix_scans"].as_u64().unwrap()
                 > before["read_paths"]["prefix_scans"].as_u64().unwrap()
         );
+        assert!(
+            after["read_paths"]["heap_top_k_scans"].as_u64().unwrap()
+                > before["read_paths"]["heap_top_k_scans"].as_u64().unwrap()
+        );
         assert_eq!(
             after["read_paths"]["last_index_scan_index"].as_str(),
             Some("read_path_mixed_order_suffix_idx")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_scan_nonselective_index_prefix_then_heap_mixed_direction_suffix() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("read_path_nonselective_mixed_order_suffix");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let session = cassie.create_session("tester", None);
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE read_path_nonselective_mixed_order_suffix \
+                 (score INT, title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        for (id, score, title) in [
+            ("row-c", 100, "third"),
+            ("row-a", 100, "first"),
+            ("row-b", 100, "second"),
+            ("row-z", 90, "lower"),
+        ] {
+            cassie
+                .midge
+                .put_document(
+                    "read_path_nonselective_mixed_order_suffix",
+                    Some(id.to_string()),
+                    serde_json::json!({
+                        "score": score,
+                        "title": title
+                    }),
+                )
+                .unwrap();
+        }
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX read_path_nonselective_mixed_order_suffix_idx \
+                 ON read_path_nonselective_mixed_order_suffix USING btree (score)",
+                vec![],
+            )
+            .unwrap();
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id FROM read_path_nonselective_mixed_order_suffix \
+                 ORDER BY score DESC, id ASC LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+        let explain = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT id FROM read_path_nonselective_mixed_order_suffix \
+                 ORDER BY score DESC, id ASC LIMIT 2",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("row-a".to_string())],
+                vec![Value::String("row-b".to_string())],
+            ]
+        );
+        let Value::String(plan) = &explain.rows[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("index=read_path_nonselective_mixed_order_suffix_idx"));
+        assert!(plan.contains("access_path=prefix_scan"));
+        assert!(plan.contains("access_path_reason=scalar-index-prefix"));
+        assert!(plan.contains("fallback_reason=none"));
+        assert!(plan.contains("top_k_mode=heap"));
+        assert!(plan.contains("early_stop=none"));
+        assert!(
+            after["read_paths"]["prefix_scans"].as_u64().unwrap()
+                > before["read_paths"]["prefix_scans"].as_u64().unwrap()
+        );
+        assert!(
+            after["read_paths"]["heap_top_k_scans"].as_u64().unwrap()
+                > before["read_paths"]["heap_top_k_scans"].as_u64().unwrap()
+        );
+        assert_eq!(
+            after["read_paths"]["last_index_scan_index"].as_str(),
+            Some("read_path_nonselective_mixed_order_suffix_idx")
         );
 
         let _ = std::fs::remove_dir_all(path);

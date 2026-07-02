@@ -693,7 +693,7 @@ Round 01 measured notes from 2026-06-27 local-dev fallback runs:
 - `vectorized_fanout_inner_join` validates row-count-sampled build-side selection when join-key field stats are unavailable for larger-output asymmetric bounded joins: local 2026-07-02 advisory run measured 4.7098-5.6266 ms at 10k and 4.4832-4.9095 ms at 100k.
 - `expression_index_range_query` validates scalar expression range scans: 22.284 us at 10k and 21.667 us at 100k after explicit benchmark warmup.
 - `expression_index_order_query` validates scalar expression ordered bounded scans: 9.663 us at 10k and 9.812 us at 100k after explicit benchmark warmup.
-- `mixed_direction_scalar_query` validates prefix index scans followed by final sort for mixed-direction suffix ordering: local 2026-07-02 advisory run measured 58.263-59.392 us at 10k and 82.606-85.997 us at 100k.
+- `mixed_direction_scalar_query` validates non-selective covered scalar-index prefix scans plus heap top-k for mixed-direction row-id suffix ordering: local 2026-07-02 advisory run measured 27.004-27.268 us at 10k and 43.977-51.392 us at 100k.
 - `pgwire_prepared_query` remained scale-flat: 54.234 us at 10k and 55.031 us at 100k.
 - `column_batch_covered_projection` now measures with tight intervals after explicit benchmark warmup: 16.202 us at 10k and 15.354 us at 100k.
 - Remaining executor bottleneck: non-indexed bounded joins that cannot prove a bounded left build through hydrated row counts, capped runtime row-count probes, or supportive join-key samples still need deeper adaptive side selection before both inputs can avoid broad materialization safely.
@@ -1006,11 +1006,13 @@ LIMIT 50;
 Composite filtering path with index support or direct projection materialization.
 The baseline optimized path is a composite scalar index with equality-prefix filters followed by a
 single range/order field, for example `(tenant_id, status, created_at)`.
+Mixed-direction row-id suffix pages can also use a covered scalar index on the leading order field
+and bounded heap top-k.
 
 ### Non-goals
 Ad hoc combinations without supporting index/layout are not guaranteed to meet the contract.
-Mixed-direction suffix ordering without a selective equality-prefix index remains explicit
-follow-on scope.
+Mixed-direction suffix ordering without a supporting scalar index/layout, and broader mixed
+expression suffixes, remain explicit follow-on scope.
 
 ### Validation
 - Benchmarks: `perf.read_path.mixed_order.10k`, `perf.read_path.mixed_order.100k`, `perf.read_path.mixed_direction_suffix.10k`, `perf.read_path.mixed_direction_suffix.100k`, `perf.read_path.expression_index.10k`, `perf.read_path.expression_index.100k`, `perf.read_path.expression_index_range.10k`, `perf.read_path.expression_index_range.100k`, `perf.read_path.expression_index_order.10k`, and `perf.read_path.expression_index_order.100k`

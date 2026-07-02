@@ -82,7 +82,7 @@ const SCALAR_100K_CASES: &[(&str, &str)] = &[
     ),
 ];
 const MIXED_DIRECTION_SCALAR_SQL: &str =
-    "SELECT id FROM bench_documents WHERE status = 'approved' ORDER BY score DESC, id ASC LIMIT 50";
+    "SELECT id FROM bench_documents ORDER BY score DESC, id ASC LIMIT 50";
 
 #[path = "support/criterion_config.rs"]
 mod criterion_config;

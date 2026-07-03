@@ -54,11 +54,6 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.branch }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.semver }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.platform.outputs.platform_pair }}-${{ needs.version.outputs.branch }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.platform.outputs.platform_pair }}-${{ needs.version.outputs.semver }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ steps.platform.outputs.platform_pair }}
           cache-to: type=gha,mode=min,scope=${{ steps.platform.outputs.platform_pair }}

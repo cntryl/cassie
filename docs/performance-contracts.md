@@ -605,7 +605,7 @@ Initial targets are comparative rather than SLA-grade: verification and swap cos
 ## Pattern Contracts
 
 The first 10k/100k performance slice is a manual developer feedback loop, not a CI gate or SLA table.
-Each scenario below has a stable Criterion owner, fixture scale, scenario id, and evidence labels so a developer can run the relevant benchmark while working on a read-model path and compare local p50, p95, p99, and throughput movement over time.
+Each scenario below has a stable cntryl-stress owner, fixture scale, scenario id, and evidence labels so a developer can run the relevant benchmark while working on a read-model path and compare local p50, p95, p99, and throughput movement over time.
 
 Manual benchmark runs are opt-in so default `cargo test` does not execute expensive fixtures:
 
@@ -621,6 +621,8 @@ cargo bench --locked --bench tier4_integration_pgwire
 cargo bench --locked --bench tier4_integration_http
 cargo test --locked --test performance_benchmarks -- --ignored --nocapture
 ```
+
+cntryl-stress reads `STRESS_*` configuration. Use `STRESS_PROFILE=smoke` for quick fixture checks, `STRESS_SAMPLES` and `STRESS_WARMUP_SAMPLES` to tune sample counts, `STRESS_FILTER` or `--workload` to select a workload or scale, `STRESS_TIER` or `--tier` to select an exact tier, `STRESS_OUTPUT_DIR` for artifact roots, and `STRESS_MICRO_SAMPLE_DURATION_MS` for Tier 1 micro sample windows.
 
 For CI jobs or quick local checks that only need to confirm benchmark ownership still compiles without executing fixtures:
 
@@ -639,7 +641,8 @@ cargo bench --locked --bench tier4_integration_http --no-run
 The benchmark fixture uses `CASSIE_MIDGE_ALLOW_FALLBACK=1` and forces Midge's in-memory fallback by default so local results are repeatable and do not measure host disk sync behavior.
 Set `BENCH_MIDGE_DISK=1` before the `cargo bench` commands when collecting disk-backed exploratory numbers.
 
-The ignored `performance_benchmarks` test reads Criterion `sample.json` files from `target/criterion` and prints one line per scenario:
+Each bench owner writes cntryl-stress artifacts to `target/stress/<owner-benchmark>/latest.json`.
+The ignored `performance_benchmarks` test reads those `latest.json` artifacts and prints one line per scenario:
 
 ```text
 perf.core_read.simple.10k profile=local-dev-fallback-10k benchmark=tier3_system_query workload=simple_sql_query scale=10k storage=in_memory_midge_fallback p50=...us p95=...us p99=...us throughput=...ops/s fallback_evidence=fallback_reason cache_evidence=plan_cache.entries storage_evidence=storage.data.reads feature_evidence=query.latency_ms_total non_goals=not_sla|not_ci_gate|not_production_ready_promotion|not_disk_sync_unless_bench_midge_disk
@@ -662,14 +665,14 @@ with fallback/rollback evidence.
 | `future-1m-placeholder` | Declared deployment profile | `profile-defined` | Future generated read-model fixture | Single benchmark owner workload | 1M | `cargo bench --locked --bench <owner-benchmark> --no-run` | p50, p95, p99, throughput, fallback counters, cache occupancy, storage-family operations, feature-family metrics | Not SLA, not CI gate, not production-ready promotion, not a default fixture, not required by current benchmarks |
 
 The 1M profile is a compile-validated placeholder only.
-It reserves representative future scenario ids without requiring 1M fixture generation or Criterion output in the default manual workflow:
+It reserves representative future scenario ids without requiring 1M fixture generation or cntryl-stress output in the default manual workflow:
 `perf.core_read.simple.1m`, `perf.replay.lag_catchup.1m`, `perf.rebuild.refresh.1m`, `perf.verification.full.1m`, `perf.search.fulltext.1m`, `perf.vector.executor.1m`, `perf.hybrid.executor.1m`, `perf.graph.expand.1m`, `perf.time_series.window_scan.1m`, `perf.pgwire.simple_query.1m`, and `perf.http.document_create_get.1m`.
 
 ### TDD Optimization Round 01
 
 This round targets read-model hot paths rather than general OLAP parity. Each change must start with
 a failing or newly guarding test that asserts result correctness plus EXPLAIN/metrics evidence, then
-add or update Criterion ownership before optimizing implementation code.
+add or update cntryl-stress ownership before optimizing implementation code.
 
 Round 01 owns these hot paths:
 
@@ -692,9 +695,9 @@ Round 01 owns these hot paths:
 The default decision rule is to prefer Midge-native access paths, covering reads, bounded scans,
 column-batch pruning, and selective vectorized operators before broader executor rewrites.
 
-Round 01 measured notes from 2026-06-27 local-dev fallback runs:
+Round 01 historical Criterion measured notes from 2026-06-27 local-dev fallback runs:
 
-- `vectorized_join_equi/100k` now reaches stable Criterion measurement instead of stalling in fixture setup; latest mean was 36.309 us with a 35.909-36.885 us confidence interval.
+- `vectorized_join_equi/100k` reached stable historical Criterion measurement instead of stalling in fixture setup; latest mean was 36.309 us with a 35.909-36.885 us confidence interval.
 - `vectorized_left_join_limited` validates bounded left-source scans: 35.604 us at 10k and 36.037 us at 100k.
 - `vectorized_streaming_inner_join` validates bounded streaming left-source scans for sparse unindexed inner joins: 36.597 us at 10k and 36.672 us at 100k.
 - `vectorized_dense_streaming_inner_join` validates dense bounded nested-stream scans under tight temp budget: 34.853 us at 10k and 34.631 us at 100k.

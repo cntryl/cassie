@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use performance_benchmarks::{
     benchmark_for_benchmark, benchmark_for_scenario, deployment_profile_for_id,
-    deployment_profile_for_scenario, expected_criterion_sample_path, summarize_criterion_sample,
+    deployment_profile_for_scenario, expected_stress_artifact_path, summarize_stress_artifact,
     PerformanceBenchmarkScenario, BENCHMARK_SCENARIOS, BENCHMARK_SCENARIO_PLACEHOLDERS,
     DEPLOYMENT_PROFILES, REQUIRED_WORKLOAD_FAMILIES, SUPPORTED_SCALES,
 };
@@ -332,7 +332,7 @@ fn should_keep_future_fixture_placeholders_out_of_default_scales() {
 }
 
 #[test]
-fn should_parse_criterion_sample_percentiles() {
+fn should_parse_stress_artifact_percentiles() {
     // Arrange
     let benchmark = PerformanceBenchmarkScenario {
         scenario_id: "test.scenario",
@@ -345,13 +345,35 @@ fn should_parse_criterion_sample_percentiles() {
         explain_evidence: "access_path",
         metrics_evidence: "query.latency_ms_total",
     };
-    let sample = r#"{
-        "iters": [1, 1, 1],
-        "times": [1000.0, 2000.0, 3000.0]
+    let artifact = r#"{
+        "schema_version": "cntryl-stress.v1",
+        "summaries": [{
+            "benchmark_id": "tier3_system_query/simple_sql_query/10k",
+            "primary_metric": "throughput",
+            "stats": {
+                "mean": 500000.0,
+                "p50": 490000.0,
+                "p95": 505000.0,
+                "p99": 510000.0
+            },
+            "ns_per_op": {
+                "mean": 2000.0,
+                "p50": 2000.0,
+                "p95": 3000.0,
+                "p99": 3000.0
+            },
+            "metadata": {
+                "scenario_id": "test.scenario",
+                "family": "core_read",
+                "benchmark": "tier3_system_query",
+                "workload": "simple_sql_query",
+                "fixture_scale": "10k"
+            }
+        }]
     }"#;
 
     // Act
-    let summary = summarize_criterion_sample(&benchmark, sample).expect("sample summary");
+    let summary = summarize_stress_artifact(&benchmark, artifact).expect("stress summary");
 
     // Assert
     assert_eq!(summary.scenario_id, "test.scenario");
@@ -360,6 +382,23 @@ fn should_parse_criterion_sample_percentiles() {
     assert_eq!(summary.p95_us, 3);
     assert_eq!(summary.p99_us, 3);
     assert!((summary.throughput_ops_per_sec - 500_000.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn should_reject_wrong_stress_schema_version() {
+    // Arrange
+    let benchmark = benchmark_for_benchmark("tier3_system_query", "simple_sql_query", "10k")
+        .expect("query benchmark");
+    let artifact = r#"{
+        "schema_version": "cntryl-stress.v999",
+        "summaries": []
+    }"#;
+
+    // Act
+    let error = summarize_stress_artifact(benchmark, artifact).expect_err("schema error");
+
+    // Assert
+    assert!(error.contains("unsupported schema_version"));
 }
 
 #[test]
@@ -376,13 +415,35 @@ fn should_render_manual_benchmark_report_line() {
         explain_evidence: "access_path",
         metrics_evidence: "query.latency_ms_total",
     };
-    let sample = r#"{
-        "iters": [1, 1, 1],
-        "times": [1000.0, 2000.0, 3000.0]
+    let artifact = r#"{
+        "schema_version": "cntryl-stress.v1",
+        "summaries": [{
+            "benchmark_id": "tier3_system_query/simple_sql_query/10k",
+            "primary_metric": "throughput",
+            "stats": {
+                "mean": 500000.0,
+                "p50": 490000.0,
+                "p95": 505000.0,
+                "p99": 510000.0
+            },
+            "ns_per_op": {
+                "mean": 2000.0,
+                "p50": 2000.0,
+                "p95": 3000.0,
+                "p99": 3000.0
+            },
+            "metadata": {
+                "scenario_id": "test.scenario",
+                "family": "core_read",
+                "benchmark": "tier3_system_query",
+                "workload": "simple_sql_query",
+                "fixture_scale": "10k"
+            }
+        }]
     }"#;
 
     // Act
-    let summary = summarize_criterion_sample(&benchmark, sample).expect("sample summary");
+    let summary = summarize_stress_artifact(&benchmark, artifact).expect("stress summary");
     let rendered = summary.render_report_line();
 
     // Assert
@@ -401,18 +462,64 @@ fn should_render_manual_benchmark_report_line() {
 }
 
 #[test]
-fn should_resolve_expected_criterion_sample_paths() {
+fn should_resolve_expected_stress_artifact_paths() {
     // Arrange
     let benchmark = benchmark_for_benchmark("tier3_system_query", "simple_sql_query", "10k")
         .expect("query benchmark");
 
     // Act
-    let path = expected_criterion_sample_path(Path::new("target/criterion"), benchmark);
+    let path = expected_stress_artifact_path(Path::new("target/stress"), benchmark);
 
     // Assert
     assert_eq!(
         path,
-        PathBuf::from("target/criterion/tier3_system_query/simple_sql_query/10k/new/sample.json")
+        PathBuf::from("target/stress/tier3_system_query/latest.json")
+    );
+}
+
+#[test]
+fn should_document_current_manual_benchmark_workflow_without_legacy_runner_wording() {
+    // Arrange
+    let docs = std::fs::read_to_string("docs/performance-contracts.md")
+        .expect("read performance contracts");
+    let current_workflow = docs
+        .split("## Pattern Contracts")
+        .nth(1)
+        .and_then(|section| section.split("### Deployment Profile Evidence").next())
+        .unwrap_or_default();
+    let legacy_runner = ["Criter", "ion"].concat();
+    let legacy_root = ["target/", "criter", "ion"].concat();
+    let legacy_sample = ["sample", ".json"].concat();
+
+    // Act
+    let missing = [
+        "cntryl-stress",
+        "target/stress/<owner-benchmark>/latest.json",
+        "STRESS_PROFILE=smoke",
+        "STRESS_FILTER",
+        "STRESS_TIER",
+        "STRESS_MICRO_SAMPLE_DURATION_MS",
+    ]
+    .into_iter()
+    .filter(|token| !current_workflow.contains(token))
+    .collect::<Vec<_>>();
+
+    // Assert
+    assert!(
+        !current_workflow.contains(&legacy_runner),
+        "current workflow should not require the legacy runner"
+    );
+    assert!(
+        !current_workflow.contains(&legacy_root),
+        "current workflow should not require legacy artifacts"
+    );
+    assert!(
+        !current_workflow.contains(&legacy_sample),
+        "current workflow should not require legacy samples"
+    );
+    assert!(
+        missing.is_empty(),
+        "current workflow missing stress tokens: {missing:?}"
     );
 }
 
@@ -554,19 +661,19 @@ fn should_render_bounded_join_metric_evidence_for_manual_review() {
 }
 
 #[test]
-#[ignore = "requires Criterion output from cargo bench; run with --nocapture for the report"]
-fn should_render_generated_criterion_output_for_manual_review() {
+#[ignore = "requires cntryl-stress output from cargo bench; run with --nocapture for the report"]
+fn should_render_generated_stress_output_for_manual_review() {
     // Arrange
-    let criterion_root = Path::new("target/criterion");
+    let stress_root = Path::new("target/stress");
     let mut report = Vec::new();
 
     // Act
     for benchmark in BENCHMARK_SCENARIOS {
-        let path = expected_criterion_sample_path(criterion_root, benchmark);
-        let sample = std::fs::read_to_string(&path)
+        let path = expected_stress_artifact_path(stress_root, benchmark);
+        let artifact = std::fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
         let summary =
-            summarize_criterion_sample(benchmark, &sample).expect("summarize criterion sample");
+            summarize_stress_artifact(benchmark, &artifact).expect("summarize stress artifact");
         report.push(summary.render_report_line());
     }
 

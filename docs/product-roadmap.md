@@ -183,7 +183,7 @@ Goal: compile supported read-model query patterns into Midge-native access paths
 | Feature Area | Status | Compatibility |
 | --- | --- | --- |
 | Read-path performance contracts | Implemented baseline | Experimental documentation plus benchmark feedback |
-| 10k/100k manual benchmark scenarios | Implemented baseline | Criterion-backed developer feedback loop |
+| 10k/100k manual benchmark scenarios | Implemented baseline | cntryl-stress-backed developer feedback loop |
 | Access-path assertions and EXPLAIN guarantees | Implemented baseline/Planned by depth | Experimental |
 | Predicate/order/limit pushdown to storage-native scans | Implemented baseline/Planned by depth | Experimental |
 | Keyset pagination and bounded continuation scans | Implemented baseline | Experimental |

@@ -1,43 +1,34 @@
-use criterion::{
-    criterion_group, criterion_main, BenchmarkId, Criterion, SamplingMode, Throughput,
-};
-
 const BENCHMARK: &str = "tier4_integration_pgwire";
 
-#[path = "support/criterion_config.rs"]
-mod criterion_config;
 #[path = "support/performance_benchmarks.rs"]
 mod performance_benchmarks;
+#[path = "support/stress.rs"]
+mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
-fn criterion_filters() -> Vec<String> {
-    std::env::args()
-        .skip(1)
-        .filter(|arg| !arg.starts_with("--"))
-        .collect()
-}
-
-fn benchmark_enabled(filters: &[String], workload: &str, scale: &str) -> bool {
-    if filters.is_empty() {
-        return true;
-    }
-    let id = format!("{BENCHMARK}/{workload}/{scale}");
-    filters
-        .iter()
-        .any(|filter| id.contains(filter) || workload.contains(filter) || scale == filter)
-}
-
-fn bench_pgwire(c: &mut Criterion) {
-    let filters = criterion_filters();
+fn main() {
     let runtime = workloads::runtime();
+    let mut runner = stress::runner(BENCHMARK);
 
-    let mut group = c.benchmark_group(BENCHMARK);
-    group.sampling_mode(SamplingMode::Flat);
-    group.throughput(Throughput::Elements(1));
+    bench_simple_query(&mut runner, &runtime);
+    bench_prepared_query(&mut runner, &runtime);
+    runner.fixed_operations(
+        stress::StressCase::fixed_operations(4, "prepared_statement_loop", "protocol"),
+        workloads::pgwire_prepared_statement_protocol_loop,
+    );
+    bench_legacy_rows(&mut runner, &runtime);
 
+    runner.finish();
+}
+
+fn bench_simple_query(runner: &mut stress::CassieStressRunner, runtime: &tokio::runtime::Runtime) {
     for (dataset, rows) in [("10k", 10_000), ("100k", 100_000)] {
-        if !benchmark_enabled(&filters, "pgwire_simple_query", dataset) {
+        let benchmark =
+            performance_benchmarks::expect_benchmark(BENCHMARK, "pgwire_simple_query", dataset);
+        let case =
+            stress::StressCase::fixed_operations(4, benchmark.workload, benchmark.fixture_scale);
+        if !runner.is_enabled(&case) {
             continue;
         }
         let ctx = runtime
@@ -46,23 +37,25 @@ fn bench_pgwire(c: &mut Criterion) {
                 rows,
             ))
             .expect("benchmark context");
-        let benchmark =
-            performance_benchmarks::expect_benchmark(BENCHMARK, "pgwire_simple_query", dataset);
-        group.bench_function(
-            BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-            |b| {
-                b.iter(|| {
-                    runtime.block_on(workloads::pgwire_simple_query(
-                        &ctx,
-                        "SELECT id, title FROM bench_documents WHERE id = 'doc-1'",
-                    ))
-                });
-            },
-        );
+        runner.fixed_operations(case, || {
+            runtime.block_on(workloads::pgwire_simple_query(
+                &ctx,
+                "SELECT id, title FROM bench_documents WHERE id = 'doc-1'",
+            ))
+        });
     }
+}
 
+fn bench_prepared_query(
+    runner: &mut stress::CassieStressRunner,
+    runtime: &tokio::runtime::Runtime,
+) {
     for (dataset, rows) in [("10k", 10_000), ("100k", 100_000)] {
-        if !benchmark_enabled(&filters, "pgwire_prepared_query", dataset) {
+        let benchmark =
+            performance_benchmarks::expect_benchmark(BENCHMARK, "pgwire_prepared_query", dataset);
+        let case =
+            stress::StressCase::fixed_operations(4, benchmark.workload, benchmark.fixture_scale);
+        if !runner.is_enabled(&case) {
             continue;
         }
         let ctx = runtime
@@ -71,66 +64,40 @@ fn bench_pgwire(c: &mut Criterion) {
                 rows,
             ))
             .expect("prepared pgwire benchmark context");
-        let benchmark =
-            performance_benchmarks::expect_benchmark(BENCHMARK, "pgwire_prepared_query", dataset);
-        group.bench_function(
-            BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-            |b| b.iter(|| runtime.block_on(workloads::pgwire_prepared_query(&ctx))),
-        );
+        runner.fixed_operations(case, || {
+            runtime.block_on(workloads::pgwire_prepared_query(&ctx))
+        });
     }
-
-    if benchmark_enabled(&filters, "prepared_statement_loop", "protocol") {
-        group.bench_function(
-            BenchmarkId::new("prepared_statement_loop", "protocol"),
-            |b| b.iter(workloads::pgwire_prepared_statement_protocol_loop),
-        );
-    }
-
-    let needs_legacy_ctx = [
-        ("connection_churn", "10k"),
-        ("connection_pooling", "10k"),
-        ("large_result_set", "512_rows"),
-        ("concurrent_connections", "8x10k"),
-    ]
-    .into_iter()
-    .any(|(workload, scale)| benchmark_enabled(&filters, workload, scale));
-    if needs_legacy_ctx {
-        let ctx_10k = runtime
-            .block_on(workloads::unindexed_context(
-                "tier4-pgwire-legacy-10k",
-                10_000,
-            ))
-            .expect("benchmark context");
-        if benchmark_enabled(&filters, "connection_churn", "10k") {
-            group.bench_function(BenchmarkId::new("connection_churn", "10k"), |b| {
-                b.iter(|| runtime.block_on(workloads::pgwire_connection_churn(&ctx_10k)));
-            });
-        }
-        if benchmark_enabled(&filters, "connection_pooling", "10k") {
-            group.bench_function(BenchmarkId::new("connection_pooling", "10k"), |b| {
-                b.iter(|| runtime.block_on(workloads::pgwire_connection_pooling(&ctx_10k)));
-            });
-        }
-        if benchmark_enabled(&filters, "large_result_set", "512_rows") {
-            group.bench_function(BenchmarkId::new("large_result_set", "512_rows"), |b| {
-                b.iter(|| runtime.block_on(workloads::pgwire_large_result_query(&ctx_10k)));
-            });
-        }
-        if benchmark_enabled(&filters, "concurrent_connections", "8x10k") {
-            group.throughput(Throughput::Elements(8));
-            group.bench_function(BenchmarkId::new("concurrent_connections", "8x10k"), |b| {
-                b.iter(|| runtime.block_on(workloads::pgwire_concurrent_connections(&ctx_10k, 8)));
-            });
-        }
-    }
-
-    group.finish();
 }
 
-criterion_group! {
-    name = benches;
-    config = criterion_config::criterion_config_for_tier4();
-    targets = bench_pgwire
-}
+fn bench_legacy_rows(runner: &mut stress::CassieStressRunner, runtime: &tokio::runtime::Runtime) {
+    let rows = [
+        stress::StressCase::fixed_operations(4, "connection_churn", "10k"),
+        stress::StressCase::fixed_operations(4, "connection_pooling", "10k"),
+        stress::StressCase::fixed_operations(4, "large_result_set", "512_rows"),
+        stress::StressCase::fixed_operations(4, "concurrent_connections", "8x10k")
+            .parameter("client_count", "8"),
+    ];
+    if !rows.iter().any(|case| runner.is_enabled(case)) {
+        return;
+    }
 
-criterion_main!(benches);
+    let ctx = runtime
+        .block_on(workloads::unindexed_context(
+            "tier4-pgwire-legacy-10k",
+            10_000,
+        ))
+        .expect("benchmark context");
+    runner.fixed_operations(rows[0].clone(), || {
+        runtime.block_on(workloads::pgwire_connection_churn(&ctx))
+    });
+    runner.fixed_operations(rows[1].clone(), || {
+        runtime.block_on(workloads::pgwire_connection_pooling(&ctx))
+    });
+    runner.fixed_operations(rows[2].clone(), || {
+        runtime.block_on(workloads::pgwire_large_result_query(&ctx))
+    });
+    runner.fixed_operations(rows[3].clone(), || {
+        runtime.block_on(workloads::pgwire_concurrent_connections(&ctx, 8))
+    });
+}

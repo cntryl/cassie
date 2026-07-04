@@ -60,16 +60,16 @@ pub fn deployment_profile_for_scenario(
     performance_benchmark_profiles::deployment_profile_for_scenario(benchmark)
 }
 
-pub fn expected_criterion_sample_path(
-    criterion_root: &std::path::Path,
+pub fn expected_stress_artifact_path(
+    stress_root: &std::path::Path,
     benchmark: &PerformanceBenchmarkScenario,
 ) -> std::path::PathBuf {
-    performance_benchmark_samples::expected_criterion_sample_path(criterion_root, benchmark)
+    performance_benchmark_samples::expected_stress_artifact_path(stress_root, benchmark)
 }
 
-pub fn summarize_criterion_sample(
+pub fn summarize_stress_artifact(
     benchmark: &PerformanceBenchmarkScenario,
-    sample_json: &str,
+    artifact_json: &str,
 ) -> Result<BenchmarkSampleSummary, String> {
-    performance_benchmark_samples::summarize_criterion_sample(benchmark, sample_json)
+    performance_benchmark_samples::summarize_stress_artifact(benchmark, artifact_json)
 }

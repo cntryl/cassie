@@ -73,7 +73,7 @@ Move before disk pressure blocks snapshots, restores, index builds, projection r
 
 1. Start from the query shapes in [Performance Contracts](performance-contracts.md), not from generic database benchmarks.
 2. Choose the closest deployment profile, usually `local-dev-fallback-10k` for fast feedback or `local-dev-fallback-100k` for heavier local evidence.
-3. Run the matching manual Criterion scenarios for the feature family you are changing and keep the profile id in the report line.
+3. Run the matching manual cntryl-stress scenarios for the feature family you are changing and keep the profile id in the report line.
 4. Capture `/metrics`, including `capacity.families` and `capacity.categories`, representative `EXPLAIN ANALYZE` output, host CPU, memory, and `CASSIE_MIDGE_DATA_DIR` disk usage before and after the change.
 5. Compare fallback counters, cache occupancy, candidate counts, storage-family operations, advisory capacity bytes, and rebuild/write-amplification counters against earlier evidence for the same profile.
 6. Decide whether to add an access path, reshape the projection, move a tenant/projection to another independent node, or keep the workload as explicit batch/offline work.

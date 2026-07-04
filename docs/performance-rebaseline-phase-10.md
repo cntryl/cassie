@@ -20,7 +20,7 @@ Local fallback benchmark output is advisory evidence. It is not a production SLA
 | CPU / memory | Apple M5, 10 logical CPUs, 24 GiB memory |
 | Rust toolchain | `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)` |
 | Benchmark base commit | `517069c` plus this Issue 01 harness close-out commit |
-| Benchmark env overrides | `CASSIE_MIDGE_ALLOW_FALLBACK=1`; no Criterion tier overrides |
+| Benchmark env overrides | Historical Criterion run: `CASSIE_MIDGE_ALLOW_FALLBACK=1`; no legacy Criterion tier overrides |
 
 ## Commands
 
@@ -61,7 +61,7 @@ CASSIE_MIDGE_ALLOW_FALLBACK=1 cargo bench --locked --bench tier4_integration_htt
 | `tier2_subsystem_vector` | Completed | Vector executor p95 `14.9 us` at 10k and `246.2 us` at 100k. |
 | `tier2_subsystem_hybrid` | Completed with high variance | Hybrid executor p95 `216.0 us` at 10k and `216.2 us` at 100k. |
 | `tier3_system_query` | Completed after graph and time-series fixes | Core/scalar 10k and 100k sampled; time-series window 10k p95 `23.7 ms`; graph expand 10k p95 `7.8 us`. Graph 100k initially did not emit a benchmark label after more than 6 minutes; after Issue 04 fresh graph fixture loading, focused graph 100k sampling completed with p50 `8.542 us`, p95 `253.167 us`. Time-series window 100k initially reached warmup and then ran for more than 8 minutes without a sample; after Issue 05 bucket-sidecar pruning and batched hit materialization, focused time-series 100k sampling completed with p50 `282.283 ms`, p95 `295.009 ms`. |
-| `tier3_system_rebuild` | Partial, refresh blocker resolved | Projection rebuild query 10k p95 `46.3 us`. Projection refresh 10k initially reached warmup and Criterion estimated `2658.7 s` for 10 samples, about `265.9 s` per iteration; after Issue 03 fresh-output writes, the focused diagnostic run completed with p50 `426.146 ms` and p95 `619.251 ms`. |
+| `tier3_system_rebuild` | Partial, refresh blocker resolved | Projection rebuild query 10k p95 `46.3 us`. Projection refresh 10k initially reached warmup and historical Criterion estimated `2658.7 s` for 10 samples, about `265.9 s` per iteration; after Issue 03 fresh-output writes, the focused diagnostic run completed with p50 `426.146 ms` and p95 `619.251 ms`. |
 | `tier3_system_mixed_load` | Completed, mixed write path improved | Mixed ingest/query p95 `92.2 ms`; large result set p95 `89.5 us`; scaled query shape p95 `15.2 us`. After Issue 06 incremental row-count stats for unindexed writes, focused mixed ingest/query sampling completed with p50 `29.127 ms`, p95 `31.660 ms`. |
 | `tier3_system_concurrency` | Completed with high variance | Concurrent queries p50 `111.4 us`, p95 `880.8 us`. |
 | `tier3_system_startup` | Completed | Cold start p95 `11.5 ms`; warm start query p95 `6.1 us`. |
@@ -111,9 +111,9 @@ Issue 03 replay work on 2026-06-25 batched duplicate-ledger reads and avoided ex
 | `tier2_subsystem_ingest/projection_duplicate_replay` | p95 `121.2 ms` | p50 `117.916 ms`, p95 `121.589 ms` | No material p95 change. |
 | `tier2_subsystem_ingest/projection_lag_catchup/10k` | p95 `1.071 s` | p50 `851.417 ms`, p95 `909.458 ms` | Improved. |
 | `tier2_subsystem_ingest/projection_lag_catchup/100k` | p95 `9.428 s` | p50 `8.584 s`, p95 `8.703 s` | Improved but still a top write-side bottleneck. |
-| `tier3_system_rebuild/projection_refresh/10k` | No completed sample; Criterion estimated about `265.9 s` per iteration. | Diagnostic p50 `426.146 ms`, p95 `619.251 ms`. | Blocker resolved; refresh now samples locally. |
+| `tier3_system_rebuild/projection_refresh/10k` | No completed sample; historical Criterion estimated about `265.9 s` per iteration. | Diagnostic p50 `426.146 ms`, p95 `619.251 ms`. | Blocker resolved; refresh now samples locally. |
 
-The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER3_WARMUP_MS=50 BENCH_TIER3_MEASUREMENT_MS=200 BENCH_TIER3_SAMPLE_SIZE=10 cargo bench --locked --bench tier3_system_rebuild -- projection_refresh/10k` now completes 10 local fallback samples. Sample JSON from the focused run reports p50 `426.146 ms` and p95 `619.251 ms`.
+The historical Criterion diagnostic command used legacy `BENCH_TIER3_*` overrides for `tier3_system_rebuild -- projection_refresh/10k` and completed 10 local fallback samples. The legacy sample JSON from the focused run reported p50 `426.146 ms` and p95 `619.251 ms`.
 
 ## Issue 04 Optimization Evidence
 
@@ -123,7 +123,7 @@ Issue 04 graph work on 2026-06-25 added a fresh graph document load path for new
 | --- | --- | --- | --- |
 | `tier3_system_query/graph_expand_query/100k` | No benchmark label after more than 6 minutes of fixture setup. | Diagnostic p50 `8.542 us`, p95 `253.167 us`. | Blocker resolved; graph 100k now samples locally. |
 
-The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER3_WARMUP_MS=50 BENCH_TIER3_MEASUREMENT_MS=200 BENCH_TIER3_SAMPLE_SIZE=10 cargo bench --locked --bench tier3_system_query -- graph_expand_query/100k` now completes 10 local fallback samples.
+The historical Criterion diagnostic command used legacy `BENCH_TIER3_*` overrides for `tier3_system_query -- graph_expand_query/100k` and completed 10 local fallback samples.
 
 ## Issue 05 Optimization Evidence
 
@@ -133,7 +133,7 @@ Issue 05 time-series work on 2026-06-25 added a fresh time-series fixture load p
 | --- | --- | --- | --- |
 | `tier3_system_query/time_series_window_scan/100k` | Reached warmup but produced no completed sample after more than 8 minutes. | Diagnostic p50 `282.283 ms`, p95 `295.009 ms`. | Blocker resolved; time-series 100k now samples locally. |
 
-The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER3_WARMUP_MS=50 BENCH_TIER3_MEASUREMENT_MS=200 BENCH_TIER3_SAMPLE_SIZE=10 cargo bench --locked --bench tier3_system_query -- time_series_window_scan/100k` now completes 10 local fallback samples.
+The historical Criterion diagnostic command used legacy `BENCH_TIER3_*` overrides for `tier3_system_query -- time_series_window_scan/100k` and completed 10 local fallback samples.
 
 ## Issue 06 Optimization Evidence
 
@@ -147,9 +147,9 @@ Issue 06 HTTP vector-search work on 2026-06-25 added versioned cache reuse for s
 | `tier3_system_mixed_load/mixed_ingest_query/10k` | Baseline p95 `92.2 ms`. | Diagnostic p50 `29.127 ms`, p95 `31.660 ms`. | Improved through the same write metadata path. |
 | `tier4_integration_http/http_vector_search/10k` | Baseline p95 `107.5 ms`; focused-before mean `47.495 ms`. | Diagnostic p50 `8.661 us`, p95 `9.108 us`. | Improved through cache reuse; REST response shape, missing-sidecar fallback, and blocking-boundary behavior unchanged. |
 
-The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER4_WARMUP_MS=50 BENCH_TIER4_MEASUREMENT_MS=200 BENCH_TIER4_SAMPLE_SIZE=10 cargo bench --locked --bench tier4_integration_http -- http_document_create_get/100k` now reports p50 `58.339 ms` and p95 `63.281 ms`.
+The historical Criterion diagnostic command used legacy `BENCH_TIER4_*` overrides for `tier4_integration_http -- http_document_create_get/100k` and reported p50 `58.339 ms` and p95 `63.281 ms`.
 
-The diagnostic command `CASSIE_MIDGE_ALLOW_FALLBACK=1 BENCH_TIER4_WARMUP_MS=50 BENCH_TIER4_MEASUREMENT_MS=200 BENCH_TIER4_SAMPLE_SIZE=10 cargo bench --locked --bench tier4_integration_http -- http_vector_search/10k` now reports p50 `8.661 us` and p95 `9.108 us`. Issue 06 protocol/API bottlenecks are resolved for the ranked Phase 10 evidence set.
+The historical Criterion diagnostic command used legacy `BENCH_TIER4_*` overrides for `tier4_integration_http -- http_vector_search/10k` and reported p50 `8.661 us` and p95 `9.108 us`. Issue 06 protocol/API bottlenecks are resolved for the ranked Phase 10 evidence set.
 
 ## Deferred Paths
 

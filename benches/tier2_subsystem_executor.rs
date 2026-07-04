@@ -1,61 +1,28 @@
-use std::hint::black_box;
-
-use criterion::{
-    criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, BenchmarkId, Criterion,
-    SamplingMode, Throughput,
-};
-
 const BENCHMARK: &str = "tier2_subsystem_executor";
 
-#[path = "support/criterion_config.rs"]
-mod criterion_config;
 #[path = "support/performance_benchmarks.rs"]
 mod performance_benchmarks;
+#[path = "support/stress.rs"]
+mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
-fn criterion_filters() -> Vec<String> {
-    std::env::args()
-        .skip(1)
-        .filter(|arg| !arg.starts_with("--"))
-        .collect()
-}
-
-fn benchmark_enabled(filters: &[String], workload: &str, scale: &str) -> bool {
-    if filters.is_empty() {
-        return true;
-    }
-    let id = format!("{BENCHMARK}/{workload}/{scale}");
-    filters
-        .iter()
-        .any(|filter| id.contains(filter) || workload.contains(filter) || scale == filter)
-}
-
-fn bench_executor(c: &mut Criterion) {
+fn main() {
     std::env::set_var("CASSIE_PARALLEL_AGGREGATION_WORKERS", "4");
-    let filters = criterion_filters();
     let runtime = workloads::runtime();
-    let context = runtime
-        .block_on(workloads::context("tier2-executor", 10_000))
-        .expect("benchmark context");
+    let mut runner = stress::runner(BENCHMARK);
 
-    let mut group = c.benchmark_group(BENCHMARK);
-    group.sampling_mode(SamplingMode::Flat);
-    group.throughput(Throughput::Elements(1));
-
-    bench_fixed_executor_cases(&mut group, &runtime, &context, &filters);
+    bench_fixed_executor_cases(&mut runner, &runtime);
     for dataset_rows in [10_000, 100_000] {
-        bench_scaled_executor_cases(&mut group, &runtime, &filters, dataset_rows);
+        bench_scaled_executor_cases(&mut runner, &runtime, dataset_rows);
     }
 
-    group.finish();
+    runner.finish();
 }
 
 fn bench_fixed_executor_cases(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
-    context: &workloads::BenchContext,
-    filters: &[String],
 ) {
     let cases = [
         (
@@ -112,30 +79,38 @@ fn bench_fixed_executor_cases(
         ),
     ];
 
-    for (name, sql) in cases {
-        if benchmark_enabled(filters, name, "10k") {
-            group.bench_function(BenchmarkId::new(name, "10k"), |b| {
-                b.iter(|| black_box(runtime.block_on(workloads::execute_sql(context, sql))));
-            });
-        }
+    let runnable = cases
+        .into_iter()
+        .filter(|(workload, _)| {
+            runner.is_enabled(&stress::StressCase::fixed_operations(2, *workload, "10k"))
+        })
+        .collect::<Vec<_>>();
+    if runnable.is_empty() {
+        return;
+    }
+
+    let context = runtime
+        .block_on(workloads::context("tier2-executor", 10_000))
+        .expect("benchmark context");
+    for (workload, sql) in runnable {
+        bench_sql_case(runner, runtime, &context, workload, "10k", sql);
     }
 }
 
 fn bench_scaled_executor_cases(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
-    filters: &[String],
     dataset_rows: usize,
 ) {
     let scale = scale_label(dataset_rows);
-    bench_column_batch_case(group, runtime, filters, dataset_rows, scale);
-    bench_join_pair_cases(group, runtime, filters, dataset_rows, scale);
-    bench_indexed_join_case(group, runtime, filters, dataset_rows, scale);
-    bench_right_indexed_join_case(group, runtime, filters, dataset_rows, scale);
-    bench_streaming_join_case(group, runtime, filters, dataset_rows, scale);
-    bench_dense_streaming_join_case(group, runtime, filters, dataset_rows, scale);
-    bench_late_match_join_case(group, runtime, filters, dataset_rows, scale);
-    bench_fanout_join_case(group, runtime, filters, dataset_rows, scale);
+    bench_column_batch_case(runner, runtime, dataset_rows, scale);
+    bench_join_pair_cases(runner, runtime, dataset_rows, scale);
+    bench_indexed_join_case(runner, runtime, dataset_rows, scale);
+    bench_right_indexed_join_case(runner, runtime, dataset_rows, scale);
+    bench_streaming_join_case(runner, runtime, dataset_rows, scale);
+    bench_dense_streaming_join_case(runner, runtime, dataset_rows, scale);
+    bench_late_match_join_case(runner, runtime, dataset_rows, scale);
+    bench_fanout_join_case(runner, runtime, dataset_rows, scale);
 }
 
 fn scale_label(dataset_rows: usize) -> &'static str {
@@ -147,14 +122,13 @@ fn scale_label(dataset_rows: usize) -> &'static str {
 }
 
 fn bench_column_batch_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
-    filters: &[String],
     dataset_rows: usize,
     scale: &str,
 ) {
     let workload = "column_batch_covered_projection";
-    if !benchmark_enabled(filters, workload, scale) {
+    if !enabled_expected_case(runner, workload, scale) {
         return;
     }
 
@@ -164,19 +138,24 @@ fn bench_column_batch_case(
             dataset_rows,
         ))
         .expect("column-batch benchmark context");
-    let sql = "SELECT title, body FROM bench_documents WHERE status = 'approved' LIMIT 50";
-    bench_expected_sql_case(group, runtime, &context, workload, scale, sql);
+    bench_expected_sql_case(
+        runner,
+        runtime,
+        &context,
+        workload,
+        scale,
+        "SELECT title, body FROM bench_documents WHERE status = 'approved' LIMIT 50",
+    );
 }
 
 fn bench_join_pair_cases(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
-    filters: &[String],
     dataset_rows: usize,
     scale: &str,
 ) {
-    if !benchmark_enabled(filters, "vectorized_join_equi", scale)
-        && !benchmark_enabled(filters, "vectorized_left_join_limited", scale)
+    if !enabled_expected_case(runner, "vectorized_join_equi", scale)
+        && !enabled_expected_case(runner, "vectorized_left_join_limited", scale)
     {
         return;
     }
@@ -188,18 +167,16 @@ fn bench_join_pair_cases(
         ))
         .expect("vectorized join benchmark context");
     bench_optional_join_case(
-        group,
+        runner,
         runtime,
-        filters,
         &context,
         "vectorized_join_equi",
         scale,
         join_sql(50),
     );
     bench_optional_join_case(
-        group,
+        runner,
         runtime,
-        filters,
         &context,
         "vectorized_left_join_limited",
         scale,
@@ -211,14 +188,13 @@ fn bench_join_pair_cases(
 }
 
 fn bench_indexed_join_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
-    filters: &[String],
     dataset_rows: usize,
     scale: &str,
 ) {
     let workload = "vectorized_indexed_inner_join";
-    if !benchmark_enabled(filters, workload, scale) {
+    if !enabled_expected_case(runner, workload, scale) {
         return;
     }
 
@@ -228,18 +204,17 @@ fn bench_indexed_join_case(
             dataset_rows,
         ))
         .expect("vectorized indexed join benchmark context");
-    bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(50));
+    bench_expected_sql_case(runner, runtime, &context, workload, scale, join_sql(50));
 }
 
 fn bench_right_indexed_join_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
-    filters: &[String],
     dataset_rows: usize,
     scale: &str,
 ) {
     let workload = "vectorized_right_indexed_inner_join";
-    if !benchmark_enabled(filters, workload, scale) {
+    if !enabled_expected_case(runner, workload, scale) {
         return;
     }
 
@@ -249,18 +224,17 @@ fn bench_right_indexed_join_case(
             dataset_rows,
         ))
         .expect("vectorized right-indexed join benchmark context");
-    bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(50));
+    bench_expected_sql_case(runner, runtime, &context, workload, scale, join_sql(50));
 }
 
 fn bench_streaming_join_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
-    filters: &[String],
     dataset_rows: usize,
     scale: &str,
 ) {
     let workload = "vectorized_streaming_inner_join";
-    if !benchmark_enabled(filters, workload, scale) {
+    if !enabled_expected_case(runner, workload, scale) {
         return;
     }
 
@@ -270,18 +244,17 @@ fn bench_streaming_join_case(
             dataset_rows,
         ))
         .expect("vectorized streaming join benchmark context");
-    bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(50));
+    bench_expected_sql_case(runner, runtime, &context, workload, scale, join_sql(50));
 }
 
 fn bench_dense_streaming_join_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
-    filters: &[String],
     dataset_rows: usize,
     scale: &str,
 ) {
     let workload = "vectorized_dense_streaming_inner_join";
-    if !benchmark_enabled(filters, workload, scale) {
+    if !enabled_expected_case(runner, workload, scale) {
         return;
     }
 
@@ -291,18 +264,17 @@ fn bench_dense_streaming_join_case(
             dataset_rows,
         ))
         .expect("vectorized dense streaming join benchmark context");
-    bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(2));
+    bench_expected_sql_case(runner, runtime, &context, workload, scale, join_sql(2));
 }
 
 fn bench_late_match_join_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
-    filters: &[String],
     dataset_rows: usize,
     scale: &str,
 ) {
     let workload = "vectorized_late_match_inner_join";
-    if !benchmark_enabled(filters, workload, scale) {
+    if !enabled_expected_case(runner, workload, scale) {
         return;
     }
 
@@ -312,18 +284,17 @@ fn bench_late_match_join_case(
             dataset_rows,
         ))
         .expect("vectorized late-match join benchmark context");
-    bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(50));
+    bench_expected_sql_case(runner, runtime, &context, workload, scale, join_sql(50));
 }
 
 fn bench_fanout_join_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
-    filters: &[String],
     dataset_rows: usize,
     scale: &str,
 ) {
     let workload = "vectorized_fanout_inner_join";
-    if !benchmark_enabled(filters, workload, scale) {
+    if !enabled_expected_case(runner, workload, scale) {
         return;
     }
 
@@ -333,39 +304,55 @@ fn bench_fanout_join_case(
             dataset_rows,
         ))
         .expect("vectorized fanout join benchmark context");
-    bench_expected_sql_case(group, runtime, &context, workload, scale, join_sql(500));
+    bench_expected_sql_case(runner, runtime, &context, workload, scale, join_sql(500));
 }
 
 fn bench_optional_join_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
-    filters: &[String],
     context: &workloads::BenchContext,
     workload: &'static str,
     scale: &str,
     sql: &'static str,
 ) {
-    if benchmark_enabled(filters, workload, scale) {
-        bench_expected_sql_case(group, runtime, context, workload, scale, sql);
+    if enabled_expected_case(runner, workload, scale) {
+        bench_expected_sql_case(runner, runtime, context, workload, scale, sql);
     }
 }
 
 fn bench_expected_sql_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
     context: &workloads::BenchContext,
     workload: &'static str,
     scale: &str,
     sql: &'static str,
 ) {
-    black_box(runtime.block_on(workloads::execute_sql(context, sql)));
     let benchmark = performance_benchmarks::expect_benchmark(BENCHMARK, workload, scale);
-    group.bench_function(
-        BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-        |b| {
-            b.iter(|| black_box(runtime.block_on(workloads::execute_sql(context, sql))));
-        },
+    let _ = runtime.block_on(workloads::execute_sql(context, sql));
+    runner.fixed_operations(
+        stress::StressCase::fixed_operations(2, benchmark.workload, benchmark.fixture_scale),
+        || runtime.block_on(workloads::execute_sql(context, sql)),
     );
+}
+
+fn bench_sql_case(
+    runner: &mut stress::CassieStressRunner,
+    runtime: &tokio::runtime::Runtime,
+    context: &workloads::BenchContext,
+    workload: &'static str,
+    scale: &'static str,
+    sql: &'static str,
+) {
+    runner.fixed_operations(
+        stress::StressCase::fixed_operations(2, workload, scale),
+        || runtime.block_on(workloads::execute_sql(context, sql)),
+    );
+}
+
+fn enabled_expected_case(runner: &stress::CassieStressRunner, workload: &str, scale: &str) -> bool {
+    performance_benchmarks::expect_benchmark(BENCHMARK, workload, scale);
+    runner.is_enabled(&stress::StressCase::fixed_operations(2, workload, scale))
 }
 
 fn join_sql(limit: u32) -> &'static str {
@@ -391,11 +378,3 @@ fn join_sql(limit: u32) -> &'static str {
         _ => unreachable!("unsupported join limit"),
     }
 }
-
-criterion_group! {
-    name = benches;
-    config = criterion_config::criterion_config_for_tier2();
-    targets = bench_executor
-}
-
-criterion_main!(benches);

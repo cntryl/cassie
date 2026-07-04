@@ -1,26 +1,14 @@
-use criterion::{criterion_group, criterion_main, Criterion, SamplingMode, Throughput};
-
-#[path = "support/criterion_config.rs"]
-mod criterion_config;
+#[path = "support/performance_benchmarks.rs"]
+mod performance_benchmarks;
+#[path = "support/stress.rs"]
+mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
-fn bench_vector_distance(c: &mut Criterion) {
-    let mut group = c.benchmark_group("tier1_hotpath_vector_distance");
-    group.sampling_mode(SamplingMode::Flat);
-    group.throughput(Throughput::Elements(1));
-
-    group.bench_function("cosine_distance", |b| b.iter(workloads::cosine_distance));
-    group.bench_function("dot_product", |b| b.iter(workloads::dot_product));
-    group.bench_function("l2_distance", |b| b.iter(workloads::l2_distance));
-
-    group.finish();
+fn main() {
+    let mut runner = stress::runner("tier1_hotpath_vector_distance");
+    runner.tier1_micro("cosine_distance", workloads::cosine_distance);
+    runner.tier1_micro("dot_product", workloads::dot_product);
+    runner.tier1_micro("l2_distance", workloads::l2_distance);
+    runner.finish();
 }
-
-criterion_group! {
-    name = benches;
-    config = criterion_config::criterion_config_for_tier1();
-    targets = bench_vector_distance
-}
-
-criterion_main!(benches);

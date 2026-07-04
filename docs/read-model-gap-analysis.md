@@ -40,7 +40,7 @@ The largest remaining gaps are production evidence and operational depth gaps, n
 - **Retrieval:** full-text search, vector search, pgvector-style operators, hybrid scoring, HNSW/IVFFlat metadata and execution paths, and embedding-provider validation exist.
 - **Analytics:** column batches, segment pruning, aggregate acceleration, `time_bucket`, rollups, retention policies, analytical projection routing, EXPLAIN, and metrics are represented.
 - **Operational signals:** `/health`, `/liveness`, runtime metrics, projection metrics, pgwire/rest metrics, EXPLAIN ANALYZE deltas, and catalog diagnostics exist.
-- **Performance structure:** tiered Criterion benchmarks cover hot paths, ingest, search, vector, hybrid, executor, query, rebuild, startup, mixed load, pgwire, and HTTP.
+- **Performance structure:** tiered cntryl-stress benchmarks cover hot paths, ingest, search, vector, hybrid, executor, query, rebuild, startup, mixed load, pgwire, and HTTP.
 
 ## Gap Matrix
 
@@ -159,7 +159,7 @@ Recommendation:
 
 - Keep row blobs as the source of truth for the MVP path.
 - Keep bucket-native storage as a candidate accelerator with row-blob fallback until larger-scale evidence exists.
-- Use the manual Criterion scenarios as developer feedback before making larger-scale time-series claims.
+- Use the manual cntryl-stress scenarios as developer feedback before making larger-scale time-series claims.
 
 ### 6. PostgreSQL Client Matrix Has A Baseline
 

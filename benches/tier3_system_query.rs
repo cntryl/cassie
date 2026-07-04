@@ -1,8 +1,3 @@
-use criterion::{
-    criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, BenchmarkId, Criterion,
-    SamplingMode, Throughput,
-};
-
 const BENCHMARK: &str = "tier3_system_query";
 const GRAPH_EXPAND_SQL: &str =
     "SELECT node_id FROM graph_expand('bench_graph', 'doc', 'node-0', 4, 'out', 'links', 64)";
@@ -84,40 +79,38 @@ const SCALAR_100K_CASES: &[(&str, &str)] = &[
 const MIXED_DIRECTION_SCALAR_SQL: &str =
     "SELECT id FROM bench_documents ORDER BY score DESC, id ASC LIMIT 50";
 
-#[path = "support/criterion_config.rs"]
-mod criterion_config;
 #[path = "support/performance_benchmarks.rs"]
 mod performance_benchmarks;
+#[path = "support/stress.rs"]
+mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
-fn bench_query(c: &mut Criterion) {
+fn main() {
     let runtime = workloads::runtime();
-    let mut group = c.benchmark_group(BENCHMARK);
-    group.sampling_mode(SamplingMode::Flat);
-    group.throughput(Throughput::Elements(1));
+    let mut runner = stress::runner(BENCHMARK);
 
-    bench_base_10k_cases(&mut group, &runtime);
-    bench_simple_100k_case(&mut group, &runtime);
-    bench_scalar_100k_cases(&mut group, &runtime);
-    bench_mixed_direction_scalar_case(&mut group, &runtime, "10k", 10_000);
-    bench_mixed_direction_scalar_case(&mut group, &runtime, "100k", 100_000);
-    bench_time_series_case(&mut group, &runtime, "10k", 10_000);
-    bench_graph_case(&mut group, &runtime, "10k", 10_000);
-    bench_graph_case(&mut group, &runtime, "100k", 100_000);
-    bench_time_series_case(&mut group, &runtime, "100k", 100_000);
+    bench_base_10k_cases(&mut runner, &runtime);
+    bench_simple_100k_case(&mut runner, &runtime);
+    bench_scalar_100k_cases(&mut runner, &runtime);
+    bench_mixed_direction_scalar_case(&mut runner, &runtime, "10k", 10_000);
+    bench_mixed_direction_scalar_case(&mut runner, &runtime, "100k", 100_000);
+    bench_time_series_case(&mut runner, &runtime, "10k", 10_000);
+    bench_graph_case(&mut runner, &runtime, "10k", 10_000);
+    bench_graph_case(&mut runner, &runtime, "100k", 100_000);
+    bench_time_series_case(&mut runner, &runtime, "100k", 100_000);
 
-    group.finish();
+    runner.finish();
 }
 
 fn bench_base_10k_cases(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
 ) {
     let runnable = BASE_CASES
         .iter()
         .copied()
-        .filter(|(name, dataset, _)| should_run_case(name, dataset))
+        .filter(|(name, dataset, _)| should_run_case(runner, name, dataset))
         .collect::<Vec<_>>();
     if runnable.is_empty() {
         return;
@@ -130,7 +123,7 @@ fn bench_base_10k_cases(
         if requires_manifest_check(name) {
             performance_benchmarks::expect_benchmark(BENCHMARK, name, dataset);
         }
-        warm_and_register_sql_case(group, runtime, &context, name, dataset, sql);
+        warm_and_register_sql_case(runner, runtime, &context, name, dataset, sql);
     }
 }
 
@@ -147,10 +140,10 @@ fn requires_manifest_check(name: &str) -> bool {
 }
 
 fn bench_simple_100k_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
 ) {
-    if !should_run_case("simple_sql_query", "100k") {
+    if !should_run_case(runner, "simple_sql_query", "100k") {
         return;
     }
 
@@ -158,27 +151,25 @@ fn bench_simple_100k_case(
     let context = runtime
         .block_on(workloads::unindexed_context("tier3-query-100k", 100_000))
         .expect("100k benchmark context");
-    group.bench_function(
-        BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-        |b| {
-            b.iter(|| {
-                runtime.block_on(workloads::execute_sql(
-                    &context,
-                    "SELECT id, title FROM bench_documents WHERE id = 'doc-1'",
-                ))
-            });
+    runner.fixed_operations(
+        stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale),
+        || {
+            runtime.block_on(workloads::execute_sql(
+                &context,
+                "SELECT id, title FROM bench_documents WHERE id = 'doc-1'",
+            ))
         },
     );
 }
 
 fn bench_scalar_100k_cases(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
 ) {
     let runnable = SCALAR_100K_CASES
         .iter()
         .copied()
-        .filter(|(workload, _)| should_run_case(workload, "100k"))
+        .filter(|(workload, _)| should_run_case(runner, workload, "100k"))
         .collect::<Vec<_>>();
     if runnable.is_empty() {
         return;
@@ -193,20 +184,20 @@ fn bench_scalar_100k_cases(
     for (workload, sql) in runnable {
         let benchmark = performance_benchmarks::expect_benchmark(BENCHMARK, workload, "100k");
         let _ = runtime.block_on(workloads::execute_sql(&context, sql));
-        group.bench_function(
-            BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-            |b| b.iter(|| runtime.block_on(workloads::execute_sql(&context, sql))),
+        runner.fixed_operations(
+            stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale),
+            || runtime.block_on(workloads::execute_sql(&context, sql)),
         );
     }
 }
 
 fn bench_mixed_direction_scalar_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
     scale: &str,
     rows: usize,
 ) {
-    if !should_run_case("mixed_direction_scalar_query", scale) {
+    if !should_run_case(runner, "mixed_direction_scalar_query", scale) {
         return;
     }
 
@@ -217,23 +208,19 @@ fn bench_mixed_direction_scalar_case(
         .block_on(workloads::scalar_context(&label, rows))
         .expect("mixed-direction scalar benchmark context");
     let _ = runtime.block_on(workloads::execute_sql(&context, MIXED_DIRECTION_SCALAR_SQL));
-    group.bench_function(
-        BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-        |b| {
-            b.iter(|| {
-                runtime.block_on(workloads::execute_sql(&context, MIXED_DIRECTION_SCALAR_SQL));
-            });
-        },
+    runner.fixed_operations(
+        stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale),
+        || runtime.block_on(workloads::execute_sql(&context, MIXED_DIRECTION_SCALAR_SQL)),
     );
 }
 
 fn bench_time_series_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
     scale: &str,
     rows: usize,
 ) {
-    if !should_run_case("time_series_window_scan", scale) {
+    if !should_run_case(runner, "time_series_window_scan", scale) {
         return;
     }
 
@@ -247,19 +234,19 @@ fn bench_time_series_case(
         .expect("time-series benchmark context");
     let benchmark =
         performance_benchmarks::expect_benchmark(BENCHMARK, "time_series_window_scan", scale);
-    group.bench_function(
-        BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-        |b| b.iter(|| runtime.block_on(workloads::time_series_window_scan(&context))),
+    runner.fixed_operations(
+        stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale),
+        || runtime.block_on(workloads::time_series_window_scan(&context)),
     );
 }
 
 fn bench_graph_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
     scale: &str,
     rows: usize,
 ) {
-    if !should_run_case("graph_expand_query", scale) {
+    if !should_run_case(runner, "graph_expand_query", scale) {
         return;
     }
 
@@ -273,14 +260,14 @@ fn bench_graph_case(
         .expect("graph benchmark context");
     let benchmark =
         performance_benchmarks::expect_benchmark(BENCHMARK, "graph_expand_query", scale);
-    group.bench_function(
-        BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-        |b| b.iter(|| runtime.block_on(workloads::execute_sql(&context, GRAPH_EXPAND_SQL))),
+    runner.fixed_operations(
+        stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale),
+        || runtime.block_on(workloads::execute_sql(&context, GRAPH_EXPAND_SQL)),
     );
 }
 
 fn warm_and_register_sql_case(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
     context: &workloads::BenchContext,
     workload: &'static str,
@@ -288,32 +275,20 @@ fn warm_and_register_sql_case(
     sql: &'static str,
 ) {
     let _ = runtime.block_on(workloads::execute_sql(context, sql));
-    group.bench_function(BenchmarkId::new(workload, scale), |b| {
-        b.iter(|| runtime.block_on(workloads::execute_sql(context, sql)));
-    });
+    runner.fixed_operations(
+        stress::StressCase::fixed_operations(3, workload, scale),
+        || runtime.block_on(workloads::execute_sql(context, sql)),
+    );
 }
 
-fn should_run_case(workload: &str, fixture_scale: &str) -> bool {
-    let filters = std::env::args()
-        .skip(1)
-        .filter(|arg| arg != "--bench")
-        .filter(|arg| !arg.starts_with("--"))
-        .collect::<Vec<_>>();
-    if filters.is_empty() {
-        return true;
-    }
-
-    let local_id = format!("{workload}/{fixture_scale}");
-    let full_id = format!("{BENCHMARK}/{local_id}");
-    filters
-        .iter()
-        .any(|filter| full_id.contains(filter) || local_id.contains(filter))
+fn should_run_case(
+    runner: &stress::CassieStressRunner,
+    workload: &str,
+    fixture_scale: &str,
+) -> bool {
+    runner.is_enabled(&stress::StressCase::fixed_operations(
+        3,
+        workload,
+        fixture_scale,
+    ))
 }
-
-criterion_group! {
-    name = benches;
-    config = criterion_config::criterion_config_for_tier3();
-    targets = bench_query
-}
-
-criterion_main!(benches);

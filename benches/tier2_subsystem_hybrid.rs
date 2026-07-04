@@ -1,52 +1,34 @@
-use criterion::{
-    criterion_group, criterion_main, BenchmarkId, Criterion, SamplingMode, Throughput,
-};
+const BENCHMARK: &str = "tier2_subsystem_hybrid";
 
-#[path = "support/criterion_config.rs"]
-mod criterion_config;
 #[path = "support/performance_benchmarks.rs"]
 mod performance_benchmarks;
+#[path = "support/stress.rs"]
+mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
-fn bench_hybrid(c: &mut Criterion) {
-    const BENCHMARK: &str = "tier2_subsystem_hybrid";
-
+fn main() {
     let runtime = workloads::runtime();
-    let standard_context = runtime
-        .block_on(workloads::context("tier2-hybrid", 10_000))
-        .expect("benchmark context");
-    let large_fixture_context = runtime
-        .block_on(workloads::context("tier2-hybrid-100k", 100_000))
-        .expect("100k benchmark context");
+    let mut runner = stress::runner(BENCHMARK);
 
-    let mut group = c.benchmark_group("tier2_subsystem_hybrid");
-    group.sampling_mode(SamplingMode::Flat);
-    group.throughput(Throughput::Elements(1));
-
-    for (dataset, context) in [("10k", &standard_context), ("100k", &large_fixture_context)] {
+    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000)] {
         let benchmark =
             performance_benchmarks::expect_benchmark(BENCHMARK, "hybrid_executor", dataset);
-        group.bench_function(
-            BenchmarkId::new(benchmark.workload, benchmark.fixture_scale),
-            |b| {
-                b.iter(|| {
-                    runtime.block_on(workloads::execute_sql(
-                        context,
-                        "SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0,0]')) AS score FROM bench_documents ORDER BY score DESC LIMIT 20",
-                    ))
-                });
-            },
-        );
+        let case =
+            stress::StressCase::fixed_operations(2, benchmark.workload, benchmark.fixture_scale);
+        if !runner.is_enabled(&case) {
+            continue;
+        }
+        let context = runtime
+            .block_on(workloads::context(&format!("tier2-hybrid-{dataset}"), rows))
+            .expect("benchmark context");
+        runner.fixed_operations(case, || {
+            runtime.block_on(workloads::execute_sql(
+                &context,
+                "SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0,0]')) AS score FROM bench_documents ORDER BY score DESC LIMIT 20",
+            ))
+        });
     }
 
-    group.finish();
+    runner.finish();
 }
-
-criterion_group! {
-    name = benches;
-    config = criterion_config::criterion_config_for_tier2();
-    targets = bench_hybrid
-}
-
-criterion_main!(benches);

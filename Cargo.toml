@@ -23,7 +23,7 @@ argon2 = "0.5"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 
 [dev-dependencies]
-cntryl-stress = { git = "https://github.com/cntryl/stress", rev = "ff4b74b3e085fe4dd4dcfc14651273a4262891c0" }
+cntryl-stress = { git = "https://github.com/cntryl/stress", rev = "2cc6d6121412b80cc2e83aa96cb722d7fbd0d15b" }
 tokio-postgres = "0.7"
 
 [[bench]]

@@ -7,8 +7,8 @@ use std::str::FromStr;
 use std::time::{Duration, Instant};
 
 use cntryl_stress::{
-    black_box, evaluate_run_gate, BenchmarkBudgets, BenchmarkModeKind, BenchmarkSpec, ConsoleMode,
-    RunGate, RunProfile, StressContext, StressRunner, StressRunnerConfig,
+    black_box, evaluate_run_gate, BenchmarkBudgets, BenchmarkModeKind, BenchmarkSpec,
+    MeasurementIntent, RunGate, RunProfile, StressContext, StressRunner, StressRunnerConfig,
 };
 
 use crate::performance_benchmarks;
@@ -31,6 +31,7 @@ pub struct StressCase {
     fixture_scale: String,
     parameters: BTreeMap<String, String>,
     metadata: BTreeMap<String, String>,
+    intent: MeasurementIntent,
 }
 
 impl StressCase {
@@ -42,6 +43,7 @@ impl StressCase {
             fixture_scale: "micro".to_string(),
             parameters: BTreeMap::new(),
             metadata: BTreeMap::new(),
+            intent: MeasurementIntent::General,
         }
     }
 
@@ -57,6 +59,7 @@ impl StressCase {
             fixture_scale: fixture_scale.into(),
             parameters: BTreeMap::new(),
             metadata: BTreeMap::new(),
+            intent: MeasurementIntent::General,
         }
     }
 
@@ -72,6 +75,7 @@ impl StressCase {
             fixture_scale: fixture_scale.into(),
             parameters: BTreeMap::new(),
             metadata: BTreeMap::new(),
+            intent: MeasurementIntent::General,
         }
     }
 
@@ -83,6 +87,15 @@ impl StressCase {
     pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.metadata.insert(key.into(), value.into());
         self
+    }
+
+    fn intent(mut self, intent: MeasurementIntent) -> Self {
+        self.intent = intent;
+        self
+    }
+
+    fn measurement_name(&self) -> String {
+        format!("{}/{}", self.workload, self.fixture_scale)
     }
 }
 
@@ -122,8 +135,9 @@ impl CassieStressRunner {
         F: FnMut() -> R,
     {
         let f = RefCell::new(f);
-        self.run_case(case, |ctx| {
-            ctx.measure_micro(|| black_box((f.borrow_mut())()));
+        let measurement_name = case.measurement_name();
+        self.run_case(case, move |ctx| {
+            black_box(ctx.measure(&measurement_name, || (f.borrow_mut())()));
         });
     }
 
@@ -132,14 +146,11 @@ impl CassieStressRunner {
         F: FnMut() -> R,
     {
         let f = RefCell::new(f);
-        self.run_case(case, |ctx| {
-            let operations = ctx.measure_workload(|| {
+        let measurement_name = case.measurement_name();
+        self.run_case(case, move |ctx| {
+            ctx.measure(&measurement_name, || {
                 black_box((f.borrow_mut())());
             });
-            let _ = ctx
-                .correctness()
-                .attempted(operations)
-                .completed(operations);
         });
     }
 
@@ -148,9 +159,12 @@ impl CassieStressRunner {
         F: FnMut() -> u64,
     {
         let f = RefCell::new(f);
-        self.run_case(case, |ctx| {
-            let completed = ctx.measure_counted(|| (f.borrow_mut())());
-            let _ = ctx.correctness().attempted(completed).completed(completed);
+        let case = case.intent(MeasurementIntent::External);
+        let measurement_name = case.measurement_name();
+        self.run_case(case, move |ctx| {
+            let started = Instant::now();
+            let completed = (f.borrow_mut())();
+            ctx.record_external(&measurement_name, started.elapsed(), completed);
         });
     }
 
@@ -170,6 +184,7 @@ impl CassieStressRunner {
     {
         let f = RefCell::new(f);
         let case = case
+            .intent(MeasurementIntent::Batch)
             .parameter(
                 "logical_operations_per_iteration",
                 logical_operations.to_string(),
@@ -178,11 +193,11 @@ impl CassieStressRunner {
                 "logical_operations_per_iteration",
                 logical_operations.to_string(),
             );
-        self.run_case(case, |ctx| {
-            let completed = ctx.measure_batch(logical_operations, || {
+        let measurement_name = case.measurement_name();
+        self.run_case(case, move |ctx| {
+            let _completed = ctx.measure_batch(&measurement_name, logical_operations, || {
                 black_box((f.borrow_mut())());
             });
-            let _ = ctx.correctness().attempted(completed).completed(completed);
         });
     }
 
@@ -192,6 +207,7 @@ impl CassieStressRunner {
     {
         let f = RefCell::new(f);
         let case = case
+            .intent(MeasurementIntent::External)
             .parameter(
                 "logical_operations_per_iteration",
                 logical_operations.to_string(),
@@ -200,15 +216,12 @@ impl CassieStressRunner {
                 "logical_operations_per_iteration",
                 logical_operations.to_string(),
             );
-        self.run_case(case, |ctx| {
+        let measurement_name = case.measurement_name();
+        self.run_case(case, move |ctx| {
             let started = Instant::now();
             black_box((f.borrow_mut())());
             let elapsed = started.elapsed();
-            ctx.record_external(elapsed, logical_operations);
-            let _ = ctx
-                .correctness()
-                .attempted(logical_operations)
-                .completed(logical_operations);
+            ctx.record_external(&measurement_name, elapsed, logical_operations);
         });
     }
 
@@ -217,13 +230,14 @@ impl CassieStressRunner {
         F: FnMut() -> usize,
     {
         let f = RefCell::new(f);
-        self.run_case(case, |ctx| {
+        let case = case.intent(MeasurementIntent::External);
+        let measurement_name = case.measurement_name();
+        self.run_case(case, move |ctx| {
             let started = Instant::now();
             let completed =
                 u64::try_from((f.borrow_mut())()).expect("benchmark count should fit u64");
             let elapsed = started.elapsed();
-            ctx.record_external(elapsed, completed);
-            let _ = ctx.correctness().attempted(completed).completed(completed);
+            ctx.record_external(&measurement_name, elapsed, completed);
         });
     }
 
@@ -232,8 +246,9 @@ impl CassieStressRunner {
         F: FnMut() -> R,
     {
         let f = RefCell::new(f);
-        self.run_case(case, |ctx| {
-            black_box(ctx.measure(|| (f.borrow_mut())()));
+        let measurement_name = case.measurement_name();
+        self.run_case(case, move |ctx| {
+            black_box(ctx.measure(&measurement_name, || (f.borrow_mut())()));
         });
     }
 
@@ -242,16 +257,15 @@ impl CassieStressRunner {
         F: FnMut() -> Duration,
     {
         let f = RefCell::new(f);
-        let case = case.parameter("operation_count", operation_count.to_string());
-        self.run_case(case, |ctx| {
+        let case = case
+            .intent(MeasurementIntent::External)
+            .parameter("operation_count", operation_count.to_string());
+        let measurement_name = case.measurement_name();
+        self.run_case(case, move |ctx| {
             let duration = (f.borrow_mut())();
             let multiplier =
                 u32::try_from(operation_count).expect("batch operation count fits Duration");
-            ctx.record_external(duration * multiplier, operation_count);
-            let _ = ctx
-                .correctness()
-                .attempted(operation_count)
-                .completed(operation_count);
+            ctx.record_external(&measurement_name, duration * multiplier, operation_count);
         });
     }
 
@@ -260,14 +274,11 @@ impl CassieStressRunner {
         F: FnMut() -> R,
     {
         let f = RefCell::new(f);
-        self.run_case(case, |ctx| {
-            let operations = ctx.measure_workload(|| {
+        let measurement_name = case.measurement_name();
+        self.run_case(case, move |ctx| {
+            ctx.measure(&measurement_name, || {
                 black_box((f.borrow_mut())());
             });
-            let _ = ctx
-                .correctness()
-                .attempted(operations)
-                .completed(operations);
         });
     }
 
@@ -311,7 +322,7 @@ impl CassieStressRunner {
 
         self.selected = self.selected.saturating_add(1);
         let spec = self.spec_for(case);
-        self.runner.run_spec(spec, f);
+        self.runner.run_spec(&spec, f);
     }
 
     fn should_run(&self, case: &StressCase) -> bool {
@@ -368,6 +379,7 @@ impl CassieStressRunner {
                 .config
                 .mode_for_tier(case.tier)
                 .unwrap_or_else(|| self.config.mode_for_kind(case.mode)),
+            intent: case.intent,
             budgets: BenchmarkBudgets::default(),
             parameters: case.parameters,
             metadata,
@@ -438,13 +450,17 @@ fn resolve_config() -> ResolvedConfig {
                 config = config.warmup_samples(value);
                 index += 1;
             }
+        } else if arg == "--json" {
+            config = config.json_stdout(true);
         } else if let Some(value) = arg.strip_prefix("--console=") {
-            if let Some(console) = parse_console(value) {
-                config = config.console(console);
+            if let Some(json_stdout) = parse_console_json_stdout(value) {
+                config = config.json_stdout(json_stdout);
             }
         } else if arg == "--console" {
-            if let Some(value) = args.get(index + 1).and_then(|value| parse_console(value)) {
-                config = config.console(value);
+            if let Some(value) = args.get(index + 1) {
+                if let Some(json_stdout) = parse_console_json_stdout(value) {
+                    config = config.json_stdout(json_stdout);
+                }
                 index += 1;
             }
         } else if let Some(value) = arg.strip_prefix("--output-dir=") {
@@ -486,8 +502,12 @@ fn parse_profile(value: &str) -> Option<RunProfile> {
     RunProfile::from_str(value).ok()
 }
 
-fn parse_console(value: &str) -> Option<ConsoleMode> {
-    ConsoleMode::from_str(value).ok()
+fn parse_console_json_stdout(value: &str) -> Option<bool> {
+    match value {
+        "json" => Some(true),
+        "compact" | "full" | "verbose" | "ci" => Some(false),
+        _ => None,
+    }
 }
 
 fn parse_u32(value: &str) -> Option<u32> {
@@ -505,6 +525,7 @@ fn print_config(suite: &str, config: &StressRunnerConfig, filter: Option<&str>) 
     println!("Warmup samples: {}", config.warmup_samples);
     println!("Cooldown samples: {}", config.cooldown_samples);
     println!("Output: {}", config.output_dir.display());
+    println!("JSON stdout: {}", config.json_stdout);
     println!("Filter: {}", filter.unwrap_or("<none>"));
     println!(
         "Tier: {}",

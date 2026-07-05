@@ -152,7 +152,9 @@ impl CassieStressRunner {
         let case = case.parameter("operation_count", operation_count.to_string());
         self.run_case(case, |ctx| {
             let duration = (f.borrow_mut())();
-            ctx.record_duration(duration);
+            let multiplier =
+                u32::try_from(operation_count).expect("batch operation count fits Duration");
+            ctx.record_external(duration * multiplier, operation_count);
             let _ = ctx
                 .correctness()
                 .attempted(operation_count)
@@ -268,7 +270,10 @@ impl CassieStressRunner {
             id,
             name: format!("{}/{}", case.workload, case.fixture_scale),
             tier: case.tier,
-            mode: self.config.mode_for_kind(case.mode),
+            mode: self
+                .config
+                .mode_for_tier(case.tier)
+                .unwrap_or_else(|| self.config.mode_for_kind(case.mode)),
             budgets: BenchmarkBudgets::default(),
             parameters: case.parameters,
             metadata,

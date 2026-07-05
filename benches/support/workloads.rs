@@ -16,8 +16,10 @@ mod sql;
 mod system;
 
 pub use context::{
-    column_batch_context, context, context_with_mock_tei_embeddings, empty_context, graph_context,
-    replay_context, runtime, scalar_context, time_series_context, unindexed_context, BenchContext,
+    column_batch_context, context, context_with_mock_tei_embeddings, disk_context_with_temp_budget,
+    empty_context, graph_context, replay_context, runtime, scalar_context, time_series_context,
+    time_series_disk_context_with_temp_budget, unindexed_context,
+    unindexed_disk_context_with_temp_budget, BenchContext,
 };
 pub use hotpath::*;
 pub use http::*;

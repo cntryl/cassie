@@ -1,4 +1,5 @@
 const BENCHMARK: &str = "tier3_system_rebuild";
+const REBUILD_TEMP_BUDGET_BYTES: usize = 64 * 1024 * 1024;
 
 #[path = "support/performance_benchmarks.rs"]
 mod performance_benchmarks;
@@ -55,7 +56,11 @@ fn bench_projection_rebuild_10k(
     }
 
     let context = runtime
-        .block_on(workloads::context("tier3-rebuild", 10_000))
+        .block_on(workloads::disk_context_with_temp_budget(
+            "tier3-rebuild",
+            10_000,
+            REBUILD_TEMP_BUDGET_BYTES,
+        ))
         .expect("benchmark context");
     runner.fixed_operations(cases[0].clone(), || {
         runtime.block_on(workloads::projection_rebuild_query(&context))
@@ -98,7 +103,11 @@ fn bench_projection_rebuild_100k(
     }
 
     let context = runtime
-        .block_on(workloads::unindexed_context("tier3-rebuild-100k", 100_000))
+        .block_on(workloads::unindexed_disk_context_with_temp_budget(
+            "tier3-rebuild-100k",
+            100_000,
+            REBUILD_TEMP_BUDGET_BYTES,
+        ))
         .expect("100k benchmark context");
     runner.fixed_operations(refresh_case, || {
         runtime.block_on(workloads::projection_refresh_workflow(&context))
@@ -133,7 +142,11 @@ fn bench_time_series_rebuild(
     }
 
     let context = runtime
-        .block_on(workloads::time_series_context(label, rows))
+        .block_on(workloads::time_series_disk_context_with_temp_budget(
+            label,
+            rows,
+            REBUILD_TEMP_BUDGET_BYTES,
+        ))
         .expect("time-series benchmark context");
     runner.fixed_operations(retention_case, || {
         *retention_nonce = retention_nonce.wrapping_add(1);

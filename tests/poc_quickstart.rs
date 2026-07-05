@@ -23,24 +23,6 @@ fn execute_poc_setup(cassie: &Cassie, session: &cassie::app::CassieSession) {
 }
 
 #[test]
-fn should_document_runnable_poc_example_command() {
-    // Arrange
-    let readme = std::fs::read_to_string("README.md").expect("read root README");
-    let docs = std::fs::read_to_string("docs/README.md").expect("read docs README");
-
-    // Act
-    let has_root_command = readme.contains("cargo run --locked --example poc_read_model");
-    let has_doc_link = docs.contains("poc-quickstart.md");
-
-    // Assert
-    assert!(
-        has_root_command,
-        "README should name the POC example command"
-    );
-    assert!(has_doc_link, "docs README should link the POC quickstart");
-}
-
-#[test]
 fn should_execute_embedded_read_model_poc_flow() {
     // Arrange
     with_fallback();

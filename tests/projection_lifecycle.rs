@@ -2,7 +2,10 @@
 
 use cassie::app::Cassie;
 use cassie::app::{ProjectionReplayBatch, ProjectionReplayEvent};
-use cassie::sql::ast::{AlterMaterializedProjectionOperation, QueryStatement};
+use cassie::catalog::ProjectionVerificationState;
+use cassie::sql::ast::{
+    AlterMaterializedProjectionOperation, CopyFormat, CopyStatement, QueryStatement,
+};
 use cassie::types::Value;
 
 #[path = "support/sql.rs"]
@@ -209,6 +212,91 @@ fn should_skip_existing_projection_events_while_applying_new_replay_events() {
                 vec![Value::String("bravo".to_string())],
             ]
         );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_mark_large_replay_hashes_stale_without_eager_rebuild() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projection_replay_large_hashes_stale");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE projection_replay_large_docs (title TEXT, score INT)",
+                vec![],
+            )
+            .unwrap();
+        let mut csv = String::new();
+        for index in 0..600 {
+            use std::fmt::Write as _;
+            writeln!(csv, "bulk-{index},title-{index},{index}").unwrap();
+        }
+        cassie
+            .copy_from_csv_stdin(
+                &session,
+                &CopyStatement {
+                    table: "projection_replay_large_docs".to_string(),
+                    columns: vec!["_id".to_string(), "title".to_string(), "score".to_string()],
+                    format: CopyFormat::Csv,
+                    header: false,
+                },
+                csv.as_bytes(),
+            )
+            .unwrap();
+
+        // Act
+        cassie
+            .replay_projection_batch(ProjectionReplayBatch {
+                projection: "projection_replay_large_docs".to_string(),
+                source_identity: "large-replay-stream".to_string(),
+                batch_id: "large-replay-batch".to_string(),
+                lag: 0,
+                events: vec![ProjectionReplayEvent {
+                    event_id: "large-replay-event".to_string(),
+                    checkpoint: "large-checkpoint".to_string(),
+                    position: Some(1),
+                    document_id: "large-replay-doc".to_string(),
+                    payload: Some(serde_json::json!({
+                        "title": "replayed",
+                        "score": 601,
+                    })),
+                }],
+            })
+            .unwrap();
+        let metadata = cassie
+            .catalog
+            .get_projection_metadata("projection_replay_large_docs")
+            .unwrap();
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM projection_replay_large_docs WHERE score = 601",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            selected.rows,
+            vec![vec![Value::String("replayed".to_string())]]
+        );
+        assert_eq!(
+            metadata.hashes.root.state,
+            ProjectionVerificationState::Stale
+        );
+        assert_eq!(metadata.hashes.root.row_count, 601);
 
         let _ = std::fs::remove_dir_all(path);
     });

@@ -128,6 +128,38 @@ pub fn unindexed_context(
     ))
 }
 
+pub fn unindexed_disk_context_with_temp_budget(
+    label: &str,
+    dataset_rows: usize,
+    temp_spill_budget_bytes: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(context_with_index_options_and_runtime(
+        label,
+        dataset_rows,
+        BenchIndexOptions::none(),
+        BenchmarkStorageMode::Disk,
+        |config| {
+            config.limits.temp_spill_budget_bytes = temp_spill_budget_bytes;
+        },
+    ))
+}
+
+pub fn disk_context_with_temp_budget(
+    label: &str,
+    dataset_rows: usize,
+    temp_spill_budget_bytes: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(context_with_index_options_and_runtime(
+        label,
+        dataset_rows,
+        BenchIndexOptions::full(),
+        BenchmarkStorageMode::Disk,
+        |config| {
+            config.limits.temp_spill_budget_bytes = temp_spill_budget_bytes;
+        },
+    ))
+}
+
 pub fn replay_context(
     label: &str,
     dataset_rows: usize,
@@ -162,8 +194,34 @@ pub fn time_series_context(
 fn time_series_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
     let dir = benchmark_data_dir(label);
+    let config = CassieRuntimeConfig::from_env()
+        .map_err(|error| CassieError::Configuration(error.to_string()))?;
+    time_series_context_with_dir_and_config(dataset_rows, dir, config)
+}
 
-    let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
+pub fn time_series_disk_context_with_temp_budget(
+    label: &str,
+    dataset_rows: usize,
+    temp_spill_budget_bytes: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    let dir = benchmark_data_dir_for_mode(label, BenchmarkStorageMode::Disk);
+    ready(
+        CassieRuntimeConfig::from_env()
+            .map_err(|error| CassieError::Configuration(error.to_string()))
+            .and_then(|mut config| {
+                config.limits.temp_spill_budget_bytes = temp_spill_budget_bytes;
+                time_series_context_with_dir_and_config(dataset_rows, dir, config)
+            }),
+    )
+}
+
+fn time_series_context_with_dir_and_config(
+    dataset_rows: usize,
+    dir: PathBuf,
+    config: CassieRuntimeConfig,
+) -> Result<BenchContext, CassieError> {
+    let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir, config)?);
     cassie.startup()?;
     let session = cassie.create_session("benchmark", None);
     let ctx = BenchContext {
@@ -231,10 +289,36 @@ fn context_with_index_options(
     dataset_rows: usize,
     index_options: BenchIndexOptions,
 ) -> Result<BenchContext, CassieError> {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
-    let dir = benchmark_data_dir(label);
+    context_with_index_options_and_runtime(
+        label,
+        dataset_rows,
+        index_options,
+        BenchmarkStorageMode::Default,
+        |_| {},
+    )
+}
 
-    let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
+#[derive(Debug, Clone, Copy)]
+enum BenchmarkStorageMode {
+    Default,
+    Disk,
+}
+
+fn context_with_index_options_and_runtime(
+    label: &str,
+    dataset_rows: usize,
+    index_options: BenchIndexOptions,
+    storage_mode: BenchmarkStorageMode,
+    configure: impl FnOnce(&mut CassieRuntimeConfig),
+) -> Result<BenchContext, CassieError> {
+    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    let dir = benchmark_data_dir_for_mode(label, storage_mode);
+
+    let mut config = CassieRuntimeConfig::from_env()
+        .map_err(|error| CassieError::Configuration(error.to_string()))?;
+    configure(&mut config);
+
+    let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir, config)?);
     cassie.startup()?;
     let session = cassie.create_session("benchmark", None);
     let ctx = BenchContext {
@@ -311,9 +395,15 @@ fn context_with_mock_tei_embeddings_now(
 }
 
 pub(super) fn benchmark_data_dir(label: &str) -> PathBuf {
+    benchmark_data_dir_for_mode(label, BenchmarkStorageMode::Default)
+}
+
+fn benchmark_data_dir_for_mode(label: &str, storage_mode: BenchmarkStorageMode) -> PathBuf {
     let mut path = std::env::temp_dir();
     path.push(format!("cassie-bench-{label}-{}", Uuid::new_v4()));
-    if std::env::var("BENCH_MIDGE_DISK").ok().as_deref() == Some("1") {
+    if matches!(storage_mode, BenchmarkStorageMode::Disk)
+        || std::env::var("BENCH_MIDGE_DISK").ok().as_deref() == Some("1")
+    {
         return path;
     }
 

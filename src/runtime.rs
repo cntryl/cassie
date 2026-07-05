@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -58,6 +58,8 @@ pub struct ExecutionResultCacheKey {
 
 #[path = "runtime/adaptive_metrics.rs"]
 mod adaptive_metrics;
+#[path = "runtime/cache_state.rs"]
+mod cache_state;
 #[path = "runtime/column_batch_metrics.rs"]
 mod column_batch_metrics;
 #[path = "runtime/controls.rs"]
@@ -84,6 +86,8 @@ mod retention_metrics;
 mod rollup_metrics;
 #[path = "runtime/schema_epochs.rs"]
 mod schema_epochs;
+#[path = "runtime/snapshot_metrics.rs"]
+mod snapshot_metrics;
 #[path = "runtime/snapshots.rs"]
 mod snapshots;
 #[path = "runtime/time_series_metrics.rs"]
@@ -892,200 +896,6 @@ impl RuntimeState {
         metrics.plan_cache.evictions += evictions;
     }
 
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn plan_cache_lookup(&self, key: &PlanCacheKey) -> Option<L1PlanHit> {
-        let mut cache = self.plan_cache.lock().expect("plan cache");
-        if let Some(plan) = cache.entries.get(key).cloned() {
-            touch(&mut cache.order, key);
-            drop(cache);
-            self.record_query_cache_l1_hit();
-            return Some(L1PlanHit {
-                plan: plan.plan,
-                durable: plan.durable,
-                candidate_expires_at_ms: plan.candidate_expires_at_ms,
-            });
-        }
-
-        drop(cache);
-        self.record_query_cache_l1_miss();
-        None
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn plan_cache_store(&self, key: PlanCacheKey, plan: Arc<PhysicalPlan>, durable: bool) {
-        let max_entries = self.limits.plan_cache_entries.max(1);
-        let mut cache = self.plan_cache.lock().expect("plan cache");
-        let mut evictions = 0;
-        let entry = L1PlanEntry {
-            plan,
-            durable,
-            candidate_expires_at_ms: None,
-        };
-
-        if cache.entries.contains_key(&key) {
-            cache.entries.insert(key.clone(), entry);
-            touch(&mut cache.order, &key);
-        } else {
-            if cache.entries.len() >= max_entries {
-                if let Some(oldest) = cache.order.pop_front() {
-                    if cache.entries.remove(&oldest).is_some() {
-                        evictions += 1;
-                    }
-                }
-            }
-
-            cache.entries.insert(key.clone(), entry);
-            cache.order.push_back(key);
-        }
-
-        drop(cache);
-        self.record_plan_cache_eviction(evictions);
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn mark_plan_cache_entry_durable(&self, key: &PlanCacheKey) {
-        let mut cache = self.plan_cache.lock().expect("plan cache");
-        if let Some(entry) = cache.entries.get_mut(key) {
-            entry.durable = true;
-            entry.candidate_expires_at_ms = None;
-        }
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn mark_plan_cache_entry_candidate_pending(&self, key: &PlanCacheKey, ttl_seconds: u64) {
-        if ttl_seconds == 0 {
-            return;
-        }
-
-        let expires_at_ms = current_time_millis().saturating_add(ttl_seconds.saturating_mul(1000));
-        let mut cache = self.plan_cache.lock().expect("plan cache");
-        if let Some(entry) = cache.entries.get_mut(key) {
-            if !entry.durable {
-                entry.candidate_expires_at_ms = Some(expires_at_ms);
-            }
-        }
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn invalidate_plan_cache(&self) {
-        let mut cache = self.plan_cache.lock().expect("plan cache");
-        cache.entries.clear();
-        cache.order.clear();
-        drop(cache);
-        self.fulltext_index_options
-            .lock()
-            .expect("fulltext index options")
-            .clear();
-        self.record_plan_cache_invalidation();
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn execution_result_cache_lookup(
-        &self,
-        key: &ExecutionResultCacheKey,
-    ) -> Option<QueryResult> {
-        let mut cache = self
-            .execution_result_cache
-            .lock()
-            .expect("execution result cache");
-        if let Some(result) = cache.entries.get(key).cloned() {
-            Self::execution_result_cache_touch(&mut cache.order, key);
-            drop(cache);
-            return Some(result);
-        }
-        None
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn execution_result_cache_store(&self, key: ExecutionResultCacheKey, result: QueryResult) {
-        const MAX_ENTRIES: usize = 64;
-        let mut cache = self
-            .execution_result_cache
-            .lock()
-            .expect("execution result cache");
-        if let std::collections::hash_map::Entry::Occupied(mut entry) =
-            cache.entries.entry(key.clone())
-        {
-            entry.insert(result);
-            return;
-        }
-        if cache.entries.len() >= MAX_ENTRIES {
-            if let Some(oldest) = cache.order.pop_front() {
-                cache.entries.remove(&oldest);
-            }
-        }
-        cache.entries.insert(key.clone(), result);
-        cache.order.push_back(key);
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn invalidate_execution_result_cache(&self) {
-        let mut cache = self
-            .execution_result_cache
-            .lock()
-            .expect("execution result cache");
-        cache.entries.clear();
-        cache.order.clear();
-    }
-
-    pub fn data_epoch(&self) -> u64 {
-        self.data_epoch.load(Ordering::SeqCst)
-    }
-
-    pub fn bump_data_epoch(&self) {
-        let epoch = self
-            .data_epoch
-            .fetch_add(1, Ordering::SeqCst)
-            .wrapping_add(1);
-        self.data_epoch.store(epoch, Ordering::SeqCst);
-        self.invalidate_execution_result_cache();
-    }
-
-    pub fn index_feedback_epoch(&self) -> u64 {
-        self.index_feedback_epoch.load(Ordering::SeqCst)
-    }
-
-    fn bump_index_feedback_epoch(&self) {
-        let epoch = self
-            .index_feedback_epoch
-            .fetch_add(1, Ordering::SeqCst)
-            .wrapping_add(1);
-        self.index_feedback_epoch.store(epoch, Ordering::SeqCst);
-    }
-
-    fn execution_result_cache_touch(
-        order: &mut VecDeque<ExecutionResultCacheKey>,
-        key: &ExecutionResultCacheKey,
-    ) {
-        if let Some(position) = order.iter().position(|entry| entry == key) {
-            order.remove(position);
-        }
-        order.push_back(key.clone());
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn plan_cache_entry_count(&self) -> usize {
-        self.plan_cache.lock().expect("plan cache").entries.len()
-    }
-
     pub fn schema_epoch(&self) -> u64 {
         self.schema_epoch.load(Ordering::SeqCst)
     }
@@ -1129,56 +939,6 @@ impl RuntimeState {
             .expect("fulltext index options")
             .insert(key, options);
     }
-
-    pub fn query_controls(&self, started_at: Instant) -> QueryExecutionControls {
-        QueryExecutionControls::from_limits(&self.limits, started_at)
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn snapshot(&self) -> RuntimeMetricsSnapshot {
-        let metrics = self.metrics.lock().expect("runtime metrics");
-        let started_at = self.started_at.lock().expect("runtime clock");
-        let uptime_seconds = started_at
-            .as_ref()
-            .map_or(0, |instant| instant.elapsed().as_secs());
-        let mut snapshot = RuntimeMetricsSnapshot {
-            runtime: metrics.runtime.clone(),
-            query: metrics.query.clone(),
-            rest: metrics.rest.clone(),
-            pgwire: metrics.pgwire.clone(),
-            search: metrics.search.clone(),
-            vector: metrics.vector.clone(),
-            hybrid: metrics.hybrid.clone(),
-            storage: metrics.storage.clone(),
-            plan_cache: metrics.plan_cache.clone(),
-            query_cache: metrics.query_cache.clone(),
-            cardinality: metrics.cardinality.clone(),
-            feedback: metrics.feedback.clone(),
-            adaptive_candidates: metrics.adaptive_candidates.clone(),
-            joins: metrics.joins.clone(),
-            covering_indexes: metrics.covering_indexes.clone(),
-            column_batches: metrics.column_batches.clone(),
-            time_series: metrics.time_series.clone(),
-            aggregate_acceleration: metrics.aggregate_acceleration.clone(),
-            parallel_scans: metrics.parallel_scans.clone(),
-            parallel_scoring: metrics.parallel_scoring.clone(),
-            parallel_aggregation: metrics.parallel_aggregation.clone(),
-            rollups: metrics.rollups.clone(),
-            projections: metrics.projections.clone(),
-            retention: metrics.retention.clone(),
-            read_paths: metrics.read_paths.clone(),
-            graph: metrics.graph.clone(),
-        };
-        snapshot.runtime.uptime_seconds = uptime_seconds;
-        snapshot.runtime.running_queries = metrics.runtime.running_queries;
-        snapshot.plan_cache.entries = self.plan_cache_entry_count() as u64;
-        snapshot.plan_cache.max_entries = self.limits.plan_cache_entries as u64;
-        snapshot.feedback.entries = self.feedback_entry_count() as u64;
-        snapshot.feedback.max_entries = self.limits.feedback_entries as u64;
-        snapshot
-    }
 }
 
 fn increment_boundary_counter(map: &mut BTreeMap<String, u64>, operation: &str) {
@@ -1189,5 +949,3 @@ fn increment_boundary_latency(map: &mut BTreeMap<String, u64>, operation: &str, 
     let bucket = map.entry(operation.to_ascii_lowercase()).or_insert(0);
     *bucket = bucket.saturating_add(duration_ms(elapsed));
 }
-
-use std::hash::Hasher;

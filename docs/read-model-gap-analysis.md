@@ -266,8 +266,9 @@ Recommendation:
 
 Evidence:
 
-- Phase 09 module-organization work lowered immediate Midge, executor, and schema-parser touch points below the 1,000-line file limit before read-path, projection, and time-series depth work.
+- Module-organization work is an ongoing cleanup practice, not an executable policy suite.
 - `AGENTS.md` still requires extraction before adding substantial feature work to any oversized file.
+- The live file-size audit in `AGENTS.md` is the source of truth for current split candidates.
 
 Impact:
 
@@ -307,7 +308,7 @@ Phase 09 tracks planned or planned-by-depth work after README-goal closure:
 Closed baseline:
 
 - [Performance Contracts](performance-contracts.md): deployment-profile benchmark reports, larger fixture placeholders, and production-readiness evidence boundaries without unsupported SLA claims.
-- [Module Organization](module-organization.md): extraction gate lowered the immediate Midge, executor, and schema-parser touch points below the 1,000-line file limit before read-path, projection, and time-series depth work.
+- [Module Organization](module-organization.md): cleanup practice documented as a review/refactor guardrail with live audit evidence instead of a hard-coded inventory.
 - [Read-path depth](performance-contracts.md): narrow equality-prefix mixed ordering and exact expression-index equality seeks with EXPLAIN proof, metrics, restart coverage, and manual benchmark ownership.
 - [Projection replay contracts](projection-replay-contracts.md): handler-owned determinism, Cassie-owned replay metadata, duplicate/conflict handling, failure observability, restart hydration, and safe rebuild/verify/swap guidance.
 - [Time-series bucket-native storage](indexes-and-constraints.md): persisted bucket membership, row-backed fallback, mutation/restart/retention correctness, EXPLAIN storage diagnostics, and manual benchmark ownership.

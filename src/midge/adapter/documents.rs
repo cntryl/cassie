@@ -6,6 +6,9 @@ use super::{
 };
 use std::time::Duration;
 
+#[path = "documents/ordered_scan.rs"]
+mod ordered_scan;
+
 #[derive(Debug)]
 pub(crate) enum DocumentWriteOp {
     Put {
@@ -46,55 +49,6 @@ impl DocumentWriteBatchOptions {
     }
 }
 
-fn empty_scan_result(started: Instant) -> (Vec<Vec<DocumentRef>>, MidgeScanTimings) {
-    (
-        Vec::new(),
-        MidgeScanTimings {
-            scan: started.elapsed(),
-            row_decode: Duration::ZERO,
-        },
-    )
-}
-
-fn ordered_scan_timings(started: Instant, row_decode: Duration) -> MidgeScanTimings {
-    MidgeScanTimings {
-        scan: started.elapsed().saturating_sub(row_decode),
-        row_decode,
-    }
-}
-
-fn decode_ordered_scan_entry(
-    config: &OrderedRowScanConfig<'_>,
-    selected: OrderedScanEntry,
-) -> Result<DocumentRef, CassieError> {
-    let payload = match config.projection {
-        Some(projection) if config.include_historical_aliases => {
-            decode_projected_row_with_aliases(config.row_schema, &selected.raw_value, projection)?
-        }
-        Some(projection) => {
-            decode_projected_row(config.row_schema, &selected.raw_value, projection)?
-        }
-        None => decode_row(config.row_schema, &selected.raw_value)?,
-    };
-    Ok(DocumentRef {
-        id: selected.id,
-        payload,
-    })
-}
-
-#[derive(Debug, Clone)]
-struct OrderedScanEntry {
-    id: String,
-    raw_value: Vec<u8>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OrderedScanSelection {
-    Row,
-    Doc,
-    Both,
-}
-
 #[derive(Debug)]
 struct PreparedWrite {
     id: String,
@@ -115,57 +69,10 @@ struct DocumentWriteBatchContext {
     needs_existing_payload: bool,
 }
 
-struct OrderedScanSources {
-    row_prefix: Vec<u8>,
-    doc_prefix: Vec<u8>,
-    row_iter: cntryl_midge::ScanIterator,
-    doc_iter: cntryl_midge::ScanIterator,
-    row_next: Option<OrderedScanEntry>,
-    doc_next: Option<OrderedScanEntry>,
-}
-
-struct OrderedRowScanConfig<'a> {
-    row_schema: &'a RowSchema,
-    projection: Option<&'a HashSet<String>>,
-    include_historical_aliases: bool,
-    batch_size: usize,
-    limit: usize,
-    reverse: bool,
-    scan_started: Instant,
-}
-
-impl OrderedScanSources {
-    fn next_entry(&mut self, reverse: bool) -> Option<OrderedScanEntry> {
-        let selection =
-            Midge::ordered_selection(self.row_next.as_ref(), self.doc_next.as_ref(), reverse)?;
-        let selected = match selection {
-            OrderedScanSelection::Row => self
-                .row_next
-                .take()
-                .expect("row entry should exist for row selection"),
-            OrderedScanSelection::Doc => self
-                .doc_next
-                .take()
-                .expect("doc entry should exist for doc selection"),
-            OrderedScanSelection::Both => self
-                .row_next
-                .take()
-                .expect("row entry should exist for duplicate selection"),
-        };
-        match selection {
-            OrderedScanSelection::Row => {
-                self.row_next = Midge::ordered_next_entry(&mut self.row_iter, &self.row_prefix);
-            }
-            OrderedScanSelection::Doc => {
-                self.doc_next = Midge::ordered_next_entry(&mut self.doc_iter, &self.doc_prefix);
-            }
-            OrderedScanSelection::Both => {
-                self.row_next = Midge::ordered_next_entry(&mut self.row_iter, &self.row_prefix);
-                self.doc_next = Midge::ordered_next_entry(&mut self.doc_iter, &self.doc_prefix);
-            }
-        }
-        Some(selected)
-    }
+struct ExistingDocumentState {
+    payload: Option<serde_json::Value>,
+    row_exists: bool,
+    legacy_exists: bool,
 }
 
 impl Midge {
@@ -430,62 +337,63 @@ impl Midge {
         prepared: PreparedWrite,
         report: &mut DocumentWriteBatchReport,
     ) -> Result<(), CassieError> {
-        let existing_payload =
-            Self::existing_payload_for_prepared_write(tx, collection, context, &prepared.id)?;
-        if prepared.row_blob.is_some() {
-            return Self::apply_prepared_put(
-                tx,
-                collection,
-                context,
-                prepared,
-                existing_payload.as_ref(),
-                report,
-            );
-        }
-        Self::apply_prepared_delete(
+        let existing = Self::existing_document_state_for_prepared_write(
             tx,
             collection,
             context,
-            &prepared,
-            existing_payload.as_ref(),
-            report,
-        )
+            &prepared.id,
+        )?;
+        if prepared.row_blob.is_some() {
+            return Self::apply_prepared_put(tx, collection, context, prepared, &existing, report);
+        }
+        Self::apply_prepared_delete(tx, collection, context, &prepared, &existing, report)
     }
 
-    fn existing_payload_for_prepared_write(
+    fn existing_document_state_for_prepared_write(
         tx: &cntryl_midge::Transaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         id: &str,
-    ) -> Result<Option<serde_json::Value>, CassieError> {
-        if !context.needs_existing_payload {
-            return Ok(None);
-        }
+    ) -> Result<ExistingDocumentState, CassieError> {
+        let legacy_key = Self::doc_key(collection, id);
         if context.uses_column_store {
-            return Self::load_column_store_document_from_tx(
-                tx,
-                collection,
-                id,
-                &context.row_schema,
-            );
+            let payload = if context.needs_existing_payload {
+                Self::load_column_store_document_from_tx(tx, collection, id, &context.row_schema)?
+            } else {
+                None
+            };
+            let row_exists = if context.needs_existing_payload {
+                payload.is_some()
+            } else {
+                tx.get(&Self::column_store_row_key(collection, id))
+                    .map_err(CassieError::from)?
+                    .is_some()
+            };
+            let legacy_exists = tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
+            return Ok(ExistingDocumentState {
+                payload,
+                row_exists,
+                legacy_exists,
+            });
         }
-        Self::load_document_payload_from_tx(tx, collection, id, &context.row_schema)
-    }
 
-    fn primary_row_exists(
-        tx: &cntryl_midge::Transaction,
-        collection: &str,
-        context: &DocumentWriteBatchContext,
-        id: &str,
-    ) -> Result<bool, CassieError> {
-        let key = if context.uses_column_store {
-            Self::column_store_row_key(collection, id)
+        let row_raw = tx
+            .get(&Self::row_key(collection, id))
+            .map_err(CassieError::from)?;
+        let legacy_raw = tx.get(&legacy_key).map_err(CassieError::from)?;
+        let payload = if context.needs_existing_payload {
+            match (row_raw.as_ref(), legacy_raw.as_ref()) {
+                (Some(raw), _) | (None, Some(raw)) => Some(decode_row(&context.row_schema, raw)?),
+                (None, None) => None,
+            }
         } else {
-            Self::row_key(collection, id)
+            None
         };
-        tx.get(&key)
-            .map_err(CassieError::from)
-            .map(|value| value.is_some())
+        Ok(ExistingDocumentState {
+            payload,
+            row_exists: row_raw.is_some(),
+            legacy_exists: legacy_raw.is_some(),
+        })
     }
 
     fn apply_prepared_put(
@@ -493,7 +401,7 @@ impl Midge {
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared: PreparedWrite,
-        existing_payload: Option<&serde_json::Value>,
+        existing: &ExistingDocumentState,
         report: &mut DocumentWriteBatchReport,
     ) -> Result<(), CassieError> {
         let row_blob = prepared
@@ -504,9 +412,7 @@ impl Midge {
             .expect("prepared put operation must include payload");
         let row_key = Self::row_key(collection, &prepared.id);
         let legacy_key = Self::doc_key(collection, &prepared.id);
-        let row_exists = Self::primary_row_exists(tx, collection, context, &prepared.id)?;
-        let legacy_exists = tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
-        let replacing = row_exists || legacy_exists;
+        let replacing = existing.row_exists || existing.legacy_exists;
         let normalized_deleted = Self::delete_normalized_vector_keys_for_document(
             tx,
             collection,
@@ -535,7 +441,7 @@ impl Midge {
             &context.row_schema,
             &payload,
         )?;
-        if tx.get(&legacy_key).map_err(CassieError::from)?.is_some() {
+        if existing.legacy_exists {
             tx.delete(legacy_key).map_err(CassieError::from)?;
         }
         Self::write_normalized_vector_records(tx, &prepared.normalized_records)?;
@@ -543,7 +449,7 @@ impl Midge {
             tx,
             context,
             &prepared.id,
-            existing_payload,
+            existing.payload.as_ref(),
             Some(&payload),
         )?;
         report.ids.push(prepared.id);
@@ -573,27 +479,25 @@ impl Midge {
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared: &PreparedWrite,
-        existing_payload: Option<&serde_json::Value>,
+        existing: &ExistingDocumentState,
         report: &mut DocumentWriteBatchReport,
     ) -> Result<(), CassieError> {
         let row_key = Self::row_key(collection, &prepared.id);
         let legacy_key = Self::doc_key(collection, &prepared.id);
-        let row_exists = Self::primary_row_exists(tx, collection, context, &prepared.id)?;
-        let legacy_exists = tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
-        if row_exists && context.uses_column_store {
+        if existing.row_exists && context.uses_column_store {
             Self::delete_column_store_document_to_tx(
                 tx,
                 collection,
                 &prepared.id,
                 &context.schema,
             )?;
-        } else if row_exists {
+        } else if existing.row_exists {
             tx.delete(row_key).map_err(CassieError::from)?;
         }
-        if legacy_exists {
+        if existing.legacy_exists {
             tx.delete(legacy_key).map_err(CassieError::from)?;
         }
-        if row_exists || legacy_exists {
+        if existing.row_exists || existing.legacy_exists {
             Self::delete_document_hash_to_tx(tx, collection, &prepared.id)?;
             report.stats.metadata_deletes = report.stats.metadata_deletes.saturating_add(1);
             report.stats.row_deletes = report.stats.row_deletes.saturating_add(1);
@@ -609,7 +513,7 @@ impl Midge {
             tx,
             context,
             &prepared.id,
-            existing_payload,
+            existing.payload.as_ref(),
             None,
         )?;
         report.stats.index_deletes = report.stats.index_deletes.saturating_add(
@@ -696,27 +600,6 @@ impl Midge {
             .map_err(CassieError::from)
     }
 
-    fn load_document_payload_from_tx(
-        tx: &cntryl_midge::Transaction,
-        collection: &str,
-        id: &str,
-        row_schema: &RowSchema,
-    ) -> Result<Option<serde_json::Value>, CassieError> {
-        if let Some(raw) = tx
-            .get(&Self::row_key(collection, id))
-            .map_err(CassieError::from)?
-        {
-            return decode_row(row_schema, &raw).map(Some);
-        }
-        let Some(raw) = tx
-            .get(&Self::doc_key(collection, id))
-            .map_err(CassieError::from)?
-        else {
-            return Ok(None);
-        };
-        decode_row(row_schema, &raw).map(Some)
-    }
-
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
@@ -784,28 +667,6 @@ impl Midge {
             batch_size,
             RowDecode::ProjectedHistorical(fields),
             filter,
-            limit,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn scan_ordered_rows_batched_by_id_limit_with_timings(
-        &self,
-        collection: &str,
-        batch_size: usize,
-        decode: RowDecode,
-        start_bound: Option<&super::OrderedRowBound>,
-        end_bound: Option<&super::OrderedRowBound>,
-        reverse: bool,
-        limit: Option<usize>,
-    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
-        self.scan_ordered_rows_batched_by_id(
-            collection,
-            batch_size,
-            decode,
-            start_bound,
-            end_bound,
-            reverse,
             limit,
         )
     }
@@ -921,206 +782,6 @@ impl Midge {
                 row_decode,
             },
         ))
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn scan_ordered_rows_batched_by_id(
-        &self,
-        collection: &str,
-        batch_size: usize,
-        decode: RowDecode,
-        start_bound: Option<&super::OrderedRowBound>,
-        end_bound: Option<&super::OrderedRowBound>,
-        reverse: bool,
-        limit: Option<usize>,
-    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
-        let scan_started = Instant::now();
-        let row_schema = self.row_schema(collection)?;
-        let (projection, include_historical_aliases) = decode.into_projection();
-        let tx = self.begin_data_readonly_tx()?;
-        let batch_size = batch_size.max(1);
-        let limit = limit.unwrap_or(usize::MAX);
-        if self.collection_uses_column_store(collection)? {
-            return Self::scan_ordered_column_store_rows_batched_by_id(
-                &tx,
-                collection,
-                &row_schema,
-                batch_size,
-                projection.as_ref(),
-                include_historical_aliases,
-                start_bound,
-                end_bound,
-                reverse,
-                limit,
-            );
-        }
-        if limit == 0 {
-            return Ok(empty_scan_result(scan_started));
-        }
-
-        let mut sources =
-            Self::ordered_scan_sources(&tx, collection, start_bound, end_bound, reverse)?;
-        let config = OrderedRowScanConfig {
-            row_schema: &row_schema,
-            projection: projection.as_ref(),
-            include_historical_aliases,
-            batch_size,
-            limit,
-            reverse,
-            scan_started,
-        };
-        Self::collect_ordered_rows(&mut sources, &config)
-    }
-
-    fn ordered_scan_sources(
-        tx: &cntryl_midge::Transaction,
-        collection: &str,
-        start_bound: Option<&super::OrderedRowBound>,
-        end_bound: Option<&super::OrderedRowBound>,
-        reverse: bool,
-    ) -> Result<OrderedScanSources, CassieError> {
-        let row_prefix = Self::row_prefix(collection);
-        let doc_prefix = Self::doc_prefix(collection);
-        let mut row_iter = tx
-            .scan(&Self::ordered_row_query(
-                &row_prefix,
-                start_bound,
-                end_bound,
-                reverse,
-            ))
-            .map_err(CassieError::from)?;
-        let mut doc_iter = tx
-            .scan(&Self::ordered_row_query(
-                &doc_prefix,
-                start_bound,
-                end_bound,
-                reverse,
-            ))
-            .map_err(CassieError::from)?;
-        let row_next = Self::ordered_next_entry(&mut row_iter, &row_prefix);
-        let doc_next = Self::ordered_next_entry(&mut doc_iter, &doc_prefix);
-        Ok(OrderedScanSources {
-            row_prefix,
-            doc_prefix,
-            row_iter,
-            doc_iter,
-            row_next,
-            doc_next,
-        })
-    }
-
-    fn collect_ordered_rows(
-        sources: &mut OrderedScanSources,
-        config: &OrderedRowScanConfig<'_>,
-    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
-        let mut results = Vec::new();
-        let mut current = Vec::with_capacity(config.batch_size);
-        let mut emitted = 0usize;
-        let mut row_decode = Duration::ZERO;
-        while emitted < config.limit {
-            let Some(selected) = sources.next_entry(config.reverse) else {
-                break;
-            };
-            let decode_started = Instant::now();
-            current.push(decode_ordered_scan_entry(config, selected)?);
-            row_decode += decode_started.elapsed();
-            emitted += 1;
-            if current.len() >= config.batch_size {
-                results.push(current);
-                current = Vec::with_capacity(config.batch_size);
-            }
-        }
-        if !current.is_empty() {
-            results.push(current);
-        }
-        Ok((
-            results,
-            ordered_scan_timings(config.scan_started, row_decode),
-        ))
-    }
-
-    fn ordered_row_query(
-        prefix: &[u8],
-        start_bound: Option<&super::OrderedRowBound>,
-        end_bound: Option<&super::OrderedRowBound>,
-        reverse: bool,
-    ) -> Query {
-        let mut query = Query::new().prefix(prefix.to_vec().into());
-        if let Some(bound) = start_bound {
-            query =
-                query.start_key(Self::ordered_start_key(prefix, &bound.id, bound.inclusive).into());
-        }
-        if let Some(bound) = end_bound {
-            query = query.end_key(Self::ordered_end_key(prefix, &bound.id, bound.inclusive).into());
-        }
-        if reverse {
-            query = query.reverse();
-        }
-        query
-    }
-
-    fn ordered_start_key(prefix: &[u8], id: &str, inclusive: bool) -> Vec<u8> {
-        let mut key = prefix.to_vec();
-        key.extend_from_slice(id.as_bytes());
-        if !inclusive {
-            key.push(0);
-        }
-        key
-    }
-
-    fn ordered_end_key(prefix: &[u8], id: &str, inclusive: bool) -> Vec<u8> {
-        let mut key = prefix.to_vec();
-        key.extend_from_slice(id.as_bytes());
-        if inclusive {
-            key.push(0);
-        }
-        key
-    }
-
-    fn ordered_next_entry(
-        iter: &mut cntryl_midge::ScanIterator,
-        prefix: &[u8],
-    ) -> Option<OrderedScanEntry> {
-        while let Some((raw_key, raw_value)) = iter.next() {
-            let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, prefix) else {
-                continue;
-            };
-            if id.is_empty() {
-                continue;
-            }
-            return Some(OrderedScanEntry { id, raw_value });
-        }
-
-        None
-    }
-
-    fn ordered_selection(
-        row: Option<&OrderedScanEntry>,
-        doc: Option<&OrderedScanEntry>,
-        reverse: bool,
-    ) -> Option<OrderedScanSelection> {
-        match (row, doc) {
-            (Some(_), None) => Some(OrderedScanSelection::Row),
-            (None, Some(_)) => Some(OrderedScanSelection::Doc),
-            (Some(row), Some(doc)) => match row.id.cmp(&doc.id) {
-                std::cmp::Ordering::Less => {
-                    if reverse {
-                        Some(OrderedScanSelection::Doc)
-                    } else {
-                        Some(OrderedScanSelection::Row)
-                    }
-                }
-                std::cmp::Ordering::Greater => {
-                    if reverse {
-                        Some(OrderedScanSelection::Row)
-                    } else {
-                        Some(OrderedScanSelection::Doc)
-                    }
-                }
-                std::cmp::Ordering::Equal => Some(OrderedScanSelection::Both),
-            },
-            (None, None) => None,
-        }
     }
 
     /// # Errors

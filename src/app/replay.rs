@@ -282,6 +282,9 @@ impl Cassie {
         batch: ProjectionReplayBatch,
         prepared: PreparedReplay,
     ) -> Result<ProjectionReplayReport, CassieError> {
+        if let Some(latest) = self.midge.projection_metadata(&metadata.collection)? {
+            metadata = latest;
+        }
         metadata.source_identity = Some(batch.source_identity);
         metadata.replay_batch_id = Some(batch.batch_id);
         metadata.source_checkpoint = prepared.source_checkpoint;

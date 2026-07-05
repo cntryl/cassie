@@ -31,7 +31,6 @@ use super::context::{
     duration_divisor, u64_to_usize_saturating, usize_mod_i64, usize_to_i64, usize_to_u64,
     BenchContext, QueryBreakdownMicros,
 };
-use super::pgwire::pgwire_simple_query;
 use super::sql::execute_sql;
 
 fn projection_counter_delta(
@@ -53,33 +52,6 @@ fn counter_delta(
         .unwrap_or_default()
         .saturating_sub(before[section][key].as_u64().unwrap_or_default());
     u64_to_usize_saturating(delta)
-}
-
-pub fn protocol_comparison_sql(ctx: &BenchContext) -> Ready<usize> {
-    execute_sql(
-        ctx,
-        "SELECT id, title FROM bench_documents WHERE title = 'title-1' LIMIT 20",
-    )
-}
-
-pub fn protocol_comparison_pgwire(ctx: &BenchContext) -> Ready<usize> {
-    pgwire_simple_query(
-        ctx,
-        "SELECT id, title FROM bench_documents WHERE title = 'title-1' LIMIT 20",
-    )
-}
-
-pub fn protocol_comparison_http(ctx: &BenchContext) -> Ready<usize> {
-    let result = ctx
-        .cassie
-        .execute_sql(
-            &ctx.session,
-            "SELECT id, title FROM bench_documents WHERE title = 'title-1' LIMIT 20",
-            vec![],
-        )
-        .expect("http comparison query");
-    let encoded = serde_json::to_vec(&result).expect("json encode comparison");
-    ready(std::hint::black_box(encoded.len()))
 }
 
 pub fn http_document_create_get(ctx: &BenchContext) -> Ready<usize> {

@@ -7,6 +7,10 @@ mod workloads;
 
 fn main() {
     let mut runner = stress::runner("tier1_hotpath_bm25");
-    runner.tier1_micro("bm25_scoring", workloads::bm25_score);
+    runner.micro(
+        stress::StressCase::tier1_micro("bm25_scoring")
+            .metadata("logical_operations_per_iteration", "8"),
+        workloads::bm25_score,
+    );
     runner.finish();
 }

@@ -25,5 +25,17 @@ fn main() {
         stress::StressCase::fixed_operations(2, "http_handler", "10k"),
         || runtime.block_on(workloads::http_document_get(&ctx)),
     );
+    runner.fixed_batch(
+        stress::StressCase::fixed_operations(2, "prepared_statement_loop", "protocol")
+            .metadata("operation_unit", "protocol_message"),
+        5,
+        workloads::pgwire_prepared_statement_protocol_loop,
+    );
+    runner.fixed_batch(
+        stress::StressCase::fixed_operations(2, "json_serialization_overhead", "512_rows")
+            .metadata("operation_unit", "serialized_row"),
+        512,
+        workloads::json_serialization_overhead,
+    );
     runner.finish();
 }

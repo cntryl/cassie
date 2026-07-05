@@ -7,8 +7,9 @@ mod workloads;
 
 fn main() {
     let mut runner = stress::runner("tier1_hotpath_predicates");
-    runner.tier1_micro(
-        "field_lookup_by_field_id",
+    runner.micro(
+        stress::StressCase::tier1_micro("field_lookup_by_field_id")
+            .metadata("logical_operations_per_iteration", "64"),
         workloads::field_lookup_by_field_id,
     );
     runner.tier1_micro("predicate_evaluation", workloads::predicate_evaluation);

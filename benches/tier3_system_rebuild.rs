@@ -1,5 +1,6 @@
 const BENCHMARK: &str = "tier3_system_rebuild";
 const REBUILD_TEMP_BUDGET_BYTES: usize = 64 * 1024 * 1024;
+const PROJECTION_REBUILD_QUERY_ROWS: u64 = 512;
 
 #[path = "support/performance_benchmarks.rs"]
 mod performance_benchmarks;
@@ -62,30 +63,44 @@ fn bench_projection_rebuild_10k(
             REBUILD_TEMP_BUDGET_BYTES,
         ))
         .expect("benchmark context");
-    runner.fixed_operations(cases[0].clone(), || {
-        runtime.block_on(workloads::projection_rebuild_query(&context))
-    });
+    runner.fixed_batch(
+        cases[0].clone().metadata("operation_unit", "result_row"),
+        PROJECTION_REBUILD_QUERY_ROWS,
+        || runtime.block_on(workloads::projection_rebuild_query(&context)),
+    );
 
     let refresh = performance_benchmarks::expect_benchmark(BENCHMARK, "projection_refresh", "10k");
-    runner.fixed_operations(
-        stress::StressCase::fixed_operations(3, refresh.workload, refresh.fixture_scale),
+    runner.fixed_timed_count(
+        stress::StressCase::fixed_operations(3, refresh.workload, refresh.fixture_scale)
+            .metadata("operation_unit", "source_row"),
+        row_count(10_000),
         || runtime.block_on(workloads::projection_refresh_workflow(&context)),
     );
 
     let verify = performance_benchmarks::expect_benchmark(BENCHMARK, "projection_verify", "10k");
-    runner.fixed_operations(
-        stress::StressCase::fixed_operations(3, verify.workload, verify.fixture_scale),
+    runner.fixed_timed_count(
+        stress::StressCase::fixed_operations(3, verify.workload, verify.fixture_scale)
+            .metadata("operation_unit", "source_row"),
+        row_count(10_000),
         || runtime.block_on(workloads::projection_rebuild_verification(&context)),
     );
 
-    runner.fixed_operations(cases[3].clone(), || {
-        *index_nonce = index_nonce.wrapping_add(1);
-        runtime.block_on(workloads::projection_version_swap(&context, *index_nonce))
-    });
-    runner.fixed_operations(cases[4].clone(), || {
-        *index_nonce = index_nonce.wrapping_add(1);
-        runtime.block_on(workloads::index_rebuild_ddl(&context, *index_nonce))
-    });
+    runner.fixed_timed_count(
+        cases[3].clone().metadata("operation_unit", "source_row"),
+        row_count(10_000),
+        || {
+            *index_nonce = index_nonce.wrapping_add(1);
+            runtime.block_on(workloads::projection_version_swap(&context, *index_nonce))
+        },
+    );
+    runner.fixed_timed_count(
+        cases[4].clone().metadata("operation_unit", "source_row"),
+        row_count(10_000),
+        || {
+            *index_nonce = index_nonce.wrapping_add(1);
+            runtime.block_on(workloads::index_rebuild_ddl(&context, *index_nonce))
+        },
+    );
 }
 
 fn bench_projection_rebuild_100k(
@@ -109,12 +124,16 @@ fn bench_projection_rebuild_100k(
             REBUILD_TEMP_BUDGET_BYTES,
         ))
         .expect("100k benchmark context");
-    runner.fixed_operations(refresh_case, || {
-        runtime.block_on(workloads::projection_refresh_workflow(&context))
-    });
-    runner.fixed_operations(verify_case, || {
-        runtime.block_on(workloads::projection_rebuild_verification(&context))
-    });
+    runner.fixed_timed_count(
+        refresh_case.metadata("operation_unit", "source_row"),
+        row_count(100_000),
+        || runtime.block_on(workloads::projection_refresh_workflow(&context)),
+    );
+    runner.fixed_timed_count(
+        verify_case.metadata("operation_unit", "source_row"),
+        row_count(100_000),
+        || runtime.block_on(workloads::projection_rebuild_verification(&context)),
+    );
 }
 
 fn bench_time_series_rebuild(
@@ -148,18 +167,30 @@ fn bench_time_series_rebuild(
             REBUILD_TEMP_BUDGET_BYTES,
         ))
         .expect("time-series benchmark context");
-    runner.fixed_operations(retention_case, || {
-        *retention_nonce = retention_nonce.wrapping_add(1);
-        runtime.block_on(workloads::time_series_retention_enforcement(
-            &context,
-            *retention_nonce,
-        ))
-    });
-    runner.fixed_operations(rollup_case, || {
-        *rollup_nonce = rollup_nonce.wrapping_add(1);
-        runtime.block_on(workloads::time_series_rollup_refresh(
-            &context,
-            *rollup_nonce,
-        ))
-    });
+    runner.fixed_timed_count(
+        retention_case.metadata("operation_unit", "source_row"),
+        row_count(rows),
+        || {
+            *retention_nonce = retention_nonce.wrapping_add(1);
+            runtime.block_on(workloads::time_series_retention_enforcement(
+                &context,
+                *retention_nonce,
+            ))
+        },
+    );
+    runner.fixed_timed_count(
+        rollup_case.metadata("operation_unit", "source_row"),
+        row_count(rows),
+        || {
+            *rollup_nonce = rollup_nonce.wrapping_add(1);
+            runtime.block_on(workloads::time_series_rollup_refresh(
+                &context,
+                *rollup_nonce,
+            ))
+        },
+    );
+}
+
+fn row_count(rows: usize) -> u64 {
+    u64::try_from(rows).expect("benchmark row count should fit u64")
 }

@@ -78,6 +78,8 @@ const SCALAR_100K_CASES: &[(&str, &str)] = &[
 ];
 const MIXED_DIRECTION_SCALAR_SQL: &str =
     "SELECT id FROM bench_documents ORDER BY score DESC, id ASC LIMIT 50";
+const SQL_QUERY_BATCH: u64 = 8;
+const LARGE_QUERY_BATCH: u64 = 2;
 
 #[path = "support/performance_benchmarks.rs"]
 mod performance_benchmarks;
@@ -151,13 +153,16 @@ fn bench_simple_100k_case(
     let context = runtime
         .block_on(workloads::unindexed_context("tier3-query-100k", 100_000))
         .expect("100k benchmark context");
-    runner.fixed_operations(
+    runner.fixed_batch(
         stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale),
+        LARGE_QUERY_BATCH,
         || {
-            runtime.block_on(workloads::execute_sql(
+            run_sql_batch(
+                runtime,
                 &context,
                 "SELECT id, title FROM bench_documents WHERE id = 'doc-1'",
-            ))
+                LARGE_QUERY_BATCH,
+            )
         },
     );
 }
@@ -184,9 +189,10 @@ fn bench_scalar_100k_cases(
     for (workload, sql) in runnable {
         let benchmark = performance_benchmarks::expect_benchmark(BENCHMARK, workload, "100k");
         let _ = runtime.block_on(workloads::execute_sql(&context, sql));
-        runner.fixed_operations(
+        runner.fixed_batch(
             stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale),
-            || runtime.block_on(workloads::execute_sql(&context, sql)),
+            LARGE_QUERY_BATCH,
+            || run_sql_batch(runtime, &context, sql, LARGE_QUERY_BATCH),
         );
     }
 }
@@ -208,9 +214,17 @@ fn bench_mixed_direction_scalar_case(
         .block_on(workloads::scalar_context(&label, rows))
         .expect("mixed-direction scalar benchmark context");
     let _ = runtime.block_on(workloads::execute_sql(&context, MIXED_DIRECTION_SCALAR_SQL));
-    runner.fixed_operations(
+    runner.fixed_batch(
         stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale),
-        || runtime.block_on(workloads::execute_sql(&context, MIXED_DIRECTION_SCALAR_SQL)),
+        LARGE_QUERY_BATCH,
+        || {
+            run_sql_batch(
+                runtime,
+                &context,
+                MIXED_DIRECTION_SCALAR_SQL,
+                LARGE_QUERY_BATCH,
+            )
+        },
     );
 }
 
@@ -234,7 +248,7 @@ fn bench_time_series_case(
         .expect("time-series benchmark context");
     let benchmark =
         performance_benchmarks::expect_benchmark(BENCHMARK, "time_series_window_scan", scale);
-    runner.fixed_operations(
+    runner.fixed_timed_counted_usize(
         stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale),
         || runtime.block_on(workloads::time_series_window_scan(&context)),
     );
@@ -260,7 +274,7 @@ fn bench_graph_case(
         .expect("graph benchmark context");
     let benchmark =
         performance_benchmarks::expect_benchmark(BENCHMARK, "graph_expand_query", scale);
-    runner.fixed_operations(
+    runner.fixed_timed_counted_usize(
         stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale),
         || runtime.block_on(workloads::execute_sql(&context, GRAPH_EXPAND_SQL)),
     );
@@ -275,10 +289,24 @@ fn warm_and_register_sql_case(
     sql: &'static str,
 ) {
     let _ = runtime.block_on(workloads::execute_sql(context, sql));
-    runner.fixed_operations(
+    runner.fixed_batch(
         stress::StressCase::fixed_operations(3, workload, scale),
-        || runtime.block_on(workloads::execute_sql(context, sql)),
+        SQL_QUERY_BATCH,
+        || run_sql_batch(runtime, context, sql, SQL_QUERY_BATCH),
     );
+}
+
+fn run_sql_batch(
+    runtime: &tokio::runtime::Runtime,
+    context: &workloads::BenchContext,
+    sql: &str,
+    queries: u64,
+) -> usize {
+    let mut rows = 0;
+    for _ in 0..queries {
+        rows += runtime.block_on(workloads::execute_sql(context, sql));
+    }
+    std::hint::black_box(rows)
 }
 
 fn should_run_case(

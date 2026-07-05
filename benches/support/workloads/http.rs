@@ -23,9 +23,63 @@ use cassie::search::{bm25, tokenizer};
 use cassie::sql::{binder, parameter_count, parameter_type_oids, parse_statement};
 use cassie::types::{DataType, FieldSchema, Schema, Value};
 use serde_json::json;
+use tokio::sync::Notify;
 use uuid::Uuid;
 
 use super::context::{BenchContext, QueryBreakdownMicros};
+
+pub struct HttpBenchContext {
+    base_url: String,
+    collection: String,
+    client: reqwest::Client,
+    auth_header: Option<String>,
+    shutdown: Arc<Notify>,
+    server: tokio::task::JoinHandle<Result<(), CassieError>>,
+}
+
+impl Drop for HttpBenchContext {
+    fn drop(&mut self) {
+        self.shutdown.notify_waiters();
+        self.server.abort();
+    }
+}
+
+pub async fn http_transport_context(ctx: &BenchContext) -> Result<HttpBenchContext, CassieError> {
+    let addr = reserve_local_addr().map_err(|error| CassieError::Execution(error.to_string()))?;
+    let shutdown = Arc::new(Notify::new());
+    let server = tokio::spawn(cassie::rest::router::run_with_shutdown(
+        addr.clone(),
+        ctx.cassie.as_ref().clone(),
+        shutdown.clone(),
+    ));
+    let client = reqwest::Client::new();
+    let base_url = format!("http://{addr}");
+    let config = CassieRuntimeConfig::from_env()
+        .map_err(|error| CassieError::Configuration(error.to_string()))?;
+    let auth_header = if config.password.is_empty() {
+        None
+    } else {
+        Some(format!("{}:{}", config.user, config.password))
+    };
+    wait_for_http_server(&client, &base_url).await?;
+    Ok(HttpBenchContext {
+        base_url,
+        collection: ctx.collection.clone(),
+        client,
+        auth_header,
+        shutdown,
+        server,
+    })
+}
+
+impl HttpBenchContext {
+    fn authorize(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        match &self.auth_header {
+            Some(token) => builder.bearer_auth(token),
+            None => builder,
+        }
+    }
+}
 
 pub fn http_vector_search(ctx: &BenchContext) -> Ready<usize> {
     let body = json!({
@@ -91,4 +145,169 @@ pub fn json_serialization_overhead() -> usize {
         .collect::<Vec<_>>();
     let encoded = serde_json::to_vec(&rows).expect("json encode rows");
     std::hint::black_box(encoded.len())
+}
+
+pub async fn http_transport_vector_search(ctx: &HttpBenchContext) -> usize {
+    let body = json!({
+        "field": "embedding",
+        "query": "[1,0,0]",
+        "metric": "cosine",
+        "limit": 10,
+    });
+    let response = ctx
+        .authorize(ctx.client.post(format!(
+            "{}/v1/collections/{}/search",
+            ctx.base_url, ctx.collection
+        )))
+        .json(&body)
+        .send()
+        .await
+        .expect("send vector search request")
+        .error_for_status()
+        .expect("vector search status")
+        .json::<serde_json::Value>()
+        .await
+        .expect("vector search response");
+    let rows = response["rows"].as_array().map_or(0, Vec::len);
+    std::hint::black_box(rows)
+}
+
+pub async fn http_transport_document_create_get_batch(
+    ctx: &HttpBenchContext,
+    batch_size: usize,
+) -> usize {
+    let payload = json!({
+        "title": "http-benchmark-title",
+        "body": "alpha beta gamma",
+        "score": 42,
+        "status": "approved",
+        "embedding": [1.0, 0.0, 0.0],
+    });
+    let mut completed = 0usize;
+    for _ in 0..batch_size.max(1) {
+        let created = ctx
+            .authorize(ctx.client.post(format!(
+                "{}/v1/collections/{}/documents",
+                ctx.base_url, ctx.collection
+            )))
+            .json(&payload)
+            .send()
+            .await
+            .expect("send create document request")
+            .error_for_status()
+            .expect("create document status")
+            .json::<serde_json::Value>()
+            .await
+            .expect("create document response");
+        let id = created["id"].as_str().expect("created document id");
+        let loaded = ctx
+            .authorize(ctx.client.get(format!(
+                "{}/v1/collections/{}/documents/{id}",
+                ctx.base_url, ctx.collection
+            )))
+            .send()
+            .await
+            .expect("send get document request")
+            .error_for_status()
+            .expect("get document status")
+            .json::<serde_json::Value>()
+            .await
+            .expect("get document response");
+        std::hint::black_box(loaded);
+        completed = completed.saturating_add(1);
+    }
+    completed
+}
+
+pub async fn http_transport_large_result_set(ctx: &HttpBenchContext) -> usize {
+    http_transport_document_get_batch(ctx, 512).await
+}
+
+pub async fn http_transport_document_get_batch(ctx: &HttpBenchContext, batch_size: usize) -> usize {
+    let mut total = 0usize;
+    for index in 0..batch_size.max(1) {
+        let id = format!("doc-{index}");
+        let loaded = ctx
+            .authorize(ctx.client.get(format!(
+                "{}/v1/collections/{}/documents/{id}",
+                ctx.base_url, ctx.collection
+            )))
+            .send()
+            .await
+            .expect("send get document request")
+            .error_for_status()
+            .expect("get document status")
+            .json::<serde_json::Value>()
+            .await
+            .expect("get document response");
+        std::hint::black_box(loaded);
+        total = total.saturating_add(1);
+    }
+    total
+}
+
+pub async fn http_transport_concurrent_document_gets(
+    ctx: &HttpBenchContext,
+    concurrency: usize,
+) -> usize {
+    let mut tasks = tokio::task::JoinSet::new();
+    for index in 0..concurrency.max(1) {
+        let client = ctx.client.clone();
+        let url = format!(
+            "{}/v1/collections/{}/documents/doc-{}",
+            ctx.base_url,
+            ctx.collection,
+            index % 128
+        );
+        let auth_header = ctx.auth_header.clone();
+        tasks.spawn(async move {
+            let request = client.get(url);
+            let request = match &auth_header {
+                Some(token) => request.bearer_auth(token),
+                None => request,
+            };
+            let loaded = request
+                .send()
+                .await
+                .expect("send concurrent get request")
+                .error_for_status()
+                .expect("concurrent get status")
+                .json::<serde_json::Value>()
+                .await
+                .expect("concurrent get response");
+            std::hint::black_box(loaded);
+            1usize
+        });
+    }
+
+    let mut loaded = 0usize;
+    while let Some(result) = tasks.join_next().await {
+        loaded = loaded.saturating_add(result.expect("document get task"));
+    }
+    std::hint::black_box(loaded)
+}
+
+async fn wait_for_http_server(client: &reqwest::Client, base_url: &str) -> Result<(), CassieError> {
+    let health_url = format!("{base_url}/health");
+    for _ in 0..100 {
+        if client
+            .get(&health_url)
+            .send()
+            .await
+            .is_ok_and(|response| response.status().is_success())
+        {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    Err(CassieError::Execution(
+        "rest benchmark server did not become ready".to_string(),
+    ))
+}
+
+fn reserve_local_addr() -> std::io::Result<String> {
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let addr = listener.local_addr()?;
+    drop(listener);
+    Ok(addr.to_string())
 }

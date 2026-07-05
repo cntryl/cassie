@@ -5,7 +5,7 @@ use std::collections::BinaryHeap;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -27,11 +27,40 @@ use uuid::Uuid;
 
 use super::context::{usize_to_f32, BenchContext, QueryBreakdownMicros};
 
+static FIELD_LOOKUP_FIELDS: LazyLock<[FieldMeta; 4]> = LazyLock::new(|| {
+    [
+        FieldMeta {
+            name: "id".to_string(),
+            data_type: DataType::Text,
+            is_indexed: true,
+            boost: Some(1.0),
+        },
+        FieldMeta {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            is_indexed: true,
+            boost: Some(1.0),
+        },
+        FieldMeta {
+            name: "body".to_string(),
+            data_type: DataType::Text,
+            is_indexed: true,
+            boost: Some(1.0),
+        },
+        FieldMeta {
+            name: "score".to_string(),
+            data_type: DataType::Int,
+            is_indexed: true,
+            boost: None,
+        },
+    ]
+});
+
 pub fn row_encode_decode() -> usize {
-    let encoded = serde_json::to_vec(&json!({"id":"doc-1","title":"alpha"})).expect("encode row");
-    let decoded: serde_json::Value = serde_json::from_slice(&encoded).expect("decode row");
-    std::hint::black_box(decoded);
-    1
+    let input = std::hint::black_box(br#"{"id":"doc-1","title":"alpha","score":42}"#);
+    let decoded: serde_json::Value = serde_json::from_slice(input).expect("decode row");
+    let encoded = serde_json::to_vec(std::hint::black_box(&decoded)).expect("encode row");
+    std::hint::black_box(encoded.len())
 }
 
 pub fn key_encode_decode() -> usize {
@@ -88,35 +117,14 @@ pub fn field_lookup() -> usize {
 }
 
 pub fn field_lookup_by_field_id() -> usize {
-    let fields = [
-        FieldMeta {
-            name: "id".to_string(),
-            data_type: DataType::Text,
-            is_indexed: true,
-            boost: Some(1.0),
-        },
-        FieldMeta {
-            name: "title".to_string(),
-            data_type: DataType::Text,
-            is_indexed: true,
-            boost: Some(1.0),
-        },
-        FieldMeta {
-            name: "body".to_string(),
-            data_type: DataType::Text,
-            is_indexed: true,
-            boost: Some(1.0),
-        },
-        FieldMeta {
-            name: "score".to_string(),
-            data_type: DataType::Int,
-            is_indexed: true,
-            boost: None,
-        },
-    ];
-    let field_id = std::hint::black_box(2usize);
-    std::hint::black_box(&fields[field_id]);
-    1
+    let mut hits = 0usize;
+    for index in 0..64 {
+        let field_id = std::hint::black_box(index % FIELD_LOOKUP_FIELDS.len());
+        if !FIELD_LOOKUP_FIELDS[field_id].name.is_empty() {
+            hits = hits.saturating_add(1);
+        }
+    }
+    std::hint::black_box(hits)
 }
 
 pub fn predicate_evaluation() -> usize {
@@ -127,7 +135,10 @@ pub fn predicate_evaluation() -> usize {
 }
 
 pub fn batch_filter() -> usize {
-    let scores = [1_i64, 10, 100, 3, 25, 8, 99, 7];
+    let scores = [
+        1_i64, 10, 100, 3, 25, 8, 99, 7, 44, 61, 2, 88, 13, 55, 34, 21, 5, 89, 144, 233, 377, 610,
+        987, 1_597, 4, 6, 9, 12, 18, 27, 81, 243,
+    ];
     let threshold = std::hint::black_box(10_i64);
     let rows = scores
         .iter()
@@ -143,10 +154,24 @@ pub fn batch_projection() -> usize {
 }
 
 pub fn value_comparison() -> usize {
-    let left = std::hint::black_box(Value::Int64(1));
-    let right = std::hint::black_box(Value::Int64(2));
-    std::hint::black_box(left.as_i64().unwrap_or_default() < right.as_i64().unwrap_or_default());
-    1
+    let values = [
+        (Value::Int64(1), Value::Int64(2)),
+        (Value::Int64(3), Value::Int64(5)),
+        (Value::Int64(8), Value::Int64(13)),
+        (Value::Int64(21), Value::Int64(34)),
+        (Value::Int64(55), Value::Int64(89)),
+        (Value::Int64(144), Value::Int64(233)),
+        (Value::Int64(377), Value::Int64(610)),
+        (Value::Int64(987), Value::Int64(1_597)),
+    ];
+    let matches = values
+        .iter()
+        .filter(|(left, right)| {
+            std::hint::black_box(left.as_i64().unwrap_or_default())
+                < std::hint::black_box(right.as_i64().unwrap_or_default())
+        })
+        .count();
+    std::hint::black_box(matches)
 }
 
 pub fn top_k_update() -> usize {
@@ -166,35 +191,84 @@ pub fn tokenization() -> usize {
 }
 
 pub fn bm25_score() -> usize {
-    let score = bm25::bm25_score(
-        std::hint::black_box(3.0),
-        std::hint::black_box(10.0),
-        std::hint::black_box(1000.0),
-        std::hint::black_box(1.2),
-        std::hint::black_box(0.75),
-        std::hint::black_box(120.0),
-        std::hint::black_box(100.0),
-    );
-    std::hint::black_box(score);
-    1
+    let inputs = [
+        (3.0, 10.0, 1_000.0, 120.0, 100.0),
+        (4.0, 11.0, 1_000.0, 118.0, 100.0),
+        (5.0, 12.0, 1_000.0, 116.0, 100.0),
+        (6.0, 13.0, 1_000.0, 114.0, 100.0),
+        (7.0, 14.0, 1_000.0, 112.0, 100.0),
+        (8.0, 15.0, 1_000.0, 110.0, 100.0),
+        (9.0, 16.0, 1_000.0, 108.0, 100.0),
+        (10.0, 17.0, 1_000.0, 106.0, 100.0),
+    ];
+    let mut total = 0.0;
+    for (term_frequency, document_frequency, document_count, document_len, average_len) in inputs {
+        total += bm25::bm25_score(
+            std::hint::black_box(term_frequency),
+            std::hint::black_box(document_frequency),
+            std::hint::black_box(document_count),
+            std::hint::black_box(1.2),
+            std::hint::black_box(0.75),
+            std::hint::black_box(document_len),
+            std::hint::black_box(average_len),
+        );
+    }
+    std::hint::black_box(total);
+    inputs.len()
 }
 
 pub fn cosine_distance() -> usize {
-    let distance = cassie::vector::cosine_distance(&[1.0, 0.0, 0.0], &[0.5, 0.5, 0.0]);
-    std::hint::black_box(distance);
-    1
+    let mut total = 0.0;
+    for index in 0..32 {
+        let shift = std::hint::black_box(usize_to_f32(index) / 1_000.0);
+        let left = [1.0 + shift, 0.0, 0.0, 0.5, 0.25, 0.75, 0.125, 0.875];
+        let right = [0.5, 0.5 + shift, 0.0, 0.25, 0.75, 0.125, 0.875, 1.0];
+        total += cassie::vector::cosine_distance(&left, &right);
+    }
+    std::hint::black_box(total);
+    32
 }
 
 pub fn dot_product() -> usize {
-    let score = cassie::vector::dot_score(&[1.0, 2.0, 3.0], &[0.5, 0.5, 0.5]);
-    std::hint::black_box(score);
-    1
+    let mut total = 0.0;
+    for index in 0..32 {
+        let shift = std::hint::black_box(usize_to_f32(index) / 1_000.0);
+        let left = [1.0 + shift, 2.0, 3.0, 5.0, 8.0, 13.0, 21.0, 34.0];
+        let right = [
+            0.5,
+            0.5 + shift,
+            0.5,
+            0.25,
+            0.125,
+            0.0625,
+            0.03125,
+            0.015_625,
+        ];
+        total += cassie::vector::dot_score(&left, &right);
+    }
+    std::hint::black_box(total);
+    32
 }
 
 pub fn l2_distance() -> usize {
-    let distance = cassie::vector::l2_distance(&[1.0, 2.0, 3.0], &[0.5, 0.5, 0.5]);
-    std::hint::black_box(distance);
-    1
+    let mut total = 0.0;
+    for index in 0..32 {
+        let shift = std::hint::black_box(usize_to_f32(index) / 1_000.0);
+        let left = [1.0 + shift, 2.0, 3.0, 5.0, 8.0, 13.0, 21.0, 34.0];
+        let right = [
+            0.5,
+            0.5 + shift,
+            0.5,
+            0.25,
+            0.125,
+            0.0625,
+            0.03125,
+            0.015_625,
+        ];
+        total += cassie::vector::l2_distance(&left, &right);
+    }
+    std::hint::black_box(total);
+    32
 }
 
 pub fn hnsw_candidate_search() -> usize {

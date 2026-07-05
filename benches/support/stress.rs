@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use cntryl_stress::{
     black_box, evaluate_run_gate, BenchmarkBudgets, BenchmarkModeKind, BenchmarkSpec, ConsoleMode,
@@ -30,6 +30,7 @@ pub struct StressCase {
     workload: String,
     fixture_scale: String,
     parameters: BTreeMap<String, String>,
+    metadata: BTreeMap<String, String>,
 }
 
 impl StressCase {
@@ -40,6 +41,7 @@ impl StressCase {
             workload: workload.into(),
             fixture_scale: "micro".to_string(),
             parameters: BTreeMap::new(),
+            metadata: BTreeMap::new(),
         }
     }
 
@@ -54,6 +56,7 @@ impl StressCase {
             workload: workload.into(),
             fixture_scale: fixture_scale.into(),
             parameters: BTreeMap::new(),
+            metadata: BTreeMap::new(),
         }
     }
 
@@ -68,11 +71,17 @@ impl StressCase {
             workload: workload.into(),
             fixture_scale: fixture_scale.into(),
             parameters: BTreeMap::new(),
+            metadata: BTreeMap::new(),
         }
     }
 
     pub fn parameter(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.parameters.insert(key.into(), value.into());
+        self
+    }
+
+    pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.metadata.insert(key.into(), value.into());
         self
     }
 }
@@ -131,6 +140,90 @@ impl CassieStressRunner {
                 .correctness()
                 .attempted(operations)
                 .completed(operations);
+        });
+    }
+
+    pub fn fixed_counted<F>(&mut self, case: StressCase, f: F)
+    where
+        F: FnMut() -> u64,
+    {
+        let f = RefCell::new(f);
+        self.run_case(case, |ctx| {
+            let completed = ctx.measure_counted(|| (f.borrow_mut())());
+            let _ = ctx.correctness().attempted(completed).completed(completed);
+        });
+    }
+
+    pub fn fixed_counted_usize<F>(&mut self, case: StressCase, f: F)
+    where
+        F: FnMut() -> usize,
+    {
+        let f = RefCell::new(f);
+        self.fixed_counted(case, || {
+            u64::try_from((f.borrow_mut())()).expect("benchmark count should fit u64")
+        });
+    }
+
+    pub fn fixed_batch<F, R>(&mut self, case: StressCase, logical_operations: u64, f: F)
+    where
+        F: FnMut() -> R,
+    {
+        let f = RefCell::new(f);
+        let case = case
+            .parameter(
+                "logical_operations_per_iteration",
+                logical_operations.to_string(),
+            )
+            .metadata(
+                "logical_operations_per_iteration",
+                logical_operations.to_string(),
+            );
+        self.run_case(case, |ctx| {
+            let completed = ctx.measure_batch(logical_operations, || {
+                black_box((f.borrow_mut())());
+            });
+            let _ = ctx.correctness().attempted(completed).completed(completed);
+        });
+    }
+
+    pub fn fixed_timed_count<F, R>(&mut self, case: StressCase, logical_operations: u64, f: F)
+    where
+        F: FnMut() -> R,
+    {
+        let f = RefCell::new(f);
+        let case = case
+            .parameter(
+                "logical_operations_per_iteration",
+                logical_operations.to_string(),
+            )
+            .metadata(
+                "logical_operations_per_iteration",
+                logical_operations.to_string(),
+            );
+        self.run_case(case, |ctx| {
+            let started = Instant::now();
+            black_box((f.borrow_mut())());
+            let elapsed = started.elapsed();
+            ctx.record_external(elapsed, logical_operations);
+            let _ = ctx
+                .correctness()
+                .attempted(logical_operations)
+                .completed(logical_operations);
+        });
+    }
+
+    pub fn fixed_timed_counted_usize<F>(&mut self, case: StressCase, f: F)
+    where
+        F: FnMut() -> usize,
+    {
+        let f = RefCell::new(f);
+        self.run_case(case, |ctx| {
+            let started = Instant::now();
+            let completed =
+                u64::try_from((f.borrow_mut())()).expect("benchmark count should fit u64");
+            let elapsed = started.elapsed();
+            ctx.record_external(elapsed, completed);
+            let _ = ctx.correctness().attempted(completed).completed(completed);
         });
     }
 
@@ -264,6 +357,7 @@ impl CassieStressRunner {
             metadata.insert("scenario_id".to_string(), scenario.scenario_id.to_string());
             metadata.insert("family".to_string(), scenario.family.to_string());
         }
+        metadata.extend(case.metadata);
 
         let id = format!("{}/{}/{}", self.suite, case.workload, case.fixture_scale);
         BenchmarkSpec {

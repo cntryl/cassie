@@ -12,9 +12,11 @@ fn main() {
         .expect("benchmark context");
 
     let mut runner = stress::runner("tier3_system_concurrency");
-    runner.fixed_operations(
+    runner.fixed_batch(
         stress::StressCase::fixed_operations(3, "concurrent_queries", "8x10k")
-            .parameter("client_count", "8"),
+            .parameter("client_count", "8")
+            .metadata("operation_unit", "query"),
+        8,
         || runtime.block_on(workloads::concurrent_queries(&ctx, 8)),
     );
     runner.finish();

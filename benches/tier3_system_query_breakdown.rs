@@ -5,25 +5,25 @@ mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
+const BREAKDOWN_BATCH: u64 = 12;
+
 fn main() {
     let runtime = workloads::runtime();
     let ctx = runtime
         .block_on(workloads::context("tier3-query-breakdown", 10_000))
         .expect("benchmark context");
 
-    let breakdown = (0..12)
-        .map(|_| runtime.block_on(workloads::simple_10k_query_breakdown(&ctx)))
-        .min_by_key(|breakdown| breakdown.total)
-        .expect("query breakdown sample");
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&breakdown).expect("serialize query breakdown")
-    );
-
     let mut runner = stress::runner("tier3_system_query_breakdown");
-    runner.fixed_operations(
+    runner.fixed_batch(
         stress::StressCase::fixed_operations(3, "simple_10k", "breakdown"),
-        || runtime.block_on(workloads::simple_10k_query_breakdown(&ctx)),
+        BREAKDOWN_BATCH,
+        || {
+            let best = (0..BREAKDOWN_BATCH)
+                .map(|_| runtime.block_on(workloads::simple_10k_query_breakdown(&ctx)))
+                .min_by_key(|breakdown| breakdown.total)
+                .expect("query breakdown sample");
+            std::hint::black_box(best);
+        },
     );
     runner.finish();
 }

@@ -21,8 +21,10 @@ fn main() {
         INGEST_BATCH_SIZE,
         || runtime.block_on(workloads::timed_ingest_document_batch(&write_context, 64)),
     );
-    runner.fixed_operations(
-        stress::StressCase::fixed_operations(2, "projection_duplicate_replay", "10k"),
+    runner.fixed_batch(
+        stress::StressCase::fixed_operations(2, "projection_duplicate_replay", "10k")
+            .metadata("operation_unit", "replay_event"),
+        2,
         || {
             replay_nonce = replay_nonce.wrapping_add(1);
             runtime.block_on(workloads::projection_duplicate_replay(
@@ -46,7 +48,7 @@ fn main() {
             workloads::replay_context("tier2-ingest-100k", rows)
         };
         let replay_context = runtime.block_on(context).expect("replay benchmark context");
-        runner.fixed_operations(case, || {
+        runner.fixed_batch(case.metadata("operation_unit", "replay_event"), 64, || {
             replay_nonce = replay_nonce.wrapping_add(1);
             runtime.block_on(workloads::projection_lag_catchup(
                 &replay_context,

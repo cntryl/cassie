@@ -17,10 +17,11 @@ async fn main() -> Result<(), CassieError> {
         config.clone(),
         shutdown.clone(),
     ));
-    let mut rest = tokio::spawn(cassie::rest::router::run_with_shutdown(
+    let mut rest = tokio::spawn(cassie::rest::router::run_with_shutdown_and_admin_ui_dir(
         config.rest_listen.clone(),
         cassie.as_ref().clone(),
         shutdown.clone(),
+        config.admin_ui_dir.clone().into(),
     ));
 
     let result = async {

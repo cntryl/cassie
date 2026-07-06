@@ -22,6 +22,7 @@ pub enum CassieRuntimeConfigError {
 pub struct CassieRuntimeConfig {
     pub pgwire_listen: String,
     pub rest_listen: String,
+    pub admin_ui_dir: String,
     pub user: String,
     pub database: String,
     pub password: String,
@@ -131,6 +132,7 @@ impl Default for CassieRuntimeConfig {
         Self {
             pgwire_listen: "127.0.0.1:5432".to_string(),
             rest_listen: "127.0.0.1:8080".to_string(),
+            admin_ui_dir: "./ui/dist".to_string(),
             user: "postgres".to_string(),
             database: "postgres".to_string(),
             password: "postgres".to_string(),
@@ -204,6 +206,9 @@ impl CassieRuntimeConfig {
         }
         if let Some(v) = env_reader("CASSIE_REST_LISTEN") {
             config.rest_listen = v;
+        }
+        if let Some(v) = env_reader("CASSIE_ADMIN_UI_DIR") {
+            config.admin_ui_dir = v;
         }
         if let Some(v) = env_reader("CASSIE_ADMIN_USER") {
             config.user = v;
@@ -673,6 +678,19 @@ mod tests {
         // Assert
         assert_eq!(config.limits.pgwire_max_connections, 1);
         assert_eq!(config.limits.rest_max_connections, 7);
+    }
+
+    #[test]
+    fn should_parse_admin_ui_dir() {
+        // Arrange
+        let values = HashMap::from([("CASSIE_ADMIN_UI_DIR", "/app/ui/dist".to_string())]);
+
+        // Act
+        let config =
+            CassieRuntimeConfig::from_env_reader(env_reader_owned(values)).expect("runtime config");
+
+        // Assert
+        assert_eq!(config.admin_ui_dir, "/app/ui/dist");
     }
 
     #[test]

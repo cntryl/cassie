@@ -1,0 +1,133 @@
+.cassie-admin-root {
+  min-inline-size: 0;
+}
+
+.cassie-admin-navbar {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.cassie-admin-navbar > [data-slot="nav-group"][data-align="end"] {
+  grid-column: 2;
+}
+
+.cassie-admin-workspace {
+  padding-block: 0;
+}
+
+.cassie-admin-layout {
+  min-block-size: 100%;
+}
+
+.cassie-admin-sidebar {
+  position: sticky;
+  inset-block-start: calc(var(--ak-layout-navbar-height, 3.75rem) + 1px);
+  align-self: start;
+  block-size: calc(100dvh - var(--ak-layout-navbar-height, 3.75rem) - 1px);
+  background: var(--cassie-page-background);
+}
+
+.cassie-admin-sidebar-toggle {
+  display: none;
+}
+
+.cassie-admin-sidebar-panel,
+.cassie-admin-route-surface {
+  min-inline-size: 0;
+}
+
+.cassie-admin-route-surface {
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
+.cassie-admin-page {
+  display: grid;
+  gap: var(--ak-space-4, 1rem);
+  padding-block: var(--ak-space-4, 1rem);
+}
+
+.cassie-admin-page-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--ak-space-3, 0.75rem);
+  align-items: start;
+  padding-block-end: var(--ak-space-4, 1rem);
+  border-block-end: 1px solid var(--cassie-border-subtle);
+}
+
+.cassie-admin-page-icon {
+  display: inline-grid;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  place-items: center;
+  border: 1px solid var(--cassie-border);
+  border-radius: var(--cassie-row-radius);
+  background: var(--cassie-accent-soft);
+  color: var(--cassie-accent);
+}
+
+.cassie-admin-page-title-group {
+  min-inline-size: 0;
+}
+
+.cassie-admin-page-kicker {
+  margin: 0 0 var(--ak-space-1, 0.25rem);
+  color: var(--cassie-text-muted);
+}
+
+.cassie-admin-page h1 {
+  margin: 0;
+  font-size: clamp(1.35rem, 1.2rem + 0.5vw, 1.75rem);
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 1.15;
+}
+
+.cassie-admin-page p {
+  max-inline-size: 60rem;
+  margin: var(--ak-space-2, 0.5rem) 0 0;
+  color: var(--cassie-text-muted);
+  line-height: 1.45;
+}
+
+.cassie-admin-placeholder {
+  min-block-size: 12rem;
+  padding: var(--ak-space-4, 1rem);
+  border: 1px dashed var(--cassie-border);
+  border-radius: var(--cassie-panel-radius);
+  background: var(--cassie-surface-muted);
+}
+
+@media (max-width: 48rem) {
+  .cassie-admin-layout {
+    min-block-size: auto;
+  }
+
+  .cassie-admin-sidebar {
+    position: static;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    block-size: auto;
+    min-block-size: 0;
+  }
+
+  .cassie-admin-sidebar-toggle {
+    display: inline-flex;
+    inline-size: 100%;
+    margin-block-end: var(--ak-space-sm, 0.625rem);
+  }
+
+  .cassie-admin-sidebar-panel {
+    display: none;
+  }
+
+  .cassie-admin-sidebar[data-mobile-open="true"] .cassie-admin-sidebar-panel {
+    display: block;
+  }
+}
+
+@media (min-width: 48rem) {
+  .cassie-admin-navbar {
+    grid-template-columns: 13rem minmax(0, 1fr);
+  }
+}

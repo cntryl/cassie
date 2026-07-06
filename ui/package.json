@@ -1,0 +1,31 @@
+{
+  "name": "cassie-ui",
+  "type": "module",
+  "scripts": {
+    "clean": "npx rimraf node_modules dist",
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
+    "test": "vp test",
+    "type-check": "tsc --noEmit",
+    "lint": "vp lint src tests vite.config.ts",
+    "lint:fix": "vp lint src tests --fix",
+    "fmt": "vp fmt ."
+  },
+  "dependencies": {
+    "@askrjs/askr": "0.0.50",
+    "@askrjs/lucide": "^0.0.3",
+    "@askrjs/themes": "0.0.10",
+    "@askrjs/ui": "0.0.12",
+    "@askrjs/vite": "0.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "autoprefixer": "^10.5.2",
+    "jsdom": "^29.1.1",
+    "postcss": "^8.5.16",
+    "typescript": "^6.0.3",
+    "vite-plus": "^0.2.2"
+  },
+  "packageManager": "npm@11.16.0"
+}

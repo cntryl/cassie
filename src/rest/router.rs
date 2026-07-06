@@ -1,5 +1,6 @@
 use std::convert::Infallible;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -18,6 +19,7 @@ use tokio::task;
 
 use crate::app::Cassie;
 use crate::catalog::RoleMeta;
+use crate::rest::static_files::AdminUiStaticFiles;
 
 /// # Errors
 ///
@@ -34,10 +36,23 @@ pub async fn run_with_shutdown(
     cassie: Cassie,
     shutdown: Arc<Notify>,
 ) -> Result<(), crate::app::CassieError> {
+    run_with_shutdown_and_admin_ui_dir(addr, cassie, shutdown, default_admin_ui_dir()).await
+}
+
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
+pub async fn run_with_shutdown_and_admin_ui_dir(
+    addr: String,
+    cassie: Cassie,
+    shutdown: Arc<Notify>,
+    admin_ui_dir: PathBuf,
+) -> Result<(), crate::app::CassieError> {
     let listen: SocketAddr = addr.parse().map_err(|e| {
         crate::app::CassieError::Execution(format!("invalid rest address '{addr}': {e}"))
     })?;
     let cassie = Arc::new(cassie);
+    let admin_ui = Arc::new(AdminUiStaticFiles::new(admin_ui_dir));
     let admission = Arc::new(Semaphore::new(
         cassie.runtime.limits().rest_max_connections.max(1),
     ));
@@ -68,11 +83,13 @@ pub async fn run_with_shutdown(
                     continue;
                 };
                 let cassie = cassie.clone();
+                let admin_ui = admin_ui.clone();
                 tokio::spawn(async move {
                     let _permit = permit;
                     let service = service_fn(move |request: Request<hyper::body::Incoming>| {
                         let cassie = cassie.clone();
-                        async move { route(request, cassie).await }
+                        let admin_ui = admin_ui.clone();
+                        async move { route(request, cassie, admin_ui).await }
                     });
                     let io = TokioIo::new(stream);
 
@@ -94,8 +111,9 @@ const AUTH_TOKEN_PREFIX: &str = "Bearer ";
 async fn route(
     request: Request<hyper::body::Incoming>,
     cassie: Arc<Cassie>,
+    admin_ui: Arc<AdminUiStaticFiles>,
 ) -> Result<Response<RestBody>, Infallible> {
-    let response = match route_request(request, cassie).await {
+    let response = match route_request_with_admin_ui(request, cassie, admin_ui).await {
         Ok(response) => response,
         Err((status, message)) => json_response(status, &serde_json::json!({ "error": message })),
     };
@@ -176,6 +194,19 @@ pub async fn route_request(
     request: Request<Incoming>,
     cassie: Arc<Cassie>,
 ) -> Result<Response<RestBody>, (StatusCode, String)> {
+    route_request_with_admin_ui(
+        request,
+        cassie,
+        Arc::new(AdminUiStaticFiles::new(default_admin_ui_dir())),
+    )
+    .await
+}
+
+async fn route_request_with_admin_ui(
+    request: Request<Incoming>,
+    cassie: Arc<Cassie>,
+    admin_ui: Arc<AdminUiStaticFiles>,
+) -> Result<Response<RestBody>, (StatusCode, String)> {
     let method = request.method().clone();
     let path = request.uri().path().trim_end_matches('/').to_string();
     let path = if path.is_empty() {
@@ -228,6 +259,7 @@ pub async fn route_request(
         &method,
         segments.as_slice(),
         cassie.clone(),
+        admin_ui,
         body,
         &path,
         started_at,
@@ -248,11 +280,16 @@ async fn route_dispatch(
     method: &Method,
     segments: &[&str],
     cassie: Arc<Cassie>,
+    admin_ui: Arc<AdminUiStaticFiles>,
     body: RestBytes,
     path: &str,
     started_at: Instant,
 ) -> Result<Response<RestBody>, (StatusCode, String)> {
     if let Some(response) = dispatch_health_routes(method, segments, &cassie) {
+        return Ok(response);
+    }
+
+    if let Some(response) = admin_ui.dispatch(method, segments).await {
         return Ok(response);
     }
 
@@ -525,8 +562,15 @@ where
 fn is_route_public(method: &Method, segments: &[&str]) -> bool {
     matches!(
         (method, segments),
-        (&Method::GET, ["health" | "liveness" | "metrics"])
+        (
+            &Method::GET,
+            ["health" | "liveness" | "metrics"] | ["admin" | "assets", ..]
+        )
     )
+}
+
+fn default_admin_ui_dir() -> PathBuf {
+    std::env::var("CASSIE_ADMIN_UI_DIR").map_or_else(|_| PathBuf::from("./ui/dist"), PathBuf::from)
 }
 
 async fn authenticate_rest_request(

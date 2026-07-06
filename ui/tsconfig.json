@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "@askrjs/askr",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@askrjs/askr/jsx-runtime": ["./node_modules/@askrjs/askr/dist/jsx/jsx-runtime.d.ts"],
+      "@askrjs/askr/jsx-dev-runtime": ["./node_modules/@askrjs/askr/dist/jsx/jsx-dev-runtime.d.ts"]
+    }
+  },
+  "include": ["src", "tests", "vite.config.ts"]
+}

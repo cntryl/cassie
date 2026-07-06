@@ -33,6 +33,16 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 	&& cargo build --release --locked --bin cassie \
 	&& strip target/release/cassie || true
 
+FROM node:24-bookworm-slim AS ui-builder
+
+WORKDIR /usr/src/cassie/ui
+
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci
+
+COPY ui/ ./
+RUN npm run build
+
 FROM debian:trixie-slim AS runtime-fs
 
 RUN mkdir -p /data/midge \
@@ -44,10 +54,12 @@ WORKDIR /app
 
 ENV CASSIE_REST_LISTEN=0.0.0.0:8080 \
 	CASSIE_PGWIRE_LISTEN=0.0.0.0:5432 \
-	CASSIE_MIDGE_DATA_DIR=/data/midge
+	CASSIE_MIDGE_DATA_DIR=/data/midge \
+	CASSIE_ADMIN_UI_DIR=/app/ui/dist
 
 COPY --from=runtime-fs --chown=65532:65532 /data /data
 COPY --from=builder /usr/src/cassie/target/release/cassie /app/cassie
+COPY --from=ui-builder /usr/src/cassie/ui/dist /app/ui/dist
 
 USER 65532:65532
 

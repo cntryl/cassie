@@ -1,0 +1,69 @@
+:root {
+  color-scheme: light dark;
+  --cassie-border: color-mix(
+    in srgb,
+    var(--ak-color-border, var(--ak-color-text, CanvasText)) 78%,
+    transparent
+  );
+  --cassie-border-subtle: color-mix(
+    in srgb,
+    var(--ak-color-border, var(--ak-color-text, CanvasText)) 54%,
+    transparent
+  );
+  --cassie-surface: var(--ak-color-surface, Canvas);
+  --cassie-surface-muted: var(
+    --ak-color-surface-muted,
+    color-mix(in srgb, var(--ak-color-surface, Canvas) 94%, var(--ak-color-text, CanvasText) 6%)
+  );
+  --cassie-accent: var(--ak-color-accent, #0f766e);
+  --cassie-accent-soft: color-mix(in srgb, var(--cassie-accent) 13%, transparent);
+  --cassie-text-muted: var(
+    --ak-color-muted,
+    var(
+      --ak-color-text-muted,
+      color-mix(in srgb, var(--ak-color-text, CanvasText) 64%, transparent)
+    )
+  );
+  --cassie-focus-ring: var(--ak-color-focus-ring, var(--cassie-accent));
+  --cassie-page-background: var(--ak-color-bg, Canvas);
+  --cassie-row-radius: var(--ak-radius-1, 0.375rem);
+  --cassie-panel-radius: var(--ak-radius-2, 0.5rem);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--cassie-page-background);
+  font-feature-settings: "tnum" 0;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+.skip-link {
+  position: fixed;
+  inset-block-start: var(--ak-space-2, 0.5rem);
+  inset-inline-start: var(--ak-space-2, 0.5rem);
+  z-index: calc(var(--ak-z-sticky, 20) + 1);
+  padding: var(--ak-space-2, 0.5rem) var(--ak-space-3, 0.75rem);
+  border: 1px solid var(--cassie-border);
+  border-radius: var(--cassie-row-radius);
+  background: var(--cassie-surface);
+  box-shadow: 0 0.5rem 1.5rem color-mix(in srgb, var(--ak-color-text, CanvasText) 14%, transparent);
+  color: var(--ak-color-text, CanvasText);
+  font-weight: 700;
+  opacity: 0;
+  pointer-events: none;
+  text-decoration: none;
+  transition: opacity 120ms var(--ak-ease-standard, ease);
+}
+
+.skip-link:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  outline: 2px solid var(--cassie-focus-ring);
+  outline-offset: 2px;
+}

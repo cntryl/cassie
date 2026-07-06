@@ -1,5 +1,6 @@
 use super::{CassieError, Catalog, CollectionSchema, DataType, DistanceMetric, Expr};
 use crate::sql::ast::CreateIndexStatement;
+use crate::vector::index_options::normalize_vector_index_options;
 
 pub(super) fn bind_vector_index_options(
     statement: &mut CreateIndexStatement,
@@ -17,8 +18,7 @@ pub(super) fn bind_vector_index_options(
     statement
         .options
         .insert("metric".to_string(), metric.as_str().to_string());
-    let index_type = normalize_vector_index_type(statement)?;
-    apply_vector_index_type_options(statement, &index_type)?;
+    normalize_vector_index_options(&mut statement.options).map_err(CassieError::Planner)?;
     validate_vector_option_keys(statement, name, table)?;
     statement
         .options
@@ -125,99 +125,6 @@ fn validate_vector_source_field<'a>(
             "source field '{source_field}' must be text/json for vector index"
         )))
     }
-}
-
-fn normalize_vector_index_type(
-    statement: &mut CreateIndexStatement,
-) -> Result<String, CassieError> {
-    let index_type = statement
-        .options
-        .get("index_type")
-        .map_or("bruteforce", String::as_str)
-        .trim()
-        .to_ascii_lowercase();
-    if !matches!(index_type.as_str(), "bruteforce" | "hnsw" | "ivfflat") {
-        return Err(CassieError::Planner(format!(
-            "unsupported vector index_type '{index_type}'"
-        )));
-    }
-    statement
-        .options
-        .insert("index_type".to_string(), index_type.clone());
-    Ok(index_type)
-}
-
-fn apply_vector_index_type_options(
-    statement: &mut CreateIndexStatement,
-    index_type: &str,
-) -> Result<(), CassieError> {
-    match index_type {
-        "hnsw" => apply_hnsw_options(statement),
-        "ivfflat" => apply_ivfflat_options(statement),
-        "bruteforce" => Ok(()),
-        _ => unreachable!(),
-    }
-}
-
-fn apply_hnsw_options(statement: &mut CreateIndexStatement) -> Result<(), CassieError> {
-    let m = parse_vector_index_usize_option(statement.options.get("m"), "m", 16, 2, 128)?;
-    let ef_construction = parse_vector_index_usize_option(
-        statement.options.get("ef_construction"),
-        "ef_construction",
-        64,
-        m,
-        4096,
-    )?;
-    let ef_search = parse_vector_index_usize_option(
-        statement.options.get("ef_search"),
-        "ef_search",
-        40,
-        1,
-        4096,
-    )?;
-    statement.options.insert("m".to_string(), m.to_string());
-    statement
-        .options
-        .insert("ef_construction".to_string(), ef_construction.to_string());
-    statement
-        .options
-        .insert("ef_search".to_string(), ef_search.to_string());
-    Ok(())
-}
-
-fn apply_ivfflat_options(statement: &mut CreateIndexStatement) -> Result<(), CassieError> {
-    let lists =
-        parse_vector_index_usize_option(statement.options.get("lists"), "lists", 64, 1, 65_536)?;
-    let probes =
-        parse_vector_index_usize_option(statement.options.get("probes"), "probes", 1, 1, lists)?;
-    let training_sample_size = parse_vector_index_usize_option(
-        statement.options.get("training_sample_size"),
-        "training_sample_size",
-        lists.saturating_mul(40).max(1),
-        lists,
-        10_000_000,
-    )?;
-    let training_seed = parse_vector_index_usize_option(
-        statement.options.get("training_seed"),
-        "training_seed",
-        1,
-        0,
-        usize::MAX,
-    )?;
-    statement
-        .options
-        .insert("lists".to_string(), lists.to_string());
-    statement
-        .options
-        .insert("probes".to_string(), probes.to_string());
-    statement.options.insert(
-        "training_sample_size".to_string(),
-        training_sample_size.to_string(),
-    );
-    statement
-        .options
-        .insert("training_seed".to_string(), training_seed.to_string());
-    Ok(())
 }
 
 fn validate_vector_option_keys(
@@ -377,26 +284,4 @@ fn parse_vector_metric(raw_metric: Option<&str>) -> Result<DistanceMetric, Cassi
             "unsupported vector metric '{metric}' (expected cosine, l2, or dot)"
         ))
     })
-}
-
-fn parse_vector_index_usize_option(
-    value: Option<&String>,
-    key: &str,
-    default: usize,
-    min: usize,
-    max: usize,
-) -> Result<usize, CassieError> {
-    let value = value.map_or("", String::as_str).trim();
-    if value.is_empty() {
-        return Ok(default);
-    }
-    let parsed = value
-        .parse::<usize>()
-        .map_err(|_| CassieError::Planner(format!("invalid vector index option '{key}'")))?;
-    if parsed < min || parsed > max {
-        return Err(CassieError::Planner(format!(
-            "vector index option '{key}' must be in [{min}, {max}]"
-        )));
-    }
-    Ok(parsed)
 }

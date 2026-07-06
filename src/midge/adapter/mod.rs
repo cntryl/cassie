@@ -57,6 +57,7 @@ mod schema_ops;
 mod sequences;
 mod streaming_scans;
 pub(crate) mod time_series_indexes;
+mod vector_indexes;
 mod verification;
 
 pub(crate) use documents::{DocumentWriteBatchOptions, DocumentWriteOp};

@@ -116,6 +116,12 @@ pub async fn run_connection(
     state.cleanup_pgwire_objects(&runtime);
 }
 
+pub(crate) async fn reject_too_many_connections(mut socket: TcpStream) {
+    let error = PgWireError::too_many_connections();
+    let _ = write_error_response(&mut socket, &error).await;
+    let _ = socket.shutdown().await;
+}
+
 enum ConnectionStep {
     Continue(HandshakeState),
     Break,

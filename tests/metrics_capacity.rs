@@ -68,6 +68,7 @@ fn seed_capacity_fixture(cassie: &Cassie, session: &cassie::app::CassieSession) 
                 metric: DistanceMetric::Cosine,
                 index_type: VectorIndexType::BruteForce,
                 hnsw: None,
+                hnsw_graph: None,
                 ivfflat: None,
                 ivfflat_training: None,
             },

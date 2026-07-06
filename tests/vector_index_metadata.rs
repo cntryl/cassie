@@ -102,6 +102,7 @@ fn should_persist_vector_index_metadata() {
                 metric: DistanceMetric::Cosine,
                 index_type: VectorIndexType::BruteForce,
                 hnsw: None,
+                hnsw_graph: None,
                 ivfflat: None,
                 ivfflat_training: None,
             },
@@ -179,6 +180,7 @@ fn should_persist_hnsw_vector_index_metadata() {
                     ef_construction: 96,
                     ef_search: 48,
                 }),
+                hnsw_graph: None,
                 ivfflat: None,
                 ivfflat_training: None,
             },
@@ -193,7 +195,14 @@ fn should_persist_hnsw_vector_index_metadata() {
             .unwrap();
 
         // Assert
-        assert_eq!(loaded, record);
+        assert_eq!(loaded.collection, record.collection);
+        assert_eq!(loaded.field, record.field);
+        assert_eq!(loaded.source_field, record.source_field);
+        assert_eq!(loaded.metadata.index_type, VectorIndexType::Hnsw);
+        assert_eq!(loaded.metadata.hnsw, record.metadata.hnsw);
+        let graph = loaded.metadata.hnsw_graph.expect("hnsw graph state");
+        assert_eq!(graph.row_count, 0);
+        assert_ne!(graph.source_fingerprint, 0);
     });
 
     let _ = std::fs::remove_dir_all(path_for_cleanup);
@@ -255,6 +264,7 @@ fn should_reload_registry_after_restart_simulation() {
                 metric: DistanceMetric::L2,
                 index_type: VectorIndexType::BruteForce,
                 hnsw: None,
+                hnsw_graph: None,
                 ivfflat: None,
                 ivfflat_training: None,
             },
@@ -346,6 +356,7 @@ fn should_rebuild_missing_normalized_sidecars_on_restart() {
                 metric: DistanceMetric::Cosine,
                 index_type: VectorIndexType::BruteForce,
                 hnsw: None,
+                hnsw_graph: None,
                 ivfflat: None,
                 ivfflat_training: None,
             },
@@ -452,6 +463,7 @@ fn should_reject_normalized_sidecar_rebuild_when_index_dimensions_do_not_match_d
                 metric: DistanceMetric::Cosine,
                 index_type: VectorIndexType::BruteForce,
                 hnsw: None,
+                hnsw_graph: None,
                 ivfflat: None,
                 ivfflat_training: None,
             },

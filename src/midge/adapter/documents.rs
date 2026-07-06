@@ -587,6 +587,7 @@ impl Midge {
 
         if options.refresh_after_commit {
             let _ = self.rebuild_column_batches_for_collection(collection)?;
+            self.refresh_hnsw_indexes_for_collection(collection)?;
             self.refresh_ivfflat_indexes_for_collection(collection)?;
             self.refresh_projection_hashes_after_write(collection, report.row_delta)?;
         }

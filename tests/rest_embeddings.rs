@@ -201,6 +201,25 @@ fn create_vector_index(cassie: &Cassie, collection: &str, metric: &str) {
     .unwrap();
 }
 
+fn create_vector_index_with_options(
+    cassie: &Cassie,
+    collection: &str,
+    options: &serde_json::Value,
+) -> serde_json::Value {
+    rest::indexes::create(
+        cassie,
+        collection,
+        serde_json::json!({
+            "kind": "vector",
+            "field": "embedding",
+            "options": options,
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap()
+}
+
 fn create_labelled_document(
     cassie: &Cassie,
     collection: &str,
@@ -590,6 +609,210 @@ fn should_fall_back_to_raw_vector_search_when_normalized_sidecars_are_missing() 
     assert_eq!(normalized_search, fallback_search);
     assert_eq!(row_ids(&normalized_search), vec![first_id, second_id]);
     assert_normalized_fallback_metrics(&before, &after_normalized, &after_fallback);
+
+    cleanup_path(Path::new(&path_for_cleanup));
+}
+
+#[test]
+fn should_create_hnsw_vector_index_with_rest_option_parity() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("rest_hnsw_options");
+    let path_for_cleanup = path.clone();
+    let embedding_server = MockOpenAiServer::spawn(vec![]);
+    let cassie = Cassie::new_with_data_dir_and_config(
+        &path,
+        tei_runtime_with_server(embedding_server.base_url()),
+    )
+    .unwrap();
+    cassie.startup().unwrap();
+    create_vector_collection(&cassie, "rest_hnsw_options", 3);
+
+    // Act
+    let created = create_vector_index_with_options(
+        &cassie,
+        "rest_hnsw_options",
+        &serde_json::json!({
+            "source_field": "content",
+            "metric": "l2",
+            "index_type": "hnsw",
+            "m": "12",
+            "ef_construction": "96",
+            "ef_search": "48",
+        }),
+    );
+    let stored = cassie
+        .midge
+        .get_vector_index("rest_hnsw_options", "embedding")
+        .unwrap()
+        .expect("stored vector index");
+
+    // Assert
+    assert_eq!(created["index_type"], "hnsw");
+    assert_eq!(stored.metadata.index_type.as_str(), "hnsw");
+    let hnsw = stored.metadata.hnsw.expect("hnsw options");
+    assert_eq!(hnsw.m, 12);
+    assert_eq!(hnsw.ef_construction, 96);
+    assert_eq!(hnsw.ef_search, 48);
+
+    cleanup_path(Path::new(&path_for_cleanup));
+}
+
+#[test]
+fn should_reject_invalid_rest_vector_index_options() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("rest_invalid_hnsw_options");
+    let path_for_cleanup = path.clone();
+    let embedding_server = MockOpenAiServer::spawn(vec![]);
+    let cassie = Cassie::new_with_data_dir_and_config(
+        &path,
+        tei_runtime_with_server(embedding_server.base_url()),
+    )
+    .unwrap();
+    cassie.startup().unwrap();
+    create_vector_collection(&cassie, "rest_invalid_hnsw_options", 3);
+
+    // Act
+    let error = rest::indexes::create(
+        &cassie,
+        "rest_invalid_hnsw_options",
+        serde_json::json!({
+            "kind": "vector",
+            "field": "embedding",
+            "options": {
+                "source_field": "content",
+                "index_type": "hnsw",
+                "m": "1",
+            }
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .expect_err("invalid hnsw m should fail");
+
+    // Assert
+    assert!(error
+        .to_string()
+        .contains("vector index option 'm' must be in [2, 128]"));
+
+    cleanup_path(Path::new(&path_for_cleanup));
+}
+
+#[test]
+fn should_search_rest_hnsw_vector_index_with_graph_execution() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("rest_hnsw_search");
+    let path_for_cleanup = path.clone();
+    let embedding_server = MockOpenAiServer::spawn(vec![
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![1.0, 0.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![0.0, 1.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![1.0, 0.0, 0.0]]),
+        },
+    ]);
+    let cassie = Cassie::new_with_data_dir_and_config(
+        &path,
+        tei_runtime_with_server(embedding_server.base_url()),
+    )
+    .unwrap();
+    cassie.startup().unwrap();
+    create_vector_collection(&cassie, "rest_hnsw_search", 3);
+    create_vector_index_with_options(
+        &cassie,
+        "rest_hnsw_search",
+        &serde_json::json!({
+            "source_field": "content",
+            "metric": "l2",
+            "index_type": "hnsw",
+            "m": "2",
+            "ef_construction": "4",
+            "ef_search": "2",
+        }),
+    );
+    let nearest = create_labelled_document(&cassie, "rest_hnsw_search", "near", "first");
+    let _ = create_labelled_document(&cassie, "rest_hnsw_search", "far", "second");
+    let before = cassie.metrics();
+
+    // Act
+    let search = vector_search(&cassie, "rest_hnsw_search", "l2", 1, 0);
+    let after = cassie.metrics();
+
+    // Assert
+    assert_eq!(row_ids(&search), vec![nearest]);
+    assert_eq!(
+        after["vector"]["hnsw_executions"].as_u64().unwrap()
+            - before["vector"]["hnsw_executions"].as_u64().unwrap(),
+        1
+    );
+
+    cleanup_path(Path::new(&path_for_cleanup));
+}
+
+#[test]
+fn should_search_rest_ivfflat_vector_index_with_trained_candidates() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("rest_ivfflat_search");
+    let path_for_cleanup = path.clone();
+    let embedding_server = MockOpenAiServer::spawn(vec![
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![1.0, 0.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![0.0, 1.0, 0.0]]),
+        },
+        MockResponse {
+            status: 200,
+            body: tei_response_body(&[vec![1.0, 0.0, 0.0]]),
+        },
+    ]);
+    let cassie = Cassie::new_with_data_dir_and_config(
+        &path,
+        tei_runtime_with_server(embedding_server.base_url()),
+    )
+    .unwrap();
+    cassie.startup().unwrap();
+    create_vector_collection(&cassie, "rest_ivfflat_search", 3);
+    let created = create_vector_index_with_options(
+        &cassie,
+        "rest_ivfflat_search",
+        &serde_json::json!({
+            "source_field": "content",
+            "metric": "l2",
+            "index_type": "ivfflat",
+            "lists": "2",
+            "probes": "1",
+            "training_sample_size": "2",
+            "training_seed": "7",
+        }),
+    );
+    let nearest = create_labelled_document(&cassie, "rest_ivfflat_search", "near", "first");
+    let _ = create_labelled_document(&cassie, "rest_ivfflat_search", "far", "second");
+    let before = cassie.metrics();
+
+    // Act
+    let search = vector_search(&cassie, "rest_ivfflat_search", "l2", 1, 0);
+    let after = cassie.metrics();
+
+    // Assert
+    assert_eq!(created["index_type"], "ivfflat");
+    assert_eq!(row_ids(&search), vec![nearest]);
+    assert_eq!(
+        after["vector"]["ivfflat_executions"].as_u64().unwrap()
+            - before["vector"]["ivfflat_executions"].as_u64().unwrap(),
+        1
+    );
 
     cleanup_path(Path::new(&path_for_cleanup));
 }

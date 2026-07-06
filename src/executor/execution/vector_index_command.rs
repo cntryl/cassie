@@ -1,7 +1,5 @@
-use super::{
-    Cassie, DataType, DistanceMetric, HnswIndexOptions, QueryError, VectorIndexMetadata,
-    VectorIndexRecord, VectorIndexType,
-};
+use super::{Cassie, DataType, DistanceMetric, QueryError, VectorIndexMetadata, VectorIndexRecord};
+use crate::vector::index_options::normalize_vector_index_options;
 
 pub(super) fn vector_index_metadata(
     cassie: &Cassie,
@@ -13,9 +11,9 @@ pub(super) fn vector_index_metadata(
     let source_field = source_field(statement)?;
     validate_source_field(&schema, &statement.table, &source_field)?;
 
-    let index_type = vector_index_type(statement);
-    let hnsw = hnsw_options(statement, &index_type);
-    let ivfflat = ivfflat_options(statement, &index_type);
+    let mut options = statement.options.clone();
+    let normalized_options =
+        normalize_vector_index_options(&mut options).map_err(QueryError::General)?;
 
     let metadata = VectorIndexMetadata {
         provider: cassie.embedding_provider.provider_name().to_string(),
@@ -26,9 +24,10 @@ pub(super) fn vector_index_metadata(
             .get("metric")
             .and_then(|metric| metric.parse::<DistanceMetric>().ok())
             .unwrap_or(DistanceMetric::Cosine),
-        index_type,
-        hnsw,
-        ivfflat,
+        index_type: normalized_options.index_type,
+        hnsw: normalized_options.hnsw,
+        hnsw_graph: None,
+        ivfflat: normalized_options.ivfflat,
         ivfflat_training: None,
     };
 
@@ -127,51 +126,4 @@ fn validate_source_field(
         )));
     }
     Ok(())
-}
-
-fn vector_index_type(statement: &crate::sql::ast::CreateIndexStatement) -> VectorIndexType {
-    match statement
-        .options
-        .get("index_type")
-        .map_or("bruteforce", String::as_str)
-    {
-        "hnsw" => VectorIndexType::Hnsw,
-        "ivfflat" => VectorIndexType::IvfFlat,
-        _ => VectorIndexType::BruteForce,
-    }
-}
-
-fn hnsw_options(
-    statement: &crate::sql::ast::CreateIndexStatement,
-    index_type: &VectorIndexType,
-) -> Option<HnswIndexOptions> {
-    (*index_type == VectorIndexType::Hnsw).then(|| HnswIndexOptions {
-        version: 1,
-        m: parse_option(statement, "m").unwrap_or(16),
-        ef_construction: parse_option(statement, "ef_construction").unwrap_or(64),
-        ef_search: parse_option(statement, "ef_search").unwrap_or(40),
-    })
-}
-
-fn ivfflat_options(
-    statement: &crate::sql::ast::CreateIndexStatement,
-    index_type: &VectorIndexType,
-) -> Option<crate::embeddings::IvfFlatIndexOptions> {
-    (*index_type == VectorIndexType::IvfFlat).then(|| crate::embeddings::IvfFlatIndexOptions {
-        version: 1,
-        lists: parse_option(statement, "lists").unwrap_or(64),
-        probes: parse_option(statement, "probes").unwrap_or(1),
-        training_sample_size: parse_option(statement, "training_sample_size").unwrap_or(2_560),
-        training_seed: parse_option(statement, "training_seed").unwrap_or(1),
-    })
-}
-
-fn parse_option<T: std::str::FromStr>(
-    statement: &crate::sql::ast::CreateIndexStatement,
-    key: &str,
-) -> Option<T> {
-    statement
-        .options
-        .get(key)
-        .and_then(|value| value.parse().ok())
 }

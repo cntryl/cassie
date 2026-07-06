@@ -113,7 +113,7 @@ Goal: expose document-native search, vector, hybrid, and embedding workflows thr
 | Full-text inverted index and BM25 | Implemented | Cassie-specific |
 | `search`, `search_score`, `snippet` | Implemented | Cassie-specific |
 | Vector values and distance functions | Implemented | Cassie-specific with pgvector-style operators |
-| HNSW vector indexes | Implemented | Experimental |
+| HNSW vector indexes | Implemented | Experimental exact re-rank |
 | IVFFlat vector index metadata/options | Implemented | Experimental |
 | IVFFlat trained candidate execution | Implemented | Experimental exact re-rank |
 | Hybrid scoring | Implemented | Cassie-specific |
@@ -220,7 +220,7 @@ Goal: support horizontal expansion through externally orchestrated independent C
 
 - Keep projection repair admin-only, audited, local, verification-led, and aligned with the [Projection Repair Runbook](projection-repair-runbook.md) as unsupported repair scopes mature.
 - Keep operational scale local and externally orchestrated: Cassie exposes assignment metadata and a router/drain/move contract, but does not perform distributed query planning, cross-node routing, replication, quorum reads, or consensus.
-- Use [Capacity Management](capacity-management.md) as the current advisory sizing baseline; `/metrics.capacity` reports local logical key/value bytes, while automatic admission control and capacity movement remain future depth.
+- Use [Capacity Management](capacity-management.md) as the current advisory sizing baseline; `/metrics.capacity` reports local logical key/value bytes, while capacity-based admission and capacity movement remain future depth.
 - Improve manual performance scenarios as benchmark evidence stabilizes and larger fixtures become practical.
 - Prioritize query patterns required by real read models over feature parity with any general-purpose database.
 - Treat the archived phase 04 contract surface as the reference for explicit async transport boundaries, synchronous engine paths, blocking offload, runtime-boundary diagnostics, and read access-path contracts.

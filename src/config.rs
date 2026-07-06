@@ -13,6 +13,9 @@ pub enum CassieRuntimeConfigError {
 
     #[error("{key} is set but '{path}' is empty after trimming whitespace")]
     PasswordFileEmpty { key: &'static str, path: String },
+
+    #[error("CASSIE_EMBEDDINGS_PROVIDER='{provider}' is not available; use disabled, openai, openai_compatible, tei, or ollama")]
+    UnsupportedEmbeddingProvider { provider: String },
 }
 
 #[derive(Debug, Clone)]
@@ -77,6 +80,8 @@ pub struct CassieRuntimeLimits {
     pub parallel_scan_workers: usize,
     pub parallel_scoring_workers: usize,
     pub parallel_aggregation_workers: usize,
+    pub pgwire_max_connections: usize,
+    pub rest_max_connections: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -161,6 +166,8 @@ impl Default for CassieRuntimeLimits {
             parallel_scan_workers: 1,
             parallel_scoring_workers: 1,
             parallel_aggregation_workers: 1,
+            pgwire_max_connections: 256,
+            rest_max_connections: 512,
         }
     }
 }
@@ -213,8 +220,11 @@ impl CassieRuntimeConfig {
 
         let provider =
             env_reader("CASSIE_EMBEDDINGS_PROVIDER").unwrap_or_else(|| "disabled".to_string());
-        config.embeddings =
-            parse_provider_config_from(provider.to_lowercase().as_str(), &env_reader);
+        let provider = provider.trim().to_ascii_lowercase();
+        if matches!(provider.as_str(), "voyage" | "cohere" | "local") {
+            return Err(CassieRuntimeConfigError::UnsupportedEmbeddingProvider { provider });
+        }
+        config.embeddings = parse_provider_config_from(provider.as_str(), &env_reader);
         config.limits = limits_from_env(&env_reader, &config.limits);
 
         Ok(config)
@@ -291,6 +301,18 @@ fn limits_from_env(
             "CASSIE_VECTORIZED_JOIN_BATCH_SIZE",
             defaults.vectorized_join_batch_size,
         ),
+        pgwire_max_connections: parse_usize_min_from(
+            env_reader,
+            "CASSIE_PGWIRE_MAX_CONNECTIONS",
+            defaults.pgwire_max_connections,
+            1,
+        ),
+        rest_max_connections: parse_usize_min_from(
+            env_reader,
+            "CASSIE_REST_MAX_CONNECTIONS",
+            defaults.rest_max_connections,
+            1,
+        ),
         ..adaptive_limits_from_env(env_reader, defaults)
     }
 }
@@ -362,6 +384,8 @@ fn adaptive_limits_from_env(
             "CASSIE_PARALLEL_AGGREGATION_WORKERS",
             defaults.parallel_aggregation_workers,
         ),
+        pgwire_max_connections: defaults.pgwire_max_connections,
+        rest_max_connections: defaults.rest_max_connections,
     }
 }
 
@@ -465,6 +489,15 @@ fn parse_usize_from(
     env_reader(key)
         .and_then(|value| value.parse::<usize>().ok())
         .unwrap_or(fallback)
+}
+
+fn parse_usize_min_from(
+    env_reader: &impl Fn(&str) -> Option<String>,
+    key: &str,
+    fallback: usize,
+    min: usize,
+) -> usize {
+    parse_usize_from(env_reader, key, fallback).max(min)
 }
 
 fn parse_u16_from(env_reader: &impl Fn(&str) -> Option<String>, key: &str, fallback: u16) -> u16 {
@@ -586,6 +619,60 @@ mod tests {
         assert!(error.to_string().contains("empty"));
         assert!(error.to_string().contains(path.to_string_lossy().as_ref()));
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn should_reject_explicit_stub_embedding_providers() {
+        // Arrange / Act / Assert
+        for provider in ["voyage", "cohere", "local"] {
+            let values = HashMap::from([("CASSIE_EMBEDDINGS_PROVIDER", provider.to_string())]);
+            let error = CassieRuntimeConfig::from_env_reader(env_reader_owned(values))
+                .expect_err("explicit stub provider should fail");
+            assert!(
+                error.to_string().contains(provider),
+                "error should name provider: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn should_keep_disabled_or_omitted_embedding_provider_available() {
+        // Arrange
+        let omitted = HashMap::new();
+        let disabled = HashMap::from([("CASSIE_EMBEDDINGS_PROVIDER", "disabled".to_string())]);
+
+        // Act
+        let omitted_config =
+            CassieRuntimeConfig::from_env_reader(env_reader_owned(omitted)).expect("omitted");
+        let disabled_config =
+            CassieRuntimeConfig::from_env_reader(env_reader_owned(disabled)).expect("disabled");
+
+        // Assert
+        assert!(matches!(
+            omitted_config.embeddings,
+            EmbeddingsRuntimeConfig::Disabled
+        ));
+        assert!(matches!(
+            disabled_config.embeddings,
+            EmbeddingsRuntimeConfig::Disabled
+        ));
+    }
+
+    #[test]
+    fn should_parse_and_clamp_connection_admission_limits() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_PGWIRE_MAX_CONNECTIONS", "0".to_string()),
+            ("CASSIE_REST_MAX_CONNECTIONS", "7".to_string()),
+        ]);
+
+        // Act
+        let config =
+            CassieRuntimeConfig::from_env_reader(env_reader_owned(values)).expect("runtime config");
+
+        // Assert
+        assert_eq!(config.limits.pgwire_max_connections, 1);
+        assert_eq!(config.limits.rest_max_connections, 7);
     }
 
     #[test]

@@ -67,6 +67,10 @@ impl PgWireError {
         Self::new(PgWireSeverity::Error, "28000", message)
     }
 
+    pub(super) fn too_many_connections() -> Self {
+        Self::new(PgWireSeverity::Fatal, "53300", "too many connections")
+    }
+
     pub(super) fn invalid_sql_statement_name(message: impl Into<String>) -> Self {
         Self::new(PgWireSeverity::Error, "26000", message)
     }

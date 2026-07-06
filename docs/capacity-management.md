@@ -3,10 +3,12 @@
 Cassie capacity management is an operator feedback loop for single-node read-model deployments.
 It helps decide when to reshape projections, add or remove indexes, move tenants to another independent node, schedule rebuild work, or collect stronger benchmark evidence.
 
-This is a documented baseline, not a production SLA or automatic admission-control system.
+This is a documented baseline, not a production SLA or capacity-based admission-control system.
 Cassie exposes advisory logical key/value byte usage through `/metrics.capacity` for the local Midge data directory.
 Use that report together with host disk measurements for `CASSIE_MIDGE_DATA_DIR`, EXPLAIN diagnostics, catalog views, and benchmark scenarios.
 Deployment-profile evidence is advisory until a production owner records targets and thresholds for that profile.
+Pgwire and REST have transport-level connection caps, but those caps do not replace capacity
+planning, tenant movement, or workload-specific benchmark thresholds.
 
 ## Signal Sources
 
@@ -37,7 +39,7 @@ Deployment-profile evidence is advisory until a production owner records targets
 
 These thresholds are starting points for manual operations and local development feedback.
 Tune them per deployment profile before using them as alerts.
-The current `local-dev-fallback-10k` and `local-dev-fallback-100k` profiles provide repeatable developer feedback, not admission control or SLA evidence.
+The current `local-dev-fallback-10k` and `local-dev-fallback-100k` profiles provide repeatable developer feedback, not capacity-admission or SLA evidence.
 The Phase 10 rebaseline moved several local blockers into measurable ranges, including projection refresh, graph 100k setup, time-series 100k scans, HTTP document create/get at 100k, mixed ingest/query, and HTTP vector search. Treat those numbers as the current local comparison baseline when judging regressions, not as production thresholds.
 
 | Signal | Advisory threshold | Response |
@@ -92,13 +94,14 @@ behavior in this guide. The checklist is a backlog for future validation work an
 - deployment-profile notes: record host shape, storage mode, data shape, workload mix, fixture
   scale, `CASSIE_MIDGE_DATA_DIR`, runtime threshold overrides, rollback/fallback evidence, and the
   owner allowed to compare future runs against the profile.
-- Non-goals for this backlog: do not implement admission control, automatic disk movement,
+- Non-goals for this backlog: do not implement capacity-based admission control, automatic disk movement,
   replication, disk rebalancing, quorum reads, or production-ready promotion as part of evidence
   closure.
 
 ## Current Limits
 
-- Cassie does not perform automatic tenant movement, admission control, distributed routing, replication, quorum reads, or cross-node repair.
+- Cassie does not perform automatic tenant movement, capacity-based admission control, distributed routing, replication, quorum reads, or cross-node repair.
+- Pgwire and REST enforce local connection admission caps through `CASSIE_PGWIRE_MAX_CONNECTIONS` and `CASSIE_REST_MAX_CONNECTIONS`; over-capacity pgwire connections receive SQLSTATE `53300`, and over-capacity REST connections receive HTTP `503`.
 - `/metrics.capacity` reports advisory logical key/value bytes by Midge family and by major Cassie category: row blobs, scalar indexes, full-text metadata, vector sidecars, column batches, projection metadata, temporary artifacts, and other data.
 - Capacity bytes are local to one Cassie data directory and are not a physical disk-usage, compaction, replication, movement, or admission-control contract.
 - Capacity guidance is advisory until a deployment profile records benchmark targets, host profile, data shape, workload mix, and operator thresholds.

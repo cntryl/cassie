@@ -361,6 +361,52 @@ fn should_hydrate_hnsw_vector_index_options_after_restart() {
 }
 
 #[test]
+fn should_reject_family_specific_sql_vector_index_options() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("sql_vector_index_family_options");
+    let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE sql_vector_index_family_options (content TEXT, embedding VECTOR(1536))",
+            vec![],
+        )
+        .unwrap();
+    let cases = [
+        (
+            "CREATE INDEX sql_vector_index_family_options_brute_idx ON sql_vector_index_family_options USING vector (embedding) WITH (source_field = content, index_type = bruteforce, m = 12)",
+            "vector index option 'm' requires index_type 'hnsw'",
+        ),
+        (
+            "CREATE INDEX sql_vector_index_family_options_hnsw_idx ON sql_vector_index_family_options USING vector (embedding) WITH (source_field = content, index_type = hnsw, lists = 2)",
+            "vector index option 'lists' requires index_type 'ivfflat'",
+        ),
+        (
+            "CREATE INDEX sql_vector_index_family_options_ivf_idx ON sql_vector_index_family_options USING vector (embedding) WITH (source_field = content, index_type = ivfflat, ef_search = 64)",
+            "vector index option 'ef_search' requires index_type 'hnsw'",
+        ),
+    ];
+
+    for (sql, expected) in cases {
+        // Act
+        let error = cassie
+            .execute_sql(&session, sql, vec![])
+            .expect_err("wrong-family vector option should fail");
+
+        // Assert
+        assert!(
+            error.to_string().contains(expected),
+            "expected '{expected}' in {error}"
+        );
+    }
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_rebuild_normalized_vector_sidecars_after_sql_writes() {
     // Arrange
     with_fallback();
@@ -413,6 +459,7 @@ fn should_rebuild_normalized_vector_sidecars_after_sql_writes() {
                 metric: DistanceMetric::Cosine,
                 index_type: VectorIndexType::BruteForce,
                 hnsw: None,
+                hnsw_graph: None,
                 ivfflat: None,
                 ivfflat_training: None,
             },

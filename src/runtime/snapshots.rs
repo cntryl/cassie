@@ -73,6 +73,9 @@ pub struct ExecutionSnapshot {
     pub ivfflat_probes_total: u64,
     pub ivfflat_exact_reranks_total: u64,
     pub ivfflat_fallbacks: u64,
+    pub hnsw_executions: u64,
+    pub hnsw_exact_reranks_total: u64,
+    pub hnsw_fallbacks: u64,
     pub last_index_kind: String,
     pub last_fallback_reason: String,
 }

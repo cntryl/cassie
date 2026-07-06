@@ -148,7 +148,10 @@ Supported option families:
 - `index_type = bruteforce|hnsw|ivfflat`
 - `metric = cosine|l2|dot`
 - HNSW tuning options such as `m`, `ef_construction`, and `ef_search`.
-- IVFFlat metadata options such as `lists`, `probes`, `training_sample_size`, and `training_seed`.
+- IVFFlat options such as `lists`, `probes`, `training_sample_size`, and `training_seed`.
+
+SQL and REST vector-index creation use the same option normalization and validation. REST index
+responses include the normalized `index_type`.
 
 Guarantees:
 
@@ -156,10 +159,20 @@ Guarantees:
 - Metric and dimension mismatches must produce deterministic errors or fallback behavior.
 - EXPLAIN and metrics should expose index use and fallback reasons where relevant.
 
+Current HNSW support:
+
+- Cassie persists and hydrates deterministic HNSW graph state in the vector-index metadata JSON.
+- Compatible unfiltered top-k vector-distance searches use the graph candidate path, then fetch row
+  vectors and re-rank exactly before returning SQL or REST-visible rows.
+- Document writes and deletes refresh graph state for affected collections. HNSW remains
+  experimental; missing, stale, incompatible, empty, or unsupported graph shapes fall back to the
+  exact row/vector path with a deterministic fallback reason.
+
 Current IVFFlat support:
 
 - Cassie persists and hydrates IVFFlat metadata/options plus deterministic training state.
-- IVFFlat top-k queries over compatible L2 vector-distance shapes probe trained lists, then fetch row vectors and re-rank exactly before returning SQL-visible rows.
+- SQL and REST top-k searches over compatible L2 vector-distance shapes probe trained lists, then
+  fetch row vectors and re-rank exactly before returning visible rows.
 - Document writes and deletes refresh IVFFlat training state for affected collections. IVFFlat remains experimental; unsupported shapes fall back to the exact row/vector path.
 
 ## Graph Adjacency Sidecars

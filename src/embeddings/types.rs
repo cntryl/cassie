@@ -59,6 +59,8 @@ pub struct VectorIndexMetadata {
     #[serde(default)]
     pub hnsw: Option<HnswIndexOptions>,
     #[serde(default)]
+    pub hnsw_graph: Option<HnswGraphState>,
+    #[serde(default)]
     pub ivfflat: Option<IvfFlatIndexOptions>,
     #[serde(default)]
     pub ivfflat_training: Option<IvfFlatTrainingState>,
@@ -106,6 +108,27 @@ impl Default for HnswIndexOptions {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct HnswGraphState {
+    pub version: u32,
+    #[serde(default)]
+    pub source_fingerprint: u64,
+    pub row_count: usize,
+    pub dimensions: usize,
+    pub metric: DistanceMetric,
+    pub entry_point: Option<String>,
+    pub max_layer: usize,
+    pub nodes: Vec<HnswGraphNode>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct HnswGraphNode {
+    pub id: String,
+    pub vector: Vec<f32>,
+    pub magnitude: f64,
+    pub layers: Vec<Vec<String>>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct IvfFlatIndexOptions {
     pub version: u32,
@@ -130,6 +153,8 @@ impl Default for IvfFlatIndexOptions {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct IvfFlatTrainingState {
     pub version: u32,
+    #[serde(default)]
+    pub source_fingerprint: u64,
     pub trained: bool,
     pub row_count: usize,
     pub lists: usize,

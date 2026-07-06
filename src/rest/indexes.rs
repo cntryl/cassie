@@ -1,9 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::app::Cassie;
 use crate::app::CassieError;
-use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord, VectorIndexType};
+use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
 use crate::types::{DataType, Schema};
+use crate::vector::index_options::normalize_vector_index_options;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -102,19 +103,33 @@ fn vector_index_metadata(
     payload: &CreateIndexRequest,
     vector_dimensions: usize,
 ) -> Result<VectorIndexMetadata, CassieError> {
+    validate_vector_option_keys(payload)?;
+    let mut options = payload
+        .options
+        .iter()
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let normalized_options =
+        normalize_vector_index_options(&mut options).map_err(CassieError::InvalidEmbedding)?;
     let metric = payload
         .options
         .get("metric")
-        .and_then(|metric| metric.parse::<DistanceMetric>().ok())
-        .unwrap_or(DistanceMetric::Cosine);
+        .map_or(Ok(DistanceMetric::Cosine), |metric| {
+            metric.parse::<DistanceMetric>().map_err(|()| {
+                CassieError::InvalidEmbedding(format!(
+                    "unsupported vector metric '{metric}'. expected cosine/l2/dot"
+                ))
+            })
+        })?;
     let metadata = VectorIndexMetadata {
         provider: cassie.embedding_provider.provider_name().to_string(),
         model: cassie.embedding_provider.model_name().to_string(),
         dimensions: cassie.embedding_provider.dimensions(),
         metric,
-        index_type: VectorIndexType::BruteForce,
-        hnsw: None,
-        ivfflat: None,
+        index_type: normalized_options.index_type,
+        hnsw: normalized_options.hnsw,
+        hnsw_graph: None,
+        ivfflat: normalized_options.ivfflat,
         ivfflat_training: None,
     };
 
@@ -126,6 +141,29 @@ fn vector_index_metadata(
     }
 
     Ok(metadata)
+}
+
+fn validate_vector_option_keys(payload: &CreateIndexRequest) -> Result<(), CassieError> {
+    for key in payload.options.keys() {
+        if !matches!(
+            key.as_str(),
+            "source_field"
+                | "metric"
+                | "index_type"
+                | "m"
+                | "ef_construction"
+                | "ef_search"
+                | "lists"
+                | "probes"
+                | "training_sample_size"
+                | "training_seed"
+        ) {
+            return Err(CassieError::InvalidEmbedding(format!(
+                "unsupported vector index option '{key}'"
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn existing_vector_index_response(
@@ -144,6 +182,9 @@ fn existing_vector_index_response(
         || existing.metadata.model != metadata.model
         || existing.metadata.dimensions != metadata.dimensions
         || existing.metadata.metric != metadata.metric
+        || existing.metadata.index_type != metadata.index_type
+        || existing.metadata.hnsw != metadata.hnsw
+        || existing.metadata.ivfflat != metadata.ivfflat
     {
         return Err(CassieError::InvalidEmbedding(format!(
             "incompatible vector index redefinition for collection '{}' field '{}'",
@@ -190,6 +231,7 @@ fn vector_index_response(collection: &str, record: &VectorIndexRecord, status: &
         "model": record.metadata.model,
         "dimensions": record.metadata.dimensions,
         "metric": record.metadata.metric.as_str(),
+        "index_type": record.metadata.index_type.as_str(),
         "status": status,
     })
 }

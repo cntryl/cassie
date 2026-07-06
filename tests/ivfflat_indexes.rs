@@ -5,8 +5,10 @@ use cassie::catalog::IndexKind;
 use cassie::embeddings::{
     DistanceMetric, IvfFlatIndexOptions, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
 };
+use cassie::midge::adapter::StorageFamily;
 use cassie::sql::ast::QueryStatement;
 use cassie::types::{DataType, FieldSchema, Schema, Value};
+use cntryl_midge::{TransactionMode, WriteOptions};
 
 #[path = "support/sql.rs"]
 mod support;
@@ -66,6 +68,7 @@ fn put_ivfflat_index(cassie: &Cassie, collection: &str, seed: u64) {
                 metric: DistanceMetric::L2,
                 index_type: VectorIndexType::IvfFlat,
                 hnsw: None,
+                hnsw_graph: None,
                 ivfflat: Some(IvfFlatIndexOptions {
                     version: 1,
                     lists: 2,
@@ -87,6 +90,29 @@ fn stored_ivfflat_index(cassie: &Cassie, collection: &str) -> VectorIndexRecord 
         .expect("ivfflat vector index should persist")
 }
 
+fn mutate_stored_ivfflat_index(
+    cassie: &Cassie,
+    collection: &str,
+    mut mutate: impl FnMut(&mut VectorIndexRecord),
+) {
+    let entries = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Schema, b"")
+        .unwrap();
+    let Some((key, mut record)) = entries.into_iter().find_map(|(key, value)| {
+        let record = serde_json::from_slice::<VectorIndexRecord>(&value).ok()?;
+        (record.collection == collection && record.field == "embedding").then_some((key, record))
+    }) else {
+        panic!("stored vector index metadata should exist");
+    };
+    mutate(&mut record);
+
+    let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
+    tx.put(key, serde_json::to_vec(&record).unwrap(), None)
+        .unwrap();
+    tx.commit(WriteOptions::sync()).unwrap();
+}
+
 fn ivfflat_row_count(cassie: &Cassie, collection: &str) -> usize {
     stored_ivfflat_index(cassie, collection)
         .metadata
@@ -101,6 +127,7 @@ fn assert_candidate_list_training(stored: VectorIndexRecord) {
         .ivfflat_training
         .expect("ivfflat training state");
     assert!(training.trained);
+    assert_ne!(training.source_fingerprint, 0);
     assert_eq!(training.row_count, 3);
     assert_eq!(training.lists, 2);
     assert_eq!(training.probes, 1);
@@ -128,6 +155,36 @@ fn assert_candidate_list_metrics(before: &serde_json::Value, after: &serde_json:
             > before["vector"]["ivfflat_exact_reranks_total"]
                 .as_u64()
                 .unwrap()
+    );
+}
+
+fn assert_ivfflat_fallback_query(
+    cassie: &Cassie,
+    collection: &str,
+    expected_reason: &str,
+    before: &serde_json::Value,
+) {
+    let session = cassie.create_session("tester", None);
+    let result = cassie
+        .execute_sql(
+            &session,
+            &format!(
+                "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM {collection} ORDER BY distance ASC LIMIT 1"
+            ),
+            vec![],
+        )
+        .unwrap();
+    let after = cassie.metrics();
+
+    assert_eq!(result.rows[0][0], Value::String("near".to_string()));
+    assert_eq!(
+        after["vector"]["ivfflat_fallbacks"].as_u64().unwrap()
+            - before["vector"]["ivfflat_fallbacks"].as_u64().unwrap(),
+        1
+    );
+    assert_eq!(
+        after["vector"]["last_fallback_reason"].as_str(),
+        Some(expected_reason)
     );
 }
 
@@ -289,4 +346,96 @@ fn should_refresh_ivfflat_training_after_document_writes() {
 
         let _ = std::fs::remove_dir_all(path);
     });
+}
+
+#[test]
+fn should_fall_back_when_ivfflat_training_assignment_coverage_is_missing() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ivfflat_missing_assignment_fallback");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let collection = "ivfflat_missing_assignment_fallback";
+    register_ivfflat_collection(&cassie, collection);
+    put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+    put_ivfflat_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+    put_ivfflat_index(&cassie, collection, 21);
+    mutate_stored_ivfflat_index(&cassie, collection, |record| {
+        let training = record
+            .metadata
+            .ivfflat_training
+            .as_mut()
+            .expect("ivfflat training");
+        training.assignments.remove("far");
+    });
+    let before = cassie.metrics();
+
+    // Act
+    let expected_reason = "incomplete-assignments";
+
+    // Assert
+    assert_ivfflat_fallback_query(&cassie, collection, expected_reason, &before);
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_fall_back_when_ivfflat_training_list_bounds_are_bad() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ivfflat_bad_list_bounds_fallback");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let collection = "ivfflat_bad_list_bounds_fallback";
+    register_ivfflat_collection(&cassie, collection);
+    put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+    put_ivfflat_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+    put_ivfflat_index(&cassie, collection, 22);
+    mutate_stored_ivfflat_index(&cassie, collection, |record| {
+        let training = record
+            .metadata
+            .ivfflat_training
+            .as_mut()
+            .expect("ivfflat training");
+        training
+            .assignments
+            .insert("near".to_string(), training.lists);
+    });
+    let before = cassie.metrics();
+
+    // Act
+    let expected_reason = "assignment-list-out-of-bounds";
+
+    // Assert
+    assert_ivfflat_fallback_query(&cassie, collection, expected_reason, &before);
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_fall_back_when_same_row_count_ivfflat_training_fingerprint_is_stale() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ivfflat_stale_fingerprint_fallback");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let collection = "ivfflat_stale_fingerprint_fallback";
+    register_ivfflat_collection(&cassie, collection);
+    put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+    put_ivfflat_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+    put_ivfflat_index(&cassie, collection, 23);
+    mutate_stored_ivfflat_index(&cassie, collection, |record| {
+        let training = record
+            .metadata
+            .ivfflat_training
+            .as_mut()
+            .expect("ivfflat training");
+        training.source_fingerprint ^= 1;
+    });
+    let before = cassie.metrics();
+
+    // Act
+    let expected_reason = "stale-source-fingerprint";
+
+    // Assert
+    assert_ivfflat_fallback_query(&cassie, collection, expected_reason, &before);
+
+    let _ = std::fs::remove_dir_all(path);
 }

@@ -18,7 +18,11 @@ pub(crate) fn execute_vector_distance_top_k(
     let schema = cassie.catalog.get_schema(&spec.collection).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", spec.collection))
     })?;
+    validate_vector_top_k_dimensions(&schema, &spec)?;
     if plan.filter.is_none() {
+        if let Some(rows) = execute_hnsw_vector_top_k(cassie, &spec)? {
+            return Ok(Some(rows));
+        }
         if let Some(rows) = execute_ivfflat_vector_top_k(cassie, &spec)? {
             return Ok(Some(rows));
         }
@@ -52,11 +56,15 @@ pub(crate) fn execute_vector_distance_top_k(
             .get(&spec.vector_field)
             .and_then(value_to_vector)
             .unwrap_or_default();
-        let score = if vector.len() == spec.query.len() && !vector.is_empty() {
-            crate::vector::l2_distance(&vector, &spec.query)
-        } else {
-            f64::INFINITY
-        };
+        if vector.len() != spec.query.len() || vector.is_empty() {
+            return Err(QueryError::General(format!(
+                "vector field '{}' on collection '{}' does not match query dimensions {}",
+                spec.vector_field,
+                spec.collection,
+                spec.query.len()
+            )));
+        }
+        let score = crate::vector::l2_distance(&vector, &spec.query);
         push_top_candidate(
             &mut top,
             SqlVectorCandidate {
@@ -89,6 +97,94 @@ pub(crate) fn execute_vector_distance_top_k(
     Ok(Some(rows))
 }
 
+fn execute_hnsw_vector_top_k(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let Some(index) = hnsw_index(cassie, spec)? else {
+        return Ok(None);
+    };
+    if !matches!(spec.direction, SortDirection::Asc) {
+        cassie.runtime.record_hnsw_fallback("unsupported-sort");
+        return Ok(None);
+    }
+    if index.metadata.metric != crate::embeddings::DistanceMetric::L2 {
+        cassie.runtime.record_hnsw_fallback("incompatible-metric");
+        return Ok(None);
+    }
+    let Some(options) = index.metadata.hnsw.as_ref() else {
+        cassie.runtime.record_hnsw_fallback("missing-options");
+        return Ok(None);
+    };
+    let normalized_vectors = cassie
+        .midge
+        .list_normalized_vectors(&spec.collection, &spec.vector_field)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    if let Some(reason) = crate::vector::hnsw::graph_fallback_reason(
+        index.metadata.hnsw_graph.as_ref(),
+        index.metadata.metric,
+        index.metadata.dimensions,
+        &normalized_vectors,
+    ) {
+        cassie.runtime.record_hnsw_fallback(reason);
+        return Ok(None);
+    }
+    let graph = index
+        .metadata
+        .hnsw_graph
+        .as_ref()
+        .expect("validated hnsw graph");
+    let top_needed = spec.limit.saturating_add(spec.offset).max(1);
+    let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
+    let started_at = std::time::Instant::now();
+    let Some(search) = crate::vector::hnsw::search_graph(graph, &spec.query, options, top_needed)
+    else {
+        cassie.runtime.record_hnsw_fallback("search-unavailable");
+        return Ok(None);
+    };
+    let rows = search
+        .candidates
+        .into_iter()
+        .skip(spec.offset)
+        .take(spec.limit)
+        .map(|candidate| {
+            BatchRow::new(vec![
+                (spec.id_column.clone(), Value::String(candidate.id)),
+                (
+                    spec.score_column.clone(),
+                    Value::Float64(candidate.distance),
+                ),
+            ])
+        })
+        .collect::<Vec<_>>();
+    cassie.runtime.record_vector_execution(
+        started_at.elapsed(),
+        search.candidate_count,
+        rows.len(),
+    );
+    cassie.runtime.record_hnsw_execution(search.candidate_count);
+    record_adaptive_candidate_decision(cassie, &adaptive, search.candidate_count, rows.len());
+    Ok(Some(rows))
+}
+
+fn hnsw_index(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+) -> Result<Option<crate::embeddings::VectorIndexRecord>, QueryError> {
+    let index = cassie
+        .midge
+        .get_vector_index(&spec.collection, &spec.vector_field)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let Some(index) = index else {
+        return Ok(None);
+    };
+    if index.metadata.index_type == crate::embeddings::VectorIndexType::Hnsw {
+        Ok(Some(index))
+    } else {
+        Ok(None)
+    }
+}
+
 fn execute_ivfflat_vector_top_k(
     cassie: &Cassie,
     spec: &VectorDistanceTopKSpec,
@@ -100,11 +196,19 @@ fn execute_ivfflat_vector_top_k(
     let started_at = std::time::Instant::now();
     let normalized_query = crate::vector::normalize(&spec.query)
         .map_or_else(|| spec.query.clone(), |normalized| normalized.values);
-    let probed_lists = ivfflat_probe_lists(&normalized_query, &training);
     let normalized_vectors = cassie
         .midge
         .list_normalized_vectors(&spec.collection, &spec.vector_field)
         .map_err(|error| QueryError::General(error.to_string()))?;
+    if let Some(reason) = crate::vector::ivfflat::training_fallback_reason(
+        &training,
+        spec.query.len(),
+        &normalized_vectors,
+    ) {
+        cassie.runtime.record_ivfflat_fallback(reason);
+        return Ok(None);
+    }
+    let probed_lists = crate::vector::ivfflat::probe_lists(&normalized_query, &training);
     let top_needed = spec.limit.saturating_add(spec.offset).max(1);
     let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
     let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
@@ -116,12 +220,10 @@ fn execute_ivfflat_vector_top_k(
         if !probed_lists.contains(list) {
             continue;
         }
-        let vector = denormalized_vector(&record.values, record.magnitude)?;
-        let score = if vector.len() == spec.query.len() {
-            crate::vector::l2_distance(&vector, &spec.query)
-        } else {
-            f64::INFINITY
-        };
+        let vector = crate::vector::ivfflat::denormalized_vector(&record).ok_or_else(|| {
+            QueryError::General("invalid normalized vector magnitude".to_string())
+        })?;
+        let score = crate::vector::l2_distance(&vector, &spec.query);
         candidate_count += 1;
         push_top_candidate(
             &mut top,
@@ -186,53 +288,7 @@ fn ivfflat_training(
         cassie.runtime.record_ivfflat_fallback("missing-training");
         return Ok(None);
     };
-    if !training.trained
-        || training.centroids.is_empty()
-        || spec.query.len() != index.metadata.dimensions
-    {
-        cassie
-            .runtime
-            .record_ivfflat_fallback("incomplete-or-incompatible-training");
-        return Ok(None);
-    }
     Ok(Some(training))
-}
-
-fn denormalized_vector(values: &[f32], magnitude: f64) -> Result<Vec<f32>, QueryError> {
-    let magnitude = finite_f32(magnitude, "vector magnitude")?;
-    values.iter().map(|value| Ok(*value * magnitude)).collect()
-}
-
-fn ivfflat_probe_lists(
-    normalized_query: &[f32],
-    training: &crate::embeddings::IvfFlatTrainingState,
-) -> std::collections::BTreeSet<usize> {
-    let mut ranked = training
-        .centroids
-        .iter()
-        .enumerate()
-        .map(|(index, centroid)| (index, squared_l2(normalized_query, centroid)))
-        .collect::<Vec<_>>();
-    ranked.sort_by(|left, right| {
-        left.1
-            .total_cmp(&right.1)
-            .then_with(|| left.0.cmp(&right.0))
-    });
-    ranked
-        .into_iter()
-        .take(training.probes.max(1))
-        .map(|(index, _)| index)
-        .collect()
-}
-
-fn squared_l2(left: &[f32], right: &[f32]) -> f64 {
-    left.iter()
-        .zip(right.iter())
-        .map(|(left, right)| {
-            let delta = f64::from(*left) - f64::from(*right);
-            delta * delta
-        })
-        .sum()
 }
 
 pub(super) struct AdaptiveCandidateDecision {
@@ -292,6 +348,38 @@ pub(super) fn record_adaptive_candidate_decision(
         final_candidate_count,
         exhausted,
     );
+}
+
+fn validate_vector_top_k_dimensions(
+    schema: &crate::catalog::CollectionSchema,
+    spec: &VectorDistanceTopKSpec,
+) -> Result<(), QueryError> {
+    let Some(field) = schema
+        .fields
+        .iter()
+        .find(|field| field.name.eq_ignore_ascii_case(&spec.vector_field))
+    else {
+        return Err(QueryError::General(format!(
+            "vector field '{}' does not exist on collection '{}'",
+            spec.vector_field, spec.collection
+        )));
+    };
+    let crate::types::DataType::Vector(dimensions) = &field.data_type else {
+        return Err(QueryError::General(format!(
+            "field '{}' on collection '{}' is not a vector field",
+            spec.vector_field, spec.collection
+        )));
+    };
+    if spec.query.len() != *dimensions {
+        return Err(QueryError::General(format!(
+            "vector_distance query for field '{}' on collection '{}' expects {} dimensions but received {}",
+            spec.vector_field,
+            spec.collection,
+            dimensions,
+            spec.query.len()
+        )));
+    }
+    Ok(())
 }
 
 struct VectorDistanceTopKSpec {

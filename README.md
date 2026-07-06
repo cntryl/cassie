@@ -16,6 +16,18 @@ The example creates a projection-style table, inserts rows, adds a scalar index,
 aggregate SQL, prints EXPLAIN output, and reports health/metrics. It uses Midge's in-memory fallback
 and is a POC path, not a production deployment recipe.
 
+## Runtime Configuration
+
+Runtime configuration is driven by `CASSIE_*` environment variables.
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `CASSIE_PGWIRE_LISTEN` | `127.0.0.1:5432` | PostgreSQL wire listener address |
+| `CASSIE_REST_LISTEN` | `127.0.0.1:8080` | REST listener address |
+| `CASSIE_PGWIRE_MAX_CONNECTIONS` | `256` | Pgwire admission cap, clamped to at least `1` |
+| `CASSIE_REST_MAX_CONNECTIONS` | `512` | REST admission cap, clamped to at least `1` |
+| `CASSIE_EMBEDDINGS_PROVIDER` | `disabled` | Supported values are `disabled`, `openai`, `openai_compatible`, `tei`, and `ollama`; explicit `voyage`, `cohere`, or `local` fail startup |
+
 ## Design Principles
 
 ### Single-node first

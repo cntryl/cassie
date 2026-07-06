@@ -5,7 +5,7 @@ use super::vector_helpers::{
 use super::{
     cosine_distance_from_normalized_query, dot_distance_from_normalized_target, normalize_vector,
     Arc, BTreeMap, BinaryHeap, Cassie, CassieError, CmpOrdering, CollectionSchema, DistanceMetric,
-    DocumentRef, Embedding, NormalizedVectorCacheEntry, NormalizedVectorCacheKey,
+    DocumentRef, Embedding, Instant, NormalizedVectorCacheEntry, NormalizedVectorCacheKey,
     NormalizedVectorRecord, QueryEmbeddingCacheKey, QueryResult, RowDecode, VectorIndexRecord,
     VectorIndexType, VectorSearchResultCacheKey,
 };
@@ -221,12 +221,20 @@ impl Cassie {
             offset,
             top_needed,
         };
-        let candidates = self.scan_vector_candidates(&request)?;
 
         if index.metadata.index_type == VectorIndexType::Hnsw {
-            return self.execute_hnsw_vector_search(&request, candidates);
+            if let Some(result) = self.try_hnsw_vector_search(&request)? {
+                return Ok(result);
+            }
         }
 
+        if index.metadata.index_type == VectorIndexType::IvfFlat {
+            if let Some(result) = self.try_ivfflat_vector_search(&request)? {
+                return Ok(result);
+            }
+        }
+
+        let candidates = self.scan_vector_candidates(&request)?;
         let normalized_vectors = self.normalized_vector_records_for_metric(&request)?;
         let normalized_query = normalized_query_for_metric(metric, query);
         let result = self.execute_row_vector_search(
@@ -256,44 +264,149 @@ impl Cassie {
         )
     }
 
-    fn execute_hnsw_vector_search(
+    fn try_hnsw_vector_search(
         &self,
         request: &ProjectedVectorSearch<'_>,
-        candidates: Vec<DocumentRef>,
-    ) -> Result<QueryResult, CassieError> {
-        let metric_fn: fn(&[f32], &[f32]) -> f64 = match request.metric {
-            DistanceMetric::Cosine => crate::vector::cosine_distance,
-            DistanceMetric::Dot => crate::vector::dot_distance,
-            DistanceMetric::L2 => crate::vector::l2_distance,
+    ) -> Result<Option<QueryResult>, CassieError> {
+        let Some(index) = self
+            .midge
+            .get_vector_index(request.collection, request.vector_field)?
+        else {
+            return Ok(None);
         };
-        let hnsw_candidates = candidates
+        if index.metadata.index_type != VectorIndexType::Hnsw {
+            return Ok(None);
+        }
+        if index.metadata.metric != request.metric {
+            self.runtime.record_hnsw_fallback("incompatible-metric");
+            return Ok(None);
+        }
+        let Some(options) = index.metadata.hnsw.as_ref() else {
+            self.runtime.record_hnsw_fallback("missing-options");
+            return Ok(None);
+        };
+        let normalized_vectors = self
+            .midge
+            .list_normalized_vectors(request.collection, request.vector_field)?;
+        if let Some(reason) = crate::vector::hnsw::graph_fallback_reason(
+            index.metadata.hnsw_graph.as_ref(),
+            index.metadata.metric,
+            index.metadata.dimensions,
+            &normalized_vectors,
+        ) {
+            self.runtime.record_hnsw_fallback(reason);
+            return Ok(None);
+        }
+        let graph = index
+            .metadata
+            .hnsw_graph
+            .as_ref()
+            .expect("validated hnsw graph");
+        let started_at = Instant::now();
+        let Some(search) =
+            crate::vector::hnsw::search_graph(graph, request.query, options, request.top_needed)
+        else {
+            self.runtime.record_hnsw_fallback("search-unavailable");
+            return Ok(None);
+        };
+        let selected = search
+            .candidates
             .into_iter()
-            .filter_map(|candidate| {
-                candidate
-                    .payload
-                    .get(request.vector_field)
-                    .and_then(vector_from_json)
-                    .map(|vector| (candidate.id, vector))
-            })
-            .collect::<Vec<_>>();
-        let selected = crate::vector::hnsw::search(
-            request.query,
-            hnsw_candidates,
-            request.top_needed,
-            metric_fn,
-        )
-        .into_iter()
-        .skip(request.offset)
-        .take(request.limit)
-        .map(|candidate| candidate.id);
+            .skip(request.offset)
+            .take(request.limit)
+            .map(|candidate| candidate.id);
         let rows = self.vector_rows_for_ids(request.schema, request.collection, selected)?;
-        self.runtime
-            .record_vector_normalization_usage(0, rows.len());
-        Ok(QueryResult {
+        self.runtime.record_vector_execution(
+            started_at.elapsed(),
+            search.candidate_count,
+            rows.len(),
+        );
+        self.runtime.record_hnsw_execution(search.candidate_count);
+        Ok(Some(QueryResult {
             columns: vector_search_columns(request.schema),
             rows,
             command: "SELECT".to_string(),
-        })
+        }))
+    }
+
+    fn try_ivfflat_vector_search(
+        &self,
+        request: &ProjectedVectorSearch<'_>,
+    ) -> Result<Option<QueryResult>, CassieError> {
+        let Some(index) = self
+            .midge
+            .get_vector_index(request.collection, request.vector_field)?
+        else {
+            return Ok(None);
+        };
+        if index.metadata.index_type != VectorIndexType::IvfFlat {
+            return Ok(None);
+        }
+        if request.metric != DistanceMetric::L2 || index.metadata.metric != DistanceMetric::L2 {
+            self.runtime.record_ivfflat_fallback("incompatible-metric");
+            return Ok(None);
+        }
+        let Some(training) = index.metadata.ivfflat_training.as_ref() else {
+            self.runtime.record_ivfflat_fallback("missing-training");
+            return Ok(None);
+        };
+        let normalized_vectors = self
+            .midge
+            .list_normalized_vectors(request.collection, request.vector_field)?;
+        if let Some(reason) = crate::vector::ivfflat::training_fallback_reason(
+            training,
+            request.query.len(),
+            &normalized_vectors,
+        ) {
+            self.runtime.record_ivfflat_fallback(reason);
+            return Ok(None);
+        }
+        let started_at = Instant::now();
+        let normalized_query = normalize_vector(request.query)
+            .map_or_else(|| request.query.to_vec(), |normalized| normalized.values);
+        let probed_lists = crate::vector::ivfflat::probe_lists(&normalized_query, training);
+        let mut top = BinaryHeap::with_capacity(request.top_needed.saturating_add(1));
+        let mut candidate_count = 0usize;
+        for record in normalized_vectors {
+            let Some(list) = training.assignments.get(&record.id) else {
+                continue;
+            };
+            if !probed_lists.contains(list) {
+                continue;
+            }
+            let Some(vector) = crate::vector::ivfflat::denormalized_vector(&record) else {
+                continue;
+            };
+            let distance = vector_distance_for_metric(request.metric, request.query, &vector);
+            candidate_count = candidate_count.saturating_add(1);
+            push_scored_vector_candidate(
+                &mut top,
+                request.top_needed,
+                ScoredVectorCandidate {
+                    distance,
+                    id: record.id,
+                },
+            );
+        }
+        if candidate_count == 0 {
+            self.runtime.record_ivfflat_fallback("empty-probed-lists");
+            return Ok(None);
+        }
+        let rows = self.vector_rows_for_ids(
+            request.schema,
+            request.collection,
+            ranked_vector_candidates(top, request.offset, request.limit)
+                .map(|candidate| candidate.id),
+        )?;
+        self.runtime
+            .record_vector_execution(started_at.elapsed(), candidate_count, rows.len());
+        self.runtime
+            .record_ivfflat_execution(training.lists, probed_lists.len(), candidate_count);
+        Ok(Some(QueryResult {
+            columns: vector_search_columns(request.schema),
+            rows,
+            command: "SELECT".to_string(),
+        }))
     }
 
     fn normalized_vector_records_for_metric(

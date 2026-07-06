@@ -134,7 +134,7 @@ Unsupported procedural expectations include:
 | Projection operations | active version, source checkpoint, lag, freshness, rebuild state, verification state, root state, last replay batch, last error, version state | Experimental | Cassie-specific |
 | Operational scale | local node identity, projection ownership, tenant routing hints, partition assignment metadata, generation/state, `pg_catalog.pg_operational_assignments`, external route/drain/move contract | Experimental | Cassie-specific metadata for external orchestration; no distributed query behavior |
 | Metrics | latency, throughput, errors, storage-family operation counts, cache occupancy, adaptive candidate, adaptive plan, and runtime operator switch counters, join execution/strategy/row/vectorized batch/spill-fallback counters, projection replay/build/swap/stale/hash/verification/integrity/consistency/mixed-fallback counters, retention enforcement/delete/skip counters, rollup refresh/rewrite/fallback counters, time-series scan/bucket/fallback counters, column-batch scan/fallback/byte/segment/column counters, aggregate acceleration counters | Experimental | Cassie-specific |
-| Capacity management | advisory sizing guide, capacity signals, operator thresholds, and manual benchmark workflow | Experimental | Cassie-specific operational documentation; no automatic admission control or distributed movement |
+| Capacity management | advisory sizing guide, capacity signals, operator thresholds, manual benchmark workflow, and local transport connection caps | Experimental | Cassie-specific operational documentation; no capacity-based admission control or distributed movement |
 
 ## Projection Verification Surfaces
 

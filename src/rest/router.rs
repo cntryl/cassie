@@ -7,13 +7,13 @@ use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::{
     body::Incoming,
-    header::{HeaderValue, CONTENT_TYPE},
+    header::{HeaderValue, CONNECTION, CONTENT_TYPE},
     server::conn::http1,
     service::service_fn,
     Method, Request, Response, StatusCode,
 };
 use hyper_util::rt::TokioIo;
-use tokio::sync::Notify;
+use tokio::sync::{Notify, Semaphore};
 use tokio::task;
 
 use crate::app::Cassie;
@@ -38,6 +38,9 @@ pub async fn run_with_shutdown(
         crate::app::CassieError::Execution(format!("invalid rest address '{addr}': {e}"))
     })?;
     let cassie = Arc::new(cassie);
+    let admission = Arc::new(Semaphore::new(
+        cassie.runtime.limits().rest_max_connections.max(1),
+    ));
     let listener = tokio::net::TcpListener::bind(&listen)
         .await
         .map_err(|e| crate::app::CassieError::Execution(e.to_string()))?;
@@ -51,8 +54,22 @@ pub async fn run_with_shutdown(
             }
             accept = listener.accept() => {
                 let (stream, _) = accept.map_err(|e| crate::app::CassieError::Execution(e.to_string()))?;
+                let Ok(permit) = admission.clone().try_acquire_owned() else {
+                    tokio::spawn(async move {
+                        let service = service_fn(|_request: Request<hyper::body::Incoming>| async {
+                            Ok::<_, Infallible>(too_many_connections_response())
+                        });
+                        let io = TokioIo::new(stream);
+                        let connection = http1::Builder::new().serve_connection(io, service).await;
+                        if let Err(error) = connection {
+                            tracing::warn!(%error, "rest admission rejection connection error");
+                        }
+                    });
+                    continue;
+                };
                 let cassie = cassie.clone();
                 tokio::spawn(async move {
+                    let _permit = permit;
                     let service = service_fn(move |request: Request<hyper::body::Incoming>| {
                         let cassie = cassie.clone();
                         async move { route(request, cassie).await }
@@ -94,6 +111,17 @@ fn json_response<T: serde::Serialize>(status: StatusCode, value: &T) -> Response
     response
         .headers_mut()
         .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    response
+}
+
+fn too_many_connections_response() -> Response<RestBody> {
+    let mut response = json_response(
+        StatusCode::SERVICE_UNAVAILABLE,
+        &serde_json::json!({"error": "too many connections"}),
+    );
+    response
+        .headers_mut()
+        .insert(CONNECTION, HeaderValue::from_static("close"));
     response
 }
 

@@ -22,4 +22,24 @@ impl RuntimeState {
         metrics.vector.last_index_kind = "ivfflat".to_string();
         metrics.vector.last_fallback_reason = reason.into();
     }
+
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
+    pub fn record_hnsw_execution(&self, exact_reranks: usize) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.vector.hnsw_executions += 1;
+        metrics.vector.hnsw_exact_reranks_total += exact_reranks as u64;
+        metrics.vector.last_index_kind = "hnsw".to_string();
+    }
+
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
+    pub fn record_hnsw_fallback(&self, reason: impl Into<String>) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.vector.hnsw_fallbacks += 1;
+        metrics.vector.last_index_kind = "hnsw".to_string();
+        metrics.vector.last_fallback_reason = reason.into();
+    }
 }

@@ -7,9 +7,7 @@ use crate::app::{Cassie, CassieSession};
 use crate::catalog;
 use crate::catalog::virtual_views;
 use crate::catalog::{CollectionSchema, FieldMeta, FunctionMeta, ProcedureMeta, Volatility};
-use crate::embeddings::{
-    DistanceMetric, HnswIndexOptions, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
-};
+use crate::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord};
 use crate::executor::batch::{self, Batch, BatchRow};
 use crate::executor::{aggregate, filter, projection, scan, sort};
 use crate::midge::adapter::RowDecode;

@@ -234,7 +234,8 @@ Evidence:
 Impact:
 
 Operators have Cassie-specific guidance for manual sizing and capacity triage.
-The baseline is advisory and does not yet provide automatic admission control, byte-accurate storage-family accounting, or production thresholds by deployment profile.
+The baseline is advisory and does not yet provide capacity-based admission control,
+byte-accurate storage-family accounting, or production thresholds by deployment profile.
 
 Recommendation:
 

@@ -2,9 +2,9 @@ const BENCHMARK: &str = "tier4_integration_http";
 const HTTP_BATCH_SIZE: usize = 16;
 
 #[path = "support/performance_benchmarks.rs"]
-mod performance_benchmarks;
+pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
-mod stress;
+pub mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -81,13 +79,24 @@ impl StressCase {
         }
     }
 
+    #[must_use]
     pub fn parameter(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.parameters.insert(key.into(), value.into());
         self
     }
 
+    #[must_use]
     pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.metadata.insert(key.into(), value.into());
+        self
+    }
+
+    #[must_use]
+    pub fn informational(mut self, reason: impl Into<String>) -> Self {
+        self.metadata
+            .insert("signal_role".to_string(), "informational".to_string());
+        self.metadata
+            .insert("signal_reason".to_string(), reason.into());
         self
     }
 
@@ -101,11 +110,13 @@ impl StressCase {
     }
 }
 
+#[must_use]
 pub fn runner(suite: &'static str) -> CassieStressRunner {
     CassieStressRunner::new(suite)
 }
 
 impl CassieStressRunner {
+    #[must_use]
     pub fn new(suite: &'static str) -> Self {
         let resolved = resolve_config();
         if resolved.print_config {
@@ -172,6 +183,9 @@ impl CassieStressRunner {
         });
     }
 
+    /// # Panics
+    ///
+    /// Panics if a benchmark-reported operation count does not fit in `u64`.
     pub fn fixed_counted_usize<F>(&mut self, case: StressCase, f: F)
     where
         F: FnMut() -> usize,
@@ -229,6 +243,9 @@ impl CassieStressRunner {
         });
     }
 
+    /// # Panics
+    ///
+    /// Panics if a benchmark-reported operation count does not fit in `u64`.
     pub fn fixed_timed_counted_usize<F>(&mut self, case: StressCase, f: F)
     where
         F: FnMut() -> usize,
@@ -258,6 +275,10 @@ impl CassieStressRunner {
         });
     }
 
+    /// # Panics
+    ///
+    /// Panics if the logical operation count does not fit in the multiplier
+    /// used for duration arithmetic.
     pub fn external_timed_batch<F>(&mut self, case: StressCase, operation_count: u64, f: F)
     where
         F: FnMut() -> Duration,
@@ -292,6 +313,7 @@ impl CassieStressRunner {
         });
     }
 
+    #[must_use]
     pub fn is_enabled(&self, case: &StressCase) -> bool {
         self.should_run(case)
     }

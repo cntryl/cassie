@@ -662,11 +662,10 @@ with fallback/rollback evidence.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `local-dev-fallback-10k` | Local developer workstation | `in_memory_midge_fallback` | Deterministic generated read-model fixture | Single benchmark owner workload | 10k | `cargo bench --locked --bench <owner-benchmark>` | p50, p95, p99, throughput, fallback counters, cache occupancy, storage-family operations, feature-family metrics | Not SLA, not CI gate, not production-ready promotion, not disk sync unless `BENCH_MIDGE_DISK=1` |
 | `local-dev-fallback-100k` | Local developer workstation | `in_memory_midge_fallback` | Deterministic generated read-model fixture | Single benchmark owner workload | 100k | `cargo bench --locked --bench <owner-benchmark>` | p50, p95, p99, throughput, fallback counters, cache occupancy, storage-family operations, feature-family metrics | Not SLA, not CI gate, not production-ready promotion, not disk sync unless `BENCH_MIDGE_DISK=1` |
-| `future-1m-placeholder` | Declared deployment profile | `profile-defined` | Future generated read-model fixture | Single benchmark owner workload | 1M | `cargo bench --locked --bench <owner-benchmark> --no-run` | p50, p95, p99, throughput, fallback counters, cache occupancy, storage-family operations, feature-family metrics | Not SLA, not CI gate, not production-ready promotion, not a default fixture, not required by current benchmarks |
 
-The 1M profile is a compile-validated placeholder only.
-It reserves representative future scenario ids without requiring 1M fixture generation or cntryl-stress output in the default manual workflow:
-`perf.core_read.simple.1m`, `perf.replay.lag_catchup.1m`, `perf.rebuild.refresh.1m`, `perf.verification.full.1m`, `perf.search.fulltext.1m`, `perf.vector.executor.1m`, `perf.hybrid.executor.1m`, `perf.graph.expand.1m`, `perf.time_series.window_scan.1m`, `perf.pgwire.simple_query.1m`, and `perf.http.document_create_get.1m`.
+Larger-scale fixture work remains backlog-only until the fixture generator, benchmark owner, storage
+mode, host shape, and evidence command are implemented. Do not add scenario constants or deployment
+profiles for those scales before a runnable benchmark exists.
 
 ### TDD Optimization Round 01
 
@@ -844,7 +843,7 @@ SELECT * FROM orders_projection WHERE id = $1;
 ```
 
 ### Data assumptions
-- Rows/documents: 10k baseline, then 100k and 1M
+- Rows/documents: 10k baseline, then 100k. Larger fixtures require explicit benchmark ownership before use.
 - Cardinality: unique identifier
 - Selectivity: one row
 - Indexes expected: primary key or unique scalar index
@@ -888,7 +887,7 @@ WHERE tenant_id = $1 AND external_id = $2;
 ```
 
 ### Data assumptions
-- Rows/documents: 10k baseline, then 100k and 1M
+- Rows/documents: 10k baseline, then 100k. Larger fixtures require explicit benchmark ownership before use.
 - Cardinality: many tenants, unique or near-unique secondary key within tenant
 - Selectivity: one or few rows
 - Indexes expected: composite scalar index

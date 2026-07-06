@@ -1,11 +1,11 @@
 #[path = "../benches/support/performance_benchmarks.rs"]
-mod performance_benchmarks;
+pub mod performance_benchmarks;
 
 use std::path::{Path, PathBuf};
 
 use performance_benchmarks::{
-    benchmark_for_benchmark, benchmark_scenarios, expected_stress_artifact_path,
-    summarize_stress_artifact, summarize_stress_artifact_rows,
+    benchmark_for_benchmark, benchmark_scenarios, deployment_profile_for_id,
+    expected_stress_artifact_path, summarize_stress_artifact, summarize_stress_artifact_rows,
     validate_stress_artifact_signal_metadata, PerformanceBenchmarkScenario,
     REQUIRED_WORKLOAD_FAMILIES,
 };
@@ -193,6 +193,28 @@ fn should_validate_unique_scenario_ids_with_known_families() {
     assert!(
         invalid.is_empty(),
         "duplicate scenario ids or invalid families: {invalid:?}"
+    );
+}
+
+#[test]
+fn should_keep_future_scale_placeholders_out_of_runnable_scenarios() {
+    // Arrange
+    const FUTURE_PROFILE_ID: &str = "future-1m-placeholder";
+
+    // Act
+    let future_scale = benchmark_scenarios()
+        .filter(|scenario| scenario.fixture_scale == "1M")
+        .map(|scenario| scenario.scenario_id)
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert!(
+        future_scale.is_empty(),
+        "future 1M placeholders must not be runnable benchmark scenarios: {future_scale:?}"
+    );
+    assert!(
+        deployment_profile_for_id(FUTURE_PROFILE_ID).is_none(),
+        "future 1M scale should stay docs-only until a runnable fixture exists"
     );
 }
 

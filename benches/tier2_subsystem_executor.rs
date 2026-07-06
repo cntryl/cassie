@@ -2,9 +2,9 @@ const BENCHMARK: &str = "tier2_subsystem_executor";
 const EXECUTOR_QUERY_BATCH: u64 = 64;
 
 #[path = "support/performance_benchmarks.rs"]
-mod performance_benchmarks;
+pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
-mod stress;
+pub mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
@@ -358,7 +358,7 @@ fn bench_sql_case(
 }
 
 fn enabled_expected_case(runner: &stress::CassieStressRunner, workload: &str, scale: &str) -> bool {
-    performance_benchmarks::expect_benchmark(BENCHMARK, workload, scale);
+    let _ = performance_benchmarks::expect_benchmark(BENCHMARK, workload, scale);
     runner.is_enabled(&stress::StressCase::fixed_operations(2, workload, scale))
 }
 

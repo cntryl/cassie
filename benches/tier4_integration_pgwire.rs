@@ -9,9 +9,9 @@ const LARGE_RESULT_ROWS: usize = 512;
 const CONCURRENT_CLIENTS: usize = 8;
 
 #[path = "support/performance_benchmarks.rs"]
-mod performance_benchmarks;
+pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
-mod stress;
+pub mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 

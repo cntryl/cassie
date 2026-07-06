@@ -7,7 +7,6 @@ use super::{
 
 const STRESS_SCHEMA_V1: &str = "cntryl-stress.v1";
 const STRESS_SCHEMA_V2: &str = "cntryl-stress.v2";
-const INFORMATIONAL_SIGNAL_ROLE: &str = "informational";
 const OPTIMIZATION_SIGNAL_ROLE: &str = "optimization";
 
 pub fn expected_stress_artifact_path(

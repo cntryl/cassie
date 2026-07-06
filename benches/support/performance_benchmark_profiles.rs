@@ -18,14 +18,6 @@ const LOCAL_PROFILE_NON_GOALS: &[&str] = &[
     "not_disk_sync_unless_bench_midge_disk",
 ];
 
-const FUTURE_PROFILE_NON_GOALS: &[&str] = &[
-    "not_sla",
-    "not_ci_gate",
-    "not_production_ready_promotion",
-    "not_default_fixture",
-    "not_required_by_current_benchmarks",
-];
-
 pub const DEPLOYMENT_PROFILES: &[DeploymentProfile] = &[
     DeploymentProfile {
         profile_id: "local-dev-fallback-10k",
@@ -52,19 +44,6 @@ pub const DEPLOYMENT_PROFILES: &[DeploymentProfile] = &[
         metrics_captured: STANDARD_METRICS_CAPTURED,
         known_non_goals: LOCAL_PROFILE_NON_GOALS,
         default_manual: true,
-    },
-    DeploymentProfile {
-        profile_id: "future-1m-placeholder",
-        host_shape: "declared deployment profile",
-        storage_mode: "profile-defined",
-        data_shape: "future generated read-model fixture",
-        workload_mix: "single benchmark owner workload",
-        fixture_scale: "1M",
-        benchmark_command: "cargo bench --locked --bench <owner-benchmark> --no-run",
-        cache_evidence: "plan_cache.entries",
-        metrics_captured: STANDARD_METRICS_CAPTURED,
-        known_non_goals: FUTURE_PROFILE_NON_GOALS,
-        default_manual: false,
     },
 ];
 

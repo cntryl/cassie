@@ -18,7 +18,7 @@ use crate::runtime::{FulltextIndexOptions, FulltextIndexOptionsCacheKey, QueryEx
 use crate::search::analyzer::AnalyzerConfig;
 use crate::sql::ast::{
     BinaryOp, CommonTableExpression, CteQuery, Expr, FunctionCall, InsertSource, JoinKind,
-    QuerySource, QueryStatement, SelectItem, SelectSet, SetOperator, SortDirection,
+    QuerySource, QueryStatement, SelectItem, SortDirection,
 };
 use crate::types::{DataType, FieldSchema, Schema, Value};
 

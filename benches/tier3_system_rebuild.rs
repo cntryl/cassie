@@ -5,9 +5,9 @@ const SMALL_STATEFUL_REBUILD_REASON: &str = "small_stateful_rebuild_diagnostic";
 const STATEFUL_TIME_SERIES_REASON: &str = "stateful_time_series_policy_diagnostic";
 
 #[path = "support/performance_benchmarks.rs"]
-mod performance_benchmarks;
+pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
-mod stress;
+pub mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
@@ -75,8 +75,7 @@ fn bench_projection_rebuild_10k(
     runner.fixed_timed_count(
         stress::StressCase::fixed_operations(3, refresh.workload, refresh.fixture_scale)
             .metadata("operation_unit", "source_row")
-            .metadata("signal_role", "informational")
-            .metadata("signal_reason", SMALL_STATEFUL_REBUILD_REASON),
+            .informational(SMALL_STATEFUL_REBUILD_REASON),
         row_count(10_000),
         || runtime.block_on(workloads::projection_refresh_workflow(&context)),
     );
@@ -85,8 +84,7 @@ fn bench_projection_rebuild_10k(
     runner.fixed_timed_count(
         stress::StressCase::fixed_operations(3, verify.workload, verify.fixture_scale)
             .metadata("operation_unit", "source_row")
-            .metadata("signal_role", "informational")
-            .metadata("signal_reason", SMALL_STATEFUL_REBUILD_REASON),
+            .informational(SMALL_STATEFUL_REBUILD_REASON),
         row_count(10_000),
         || runtime.block_on(workloads::projection_rebuild_verification(&context)),
     );
@@ -176,8 +174,7 @@ fn bench_time_series_rebuild(
     runner.fixed_timed_count(
         retention_case
             .metadata("operation_unit", "source_row")
-            .metadata("signal_role", "informational")
-            .metadata("signal_reason", STATEFUL_TIME_SERIES_REASON),
+            .informational(STATEFUL_TIME_SERIES_REASON),
         row_count(rows),
         || {
             *retention_nonce = retention_nonce.wrapping_add(1);
@@ -190,8 +187,7 @@ fn bench_time_series_rebuild(
     runner.fixed_timed_count(
         rollup_case
             .metadata("operation_unit", "source_row")
-            .metadata("signal_role", "informational")
-            .metadata("signal_reason", STATEFUL_TIME_SERIES_REASON),
+            .informational(STATEFUL_TIME_SERIES_REASON),
         row_count(rows),
         || {
             *rollup_nonce = rollup_nonce.wrapping_add(1);

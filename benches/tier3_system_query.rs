@@ -85,9 +85,9 @@ const SIMPLE_100K_PREWARM_QUERIES: u64 = 1_024;
 const GRAPH_QUERY_BATCH: u64 = 128;
 
 #[path = "support/performance_benchmarks.rs"]
-mod performance_benchmarks;
+pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
-mod stress;
+pub mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
@@ -126,7 +126,7 @@ fn bench_base_10k_cases(
         .expect("benchmark context");
     for (name, dataset, sql) in runnable {
         if requires_manifest_check(name) {
-            performance_benchmarks::expect_benchmark(BENCHMARK, name, dataset);
+            let _ = performance_benchmarks::expect_benchmark(BENCHMARK, name, dataset);
         }
         warm_and_register_sql_case(runner, runtime, &context, name, dataset, sql);
     }

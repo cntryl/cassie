@@ -2,9 +2,9 @@ const BENCHMARK: &str = "tier2_subsystem_ingest";
 const INGEST_BATCH_SIZE: u64 = 64;
 
 #[path = "support/performance_benchmarks.rs"]
-mod performance_benchmarks;
+pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
-mod stress;
+pub mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 

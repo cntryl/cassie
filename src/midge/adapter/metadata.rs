@@ -728,14 +728,14 @@ impl Midge {
         let Ok(tx) = self.begin_schema_readonly_tx() else {
             return Vec::new();
         };
-        let Ok(mut scan) = tx.scan(&Query::new().prefix(Self::schema_collection_prefix().into()))
+        let Ok(scan) = tx.scan(&Query::new().prefix(Self::schema_collection_prefix().into()))
         else {
             return Vec::new();
         };
 
         let mut collections = Vec::new();
         let prefix = Self::schema_collection_prefix();
-        while let Some((raw_key, _raw_value)) = scan.next() {
+        for (raw_key, _raw_value) in scan {
             if let Some(name) = key_encoding::utf8_suffix_after_prefix(&raw_key, &prefix) {
                 collections.push(name);
             }

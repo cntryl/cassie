@@ -14,14 +14,14 @@ pub(super) fn drop_referencing_indexes_in_tx(
     field: &str,
 ) -> Result<DroppedCollectionIndexes, CassieError> {
     let index_prefix = Midge::index_collection_prefix(collection);
-    let mut indexes = tx
+    let indexes = tx
         .scan(&Query::new().prefix(index_prefix.into()))
         .map_err(CassieError::from)?;
     let mut dropped_column_index_keys = Vec::new();
     let mut dropped_scalar_indexes = Vec::new();
     let mut dropped_time_series_indexes = Vec::new();
 
-    while let Some((key, value)) = indexes.next() {
+    for (key, value) in indexes {
         let Ok(metadata) = serde_json::from_slice::<IndexMeta>(&value) else {
             continue;
         };
@@ -151,11 +151,11 @@ pub(super) fn rename_indexes_in_tx(
     next_name: &str,
 ) -> Result<(), CassieError> {
     let index_prefix = Midge::index_collection_prefix(collection);
-    let mut indexes = tx
+    let indexes = tx
         .scan(&Query::new().prefix(index_prefix.into()))
         .map_err(CassieError::from)?;
     let mut index_keys = Vec::new();
-    while let Some((key, _value)) = indexes.next() {
+    for (key, _value) in indexes {
         index_keys.push(key);
     }
     for key in index_keys {
@@ -205,11 +205,11 @@ pub(super) fn rename_vector_indexes_in_tx(
     next_name: &str,
 ) -> Result<(), CassieError> {
     let vector_prefix = Midge::vector_index_collection_prefix(collection);
-    let mut vector_indexes = tx
+    let vector_indexes = tx
         .scan(&Query::new().prefix(vector_prefix.into()))
         .map_err(CassieError::from)?;
     let mut vector_keys = Vec::new();
-    while let Some((key, _value)) = vector_indexes.next() {
+    for (key, _value) in vector_indexes {
         vector_keys.push(key);
     }
 
@@ -255,13 +255,13 @@ pub(super) fn rename_normalized_vector_records(
     next_name: &str,
 ) -> Result<(), CassieError> {
     let mut data_tx = midge.begin_data_rw_tx()?;
-    let mut scan = data_tx
+    let scan = data_tx
         .scan(
             &Query::new().prefix(Midge::normalized_vector_prefix(collection, current_name).into()),
         )
         .map_err(CassieError::from)?;
     let mut entries = Vec::new();
-    while let Some((key, value)) = scan.next() {
+    for (key, value) in scan {
         entries.push((key, value));
     }
     for (key, value) in entries {
@@ -398,11 +398,11 @@ pub(super) fn rename_collection_vector_indexes(
     next_name: &str,
 ) -> Result<(), CassieError> {
     let vector_prefix = Midge::vector_index_collection_prefix(current_name);
-    let mut vector_indexes = tx
+    let vector_indexes = tx
         .scan(&Query::new().prefix(vector_prefix.into()))
         .map_err(CassieError::from)?;
     let mut vector_keys = Vec::new();
-    while let Some((key, _value)) = vector_indexes.next() {
+    for (key, _value) in vector_indexes {
         vector_keys.push(key);
     }
 
@@ -431,11 +431,11 @@ pub(super) fn rename_collection_indexes(
     next_name: &str,
 ) -> Result<(), CassieError> {
     let index_prefix = Midge::index_collection_prefix(current_name);
-    let mut indexes = tx
+    let indexes = tx
         .scan(&Query::new().prefix(index_prefix.into()))
         .map_err(CassieError::from)?;
     let mut index_keys = Vec::new();
-    while let Some((key, _value)) = indexes.next() {
+    for (key, _value) in indexes {
         index_keys.push(key);
     }
     for key in index_keys {
@@ -460,11 +460,11 @@ pub(super) fn rename_collection_retention_policies(
     current_name: &str,
     next_name: &str,
 ) -> Result<(), CassieError> {
-    let mut retention_scan = tx
+    let retention_scan = tx
         .scan(&Query::new().prefix(Midge::retention_prefix().into()))
         .map_err(CassieError::from)?;
     let mut retention_entries = Vec::new();
-    while let Some((key, value)) = retention_scan.next() {
+    for (key, value) in retention_scan {
         let Ok(mut policy) = serde_json::from_slice::<RetentionPolicyMeta>(&value) else {
             continue;
         };
@@ -490,11 +490,11 @@ pub(super) fn rename_collection_column_batch_metadata(
 ) -> Result<(), CassieError> {
     let current_prefix = Midge::column_batch_collection_prefix(current_name);
     let next_prefix = Midge::column_batch_collection_prefix(next_name);
-    let mut column_batches = tx
+    let column_batches = tx
         .scan(&Query::new().prefix(current_prefix.clone().into()))
         .map_err(CassieError::from)?;
     let mut entries = Vec::new();
-    while let Some((key, value)) = column_batches.next() {
+    for (key, value) in column_batches {
         entries.push((key, value));
     }
     for (key, value) in entries {
@@ -570,11 +570,11 @@ pub(super) fn rename_collection_prefixed_data(
             false,
         ),
     ] {
-        let mut documents = data_tx
+        let documents = data_tx
             .scan(&Query::new().prefix(current_prefix.clone().into()))
             .map_err(CassieError::from)?;
         let mut entries = Vec::new();
-        while let Some((key, value)) = documents.next() {
+        for (key, value) in documents {
             entries.push((key, value));
         }
 

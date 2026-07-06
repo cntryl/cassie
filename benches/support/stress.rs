@@ -7,8 +7,10 @@ use std::str::FromStr;
 use std::time::{Duration, Instant};
 
 use cntryl_stress::{
-    black_box, evaluate_run_gate, BenchmarkBudgets, BenchmarkModeKind, BenchmarkSpec,
-    MeasurementIntent, RunGate, RunProfile, StressContext, StressRunner, StressRunnerConfig,
+    artifact::{BenchmarkBudgets, BenchmarkModeKind, BenchmarkSpec, MeasurementIntent, RunProfile},
+    black_box,
+    runner::{evaluate_run_gate, RunGate},
+    StressContext, StressRunner, StressRunnerConfig,
 };
 
 use crate::performance_benchmarks;

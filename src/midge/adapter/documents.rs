@@ -718,10 +718,10 @@ impl Midge {
             (Self::row_prefix(collection), true),
             (Self::doc_prefix(collection), false),
         ] {
-            let mut iter = tx
+            let iter = tx
                 .scan(&Query::new().prefix(prefix.clone().into()))
                 .map_err(CassieError::from)?;
-            while let Some((raw_key, raw_value)) = iter.next() {
+            for (raw_key, raw_value) in iter {
                 let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &prefix) else {
                     continue;
                 };

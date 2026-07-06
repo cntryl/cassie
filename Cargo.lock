@@ -269,7 +269,7 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 [[package]]
 name = "cntryl-lexkey"
 version = "0.1.0"
-source = "git+https://github.com/cntryl/lexkey-rs?rev=9e75be255d73261b88dfd1d273a55fb9eb177e40#9e75be255d73261b88dfd1d273a55fb9eb177e40"
+source = "git+https://github.com/cntryl/lexkey-rs?branch=main#40cb5e21cbafba763b7931a04f6c6ae2fc5a67a3"
 dependencies = [
  "bytes",
  "hex",
@@ -279,7 +279,7 @@ dependencies = [
 [[package]]
 name = "cntryl-midge"
 version = "0.1.0"
-source = "git+https://github.com/cntryl/midge?rev=df7c8583bb7d3a5cb23cc536b86386d77b74ffb9#df7c8583bb7d3a5cb23cc536b86386d77b74ffb9"
+source = "git+https://github.com/cntryl/midge?branch=main#2f1eaa5f3aa42e57d60aea946ac5f30ebc8420f3"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -328,7 +328,7 @@ dependencies = [
 [[package]]
 name = "cntryl-stress"
 version = "0.3.0"
-source = "git+https://github.com/cntryl/stress?rev=2cc6d6121412b80cc2e83aa96cb722d7fbd0d15b#2cc6d6121412b80cc2e83aa96cb722d7fbd0d15b"
+source = "git+https://github.com/cntryl/stress?branch=main#c2ef35ae955a7ea06c526a36990d78611b0510b5"
 dependencies = [
  "cntryl-stress-macros",
  "linkme",
@@ -339,7 +339,7 @@ dependencies = [
 [[package]]
 name = "cntryl-stress-macros"
 version = "0.3.0"
-source = "git+https://github.com/cntryl/stress?rev=2cc6d6121412b80cc2e83aa96cb722d7fbd0d15b#2cc6d6121412b80cc2e83aa96cb722d7fbd0d15b"
+source = "git+https://github.com/cntryl/stress?branch=main#c2ef35ae955a7ea06c526a36990d78611b0510b5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -464,18 +464,18 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.5.15"
+version = "0.5.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
+checksum = "d85363c37faeca707aef026efa9f3b34d077bce547e48f770770625c6013679e"
 dependencies = [
  "crossbeam-utils",
 ]
 
 [[package]]
 name = "crossbeam-deque"
-version = "0.8.6"
+version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dd111b7b7f7d55b72c0a6ae361660ee5853c9af73f70c3c2ef6858b950e2e51"
+checksum = "5181e0de7b61eb03a81e347d6dd8797bae9da5146707b51077e2d71a54ec0ceb"
 dependencies = [
  "crossbeam-epoch",
  "crossbeam-utils",
@@ -483,27 +483,27 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-epoch"
-version = "0.9.18"
+version = "0.9.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
+checksum = "2d6914041f254d6e9176c01941b21115dcfb7089e55135a35411081bd106ef3f"
 dependencies = [
  "crossbeam-utils",
 ]
 
 [[package]]
 name = "crossbeam-queue"
-version = "0.3.12"
+version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f58bbc28f91df819d0aa2a2c00cd19754769c2fad90579b3592b1c9ba7a3115"
+checksum = "803d13fb3b09d88be9f4dbc29062c66b19bf7170867ceb746d2a8689bf6c7a26"
 dependencies = [
  "crossbeam-utils",
 ]
 
 [[package]]
 name = "crossbeam-utils"
-version = "0.8.21"
+version = "0.8.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
+checksum = "61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17"
 
 [[package]]
 name = "crypto-bigint"

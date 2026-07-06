@@ -847,14 +847,13 @@ fn delete_keys_with_prefix_from_tx(
     tx: &mut cntryl_midge::Transaction,
     prefix: Vec<u8>,
 ) -> Result<(), CassieError> {
-    let mut scan = tx
+    let scan = tx
         .scan(&Query::new().prefix(prefix.into()))
         .map_err(CassieError::from)?;
     let mut keys = Vec::new();
-    while let Some((key, _value)) = scan.next() {
+    for (key, _value) in scan {
         keys.push(key);
     }
-    drop(scan);
     for key in keys {
         tx.delete(key).map_err(CassieError::from)?;
     }

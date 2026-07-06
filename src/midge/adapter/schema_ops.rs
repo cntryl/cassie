@@ -59,13 +59,13 @@ impl Midge {
             }
         }
 
-        let Ok(mut scan) = tx.scan(&Query::new().prefix(Self::namespace_prefix().into())) else {
+        let Ok(scan) = tx.scan(&Query::new().prefix(Self::namespace_prefix().into())) else {
             return Vec::new();
         };
 
         let mut namespaces = Vec::new();
         let namespace_prefix = Self::namespace_prefix();
-        while let Some((raw_key, _raw_value)) = scan.next() {
+        for (raw_key, _raw_value) in scan {
             if let Some(name) = key_encoding::utf8_suffix_after_prefix(&raw_key, &namespace_prefix)
             {
                 namespaces.push(name);
@@ -126,11 +126,11 @@ impl Midge {
             .map_err(|error| CassieError::Parse(format!("invalid namespace metadata: {error}")))?;
         let mut namespaces = Self::load_namespaces(&tx)?;
         if namespaces.is_empty() {
-            let mut scan = tx
+            let scan = tx
                 .scan(&Query::new().prefix(Self::namespace_prefix().into()))
                 .map_err(CassieError::from)?;
             let namespace_prefix = Self::namespace_prefix();
-            while let Some((raw_key, _raw_value)) = scan.next() {
+            for (raw_key, _raw_value) in scan {
                 if let Some(name) =
                     key_encoding::utf8_suffix_after_prefix(&raw_key, &namespace_prefix)
                 {
@@ -174,11 +174,11 @@ impl Midge {
         }
 
         let vector_prefix = Self::vector_index_collection_prefix(name);
-        let mut vector_indexes = schema_tx
+        let vector_indexes = schema_tx
             .scan(&Query::new().prefix(vector_prefix.into()))
             .map_err(CassieError::from)?;
         let mut vector_keys = Vec::new();
-        while let Some((key, _value)) = vector_indexes.next() {
+        for (key, _value) in vector_indexes {
             vector_keys.push(key);
         }
         for key in vector_keys {
@@ -186,21 +186,21 @@ impl Midge {
         }
 
         let index_prefix = Self::index_collection_prefix(name);
-        let mut index_scan = schema_tx
+        let index_scan = schema_tx
             .scan(&Query::new().prefix(index_prefix.into()))
             .map_err(CassieError::from)?;
         let mut index_keys = Vec::new();
-        while let Some((key, _)) = index_scan.next() {
+        for (key, _) in index_scan {
             index_keys.push(key);
         }
         for key in index_keys {
             schema_tx.delete(key).map_err(CassieError::from)?;
         }
-        let mut retention_scan = schema_tx
+        let retention_scan = schema_tx
             .scan(&Query::new().prefix(Self::retention_prefix().into()))
             .map_err(CassieError::from)?;
         let mut retention_keys = Vec::new();
-        while let Some((key, value)) = retention_scan.next() {
+        for (key, value) in retention_scan {
             let Ok(policy) = serde_json::from_slice::<RetentionPolicyMeta>(&value) else {
                 continue;
             };
@@ -248,10 +248,10 @@ impl Midge {
             Self::row_hash_prefix(name),
             Self::range_hash_prefix(name),
         ] {
-            let mut documents = data_tx
+            let documents = data_tx
                 .scan(&Query::new().prefix(data_prefix.into()))
                 .map_err(CassieError::from)?;
-            while let Some((key, _value)) = documents.next() {
+            for (key, _value) in documents {
                 document_keys.push(key);
             }
         }

@@ -13,8 +13,8 @@ serde_json = "1.0"
 parking_lot = "0.12"
 thiserror = "2.0"
 uuid = { version = "1.23", features = ["v4", "serde"] }
-cntryl-midge = { package = "cntryl-midge", git = "https://github.com/cntryl/midge", rev = "df7c8583bb7d3a5cb23cc536b86386d77b74ffb9" }
-cntryl-lexkey = { package = "cntryl-lexkey", git = "https://github.com/cntryl/lexkey-rs", rev = "9e75be255d73261b88dfd1d273a55fb9eb177e40" }
+cntryl-midge = { package = "cntryl-midge", git = "https://github.com/cntryl/midge", branch = "main" }
+cntryl-lexkey = { package = "cntryl-lexkey", git = "https://github.com/cntryl/lexkey-rs", branch = "main" }
 hyper = { version = "1.10", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
@@ -23,7 +23,7 @@ argon2 = "0.5"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 
 [dev-dependencies]
-cntryl-stress = { git = "https://github.com/cntryl/stress", rev = "2cc6d6121412b80cc2e83aa96cb722d7fbd0d15b" }
+cntryl-stress = { git = "https://github.com/cntryl/stress", branch = "main" }
 tokio-postgres = "0.7"
 
 [[bench]]

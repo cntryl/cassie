@@ -290,7 +290,7 @@ impl Midge {
         iter: &mut cntryl_midge::ScanIterator,
         prefix: &[u8],
     ) -> Option<OrderedScanEntry> {
-        while let Some((raw_key, raw_value)) = iter.next() {
+        for (raw_key, raw_value) in iter.by_ref() {
             let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, prefix) else {
                 continue;
             };

@@ -215,7 +215,7 @@ impl Midge {
         }
 
         let tx = self.begin_data_readonly_tx()?;
-        let mut scan =
+        let scan =
             tx.scan(&Query::new().prefix(
                 Self::time_series_index_data_prefix(&index.collection, &index.name).into(),
             ))
@@ -223,7 +223,7 @@ impl Midge {
         let mut seen_ids = std::collections::BTreeSet::new();
         let mut hits = Vec::new();
 
-        while let Some((_key, raw_value)) = scan.next() {
+        for (_key, raw_value) in scan {
             let record: TimeSeriesIndexRecord =
                 serde_json::from_slice(&raw_value).map_err(|error| {
                     CassieError::Parse(format!(
@@ -275,10 +275,10 @@ impl Midge {
             (Self::row_prefix(collection), true),
             (Self::doc_prefix(collection), false),
         ] {
-            let mut iter = tx
+            let iter = tx
                 .scan(&Query::new().prefix(prefix.clone().into()))
                 .map_err(CassieError::from)?;
-            while let Some((raw_key, raw_value)) = iter.next() {
+            for (raw_key, raw_value) in iter {
                 let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &prefix) else {
                     continue;
                 };

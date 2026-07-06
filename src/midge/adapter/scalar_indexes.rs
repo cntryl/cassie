@@ -166,11 +166,11 @@ impl Midge {
             query = query.reverse();
         }
 
-        let mut scan = tx.scan(&query).map_err(CassieError::from)?;
+        let scan = tx.scan(&query).map_err(CassieError::from)?;
         let mut hits = Vec::new();
         let limit = request.limit.unwrap_or(usize::MAX);
 
-        while let Some((_key, raw_value)) = scan.next() {
+        for (_key, raw_value) in scan {
             let stored: ScalarIndexStoredRow =
                 serde_json::from_slice(&raw_value).map_err(|error| {
                     CassieError::Parse(format!(

@@ -272,11 +272,11 @@ impl Midge {
         let mut current = Vec::with_capacity(batch_size.max(1));
         let mut emitted = 0usize;
         let row_prefix = Self::column_store_row_prefix(collection);
-        let mut scan = tx
+        let scan = tx
             .scan(&Query::new().prefix(row_prefix.clone().into()))
             .map_err(CassieError::from)?;
 
-        while let Some((raw_key, _raw_value)) = scan.next() {
+        for (raw_key, _raw_value) in scan {
             let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &row_prefix) else {
                 continue;
             };
@@ -351,10 +351,10 @@ impl Midge {
 
         let row_prefix = Self::column_store_row_prefix(collection);
         let mut ids = Vec::new();
-        let mut scan = tx
+        let scan = tx
             .scan(&Query::new().prefix(row_prefix.clone().into()))
             .map_err(CassieError::from)?;
-        while let Some((raw_key, _raw_value)) = scan.next() {
+        for (raw_key, _raw_value) in scan {
             let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &row_prefix) else {
                 continue;
             };

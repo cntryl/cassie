@@ -378,11 +378,11 @@ impl Midge {
         tx: &mut cntryl_midge::Transaction,
         prefix: Vec<u8>,
     ) -> Result<(), CassieError> {
-        let mut scan = tx
+        let scan = tx
             .scan(&Query::new().prefix(prefix.into()))
             .map_err(CassieError::from)?;
         let mut keys = Vec::new();
-        while let Some((key, _)) = scan.next() {
+        for (key, _) in scan {
             keys.push(key);
         }
         for key in keys {

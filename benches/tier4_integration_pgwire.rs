@@ -1,4 +1,12 @@
 const BENCHMARK: &str = "tier4_integration_pgwire";
+const SIMPLE_QUERY_BATCH: usize = 512;
+const SIMPLE_QUERY_WARMUP_BATCHES: usize = 2;
+const SIMPLE_QUERY_ROWS: usize = 20;
+const PREPARED_QUERY_BATCH: usize = 1_024;
+const PREPARED_QUERY_ROWS: usize = 25;
+const CONNECTION_CHURN_BATCH: usize = 32;
+const LARGE_RESULT_ROWS: usize = 512;
+const CONCURRENT_CLIENTS: usize = 8;
 
 #[path = "support/performance_benchmarks.rs"]
 mod performance_benchmarks;
@@ -33,12 +41,16 @@ fn bench_simple_query(runner: &mut stress::CassieStressRunner, runtime: &tokio::
                 rows,
             ))
             .expect("benchmark context");
-        runner.fixed_timed_count(case.metadata("operation_unit", "result_row"), 20, || {
-            runtime.block_on(workloads::pgwire_transport_simple_query(
-                &ctx,
-                "SELECT id, title FROM bench_documents WHERE title = 'title-1' ORDER BY id ASC LIMIT 20",
-            ))
-        });
+        let sql =
+            "SELECT id, title FROM bench_documents WHERE title = 'title-1' ORDER BY id ASC LIMIT 20";
+        for _ in 0..SIMPLE_QUERY_WARMUP_BATCHES {
+            let _ = pgwire_simple_query_batch(runtime, &ctx, sql, SIMPLE_QUERY_BATCH);
+        }
+        runner.fixed_timed_count(
+            case.metadata("operation_unit", "result_row"),
+            logical_operations(SIMPLE_QUERY_BATCH * SIMPLE_QUERY_ROWS),
+            || pgwire_simple_query_batch(runtime, &ctx, sql, SIMPLE_QUERY_BATCH),
+        );
     }
 }
 
@@ -60,9 +72,11 @@ fn bench_prepared_query(
                 rows,
             ))
             .expect("prepared pgwire benchmark context");
-        runner.fixed_timed_count(case.metadata("operation_unit", "result_row"), 25, || {
-            runtime.block_on(workloads::pgwire_prepared_query(&ctx))
-        });
+        runner.fixed_timed_count(
+            case.metadata("operation_unit", "result_row"),
+            logical_operations(PREPARED_QUERY_BATCH * PREPARED_QUERY_ROWS),
+            || pgwire_prepared_query_batch(runtime, &ctx, PREPARED_QUERY_BATCH),
+        );
     }
 }
 
@@ -86,8 +100,8 @@ fn bench_legacy_rows(runner: &mut stress::CassieStressRunner, runtime: &tokio::r
         .expect("benchmark context");
     runner.fixed_timed_count(
         rows[0].clone().metadata("operation_unit", "result_row"),
-        20,
-        || runtime.block_on(workloads::pgwire_transport_connection_churn(&ctx)),
+        logical_operations(CONNECTION_CHURN_BATCH * SIMPLE_QUERY_ROWS),
+        || pgwire_connection_churn_batch(runtime, &ctx, CONNECTION_CHURN_BATCH),
     );
     runner.fixed_operations(rows[1].clone(), || {
         runtime.block_on(workloads::pgwire_transport_simple_query(
@@ -97,7 +111,7 @@ fn bench_legacy_rows(runner: &mut stress::CassieStressRunner, runtime: &tokio::r
     });
     runner.fixed_timed_count(
         rows[2].clone().metadata("operation_unit", "result_row"),
-        512,
+        logical_operations(LARGE_RESULT_ROWS),
         || {
             runtime.block_on(workloads::pgwire_transport_simple_query(
                 &ctx,
@@ -109,7 +123,55 @@ fn bench_legacy_rows(runner: &mut stress::CassieStressRunner, runtime: &tokio::r
         rows[3]
             .clone()
             .metadata("operation_unit", "connection_query"),
-        8,
-        || runtime.block_on(workloads::pgwire_transport_concurrent_connections(&ctx, 8)),
+        logical_operations(CONCURRENT_CLIENTS),
+        || {
+            runtime.block_on(workloads::pgwire_transport_concurrent_connections(
+                &ctx,
+                CONCURRENT_CLIENTS,
+            ))
+        },
     );
+}
+
+fn pgwire_simple_query_batch(
+    runtime: &tokio::runtime::Runtime,
+    ctx: &workloads::PgwireTransportBenchContext,
+    sql: &str,
+    queries: usize,
+) -> usize {
+    let mut rows = 0usize;
+    for _ in 0..queries {
+        rows = rows
+            .saturating_add(runtime.block_on(workloads::pgwire_transport_simple_query(ctx, sql)));
+    }
+    std::hint::black_box(rows)
+}
+
+fn pgwire_prepared_query_batch(
+    runtime: &tokio::runtime::Runtime,
+    ctx: &workloads::PgwirePreparedBenchContext,
+    queries: usize,
+) -> usize {
+    let mut rows = 0usize;
+    for _ in 0..queries {
+        rows = rows.saturating_add(runtime.block_on(workloads::pgwire_prepared_query(ctx)));
+    }
+    std::hint::black_box(rows)
+}
+
+fn pgwire_connection_churn_batch(
+    runtime: &tokio::runtime::Runtime,
+    ctx: &workloads::PgwireTransportBenchContext,
+    queries: usize,
+) -> usize {
+    let mut rows = 0usize;
+    for _ in 0..queries {
+        rows = rows
+            .saturating_add(runtime.block_on(workloads::pgwire_transport_connection_churn(ctx)));
+    }
+    std::hint::black_box(rows)
+}
+
+fn logical_operations(operations: usize) -> u64 {
+    u64::try_from(operations).expect("benchmark operation count should fit u64")
 }

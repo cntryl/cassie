@@ -44,3 +44,24 @@ pub struct BenchmarkSampleSummary {
     pub p99_us: u64,
     pub throughput_ops_per_sec: f64,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StressArtifactRowSummary {
+    pub benchmark: String,
+    pub workload: String,
+    pub fixture_scale: String,
+    pub tier: u64,
+    pub scenario_id: Option<String>,
+    pub family: Option<String>,
+    pub signal_role: String,
+    pub operation_unit: Option<String>,
+    pub logical_operations_per_iteration: Option<u64>,
+    pub logical_operations_source: Option<String>,
+    pub diagnostic_codes: Vec<String>,
+}
+
+impl StressArtifactRowSummary {
+    pub fn is_optimization_signal(&self) -> bool {
+        self.signal_role != "informational"
+    }
+}

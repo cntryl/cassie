@@ -4,8 +4,10 @@ mod performance_benchmarks;
 use std::path::{Path, PathBuf};
 
 use performance_benchmarks::{
-    benchmark_for_benchmark, expected_stress_artifact_path, summarize_stress_artifact,
-    PerformanceBenchmarkScenario,
+    benchmark_for_benchmark, benchmark_scenarios, expected_stress_artifact_path,
+    summarize_stress_artifact, summarize_stress_artifact_rows,
+    validate_stress_artifact_signal_metadata, PerformanceBenchmarkScenario,
+    REQUIRED_WORKLOAD_FAMILIES,
 };
 
 #[test]
@@ -76,6 +78,187 @@ fn should_reject_wrong_stress_schema_version() {
 
     // Assert
     assert!(error.contains("unsupported schema_version"));
+}
+
+#[test]
+fn should_parse_cntryl_stress_v2_artifacts() {
+    // Arrange
+    let benchmark = PerformanceBenchmarkScenario {
+        scenario_id: "test.scenario",
+        family: "core_read",
+        benchmark: "tier3_system_query",
+        workload: "simple_sql_query",
+        fixture_scale: "10k",
+        memory_evidence: "storage.data.reads",
+        fallback_evidence: "fallback_reason",
+        explain_evidence: "access_path",
+        metrics_evidence: "query.latency_ms_total",
+    };
+    let artifact = r#"{
+        "schema_version": "cntryl-stress.v2",
+        "summaries": [{
+            "benchmark_id": "tier3_system_query/simple_sql_query/10k/simple_sql_query/10k",
+            "name": "simple_sql_query/10k",
+            "tier": 3,
+            "intent": "batch",
+            "primary_metric": "throughput",
+            "stats": {
+                "mean": 500000.0,
+                "p50": 490000.0,
+                "p95": 505000.0,
+                "p99": 510000.0
+            },
+            "ns_per_op": {
+                "mean": 2000.0,
+                "p50": 2000.0,
+                "p95": 3000.0,
+                "p99": 3000.0
+            },
+            "diagnostics": [],
+            "metadata": {
+                "scenario_id": "test.scenario",
+                "family": "core_read",
+                "benchmark": "tier3_system_query",
+                "workload": "simple_sql_query",
+                "fixture_scale": "10k",
+                "operation_unit": "query",
+                "logical_operations_per_iteration": "64"
+            }
+        }]
+    }"#;
+
+    // Act
+    let summary = summarize_stress_artifact(&benchmark, artifact).expect("stress summary");
+
+    // Assert
+    assert_eq!(summary.scenario_id, "test.scenario");
+    assert_eq!(summary.p50_us, 2);
+    assert_eq!(summary.p95_us, 3);
+    assert_eq!(summary.p99_us, 3);
+    assert!((summary.throughput_ops_per_sec - 500_000.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn should_normalize_nullable_stress_diagnostics() {
+    // Arrange
+    let artifact = r#"{
+        "schema_version": "cntryl-stress.v2",
+        "diagnostics_summary": null,
+        "summaries": [{
+            "benchmark_id": "tier2_subsystem_parser/sql_parser/10k/sql_parser/10k",
+            "name": "sql_parser/10k",
+            "tier": 2,
+            "intent": "batch",
+            "primary_metric": "throughput",
+            "stats": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
+            "ns_per_op": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
+            "diagnostics": null,
+            "metadata": {
+                "scenario_id": "perf.sql.parser.10k",
+                "family": "core_read",
+                "benchmark": "tier2_subsystem_parser",
+                "workload": "sql_parser",
+                "fixture_scale": "10k",
+                "operation_unit": "sql_statement",
+                "logical_operations_per_iteration": "256"
+            }
+        }]
+    }"#;
+
+    // Act
+    let rows = summarize_stress_artifact_rows(artifact).expect("stress rows");
+
+    // Assert
+    assert_eq!(rows.len(), 1);
+    assert!(rows[0].diagnostic_codes.is_empty());
+}
+
+#[test]
+fn should_validate_unique_scenario_ids_with_known_families() {
+    // Arrange
+    let mut scenario_ids = std::collections::BTreeSet::new();
+    let families = REQUIRED_WORKLOAD_FAMILIES
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+
+    // Act
+    let invalid = benchmark_scenarios()
+        .filter(|scenario| {
+            !scenario_ids.insert(scenario.scenario_id) || !families.contains(scenario.family)
+        })
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert!(
+        invalid.is_empty(),
+        "duplicate scenario ids or invalid families: {invalid:?}"
+    );
+}
+
+#[test]
+fn should_reject_tier2_to_tier4_optimization_rows_without_required_metadata() {
+    // Arrange
+    let artifact = r#"{
+        "schema_version": "cntryl-stress.v2",
+        "summaries": [{
+            "benchmark_id": "tier2_subsystem_parser/sql_parser/10k/sql_parser/10k",
+            "name": "sql_parser/10k",
+            "tier": 2,
+            "intent": "batch",
+            "primary_metric": "throughput",
+            "stats": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
+            "ns_per_op": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
+            "diagnostics": [],
+            "metadata": {
+                "scenario_id": "perf.sql.parser.10k",
+                "family": "core_read",
+                "benchmark": "tier2_subsystem_parser",
+                "workload": "sql_parser",
+                "fixture_scale": "10k"
+            }
+        }]
+    }"#;
+
+    // Act
+    let error = validate_stress_artifact_signal_metadata(artifact).expect_err("metadata error");
+
+    // Assert
+    assert!(error.contains("operation_unit"));
+    assert!(error.contains("logical_operations_per_iteration"));
+}
+
+#[test]
+fn should_exclude_informational_rows_from_optimization_metadata_requirements() {
+    // Arrange
+    let artifact = r#"{
+        "schema_version": "cntryl-stress.v2",
+        "summaries": [{
+            "benchmark_id": "tier4_integration_pgwire/connection_churn/10k/connection_churn/10k",
+            "name": "connection_churn/10k",
+            "tier": 4,
+            "intent": "external",
+            "primary_metric": "throughput",
+            "stats": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
+            "ns_per_op": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
+            "diagnostics": [{ "code": "high_variance", "severity": "warning" }],
+            "metadata": {
+                "benchmark": "tier4_integration_pgwire",
+                "workload": "connection_churn",
+                "fixture_scale": "10k",
+                "signal_role": "informational"
+            }
+        }]
+    }"#;
+
+    // Act
+    let rows = summarize_stress_artifact_rows(artifact).expect("stress rows");
+    let validation = validate_stress_artifact_signal_metadata(artifact);
+
+    // Assert
+    assert!(validation.is_ok());
+    assert!(!rows[0].is_optimization_signal());
+    assert_eq!(rows[0].diagnostic_codes, ["high_variance"]);
 }
 
 #[test]

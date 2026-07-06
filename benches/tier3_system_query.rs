@@ -79,7 +79,10 @@ const SCALAR_100K_CASES: &[(&str, &str)] = &[
 const MIXED_DIRECTION_SCALAR_SQL: &str =
     "SELECT id FROM bench_documents ORDER BY score DESC, id ASC LIMIT 50";
 const SQL_QUERY_BATCH: u64 = 8;
-const LARGE_QUERY_BATCH: u64 = 2;
+const LARGE_QUERY_BATCH: u64 = 8;
+const SIMPLE_100K_PREWARM_BATCHES: u64 = 4;
+const SIMPLE_100K_PREWARM_QUERIES: u64 = 1_024;
+const GRAPH_QUERY_BATCH: u64 = 128;
 
 #[path = "support/performance_benchmarks.rs"]
 mod performance_benchmarks;
@@ -153,6 +156,14 @@ fn bench_simple_100k_case(
     let context = runtime
         .block_on(workloads::unindexed_context("tier3-query-100k", 100_000))
         .expect("100k benchmark context");
+    for _ in 0..SIMPLE_100K_PREWARM_BATCHES {
+        let _ = run_sql_batch(
+            runtime,
+            &context,
+            "SELECT id, title FROM bench_documents WHERE id = 'doc-1'",
+            SIMPLE_100K_PREWARM_QUERIES,
+        );
+    }
     runner.fixed_batch(
         stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale),
         LARGE_QUERY_BATCH,
@@ -274,9 +285,12 @@ fn bench_graph_case(
         .expect("graph benchmark context");
     let benchmark =
         performance_benchmarks::expect_benchmark(BENCHMARK, "graph_expand_query", scale);
-    runner.fixed_timed_counted_usize(
-        stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale),
-        || runtime.block_on(workloads::execute_sql(&context, GRAPH_EXPAND_SQL)),
+    let _ = runtime.block_on(workloads::execute_sql(&context, GRAPH_EXPAND_SQL));
+    runner.fixed_timed_count(
+        stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale)
+            .metadata("operation_unit", "query"),
+        GRAPH_QUERY_BATCH,
+        || run_sql_batch(runtime, &context, GRAPH_EXPAND_SQL, GRAPH_QUERY_BATCH),
     );
 }
 

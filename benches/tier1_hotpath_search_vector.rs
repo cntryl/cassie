@@ -13,21 +13,6 @@ fn main() {
             .metadata("logical_operations_per_iteration", "8"),
         workloads::bm25_score,
     );
-    runner.micro(
-        stress::StressCase::tier1_micro("cosine_distance")
-            .metadata("logical_operations_per_iteration", "32"),
-        workloads::cosine_distance,
-    );
-    runner.micro(
-        stress::StressCase::tier1_micro("dot_product")
-            .metadata("logical_operations_per_iteration", "32"),
-        workloads::dot_product,
-    );
-    runner.micro(
-        stress::StressCase::tier1_micro("l2_distance")
-            .metadata("logical_operations_per_iteration", "32"),
-        workloads::l2_distance,
-    );
     runner.tier1_micro("hnsw_candidate_search", workloads::hnsw_candidate_search);
     runner.finish();
 }

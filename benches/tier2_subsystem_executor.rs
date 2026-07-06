@@ -1,4 +1,5 @@
 const BENCHMARK: &str = "tier2_subsystem_executor";
+const EXECUTOR_QUERY_BATCH: u64 = 64;
 
 #[path = "support/performance_benchmarks.rs"]
 mod performance_benchmarks;
@@ -330,9 +331,12 @@ fn bench_expected_sql_case(
 ) {
     let benchmark = performance_benchmarks::expect_benchmark(BENCHMARK, workload, scale);
     let _ = runtime.block_on(workloads::execute_sql(context, sql));
-    runner.fixed_operations(
-        stress::StressCase::fixed_operations(2, benchmark.workload, benchmark.fixture_scale),
-        || runtime.block_on(workloads::execute_sql(context, sql)),
+    let query_batch = query_batch_for(workload, scale);
+    runner.fixed_timed_count(
+        stress::StressCase::fixed_operations(2, benchmark.workload, benchmark.fixture_scale)
+            .metadata("operation_unit", "query"),
+        query_batch,
+        || run_sql_batch(runtime, context, sql, query_batch),
     );
 }
 
@@ -344,15 +348,32 @@ fn bench_sql_case(
     scale: &'static str,
     sql: &'static str,
 ) {
-    runner.fixed_operations(
-        stress::StressCase::fixed_operations(2, workload, scale),
-        || runtime.block_on(workloads::execute_sql(context, sql)),
+    let _ = runtime.block_on(workloads::execute_sql(context, sql));
+    runner.fixed_timed_count(
+        stress::StressCase::fixed_operations(2, workload, scale)
+            .metadata("operation_unit", "query"),
+        EXECUTOR_QUERY_BATCH,
+        || run_sql_batch(runtime, context, sql, EXECUTOR_QUERY_BATCH),
     );
 }
 
 fn enabled_expected_case(runner: &stress::CassieStressRunner, workload: &str, scale: &str) -> bool {
     performance_benchmarks::expect_benchmark(BENCHMARK, workload, scale);
     runner.is_enabled(&stress::StressCase::fixed_operations(2, workload, scale))
+}
+
+fn query_batch_for(workload: &str, scale: &str) -> u64 {
+    if scale == "10k" {
+        match workload {
+            "vectorized_left_join_limited" => return 128,
+            "vectorized_right_indexed_inner_join" | "vectorized_streaming_inner_join" => {
+                return 256;
+            }
+            _ => {}
+        }
+    }
+
+    EXECUTOR_QUERY_BATCH
 }
 
 fn join_sql(limit: u32) -> &'static str {
@@ -377,4 +398,17 @@ fn join_sql(limit: u32) -> &'static str {
         }
         _ => unreachable!("unsupported join limit"),
     }
+}
+
+fn run_sql_batch(
+    runtime: &tokio::runtime::Runtime,
+    context: &workloads::BenchContext,
+    sql: &str,
+    queries: u64,
+) -> usize {
+    let mut rows = 0usize;
+    for _ in 0..queries {
+        rows = rows.saturating_add(runtime.block_on(workloads::execute_sql(context, sql)));
+    }
+    std::hint::black_box(rows)
 }

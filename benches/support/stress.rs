@@ -161,7 +161,9 @@ impl CassieStressRunner {
         F: FnMut() -> u64,
     {
         let f = RefCell::new(f);
-        let case = case.intent(MeasurementIntent::External);
+        let case = case
+            .intent(MeasurementIntent::External)
+            .metadata("logical_operations_source", "completed_count");
         let measurement_name = case.measurement_name();
         self.run_case(case, move |ctx| {
             let started = Instant::now();
@@ -232,7 +234,9 @@ impl CassieStressRunner {
         F: FnMut() -> usize,
     {
         let f = RefCell::new(f);
-        let case = case.intent(MeasurementIntent::External);
+        let case = case
+            .intent(MeasurementIntent::External)
+            .metadata("logical_operations_source", "completed_count");
         let measurement_name = case.measurement_name();
         self.run_case(case, move |ctx| {
             let started = Instant::now();
@@ -261,7 +265,11 @@ impl CassieStressRunner {
         let f = RefCell::new(f);
         let case = case
             .intent(MeasurementIntent::External)
-            .parameter("operation_count", operation_count.to_string());
+            .parameter("operation_count", operation_count.to_string())
+            .metadata(
+                "logical_operations_per_iteration",
+                operation_count.to_string(),
+            );
         let measurement_name = case.measurement_name();
         self.run_case(case, move |ctx| {
             let duration = (f.borrow_mut())();
@@ -369,6 +377,17 @@ impl CassieStressRunner {
         if let Some(scenario) = scenario {
             metadata.insert("scenario_id".to_string(), scenario.scenario_id.to_string());
             metadata.insert("family".to_string(), scenario.family.to_string());
+            metadata.insert("signal_role".to_string(), "optimization".to_string());
+            metadata.insert(
+                "operation_unit".to_string(),
+                "logical_operation".to_string(),
+            );
+        } else {
+            metadata.insert("signal_role".to_string(), "informational".to_string());
+            metadata.insert(
+                "signal_reason".to_string(),
+                "no_performance_scenario_owner".to_string(),
+            );
         }
         metadata.extend(case.metadata);
 

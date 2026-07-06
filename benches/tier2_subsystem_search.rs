@@ -1,4 +1,5 @@
 const BENCHMARK: &str = "tier2_subsystem_search";
+const QUERY_BATCH: u64 = 64;
 
 #[path = "support/performance_benchmarks.rs"]
 mod performance_benchmarks;
@@ -22,13 +23,32 @@ fn main() {
         let context = runtime
             .block_on(workloads::context(&format!("tier2-search-{dataset}"), rows))
             .expect("benchmark context");
-        runner.fixed_operations(case, || {
-            runtime.block_on(workloads::execute_sql(
-                &context,
-                "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 20",
-            ))
-        });
+        runner.fixed_timed_count(
+            case.metadata("operation_unit", "query"),
+            QUERY_BATCH,
+            || {
+                run_sql_batch(
+                    &runtime,
+                    &context,
+                    "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 20",
+                    QUERY_BATCH,
+                )
+            },
+        );
     }
 
     runner.finish();
+}
+
+fn run_sql_batch(
+    runtime: &tokio::runtime::Runtime,
+    context: &workloads::BenchContext,
+    sql: &str,
+    queries: u64,
+) -> usize {
+    let mut rows = 0usize;
+    for _ in 0..queries {
+        rows = rows.saturating_add(runtime.block_on(workloads::execute_sql(context, sql)));
+    }
+    std::hint::black_box(rows)
 }

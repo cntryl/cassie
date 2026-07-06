@@ -20,9 +20,5 @@ fn main() {
         stress::StressCase::fixed_operations(3, "large_result_set", "512_rows"),
         || runtime.block_on(workloads::large_result_set_query(&ctx)),
     );
-    runner.fixed_timed_counted_usize(
-        stress::StressCase::fixed_operations(3, "ten_million_row_query_shape", "scaled"),
-        || runtime.block_on(workloads::ten_million_row_query_shape(&ctx)),
-    );
     runner.finish();
 }

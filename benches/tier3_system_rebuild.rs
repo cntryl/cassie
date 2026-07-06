@@ -1,6 +1,8 @@
 const BENCHMARK: &str = "tier3_system_rebuild";
 const REBUILD_TEMP_BUDGET_BYTES: usize = 64 * 1024 * 1024;
 const PROJECTION_REBUILD_QUERY_ROWS: u64 = 512;
+const SMALL_STATEFUL_REBUILD_REASON: &str = "small_stateful_rebuild_diagnostic";
+const STATEFUL_TIME_SERIES_REASON: &str = "stateful_time_series_policy_diagnostic";
 
 #[path = "support/performance_benchmarks.rs"]
 mod performance_benchmarks;
@@ -72,7 +74,9 @@ fn bench_projection_rebuild_10k(
     let refresh = performance_benchmarks::expect_benchmark(BENCHMARK, "projection_refresh", "10k");
     runner.fixed_timed_count(
         stress::StressCase::fixed_operations(3, refresh.workload, refresh.fixture_scale)
-            .metadata("operation_unit", "source_row"),
+            .metadata("operation_unit", "source_row")
+            .metadata("signal_role", "informational")
+            .metadata("signal_reason", SMALL_STATEFUL_REBUILD_REASON),
         row_count(10_000),
         || runtime.block_on(workloads::projection_refresh_workflow(&context)),
     );
@@ -80,7 +84,9 @@ fn bench_projection_rebuild_10k(
     let verify = performance_benchmarks::expect_benchmark(BENCHMARK, "projection_verify", "10k");
     runner.fixed_timed_count(
         stress::StressCase::fixed_operations(3, verify.workload, verify.fixture_scale)
-            .metadata("operation_unit", "source_row"),
+            .metadata("operation_unit", "source_row")
+            .metadata("signal_role", "informational")
+            .metadata("signal_reason", SMALL_STATEFUL_REBUILD_REASON),
         row_count(10_000),
         || runtime.block_on(workloads::projection_rebuild_verification(&context)),
     );
@@ -168,7 +174,10 @@ fn bench_time_series_rebuild(
         ))
         .expect("time-series benchmark context");
     runner.fixed_timed_count(
-        retention_case.metadata("operation_unit", "source_row"),
+        retention_case
+            .metadata("operation_unit", "source_row")
+            .metadata("signal_role", "informational")
+            .metadata("signal_reason", STATEFUL_TIME_SERIES_REASON),
         row_count(rows),
         || {
             *retention_nonce = retention_nonce.wrapping_add(1);
@@ -179,7 +188,10 @@ fn bench_time_series_rebuild(
         },
     );
     runner.fixed_timed_count(
-        rollup_case.metadata("operation_unit", "source_row"),
+        rollup_case
+            .metadata("operation_unit", "source_row")
+            .metadata("signal_role", "informational")
+            .metadata("signal_reason", STATEFUL_TIME_SERIES_REASON),
         row_count(rows),
         || {
             *rollup_nonce = rollup_nonce.wrapping_add(1);

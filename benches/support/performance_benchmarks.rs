@@ -8,6 +8,8 @@ mod performance_benchmark_samples;
 mod performance_benchmark_scenarios;
 #[path = "performance_benchmark_types.rs"]
 mod performance_benchmark_types;
+#[path = "performance_benchmark_vector_scenarios.rs"]
+mod performance_benchmark_vector_scenarios;
 
 #[path = "performance_benchmark_placeholders.rs"]
 mod performance_benchmark_placeholders;
@@ -15,6 +17,7 @@ mod performance_benchmark_placeholders;
 pub type BenchmarkSampleSummary = performance_benchmark_types::BenchmarkSampleSummary;
 pub type DeploymentProfile = performance_benchmark_types::DeploymentProfile;
 pub type PerformanceBenchmarkScenario = performance_benchmark_types::PerformanceBenchmarkScenario;
+pub type StressArtifactRowSummary = performance_benchmark_types::StressArtifactRowSummary;
 
 pub const BENCHMARK_SCENARIOS: &[PerformanceBenchmarkScenario] =
     performance_benchmark_scenarios::BENCHMARK_SCENARIOS;
@@ -26,8 +29,14 @@ pub const REQUIRED_WORKLOAD_FAMILIES: &[&str] =
     performance_benchmark_scenarios::REQUIRED_WORKLOAD_FAMILIES;
 pub const SUPPORTED_SCALES: &[&str] = performance_benchmark_scenarios::SUPPORTED_SCALES;
 
+pub fn benchmark_scenarios() -> impl Iterator<Item = &'static PerformanceBenchmarkScenario> {
+    performance_benchmark_scenarios::BENCHMARK_SCENARIOS
+        .iter()
+        .chain(performance_benchmark_vector_scenarios::VECTOR_PATH_SCENARIOS)
+}
+
 pub fn benchmark_for_scenario(scenario_id: &str) -> Option<&'static PerformanceBenchmarkScenario> {
-    performance_benchmark_scenarios::benchmark_for_scenario(scenario_id)
+    benchmark_scenarios().find(|benchmark| benchmark.scenario_id == scenario_id)
 }
 
 pub fn benchmark_for_benchmark(
@@ -35,11 +44,11 @@ pub fn benchmark_for_benchmark(
     workload: &str,
     fixture_scale: &str,
 ) -> Option<&'static PerformanceBenchmarkScenario> {
-    performance_benchmark_scenarios::benchmark_for_benchmark(
-        benchmark_name,
-        workload,
-        fixture_scale,
-    )
+    benchmark_scenarios().find(|scenario| {
+        scenario.benchmark == benchmark_name
+            && scenario.workload == workload
+            && scenario.fixture_scale == fixture_scale
+    })
 }
 
 pub fn expect_benchmark(
@@ -47,7 +56,9 @@ pub fn expect_benchmark(
     workload: &str,
     fixture_scale: &str,
 ) -> &'static PerformanceBenchmarkScenario {
-    performance_benchmark_scenarios::expect_benchmark(benchmark, workload, fixture_scale)
+    benchmark_for_benchmark(benchmark, workload, fixture_scale).unwrap_or_else(|| {
+        panic!("missing performance benchmark for {benchmark}/{workload}/{fixture_scale}")
+    })
 }
 
 pub fn deployment_profile_for_id(profile_id: &str) -> Option<&'static DeploymentProfile> {
@@ -72,4 +83,14 @@ pub fn summarize_stress_artifact(
     artifact_json: &str,
 ) -> Result<BenchmarkSampleSummary, String> {
     performance_benchmark_samples::summarize_stress_artifact(benchmark, artifact_json)
+}
+
+pub fn summarize_stress_artifact_rows(
+    artifact_json: &str,
+) -> Result<Vec<StressArtifactRowSummary>, String> {
+    performance_benchmark_samples::summarize_stress_artifact_rows(artifact_json)
+}
+
+pub fn validate_stress_artifact_signal_metadata(artifact_json: &str) -> Result<(), String> {
+    performance_benchmark_samples::validate_stress_artifact_signal_metadata(artifact_json)
 }

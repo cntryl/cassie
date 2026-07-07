@@ -45,7 +45,7 @@ function QueryResultTable({ result }: { result: QueryExecutionResult }) {
       <table class="cassie-query-result-table">
         <thead>
           <tr>
-            <For each={result.columns} by={(column) => column}>
+            <For each={result.columns} by={(_, index) => index}>
               {(column) => <th>{column}</th>}
             </For>
           </tr>
@@ -61,7 +61,7 @@ function QueryResultTable({ result }: { result: QueryExecutionResult }) {
           <For each={result.rows} by={(_, index) => index}>
             {(row) => (
               <tr>
-                <For each={row} by={(value) => value}>
+                <For each={row} by={(_, index) => index}>
                   {(value) => <td>{value}</td>}
                 </For>
               </tr>

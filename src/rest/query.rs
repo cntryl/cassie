@@ -114,7 +114,7 @@ fn section(id: &str, label: &str, items: Vec<QuerySchemaItem>) -> QuerySchemaSec
 }
 
 fn table_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
-    cassie
+    let mut items: Vec<QuerySchemaItem> = cassie
         .catalog
         .list_collections()
         .into_iter()
@@ -130,11 +130,14 @@ fn table_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
                 metadata: Some(column_count_label(column_count)),
             }
         })
-        .collect()
+        .collect();
+
+    items.sort_by_key(|item| item.label.to_ascii_lowercase());
+    items
 }
 
 fn view_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
-    cassie
+    let mut items: Vec<QuerySchemaItem> = cassie
         .catalog
         .list_views()
         .into_iter()
@@ -144,7 +147,10 @@ fn view_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
             label: view.name,
             metadata: Some(column_count_label(view.schema.fields.len())),
         })
-        .collect()
+        .collect();
+
+    items.sort_by_key(|item| item.label.to_ascii_lowercase());
+    items
 }
 
 fn index_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
@@ -174,7 +180,7 @@ fn index_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
 }
 
 fn function_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
-    cassie
+    let mut items: Vec<QuerySchemaItem> = cassie
         .catalog
         .list_functions()
         .into_iter()
@@ -192,11 +198,14 @@ fn function_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
                 metadata: Some(format!("({args}) -> {}", function.return_type.type_name())),
             }
         })
-        .collect()
+        .collect();
+
+    items.sort_by_key(|item| item.label.to_ascii_lowercase());
+    items
 }
 
 fn procedure_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
-    cassie
+    let mut items: Vec<QuerySchemaItem> = cassie
         .catalog
         .list_procedures()
         .into_iter()
@@ -214,7 +223,10 @@ fn procedure_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
                 metadata: Some(format!("({args})")),
             }
         })
-        .collect()
+        .collect();
+
+    items.sort_by_key(|item| item.label.to_ascii_lowercase());
+    items
 }
 
 fn column_count_label(column_count: usize) -> String {

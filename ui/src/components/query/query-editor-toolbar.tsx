@@ -1,3 +1,6 @@
+import { Button } from "@askrjs/themes/components";
+import { CheckCircle2Icon, PlayIcon, RefreshCwIcon, SquareIcon } from "@askrjs/lucide";
+
 interface QueryEditorToolbarProps {
   onFormat: () => void;
   onValidate: () => void;
@@ -19,33 +22,54 @@ export function QueryEditorToolbar({
 }: QueryEditorToolbarProps) {
   return (
     <div class="cassie-query-editor-toolbar" data-testid="query-editor-toolbar" role="toolbar">
-      <button type="button" class="cassie-query-toolbar-btn" onClick={onFormat}>
-        Fmt
-      </button>
-      <button type="button" class="cassie-query-toolbar-btn" onClick={onValidate}>
-        Validate
-      </button>
-      <button type="button" class="cassie-query-toolbar-btn" onClick={onExplain}>
-        Explain
-      </button>
-      <button
+      <Button
         type="button"
-        class="cassie-query-toolbar-btn cassie-query-toolbar-btn-primary"
+        size="sm"
+        variant="secondary"
+        onPress={onFormat}
+      >
+        Fmt
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        onPress={onValidate}
+      >
+        <CheckCircle2Icon size={14} />
+        <span>Validate</span>
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        onPress={onExplain}
+      >
+        <RefreshCwIcon size={14} />
+        <span>Explain</span>
+      </Button>
+      <Button
+        type="button"
+        variant="primary"
+        size="sm"
         disabled={!canRun || isRunning}
         data-action="play"
-        onClick={onPlay}
+        onPress={onPlay}
       >
-        Play
-      </button>
-      <button
+        <PlayIcon size={14} />
+        <span>Run</span>
+      </Button>
+      <Button
         type="button"
-        class="cassie-query-toolbar-btn cassie-query-toolbar-btn-danger"
+        variant="destructive"
+        size="sm"
         disabled={!isRunning}
         data-action="stop"
-        onClick={onStop}
+        onPress={onStop}
       >
-        Stop
-      </button>
+        <SquareIcon size={14} />
+        <span>Stop</span>
+      </Button>
     </div>
   );
 }

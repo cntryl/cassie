@@ -1,105 +1,223 @@
+import { For } from "@askrjs/askr/control";
 import { state } from "@askrjs/askr";
-import { Text } from "@askrjs/themes/components";
-import { SquareTerminalIcon } from "@askrjs/lucide";
+import { SendIcon, TriangleAlertIcon } from "@askrjs/lucide";
+import { Alert, Button, Text } from "@askrjs/themes/components";
 
-import type { QuerySchemaObject } from "@/data/query-schema";
-import { querySchema } from "@/data/query-schema";
-import { QuerySchemaTree } from "@/components/query/query-schema-tree";
 import { QueryEditorPanel } from "@/components/query/query-editor-panel";
 import { QueryResultTab, QueryResultsTabs } from "@/components/query/query-results-tabs";
+import { QuerySchemaItem, QuerySchemaSection, QueryExecutionResult, QueryValidationResult } from "@/features/query/query-models";
+import { createAdminQuerySchemaQuery } from "@/features/query/query-query";
+import { createExecuteQueryMutation, createExplainQueryMutation, createValidateQueryMutation } from "@/features/query/query-actions";
+import { QuerySchemaTree } from "@/components/query/query-schema-tree";
 import { ResizableSplit } from "@/components/query/resizable-split";
-import type { MonacoCompletionItem } from "@/components/query/monaco-sql-editor";
+import { apiErrorMessage } from "@/shared/errors/api";
 
-interface QueryPageProps {
-  onSchemaItemSelect?: (item: QuerySchemaObject) => void;
-  onActiveTabChange?: (tab: QueryResultTab) => void;
-  onRun?: (query: string) => void;
-  onStop?: () => void;
-}
+type QueryStatus = "idle" | "running" | "explaining" | "validating";
 
 const defaultQuery = "SELECT id, name\nFROM documents\nLIMIT 10;";
 
-export default function QueryPage({
-  onSchemaItemSelect,
-  onActiveTabChange,
-  onRun,
-  onStop,
-}: QueryPageProps) {
+function flattenCompletionItems(schema: QuerySchemaSection[]) {
+  return schema.flatMap((section) =>
+    section.items.map((item) => ({
+      label: item.label,
+      insertText: item.label,
+      detail: `${item.kind}${item.metadata ? ` · ${item.metadata}` : ""}`,
+    })),
+  );
+}
+
+function QueryPlaceholder({ title, description }: { title: string; description: string }) {
+  return (
+    <section class="cassie-query-results-placeholder" aria-label={title}>
+      <h3>{title}</h3>
+      <p>{description}</p>
+    </section>
+  );
+}
+
+function QueryResultTable({ result }: { result: QueryExecutionResult }) {
+  if (result.columns.length === 0) {
+    return <QueryPlaceholder title="No columns" description="This query returned no columns." />;
+  }
+
+  return (
+    <div class="cassie-query-result-table-wrap">
+      <table class="cassie-query-result-table">
+        <thead>
+          <tr>
+            <For each={result.columns} by={(column) => column}>
+              {(column) => <th>{column}</th>}
+            </For>
+          </tr>
+        </thead>
+        <tbody>
+          {result.rows.length === 0 ? (
+            <tr>
+              <td colSpan={result.columns.length} class="cassie-query-empty-result-cell">
+                <QueryPlaceholder title="No rows" description="The query returned zero rows." />
+              </td>
+            </tr>
+          ) : null}
+          <For each={result.rows} by={(_, index) => index}>
+            {(row) => (
+              <tr>
+                <For each={row} by={(value) => value}>
+                  {(value) => <td>{value}</td>}
+                </For>
+              </tr>
+            )}
+          </For>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function QueryResultJson({ result }: { result: QueryExecutionResult }) {
+  return (
+    <pre class="cassie-query-json">
+      <code>{JSON.stringify({ command: result.command, columns: result.columns, rows: result.rows }, null, 2)}</code>
+    </pre>
+  );
+}
+
+function QueryValidationBanner({ validation }: { validation: QueryValidationResult | null }) {
+  if (!validation) {
+    return null;
+  }
+
+  return (
+    <Alert
+      variant={validation.valid ? "success" : "warning"}
+      title={validation.valid ? "Validation passed" : "Validation failed"}
+      description={`Command ${validation.command}`}
+    />
+  );
+}
+
+export default function QueryPage() {
+  const schemaQuery = createAdminQuerySchemaQuery();
+  const executeMutation = createExecuteQueryMutation();
+  const validateMutation = createValidateQueryMutation();
+  const explainMutation = createExplainQueryMutation();
+
   const [query, setQuery] = state(defaultQuery);
   const [activeTab, setActiveTab] = state<QueryResultTab>("results");
-  const [isRunning, setIsRunning] = state(false);
   const [selectedItemId, setSelectedItemId] = state<string | null>(null);
+  const [status, setStatus] = state<QueryStatus>("idle");
   const [schemaWidth, setSchemaWidth] = state(30);
   const [editorHeight, setEditorHeight] = state(62);
 
-  function handleSchemaSelection(item: QuerySchemaObject) {
+  const schemaSections = schemaQuery.data?.sections ?? [];
+  const completionItems = flattenCompletionItems(schemaSections);
+  const canRun = query().trim().length > 0 && status() === "idle";
+
+  const isExecutionBusy = executeMutation.pending || explainMutation.pending;
+  const activeExecution =
+    activeTab() === "plan" ? explainMutation.result : executeMutation.result;
+  const validationResult = validateMutation.result;
+
+  async function handleSchemaSelection(item: QuerySchemaItem) {
     setSelectedItemId(item.id);
     setQuery(`SELECT * FROM ${item.label};`);
-    onSchemaItemSelect?.(item);
   }
 
   function handleFormatQuery() {
     setQuery(query().trim());
   }
 
-  function handleValidateQuery() {
-    setQuery(`${query().trim()}\n`);
-  }
-
-  function handleExplainQuery() {
-    setQuery(query().trim());
-  }
-
-  function handlePlayQuery() {
-    if (isRunning()) {
+  async function runValidate() {
+    if (!canRun) {
       return;
     }
 
-    setIsRunning(true);
-    onRun?.(query());
+    setStatus("validating");
+    validateMutation.reset();
+    try {
+      await validateMutation.execute({ sql: query() });
+    } finally {
+      setStatus("idle");
+    }
   }
 
-  function handleStopQuery() {
-    if (!isRunning()) {
+  async function runExplain() {
+    if (!canRun) {
       return;
     }
 
-    setIsRunning(false);
-    onStop?.();
+    setStatus("explaining");
+    explainMutation.reset();
+    setActiveTab("plan");
+    try {
+      await explainMutation.execute({ sql: query() });
+    } finally {
+      setStatus("idle");
+    }
+  }
+
+  async function runExecute() {
+    if (!canRun) {
+      return;
+    }
+
+    setStatus("running");
+    executeMutation.reset();
+    setActiveTab("results");
+    try {
+      await executeMutation.execute({ sql: query() });
+    } finally {
+      setStatus("idle");
+    }
+  }
+
+  function stopAction() {
+    executeMutation.abort();
+    validateMutation.abort();
+    explainMutation.abort();
+    setStatus("idle");
+  }
+
+  function handlePlay() {
+    void runExecute();
+  }
+
+  function handleValidate() {
+    void runValidate();
+  }
+
+  function handleExplain() {
+    void runExplain();
   }
 
   function handleTabChange(tab: QueryResultTab) {
-    if (activeTab() === tab) {
-      return;
-    }
-
     setActiveTab(tab);
-    onActiveTabChange?.(tab);
   }
 
-  const completionItems: MonacoCompletionItem[] = querySchema.flatMap((section) =>
-    section.items.map((item) => ({
-      label: item.label,
-      insertText: item.label,
-      detail: `${item.kind} · ${item.metadata ?? "catalog item"}`,
-    })),
-  );
+  const hasActionError =
+    validateMutation.error !== null || executeMutation.error !== null || explainMutation.error !== null;
 
-  const resultPlaceholder = "Query execution is intentionally disabled in this slice.";
+  const statusBanner = isExecutionBusy || status() !== "idle" ?
+    status() === "running"
+      ? "Running query..."
+      : status() === "explaining"
+        ? "Generating explain plan..."
+        : status() === "validating"
+          ? "Validating SQL..."
+          : null
+    : null;
 
   return (
     <main
-      class="cassie-admin-page cassie-query-page"
+      class="cassie-query-page cassie-query-shell"
       data-slot="main"
       data-query-page="true"
-      data-testid="query-page"
       id="main-content"
       tabindex={-1}
       aria-labelledby="cassie-admin-page-title"
     >
       <section class="cassie-admin-page-header" aria-label="Query page">
         <div class="cassie-admin-page-icon" aria-hidden="true">
-          <SquareTerminalIcon size={20} />
+          <SendIcon size={20} />
         </div>
         <div class="cassie-admin-page-title-group">
           <Text
@@ -116,6 +234,17 @@ export default function QueryPage({
         </div>
       </section>
 
+      {schemaQuery.loading && !schemaQuery.data ? <p class="cassie-query-loading">Loading query schema…</p> : null}
+
+      {schemaQuery.error && !schemaQuery.data ? (
+        <Alert
+          title="Unable to load query schema"
+          variant="danger"
+          description={apiErrorMessage(schemaQuery.error)}
+          icon={<TriangleAlertIcon size={16} />}
+        />
+      ) : null}
+
       <section class="cassie-query-workspace" aria-label="Query workspace">
         <ResizableSplit
           orientation="horizontal"
@@ -125,7 +254,7 @@ export default function QueryPage({
           onResize={(size) => setSchemaWidth(size)}
           first={
             <QuerySchemaTree
-              schema={querySchema}
+              schema={schemaSections}
               selectedItemId={selectedItemId() ?? undefined}
               onSelectItem={handleSchemaSelection}
             />
@@ -141,41 +270,81 @@ export default function QueryPage({
                 <QueryEditorPanel
                   query={query()}
                   onQueryChange={setQuery}
-                  isRunning={isRunning()}
+                  isRunning={isExecutionBusy || status() !== "idle"}
                   onFormat={handleFormatQuery}
-                  onValidate={handleValidateQuery}
-                  onExplain={handleExplainQuery}
-                  onPlay={handlePlayQuery}
-                  onStop={handleStopQuery}
+                  onValidate={handleValidate}
+                  onExplain={handleExplain}
+                  onPlay={handlePlay}
+                  onStop={stopAction}
                   completionItems={completionItems}
                 />
               }
               second={
-                <QueryResultsTabs
-                  activeTab={activeTab()}
-                  onTabChange={handleTabChange}
-                  resultsContent={
-                    <section
-                      class="cassie-query-results-placeholder"
-                      aria-label="Query results not implemented"
+                <>
+                  {(statusBanner || hasActionError) ? (
+                    <Alert
+                      title="Query action"
+                      variant={hasActionError ? "danger" : "info"}
+                      description={
+                        hasActionError
+                          ? validateMutation.error
+                            ? apiErrorMessage(validateMutation.error)
+                            : executeMutation.error
+                              ? apiErrorMessage(executeMutation.error)
+                              : explainMutation.error
+                                ? apiErrorMessage(explainMutation.error)
+                                : "Unknown query action error."
+                          : statusBanner ?? "Working..."
+                      }
+                    />
+                  ) : null}
+
+                  <QueryValidationBanner validation={validationResult ?? null} />
+
+                  <QueryResultsTabs
+                    activeTab={activeTab()}
+                    onTabChange={handleTabChange}
+                    resultsContent={
+                      activeExecution ? (
+                        <QueryResultTable result={activeExecution} />
+                      ) : (
+                        <QueryPlaceholder title="No rows" description="No query has run yet." />
+                      )
+                    }
+                    listContent={
+                      activeExecution ? (
+                        <>
+                          <div class="cassie-query-results-header">
+                            <strong>Result set</strong>
+                            <span>{activeExecution.rows.length} rows</span>
+                          </div>
+                          <QueryResultJson result={activeExecution} />
+                        </>
+                      ) : (
+                        <QueryPlaceholder title="No rows" description="No query has run yet." />
+                      )
+                    }
+                    planContent={
+                      activeExecution ? <QueryResultJson result={activeExecution} /> : <QueryPlaceholder title="No plan" description="Run explain to inspect plan rows." />
+                    }
+                  />
+
+                  {schemaQuery.error ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onPress={() => {
+                        void schemaQuery.refresh();
+                      }}
                     >
-                      <h3>Results</h3>
-                      <p>{resultPlaceholder}</p>
-                    </section>
-                  }
-                  listContent={
-                    <section class="cassie-query-results-placeholder" aria-label="List view not implemented">
-                      <h3>List</h3>
-                      <p>{resultPlaceholder}</p>
-                    </section>
-                  }
-                  planContent={
-                    <section class="cassie-query-results-placeholder" aria-label="Plan view not implemented">
-                      <h3>Plan</h3>
-                      <p>{resultPlaceholder}</p>
-                    </section>
-                  }
-                />
+                      Retry schema
+                    </Button>
+                  ) : null}
+
+                  {canRun ? null : (
+                    <p class="cassie-query-run-note">Type SQL to enable run, validate, and explain actions.</p>
+                  )}
+                </>
               }
             />
           }

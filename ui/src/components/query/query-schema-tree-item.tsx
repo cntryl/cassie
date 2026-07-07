@@ -1,11 +1,11 @@
 import { Text } from "@askrjs/themes/components";
 
-import type { QuerySchemaObject } from "@/data/query-schema";
+import type { QuerySchemaItem } from "@/features/query/query-models";
 
 interface QuerySchemaTreeItemProps {
-  item: QuerySchemaObject;
+  item: QuerySchemaItem;
   selected: boolean;
-  onSelectItem: (item: QuerySchemaObject) => void;
+  onSelectItem: (item: QuerySchemaItem) => void;
 }
 
 export function QuerySchemaTreeItem({

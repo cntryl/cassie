@@ -1,4 +1,5 @@
 import { For } from "@askrjs/askr/control";
+import { Button } from "@askrjs/themes/components";
 
 export type QueryResultTab = "results" | "list" | "plan";
 
@@ -28,19 +29,20 @@ export function QueryResultsTabs({
       <div class="cassie-query-tabs" role="tablist" aria-label="Result tab group">
         <For each={tabItems} by={(tab) => tab.id}>
           {(tab) => (
-            <button
+            <Button
               type="button"
               role="tab"
               data-testid={`query-result-tab-${tab.id}`}
               data-tab={tab.id}
               aria-selected={activeTab === tab.id}
-              class={`cassie-query-tab-btn ${activeTab === tab.id ? "is-active" : ""}`}
-              onClick={() => {
+              size="sm"
+              variant={activeTab === tab.id ? "secondary" : "ghost"}
+              onPress={() => {
                 onTabChange(tab.id);
               }}
             >
               {tab.label}
-            </button>
+            </Button>
           )}
         </For>
       </div>

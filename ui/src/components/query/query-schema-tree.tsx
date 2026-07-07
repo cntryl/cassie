@@ -1,13 +1,13 @@
 import { For } from "@askrjs/askr/control";
 import { Text } from "@askrjs/themes/components";
 
-import type { QuerySchemaObject, QuerySchemaSection } from "@/data/query-schema";
+import type { QuerySchemaItem, QuerySchemaSection } from "@/features/query/query-models";
 import { QuerySchemaTreeSection } from "./query-schema-tree-section";
 
 interface QuerySchemaTreeProps {
   schema: QuerySchemaSection[];
   selectedItemId?: string;
-  onSelectItem: (item: QuerySchemaObject) => void;
+  onSelectItem: (item: QuerySchemaItem) => void;
 }
 
 export function QuerySchemaTree({

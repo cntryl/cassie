@@ -7,14 +7,18 @@
     "build": "vp build",
     "preview": "vp preview",
     "test": "vp test",
+    "gen": "npm run gen:adapters && npm run fmt",
+    "gen:adapters": "npx @fgrzl/fetch-gen --input ../public/openapi.yml --output ./src/adapters/generated/api.ts",
     "type-check": "tsc --noEmit",
     "lint": "vp lint src tests vite.config.ts",
     "lint:fix": "vp lint src tests --fix",
     "fmt": "vp fmt ."
   },
   "dependencies": {
+    "@fgrzl/fetch": "^2.0.0",
     "@askrjs/askr": "0.0.50",
     "@askrjs/lucide": "^0.0.3",
+    "monaco-editor": "^0.52.2",
     "@askrjs/themes": "0.0.10",
     "@askrjs/ui": "0.0.12",
     "@askrjs/vite": "0.0.5"
@@ -25,6 +29,7 @@
     "jsdom": "^29.1.1",
     "postcss": "^8.5.16",
     "typescript": "^6.0.3",
+    "@fgrzl/fetch-gen": "^2.0.0",
     "vite-plus": "^0.2.2"
   },
   "packageManager": "npm@11.16.0"

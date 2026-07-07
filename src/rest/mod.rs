@@ -3,6 +3,7 @@ pub mod consistency;
 pub mod documents;
 pub mod health;
 pub mod indexes;
+pub mod query;
 pub mod router;
 pub mod search;
 pub(crate) mod static_files;

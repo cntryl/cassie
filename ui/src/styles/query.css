@@ -1,0 +1,265 @@
+.cassie-query-page {
+  position: relative;
+}
+
+.cassie-query-workspace {
+  min-block-size: min(60rem, 70vh);
+  border: 1px solid var(--cassie-border-subtle);
+  border-radius: var(--cassie-panel-radius);
+  background: var(--cassie-surface);
+  overflow: hidden;
+}
+
+.cassie-query-schema-tree {
+  display: flex;
+  min-block-size: 0;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: var(--ak-space-3, 0.75rem);
+  padding: var(--ak-space-3, 0.75rem);
+}
+
+.cassie-query-schema-tree-header {
+  border-bottom: 1px dashed var(--cassie-border);
+  padding-block-end: var(--ak-space-3, 0.75rem);
+}
+
+.cassie-query-schema-tree-body {
+  display: grid;
+  gap: var(--ak-space-3, 0.75rem);
+  overflow: auto;
+  min-block-size: 0;
+}
+
+.cassie-query-schema-section {
+  display: grid;
+  gap: var(--ak-space-2, 0.5rem);
+}
+
+.cassie-query-schema-section-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ak-space-2, 0.5rem);
+}
+
+.cassie-query-schema-item {
+  width: 100%;
+  text-align: start;
+  border: 1px solid transparent;
+  border-radius: var(--cassie-row-radius);
+  background: transparent;
+  color: inherit;
+  padding: 0.45rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.cassie-query-schema-item:hover,
+.cassie-query-schema-item:focus-visible {
+  background: color-mix(in srgb, var(--cassie-accent) 7%, transparent);
+  border-color: color-mix(in srgb, var(--cassie-accent) 42%, transparent);
+}
+
+.cassie-query-schema-item.is-selected {
+  border-color: var(--cassie-accent);
+  background: color-mix(in srgb, var(--cassie-accent) 12%, transparent);
+}
+
+.cassie-query-schema-item-meta {
+  font-size: 0.78rem;
+  color: var(--cassie-text-muted);
+  line-height: 1.1;
+}
+
+.cassie-query-editor-panel {
+  display: grid;
+  gap: var(--ak-space-2, 0.5rem);
+  padding: var(--ak-space-3, 0.75rem);
+  min-block-size: 0;
+}
+
+.cassie-query-editor-panel-header {
+  margin-block-end: 0.25rem;
+}
+
+.cassie-query-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ak-space-2, 0.5rem);
+}
+
+.cassie-query-toolbar-btn {
+  border: 1px solid var(--cassie-border);
+  border-radius: var(--cassie-row-radius);
+  background: var(--cassie-surface-muted);
+  color: inherit;
+  padding: 0.35rem 0.65rem;
+}
+
+.cassie-query-toolbar-btn:hover,
+.cassie-query-toolbar-btn:focus-visible {
+  background: color-mix(in srgb, var(--cassie-accent) 12%, var(--cassie-surface-muted));
+  border-color: color-mix(in srgb, var(--cassie-accent) 45%, var(--cassie-border));
+}
+
+.cassie-query-toolbar-btn-primary {
+  background: var(--cassie-accent);
+  border-color: var(--cassie-accent);
+  color: white;
+}
+
+.cassie-query-toolbar-btn-danger {
+  background: color-mix(in srgb, #b91c1c 16%, var(--cassie-surface-muted));
+  border-color: color-mix(in srgb, #b91c1c 42%, var(--cassie-border));
+}
+
+.cassie-query-editor-wrapper {
+  min-block-size: 0;
+  min-inline-size: 0;
+  border: 1px solid var(--cassie-border);
+  border-radius: var(--cassie-row-radius);
+  overflow: hidden;
+}
+
+.cassie-query-editor-host {
+  min-block-size: 22rem;
+  min-inline-size: 0;
+}
+
+.cassie-query-editor-fallback {
+  width: 100%;
+  block-size: 100%;
+  min-block-size: 22rem;
+  border: 0;
+  padding: 0.75rem;
+  font-family: var(--ak-font-mono, monospace);
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+.cassie-query-results-tabs {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.cassie-query-tabs {
+  display: grid;
+  grid-auto-flow: column;
+  justify-content: start;
+  gap: var(--ak-space-2, 0.5rem);
+  border-bottom: 1px solid var(--cassie-border-subtle);
+  padding: 0 var(--ak-space-3, 0.75rem);
+}
+
+.cassie-query-tab-btn {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: var(--cassie-row-radius) var(--cassie-row-radius) 0 0;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  color: var(--cassie-text-muted);
+}
+
+.cassie-query-tab-btn.is-active {
+  color: var(--cassie-text, var(--ak-color-text, CanvasText));
+  border-bottom-color: var(--cassie-accent);
+}
+
+.cassie-query-tab-content {
+  padding: var(--ak-space-3, 0.75rem);
+  min-block-size: 0;
+}
+
+.cassie-query-tab-panel {
+  min-block-size: 0;
+}
+
+.cassie-query-results-placeholder {
+  margin: 0;
+  border: 1px dashed var(--cassie-border);
+  border-radius: var(--cassie-row-radius);
+  background: var(--cassie-surface-muted);
+  padding: var(--ak-space-4, 1rem);
+}
+
+.cassie-query-results-placeholder h3 {
+  margin: 0;
+}
+
+.cassie-query-results-placeholder p {
+  margin: var(--ak-space-2, 0.5rem) 0 0;
+  color: var(--cassie-text-muted);
+  max-inline-size: 80ch;
+}
+
+.cassie-resizable-split {
+  display: flex;
+  gap: 0;
+  min-block-size: 100%;
+  min-inline-size: 100%;
+}
+
+.cassie-resizable-split-horizontal {
+  flex-direction: row;
+}
+
+.cassie-resizable-split-vertical {
+  flex-direction: column;
+}
+
+.cassie-resizable-split-pane {
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: auto;
+}
+
+.cassie-resizable-split-horizontal .cassie-resizable-split-pane:first-child,
+.cassie-resizable-split-horizontal .cassie-resizable-split-pane:last-child {
+  min-block-size: 100%;
+}
+
+.cassie-resizable-split-vertical .cassie-resizable-split-pane:first-child,
+.cassie-resizable-split-vertical .cassie-resizable-split-pane:last-child {
+  min-inline-size: 100%;
+}
+
+.cassie-resizable-split-handle {
+  border: 0;
+  background: color-mix(in srgb, var(--cassie-border) 65%, transparent);
+  padding: 0;
+  cursor: col-resize;
+  touch-action: none;
+  min-inline-size: 0.5rem;
+  min-block-size: 0.5rem;
+}
+
+.cassie-resizable-split-horizontal .cassie-resizable-split-handle {
+  cursor: col-resize;
+  inline-size: var(--ak-space-2, 0.5rem);
+}
+
+.cassie-resizable-split-vertical .cassie-resizable-split-handle {
+  cursor: row-resize;
+  block-size: var(--ak-space-2, 0.5rem);
+}
+
+@media (max-width: 60rem) {
+  .cassie-query-workspace {
+    min-block-size: min(55rem, 78vh);
+  }
+
+  .cassie-resizable-split-horizontal {
+    flex-direction: column;
+  }
+
+  .cassie-resizable-split-horizontal .cassie-resizable-split-pane:first-child,
+  .cassie-resizable-split-horizontal .cassie-resizable-split-pane:last-child {
+    inline-size: 100% !important;
+    block-size: auto !important;
+  }
+}

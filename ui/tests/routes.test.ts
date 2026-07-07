@@ -13,4 +13,12 @@ describe("admin route registration", () => {
       adminRoutes.length,
     );
   });
+
+  it("should_register_query_route_as_its_own_page", () => {
+    const queryRoutePath = "/admin/query";
+    const paths = getRoutes().map((route) => route.path);
+
+    expect(paths).toContain(queryRoutePath);
+    expect(paths.filter((path) => path === queryRoutePath)).toHaveLength(1);
+  });
 });

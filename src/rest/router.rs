@@ -8,7 +8,7 @@ use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::{
     body::Incoming,
-    header::{HeaderValue, CONNECTION, CONTENT_TYPE},
+    header::{HeaderValue, ALLOW, CONNECTION, CONTENT_TYPE},
     server::conn::http1,
     service::service_fn,
     Method, Request, Response, StatusCode,
@@ -107,6 +107,14 @@ pub async fn run_with_shutdown_and_admin_ui_dir(
 
 type RestBody = Full<Bytes>;
 const AUTH_TOKEN_PREFIX: &str = "Bearer ";
+#[derive(Clone, Copy)]
+struct RouteDispatchContext<'a> {
+    method: &'a Method,
+    segments: &'a [&'a str],
+    path: &'a str,
+    started_at: Instant,
+    authenticated_role: Option<&'a RoleMeta>,
+}
 
 async fn route(
     request: Request<hyper::body::Incoming>,
@@ -140,6 +148,17 @@ fn too_many_connections_response() -> Response<RestBody> {
     response
         .headers_mut()
         .insert(CONNECTION, HeaderValue::from_static("close"));
+    response
+}
+
+fn method_not_allowed_response(allow: &'static str) -> Response<RestBody> {
+    let mut response = json_response(
+        StatusCode::METHOD_NOT_ALLOWED,
+        &serde_json::json!({"error": "method not allowed"}),
+    );
+    response
+        .headers_mut()
+        .insert(ALLOW, HeaderValue::from_static(allow));
     response
 }
 
@@ -216,6 +235,7 @@ async fn route_request_with_admin_ui(
     };
     let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     let started_at = Instant::now();
+    let mut authenticated_role = None;
     if !is_route_public(&method, segments.as_slice()) && !cassie.auth_password.is_empty() {
         let role = match authenticate_rest_request(cassie.clone(), request.headers()).await {
             Ok(role) => role,
@@ -239,6 +259,7 @@ async fn route_request_with_admin_ui(
             );
             return Err((StatusCode::FORBIDDEN, "forbidden".to_string()));
         }
+        authenticated_role = Some(role);
     }
     let body: RestBytes = request
         .into_body()
@@ -256,13 +277,16 @@ async fn route_request_with_admin_ui(
         .to_bytes();
 
     let response = route_dispatch(
-        &method,
-        segments.as_slice(),
+        RouteDispatchContext {
+            method: &method,
+            segments: segments.as_slice(),
+            path: &path,
+            started_at,
+            authenticated_role: authenticated_role.as_ref(),
+        },
         cassie.clone(),
         admin_ui,
         body,
-        &path,
-        started_at,
     )
     .await?;
 
@@ -277,36 +301,37 @@ async fn route_request_with_admin_ui(
 }
 
 async fn route_dispatch(
-    method: &Method,
-    segments: &[&str],
+    context: RouteDispatchContext<'_>,
     cassie: Arc<Cassie>,
     admin_ui: Arc<AdminUiStaticFiles>,
     body: RestBytes,
-    path: &str,
-    started_at: Instant,
 ) -> Result<Response<RestBody>, (StatusCode, String)> {
-    if let Some(response) = dispatch_health_routes(method, segments, &cassie) {
+    if let Some(response) = dispatch_health_routes(context.method, context.segments, &cassie) {
         return Ok(response);
     }
 
-    if let Some(response) = admin_ui.dispatch(method, segments).await {
+    if let Some(response) = admin_ui.dispatch(context.method, context.segments).await {
         return Ok(response);
     }
 
-    if let Some(response) =
-        dispatch_collection_routes(method, segments, cassie.clone(), &body, path, started_at)
-            .await?
+    if let Some(response) = dispatch_collection_routes(
+        context.method,
+        context.segments,
+        cassie.clone(),
+        &body,
+        context.path,
+        context.started_at,
+    )
+    .await?
     {
         return Ok(response);
     }
 
-    if let Some(response) =
-        dispatch_admin_routes(method, segments, cassie.clone(), &body, path, started_at).await?
-    {
+    if let Some(response) = dispatch_admin_routes(context, cassie.clone(), &body).await? {
         return Ok(response);
     }
 
-    unsupported_route(&cassie, method, path, started_at)
+    unsupported_route(&cassie, context.method, context.path, context.started_at)
 }
 
 fn dispatch_health_routes(
@@ -440,22 +465,26 @@ async fn dispatch_collection_routes(
 }
 
 async fn dispatch_admin_routes(
-    method: &Method,
-    segments: &[&str],
+    context: RouteDispatchContext<'_>,
     cassie: Arc<Cassie>,
     body: &RestBytes,
-    path: &str,
-    started_at: Instant,
 ) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
-    match (method.as_str(), segments) {
+    if let Some(response) = dispatch_admin_query_routes(context, cassie.clone(), body).await? {
+        return Ok(Some(response));
+    }
+    if let Some(allow) = admin_query_route_allow(context.segments) {
+        return Ok(Some(method_not_allowed_response(allow)));
+    }
+
+    match (context.method.as_str(), context.segments) {
         ("POST", ["v1", "admin", "projections", projection, "verification-manifest"]) => {
             let body = body.clone();
             let projection = (*projection).to_string();
             run_rest_blocking_route(
                 cassie,
-                method,
-                path,
-                started_at,
+                context.method,
+                context.path,
+                context.started_at,
                 "rest_route",
                 move |cassie| {
                     crate::rest::consistency::export_manifest(&cassie, &projection, body.as_ref())
@@ -468,9 +497,9 @@ async fn dispatch_admin_routes(
             let body = body.clone();
             run_rest_blocking_route(
                 cassie,
-                method,
-                path,
-                started_at,
+                context.method,
+                context.path,
+                context.started_at,
                 "rest_route",
                 move |cassie| crate::rest::consistency::compare_manifests(&cassie, body.as_ref()),
             )
@@ -479,9 +508,9 @@ async fn dispatch_admin_routes(
         }
         ("GET", ["v1", "admin", "projection-consistency-reports"]) => run_rest_blocking_route(
             cassie,
-            method,
-            path,
-            started_at,
+            context.method,
+            context.path,
+            context.started_at,
             "rest_route",
             move |cassie| Ok(crate::rest::consistency::reports(&cassie)),
         )
@@ -489,6 +518,79 @@ async fn dispatch_admin_routes(
         .map(|value| Some(json_response(StatusCode::OK, &value))),
         _ => Ok(None),
     }
+}
+
+async fn dispatch_admin_query_routes(
+    context: RouteDispatchContext<'_>,
+    cassie: Arc<Cassie>,
+    body: &RestBytes,
+) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
+    match (context.method.as_str(), context.segments) {
+        ("GET", ["v1", "admin", "query", "schema"]) => run_rest_blocking_route(
+            cassie,
+            context.method,
+            context.path,
+            context.started_at,
+            "rest_admin_query_schema",
+            move |cassie| Ok(crate::rest::query::schema(&cassie)),
+        )
+        .await
+        .map(|value| Some(json_response(StatusCode::OK, &value))),
+        ("POST", ["v1", "admin", "query", "execute"]) => {
+            let body = body.clone();
+            let user = rest_session_user(&cassie, context.authenticated_role);
+            run_rest_blocking_route(
+                cassie,
+                context.method,
+                context.path,
+                context.started_at,
+                "rest_admin_query_execute",
+                move |cassie| crate::rest::query::execute(&cassie, user.as_str(), body.as_ref()),
+            )
+            .await
+            .map(|value| Some(json_response(StatusCode::OK, &value)))
+        }
+        ("POST", ["v1", "admin", "query", "validate"]) => {
+            let body = body.clone();
+            run_rest_blocking_route(
+                cassie,
+                context.method,
+                context.path,
+                context.started_at,
+                "rest_admin_query_validate",
+                move |cassie| crate::rest::query::validate(&cassie, body.as_ref()),
+            )
+            .await
+            .map(|value| Some(json_response(StatusCode::OK, &value)))
+        }
+        ("POST", ["v1", "admin", "query", "explain"]) => {
+            let body = body.clone();
+            let user = rest_session_user(&cassie, context.authenticated_role);
+            run_rest_blocking_route(
+                cassie,
+                context.method,
+                context.path,
+                context.started_at,
+                "rest_admin_query_explain",
+                move |cassie| crate::rest::query::explain(&cassie, user.as_str(), body.as_ref()),
+            )
+            .await
+            .map(|value| Some(json_response(StatusCode::OK, &value)))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn admin_query_route_allow(segments: &[&str]) -> Option<&'static str> {
+    match segments {
+        ["v1", "admin", "query", "schema"] => Some("GET"),
+        ["v1", "admin", "query", "execute" | "validate" | "explain"] => Some("POST"),
+        _ => None,
+    }
+}
+
+fn rest_session_user(cassie: &Cassie, authenticated_role: Option<&RoleMeta>) -> String {
+    authenticated_role.map_or_else(|| cassie.auth_user.clone(), |role| role.name.clone())
 }
 
 fn unsupported_route(

@@ -1,0 +1,891 @@
+openapi: 3.1.0
+info:
+  title: Cassie REST API
+  version: 0.1.0
+  description: |
+    REST API for Cassie admin and operational workflows.
+
+    Public routes:
+      - /health
+      - /liveness
+      - /metrics
+
+    Collection and projection operations are authenticated by default using the
+    `Authorization: Bearer <user>:<password>` header when
+    `CASSIE_ADMIN_PASSWORD` is configured.
+servers:
+  - url: /
+    description: Same-origin admin API server
+
+tags:
+  - name: Health
+    description: Service health endpoints.
+  - name: Collections
+    description: Collection, document, index, and search routes.
+  - name: Consistency
+    description: Projection verification manifest and consistency helpers.
+  - name: Query
+    description: Admin SQL query execution, validation, explain, and catalog metadata.
+
+components:
+  securitySchemes:
+    cassieAuth:
+      type: apiKey
+      in: header
+      name: authorization
+      description: >-
+        Admin routes use HTTP bearer-style auth with a token of
+        `Bearer <user>:<password>`. If only a password is configured, the
+        username is omitted and `Bearer <password>` is accepted.
+  responses:
+    BadRequest:
+      description: Malformed request body or invalid parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid credentials.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Authenticated user is not authorized for this route.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Resource conflict or uniqueness violation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ServiceUnavailable:
+      description: Backend unavailable or dependency unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    MethodNotAllowed:
+      description: The route exists, but the HTTP method is not supported.
+      headers:
+        Allow:
+          description: Comma-separated methods allowed for the route.
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      additionalProperties: true
+      required:
+        - error
+      properties:
+        error:
+          type: string
+    StringMap:
+      type: object
+      additionalProperties:
+        type: string
+    QueryResultValue:
+      oneOf:
+        - type: string
+        - type: number
+        - type: boolean
+        - type: array
+          items:
+            $ref: '#/components/schemas/QueryResultValue'
+        - type: object
+          additionalProperties: true
+        - type: "null"
+    QueryResult:
+      type: object
+      required:
+        - columns
+        - rows
+        - command
+      properties:
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/ColumnMeta'
+        rows:
+          type: array
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/QueryResultValue'
+        command:
+          type: string
+    QueryExecuteRequest:
+      type: object
+      required:
+        - sql
+      properties:
+        sql:
+          type: string
+    QueryValidateRequest:
+      type: object
+      required:
+        - sql
+      properties:
+        sql:
+          type: string
+    QueryValidateResponse:
+      type: object
+      required:
+        - valid
+        - command
+      properties:
+        valid:
+          type: boolean
+        command:
+          type: string
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/ColumnMeta'
+    QueryExplainRequest:
+      type: object
+      required:
+        - sql
+      properties:
+        sql:
+          type: string
+    QuerySchemaResponse:
+      type: object
+      required:
+        - sections
+      properties:
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuerySchemaSection'
+    QuerySchemaSection:
+      type: object
+      required:
+        - id
+        - label
+        - items
+      properties:
+        id:
+          type: string
+          enum:
+            - tables
+            - views
+            - indexes
+            - udfs
+            - procedures
+        label:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuerySchemaItem'
+    QuerySchemaItem:
+      type: object
+      required:
+        - id
+        - kind
+        - label
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum:
+            - table
+            - view
+            - index
+            - udf
+            - procedure
+        label:
+          type: string
+        metadata:
+          type: string
+    ColumnMeta:
+      type: object
+      required:
+        - name
+        - data_type
+        - type_oid
+        - typlen
+        - atttypmod
+        - format_code
+        - nullable
+      properties:
+        name:
+          type: string
+        data_type:
+          type: string
+        type_oid:
+          type: integer
+        typlen:
+          type: integer
+        atttypmod:
+          type: integer
+        format_code:
+          type: integer
+        nullable:
+          type: boolean
+    Health:
+      type: object
+      required:
+        - ready
+      properties:
+        ready:
+          type: boolean
+        status:
+          type: string
+        metrics:
+          type: object
+          additionalProperties: true
+    HealthList:
+      type: object
+      additionalProperties: true
+    CollectionCreateRequest:
+      type: object
+      required:
+        - name
+        - fields
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldSpec'
+    FieldSpec:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+    CreateCollectionResponse:
+      type: object
+      required:
+        - collection
+      properties:
+        collection:
+          type: string
+    SearchRequest:
+      type: object
+      required:
+        - field
+        - query
+      properties:
+        field:
+          type: string
+        query:
+          type: string
+        metric:
+          type: string
+        limit:
+          type: integer
+          minimum: 1
+        offset:
+          type: integer
+          minimum: 0
+    CreateDocumentResponse:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+    DeleteDocumentResponse:
+      type: object
+      required:
+        - deleted
+      properties:
+        deleted:
+          type: boolean
+    CreateIndexRequest:
+      type: object
+      required:
+        - field
+      properties:
+        field:
+          type: string
+        kind:
+          type: string
+          default: vector
+        options:
+          $ref: '#/components/schemas/StringMap'
+    VectorIndexResponse:
+      type: object
+      required:
+        - collection
+        - field
+        - source_field
+        - provider
+        - model
+        - dimensions
+        - metric
+        - index_type
+        - status
+      properties:
+        collection:
+          type: string
+        field:
+          type: string
+        source_field:
+          type: string
+        provider:
+          type: string
+        model:
+          type: string
+        dimensions:
+          type: integer
+        metric:
+          type: string
+        index_type:
+          type: string
+        status:
+          type: string
+    ExportManifestRequest:
+      type: object
+      properties:
+        instance_id:
+          type: string
+        generated_ms:
+          type: integer
+          format: int64
+        ttl_ms:
+          type: integer
+          format: int64
+        include_row_hashes:
+          type: boolean
+    ConsistencyCheckRequest:
+      type: object
+      required:
+        - manifests
+      properties:
+        manifests:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ProjectionManifest:
+      type: object
+      additionalProperties: true
+    ProjectionCheckReport:
+      type: object
+      required:
+        - state
+        - manifest_count
+      properties:
+        state:
+          type: string
+          enum:
+            - consistent
+            - inconsistent
+            - stale
+            - unverifiable
+            - incompatible
+        manifest_count:
+          type: integer
+    ProjectionConsistencyReports:
+      type: object
+      additionalProperties: true
+    DocumentPayload:
+      type: object
+      additionalProperties: true
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health status
+      operationId: getHealth
+      responses:
+        '200':
+          description: Health snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthList'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /liveness:
+    get:
+      tags: [Health]
+      summary: Liveness status
+      operationId: getLiveness
+      responses:
+        '200':
+          description: Liveness snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Runtime metrics snapshot
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Metrics snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /v1/collections:
+    get:
+      tags: [Collections]
+      summary: List collections
+      operationId: listCollections
+      security:
+        - cassieAuth: []
+      responses:
+        '200':
+          description: Collection names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+    post:
+      tags: [Collections]
+      summary: Create collection
+      operationId: createCollection
+      security:
+        - cassieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionCreateRequest'
+      responses:
+        '200':
+          description: Created collection name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateCollectionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /v1/collections/{collection}/documents:
+    post:
+      tags: [Collections]
+      summary: Insert document into collection
+      operationId: createDocument
+      security:
+        - cassieAuth: []
+      parameters:
+        - in: path
+          name: collection
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentPayload'
+      responses:
+        '200':
+          description: Inserted document id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateDocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /v1/collections/{collection}/indexes:
+    post:
+      tags: [Collections]
+      summary: Create index on collection
+      operationId: createIndex
+      security:
+        - cassieAuth: []
+      parameters:
+        - in: path
+          name: collection
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIndexRequest'
+      responses:
+        '200':
+          description: Vector index metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VectorIndexResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /v1/collections/{collection}/search:
+    post:
+      tags: [Collections]
+      summary: Search vectors in collection
+      operationId: vectorSearch
+      security:
+        - cassieAuth: []
+      parameters:
+        - in: path
+          name: collection
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Vector search result rows
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /v1/collections/{collection}/documents/{id}:
+    get:
+      tags: [Collections]
+      summary: Get document by id
+      operationId: getDocument
+      security:
+        - cassieAuth: []
+      parameters:
+        - in: path
+          name: collection
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentPayload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+    delete:
+      tags: [Collections]
+      summary: Delete document by id
+      operationId: deleteDocument
+      security:
+        - cassieAuth: []
+      parameters:
+        - in: path
+          name: collection
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Delete result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteDocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /v1/admin/query/schema:
+    get:
+      tags: [Query]
+      summary: Get admin query schema tree
+      operationId: getAdminQuerySchema
+      security:
+        - cassieAuth: []
+      responses:
+        '200':
+          description: Query schema tree grouped by section
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuerySchemaResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /v1/admin/query/execute:
+    post:
+      tags: [Query]
+      summary: Execute an admin SQL query
+      operationId: executeAdminQuery
+      security:
+        - cassieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryExecuteRequest'
+      responses:
+        '200':
+          description: SQL execution result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /v1/admin/query/validate:
+    post:
+      tags: [Query]
+      summary: Validate an admin SQL query
+      operationId: validateAdminQuery
+      security:
+        - cassieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryValidateRequest'
+      responses:
+        '200':
+          description: SQL validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryValidateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /v1/admin/query/explain:
+    post:
+      tags: [Query]
+      summary: Explain an admin SQL query
+      operationId: explainAdminQuery
+      security:
+        - cassieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryExplainRequest'
+      responses:
+        '200':
+          description: Explain output as a query result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /v1/admin/projections/{projection}/verification-manifest:
+    post:
+      tags: [Consistency]
+      summary: Export projection verification manifest
+      operationId: exportProjectionManifest
+      security:
+        - cassieAuth: []
+      parameters:
+        - in: path
+          name: projection
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportManifestRequest'
+      responses:
+        '200':
+          description: Verification manifest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionManifest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /v1/admin/projection-consistency-checks:
+    post:
+      tags: [Consistency]
+      summary: Compare verification manifests
+      operationId: compareProjectionConsistency
+      security:
+        - cassieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsistencyCheckRequest'
+      responses:
+        '200':
+          description: Consistency report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionCheckReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /v1/admin/projection-consistency-reports:
+    get:
+      tags: [Consistency]
+      summary: Get latest projection consistency reports
+      operationId: getProjectionConsistencyReports
+      security:
+        - cassieAuth: []
+      responses:
+        '200':
+          description: Latest consistency reports
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionConsistencyReports'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'

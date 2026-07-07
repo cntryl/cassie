@@ -52,6 +52,7 @@ describe("admin shell smoke", () => {
       expect(root.querySelectorAll("main#main-content")).toHaveLength(1);
       expect(root.textContent).toContain("Cassie Admin");
       expect(root.textContent).toContain(adminRoute.label);
+      expect(root.querySelector(`a[href="${adminRoute.path}"][data-active="true"]`)).toBeTruthy();
 
       cleanupApp("app");
       document.body.innerHTML = "";

@@ -10,13 +10,13 @@ interface QuerySchemaTreeProps {
   onSelectItem: (item: QuerySchemaItem) => void;
 }
 
-export function QuerySchemaTree({
-  schema,
-  selectedItemId,
-  onSelectItem,
-}: QuerySchemaTreeProps) {
+export function QuerySchemaTree({ schema, selectedItemId, onSelectItem }: QuerySchemaTreeProps) {
   return (
-    <aside class="cassie-query-schema-tree" data-testid="query-schema-tree" aria-label="Schema objects">
+    <aside
+      class="cassie-query-schema-tree"
+      data-testid="query-schema-tree"
+      aria-label="Schema objects"
+    >
       <header class="cassie-query-schema-tree-header">
         <Text size="sm" weight="semibold">
           Schema browser

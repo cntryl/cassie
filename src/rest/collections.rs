@@ -4,6 +4,7 @@ use crate::types::{DataType, FieldSchema, Schema};
 use serde_json::Value;
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct CreateCollectionRequest {
     pub name: String,
     #[serde(default)]
@@ -13,6 +14,7 @@ pub struct CreateCollectionRequest {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct FieldSpec {
     pub name: String,
     #[serde(rename = "type")]

@@ -90,8 +90,7 @@ pub fn http_vector_search(ctx: &BenchContext) -> Ready<usize> {
     });
     let result = search::vector_search(&ctx.cassie, &ctx.collection, body.to_string().as_bytes())
         .expect("vector search");
-    let rows = result["rows"].as_array().expect("vector search rows");
-    ready(std::hint::black_box(rows.len()))
+    ready(std::hint::black_box(result.rows.len()))
 }
 
 pub fn http_document_get(ctx: &BenchContext) -> Ready<usize> {

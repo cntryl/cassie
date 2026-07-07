@@ -16,7 +16,11 @@ export function QuerySchemaTreeSection({
   onSelectItem,
 }: QuerySchemaTreeSectionProps) {
   return (
-    <section class="cassie-query-schema-section" data-testid="query-schema-tree-section" data-section={section.id}>
+    <section
+      class="cassie-query-schema-section"
+      data-testid="query-schema-tree-section"
+      data-section={section.id}
+    >
       <Text
         as="span"
         size="sm"

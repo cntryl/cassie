@@ -2,6 +2,7 @@ use crate::app::{Cassie, CassieError, ProjectionManifestExportOptions};
 use crate::catalog::ProjectionVerificationManifest;
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 struct ExportManifestRequest {
     #[serde(default)]
     instance_id: Option<String>,
@@ -14,6 +15,7 @@ struct ExportManifestRequest {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 struct ConsistencyCheckRequest {
     manifests: Vec<ProjectionVerificationManifest>,
 }

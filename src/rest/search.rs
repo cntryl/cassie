@@ -1,10 +1,11 @@
 use crate::app::Cassie;
 use crate::app::CassieError;
 use crate::embeddings::DistanceMetric;
+use crate::rest::query::RestQueryResult;
 use serde::Deserialize;
-use serde_json::Value;
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct SearchRequest {
     pub field: String,
     pub query: String,
@@ -19,7 +20,11 @@ pub struct SearchRequest {
 /// # Errors
 ///
 /// Returns an error when validation, storage, or execution fails.
-pub fn vector_search(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Value, CassieError> {
+pub fn vector_search(
+    cassie: &Cassie,
+    collection: &str,
+    body: &[u8],
+) -> Result<RestQueryResult, CassieError> {
     let request: SearchRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
 
@@ -49,6 +54,5 @@ pub fn vector_search(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<V
         offset,
     )?;
 
-    Ok(serde_json::to_value(result)
-        .unwrap_or_else(|_| serde_json::json!({"error":"invalid result"})))
+    Ok(RestQueryResult::from(result))
 }

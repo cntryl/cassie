@@ -251,9 +251,10 @@ components:
         metrics:
           type: object
           additionalProperties: true
-    HealthList:
-      type: object
-      additionalProperties: true
+        collections:
+          type: integer
+        version:
+          type: string
     CollectionCreateRequest:
       type: object
       required:
@@ -383,28 +384,256 @@ components:
           items:
             type: object
             additionalProperties: true
+    ProjectionManifestHashMetadata:
+      type: object
+      required:
+        - algorithm
+        - digest_length
+        - canonical_encoder_version
+        - row_hash_version
+        - range_hash_version
+        - root_hash_version
+      properties:
+        algorithm:
+          type: string
+        digest_length:
+          type: integer
+        canonical_encoder_version:
+          type: integer
+        row_hash_version:
+          type: integer
+        range_hash_version:
+          type: integer
+        root_hash_version:
+          type: integer
+    ProjectionManifestRootSummary:
+      type: object
+      required:
+        - digest
+        - row_count
+        - range_count
+        - state
+        - computed_ms
+      properties:
+        digest:
+          type: string
+        row_count:
+          type: integer
+          format: int64
+        range_count:
+          type: integer
+          format: int64
+        state:
+          type: string
+        computed_ms:
+          type: integer
+          format: int64
+    ProjectionManifestRangeSummary:
+      type: object
+      required:
+        - range_id
+        - row_count
+        - digest
+        - state
+        - computed_ms
+      properties:
+        range_id:
+          type: integer
+          format: int64
+        first_row_id:
+          type:
+            - string
+            - "null"
+        last_row_id:
+          type:
+            - string
+            - "null"
+        row_count:
+          type: integer
+          format: int64
+        digest:
+          type: string
+        state:
+          type: string
+        computed_ms:
+          type: integer
+          format: int64
+    ProjectionManifestRowHashSummary:
+      type: object
+      required:
+        - row_id
+        - digest
+        - state
+        - computed_ms
+      properties:
+        row_id:
+          type: string
+        digest:
+          type: string
+        state:
+          type: string
+        computed_ms:
+          type: integer
+          format: int64
     ProjectionManifest:
       type: object
-      additionalProperties: true
+      required:
+        - manifest_version
+        - instance_id
+        - projection_id
+        - projection_kind
+        - schema_epoch
+        - generated_ms
+        - expires_at_ms
+        - hash
+        - ranges
+        - row_hashes
+        - manifest_digest
+      properties:
+        manifest_version:
+          type: integer
+        instance_id:
+          type: string
+        projection_id:
+          type: string
+        projection_version_id:
+          type:
+            - string
+            - "null"
+        projection_kind:
+          type: string
+        schema_epoch:
+          type: integer
+          format: int64
+        projection_definition_hash:
+          type:
+            - integer
+            - "null"
+          format: int64
+        source_identity:
+          type:
+            - string
+            - "null"
+        source_checkpoint:
+          type:
+            - string
+            - "null"
+        source_position:
+          type:
+            - integer
+            - "null"
+          format: int64
+        generated_ms:
+          type: integer
+          format: int64
+        expires_at_ms:
+          type: integer
+          format: int64
+        hash:
+          $ref: '#/components/schemas/ProjectionManifestHashMetadata'
+        root:
+          oneOf:
+            - $ref: '#/components/schemas/ProjectionManifestRootSummary'
+            - type: "null"
+        ranges:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectionManifestRangeSummary'
+        row_hashes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectionManifestRowHashSummary'
+        manifest_digest:
+          type: string
     ProjectionCheckReport:
       type: object
       required:
+        - report_id
+        - created_ms
+        - projection_id
         - state
+        - compatibility_status
         - manifest_count
+        - instance_ids
+        - mismatch_count
+        - divergent_range_count
+        - divergent_row_count
+        - stale_manifest_count
+        - incompatible_manifest_count
+        - unverifiable_count
+        - diagnostic_sample
       properties:
+        report_id:
+          type: string
+        created_ms:
+          type: integer
+          format: int64
+        projection_id:
+          type: string
+        projection_version_id:
+          type:
+            - string
+            - "null"
         state:
           type: string
           enum:
             - consistent
-            - inconsistent
+            - divergent
             - stale
             - unverifiable
             - incompatible
+        compatibility_status:
+          type: string
         manifest_count:
           type: integer
+          format: int64
+        instance_ids:
+          type: array
+          items:
+            type: string
+        root_digest:
+          type:
+            - string
+            - "null"
+        manifest_digest:
+          type:
+            - string
+            - "null"
+        mismatch_count:
+          type: integer
+          format: int64
+        divergent_range_count:
+          type: integer
+          format: int64
+        divergent_row_count:
+          type: integer
+          format: int64
+        stale_manifest_count:
+          type: integer
+          format: int64
+        incompatible_manifest_count:
+          type: integer
+          format: int64
+        unverifiable_count:
+          type: integer
+          format: int64
+        diagnostic_sample:
+          type: array
+          items:
+            type: string
+        last_error:
+          type:
+            - string
+            - "null"
     ProjectionConsistencyReports:
       type: object
-      additionalProperties: true
+      required:
+        - reports
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectionCheckReport'
     DocumentPayload:
       type: object
       additionalProperties: true
@@ -421,7 +650,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthList'
+                $ref: '#/components/schemas/Health'
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 

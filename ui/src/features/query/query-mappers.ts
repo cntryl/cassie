@@ -20,7 +20,13 @@ const QUERY_SCHEMA_SECTION_ORDER: QuerySchemaSection["id"][] = [
 ];
 
 function toSchemaId(value: string): QuerySchemaSection["id"] | null {
-  if (value === "tables" || value === "views" || value === "indexes" || value === "udfs" || value === "procedures") {
+  if (
+    value === "tables" ||
+    value === "views" ||
+    value === "indexes" ||
+    value === "udfs" ||
+    value === "procedures"
+  ) {
     return value;
   }
 
@@ -28,7 +34,9 @@ function toSchemaId(value: string): QuerySchemaSection["id"] | null {
 }
 
 function sortItems(items: QuerySchemaSection["items"]) {
-  return [...items].sort((left, right) => left.label.localeCompare(right.label, undefined, { sensitivity: "base" }));
+  return [...items].sort((left, right) =>
+    left.label.localeCompare(right.label, undefined, { sensitivity: "base" }),
+  );
 }
 
 function stringForQueryValue(value: QueryResultValue) {
@@ -68,12 +76,13 @@ export function mapSchemaResponse(dto: QuerySchemaResponse): QuerySchema {
       .filter((entry): entry is [string, QuerySchemaSection] => entry !== null),
   );
 
-  const sections = QUERY_SCHEMA_SECTION_ORDER.map((sectionId) =>
-    sectionsById.get(sectionId) ?? {
-      id: sectionId,
-      items: [],
-      label: sectionId,
-    },
+  const sections = QUERY_SCHEMA_SECTION_ORDER.map(
+    (sectionId) =>
+      sectionsById.get(sectionId) ?? {
+        id: sectionId,
+        items: [],
+        label: sectionId,
+      },
   );
 
   return { sections };

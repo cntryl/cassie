@@ -9,6 +9,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct CreateIndexRequest {
     pub field: String,
     #[serde(default = "default_kind")]

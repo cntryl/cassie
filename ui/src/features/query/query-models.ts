@@ -30,4 +30,3 @@ export interface QueryValidationResult {
   columns: string[];
   valid: boolean;
 }
-

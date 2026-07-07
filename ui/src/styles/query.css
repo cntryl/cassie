@@ -85,6 +85,10 @@
   margin-block-end: 0.25rem;
 }
 
+.cassie-query-editor-panel-header [data-slot="toolbar-title"] {
+  font-size: var(--ak-font-size-sm, 0.875rem);
+}
+
 .cassie-query-editor-toolbar {
   display: flex;
   align-items: center;
@@ -163,12 +167,7 @@
 }
 
 .cassie-query-tabs {
-  display: grid;
-  grid-auto-flow: column;
-  justify-content: start;
-  gap: var(--ak-space-2, 0.5rem);
-  border-bottom: 1px solid var(--cassie-border-subtle);
-  padding: 0 var(--ak-space-3, 0.75rem);
+  margin: 0 var(--ak-space-3, 0.75rem);
 }
 
 .cassie-query-tab-content {
@@ -178,6 +177,7 @@
 
 .cassie-query-tab-panel {
   min-block-size: 0;
+  margin-block-start: 0;
 }
 
 .cassie-query-results-placeholder {
@@ -186,16 +186,6 @@
   border-radius: var(--cassie-row-radius);
   background: var(--cassie-surface-muted);
   padding: var(--ak-space-4, 1rem);
-}
-
-.cassie-query-results-placeholder h3 {
-  margin: 0;
-}
-
-.cassie-query-results-placeholder p {
-  margin: var(--ak-space-2, 0.5rem) 0 0;
-  color: var(--cassie-text-muted);
-  max-inline-size: 80ch;
 }
 
 .cassie-resizable-split {
@@ -239,6 +229,11 @@
   min-block-size: 0.5rem;
 }
 
+.cassie-resizable-split-handle:focus-visible {
+  outline: 2px solid var(--cassie-focus-ring);
+  outline-offset: -2px;
+}
+
 .cassie-resizable-split-horizontal .cassie-resizable-split-handle {
   cursor: col-resize;
   inline-size: var(--ak-space-2, 0.5rem);
@@ -263,27 +258,14 @@
     inline-size: 100% !important;
     block-size: auto !important;
   }
+
+  .cassie-resizable-split-horizontal > .cassie-resizable-split-handle {
+    display: none;
+  }
 }
 
 .cassie-query-result-table-wrap {
   overflow: auto;
-}
-
-.cassie-query-result-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.cassie-query-result-table th,
-.cassie-query-result-table td {
-  border: 1px solid var(--cassie-border-subtle);
-  padding: 0.45rem 0.55rem;
-  text-align: left;
-  vertical-align: top;
-}
-
-.cassie-query-result-table thead {
-  background: color-mix(in srgb, var(--cassie-surface-muted) 88%, transparent);
 }
 
 .cassie-query-json {
@@ -297,7 +279,17 @@
 
 .cassie-query-json code {
   white-space: pre;
-  font-family: var(--ak-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+  font-family: var(
+    --ak-font-mono,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace
+  );
   font-size: 0.8rem;
   line-height: 1.4;
 }

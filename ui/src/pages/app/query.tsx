@@ -1,13 +1,33 @@
 import { For } from "@askrjs/askr/control";
 import { state } from "@askrjs/askr";
 import { SendIcon, TriangleAlertIcon } from "@askrjs/lucide";
-import { Alert, Button, Text } from "@askrjs/themes/components";
+import {
+  Alert,
+  Button,
+  EmptyState,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+  Text,
+} from "@askrjs/themes/components";
 
 import { QueryEditorPanel } from "@/components/query/query-editor-panel";
 import { QueryResultTab, QueryResultsTabs } from "@/components/query/query-results-tabs";
-import { QuerySchemaItem, QuerySchemaSection, QueryExecutionResult, QueryValidationResult } from "@/features/query/query-models";
+import {
+  QuerySchemaItem,
+  QuerySchemaSection,
+  QueryExecutionResult,
+  QueryValidationResult,
+} from "@/features/query/query-models";
 import { createAdminQuerySchemaQuery } from "@/features/query/query-query";
-import { createExecuteQueryMutation, createExplainQueryMutation, createValidateQueryMutation } from "@/features/query/query-actions";
+import {
+  createExecuteQueryMutation,
+  createExplainQueryMutation,
+  createValidateQueryMutation,
+} from "@/features/query/query-actions";
 import { QuerySchemaTree } from "@/components/query/query-schema-tree";
 import { ResizableSplit } from "@/components/query/resizable-split";
 import { apiErrorMessage } from "@/shared/errors/api";
@@ -28,47 +48,53 @@ function flattenCompletionItems(schema: QuerySchemaSection[]) {
 
 function QueryPlaceholder({ title, description }: { title: string; description: string }) {
   return (
-    <section class="cassie-query-results-placeholder" aria-label={title}>
-      <h3>{title}</h3>
-      <p>{description}</p>
-    </section>
+    <EmptyState
+      class="cassie-query-results-placeholder"
+      title={title}
+      titleAs="h3"
+      description={description}
+      aria-label={title}
+    />
   );
 }
 
 function QueryResultTable({ result }: { result: QueryExecutionResult }) {
-  if (result.columns.length === 0) {
+  const columns = Array.isArray(result.columns) ? result.columns : [];
+  const rows = Array.isArray(result.rows) ? result.rows : [];
+
+  if (columns.length === 0) {
     return <QueryPlaceholder title="No columns" description="This query returned no columns." />;
   }
 
   return (
     <div class="cassie-query-result-table-wrap">
-      <table class="cassie-query-result-table">
-        <thead>
-          <tr>
-            <For each={result.columns} by={(_, index) => index}>
-              {(column) => <th>{column}</th>}
+      <Table class="cassie-query-result-table">
+        <TableHead>
+          <TableRow>
+            <For each={columns} by={(_, index) => index}>
+              {(column) => <TableHeaderCell>{column}</TableHeaderCell>}
             </For>
-          </tr>
-        </thead>
-        <tbody>
-          {result.rows.length === 0 ? (
-            <tr>
-              <td colSpan={result.columns.length} class="cassie-query-empty-result-cell">
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {rows.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={columns.length} class="cassie-query-empty-result-cell">
                 <QueryPlaceholder title="No rows" description="The query returned zero rows." />
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ) : null}
-          <For each={result.rows} by={(_, index) => index}>
+          <For each={rows} by={(_, index) => index}>
             {(row) => (
-              <tr>
-                <For each={row} by={(_, index) => index}>
-                  {(value) => <td>{value}</td>}
+              <TableRow>
+                <For each={Array.isArray(row) ? row : [String(row)]} by={(_, index) => index}>
+                  {(value) => <TableCell>{value}</TableCell>}
                 </For>
-              </tr>
+              </TableRow>
             )}
           </For>
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -76,7 +102,13 @@ function QueryResultTable({ result }: { result: QueryExecutionResult }) {
 function QueryResultJson({ result }: { result: QueryExecutionResult }) {
   return (
     <pre class="cassie-query-json">
-      <code>{JSON.stringify({ command: result.command, columns: result.columns, rows: result.rows }, null, 2)}</code>
+      <code>
+        {JSON.stringify(
+          { command: result.command, columns: result.columns, rows: result.rows },
+          null,
+          2,
+        )}
+      </code>
     </pre>
   );
 }
@@ -86,8 +118,10 @@ function QueryExecutionSummary({ result }: { result: QueryExecutionResult | null
     return null;
   }
 
-  const rowText = `${result.rows.length} row${result.rows.length === 1 ? "" : "s"}`;
-  const columnText = `${result.columns.length} column${result.columns.length === 1 ? "" : "s"}`;
+  const rowCount = Array.isArray(result.rows) ? result.rows.length : 0;
+  const columnCount = Array.isArray(result.columns) ? result.columns.length : 0;
+  const rowText = `${rowCount} row${rowCount === 1 ? "" : "s"}`;
+  const columnText = `${columnCount} column${columnCount === 1 ? "" : "s"}`;
 
   return (
     <section class="cassie-query-execution-summary" aria-label="Execution summary">
@@ -152,13 +186,7 @@ function QueryExecutionBanner({
     return null;
   }
 
-  return (
-    <Alert
-      variant={banner.variant}
-      title={banner.title}
-      description={banner.description}
-    />
-  );
+  return <Alert variant={banner.variant} title={banner.title} description={banner.description} />;
 }
 
 export default function QueryPage() {
@@ -181,8 +209,7 @@ export default function QueryPage() {
   const isExecutionBusy = executeMutation.pending || explainMutation.pending;
   const isValidating = validateMutation.pending || status() === "validating";
   const isQueryBusy = status() !== "idle" || isExecutionBusy || isValidating;
-  const activeExecution =
-    activeTab() === "plan" ? explainMutation.result : executeMutation.result;
+  const activeExecution = activeTab() === "plan" ? explainMutation.result : executeMutation.result;
   const validationResult = validateMutation.result;
   const canRun = hasQuery && !isQueryBusy;
 
@@ -200,13 +227,39 @@ export default function QueryPage() {
     return null;
   })();
 
+  function resetQueryFeedback() {
+    if (executeMutation.pending) {
+      executeMutation.abort();
+    }
+    if (validateMutation.pending) {
+      validateMutation.abort();
+    }
+    if (explainMutation.pending) {
+      explainMutation.abort();
+    }
+
+    executeMutation.reset();
+    validateMutation.reset();
+    explainMutation.reset();
+    setStatus("idle");
+  }
+
+  function handleQueryChange(nextQuery: string) {
+    if (nextQuery === query()) {
+      return;
+    }
+
+    resetQueryFeedback();
+    setQuery(nextQuery);
+  }
+
   async function handleSchemaSelection(item: QuerySchemaItem) {
     setSelectedItemId(item.id);
-    setQuery(`SELECT * FROM ${item.label};`);
+    handleQueryChange(`SELECT * FROM ${item.label};`);
   }
 
   function handleFormatQuery() {
-    setQuery(query().trim());
+    handleQueryChange(query().trim());
   }
 
   async function runValidate() {
@@ -304,7 +357,9 @@ export default function QueryPage() {
         </div>
       </section>
 
-      {schemaQuery.loading && !schemaQuery.data ? <p class="cassie-query-loading">Loading query schema…</p> : null}
+      {schemaQuery.loading && !schemaQuery.data ? (
+        <p class="cassie-query-loading">Loading query schema…</p>
+      ) : null}
 
       {schemaQuery.error && !schemaQuery.data ? (
         <Alert
@@ -339,7 +394,7 @@ export default function QueryPage() {
               first={
                 <QueryEditorPanel
                   query={query()}
-                  onQueryChange={setQuery}
+                  onQueryChange={handleQueryChange}
                   isRunning={isQueryBusy}
                   onFormat={handleFormatQuery}
                   onValidate={handleValidate}
@@ -380,7 +435,14 @@ export default function QueryPage() {
                       )
                     }
                     planContent={
-                      activeExecution ? <QueryResultJson result={activeExecution} /> : <QueryPlaceholder title="No plan" description="Run explain to inspect plan rows." />
+                      activeExecution ? (
+                        <QueryResultJson result={activeExecution} />
+                      ) : (
+                        <QueryPlaceholder
+                          title="No plan"
+                          description="Run explain to inspect plan rows."
+                        />
+                      )
                     }
                   />
 
@@ -398,7 +460,9 @@ export default function QueryPage() {
                   ) : null}
 
                   {hasQuery ? null : (
-                    <p class="cassie-query-run-note">Type SQL to enable run, validate, and explain actions.</p>
+                    <p class="cassie-query-run-note">
+                      Type SQL to enable run, validate, and explain actions.
+                    </p>
                   )}
                 </>
               }

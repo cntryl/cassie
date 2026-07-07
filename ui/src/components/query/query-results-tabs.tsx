@@ -1,5 +1,5 @@
 import { For } from "@askrjs/askr/control";
-import { Button } from "@askrjs/themes/components";
+import { TabsContent, TabsList, TabsTrigger } from "@askrjs/themes/components";
 
 export type QueryResultTab = "results" | "list" | "plan";
 
@@ -25,42 +25,65 @@ export function QueryResultsTabs({
   planContent,
 }: QueryResultsTabsProps) {
   return (
-    <section class="cassie-query-results-tabs" data-testid="query-results-tabs" aria-label="Query results">
-      <div class="cassie-query-tabs" role="tablist" aria-label="Result tab group">
+    <section
+      class="cassie-query-results-tabs"
+      data-testid="query-results-tabs"
+      aria-label="Query results"
+    >
+      <TabsList class="cassie-query-tabs" aria-label="Result tab group">
         <For each={tabItems} by={(tab) => tab.id}>
           {(tab) => (
-            <Button
+            <TabsTrigger
               type="button"
-              role="tab"
               data-testid={`query-result-tab-${tab.id}`}
               data-tab={tab.id}
+              data-active={activeTab === tab.id ? "true" : undefined}
+              data-state={activeTab === tab.id ? "active" : undefined}
+              id={`query-result-tab-${tab.id}`}
+              aria-controls={`query-result-panel-${tab.id}`}
               aria-selected={activeTab === tab.id}
-              size="sm"
-              variant={activeTab === tab.id ? "secondary" : "ghost"}
-              onPress={() => {
+              onClick={() => {
                 onTabChange(tab.id);
               }}
             >
               {tab.label}
-            </Button>
+            </TabsTrigger>
           )}
         </For>
-      </div>
+      </TabsList>
       <div class="cassie-query-tab-content" aria-live="polite">
         {activeTab === "results" && (
-          <div class="cassie-query-tab-panel" data-testid="query-tab-content" data-tab-content="results">
+          <TabsContent
+            class="cassie-query-tab-panel"
+            id="query-result-panel-results"
+            aria-labelledby="query-result-tab-results"
+            data-testid="query-tab-content"
+            data-tab-content="results"
+          >
             {resultsContent}
-          </div>
+          </TabsContent>
         )}
         {activeTab === "list" && (
-          <div class="cassie-query-tab-panel" data-testid="query-tab-content" data-tab-content="list">
+          <TabsContent
+            class="cassie-query-tab-panel"
+            id="query-result-panel-list"
+            aria-labelledby="query-result-tab-list"
+            data-testid="query-tab-content"
+            data-tab-content="list"
+          >
             {listContent}
-          </div>
+          </TabsContent>
         )}
         {activeTab === "plan" && (
-          <div class="cassie-query-tab-panel" data-testid="query-tab-content" data-tab-content="plan">
+          <TabsContent
+            class="cassie-query-tab-panel"
+            id="query-result-panel-plan"
+            aria-labelledby="query-result-tab-plan"
+            data-testid="query-tab-content"
+            data-tab-content="plan"
+          >
             {planContent}
-          </div>
+          </TabsContent>
         )}
       </div>
     </section>

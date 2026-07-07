@@ -22,11 +22,17 @@ import { ThemeToggle } from "@askrjs/themes/theme";
 import { adminRoutes } from "@/shared/admin-routes";
 
 function currentPath() {
+  try {
+    return currentRoute().path;
+  } catch {
+    // Fall back only for non-router render contexts such as isolated shell tests.
+  }
+
   if (typeof window !== "undefined") {
     return window.location.pathname;
   }
 
-  return currentRoute().path;
+  return "/admin";
 }
 
 export default function Layout({ children }: { children?: unknown }) {

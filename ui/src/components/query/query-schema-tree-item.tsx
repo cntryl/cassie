@@ -8,11 +8,7 @@ interface QuerySchemaTreeItemProps {
   onSelectItem: (item: QuerySchemaItem) => void;
 }
 
-export function QuerySchemaTreeItem({
-  item,
-  selected,
-  onSelectItem,
-}: QuerySchemaTreeItemProps) {
+export function QuerySchemaTreeItem({ item, selected, onSelectItem }: QuerySchemaTreeItemProps) {
   const selectedClass = selected ? "is-selected" : "";
 
   return (
@@ -31,7 +27,9 @@ export function QuerySchemaTreeItem({
         <Text as="span" size="sm" weight="medium">
           {item.label}
         </Text>
-        {item.metadata ? <small class="cassie-query-schema-item-meta">{item.metadata}</small> : null}
+        {item.metadata ? (
+          <small class="cassie-query-schema-item-meta">{item.metadata}</small>
+        ) : null}
       </button>
     </li>
   );

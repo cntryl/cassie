@@ -23,4 +23,3 @@ export function createExplainQueryMutation() {
     action: ({ sql }, { signal }) => queryService.explain(sql, { signal }),
   });
 }
-

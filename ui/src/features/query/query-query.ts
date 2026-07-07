@@ -6,10 +6,13 @@ const queryQueries = queryScope("query");
 
 export const QUERY_SCHEMA_KEY = queryQueries.key("schema");
 
+function fetchAdminQuerySchema({ signal }: { signal?: AbortSignal }) {
+  return queryService.getSchema({ signal });
+}
+
 export function createAdminQuerySchemaQuery() {
   return createQuery<QuerySchema>({
     key: QUERY_SCHEMA_KEY,
-    fetch: ({ signal }) => queryService.getSchema({ signal }),
+    fetch: fetchAdminQuerySchema,
   });
 }
-

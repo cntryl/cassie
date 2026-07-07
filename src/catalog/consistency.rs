@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::{Catalog, ProjectionComparisonReportMeta};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub struct ProjectionManifestHashMetadata {
     pub algorithm: String,
     pub digest_length: u16,
@@ -13,6 +14,7 @@ pub struct ProjectionManifestHashMetadata {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub struct ProjectionManifestRootSummary {
     pub digest: String,
     pub row_count: u64,
@@ -22,6 +24,7 @@ pub struct ProjectionManifestRootSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub struct ProjectionManifestRangeSummary {
     pub range_id: u64,
     pub first_row_id: Option<String>,
@@ -33,6 +36,7 @@ pub struct ProjectionManifestRangeSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub struct ProjectionManifestRowHashSummary {
     pub row_id: String,
     pub digest: String,
@@ -41,6 +45,7 @@ pub struct ProjectionManifestRowHashSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub struct ProjectionVerificationManifest {
     pub manifest_version: u16,
     pub instance_id: String,
@@ -63,6 +68,7 @@ pub struct ProjectionVerificationManifest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
 pub struct ProjectionConsistencyReportMeta {
     pub report_id: String,
     pub created_ms: u64,

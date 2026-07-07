@@ -4,11 +4,17 @@ import { Text } from "@askrjs/themes/components";
 import { adminRouteForPath } from "@/shared/admin-routes";
 
 function activePath() {
+  try {
+    return currentRoute().path;
+  } catch {
+    // Fall back only for non-router render contexts such as isolated shell tests.
+  }
+
   if (typeof window !== "undefined") {
     return window.location.pathname;
   }
 
-  return currentRoute().path;
+  return "/admin";
 }
 
 export default function AdminPlaceholderPage() {

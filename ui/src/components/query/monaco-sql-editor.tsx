@@ -10,6 +10,7 @@ interface MonacoEditorContext {
   editor: unknown;
   model: unknown;
   changeSubscription: { dispose: () => void } | null;
+  completionProvider: () => MonacoCompletionItem[];
   completionSubscription: { dispose: () => void } | null;
   suppressNextChange: boolean;
 }
@@ -31,6 +32,10 @@ function toSuggestions(items: MonacoCompletionItem[]) {
   }));
 }
 
+function emptyCompletionItems(): MonacoCompletionItem[] {
+  return [];
+}
+
 export function MonacoSqlEditor({
   value,
   onChange,
@@ -38,11 +43,15 @@ export function MonacoSqlEditor({
   completionProvider,
 }: MonacoSqlEditorProps) {
   const isTestMode = import.meta.env.MODE === "test";
-  const shouldUseFallback = isTestMode || typeof window === "undefined";
+  const [editorUnavailable, setEditorUnavailable] = state(false);
+  const isEditorUnavailable = editorUnavailable();
+  const shouldUseFallback = isTestMode || typeof window === "undefined" || isEditorUnavailable;
+  const latestCompletionProvider = completionProvider ?? emptyCompletionItems;
   const [editorContext, setEditorContext] = state<MonacoEditorContext | null>(null);
 
   const context = editorContext();
   if (context && !shouldUseFallback) {
+    context.completionProvider = latestCompletionProvider;
     const editorObj = context.editor as {
       getValue: () => string;
       getModel: () => { setValue: (value: string) => void };
@@ -130,13 +139,16 @@ export function MonacoSqlEditor({
           editor,
           model,
           changeSubscription: null,
+          completionProvider: latestCompletionProvider,
           completionSubscription: null,
           suppressNextChange: false,
         };
 
-        ctx.changeSubscription = (editor as {
-          onDidChangeModelContent: (listener: () => void) => { dispose: () => void };
-        }).onDidChangeModelContent(() => {
+        ctx.changeSubscription = (
+          editor as {
+            onDidChangeModelContent: (listener: () => void) => { dispose: () => void };
+          }
+        ).onDidChangeModelContent(() => {
           if (ctx.suppressNextChange) {
             ctx.suppressNextChange = false;
             return;
@@ -146,21 +158,19 @@ export function MonacoSqlEditor({
           onChange(nextValue);
         });
 
-        const completionItems = completionProvider?.() ?? [];
-        if (completionItems.length > 0) {
-          ctx.completionSubscription = monaco.languages.registerCompletionItemProvider("sql", {
-            provideCompletionItems: () => ({
-              suggestions: toSuggestions(completionItems).map((item) => ({
-                ...item,
-                kind: monaco.languages.CompletionItemKind.Snippet,
-              })),
-            }),
-          });
-        }
+        ctx.completionSubscription = monaco.languages.registerCompletionItemProvider("sql", {
+          provideCompletionItems: () => ({
+            suggestions: toSuggestions(ctx.completionProvider()).map((item) => ({
+              ...item,
+              kind: monaco.languages.CompletionItemKind.Snippet,
+            })),
+          }),
+        });
 
         setEditorContext(ctx);
       } catch {
         setEditorContext(null);
+        setEditorUnavailable(true);
       }
     })();
   };
@@ -178,7 +188,16 @@ export function MonacoSqlEditor({
           class="cassie-query-editor-fallback"
           value={value}
           onInput={(event: InputEvent) => {
-            const input = event.currentTarget as HTMLTextAreaElement;
+            const input =
+              event.currentTarget instanceof HTMLTextAreaElement
+                ? event.currentTarget
+                : event.target instanceof HTMLTextAreaElement
+                  ? event.target
+                  : null;
+            if (!input) {
+              return;
+            }
+
             onChange(input.value);
           }}
           disabled={disabled}

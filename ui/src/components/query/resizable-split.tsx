@@ -37,6 +37,12 @@ export function ResizableSplit({
     container = node;
   }
 
+  function setSplit(nextPercent: number) {
+    const clampedPercent = clamp(nextPercent, minPercent, maxPercent);
+    setSizePercent(clampedPercent);
+    onResize?.(clampedPercent);
+  }
+
   function setSplitFromPointer(clientX: number, clientY: number) {
     const root = container;
     if (!root || !root.isConnected) {
@@ -45,12 +51,13 @@ export function ResizableSplit({
 
     const rect = root.getBoundingClientRect();
     const nextPercent = clamp(
-      orientation === "horizontal" ? ((clientX - rect.left) / rect.width) * 100 : ((clientY - rect.top) / rect.height) * 100,
+      orientation === "horizontal"
+        ? ((clientX - rect.left) / rect.width) * 100
+        : ((clientY - rect.top) / rect.height) * 100,
       minPercent,
       maxPercent,
     );
-    setSizePercent(nextPercent);
-    onResize?.(nextPercent);
+    setSplit(nextPercent);
   }
 
   function onPointerDown(event: PointerEvent) {
@@ -92,11 +99,53 @@ export function ResizableSplit({
     target.releasePointerCapture(event.pointerId);
   }
 
+  function onKeyDown(event: KeyboardEvent) {
+    const largeStep = 10;
+    const smallStep = 2;
+    const step = event.shiftKey ? largeStep : smallStep;
+    const current = sizePercent();
+
+    const nextPercent = (() => {
+      if (event.key === "Home") {
+        return minPercent;
+      }
+      if (event.key === "End") {
+        return maxPercent;
+      }
+      if (orientation === "horizontal" && event.key === "ArrowLeft") {
+        return current - step;
+      }
+      if (orientation === "horizontal" && event.key === "ArrowRight") {
+        return current + step;
+      }
+      if (orientation === "vertical" && event.key === "ArrowUp") {
+        return current - step;
+      }
+      if (orientation === "vertical" && event.key === "ArrowDown") {
+        return current + step;
+      }
+
+      return null;
+    })();
+
+    if (nextPercent === null) {
+      return;
+    }
+
+    setSplit(nextPercent);
+    event.preventDefault();
+  }
+
   const split = sizePercent();
+  const isDragging = dragging();
   const primaryStyle = {
     flex: "0 0 auto",
     ...(orientation === "horizontal"
-      ? { inlineSize: `${split}%`, minInlineSize: `${minPercent}%`, maxInlineSize: `${maxPercent}%` }
+      ? {
+          inlineSize: `${split}%`,
+          minInlineSize: `${minPercent}%`,
+          maxInlineSize: `${maxPercent}%`,
+        }
       : { blockSize: `${split}%`, minBlockSize: `${minPercent}%`, maxBlockSize: `${maxPercent}%` }),
   };
   const secondaryStyle = {
@@ -105,6 +154,9 @@ export function ResizableSplit({
   const separatorAttributes = {
     "aria-label": `Resize ${orientation} split`,
     "aria-orientation": orientation,
+    "aria-valuemax": maxPercent,
+    "aria-valuemin": minPercent,
+    "aria-valuenow": Math.round(split),
     role: "separator",
   };
 
@@ -112,6 +164,7 @@ export function ResizableSplit({
     <div
       class={`cassie-resizable-split cassie-resizable-split-${orientation}`}
       ref={setContainer}
+      data-dragging={isDragging ? "true" : undefined}
       data-testid={`query-resizable-split-${orientation}`}
     >
       <div class="cassie-resizable-split-pane" style={primaryStyle}>
@@ -122,6 +175,7 @@ export function ResizableSplit({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onKeyDown={onKeyDown}
         tabIndex={0}
         {...separatorAttributes}
       />

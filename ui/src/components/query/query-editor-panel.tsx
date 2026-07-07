@@ -1,4 +1,4 @@
-import { Text } from "@askrjs/themes/components";
+import { Toolbar } from "@askrjs/themes/components";
 
 import { QueryEditorToolbar } from "./query-editor-toolbar";
 import { MonacoCompletionItem, MonacoSqlEditor } from "./monaco-sql-editor";
@@ -27,20 +27,25 @@ export function QueryEditorPanel({
   completionItems,
 }: QueryEditorPanelProps) {
   return (
-    <section class="cassie-query-editor-panel" data-testid="query-editor-panel" aria-label="Query editor panel">
-      <header class="cassie-query-editor-panel-header">
-        <Text size="sm" weight="semibold">
-          SQL Editor
-        </Text>
-      </header>
-      <QueryEditorToolbar
-        onFormat={onFormat}
-        onValidate={onValidate}
-        onExplain={onExplain}
-        onPlay={onPlay}
-        onStop={onStop}
-        isBusy={isRunning}
-        hasQuery={query.trim().length > 0}
+    <section
+      class="cassie-query-editor-panel"
+      data-testid="query-editor-panel"
+      aria-label="Query editor panel"
+    >
+      <Toolbar
+        class="cassie-query-editor-panel-header"
+        title="SQL Editor"
+        actions={
+          <QueryEditorToolbar
+            onFormat={onFormat}
+            onValidate={onValidate}
+            onExplain={onExplain}
+            onPlay={onPlay}
+            onStop={onStop}
+            isBusy={isRunning}
+            hasQuery={query.trim().length > 0}
+          />
+        }
       />
       <div class="cassie-query-editor-wrapper">
         <MonacoSqlEditor

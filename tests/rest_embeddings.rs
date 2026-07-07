@@ -255,7 +255,10 @@ fn vector_search(
     if offset > 0 {
         body["offset"] = serde_json::json!(offset);
     }
-    rest::search::vector_search(cassie, collection, body.to_string().as_bytes()).unwrap()
+    serde_json::to_value(
+        rest::search::vector_search(cassie, collection, body.to_string().as_bytes()).unwrap(),
+    )
+    .expect("search response json")
 }
 
 fn row_ids(search: &serde_json::Value) -> Vec<String> {
@@ -263,13 +266,7 @@ fn row_ids(search: &serde_json::Value) -> Vec<String> {
         .as_array()
         .expect("rows array")
         .iter()
-        .map(|row| {
-            row[0]
-                .get("String")
-                .and_then(serde_json::Value::as_str)
-                .expect("row id")
-                .to_string()
-        })
+        .map(|row| row[0].as_str().expect("row id").to_string())
         .collect()
 }
 
@@ -394,16 +391,11 @@ fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Vec<Stri
     )
     .unwrap();
 
+    let search = serde_json::to_value(search).expect("search response json");
     let rows = search["rows"].as_array().expect("rows array");
     let returned = rows
         .iter()
-        .map(|row| {
-            row[0]
-                .get("String")
-                .and_then(serde_json::Value::as_str)
-                .expect("result id")
-                .to_string()
-        })
+        .map(|row| row[0].as_str().expect("result id").to_string())
         .collect::<Vec<_>>();
     assert_eq!(returned, vec![first_id, second_id]);
     returned

@@ -2,36 +2,63 @@ use crate::app::{Cassie, CassieError};
 use crate::catalog::IndexKind;
 use crate::executor::{ColumnMeta, QueryResult};
 use crate::sql::ast::{QueryStatement, TransactionAction};
+use crate::types::Value;
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct QueryExecuteRequest {
     pub sql: String,
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct QueryValidateRequest {
     pub sql: String,
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct QueryExplainRequest {
     pub sql: String,
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct RestColumnMeta {
+    pub name: String,
+    pub data_type: String,
+    pub type_oid: i64,
+    pub typlen: i16,
+    pub atttypmod: i32,
+    pub format_code: i16,
+    pub nullable: bool,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct RestQueryResult {
+    pub columns: Vec<RestColumnMeta>,
+    pub rows: Vec<Vec<serde_json::Value>>,
+    pub command: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct QueryValidateResponse {
     pub valid: bool,
     pub command: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub columns: Option<Vec<ColumnMeta>>,
+    pub columns: Option<Vec<RestColumnMeta>>,
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct QuerySchemaResponse {
     pub sections: Vec<QuerySchemaSection>,
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct QuerySchemaSection {
     pub id: String,
     pub label: String,
@@ -39,6 +66,7 @@ pub struct QuerySchemaSection {
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct QuerySchemaItem {
     pub id: String,
     pub kind: String,
@@ -50,11 +78,13 @@ pub struct QuerySchemaItem {
 /// # Errors
 ///
 /// Returns an error when the request body is invalid or SQL execution fails.
-pub fn execute(cassie: &Cassie, user: &str, body: &[u8]) -> Result<QueryResult, CassieError> {
+pub fn execute(cassie: &Cassie, user: &str, body: &[u8]) -> Result<RestQueryResult, CassieError> {
     let request: QueryExecuteRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
     let session = cassie.create_session(user, None);
-    cassie.execute_sql(&session, request.sql.as_str(), Vec::new())
+    cassie
+        .execute_sql(&session, request.sql.as_str(), Vec::new())
+        .map(RestQueryResult::from)
 }
 
 /// # Errors
@@ -66,7 +96,11 @@ pub fn validate(cassie: &Cassie, body: &[u8]) -> Result<QueryValidateResponse, C
     let parsed = crate::sql::parse_statement(request.sql.as_str())?;
     let command = command_name(&parsed.statement).to_string();
     let fingerprint = crate::runtime::sql_fingerprint(&parsed);
-    let columns = cassie.describe_parsed_statement(parsed, fingerprint)?;
+    let columns = cassie
+        .describe_parsed_statement(parsed, fingerprint)?
+        .into_iter()
+        .map(RestColumnMeta::from)
+        .collect();
 
     Ok(QueryValidateResponse {
         valid: true,
@@ -78,7 +112,7 @@ pub fn validate(cassie: &Cassie, body: &[u8]) -> Result<QueryValidateResponse, C
 /// # Errors
 ///
 /// Returns an error when the request body is invalid or SQL planning fails.
-pub fn explain(cassie: &Cassie, user: &str, body: &[u8]) -> Result<QueryResult, CassieError> {
+pub fn explain(cassie: &Cassie, user: &str, body: &[u8]) -> Result<RestQueryResult, CassieError> {
     let request: QueryExplainRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
     let parsed = crate::sql::parse_statement(request.sql.as_str())?;
@@ -89,7 +123,9 @@ pub fn explain(cassie: &Cassie, user: &str, body: &[u8]) -> Result<QueryResult, 
     };
 
     let session = cassie.create_session(user, None);
-    cassie.execute_sql(&session, sql.as_str(), Vec::new())
+    cassie
+        .execute_sql(&session, sql.as_str(), Vec::new())
+        .map(RestQueryResult::from)
 }
 
 #[must_use]
@@ -310,5 +346,59 @@ fn transaction_command_name(action: &TransactionAction) -> &'static str {
         TransactionAction::Savepoint { .. } => "SAVEPOINT",
         TransactionAction::RollbackTo { .. } => "ROLLBACK TO SAVEPOINT",
         TransactionAction::Release { .. } => "RELEASE SAVEPOINT",
+    }
+}
+
+impl From<ColumnMeta> for RestColumnMeta {
+    fn from(column: ColumnMeta) -> Self {
+        Self {
+            name: column.name,
+            data_type: column.data_type,
+            type_oid: column.type_oid,
+            typlen: column.typlen,
+            atttypmod: column.atttypmod,
+            format_code: column.format_code,
+            nullable: column.nullable,
+        }
+    }
+}
+
+impl From<QueryResult> for RestQueryResult {
+    fn from(result: QueryResult) -> Self {
+        Self {
+            columns: result
+                .columns
+                .into_iter()
+                .map(RestColumnMeta::from)
+                .collect(),
+            rows: result
+                .rows
+                .into_iter()
+                .map(|row| row.into_iter().map(query_value_to_json).collect())
+                .collect(),
+            command: result.command,
+        }
+    }
+}
+
+fn query_value_to_json(value: Value) -> serde_json::Value {
+    match value {
+        Value::Null => serde_json::Value::Null,
+        Value::Bool(value) => serde_json::Value::Bool(value),
+        Value::Int64(value) => serde_json::Value::Number(value.into()),
+        Value::Float64(value) => serde_json::Number::from_f64(value)
+            .map_or(serde_json::Value::Null, serde_json::Value::Number),
+        Value::String(value) => serde_json::Value::String(value),
+        Value::Vector(value) => serde_json::Value::Array(
+            value
+                .values
+                .into_iter()
+                .map(|value| {
+                    serde_json::Number::from_f64(f64::from(value))
+                        .map_or(serde_json::Value::Null, serde_json::Value::Number)
+                })
+                .collect(),
+        ),
+        Value::Json(value) => value,
     }
 }

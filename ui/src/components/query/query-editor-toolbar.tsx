@@ -7,8 +7,8 @@ interface QueryEditorToolbarProps {
   onExplain: () => void;
   onPlay: () => void;
   onStop: () => void;
-  isRunning: boolean;
-  canRun: boolean;
+  isBusy: boolean;
+  hasQuery: boolean;
 }
 
 export function QueryEditorToolbar({
@@ -17,16 +17,20 @@ export function QueryEditorToolbar({
   onExplain,
   onPlay,
   onStop,
-  isRunning,
-  canRun,
+  isBusy,
+  hasQuery,
 }: QueryEditorToolbarProps) {
+  const canRun = hasQuery && !isBusy;
+
   return (
     <div class="cassie-query-editor-toolbar" data-testid="query-editor-toolbar" role="toolbar">
       <Button
         type="button"
         size="sm"
         variant="secondary"
+        title="Format SQL"
         onPress={onFormat}
+        disabled={isBusy}
       >
         Fmt
       </Button>
@@ -34,7 +38,9 @@ export function QueryEditorToolbar({
         type="button"
         size="sm"
         variant="secondary"
+        title="Validate SQL"
         onPress={onValidate}
+        disabled={!canRun}
       >
         <CheckCircle2Icon size={14} />
         <span>Validate</span>
@@ -43,7 +49,9 @@ export function QueryEditorToolbar({
         type="button"
         size="sm"
         variant="secondary"
+        title="Explain SQL execution plan"
         onPress={onExplain}
+        disabled={!canRun}
       >
         <RefreshCwIcon size={14} />
         <span>Explain</span>
@@ -52,24 +60,27 @@ export function QueryEditorToolbar({
         type="button"
         variant="primary"
         size="sm"
-        disabled={!canRun || isRunning}
+        title="Execute SQL"
+        disabled={!canRun}
         data-action="play"
         onPress={onPlay}
       >
         <PlayIcon size={14} />
         <span>Run</span>
       </Button>
-      <Button
-        type="button"
-        variant="destructive"
-        size="sm"
-        disabled={!isRunning}
-        data-action="stop"
-        onPress={onStop}
-      >
-        <SquareIcon size={14} />
-        <span>Stop</span>
-      </Button>
+      {isBusy ? (
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          title="Stop running query operation"
+          data-action="stop"
+          onPress={onStop}
+        >
+          <SquareIcon size={14} />
+          <span>Stop</span>
+        </Button>
+      ) : null}
     </div>
   );
 }

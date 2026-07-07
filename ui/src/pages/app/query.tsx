@@ -81,16 +81,82 @@ function QueryResultJson({ result }: { result: QueryExecutionResult }) {
   );
 }
 
-function QueryValidationBanner({ validation }: { validation: QueryValidationResult | null }) {
-  if (!validation) {
+function QueryExecutionSummary({ result }: { result: QueryExecutionResult | null }) {
+  if (!result) {
+    return null;
+  }
+
+  const rowText = `${result.rows.length} row${result.rows.length === 1 ? "" : "s"}`;
+  const columnText = `${result.columns.length} column${result.columns.length === 1 ? "" : "s"}`;
+
+  return (
+    <section class="cassie-query-execution-summary" aria-label="Execution summary">
+      <p class="cassie-query-execution-summary-command">
+        <strong>Command</strong>
+        <span>{result.command}</span>
+      </p>
+      <p class="cassie-query-execution-summary-meta">
+        {rowText} · {columnText}
+      </p>
+    </section>
+  );
+}
+
+function QueryExecutionBanner({
+  status,
+  isBusy,
+  validation,
+  errorMessage,
+}: {
+  status: QueryStatus;
+  isBusy: boolean;
+  validation: QueryValidationResult | null;
+  errorMessage: string | null;
+}) {
+  const banner = (() => {
+    if (errorMessage !== null) {
+      return {
+        variant: "danger" as const,
+        title: "Query action failed",
+        description: errorMessage,
+      };
+    }
+
+    if (isBusy) {
+      return {
+        variant: "info" as const,
+        title: "Query action",
+        description:
+          status === "running"
+            ? "Running query..."
+            : status === "explaining"
+              ? "Generating explain plan..."
+              : status === "validating"
+                ? "Validating SQL..."
+                : "Working on query operation...",
+      };
+    }
+
+    if (validation) {
+      return {
+        variant: validation.valid ? ("success" as const) : ("warning" as const),
+        title: validation.valid ? "Validation passed" : "Validation failed",
+        description: `Command ${validation.command}`,
+      };
+    }
+
+    return null;
+  })();
+
+  if (!banner) {
     return null;
   }
 
   return (
     <Alert
-      variant={validation.valid ? "success" : "warning"}
-      title={validation.valid ? "Validation passed" : "Validation failed"}
-      description={`Command ${validation.command}`}
+      variant={banner.variant}
+      title={banner.title}
+      description={banner.description}
     />
   );
 }
@@ -110,12 +176,29 @@ export default function QueryPage() {
 
   const schemaSections = schemaQuery.data?.sections ?? [];
   const completionItems = flattenCompletionItems(schemaSections);
-  const canRun = query().trim().length > 0 && status() === "idle";
+  const hasQuery = query().trim().length > 0;
 
   const isExecutionBusy = executeMutation.pending || explainMutation.pending;
+  const isValidating = validateMutation.pending || status() === "validating";
+  const isQueryBusy = status() !== "idle" || isExecutionBusy || isValidating;
   const activeExecution =
     activeTab() === "plan" ? explainMutation.result : executeMutation.result;
   const validationResult = validateMutation.result;
+  const canRun = hasQuery && !isQueryBusy;
+
+  const actionErrorMessage = (() => {
+    if (validateMutation.error !== null) {
+      return apiErrorMessage(validateMutation.error);
+    }
+    if (executeMutation.error !== null) {
+      return apiErrorMessage(executeMutation.error);
+    }
+    if (explainMutation.error !== null) {
+      return apiErrorMessage(explainMutation.error);
+    }
+
+    return null;
+  })();
 
   async function handleSchemaSelection(item: QuerySchemaItem) {
     setSelectedItemId(item.id);
@@ -193,19 +276,6 @@ export default function QueryPage() {
     setActiveTab(tab);
   }
 
-  const hasActionError =
-    validateMutation.error !== null || executeMutation.error !== null || explainMutation.error !== null;
-
-  const statusBanner = isExecutionBusy || status() !== "idle" ?
-    status() === "running"
-      ? "Running query..."
-      : status() === "explaining"
-        ? "Generating explain plan..."
-        : status() === "validating"
-          ? "Validating SQL..."
-          : null
-    : null;
-
   return (
     <main
       class="cassie-query-page cassie-query-shell"
@@ -270,7 +340,7 @@ export default function QueryPage() {
                 <QueryEditorPanel
                   query={query()}
                   onQueryChange={setQuery}
-                  isRunning={isExecutionBusy || status() !== "idle"}
+                  isRunning={isQueryBusy}
                   onFormat={handleFormatQuery}
                   onValidate={handleValidate}
                   onExplain={handleExplain}
@@ -281,25 +351,14 @@ export default function QueryPage() {
               }
               second={
                 <>
-                  {(statusBanner || hasActionError) ? (
-                    <Alert
-                      title="Query action"
-                      variant={hasActionError ? "danger" : "info"}
-                      description={
-                        hasActionError
-                          ? validateMutation.error
-                            ? apiErrorMessage(validateMutation.error)
-                            : executeMutation.error
-                              ? apiErrorMessage(executeMutation.error)
-                              : explainMutation.error
-                                ? apiErrorMessage(explainMutation.error)
-                                : "Unknown query action error."
-                          : statusBanner ?? "Working..."
-                      }
-                    />
-                  ) : null}
+                  <QueryExecutionBanner
+                    status={status()}
+                    isBusy={isQueryBusy}
+                    validation={validationResult ?? null}
+                    errorMessage={actionErrorMessage}
+                  />
 
-                  <QueryValidationBanner validation={validationResult ?? null} />
+                  <QueryExecutionSummary result={activeExecution} />
 
                   <QueryResultsTabs
                     activeTab={activeTab()}
@@ -314,10 +373,6 @@ export default function QueryPage() {
                     listContent={
                       activeExecution ? (
                         <>
-                          <div class="cassie-query-results-header">
-                            <strong>Result set</strong>
-                            <span>{activeExecution.rows.length} rows</span>
-                          </div>
                           <QueryResultJson result={activeExecution} />
                         </>
                       ) : (
@@ -333,6 +388,7 @@ export default function QueryPage() {
                     <Button
                       type="button"
                       size="sm"
+                      variant="ghost"
                       onPress={() => {
                         void schemaQuery.refresh();
                       }}
@@ -341,7 +397,7 @@ export default function QueryPage() {
                     </Button>
                   ) : null}
 
-                  {canRun ? null : (
+                  {hasQuery ? null : (
                     <p class="cassie-query-run-note">Type SQL to enable run, validate, and explain actions.</p>
                   )}
                 </>

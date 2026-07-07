@@ -39,8 +39,8 @@ export function QueryEditorPanel({
         onExplain={onExplain}
         onPlay={onPlay}
         onStop={onStop}
-        isRunning={isRunning}
-        canRun={query.trim().length > 0}
+        isBusy={isRunning}
+        hasQuery={query.trim().length > 0}
       />
       <div class="cassie-query-editor-wrapper">
         <MonacoSqlEditor

@@ -87,8 +87,10 @@
 
 .cassie-query-editor-toolbar {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: var(--ak-space-2, 0.5rem);
+  min-inline-size: 0;
 }
 
 .cassie-query-editor-wrapper {
@@ -120,6 +122,44 @@
   grid-template-rows: auto 1fr;
   min-block-size: 0;
   min-inline-size: 0;
+}
+
+.cassie-query-execution-summary {
+  display: grid;
+  gap: var(--ak-space-1, 0.25rem);
+  padding: 0 var(--ak-space-3, 0.75rem) var(--ak-space-2, 0.5rem);
+  color: var(--cassie-text-muted);
+  font-size: 0.85rem;
+}
+
+.cassie-query-execution-summary p {
+  margin: 0;
+}
+
+.cassie-query-execution-summary-command {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ak-space-2, 0.5rem);
+  min-inline-size: 0;
+}
+
+.cassie-query-execution-summary-command span {
+  display: inline-grid;
+  color: var(--cassie-text);
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cassie-query-execution-summary strong {
+  color: var(--cassie-text);
+}
+
+.cassie-query-execution-summary-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--ak-space-2, 0.5rem);
 }
 
 .cassie-query-tabs {
@@ -265,15 +305,6 @@
 .cassie-query-empty-result-cell {
   text-align: center;
   padding: 1rem;
-}
-
-.cassie-query-results-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.25rem 0;
-  color: var(--cassie-text-muted);
-  font-size: 0.9rem;
 }
 
 .cassie-query-loading {

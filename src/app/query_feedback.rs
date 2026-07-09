@@ -4,9 +4,28 @@ use super::{
 };
 
 impl Cassie {
+    fn binding_context_for_session(
+        &self,
+        session: Option<&CassieSession>,
+    ) -> binder::BindingContext {
+        let database = session
+            .and_then(CassieSession::current_database)
+            .unwrap_or(self.default_database.as_str());
+        let search_path = session.map_or_else(
+            || vec![crate::catalog::DEFAULT_SCHEMA.to_string()],
+            CassieSession::search_path,
+        );
+        if self.database_catalog_enforced() {
+            binder::BindingContext::scoped(database.to_string(), search_path)
+        } else {
+            binder::BindingContext::unscoped(database.to_string(), search_path)
+        }
+    }
+
     pub(crate) fn feedback_keys_for_plan(
         &self,
         database: Option<&str>,
+        search_path: Vec<String>,
         physical: &crate::planner::physical::PhysicalPlan,
     ) -> Vec<RuntimeFeedbackKey> {
         let schema_epoch = self.runtime.schema_epoch();
@@ -15,6 +34,7 @@ impl Cassie {
             let index = self.catalog.get_index(&physical.collection, index_name);
             keys.push(crate::runtime::normalized_feedback_key(
                 database.map(str::to_string),
+                search_path.clone(),
                 schema_epoch,
                 &physical.collection,
                 "index_read",
@@ -24,6 +44,7 @@ impl Cassie {
         } else {
             keys.push(crate::runtime::normalized_feedback_key(
                 database.map(str::to_string),
+                search_path.clone(),
                 schema_epoch,
                 &physical.collection,
                 "row_scan",
@@ -47,6 +68,7 @@ impl Cassie {
             if physical.operators.contains(&operator) {
                 keys.push(crate::runtime::normalized_feedback_key(
                     database.map(str::to_string),
+                    search_path.clone(),
                     schema_epoch,
                     &physical.collection,
                     family,
@@ -86,12 +108,14 @@ impl Cassie {
     fn feedback_planned_candidate(
         &self,
         database: Option<&str>,
+        search_path: Vec<String>,
         collection: &str,
         logical: &crate::planner::logical::LogicalPlan,
         candidate: &crate::planner::physical::ReadOperatorCandidate,
     ) -> (RuntimeFeedbackKey, crate::runtime::OperatorFeedbackEstimate) {
         let key = crate::runtime::normalized_feedback_key(
             database.map(str::to_string),
+            search_path,
             self.runtime.schema_epoch(),
             collection,
             candidate.operator_family,
@@ -110,6 +134,7 @@ impl Cassie {
     fn select_operator_feedback_plan(
         &self,
         database: Option<&str>,
+        search_path: Vec<String>,
         collection: &str,
         logical: &crate::planner::logical::LogicalPlan,
         selection: &crate::planner::physical::ReadOperatorSelection,
@@ -130,7 +155,13 @@ impl Cassie {
         };
 
         let (_base_key, base_estimate) =
-            self.feedback_planned_candidate(database, collection, logical, base_candidate);
+            self.feedback_planned_candidate(
+                database,
+                search_path.clone(),
+                collection,
+                logical,
+                base_candidate,
+            );
         let mut chosen_candidate = base_candidate;
         let mut chosen_estimate = base_estimate.clone();
         let mut chosen_cost = if base_estimate.state == "used" {
@@ -144,8 +175,13 @@ impl Cassie {
             .iter()
             .filter(|candidate| !candidate.base_selected)
         {
-            let (_key, estimate) =
-                self.feedback_planned_candidate(database, collection, logical, candidate);
+            let (_key, estimate) = self.feedback_planned_candidate(
+                database,
+                search_path.clone(),
+                collection,
+                logical,
+                candidate,
+            );
             if estimate.state == "used" && estimate.adjusted_cost < chosen_cost {
                 chosen_candidate = candidate;
                 chosen_cost = estimate.adjusted_cost;
@@ -187,24 +223,26 @@ impl Cassie {
     pub(crate) fn compile_physical_plan(
         &self,
         parsed: crate::sql::ast::ParsedStatement,
-        database: Option<&str>,
+        session: Option<&CassieSession>,
         controls: Option<&QueryExecutionControls>,
     ) -> Result<Arc<crate::planner::physical::PhysicalPlan>, CassieError> {
-        let bound = binder::bind(parsed, &self.catalog)?;
+        let context = self.binding_context_for_session(session);
+        let bound = binder::bind_with_context(parsed, &self.catalog, &context)?;
         if controls.is_some_and(QueryExecutionControls::is_timed_out) {
-            return Err(CassieError::Execution("query timeout exceeded".to_string()));
+            return Err(CassieError::DeadlineExceeded);
         }
 
         let logical = crate::planner::logical::plan(&bound)?;
         let optimized = crate::planner::optimizer::optimize(logical);
-        let cardinality_stats = self.catalog.cardinality.read().clone();
+        let cardinality_stats = self.catalog.cardinality_snapshot();
         let selection = crate::planner::physical::read_operator_selection(
             &optimized,
             bound.indexes.as_slice(),
             &cardinality_stats,
         );
         let (operator_selected_index, operator_feedback) = self.select_operator_feedback_plan(
-            database,
+            session.and_then(CassieSession::current_database),
+            context.search_path.clone(),
             &optimized.collection,
             &optimized,
             &selection,
@@ -247,9 +285,10 @@ impl Cassie {
         candidate_index: Option<&str>,
     ) -> Result<RuntimeFeedbackKey, CassieError> {
         let parsed = parser::parse_statement(sql)?;
-        let bound = binder::bind(parsed, &self.catalog)?;
+        let context = self.binding_context_for_session(Some(session));
+        let bound = binder::bind_with_context(parsed, &self.catalog, &context)?;
         let logical = crate::planner::optimizer::optimize(crate::planner::logical::plan(&bound)?);
-        let cardinality_stats = self.catalog.cardinality.read().clone();
+        let cardinality_stats = self.catalog.cardinality_snapshot();
         let selection = crate::planner::physical::read_operator_selection(
             &logical,
             bound.indexes.as_slice(),
@@ -267,6 +306,7 @@ impl Cassie {
             })?;
         Ok(crate::runtime::normalized_feedback_key(
             session.database.clone(),
+            session.search_path(),
             self.runtime.schema_epoch(),
             &logical.collection,
             candidate.operator_family,

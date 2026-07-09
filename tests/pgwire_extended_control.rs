@@ -541,11 +541,10 @@ fn should_reject_copy_data_message_with_unsupported_error() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind listener");
@@ -625,7 +624,9 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         seed_recovery_collection(&cassie);
 
@@ -666,11 +667,10 @@ fn should_return_unsupported_error_for_copy_statement() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind listener");

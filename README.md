@@ -24,10 +24,16 @@ Runtime configuration is driven by `CASSIE_*` environment variables.
 | --- | --- | --- |
 | `CASSIE_PGWIRE_LISTEN` | `127.0.0.1:5432` | PostgreSQL wire listener address |
 | `CASSIE_REST_LISTEN` | `127.0.0.1:8080` | REST listener address |
-| `CASSIE_ADMIN_UI_DIR` | `./ui/dist` | Built admin UI asset directory for `/admin` and `/assets/*` static serving |
+| `CASSIE_ADMIN_UI_DIR` | `./ui/dist` | Built admin UI asset directory served at `/` (and any unmatched non-API path, for client-side routing) plus `/assets/*`; all resource APIs live under `/api/v1/*`, with `/health`, `/liveness`, `/targetz`, and `/metrics` reserved as unauthenticated probe endpoints |
 | `CASSIE_PGWIRE_MAX_CONNECTIONS` | `256` | Pgwire admission cap, clamped to at least `1` |
 | `CASSIE_REST_MAX_CONNECTIONS` | `512` | REST admission cap, clamped to at least `1` |
-| `CASSIE_EMBEDDINGS_PROVIDER` | `disabled` | Supported values are `disabled`, `openai`, `openai_compatible`, `tei`, and `ollama`; explicit `voyage`, `cohere`, or `local` fail startup |
+| `CASSIE_EMBEDDINGS_PROVIDER` | `disabled` | Supported values are `disabled`, `openai`, `openai_compatible`, `tei`, `ollama`, `voyage`, `cohere`, and `local` |
+
+Provider-specific embedding config stays under the matching prefix:
+
+- `CASSIE_VOYAGE_API_KEY`, `CASSIE_VOYAGE_MODEL`, `CASSIE_VOYAGE_DIMENSIONS`, `CASSIE_VOYAGE_TIMEOUT_SECONDS`, `CASSIE_VOYAGE_MAX_BATCH_SIZE`, `CASSIE_VOYAGE_MAX_RETRIES`, `CASSIE_VOYAGE_BASE_URL`
+- `CASSIE_COHERE_API_KEY`, `CASSIE_COHERE_MODEL`, `CASSIE_COHERE_DIMENSIONS`, `CASSIE_COHERE_TIMEOUT_SECONDS`, `CASSIE_COHERE_MAX_BATCH_SIZE`, `CASSIE_COHERE_MAX_RETRIES`, `CASSIE_COHERE_BASE_URL`
+- `CASSIE_LOCAL_MODEL`, `CASSIE_LOCAL_DIMENSIONS`
 
 ## Design Principles
 

@@ -1,10 +1,13 @@
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
+use cassie::embeddings::cohere::{CohereProvider, CohereProviderConfig};
 use cassie::embeddings::compatible::{OpenAiCompatibleProvider, OpenAiCompatibleProviderConfig};
 use cassie::embeddings::ollama::{OllamaProvider, OllamaProviderConfig};
 use cassie::embeddings::tei::{TeiProvider, TeiProviderConfig};
+use cassie::embeddings::voyage::{VoyageProvider, VoyageProviderConfig};
 use cassie::embeddings::EmbeddingProvider;
 
 #[derive(Clone)]
@@ -42,6 +45,7 @@ impl MockResponse {
 
 struct MockEmbeddingServer {
     base_url: String,
+    requests: Arc<Mutex<Vec<HttpRequest>>>,
     thread: Option<thread::JoinHandle<()>>,
 }
 
@@ -52,6 +56,8 @@ impl MockEmbeddingServer {
             "http://{}",
             listener.local_addr().expect("mock server address")
         );
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let request_sink = Arc::clone(&requests);
         let thread = thread::spawn(move || {
             for response in responses {
                 let (mut stream, _) = listener.accept().expect("mock accept");
@@ -65,6 +71,10 @@ impl MockEmbeddingServer {
                         "expected authorization header"
                     );
                 }
+                request_sink
+                    .lock()
+                    .expect("recorded requests lock")
+                    .push(request.clone());
                 let body = request.body;
                 if body.is_empty() {
                     continue;
@@ -83,12 +93,20 @@ impl MockEmbeddingServer {
 
         Self {
             base_url,
+            requests,
             thread: Some(thread),
         }
     }
 
     fn base_url(&self) -> String {
         self.base_url.clone()
+    }
+
+    fn recorded_requests(&self) -> Vec<HttpRequest> {
+        self.requests
+            .lock()
+            .expect("recorded requests lock")
+            .clone()
     }
 }
 
@@ -136,6 +154,76 @@ fn should_embed_documents_with_tei_provider() {
 }
 
 #[test]
+fn should_embed_documents_with_voyage_provider() {
+    // Arrange
+    let server = MockEmbeddingServer::spawn(vec![MockResponse::requiring_authorization(
+        &serde_json::json!({
+            "data": [
+                {"index": 1, "embedding": [0.4, 0.5, 0.6]},
+                {"index": 0, "embedding": [0.1, 0.2, 0.3]}
+            ]
+        }),
+        "Bearer voyage-secret",
+    )]);
+    let provider = VoyageProvider::with_config(VoyageProviderConfig {
+        api_key: "voyage-secret".to_string(),
+        model: "voyage-3.5-lite".to_string(),
+        dimensions: 3,
+        timeout: std::time::Duration::from_secs(1),
+        max_batch_size: 8,
+        max_retries: 1,
+        base_url: server.base_url(),
+    })
+    .expect("provider should configure");
+    let inputs = vec!["alpha".to_string(), "beta".to_string()];
+
+    // Act
+    let embeddings = provider
+        .embed_documents(&inputs)
+        .expect("embeddings should return");
+    let requests = server.recorded_requests();
+    let request_body = request_json(&requests[0]);
+
+    // Assert
+    assert_eq!(provider.provider_name(), "voyage");
+    assert_eq!(embeddings[0].values, vec![0.1, 0.2, 0.3]);
+    assert_eq!(embeddings[1].values, vec![0.4, 0.5, 0.6]);
+    assert_eq!(request_body["input_type"], "document");
+    assert_eq!(request_body["output_dimension"], 3);
+    assert_eq!(request_body["model"], "voyage-3.5-lite");
+}
+
+#[test]
+fn should_embed_query_with_voyage_provider_query_input_type() {
+    // Arrange
+    let server = MockEmbeddingServer::spawn(vec![MockResponse::ok(&serde_json::json!({
+        "data": [
+            {"index": 0, "embedding": [0.1, 0.2, 0.3]}
+        ]
+    }))]);
+    let provider = VoyageProvider::with_config(VoyageProviderConfig {
+        api_key: "voyage-secret".to_string(),
+        model: "voyage-3.5-lite".to_string(),
+        dimensions: 3,
+        timeout: std::time::Duration::from_secs(1),
+        max_batch_size: 8,
+        max_retries: 1,
+        base_url: server.base_url(),
+    })
+    .expect("provider should configure");
+
+    // Act
+    let embedding = provider.embed_query("alpha").expect("query embedding");
+    let requests = server.recorded_requests();
+    let request_body = request_json(&requests[0]);
+
+    // Assert
+    assert_eq!(embedding.values, vec![0.1, 0.2, 0.3]);
+    assert_eq!(request_body["input_type"], "query");
+    assert_eq!(request_body["input"][0], "alpha");
+}
+
+#[test]
 fn should_embed_documents_with_openai_compatible_provider() {
     // Arrange
     let server = MockEmbeddingServer::spawn(vec![MockResponse::ok(&serde_json::json!({
@@ -167,6 +255,80 @@ fn should_embed_documents_with_openai_compatible_provider() {
     assert_eq!(provider.dimensions(), 3);
     assert_eq!(embeddings[0].values, vec![0.1, 0.2, 0.3]);
     assert_eq!(embeddings[1].values, vec![0.4, 0.5, 0.6]);
+}
+
+#[test]
+fn should_embed_documents_with_cohere_provider() {
+    // Arrange
+    let server = MockEmbeddingServer::spawn(vec![MockResponse::requiring_authorization(
+        &serde_json::json!({
+            "embeddings": {
+                "float": [
+                    [0.1, 0.2, 0.3],
+                    [0.4, 0.5, 0.6]
+                ]
+            }
+        }),
+        "Bearer cohere-secret",
+    )]);
+    let provider = CohereProvider::with_config(CohereProviderConfig {
+        api_key: "cohere-secret".to_string(),
+        model: "embed-v4.0".to_string(),
+        dimensions: 3,
+        timeout: std::time::Duration::from_secs(1),
+        max_batch_size: 8,
+        max_retries: 1,
+        base_url: server.base_url(),
+    })
+    .expect("provider should configure");
+    let inputs = vec!["alpha".to_string(), "beta".to_string()];
+
+    // Act
+    let embeddings = provider
+        .embed_documents(&inputs)
+        .expect("embeddings should return");
+    let requests = server.recorded_requests();
+    let request_body = request_json(&requests[0]);
+
+    // Assert
+    assert_eq!(provider.provider_name(), "cohere");
+    assert_eq!(embeddings[0].values, vec![0.1, 0.2, 0.3]);
+    assert_eq!(embeddings[1].values, vec![0.4, 0.5, 0.6]);
+    assert_eq!(request_body["input_type"], "search_document");
+    assert_eq!(request_body["output_dimension"], 3);
+    assert_eq!(request_body["embedding_types"][0], "float");
+}
+
+#[test]
+fn should_embed_query_with_cohere_provider_query_input_type() {
+    // Arrange
+    let server = MockEmbeddingServer::spawn(vec![MockResponse::ok(&serde_json::json!({
+        "embeddings": {
+            "float": [
+                [0.1, 0.2, 0.3]
+            ]
+        }
+    }))]);
+    let provider = CohereProvider::with_config(CohereProviderConfig {
+        api_key: "cohere-secret".to_string(),
+        model: "embed-v4.0".to_string(),
+        dimensions: 3,
+        timeout: std::time::Duration::from_secs(1),
+        max_batch_size: 8,
+        max_retries: 1,
+        base_url: server.base_url(),
+    })
+    .expect("provider should configure");
+
+    // Act
+    let embedding = provider.embed_query("alpha").expect("query embedding");
+    let requests = server.recorded_requests();
+    let request_body = request_json(&requests[0]);
+
+    // Assert
+    assert_eq!(embedding.values, vec![0.1, 0.2, 0.3]);
+    assert_eq!(request_body["input_type"], "search_query");
+    assert_eq!(request_body["texts"][0], "alpha");
 }
 
 #[test]
@@ -334,9 +496,14 @@ fn should_retry_transient_self_hosted_embedding_failures() {
     assert_eq!(embeddings[0].values, vec![0.1, 0.2, 0.3]);
 }
 
+#[derive(Clone)]
 struct HttpRequest {
     headers: String,
     body: Vec<u8>,
+}
+
+fn request_json(request: &HttpRequest) -> serde_json::Value {
+    serde_json::from_slice(&request.body).expect("request body json")
 }
 
 fn read_http_request(stream: &mut std::net::TcpStream) -> HttpRequest {

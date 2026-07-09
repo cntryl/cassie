@@ -97,7 +97,7 @@ impl Midge {
         match tx.get(&marker_key).map_err(CassieError::from)? {
             Some(value) if value == key_encoding::LAYOUT_MARKER_VALUE => Ok(()),
             Some(value) => Err(CassieError::StorageBootstrap(format!(
-                "incompatible lexkey v{} storage layout marker: {:?}",
+                "incompatible lexkey v{} storage layout marker {:?}; recreate the Midge data directory",
                 key_encoding::LAYOUT_VERSION,
                 String::from_utf8_lossy(&value)
             ))),
@@ -142,6 +142,19 @@ impl Midge {
                         String::from_utf8_lossy(prefix)
                     )));
                 }
+            }
+
+            let mut v2_scan = tx
+                .scan(
+                    &Query::new()
+                        .prefix(key_encoding::legacy_v2_layout_prefix().into()),
+                )
+                .map_err(CassieError::from)?;
+            if v2_scan.next().is_some() {
+                return Err(CassieError::StorageBootstrap(format!(
+                    "incompatible lexkey v{} storage layout: found v2 keys in {family_name}; recreate the Midge data directory",
+                    key_encoding::LAYOUT_VERSION
+                )));
             }
         }
         Ok(())

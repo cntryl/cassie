@@ -14,7 +14,7 @@ pub enum CassieRuntimeConfigError {
     #[error("{key} is set but '{path}' is empty after trimming whitespace")]
     PasswordFileEmpty { key: &'static str, path: String },
 
-    #[error("CASSIE_EMBEDDINGS_PROVIDER='{provider}' is not available; use disabled, openai, openai_compatible, tei, or ollama")]
+    #[error("CASSIE_EMBEDDINGS_PROVIDER='{provider}' is not available; use disabled, fallback, openai, openai_compatible, tei, ollama, voyage, cohere, or local")]
     UnsupportedEmbeddingProvider { provider: String },
 }
 
@@ -116,15 +116,43 @@ pub struct OpenAiCompatibleRuntimeConfig {
 }
 
 #[derive(Debug, Clone)]
+pub struct VoyageRuntimeConfig {
+    pub api_key: String,
+    pub model: String,
+    pub dimensions: usize,
+    pub timeout_seconds: u64,
+    pub max_batch_size: usize,
+    pub max_retries: usize,
+    pub base_url: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct CohereRuntimeConfig {
+    pub api_key: String,
+    pub model: String,
+    pub dimensions: usize,
+    pub timeout_seconds: u64,
+    pub max_batch_size: usize,
+    pub max_retries: usize,
+    pub base_url: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct LocalRuntimeConfig {
+    pub model: String,
+    pub dimensions: usize,
+}
+
+#[derive(Debug, Clone)]
 pub enum EmbeddingsRuntimeConfig {
     Disabled,
     OpenAI(OpenAiRuntimeConfig),
     OpenAiCompatible(OpenAiCompatibleRuntimeConfig),
     Tei(SelfHostedEmbeddingRuntimeConfig),
     Ollama(SelfHostedEmbeddingRuntimeConfig),
-    Voyage,
-    Cohere,
-    Local,
+    Voyage(VoyageRuntimeConfig),
+    Cohere(CohereRuntimeConfig),
+    Local(LocalRuntimeConfig),
 }
 
 impl Default for CassieRuntimeConfig {
@@ -226,10 +254,15 @@ impl CassieRuntimeConfig {
         let provider =
             env_reader("CASSIE_EMBEDDINGS_PROVIDER").unwrap_or_else(|| "disabled".to_string());
         let provider = provider.trim().to_ascii_lowercase();
-        if matches!(provider.as_str(), "voyage" | "cohere" | "local") {
-            return Err(CassieRuntimeConfigError::UnsupportedEmbeddingProvider { provider });
-        }
-        config.embeddings = parse_provider_config_from(provider.as_str(), &env_reader);
+        config.embeddings = match provider.as_str() {
+            "disabled" | "fallback" | "openai" | "openai_compatible" | "tei" | "ollama"
+            | "voyage" | "cohere" | "local" => {
+                parse_provider_config_from(provider.as_str(), &env_reader)
+            }
+            _ => {
+                return Err(CassieRuntimeConfigError::UnsupportedEmbeddingProvider { provider });
+            }
+        };
         config.limits = limits_from_env(&env_reader, &config.limits);
 
         Ok(config)
@@ -473,9 +506,32 @@ fn parse_provider_config_from(
             max_batch_size: parse_usize_from(&env_reader, "CASSIE_OLLAMA_MAX_BATCH_SIZE", 16),
             max_retries: parse_usize_from(&env_reader, "CASSIE_OLLAMA_MAX_RETRIES", 3),
         }),
-        "voyage" => EmbeddingsRuntimeConfig::Voyage,
-        "cohere" => EmbeddingsRuntimeConfig::Cohere,
-        "local" => EmbeddingsRuntimeConfig::Local,
+        "voyage" => EmbeddingsRuntimeConfig::Voyage(VoyageRuntimeConfig {
+            api_key: env_reader("CASSIE_VOYAGE_API_KEY").unwrap_or_default(),
+            model: env_reader("CASSIE_VOYAGE_MODEL")
+                .unwrap_or_else(|| "voyage-3.5-lite".to_string()),
+            dimensions: parse_usize_from(&env_reader, "CASSIE_VOYAGE_DIMENSIONS", 1024),
+            timeout_seconds: parse_u64_from(&env_reader, "CASSIE_VOYAGE_TIMEOUT_SECONDS", 30),
+            max_batch_size: parse_usize_from(&env_reader, "CASSIE_VOYAGE_MAX_BATCH_SIZE", 16),
+            max_retries: parse_usize_from(&env_reader, "CASSIE_VOYAGE_MAX_RETRIES", 3),
+            base_url: env_reader("CASSIE_VOYAGE_BASE_URL")
+                .unwrap_or_else(|| "https://api.voyageai.com".to_string()),
+        }),
+        "cohere" => EmbeddingsRuntimeConfig::Cohere(CohereRuntimeConfig {
+            api_key: env_reader("CASSIE_COHERE_API_KEY").unwrap_or_default(),
+            model: env_reader("CASSIE_COHERE_MODEL").unwrap_or_else(|| "embed-v4.0".to_string()),
+            dimensions: parse_usize_from(&env_reader, "CASSIE_COHERE_DIMENSIONS", 1536),
+            timeout_seconds: parse_u64_from(&env_reader, "CASSIE_COHERE_TIMEOUT_SECONDS", 30),
+            max_batch_size: parse_usize_from(&env_reader, "CASSIE_COHERE_MAX_BATCH_SIZE", 96),
+            max_retries: parse_usize_from(&env_reader, "CASSIE_COHERE_MAX_RETRIES", 3),
+            base_url: env_reader("CASSIE_COHERE_BASE_URL")
+                .unwrap_or_else(|| "https://api.cohere.com".to_string()),
+        }),
+        "local" => EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
+            model: env_reader("CASSIE_LOCAL_MODEL")
+                .unwrap_or_else(|| "cassie-local-hash-v1".to_string()),
+            dimensions: parse_usize_from(&env_reader, "CASSIE_LOCAL_DIMENSIONS", 384),
+        }),
         _ => EmbeddingsRuntimeConfig::Disabled,
     }
 }
@@ -627,16 +683,18 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_explicit_stub_embedding_providers() {
+    fn should_accept_explicit_embedding_providers_with_runtime_variants() {
         // Arrange / Act / Assert
         for provider in ["voyage", "cohere", "local"] {
             let values = HashMap::from([("CASSIE_EMBEDDINGS_PROVIDER", provider.to_string())]);
-            let error = CassieRuntimeConfig::from_env_reader(env_reader_owned(values))
-                .expect_err("explicit stub provider should fail");
-            assert!(
-                error.to_string().contains(provider),
-                "error should name provider: {error}"
-            );
+            let config = CassieRuntimeConfig::from_env_reader(env_reader_owned(values))
+                .expect("explicit provider should parse");
+            match (provider, config.embeddings) {
+                ("voyage", EmbeddingsRuntimeConfig::Voyage(_))
+                | ("cohere", EmbeddingsRuntimeConfig::Cohere(_))
+                | ("local", EmbeddingsRuntimeConfig::Local(_)) => {}
+                _ => panic!("expected runtime config for provider {provider}"),
+            }
         }
     }
 
@@ -645,12 +703,15 @@ mod tests {
         // Arrange
         let omitted = HashMap::new();
         let disabled = HashMap::from([("CASSIE_EMBEDDINGS_PROVIDER", "disabled".to_string())]);
+        let fallback = HashMap::from([("CASSIE_EMBEDDINGS_PROVIDER", "fallback".to_string())]);
 
         // Act
         let omitted_config =
             CassieRuntimeConfig::from_env_reader(env_reader_owned(omitted)).expect("omitted");
         let disabled_config =
             CassieRuntimeConfig::from_env_reader(env_reader_owned(disabled)).expect("disabled");
+        let fallback_config =
+            CassieRuntimeConfig::from_env_reader(env_reader_owned(fallback)).expect("fallback");
 
         // Assert
         assert!(matches!(
@@ -659,6 +720,10 @@ mod tests {
         ));
         assert!(matches!(
             disabled_config.embeddings,
+            EmbeddingsRuntimeConfig::Disabled
+        ));
+        assert!(matches!(
+            fallback_config.embeddings,
             EmbeddingsRuntimeConfig::Disabled
         ));
     }
@@ -779,6 +844,89 @@ mod tests {
                 assert_eq!(runtime.max_retries, 6);
             }
             _ => panic!("expected ollama config"),
+        }
+    }
+
+    #[test]
+    fn should_parse_voyage_embedding_runtime_config() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_VOYAGE_API_KEY", "voyage-secret"),
+            ("CASSIE_VOYAGE_MODEL", "voyage-3.5"),
+            ("CASSIE_VOYAGE_DIMENSIONS", "512"),
+            ("CASSIE_VOYAGE_TIMEOUT_SECONDS", "9"),
+            ("CASSIE_VOYAGE_MAX_BATCH_SIZE", "7"),
+            ("CASSIE_VOYAGE_MAX_RETRIES", "2"),
+            ("CASSIE_VOYAGE_BASE_URL", "https://voyage.example"),
+        ]);
+
+        // Act
+        let config = parse_provider_config_from("voyage", env_reader(values));
+
+        // Assert
+        match config {
+            EmbeddingsRuntimeConfig::Voyage(runtime) => {
+                assert_eq!(runtime.api_key, "voyage-secret");
+                assert_eq!(runtime.model, "voyage-3.5");
+                assert_eq!(runtime.dimensions, 512);
+                assert_eq!(runtime.timeout_seconds, 9);
+                assert_eq!(runtime.max_batch_size, 7);
+                assert_eq!(runtime.max_retries, 2);
+                assert_eq!(runtime.base_url, "https://voyage.example");
+            }
+            _ => panic!("expected voyage config"),
+        }
+    }
+
+    #[test]
+    fn should_parse_cohere_embedding_runtime_config() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_COHERE_API_KEY", "cohere-secret"),
+            ("CASSIE_COHERE_MODEL", "embed-v4.0"),
+            ("CASSIE_COHERE_DIMENSIONS", "1024"),
+            ("CASSIE_COHERE_TIMEOUT_SECONDS", "11"),
+            ("CASSIE_COHERE_MAX_BATCH_SIZE", "14"),
+            ("CASSIE_COHERE_MAX_RETRIES", "5"),
+            ("CASSIE_COHERE_BASE_URL", "https://cohere.example"),
+        ]);
+
+        // Act
+        let config = parse_provider_config_from("cohere", env_reader(values));
+
+        // Assert
+        match config {
+            EmbeddingsRuntimeConfig::Cohere(runtime) => {
+                assert_eq!(runtime.api_key, "cohere-secret");
+                assert_eq!(runtime.model, "embed-v4.0");
+                assert_eq!(runtime.dimensions, 1024);
+                assert_eq!(runtime.timeout_seconds, 11);
+                assert_eq!(runtime.max_batch_size, 14);
+                assert_eq!(runtime.max_retries, 5);
+                assert_eq!(runtime.base_url, "https://cohere.example");
+            }
+            _ => panic!("expected cohere config"),
+        }
+    }
+
+    #[test]
+    fn should_parse_local_embedding_runtime_config() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_LOCAL_MODEL", "cassie-local-hash-v2"),
+            ("CASSIE_LOCAL_DIMENSIONS", "128"),
+        ]);
+
+        // Act
+        let config = parse_provider_config_from("local", env_reader(values));
+
+        // Assert
+        match config {
+            EmbeddingsRuntimeConfig::Local(runtime) => {
+                assert_eq!(runtime.model, "cassie-local-hash-v2");
+                assert_eq!(runtime.dimensions, 128);
+            }
+            _ => panic!("expected local config"),
         }
     }
 }

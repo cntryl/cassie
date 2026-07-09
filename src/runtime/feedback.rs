@@ -12,6 +12,8 @@ const OPERATOR_FEEDBACK_OUTLIER_RATIO: u64 = 8;
 pub struct RuntimeFeedbackKey {
     pub schema_epoch: u64,
     pub database: Option<String>,
+    #[serde(default)]
+    pub search_path: Vec<String>,
     pub collection: String,
     pub operator_family: String,
     pub relation_set: Vec<String>,
@@ -165,6 +167,7 @@ impl OperatorFeedbackEstimate {
 
 pub(crate) fn normalized_feedback_key(
     database: Option<String>,
+    search_path: Vec<String>,
     schema_epoch: u64,
     collection: &str,
     operator_family: &str,
@@ -174,6 +177,7 @@ pub(crate) fn normalized_feedback_key(
     RuntimeFeedbackKey {
         schema_epoch,
         database,
+        search_path,
         collection: collection.to_string(),
         operator_family: operator_family.to_string(),
         relation_set: relation_set_shape(&plan.source),

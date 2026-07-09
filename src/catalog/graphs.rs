@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::catalog::derive_scoped_name;
 use crate::types::DataType;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -23,8 +24,8 @@ impl GraphMeta {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            node_collection: format!("{name}_nodes"),
-            edge_collection: format!("{name}_edges"),
+            node_collection: derive_scoped_name(name, |local| format!("{local}_nodes")),
+            edge_collection: derive_scoped_name(name, |local| format!("{local}_edges")),
             node_type_field: "node_type".to_string(),
             node_id_field: "node_id".to_string(),
             edge_id_field: "edge_id".to_string(),

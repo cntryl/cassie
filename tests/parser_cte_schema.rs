@@ -191,7 +191,7 @@ fn should_reject_create_table_with_column_indexed_storage_mode() {
     // Assert
     assert!(matches!(
         parsed,
-        Err(err) if err.0.contains("column_indexed")
+        Err(err) if err.message().contains("column_indexed")
     ));
 }
 

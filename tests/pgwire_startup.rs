@@ -139,11 +139,10 @@ fn should_support_binary_startup_without_password() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-
         let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind listener");
@@ -191,11 +190,10 @@ fn should_emit_startup_parameter_statuses_without_password() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-
         let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind listener");
@@ -260,11 +258,10 @@ fn should_accept_libpq_startup_hints_without_password() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-
         let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind listener");
@@ -319,11 +316,10 @@ fn should_return_not_supported_for_ssl_request() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-
         let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind listener");
@@ -372,11 +368,10 @@ fn should_error_when_password_does_not_match_for_cleartext_auth() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-
         let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "correct-password".to_string();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        cassie.startup().unwrap();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

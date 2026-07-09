@@ -4,9 +4,10 @@ use super::{
 };
 use crate::sql::ast::{
     AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation,
-    AlterTableStatement, CreateGraphStatement, CreateIndexStatement, CreateRoleStatement,
-    CreateSchemaStatement, CreateTableStatement, CreateViewStatement, DropIndexStatement,
-    DropRoleStatement, DropSchemaStatement, DropTableStatement, DropViewStatement,
+    AlterTableStatement, CreateDatabaseStatement, CreateGraphStatement, CreateIndexStatement,
+    CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, CreateViewStatement,
+    DropDatabaseStatement, DropIndexStatement, DropRoleStatement, DropSchemaStatement,
+    DropTableStatement, DropViewStatement,
 };
 use crate::types::DataType;
 
@@ -124,7 +125,7 @@ pub(super) fn create_view(
     }
 
     let parsed = crate::sql::parser::parse_statement(&statement.query)
-        .map_err(|error| QueryError::General(error.0))?;
+        .map_err(|error| QueryError::General(error.to_string()))?;
     let bound = crate::sql::binder::bind(parsed, &cassie.catalog)
         .map_err(|error| QueryError::General(error.to_string()))?;
     let QueryStatement::Select(select) = &bound.statement.statement else {
@@ -219,12 +220,36 @@ pub(super) fn create_schema(
     Ok(empty_command("CREATE SCHEMA"))
 }
 
+pub(super) fn create_database(
+    cassie: &Cassie,
+    statement: &CreateDatabaseStatement,
+) -> Result<QueryResult, QueryError> {
+    if statement.if_not_exists && cassie.catalog.database_exists(&statement.name) {
+        return Ok(empty_command("CREATE DATABASE"));
+    }
+
+    cassie.midge.create_database(&statement.name, None)?;
+    let public_schema =
+        crate::catalog::canonical_schema_name(&statement.name, crate::catalog::DEFAULT_SCHEMA);
+    cassie.midge.create_namespace(&public_schema)?;
+    cassie.catalog.register_database(&statement.name, None);
+    cassie.catalog.register_namespace(&public_schema, None);
+
+    Ok(empty_command("CREATE DATABASE"))
+}
+
 pub(super) fn drop_schema(
     cassie: &Cassie,
     statement: &DropSchemaStatement,
 ) -> Result<QueryResult, QueryError> {
     if statement.if_exists && !cassie.catalog.namespace_exists(&statement.schema) {
         return Ok(empty_command("DROP SCHEMA"));
+    }
+    if !schema_is_empty(cassie, &statement.schema) {
+        return Err(QueryError::General(format!(
+            "namespace '{}' is not empty",
+            statement.schema
+        )));
     }
 
     cassie
@@ -234,6 +259,45 @@ pub(super) fn drop_schema(
     cassie.catalog.unregister_namespace(&statement.schema);
 
     Ok(empty_command("DROP SCHEMA"))
+}
+
+pub(super) fn drop_database(
+    cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
+    statement: &DropDatabaseStatement,
+) -> Result<QueryResult, QueryError> {
+    if statement.if_exists && !cassie.catalog.database_exists(&statement.name) {
+        return Ok(empty_command("DROP DATABASE"));
+    }
+    let Some(session) = session else {
+        return Err(QueryError::General(
+            "DROP DATABASE requires a session".to_string(),
+        ));
+    };
+    if session
+        .current_database()
+        .is_some_and(|database| database.eq_ignore_ascii_case(&statement.name))
+    {
+        return Err(QueryError::General(format!(
+            "cannot drop the currently open database '{}'",
+            statement.name
+        )));
+    }
+    if !database_is_empty(cassie, &statement.name) {
+        return Err(QueryError::General(format!(
+            "database '{}' is not empty",
+            statement.name
+        )));
+    }
+
+    let public_schema =
+        crate::catalog::canonical_schema_name(&statement.name, crate::catalog::DEFAULT_SCHEMA);
+    cassie.midge.drop_namespace(&public_schema)?;
+    cassie.midge.drop_database(&statement.name)?;
+    cassie.catalog.unregister_namespace(&public_schema);
+    cassie.catalog.unregister_database(&statement.name);
+
+    Ok(empty_command("DROP DATABASE"))
 }
 
 pub(super) fn alter_schema(
@@ -542,6 +606,109 @@ fn refresh_table_cardinality_stats(cassie: &Cassie, table: &str) -> Result<(), Q
     cassie
         .refresh_cardinality_stats(table)
         .map_err(|error| QueryError::General(error.to_string()))
+}
+
+fn schema_is_empty(cassie: &Cassie, schema: &str) -> bool {
+    !cassie
+        .catalog
+        .list_collections()
+        .into_iter()
+        .any(|collection| object_in_schema(&collection.name, schema))
+        && !cassie
+            .catalog
+            .list_views()
+            .into_iter()
+            .any(|view| object_in_schema(&view.name, schema))
+        && !cassie
+            .catalog
+            .list_sequences()
+            .into_iter()
+            .any(|sequence| object_in_schema(&sequence.name, schema))
+        && !cassie
+            .catalog
+            .list_graphs()
+            .into_iter()
+            .any(|graph| object_in_schema(&graph.name, schema))
+        && !cassie
+            .catalog
+            .list_projection_metadata()
+            .into_iter()
+            .filter(|projection| projection.kind == catalog::ProjectionKind::Materialized)
+            .any(|projection| object_in_schema(&projection.collection, schema))
+        && !cassie
+            .catalog
+            .list_rollups()
+            .into_iter()
+            .any(|rollup| object_in_schema(&rollup.name, schema))
+        && !cassie
+            .catalog
+            .list_retention_policies()
+            .into_iter()
+            .any(|policy| object_in_schema(&policy.name, schema))
+}
+
+fn database_is_empty(cassie: &Cassie, database: &str) -> bool {
+    !cassie
+        .catalog
+        .list_namespaces()
+        .into_iter()
+        .any(|namespace| {
+            crate::catalog::schema_belongs_to_database(&namespace.name, database)
+                && !crate::catalog::local_name(&namespace.name)
+                    .eq_ignore_ascii_case(crate::catalog::DEFAULT_SCHEMA)
+        })
+        && !cassie
+            .catalog
+            .list_collections()
+            .into_iter()
+            .any(|collection| crate::catalog::relation_belongs_to_database(&collection.name, database))
+        && !cassie
+            .catalog
+            .list_views()
+            .into_iter()
+            .any(|view| crate::catalog::relation_belongs_to_database(&view.name, database))
+        && !cassie
+            .catalog
+            .list_sequences()
+            .into_iter()
+            .any(|sequence| crate::catalog::relation_belongs_to_database(&sequence.name, database))
+        && !cassie
+            .catalog
+            .list_graphs()
+            .into_iter()
+            .any(|graph| crate::catalog::relation_belongs_to_database(&graph.name, database))
+        && !cassie
+            .catalog
+            .list_projection_metadata()
+            .into_iter()
+            .filter(|projection| projection.kind == catalog::ProjectionKind::Materialized)
+            .any(|projection| {
+                crate::catalog::relation_belongs_to_database(&projection.collection, database)
+            })
+        && !cassie
+            .catalog
+            .list_rollups()
+            .into_iter()
+            .any(|rollup| crate::catalog::relation_belongs_to_database(&rollup.name, database))
+        && !cassie
+            .catalog
+            .list_retention_policies()
+            .into_iter()
+            .any(|policy| crate::catalog::relation_belongs_to_database(&policy.name, database))
+}
+
+fn object_in_schema(name: &str, schema: &str) -> bool {
+    let target_schema = crate::catalog::local_name(schema);
+    if !crate::catalog::relation_schema_name(name).eq_ignore_ascii_case(&target_schema) {
+        return false;
+    }
+
+    let target_database = crate::catalog::schema_database_name(schema);
+    target_database.as_ref().is_none_or(|database| {
+        crate::catalog::relation_database_name(name)
+            .as_ref()
+            .is_none_or(|relation_database| relation_database.eq_ignore_ascii_case(database))
+    })
 }
 
 fn empty_command(command: &str) -> QueryResult {

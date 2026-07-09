@@ -87,12 +87,12 @@ fn should_serve_admin_index_for_shell_routes() {
 
         // Act
         let admin = client
-            .get(format!("{base_url}/admin"))
+            .get(format!("{base_url}/"))
             .send()
             .await
             .expect("admin request");
         let deep_link = client
-            .get(format!("{base_url}/admin/catalog"))
+            .get(format!("{base_url}/catalog"))
             .send()
             .await
             .expect("deep link request");
@@ -176,7 +176,7 @@ fn should_return_not_found_when_admin_ui_dir_is_missing() {
 
         // Act
         let response = client
-            .get(format!("{base_url}/admin"))
+            .get(format!("{base_url}/"))
             .send()
             .await
             .expect("admin request");
@@ -253,21 +253,74 @@ fn should_preserve_existing_route_auth_behavior() {
             .send()
             .await
             .expect("health request");
+        let liveness = client
+            .get(format!("{base_url}/liveness"))
+            .send()
+            .await
+            .expect("liveness request");
+        let targetz = client
+            .get(format!("{base_url}/targetz"))
+            .send()
+            .await
+            .expect("targetz request");
         let metrics = client
             .get(format!("{base_url}/metrics"))
             .send()
             .await
             .expect("metrics request");
         let collections = client
-            .get(format!("{base_url}/v1/collections"))
+            .get(format!("{base_url}/api/v1/collections"))
             .send()
             .await
             .expect("collections request");
 
         // Assert
         assert!(health.status().is_success());
+        assert!(liveness.status().is_success());
+        assert!(targetz.status().is_success());
         assert!(metrics.status().is_success());
         assert_eq!(collections.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+        let _ = std::fs::remove_dir_all(dist);
+    });
+}
+
+#[test]
+fn should_not_serve_admin_shell_for_unmatched_api_routes() {
+    // Arrange
+    with_fallback();
+    let data_dir = data_dir("unmatched-api");
+    let dist = write_dist_fixture("unmatched-api");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        cassie.startup().expect("startup");
+        let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
+        let client = reqwest::Client::new();
+
+        // Act
+        let response = client
+            .get(format!("{base_url}/api/v1/does-not-exist"))
+            .header("authorization", "Bearer postgres:postgres")
+            .send()
+            .await
+            .expect("unmatched api request");
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
+
+        // Assert
+        assert_eq!(response.status(), reqwest::StatusCode::NOT_FOUND);
+        assert!(content_type.contains("application/json"));
 
         stop_rest_server(shutdown, server).await;
         let _ = std::fs::remove_dir_all(data_dir);

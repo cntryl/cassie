@@ -84,7 +84,7 @@ pub(super) fn parse_set_select_statement(
     let left_sql = trimmed[..set_pos].trim();
     let right_sql = trimmed[set_pos + token_len..].trim();
     if left_sql.is_empty() || right_sql.is_empty() {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "set operation requires both SELECT operands".into(),
         ));
     }
@@ -94,10 +94,14 @@ pub(super) fn parse_set_select_statement(
     let mut left = parse_select_statement(left_sql, withs, recursive)?;
     let right = parse_select_statement(&right_sql, Vec::new(), false)?;
     let QueryStatement::Select(left_select) = &mut left.statement else {
-        return Err(SqlError("set operation requires SELECT operands".into()));
+        return Err(SqlError::new(
+            "set operation requires SELECT operands".into(),
+        ));
     };
     let QueryStatement::Select(right_select) = right.statement else {
-        return Err(SqlError("set operation requires SELECT operands".into()));
+        return Err(SqlError::new(
+            "set operation requires SELECT operands".into(),
+        ));
     };
     left_select.set = Some(Box::new(SelectSet {
         operator,
@@ -170,10 +174,13 @@ pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, S
             .get(idx + 1)
             .map_or_else(|| rest.len(), |clause| clause.position);
         let ClauseToken::Recognized(kind) = clause.token else {
-            return Err(SqlError(format!("unsupported clause '{}'", clause.text())));
+            return Err(SqlError::new(format!(
+                "unsupported clause '{}'",
+                clause.text()
+            )));
         };
         if !matches!(kind, Clause::Order | Clause::Limit | Clause::Offset) {
-            return Err(SqlError(format!(
+            return Err(SqlError::new(format!(
                 "unsupported global set operation clause '{}'",
                 clause.text()
             )));
@@ -181,7 +188,7 @@ pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, S
         let start = clause.position + kind.token().len();
         let raw_value = rest[start..next_pos].trim();
         if raw_value.is_empty() {
-            return Err(SqlError(format!(
+            return Err(SqlError::new(format!(
                 "missing value for clause '{}'",
                 clause.text()
             )));
@@ -190,21 +197,21 @@ pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, S
         match kind {
             Clause::Order => {
                 if !seen.insert("order by") {
-                    return Err(SqlError("duplicate ORDER BY clause".into()));
+                    return Err(SqlError::new("duplicate ORDER BY clause".into()));
                 }
                 order = parse_order_by(raw_value)?;
             }
             Clause::Limit => {
                 if !seen.insert("limit") {
-                    return Err(SqlError("duplicate LIMIT clause".into()));
+                    return Err(SqlError::new("duplicate LIMIT clause".into()));
                 }
-                limit = take_int(raw_value).map_err(|error| SqlError(error.to_string()))?;
+                limit = take_int(raw_value).map_err(|error| SqlError::new(error.to_string()))?;
             }
             Clause::Offset => {
                 if !seen.insert("offset") {
-                    return Err(SqlError("duplicate OFFSET clause".into()));
+                    return Err(SqlError::new("duplicate OFFSET clause".into()));
                 }
-                offset = take_int(raw_value).map_err(|error| SqlError(error.to_string()))?;
+                offset = take_int(raw_value).map_err(|error| SqlError::new(error.to_string()))?;
             }
             Clause::Where | Clause::Group | Clause::Having => unreachable!(),
         }
@@ -217,7 +224,7 @@ fn ensure_select_statement(sql: &str) -> Result<(), SqlError> {
     if sql.to_lowercase().starts_with("select ") {
         Ok(())
     } else {
-        Err(SqlError(
+        Err(SqlError::new(
             "only SELECT statements are supported in this stage".into(),
         ))
     }
@@ -230,12 +237,14 @@ fn split_select_projection_and_rest(
     if let Some(from_pos) = from_pos {
         let select_part = after_select[..from_pos].trim();
         if select_part.is_empty() {
-            return Err(SqlError("missing projection in SELECT statement".into()));
+            return Err(SqlError::new(
+                "missing projection in SELECT statement".into(),
+            ));
         }
 
         let rest = after_select[from_pos + 4..].trim();
         if rest.is_empty() {
-            return Err(SqlError("missing collection in FROM".into()));
+            return Err(SqlError::new("missing collection in FROM".into()));
         }
 
         return Ok((select_part.to_string(), rest.to_string(), None));
@@ -247,12 +256,16 @@ fn split_select_projection_and_rest(
         .map_or_else(|| after_select.len(), |clause| clause.position);
     let select_part = after_select[..first_clause].trim();
     if select_part.is_empty() {
-        return Err(SqlError("missing projection in SELECT statement".into()));
+        return Err(SqlError::new(
+            "missing projection in SELECT statement".into(),
+        ));
     }
 
     let rest = after_select[first_clause..].trim();
     if !rest.is_empty() && clauses.is_empty() {
-        return Err(SqlError("unexpected tokens after SELECT projection".into()));
+        return Err(SqlError::new(
+            "unexpected tokens after SELECT projection".into(),
+        ));
     }
 
     Ok((
@@ -269,10 +282,10 @@ fn parse_distinct_clause(select_part: &mut String) -> Result<(bool, Vec<Expr>), 
         let after_distinct_on = select_part["distinct on".len()..].trim_start();
         let (raw_distinct_on, remainder) = parse_parenthesized_prefix(after_distinct_on)
             .ok_or_else(|| {
-                SqlError("DISTINCT ON requires a parenthesized expression list".into())
+                SqlError::new("DISTINCT ON requires a parenthesized expression list".into())
             })?;
         if raw_distinct_on.trim().is_empty() {
-            return Err(SqlError(
+            return Err(SqlError::new(
                 "DISTINCT ON requires at least one expression".into(),
             ));
         }
@@ -282,10 +295,12 @@ fn parse_distinct_clause(select_part: &mut String) -> Result<(bool, Vec<Expr>), 
             .collect::<Result<Vec<_>, _>>()?;
         *select_part = remainder.trim().to_string();
         if select_part.is_empty() {
-            return Err(SqlError("missing projection in SELECT statement".into()));
+            return Err(SqlError::new(
+                "missing projection in SELECT statement".into(),
+            ));
         }
         if select_part.to_lowercase().starts_with("distinct") {
-            return Err(SqlError("duplicate DISTINCT clause".into()));
+            return Err(SqlError::new("duplicate DISTINCT clause".into()));
         }
         return Ok((false, distinct_on));
     }
@@ -312,7 +327,7 @@ fn resolve_select_source(
         .map_or_else(|| rest.len(), |clause| clause.position);
     let from_source = rest[..first_clause].trim();
     if from_source.is_empty() {
-        return Err(SqlError("missing collection in FROM".into()));
+        return Err(SqlError::new("missing collection in FROM".into()));
     }
     parse_query_source(from_source)
 }
@@ -368,7 +383,7 @@ fn parse_select_clauses(
 
         match clause.token {
             ClauseToken::Unsupported(kind) => {
-                return Err(SqlError(format!("unsupported clause '{kind}'")));
+                return Err(SqlError::new(format!("unsupported clause '{kind}'")));
             }
             ClauseToken::Recognized(kind) => match kind {
                 Clause::Where => assign_clause(
@@ -380,14 +395,14 @@ fn parse_select_clauses(
                 )?,
                 Clause::Group => {
                     if !seen.insert("group by") {
-                        return Err(SqlError("duplicate GROUP BY clause".into()));
+                        return Err(SqlError::new("duplicate GROUP BY clause".into()));
                     }
                     let lower = raw_value.to_lowercase();
                     if lower.contains("grouping sets")
                         || lower.contains("rollup")
                         || lower.contains("cube")
                     {
-                        return Err(SqlError("unsupported GROUP BY syntax".into()));
+                        return Err(SqlError::new("unsupported GROUP BY syntax".into()));
                     }
                     parsed.group_sql = Some(raw_value.to_string());
                 }
@@ -407,17 +422,17 @@ fn parse_select_clauses(
                 )?,
                 Clause::Limit => {
                     if !seen.insert("limit") {
-                        return Err(SqlError("duplicate LIMIT clause".into()));
+                        return Err(SqlError::new("duplicate LIMIT clause".into()));
                     }
                     parsed.limit =
-                        take_int(raw_value).map_err(|error| SqlError(error.to_string()))?;
+                        take_int(raw_value).map_err(|error| SqlError::new(error.to_string()))?;
                 }
                 Clause::Offset => {
                     if !seen.insert("offset") {
-                        return Err(SqlError("duplicate OFFSET clause".into()));
+                        return Err(SqlError::new("duplicate OFFSET clause".into()));
                     }
                     parsed.offset =
-                        take_int(raw_value).map_err(|error| SqlError(error.to_string()))?;
+                        take_int(raw_value).map_err(|error| SqlError::new(error.to_string()))?;
                 }
             },
         }
@@ -437,7 +452,7 @@ fn clause_value<'a>(
     };
     let start = clause.position + token_text.len();
     if start > rest.len() || next_pos > rest.len() || start > next_pos {
-        return Err(SqlError(format!(
+        return Err(SqlError::new(format!(
             "unsupported or malformed clause placement: {}",
             clause.text()
         )));
@@ -445,7 +460,7 @@ fn clause_value<'a>(
 
     let raw_value = rest[start..next_pos].trim();
     if raw_value.is_empty() {
-        return Err(SqlError(format!(
+        return Err(SqlError::new(format!(
             "missing value for clause '{}'",
             clause.text()
         )));
@@ -462,7 +477,7 @@ fn assign_clause(
     duplicate_error: &'static str,
 ) -> Result<(), SqlError> {
     if !seen.insert(key) {
-        return Err(SqlError(duplicate_error.into()));
+        return Err(SqlError::new(duplicate_error.into()));
     }
     *slot = Some(value);
     Ok(())

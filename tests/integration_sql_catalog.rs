@@ -1,5 +1,6 @@
 #![allow(unused_imports, dead_code)]
 use cassie::app::Cassie;
+use cassie::catalog::{canonical_relation_name, canonical_schema_name};
 use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
 use cassie::embeddings::{
     openai::OpenAiConfig, DistanceMetric, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
@@ -27,7 +28,7 @@ fn should_execute_sql_query_after_catalog_hydration() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
 
-        let collection = "sql_hydration";
+        let collection = canonical_relation_name("postgres", "public", "sql_hydration");
         let schema = Schema {
             fields: vec![
                 FieldSchema {
@@ -43,11 +44,11 @@ fn should_execute_sql_query_after_catalog_hydration() {
             ],
         };
 
-        cassie.midge.create_collection(collection, schema).unwrap();
+        cassie.midge.create_collection(&collection, schema).unwrap();
         let _ = cassie
             .midge
             .put_document(
-                collection,
+                &collection,
                 None,
                 serde_json::json!({"title": "sql", "body": "hybrid path"}),
             )
@@ -124,6 +125,7 @@ fn should_rename_schema_through_sql() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
+        let next_schema = canonical_schema_name("postgres", "reporting_archive");
         cassie
             .execute_sql(&session, "CREATE SCHEMA reporting", vec![])
             .unwrap();
@@ -150,7 +152,7 @@ fn should_rename_schema_through_sql() {
             .midge
             .list_namespaces()
             .iter()
-            .any(|name| name == "reporting_archive"));
+            .any(|name| name == &next_schema));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -238,6 +240,7 @@ fn should_rename_column_through_sql() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
+        let relation = canonical_relation_name("postgres", "public", "rename_column_docs");
         cassie
             .execute_sql(
                 &session,
@@ -248,7 +251,7 @@ fn should_rename_column_through_sql() {
         cassie
             .midge
             .put_document(
-                "rename_column_docs",
+                &relation,
                 Some("d1".to_string()),
                 serde_json::json!({"id": "d1", "title": "alpha"}),
             )
@@ -277,7 +280,7 @@ fn should_rename_column_through_sql() {
         assert_eq!(selected.rows[0][1], Value::String("alpha".to_string()));
         let schema = cassie
             .catalog
-            .get_schema("rename_column_docs")
+            .get_schema(&relation)
             .expect("schema should exist");
         assert!(schema.fields.iter().any(|field| field.name == "headline"));
         assert!(!schema.fields.iter().any(|field| field.name == "title"));

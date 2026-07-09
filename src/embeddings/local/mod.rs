@@ -1,2 +1,2 @@
-pub use provider::LocalProvider;
+pub use provider::{LocalProvider, LocalProviderConfig};
 mod provider;

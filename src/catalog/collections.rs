@@ -1,12 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[must_use]
-pub fn is_reserved_namespace(name: &str) -> bool {
-    matches!(
-        name.to_ascii_lowercase().as_str(),
-        "information_schema" | "pg_catalog" | "public"
-    )
-}
+use crate::catalog::derive_scoped_name;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectionMeta {
@@ -428,19 +422,9 @@ impl ProjectionMeta {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn materialized(
-        name: impl Into<String>,
-        query: impl Into<String>,
-        source_collections: Vec<String>,
-        output_schema: crate::types::Schema,
-        options: std::collections::BTreeMap<String, String>,
-        schema_epoch: u64,
-        definition_fingerprint: u64,
-        created_ms: u64,
-    ) -> Self {
-        let name = name.into();
-        let query = query.into();
+    #[must_use]
+    pub fn materialized(spec: MaterializedProjectionSpec) -> Self {
+        let name = spec.name;
         let version_id = "v1".to_string();
         let output_collection = materialized_output_collection(&name, &version_id);
         Self {
@@ -451,7 +435,7 @@ impl ProjectionMeta {
             offset: 0,
             lag: 0,
             rebuild_state: ProjectionRebuildState::Rebuilding,
-            source_identity: source_collections.first().cloned(),
+            source_identity: spec.source_collections.first().cloned(),
             source_checkpoint: None,
             source_position: None,
             last_applied_event_id: None,
@@ -462,24 +446,24 @@ impl ProjectionMeta {
             last_error: None,
             materialized: Some(MaterializedProjectionMeta {
                 name: name.clone(),
-                query,
-                options,
+                query: spec.query,
+                options: spec.options,
                 output_collection: output_collection.clone(),
-                source_collections,
-                schema_epoch,
-                output_schema,
+                source_collections: spec.source_collections,
+                schema_epoch: spec.schema_epoch,
+                output_schema: spec.output_schema,
                 state: MaterializedProjectionState::Building,
-                definition_fingerprint,
+                definition_fingerprint: spec.definition_fingerprint,
                 refresh_cursor: None,
                 last_built_ms: None,
             }),
             versions: vec![ProjectionVersionMeta {
                 version_id: version_id.clone(),
                 output_collection,
-                definition_fingerprint,
-                source_schema_epoch: schema_epoch,
+                definition_fingerprint: spec.definition_fingerprint,
+                source_schema_epoch: spec.schema_epoch,
                 state: ProjectionVersionState::Building,
-                created_ms,
+                created_ms: spec.created_ms,
                 activated_ms: None,
                 retired_ms: None,
                 last_error: None,
@@ -512,9 +496,23 @@ impl ProjectionMeta {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct MaterializedProjectionSpec {
+    pub name: String,
+    pub query: String,
+    pub source_collections: Vec<String>,
+    pub output_schema: crate::types::Schema,
+    pub options: std::collections::BTreeMap<String, String>,
+    pub schema_epoch: u64,
+    pub definition_fingerprint: u64,
+    pub created_ms: u64,
+}
+
 #[must_use]
 pub fn materialized_output_collection(name: &str, version_id: &str) -> String {
-    format!("__cassie_projection_{name}_{version_id}")
+    derive_scoped_name(name, |local| {
+        format!("__cassie_projection_{local}_{version_id}")
+    })
 }
 
 impl NamespaceMeta {

@@ -1,15 +1,19 @@
 use cntryl_lexkey::{Encoder, LexKey};
 
 use crate::app::CassieError;
+use crate::catalog::split_identifier_path;
 
-pub(super) const LAYOUT_VERSION: &str = "2";
-pub(super) const LAYOUT_MARKER_VALUE: &[u8] = b"cassie-midge-lexkey-v2";
+pub(super) const LAYOUT_VERSION: &str = "3";
+pub(super) const LAYOUT_MARKER_VALUE: &[u8] = b"cassie-midge-lexkey-v3";
 
 const ROOT: &[u8] = b"cassie";
 const LEXKEY: &[u8] = b"lexkey";
-const VERSION: &[u8] = b"v2";
+const VERSION: &[u8] = b"v3";
+const LEGACY_VERSION_V2: &[u8] = b"v2";
 
 const FAMILY_LAYOUT: &[u8] = b"layout";
+const FAMILY_DATABASE: &[u8] = b"database";
+const FAMILY_DATABASES: &[u8] = b"databases";
 const FAMILY_COLLECTION_SCHEMA: &[u8] = b"schema";
 const FAMILY_ROW_SCHEMA: &[u8] = b"row-schema";
 const FAMILY_PROJECTION: &[u8] = b"projection";
@@ -119,16 +123,36 @@ pub(super) fn layout_marker_key() -> Vec<u8> {
     key(FAMILY_LAYOUT, &[b"version"])
 }
 
+pub(super) fn legacy_v2_layout_prefix() -> Vec<u8> {
+    let parts = [ROOT, LEXKEY, LEGACY_VERSION_V2];
+    let mut encoder = Encoder::with_capacity(parts.iter().map(|part| part.len()).sum::<usize>() + 4);
+    encoder.encode_composite_into_buf(&parts);
+    encoder.push_separator();
+    encoder.into_vec()
+}
+
+pub(super) fn database_key(name: &str) -> Vec<u8> {
+    key(FAMILY_DATABASE, &[name.as_bytes()])
+}
+
+pub(super) fn database_prefix() -> Vec<u8> {
+    prefix(FAMILY_DATABASE, &[])
+}
+
+pub(super) fn databases_key() -> Vec<u8> {
+    key(FAMILY_DATABASES, &[])
+}
+
 pub(super) fn collection_schema_key(collection: &str) -> Vec<u8> {
-    key(FAMILY_COLLECTION_SCHEMA, &[collection.as_bytes()])
+    scoped_key(FAMILY_COLLECTION_SCHEMA, collection, &[])
 }
 
 pub(super) fn row_schema_key(collection: &str) -> Vec<u8> {
-    key(FAMILY_ROW_SCHEMA, &[collection.as_bytes()])
+    scoped_key(FAMILY_ROW_SCHEMA, collection, &[])
 }
 
 pub(super) fn projection_key(collection: &str) -> Vec<u8> {
-    key(FAMILY_PROJECTION, &[collection.as_bytes()])
+    scoped_key(FAMILY_PROJECTION, collection, &[])
 }
 
 pub(super) fn projection_prefix() -> Vec<u8> {
@@ -159,18 +183,15 @@ pub(super) fn projection_event_key(
     source_identity: &str,
     event_id: &str,
 ) -> Vec<u8> {
-    key(
+    scoped_key(
         FAMILY_PROJECTION_EVENT,
-        &[
-            projection.as_bytes(),
-            source_identity.as_bytes(),
-            event_id.as_bytes(),
-        ],
+        projection,
+        &[source_identity.as_bytes(), event_id.as_bytes()],
     )
 }
 
 pub(super) fn projection_event_prefix(projection: &str) -> Vec<u8> {
-    prefix(FAMILY_PROJECTION_EVENT, &[projection.as_bytes()])
+    scoped_prefix(FAMILY_PROJECTION_EVENT, projection, &[])
 }
 
 pub(super) fn projection_repair_report_key(report_id: &str) -> Vec<u8> {
@@ -190,27 +211,28 @@ pub(super) fn operational_assignment_prefix() -> Vec<u8> {
 }
 
 pub(super) fn row_hash_key(collection: &str, row_id: &str) -> Vec<u8> {
-    key(FAMILY_ROW_HASH, &[collection.as_bytes(), row_id.as_bytes()])
+    scoped_key(FAMILY_ROW_HASH, collection, &[row_id.as_bytes()])
 }
 
 pub(super) fn row_hash_prefix(collection: &str) -> Vec<u8> {
-    prefix(FAMILY_ROW_HASH, &[collection.as_bytes()])
+    scoped_prefix(FAMILY_ROW_HASH, collection, &[])
 }
 
 pub(super) fn range_hash_key(collection: &str, range_id: u64) -> Vec<u8> {
     let encoded_range_id = LexKey::encode_u64(range_id);
-    key(
+    scoped_key(
         FAMILY_RANGE_HASH,
-        &[collection.as_bytes(), encoded_range_id.as_bytes()],
+        collection,
+        &[encoded_range_id.as_bytes()],
     )
 }
 
 pub(super) fn range_hash_prefix(collection: &str) -> Vec<u8> {
-    prefix(FAMILY_RANGE_HASH, &[collection.as_bytes()])
+    scoped_prefix(FAMILY_RANGE_HASH, collection, &[])
 }
 
 pub(super) fn root_hash_key(collection: &str) -> Vec<u8> {
-    key(FAMILY_ROOT_HASH, &[collection.as_bytes()])
+    scoped_key(FAMILY_ROOT_HASH, collection, &[])
 }
 
 pub(super) fn schema_collection_prefix() -> Vec<u8> {
@@ -218,10 +240,7 @@ pub(super) fn schema_collection_prefix() -> Vec<u8> {
 }
 
 pub(super) fn vector_index_key(collection: &str, field: &str) -> Vec<u8> {
-    key(
-        FAMILY_VECTOR_INDEX,
-        &[collection.as_bytes(), field.as_bytes()],
-    )
+    scoped_key(FAMILY_VECTOR_INDEX, collection, &[field.as_bytes()])
 }
 
 pub(super) fn vector_index_prefix() -> Vec<u8> {
@@ -229,29 +248,27 @@ pub(super) fn vector_index_prefix() -> Vec<u8> {
 }
 
 pub(super) fn vector_index_collection_prefix(collection: &str) -> Vec<u8> {
-    prefix(FAMILY_VECTOR_INDEX, &[collection.as_bytes()])
+    scoped_prefix(FAMILY_VECTOR_INDEX, collection, &[])
 }
 
 pub(super) fn normalized_vector_key(collection: &str, field: &str, id: &str) -> Vec<u8> {
-    key(
+    scoped_key(
         FAMILY_NORMALIZED_VECTOR,
-        &[collection.as_bytes(), field.as_bytes(), id.as_bytes()],
+        collection,
+        &[field.as_bytes(), id.as_bytes()],
     )
 }
 
 pub(super) fn normalized_vector_prefix(collection: &str, field: &str) -> Vec<u8> {
-    prefix(
-        FAMILY_NORMALIZED_VECTOR,
-        &[collection.as_bytes(), field.as_bytes()],
-    )
+    scoped_prefix(FAMILY_NORMALIZED_VECTOR, collection, &[field.as_bytes()])
 }
 
 pub(super) fn normalized_vector_collection_prefix(collection: &str) -> Vec<u8> {
-    prefix(FAMILY_NORMALIZED_VECTOR, &[collection.as_bytes()])
+    scoped_prefix(FAMILY_NORMALIZED_VECTOR, collection, &[])
 }
 
 pub(super) fn index_key(collection: &str, name: &str) -> Vec<u8> {
-    key(FAMILY_INDEX, &[collection.as_bytes(), name.as_bytes()])
+    scoped_key(FAMILY_INDEX, collection, &[name.as_bytes()])
 }
 
 pub(super) fn index_prefix() -> Vec<u8> {
@@ -259,7 +276,7 @@ pub(super) fn index_prefix() -> Vec<u8> {
 }
 
 pub(super) fn index_collection_prefix(collection: &str) -> Vec<u8> {
-    prefix(FAMILY_INDEX, &[collection.as_bytes()])
+    scoped_prefix(FAMILY_INDEX, collection, &[])
 }
 
 pub(super) fn schema_cleanup_key(cleanup_id: &str) -> Vec<u8> {
@@ -271,31 +288,34 @@ pub(super) fn schema_cleanup_prefix() -> Vec<u8> {
 }
 
 pub(super) fn scalar_index_collection_prefix(collection: &str) -> Vec<u8> {
-    prefix(FAMILY_SCALAR_INDEX, &[collection.as_bytes()])
+    scoped_prefix(FAMILY_SCALAR_INDEX, collection, &[])
 }
 
 pub(super) fn scalar_index_data_prefix(collection: &str, index_name: &str) -> Vec<u8> {
-    prefix(
+    scoped_prefix(
         FAMILY_SCALAR_INDEX,
-        &[collection.as_bytes(), index_name.as_bytes(), b"data"],
+        collection,
+        &[index_name.as_bytes(), b"data"],
     )
 }
 
 pub(super) fn time_series_index_collection_prefix(collection: &str) -> Vec<u8> {
-    prefix(FAMILY_TIME_SERIES_INDEX, &[collection.as_bytes()])
+    scoped_prefix(FAMILY_TIME_SERIES_INDEX, collection, &[])
 }
 
 pub(super) fn time_series_index_data_prefix(collection: &str, index_name: &str) -> Vec<u8> {
-    prefix(
+    scoped_prefix(
         FAMILY_TIME_SERIES_INDEX,
-        &[collection.as_bytes(), index_name.as_bytes(), b"data"],
+        collection,
+        &[index_name.as_bytes(), b"data"],
     )
 }
 
 pub(super) fn column_batch_metadata_key(collection: &str, index_name: &str) -> Vec<u8> {
-    key(
+    scoped_key(
         FAMILY_COLUMN_BATCH,
-        &[collection.as_bytes(), index_name.as_bytes(), b"metadata"],
+        collection,
+        &[index_name.as_bytes(), b"metadata"],
     )
 }
 
@@ -305,26 +325,19 @@ pub(super) fn column_batch_segment_key(
     segment_id: u64,
 ) -> Vec<u8> {
     let encoded_segment = LexKey::encode_u64(segment_id);
-    key(
+    scoped_key(
         FAMILY_COLUMN_BATCH,
-        &[
-            collection.as_bytes(),
-            index_name.as_bytes(),
-            b"segment",
-            encoded_segment.as_bytes(),
-        ],
+        collection,
+        &[index_name.as_bytes(), b"segment", encoded_segment.as_bytes()],
     )
 }
 
 pub(super) fn column_batch_index_prefix(collection: &str, index_name: &str) -> Vec<u8> {
-    prefix(
-        FAMILY_COLUMN_BATCH,
-        &[collection.as_bytes(), index_name.as_bytes()],
-    )
+    scoped_prefix(FAMILY_COLUMN_BATCH, collection, &[index_name.as_bytes()])
 }
 
 pub(super) fn column_batch_collection_prefix(collection: &str) -> Vec<u8> {
-    prefix(FAMILY_COLUMN_BATCH, &[collection.as_bytes()])
+    scoped_prefix(FAMILY_COLUMN_BATCH, collection, &[])
 }
 
 pub(super) fn function_key(name: &str) -> Vec<u8> {
@@ -344,7 +357,7 @@ pub(super) fn procedure_prefix() -> Vec<u8> {
 }
 
 pub(super) fn view_key(name: &str) -> Vec<u8> {
-    key(FAMILY_VIEW, &[name.as_bytes()])
+    scoped_key(FAMILY_VIEW, name, &[])
 }
 
 pub(super) fn view_prefix() -> Vec<u8> {
@@ -360,7 +373,7 @@ pub(super) fn role_prefix() -> Vec<u8> {
 }
 
 pub(super) fn sequence_key(name: &str) -> Vec<u8> {
-    key(FAMILY_SEQUENCE, &[name.as_bytes()])
+    scoped_key(FAMILY_SEQUENCE, name, &[])
 }
 
 pub(super) fn sequence_prefix() -> Vec<u8> {
@@ -368,11 +381,11 @@ pub(super) fn sequence_prefix() -> Vec<u8> {
 }
 
 pub(super) fn constraints_key(collection: &str) -> Vec<u8> {
-    key(FAMILY_CONSTRAINTS, &[collection.as_bytes()])
+    scoped_key(FAMILY_CONSTRAINTS, collection, &[])
 }
 
 pub(super) fn namespace_key(namespace: &str) -> Vec<u8> {
-    key(FAMILY_NAMESPACE, &[namespace.as_bytes()])
+    scoped_key(FAMILY_NAMESPACE, namespace, &[])
 }
 
 pub(super) fn namespace_prefix() -> Vec<u8> {
@@ -392,23 +405,23 @@ pub(super) fn collections_key() -> Vec<u8> {
 }
 
 pub(super) fn row_prefix(collection: &str) -> Vec<u8> {
-    prefix(FAMILY_ROW, &[collection.as_bytes()])
+    scoped_prefix(FAMILY_ROW, collection, &[])
 }
 
 pub(super) fn row_key(collection: &str, id: &str) -> Vec<u8> {
-    key(FAMILY_ROW, &[collection.as_bytes(), id.as_bytes()])
+    scoped_key(FAMILY_ROW, collection, &[id.as_bytes()])
 }
 
 pub(super) fn doc_prefix(collection: &str) -> Vec<u8> {
-    prefix(FAMILY_LEGACY_DOC, &[collection.as_bytes()])
+    scoped_prefix(FAMILY_LEGACY_DOC, collection, &[])
 }
 
 pub(super) fn doc_key(collection: &str, id: &str) -> Vec<u8> {
-    key(FAMILY_LEGACY_DOC, &[collection.as_bytes(), id.as_bytes()])
+    scoped_key(FAMILY_LEGACY_DOC, collection, &[id.as_bytes()])
 }
 
 pub(super) fn cardinality_key(collection: &str) -> Vec<u8> {
-    key(FAMILY_CARDINALITY, &[collection.as_bytes()])
+    scoped_key(FAMILY_CARDINALITY, collection, &[])
 }
 
 pub(super) fn cardinality_prefix() -> Vec<u8> {
@@ -425,40 +438,30 @@ pub(super) fn runtime_feedback_prefix() -> Vec<u8> {
 }
 
 pub(super) fn collection_metadata_key(name: &str) -> Vec<u8> {
-    key(FAMILY_COLLECTION_METADATA, &[name.as_bytes()])
+    scoped_key(FAMILY_COLLECTION_METADATA, name, &[])
 }
 
 pub(super) fn column_store_collection_prefix(collection: &str) -> Vec<u8> {
-    prefix(FAMILY_COLUMN_STORE, &[collection.as_bytes()])
+    scoped_prefix(FAMILY_COLUMN_STORE, collection, &[])
 }
 
 pub(super) fn column_store_row_prefix(collection: &str) -> Vec<u8> {
-    prefix(FAMILY_COLUMN_STORE, &[collection.as_bytes(), b"row"])
+    scoped_prefix(FAMILY_COLUMN_STORE, collection, &[b"row"])
 }
 
 pub(super) fn column_store_row_key(collection: &str, id: &str) -> Vec<u8> {
-    key(
-        FAMILY_COLUMN_STORE,
-        &[collection.as_bytes(), b"row", id.as_bytes()],
-    )
+    scoped_key(FAMILY_COLUMN_STORE, collection, &[b"row", id.as_bytes()])
 }
 
 pub(super) fn column_store_deleted_key(collection: &str, id: &str) -> Vec<u8> {
-    key(
-        FAMILY_COLUMN_STORE,
-        &[collection.as_bytes(), b"deleted", id.as_bytes()],
-    )
+    scoped_key(FAMILY_COLUMN_STORE, collection, &[b"deleted", id.as_bytes()])
 }
 
 pub(super) fn column_store_field_key(collection: &str, field: &str, id: &str) -> Vec<u8> {
-    key(
+    scoped_key(
         FAMILY_COLUMN_STORE,
-        &[
-            collection.as_bytes(),
-            b"field",
-            field.as_bytes(),
-            id.as_bytes(),
-        ],
+        collection,
+        &[b"field", field.as_bytes(), id.as_bytes()],
     )
 }
 
@@ -467,10 +470,8 @@ pub(super) fn rollup_prefix() -> Vec<u8> {
 }
 
 pub(super) fn rollup_key(name: &str) -> Vec<u8> {
-    key(
-        FAMILY_ROLLUP,
-        &[name.trim().to_ascii_lowercase().as_bytes()],
-    )
+    let normalized = name.trim().to_ascii_lowercase();
+    scoped_key(FAMILY_ROLLUP, &normalized, &[])
 }
 
 pub(super) fn retention_prefix() -> Vec<u8> {
@@ -478,10 +479,8 @@ pub(super) fn retention_prefix() -> Vec<u8> {
 }
 
 pub(super) fn retention_key(name: &str) -> Vec<u8> {
-    key(
-        FAMILY_RETENTION,
-        &[name.trim().to_ascii_lowercase().as_bytes()],
-    )
+    let normalized = name.trim().to_ascii_lowercase();
+    scoped_key(FAMILY_RETENTION, &normalized, &[])
 }
 
 pub(super) fn graph_prefix() -> Vec<u8> {
@@ -489,30 +488,23 @@ pub(super) fn graph_prefix() -> Vec<u8> {
 }
 
 pub(super) fn graph_key(name: &str) -> Vec<u8> {
-    key(FAMILY_GRAPH, &[name.trim().to_ascii_lowercase().as_bytes()])
+    let normalized = name.trim().to_ascii_lowercase();
+    scoped_key(FAMILY_GRAPH, &normalized, &[])
 }
 
 pub(super) fn graph_outbound_prefix(graph: &str, source_type: &str, source_id: &str) -> Vec<u8> {
-    prefix(
+    scoped_prefix(
         FAMILY_GRAPH_ADJACENCY,
-        &[
-            graph.as_bytes(),
-            b"out",
-            source_type.as_bytes(),
-            source_id.as_bytes(),
-        ],
+        graph,
+        &[b"out", source_type.as_bytes(), source_id.as_bytes()],
     )
 }
 
 pub(super) fn graph_inbound_prefix(graph: &str, target_type: &str, target_id: &str) -> Vec<u8> {
-    prefix(
+    scoped_prefix(
         FAMILY_GRAPH_ADJACENCY,
-        &[
-            graph.as_bytes(),
-            b"in",
-            target_type.as_bytes(),
-            target_id.as_bytes(),
-        ],
+        graph,
+        &[b"in", target_type.as_bytes(), target_id.as_bytes()],
     )
 }
 
@@ -525,10 +517,10 @@ pub(super) fn graph_outbound_edge_key(
     target_id: &str,
     edge_id: &str,
 ) -> Vec<u8> {
-    key(
+    scoped_key(
         FAMILY_GRAPH_ADJACENCY,
+        graph,
         &[
-            graph.as_bytes(),
             b"out",
             source_type.as_bytes(),
             source_id.as_bytes(),
@@ -549,10 +541,10 @@ pub(super) fn graph_inbound_edge_key(
     source_id: &str,
     edge_id: &str,
 ) -> Vec<u8> {
-    key(
+    scoped_key(
         FAMILY_GRAPH_ADJACENCY,
+        graph,
         &[
-            graph.as_bytes(),
             b"in",
             target_type.as_bytes(),
             target_id.as_bytes(),
@@ -565,9 +557,13 @@ pub(super) fn graph_inbound_edge_key(
 }
 
 pub(super) fn utf8_suffix_after_prefix(key: &[u8], prefix: &[u8]) -> Option<String> {
-    std::str::from_utf8(key.strip_prefix(prefix)?)
-        .ok()
-        .map(ToString::to_string)
+    let suffix = key.strip_prefix(prefix)?;
+    let parts = suffix
+        .split(|byte| *byte == LexKey::SEPARATOR)
+        .map(std::str::from_utf8)
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    Some(parts.join("."))
 }
 
 pub(super) fn scalar_index_entry_key(
@@ -591,15 +587,10 @@ pub(super) fn time_series_index_entry_key(
     bucket_key: &str,
     id: &str,
 ) -> Vec<u8> {
-    key(
+    scoped_key(
         FAMILY_TIME_SERIES_INDEX,
-        &[
-            collection.as_bytes(),
-            index_name.as_bytes(),
-            b"data",
-            bucket_key.as_bytes(),
-            id.as_bytes(),
-        ],
+        collection,
+        &[index_name.as_bytes(), b"data", bucket_key.as_bytes(), id.as_bytes()],
     )
 }
 
@@ -615,12 +606,13 @@ pub(super) fn scalar_index_seek_prefix(
     Ok(seek_prefix)
 }
 
-#[allow(clippy::type_complexity)]
+pub(super) type ScalarIndexQueryBounds = (Option<Vec<u8>>, Option<Vec<u8>>);
+
 pub(super) fn scalar_index_query_bounds(
     seek_prefix: &[u8],
     lower_bound: Option<&super::ScalarIndexBound>,
     upper_bound: Option<&super::ScalarIndexBound>,
-) -> Result<(Option<Vec<u8>>, Option<Vec<u8>>), CassieError> {
+) -> Result<ScalarIndexQueryBounds, CassieError> {
     if lower_bound.is_none() && upper_bound.is_none() && seek_prefix.is_empty() {
         return Ok((None, None));
     }
@@ -668,6 +660,37 @@ fn key(family: &[u8], components: &[&[u8]]) -> Vec<u8> {
 
 fn prefix(family: &[u8], components: &[&[u8]]) -> Vec<u8> {
     encode(family, components, true)
+}
+
+fn scoped_key(family: &[u8], scoped_name: &str, extra_components: &[&[u8]]) -> Vec<u8> {
+    encode_scoped(family, scoped_name, extra_components, false)
+}
+
+fn scoped_prefix(family: &[u8], scoped_name: &str, extra_components: &[&[u8]]) -> Vec<u8> {
+    encode_scoped(family, scoped_name, extra_components, true)
+}
+
+fn encode_scoped(
+    family: &[u8],
+    scoped_name: &str,
+    extra_components: &[&[u8]],
+    trailing_separator: bool,
+) -> Vec<u8> {
+    let owned_components = scoped_components(scoped_name);
+    let mut components = owned_components
+        .iter()
+        .map(String::as_bytes)
+        .collect::<Vec<_>>();
+    components.extend_from_slice(extra_components);
+    encode(family, &components, trailing_separator)
+}
+
+fn scoped_components(raw: &str) -> Vec<String> {
+    split_identifier_path(raw)
+        .unwrap_or_else(|_| vec![raw.trim().to_string()])
+        .into_iter()
+        .filter(|component| !component.is_empty())
+        .collect()
 }
 
 fn encode(family: &[u8], components: &[&[u8]], trailing_separator: bool) -> Vec<u8> {

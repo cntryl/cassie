@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::catalog::derive_scoped_name;
 use crate::types::DataType;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -54,30 +55,19 @@ pub struct RollupRefreshCursor {
 }
 
 impl RollupMeta {
-    #[allow(clippy::too_many_arguments)]
     #[must_use]
-    pub fn new(
-        name: String,
-        source_collection: String,
-        timestamp_field: String,
-        bucket_width: String,
-        origin: Option<String>,
-        bucket_expr: String,
-        group_keys: Vec<String>,
-        aggregates: Vec<RollupAggregateMeta>,
-        filter_expr: Option<String>,
-    ) -> Self {
+    pub fn new(definition: RollupDefinition) -> Self {
         Self {
-            output_collection: output_collection_name(&name),
-            name,
-            source_collection,
-            timestamp_field,
-            bucket_width,
-            origin,
-            bucket_expr,
-            group_keys,
-            aggregates,
-            filter_expr,
+            output_collection: output_collection_name(&definition.name),
+            name: definition.name,
+            source_collection: definition.source_collection,
+            timestamp_field: definition.timestamp_field,
+            bucket_width: definition.bucket_width,
+            origin: definition.origin,
+            bucket_expr: definition.bucket_expr,
+            group_keys: definition.group_keys,
+            aggregates: definition.aggregates,
+            filter_expr: definition.filter_expr,
             version: 1,
             state: RollupState::Building,
             refresh_cursor: RollupRefreshCursor::default(),
@@ -90,7 +80,22 @@ impl RollupMeta {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct RollupDefinition {
+    pub name: String,
+    pub source_collection: String,
+    pub timestamp_field: String,
+    pub bucket_width: String,
+    pub origin: Option<String>,
+    pub bucket_expr: String,
+    pub group_keys: Vec<String>,
+    pub aggregates: Vec<RollupAggregateMeta>,
+    pub filter_expr: Option<String>,
+}
+
 #[must_use]
 pub fn output_collection_name(name: &str) -> String {
-    format!("__cassie_rollup_{}", name.trim().to_ascii_lowercase())
+    derive_scoped_name(name, |local| {
+        format!("__cassie_rollup_{}", local.trim().to_ascii_lowercase())
+    })
 }

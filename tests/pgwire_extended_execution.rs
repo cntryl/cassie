@@ -468,7 +468,9 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         seed_extended_query_collection(&cassie);
 

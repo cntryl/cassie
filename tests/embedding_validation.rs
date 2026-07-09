@@ -1,5 +1,7 @@
 use cassie::app::{Cassie, CassieError};
-use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
+use cassie::config::{
+    CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig, VoyageRuntimeConfig,
+};
 use cassie::embeddings::{
     openai::OpenAiConfig, DistanceMetric, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
     DEFAULT_EMBEDDING_MODEL,
@@ -34,7 +36,15 @@ fn openai_runtime(base_url: String) -> CassieRuntimeConfig {
 
 fn voyage_runtime() -> CassieRuntimeConfig {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.embeddings = EmbeddingsRuntimeConfig::Voyage;
+    config.embeddings = EmbeddingsRuntimeConfig::Voyage(VoyageRuntimeConfig {
+        api_key: "voyage-test-key".to_string(),
+        model: "voyage-3.5-lite".to_string(),
+        dimensions: 1024,
+        timeout_seconds: 1,
+        max_batch_size: 1,
+        max_retries: 1,
+        base_url: "http://127.0.0.1:1".to_string(),
+    });
     config
 }
 

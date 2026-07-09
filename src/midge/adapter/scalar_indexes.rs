@@ -33,6 +33,8 @@ struct ScalarIndexStoredRow {
     fields: BTreeMap<String, serde_json::Value>,
 }
 
+type ScalarIndexEntry = (Vec<u8>, Vec<u8>);
+
 impl Midge {
     pub(crate) fn sync_scalar_indexes_for_document(
         tx: &mut cntryl_midge::Transaction,
@@ -195,12 +197,11 @@ impl Midge {
             && (!index.normalized_fields().is_empty() || !index.normalized_expressions().is_empty())
     }
 
-    #[allow(clippy::type_complexity)]
     fn scalar_index_entry(
         index: &IndexMeta,
         id: &str,
         payload: &serde_json::Value,
-    ) -> Result<Option<(Vec<u8>, Vec<u8>)>, CassieError> {
+    ) -> Result<Option<ScalarIndexEntry>, CassieError> {
         if !Self::scalar_index_supports_storage(index)
             || !Self::payload_matches_scalar_index_predicate(index, payload)?
         {

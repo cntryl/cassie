@@ -241,6 +241,7 @@ impl Cassie {
         parameter_shape: Vec<crate::runtime::ParameterShape>,
         mode: ExecutionMode,
         database: Option<String>,
+        search_path: Vec<String>,
     ) -> PlanCacheKey {
         PlanCacheKey {
             sql_fingerprint,
@@ -252,6 +253,7 @@ impl Cassie {
             parameter_shape,
             mode,
             database,
+            search_path,
         }
     }
 
@@ -275,12 +277,14 @@ impl Cassie {
         params: &[crate::types::Value],
         mode: ExecutionMode,
         database: Option<String>,
+        search_path: Vec<String>,
     ) -> bool {
         let key = self.plan_cache_key_from_fingerprint(
             crate::runtime::sql_fingerprint(parsed),
             crate::runtime::parameter_shape(params),
             mode,
             database,
+            search_path,
         );
         self.runtime.plan_cache_lookup(&key).is_some()
     }
@@ -304,7 +308,7 @@ impl Cassie {
         &self,
         parsed: crate::sql::ast::ParsedStatement,
         key: PlanCacheKey,
-        database: Option<&str>,
+        session: Option<&CassieSession>,
         controls: Option<&QueryExecutionControls>,
     ) -> Result<
         (
@@ -323,7 +327,7 @@ impl Cassie {
         }
 
         self.runtime.record_query_cache_compile_miss();
-        let plan = self.compile_physical_plan(parsed, database, controls)?;
+        let plan = self.compile_physical_plan(parsed, session, controls)?;
         self.runtime.plan_cache_store(key, plan.clone(), false);
         Ok((plan, PlanCacheProvenance::Compiled))
     }
@@ -422,7 +426,7 @@ impl Cassie {
 
         let controls = self.runtime.query_controls(Instant::now());
         if controls.is_timed_out() {
-            return Err(CassieError::Execution("query timeout exceeded".to_string()));
+            return Err(CassieError::DeadlineExceeded);
         }
 
         let cache_key = Self::is_query_cacheable(&parsed.statement).then(|| {
@@ -431,6 +435,7 @@ impl Cassie {
                 Vec::new(),
                 ExecutionMode::DescribeQuery,
                 None,
+                vec![crate::catalog::DEFAULT_SCHEMA.to_string()],
             )
         });
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
@@ -539,13 +544,14 @@ impl Cassie {
         if session.user.is_empty() {
             return Err(CassieError::Unauthorized);
         }
+        self.ensure_session_database_exists(session)?;
 
         if let Some(error) = unsupported_sql_error(sql) {
             return Err(error);
         }
 
         if controls.is_timed_out() {
-            return Err(CassieError::Execution("query timeout exceeded".to_string()));
+            return Err(CassieError::DeadlineExceeded);
         }
 
         self.runtime.record_sql_parse();
@@ -590,12 +596,13 @@ impl Cassie {
         self.record_select_plan_decision(cache_context.is_select, &physical);
 
         if controls.is_timed_out() {
-            return Err(CassieError::Execution("query timeout exceeded".to_string()));
+            return Err(CassieError::DeadlineExceeded);
         }
 
         let feedback = self.capture_query_feedback(
             cache_context.is_select,
             session.database.as_deref(),
+            session.search_path(),
             &physical,
         );
         let execution = self.execute_physical_statement(session, &physical, params, controls);
@@ -622,7 +629,7 @@ impl Cassie {
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
         if controls.is_timed_out() {
-            return Err(CassieError::Execution("query timeout exceeded".to_string()));
+            return Err(CassieError::DeadlineExceeded);
         }
         if session.is_transaction_failed() && !Self::is_transaction_recovery(parsed) {
             return Err(CassieError::Execution(
@@ -657,6 +664,7 @@ impl Cassie {
                 crate::runtime::parameter_shape(params),
                 mode,
                 session.database.clone(),
+                session.search_path(),
             )
         });
         let exec_cache_key = is_select.then(|| crate::runtime::ExecutionResultCacheKey {
@@ -665,6 +673,7 @@ impl Cassie {
             schema_epoch: self.runtime.schema_epoch(),
             data_epoch: self.runtime.data_epoch(),
             database: session.database.clone(),
+            search_path: session.search_path(),
             mode,
         });
         QueryCacheContext {
@@ -703,12 +712,7 @@ impl Cassie {
         let (physical, provenance) = if let Some(hit) = self.runtime.plan_cache_lookup(key) {
             Self::plan_cache_provenance(hit)
         } else {
-            self.resolve_physical_plan(
-                parsed,
-                key.clone(),
-                session.database.as_deref(),
-                Some(controls),
-            )?
+            self.resolve_physical_plan(parsed, key.clone(), Some(session), Some(controls))?
         };
         self.runtime
             .record_adaptive_plan_decision(&physical.adaptive_plan);
@@ -729,15 +733,10 @@ impl Cassie {
         CassieError,
     > {
         if let Some(key) = cache_context.cache_key.clone() {
-            return self.resolve_physical_plan(
-                parsed,
-                key,
-                session.database.as_deref(),
-                Some(controls),
-            );
+            return self.resolve_physical_plan(parsed, key, Some(session), Some(controls));
         }
         Ok((
-            self.compile_physical_plan(parsed, session.database.as_deref(), Some(controls))?,
+            self.compile_physical_plan(parsed, Some(session), Some(controls))?,
             PlanCacheProvenance::Compiled,
         ))
     }
@@ -757,10 +756,11 @@ impl Cassie {
         &self,
         is_select: bool,
         database: Option<&str>,
+        search_path: Vec<String>,
         physical: &crate::planner::physical::PhysicalPlan,
     ) -> QueryFeedbackCapture {
         let keys = is_select.then(|| {
-            let keys = self.feedback_keys_for_plan(database, physical);
+            let keys = self.feedback_keys_for_plan(database, search_path, physical);
             self.observe_feedback_lookup(&keys);
             keys
         });
@@ -844,8 +844,7 @@ impl Cassie {
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
         let before = analyze.then(|| self.runtime.snapshot());
-        let physical =
-            self.compile_physical_plan(statement, session.database.as_deref(), Some(controls))?;
+        let physical = self.compile_physical_plan(statement, Some(session), Some(controls))?;
         let mut plan = super::query_explain::plan_line(self, &physical);
 
         if analyze {
@@ -876,7 +875,11 @@ impl Cassie {
     ) -> Result<ExplainAnalyzeReport, CassieError> {
         self.runtime
             .record_adaptive_plan_decision(&physical.adaptive_plan);
-        let feedback_keys = self.feedback_keys_for_plan(session.database.as_deref(), physical);
+        let feedback_keys = self.feedback_keys_for_plan(
+            session.database.as_deref(),
+            session.search_path(),
+            physical,
+        );
         self.observe_feedback_lookup(&feedback_keys);
         let started_at = Instant::now();
         let result = self.execute_physical_statement(session, physical, params, controls)?;

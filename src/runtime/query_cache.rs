@@ -13,7 +13,7 @@ use crate::runtime::{stable_fingerprint, PlanCacheKey, RuntimeState};
 
 const TEMP_ROOT: &[u8] = b"cassie";
 const TEMP_LEXKEY: &[u8] = b"lexkey";
-const TEMP_VERSION: &[u8] = b"v2";
+const TEMP_VERSION: &[u8] = b"v3";
 const TEMP_FAMILY: &[u8] = b"temp";
 const PLAN_ENTRY_FAMILY: &[u8] = b"plan-entry";
 const FULLTEXT_STATS_FAMILY: &[u8] = b"fulltext-stats";
@@ -259,15 +259,19 @@ pub(crate) fn lookup_fulltext_stats(
     Ok(Some(record.context))
 }
 
-#[allow(clippy::too_many_arguments)]
+#[derive(Clone, Copy)]
+pub(crate) struct FulltextStatsCacheKey<'a> {
+    pub collection: &'a str,
+    pub field: &'a str,
+    pub analyzer_key: &'a str,
+    pub schema_epoch: u64,
+    pub data_epoch: u64,
+}
+
 pub(crate) fn store_fulltext_stats(
     midge: &Midge,
     runtime: &RuntimeState,
-    collection: &str,
-    field: &str,
-    analyzer_key: &str,
-    schema_epoch: u64,
-    data_epoch: u64,
+    key: FulltextStatsCacheKey<'_>,
     context: &SearchContext,
 ) -> Result<(), CassieError> {
     let ttl_seconds = runtime.limits().cf2_fulltext_stats_ttl_seconds;
@@ -276,18 +280,24 @@ pub(crate) fn store_fulltext_stats(
     }
 
     let record = FulltextStatsRecord {
-        collection: collection.to_string(),
-        field: field.to_string(),
-        analyzer_key: analyzer_key.to_string(),
-        schema_epoch,
-        data_epoch,
+        collection: key.collection.to_string(),
+        field: key.field.to_string(),
+        analyzer_key: key.analyzer_key.to_string(),
+        schema_epoch: key.schema_epoch,
+        data_epoch: key.data_epoch,
         created_at_ms: current_time_millis(),
         context: context.clone(),
     };
     put_temp_json(
         midge,
         runtime,
-        fulltext_stats_key(collection, field, analyzer_key, schema_epoch, data_epoch),
+        fulltext_stats_key(
+            key.collection,
+            key.field,
+            key.analyzer_key,
+            key.schema_epoch,
+            key.data_epoch,
+        ),
         &record,
         ttl_seconds,
     )

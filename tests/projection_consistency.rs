@@ -363,7 +363,7 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
         // Act
         let unauthorized = client
             .post(format!(
-                "http://{addr}/v1/admin/projections/consistency_rest_docs/verification-manifest"
+                "http://{addr}/api/v1/admin/projections/consistency_rest_docs/verification-manifest"
             ))
             .json(&serde_json::json!({"instance_id": format!("unauthorized-{nonce}")}))
             .send()
@@ -371,7 +371,7 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
             .expect("unauthorized request");
         let manifest = client
             .post(format!(
-                "http://{addr}/v1/admin/projections/consistency_rest_docs/verification-manifest"
+                "http://{addr}/api/v1/admin/projections/consistency_rest_docs/verification-manifest"
             ))
             .header("authorization", "Bearer sa:topsecret")
             .json(&serde_json::json!({
@@ -388,7 +388,7 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
             .expect("manifest json");
         let report = client
             .post(format!(
-                "http://{addr}/v1/admin/projection-consistency-checks"
+                "http://{addr}/api/v1/admin/projection-consistency-checks"
             ))
             .header("authorization", "Bearer sa:topsecret")
             .json(&serde_json::json!({"manifests": [manifest.clone(), manifest]}))

@@ -12,19 +12,19 @@ pub(super) fn parse_references_target_with_rest(
     let raw = raw.trim();
     let open = raw
         .find('(')
-        .ok_or_else(|| SqlError("REFERENCES requires target column list".into()))?;
+        .ok_or_else(|| SqlError::new("REFERENCES requires target column list".into()))?;
     let close = find_matching_paren(raw, open)
-        .ok_or_else(|| SqlError("REFERENCES requires closing ')'".into()))?;
+        .ok_or_else(|| SqlError::new("REFERENCES requires closing ')'".into()))?;
     let table = parse_identifier(raw[..open].trim())?;
     if table.is_empty() {
-        return Err(SqlError("REFERENCES requires target table".into()));
+        return Err(SqlError::new("REFERENCES requires target table".into()));
     }
     let fields = parse_identifier_list(raw[open + 1..close].trim())?;
     if fields.is_empty() || fields.iter().any(|field| field.trim().is_empty()) {
-        return Err(SqlError("REFERENCES requires target column".into()));
+        return Err(SqlError::new("REFERENCES requires target column".into()));
     }
     if fields.len() != 1 {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "REFERENCES supports exactly one target column".into(),
         ));
     }

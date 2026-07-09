@@ -31,6 +31,15 @@ thread_local! {
 
 const FUNCTION_CACHE_SIZE: usize = 256;
 
+#[derive(Clone, Copy)]
+pub(super) struct EvalContext<'a> {
+    params: &'a [Value],
+    search_context: Option<&'a SearchContext>,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    local_args: Option<&'a HashMap<String, Value>>,
+    session: Option<&'a CassieSession>,
+}
+
 struct FunctionCache {
     keys: Vec<u64>,
     values: Vec<Value>,
@@ -236,26 +245,27 @@ pub(crate) fn evaluate_expr_value<R: RowAccess + ?Sized>(
     session: Option<&CassieSession>,
     local_args: Option<&HashMap<String, Value>>,
 ) -> Result<Value, QueryError> {
+    evaluate_expr_value_with_context(
+        row,
+        expr,
+        EvalContext {
+            params,
+            search_context,
+            user_functions,
+            local_args,
+            session,
+        },
+    )
+}
+
+fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    context: EvalContext<'_>,
+) -> Result<Value, QueryError> {
     match expr {
-        Expr::Function(function) => evaluate_function(
-            function,
-            row,
-            params,
-            search_context,
-            user_functions,
-            session,
-            local_args,
-        ),
-        _ => Ok(eval_scalar(
-            row,
-            expr,
-            params,
-            search_context,
-            user_functions,
-            local_args,
-            session,
-        )?
-        .to_value()),
+        Expr::Function(function) => evaluate_function(function, row, context),
+        _ => Ok(eval_scalar_with_context(row, expr, context)?.to_value()),
     }
 }
 
@@ -267,14 +277,16 @@ fn eval_filter<R: RowAccess + ?Sized>(
     user_functions: &HashMap<String, FunctionMeta>,
     session: Option<&CassieSession>,
 ) -> Result<bool, QueryError> {
-    let value = eval_scalar(
+    let value = eval_scalar_with_context(
         row,
         expression,
-        params,
-        search_context,
-        user_functions,
-        None,
-        session,
+        EvalContext {
+            params,
+            search_context,
+            user_functions,
+            local_args: None,
+            session,
+        },
     )?;
     Ok(value.as_bool())
 }
@@ -288,96 +300,50 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
     local_args: Option<&HashMap<String, Value>>,
     session: Option<&CassieSession>,
 ) -> Result<ScalarValue, QueryError> {
+    eval_scalar_with_context(
+        row,
+        expr,
+        EvalContext {
+            params,
+            search_context,
+            user_functions,
+            local_args,
+            session,
+        },
+    )
+}
+
+fn eval_scalar_with_context<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    context: EvalContext<'_>,
+) -> Result<ScalarValue, QueryError> {
     match expr {
-        Expr::Column(name) => Ok(eval_column_value(row, name, local_args)),
+        Expr::Column(name) => Ok(eval_column_value(row, name, context.local_args)),
         Expr::StringLiteral(value) => Ok(ScalarValue::Str(value.clone())),
         Expr::NumberLiteral(value) => Ok(ScalarValue::Float(*value)),
         Expr::BoolLiteral(value) => Ok(ScalarValue::Bool(*value)),
         Expr::Null => Ok(ScalarValue::Null),
-        Expr::Param(index) => Ok(params
+        Expr::Param(index) => Ok(context
+            .params
             .get(*index)
             .map_or(ScalarValue::Null, scalar_from_value)),
-        Expr::Function(function) => evaluate_function_scalar(
-            row,
-            function,
-            params,
-            search_context,
-            user_functions,
-            local_args,
-            session,
-        ),
-        Expr::Binary { left, op, right } => eval_binary_expr(
-            row,
-            left,
-            op,
-            right,
-            params,
-            search_context,
-            user_functions,
-            local_args,
-            session,
-        ),
-        Expr::IsNull { expr, negated } => eval_is_null_expr(
-            row,
-            expr,
-            *negated,
-            params,
-            search_context,
-            user_functions,
-            local_args,
-            session,
-        ),
+        Expr::Function(function) => evaluate_function_scalar(row, function, context),
+        Expr::Binary { left, op, right } => eval_binary_expr(row, left, op, right, context),
+        Expr::IsNull { expr, negated } => eval_is_null_expr(row, expr, *negated, context),
         Expr::InList {
             expr,
             values,
             negated,
-        } => eval_in_list_expr(
-            row,
-            expr,
-            values,
-            *negated,
-            params,
-            search_context,
-            user_functions,
-            local_args,
-            session,
-        ),
+        } => eval_in_list_expr(row, expr, values, *negated, context),
         Expr::Between {
             expr,
             low,
             high,
             negated,
-        } => eval_between_expr(
-            row,
-            expr,
-            low,
-            high,
-            *negated,
-            params,
-            search_context,
-            user_functions,
-            local_args,
-            session,
-        ),
-        Expr::Not { expr } => eval_not_expr(
-            row,
-            expr,
-            params,
-            search_context,
-            user_functions,
-            local_args,
-            session,
-        ),
-        Expr::Cast { expr, data_type } => eval_cast_expr(
-            row,
-            expr,
-            data_type,
-            params,
-            search_context,
-            user_functions,
-            local_args,
-            session,
-        ),
+        } => eval_between_expr(row, expr, low, high, *negated, context),
+        Expr::Not { expr } => eval_not_expr(row, expr, context),
+        Expr::Cast { expr, data_type } => eval_cast_expr(row, expr, data_type, context),
         Expr::Exists(_) => Err(QueryError::General(
             "EXISTS predicate was not resolved before filtering".to_string(),
         )),
@@ -724,115 +690,45 @@ fn eval_column_value<R: RowAccess + ?Sized>(
 fn evaluate_function_scalar<R: RowAccess + ?Sized>(
     row: &R,
     function: &FunctionCall,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    local_args: Option<&HashMap<String, Value>>,
-    session: Option<&CassieSession>,
+    context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
-    evaluate_function(
-        function,
-        row,
-        params,
-        search_context,
-        user_functions,
-        session,
-        local_args,
-    )
-    .map(|value| scalar_from_value(&value))
+    evaluate_function(function, row, context).map(|value| scalar_from_value(&value))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn eval_binary_expr<R: RowAccess + ?Sized>(
     row: &R,
     left: &Expr,
     op: &BinaryOp,
     right: &Expr,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    local_args: Option<&HashMap<String, Value>>,
-    session: Option<&CassieSession>,
+    context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
-    let left = eval_scalar(
-        row,
-        left,
-        params,
-        search_context,
-        user_functions,
-        local_args,
-        session,
-    )?;
-    let right = eval_scalar(
-        row,
-        right,
-        params,
-        search_context,
-        user_functions,
-        local_args,
-        session,
-    )?;
+    let left = eval_scalar_with_context(row, left, context)?;
+    let right = eval_scalar_with_context(row, right, context)?;
     Ok(binary_scalar(&left, op, &right))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn eval_is_null_expr<R: RowAccess + ?Sized>(
     row: &R,
     expr: &Expr,
     negated: bool,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    local_args: Option<&HashMap<String, Value>>,
-    session: Option<&CassieSession>,
+    context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
-    let value = eval_scalar(
-        row,
-        expr,
-        params,
-        search_context,
-        user_functions,
-        local_args,
-        session,
-    )?;
+    let value = eval_scalar_with_context(row, expr, context)?;
     let is_null = matches!(value, ScalarValue::Null);
     Ok(ScalarValue::Bool(if negated { !is_null } else { is_null }))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn eval_in_list_expr<R: RowAccess + ?Sized>(
     row: &R,
     expr: &Expr,
     values: &[Expr],
     negated: bool,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    local_args: Option<&HashMap<String, Value>>,
-    session: Option<&CassieSession>,
+    context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
-    let left = eval_scalar(
-        row,
-        expr,
-        params,
-        search_context,
-        user_functions,
-        local_args,
-        session,
-    )?;
+    let left = eval_scalar_with_context(row, expr, context)?;
     let contains = values
         .iter()
-        .map(|value| {
-            eval_scalar(
-                row,
-                value,
-                params,
-                search_context,
-                user_functions,
-                local_args,
-                session,
-            )
-        })
+        .map(|value| eval_scalar_with_context(row, value, context))
         .collect::<Result<Vec<_>, _>>()?
         .iter()
         .any(|right| eq_value(&left, right));
@@ -843,46 +739,17 @@ fn eval_in_list_expr<R: RowAccess + ?Sized>(
     }))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn eval_between_expr<R: RowAccess + ?Sized>(
     row: &R,
     expr: &Expr,
     low: &Expr,
     high: &Expr,
     negated: bool,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    local_args: Option<&HashMap<String, Value>>,
-    session: Option<&CassieSession>,
+    context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
-    let value = eval_scalar(
-        row,
-        expr,
-        params,
-        search_context,
-        user_functions,
-        local_args,
-        session,
-    )?;
-    let low = eval_scalar(
-        row,
-        low,
-        params,
-        search_context,
-        user_functions,
-        local_args,
-        session,
-    )?;
-    let high = eval_scalar(
-        row,
-        high,
-        params,
-        search_context,
-        user_functions,
-        local_args,
-        session,
-    )?;
+    let value = eval_scalar_with_context(row, expr, context)?;
+    let low = eval_scalar_with_context(row, low, context)?;
+    let high = eval_scalar_with_context(row, high, context)?;
     let in_range = number_cmp(&value, &low, |left, right| left >= right)
         && number_cmp(&value, &high, |left, right| left <= right);
     Ok(ScalarValue::Bool(if negated {
@@ -892,48 +759,21 @@ fn eval_between_expr<R: RowAccess + ?Sized>(
     }))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn eval_not_expr<R: RowAccess + ?Sized>(
     row: &R,
     expr: &Expr,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    local_args: Option<&HashMap<String, Value>>,
-    session: Option<&CassieSession>,
+    context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
-    eval_scalar(
-        row,
-        expr,
-        params,
-        search_context,
-        user_functions,
-        local_args,
-        session,
-    )
-    .map(|value| ScalarValue::Bool(!value.as_bool()))
+    eval_scalar_with_context(row, expr, context).map(|value| ScalarValue::Bool(!value.as_bool()))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn eval_cast_expr<R: RowAccess + ?Sized>(
     row: &R,
     expr: &Expr,
     data_type: &DataType,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    local_args: Option<&HashMap<String, Value>>,
-    session: Option<&CassieSession>,
+    context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
-    let value = eval_scalar(
-        row,
-        expr,
-        params,
-        search_context,
-        user_functions,
-        local_args,
-        session,
-    )?;
+    let value = eval_scalar_with_context(row, expr, context)?;
     cast_scalar(&value, data_type)
 }
 

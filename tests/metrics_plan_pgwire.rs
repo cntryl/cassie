@@ -273,7 +273,9 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+        config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         let before_protocol_errors = cassie.metrics()["pgwire"]["protocol_errors_total"]
             .as_u64()
@@ -285,8 +287,6 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
         let addr = listener.local_addr().expect("listener address");
         drop(listener);
 
-        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
         let server = tokio::spawn(cassie::pgwire::server::run(
             addr.to_string(),
             std::sync::Arc::new(cassie.clone()),

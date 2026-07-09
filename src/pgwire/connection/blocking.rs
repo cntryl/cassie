@@ -34,3 +34,41 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use uuid::Uuid;
+
+    fn data_dir(label: &str) -> String {
+        format!("/tmp/cassie-pgwire-blocking-{label}-{}", Uuid::new_v4())
+    }
+
+    #[test]
+    fn should_map_join_failures_to_retryable_storage_errors() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie =
+                Arc::new(Cassie::new_with_data_dir(data_dir("retryable")).expect("cassie"));
+
+            // Act
+            let error =
+                run_pgwire_blocking(cassie, "pgwire_retryable", |_| -> Result<(), CassieError> {
+                    panic!("synthetic pgwire join failure");
+                })
+                .await
+                .expect_err("panic should map to retryable storage");
+
+            // Assert
+            assert!(matches!(error, CassieError::StorageRetryable(_)));
+            assert!(error
+                .to_string()
+                .contains("pgwire blocking boundary 'pgwire_retryable' failed"));
+        });
+    }
+}

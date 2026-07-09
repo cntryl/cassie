@@ -124,8 +124,9 @@ fn should_reject_non_scalar_expression_index() {
     let err = parse_statement(sql).expect_err("parse should reject expression fulltext index");
 
     // Assert
+    assert_eq!(err.kind(), cassie::sql::SqlErrorKind::Unsupported);
     assert!(err
-        .0
+        .message()
         .contains("expression indexes are only supported for scalar index methods"));
 }
 

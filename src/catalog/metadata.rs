@@ -5,9 +5,10 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use crate::catalog::{
-    CollectionCardinalityStats, CollectionMeta, CollectionSchema, CollectionStorageMode,
-    FieldConstraint, FieldMeta, FunctionMeta, GraphMeta, IndexKind, IndexMeta, NamespaceMeta,
-    OperationalAssignmentMeta, ProcedureMeta, ProjectionComparisonReportMeta,
+    name_matches, CollectionCardinalityStats, CollectionMeta, CollectionSchema,
+    CollectionStorageMode, DatabaseMeta, FieldConstraint, FieldMeta, FunctionMeta, GraphMeta,
+    IndexKind, IndexMeta, NamespaceMeta, OperationalAssignmentMeta, ProcedureMeta,
+    ProjectionComparisonReportMeta,
     ProjectionConsistencyReportMeta, ProjectionMeta, ProjectionRepairReportMeta,
     RetentionPolicyMeta, RoleMeta, RollupMeta, SequenceMeta, ViewMeta,
 };
@@ -16,37 +17,42 @@ use crate::types::{DataType, Schema};
 
 #[derive(Debug, Clone)]
 pub struct Catalog {
-    pub collections: Arc<RwLock<HashMap<String, CollectionMeta>>>,
-    pub namespaces: Arc<RwLock<HashMap<String, NamespaceMeta>>>,
-    pub schemas: Arc<RwLock<HashMap<String, CollectionSchema>>>,
-    pub projections: Arc<RwLock<HashMap<String, ProjectionMeta>>>,
-    pub constraints: Arc<RwLock<HashMap<String, Vec<FieldConstraint>>>>,
-    pub indexes: Arc<RwLock<HashMap<String, IndexMeta>>>,
-    pub graphs: Arc<RwLock<HashMap<String, GraphMeta>>>,
-    pub functions: Arc<RwLock<HashMap<String, FunctionMeta>>>,
-    pub procedures: Arc<RwLock<HashMap<String, ProcedureMeta>>>,
-    pub views: Arc<RwLock<HashMap<String, ViewMeta>>>,
-    pub roles: Arc<RwLock<HashMap<String, RoleMeta>>>,
-    pub sequences: Arc<RwLock<HashMap<String, SequenceMeta>>>,
-    pub rollups: Arc<RwLock<HashMap<String, RollupMeta>>>,
-    pub retention_policies: Arc<RwLock<HashMap<String, RetentionPolicyMeta>>>,
-    pub vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
-    pub cardinality: Arc<RwLock<HashMap<String, CollectionCardinalityStats>>>,
-    pub projection_comparison_reports: Arc<RwLock<HashMap<String, ProjectionComparisonReportMeta>>>,
-    pub projection_consistency_reports:
+    pub(super) databases: Arc<RwLock<HashMap<String, DatabaseMeta>>>,
+    pub(super) collections: Arc<RwLock<HashMap<String, CollectionMeta>>>,
+    pub(super) namespaces: Arc<RwLock<HashMap<String, NamespaceMeta>>>,
+    pub(super) schemas: Arc<RwLock<HashMap<String, CollectionSchema>>>,
+    pub(super) projections: Arc<RwLock<HashMap<String, ProjectionMeta>>>,
+    pub(super) constraints: Arc<RwLock<HashMap<String, Vec<FieldConstraint>>>>,
+    pub(super) indexes: Arc<RwLock<HashMap<String, IndexMeta>>>,
+    pub(super) graphs: Arc<RwLock<HashMap<String, GraphMeta>>>,
+    pub(super) functions: Arc<RwLock<HashMap<String, FunctionMeta>>>,
+    pub(super) procedures: Arc<RwLock<HashMap<String, ProcedureMeta>>>,
+    pub(super) views: Arc<RwLock<HashMap<String, ViewMeta>>>,
+    pub(super) roles: Arc<RwLock<HashMap<String, RoleMeta>>>,
+    pub(super) sequences: Arc<RwLock<HashMap<String, SequenceMeta>>>,
+    pub(super) rollups: Arc<RwLock<HashMap<String, RollupMeta>>>,
+    pub(super) retention_policies: Arc<RwLock<HashMap<String, RetentionPolicyMeta>>>,
+    pub(super) vector_indexes: Arc<RwLock<HashMap<String, VectorIndexRecord>>>,
+    pub(super) cardinality: Arc<RwLock<HashMap<String, CollectionCardinalityStats>>>,
+    pub(super) projection_comparison_reports:
+        Arc<RwLock<HashMap<String, ProjectionComparisonReportMeta>>>,
+    pub(super) projection_consistency_reports:
         Arc<RwLock<HashMap<String, ProjectionConsistencyReportMeta>>>,
-    pub projection_repair_reports: Arc<RwLock<HashMap<String, ProjectionRepairReportMeta>>>,
-    pub operational_assignments: Arc<RwLock<HashMap<String, OperationalAssignmentMeta>>>,
+    pub(super) projection_repair_reports: Arc<RwLock<HashMap<String, ProjectionRepairReportMeta>>>,
+    pub(super) operational_assignments: Arc<RwLock<HashMap<String, OperationalAssignmentMeta>>>,
     version: Arc<AtomicU64>,
 }
 
 #[path = "metadata_domains.rs"]
 mod metadata_domains;
+#[path = "metadata_databases.rs"]
+mod metadata_databases;
 
 impl Catalog {
     #[must_use]
     pub fn new() -> Self {
         Self {
+            databases: Arc::new(RwLock::new(HashMap::new())),
             collections: Arc::new(RwLock::new(HashMap::new())),
             namespaces: Arc::new(RwLock::new(HashMap::new())),
             schemas: Arc::new(RwLock::new(HashMap::new())),
@@ -139,7 +145,13 @@ impl Catalog {
 
     #[must_use]
     pub fn get_collection(&self, name: &str) -> Option<CollectionMeta> {
-        self.collections.read().get(name).cloned()
+        let collections = self.collections.read();
+        collections.get(name).cloned().or_else(|| {
+            collections
+                .iter()
+                .find(|(stored, _)| name_matches(stored, name))
+                .map(|(_, metadata)| metadata.clone())
+        })
     }
 
     #[must_use]
@@ -173,10 +185,13 @@ impl Catalog {
 
     #[must_use]
     pub fn namespace_exists(&self, namespace: &str) -> bool {
-        self.namespaces.read().contains_key(namespace)
+        let namespaces = self.namespaces.read();
+        namespaces.contains_key(namespace)
+            || namespaces.keys().any(|stored| name_matches(stored, namespace))
     }
 
     pub fn clear(&self) {
+        self.databases.write().clear();
         self.collections.write().clear();
         self.namespaces.write().clear();
         self.schemas.write().clear();
@@ -232,10 +247,16 @@ impl Catalog {
 
     #[must_use]
     pub fn get_constraints(&self, collection: &str) -> Vec<FieldConstraint> {
-        self.constraints
-            .read()
+        let constraints = self.constraints.read();
+        constraints
             .get(collection)
             .cloned()
+            .or_else(|| {
+                constraints
+                    .iter()
+                    .find(|(stored, _)| name_matches(stored, collection))
+                    .map(|(_, value)| value.clone())
+            })
             .unwrap_or_default()
     }
 
@@ -323,10 +344,26 @@ impl Catalog {
         let indexes = self.indexes.read();
         let mut out = indexes
             .values()
-            .filter(|index| index.collection == collection)
+            .filter(|index| name_matches(&index.collection, collection))
             .cloned()
             .collect::<Vec<_>>();
         out.sort_by_key(|index| index.name.to_ascii_lowercase());
+        out
+    }
+
+    #[must_use]
+    pub fn all_indexes_snapshot(&self) -> Vec<IndexMeta> {
+        let mut out = self.indexes.read().values().cloned().collect::<Vec<_>>();
+        out.sort_by(|left, right| {
+            left.collection
+                .to_ascii_lowercase()
+                .cmp(&right.collection.to_ascii_lowercase())
+                .then_with(|| {
+                    left.name
+                        .to_ascii_lowercase()
+                        .cmp(&right.name.to_ascii_lowercase())
+                })
+        });
         out
     }
 
@@ -336,11 +373,23 @@ impl Catalog {
         if let Some(schema) = schemas.get(collection).cloned() {
             return Some(schema);
         }
+        if let Some(schema) = schemas
+            .iter()
+            .find(|(stored, _)| name_matches(stored, collection))
+            .map(|(_, schema)| schema.clone())
+        {
+            return Some(schema);
+        }
         drop(schemas);
 
-        self.views
-            .read()
-            .get(collection)
+        let views = self.views.read();
+        views.get(collection)
+            .or_else(|| {
+                views
+                    .iter()
+                    .find(|(stored, _)| name_matches(stored, collection))
+                    .map(|(_, view)| view)
+            })
             .map(|view| view_schema_to_collection_schema(&view.name, &view.schema))
     }
 
@@ -564,16 +613,23 @@ impl Catalog {
 
     #[must_use]
     pub fn exists(&self, collection: &str) -> bool {
-        self.collections.read().contains_key(collection)
+        let collections = self.collections.read();
+        collections.contains_key(collection)
+            || collections.keys().any(|stored| name_matches(stored, collection))
     }
 
     #[must_use]
     pub fn relation_exists(&self, name: &str) -> bool {
-        if self.collections.read().contains_key(name) {
+        if self.exists(name) {
             return true;
         }
 
-        if self.views.read().contains_key(name) {
+        if self
+            .views
+            .read()
+            .keys()
+            .any(|stored| name_matches(stored, name))
+        {
             return true;
         }
 
@@ -631,6 +687,11 @@ impl Catalog {
     #[must_use]
     pub fn get_cardinality_stats(&self, collection: &str) -> Option<CollectionCardinalityStats> {
         self.cardinality.read().get(collection).cloned()
+    }
+
+    #[must_use]
+    pub fn cardinality_snapshot(&self) -> HashMap<String, CollectionCardinalityStats> {
+        self.cardinality.read().clone()
     }
 
     pub fn set_cardinality_stats(&self, collection: &str, stats: CollectionCardinalityStats) {

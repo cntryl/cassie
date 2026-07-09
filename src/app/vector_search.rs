@@ -11,6 +11,7 @@ use super::{
 };
 use crate::vector::NormalizedVector;
 
+#[derive(Clone, Copy)]
 struct ProjectedVectorSearch<'a> {
     schema: &'a CollectionSchema,
     collection: &'a str,
@@ -80,15 +81,21 @@ impl Cassie {
         let embedding = self.cached_query_embedding(query)?;
         Self::validate_embedding_payload(&index, &embedding)?;
 
-        let result = self.execute_projected_vector_search(
-            &index,
+        let limit = limit.max(1);
+        let request = ProjectedVectorSearch {
+            schema: &self
+                .catalog
+                .get_schema(collection)
+                .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?,
             collection,
             vector_field,
-            &embedding.values,
+            query: &embedding.values,
             metric,
             limit,
             offset,
-        )?;
+            top_needed: limit.saturating_add(offset).max(1),
+        };
+        let result = self.execute_projected_vector_search(&index, request)?;
         if result_cache_enabled {
             self.cache_vector_search_result(result_cache_key, catalog_version, &result);
         }
@@ -181,46 +188,16 @@ impl Cassie {
         cache.insert(key, Arc::new(result.clone()));
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn execute_projected_vector_search(
         &self,
         index: &VectorIndexRecord,
-        collection: &str,
-        vector_field: &str,
-        query: &[f32],
-        metric: DistanceMetric,
-        limit: usize,
-        offset: usize,
+        request: ProjectedVectorSearch<'_>,
     ) -> Result<QueryResult, CassieError> {
-        let limit = limit.max(1);
-        let top_needed = limit.saturating_add(offset).max(1);
-        let schema = self
-            .catalog
-            .get_schema(collection)
-            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
         if index.metadata.index_type != VectorIndexType::Hnsw {
-            if let Some(result) = self.try_complete_normalized_vector_search(
-                &schema,
-                collection,
-                vector_field,
-                query,
-                metric,
-                limit,
-                offset,
-            )? {
+            if let Some(result) = self.try_complete_normalized_vector_search(&request)? {
                 return Ok(result);
             }
         }
-        let request = ProjectedVectorSearch {
-            schema: &schema,
-            collection,
-            vector_field,
-            query,
-            metric,
-            limit,
-            offset,
-            top_needed,
-        };
 
         if index.metadata.index_type == VectorIndexType::Hnsw {
             if let Some(result) = self.try_hnsw_vector_search(&request)? {
@@ -236,7 +213,7 @@ impl Cassie {
 
         let candidates = self.scan_vector_candidates(&request)?;
         let normalized_vectors = self.normalized_vector_records_for_metric(&request)?;
-        let normalized_query = normalized_query_for_metric(metric, query);
+        let normalized_query = normalized_query_for_metric(request.metric, request.query);
         let result = self.execute_row_vector_search(
             &request,
             candidates,
@@ -248,7 +225,7 @@ impl Cassie {
             result.fallback_candidate_count,
         );
         Ok(QueryResult {
-            columns: vector_search_columns(&schema),
+            columns: vector_search_columns(request.schema),
             rows: result.rows,
             command: "SELECT".to_string(),
         })
@@ -485,67 +462,41 @@ impl Cassie {
         Ok(rows)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn try_complete_normalized_vector_search(
         &self,
-        schema: &CollectionSchema,
-        collection: &str,
-        vector_field: &str,
-        query: &[f32],
-        metric: DistanceMetric,
-        limit: usize,
-        offset: usize,
+        request: &ProjectedVectorSearch<'_>,
     ) -> Result<Option<QueryResult>, CassieError> {
-        if !matches!(metric, DistanceMetric::Cosine | DistanceMetric::Dot) {
+        if !matches!(request.metric, DistanceMetric::Cosine | DistanceMetric::Dot) {
             return Ok(None);
         }
 
         let catalog_version = self.catalog.version();
-        let expected_cardinality =
-            self.catalog
-                .get_cardinality_stats(collection)
-                .and_then(|stats| {
-                    stats.index_cardinality(
-                        &crate::catalog::CollectionCardinalityStats::vector_index_key(vector_field),
-                    )
-                });
-        let Some(expected_cardinality) = expected_cardinality else {
-            return Ok(None);
-        };
-        let Ok(expected_cardinality) = usize::try_from(expected_cardinality) else {
+        let Some(expected_cardinality) = self.expected_normalized_vector_cardinality(request)
+        else {
             return Ok(None);
         };
 
         let Some(entry) = self.cached_normalized_vectors(
-            collection,
-            vector_field,
+            request.collection,
+            request.vector_field,
             catalog_version,
             expected_cardinality,
-            metric,
-            query.len(),
+            request.metric,
+            request.query.len(),
         )?
         else {
             return Ok(None);
         };
 
-        let normalized_query = if matches!(metric, DistanceMetric::Cosine) {
-            let Some(normalized_query) = normalize_vector(query) else {
-                return Ok(None);
-            };
-            Some(normalized_query)
-        } else {
-            None
-        };
-        let limit = limit.max(1);
-        let top_needed = limit.saturating_add(offset).max(1);
-        let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
+        let normalized_query = normalized_query(request);
+        let mut top = BinaryHeap::with_capacity(request.top_needed.saturating_add(1));
         let candidate_count = entry.ids.len();
 
         for (index, id) in entry.ids.iter().enumerate() {
             let value_start = index.saturating_mul(entry.dimensions);
             let value_end = value_start.saturating_add(entry.dimensions);
             let values = &entry.values[value_start..value_end];
-            let distance = match metric {
+            let distance = match request.metric {
                 DistanceMetric::Cosine => cosine_distance_from_normalized_query(
                     normalized_query
                         .as_ref()
@@ -554,12 +505,14 @@ impl Cassie {
                         .as_slice(),
                     values,
                 ),
-                DistanceMetric::Dot => {
-                    dot_distance_from_normalized_target(query, values, entry.magnitudes[index])
-                }
+                DistanceMetric::Dot => dot_distance_from_normalized_target(
+                    request.query,
+                    values,
+                    entry.magnitudes[index],
+                ),
                 DistanceMetric::L2 => unreachable!("l2 does not use complete normalized fast path"),
             };
-            if top.len() < top_needed {
+            if top.len() < request.top_needed {
                 top.push(ScoredVectorCandidate {
                     distance,
                     id: id.clone(),
@@ -583,25 +536,38 @@ impl Cassie {
         ranked.sort_by(compare_scored_vector_candidates);
         let selected = ranked
             .into_iter()
-            .skip(offset)
-            .take(limit)
+            .skip(request.offset)
+            .take(request.limit)
             .collect::<Vec<_>>();
         let mut rows = Vec::with_capacity(selected.len());
         for candidate in selected {
-            let Some(document) = self.midge.get_document(collection, &candidate.id)? else {
+            let Some(document) = self.midge.get_document(request.collection, &candidate.id)? else {
                 return Ok(None);
             };
-            rows.push(vector_search_row(schema, document));
+            rows.push(vector_search_row(request.schema, document));
         }
 
         self.runtime
             .record_vector_normalization_usage(candidate_count, 0);
 
         Ok(Some(QueryResult {
-            columns: vector_search_columns(schema),
+            columns: vector_search_columns(request.schema),
             rows,
             command: "SELECT".to_string(),
         }))
+    }
+
+    fn expected_normalized_vector_cardinality(
+        &self,
+        request: &ProjectedVectorSearch<'_>,
+    ) -> Option<usize> {
+        let expected = self
+            .catalog
+            .get_cardinality_stats(request.collection)?
+            .index_cardinality(
+                &crate::catalog::CollectionCardinalityStats::vector_index_key(request.vector_field),
+            )?;
+        usize::try_from(expected).ok()
     }
 
     fn cached_normalized_vectors(
@@ -728,6 +694,14 @@ impl Cassie {
             last_record,
         })
     }
+}
+
+fn normalized_query(request: &ProjectedVectorSearch<'_>) -> Option<NormalizedVector> {
+    if !matches!(request.metric, DistanceMetric::Cosine) {
+        return None;
+    }
+    let normalized_query = normalize_vector(request.query)?;
+    Some(normalized_query)
 }
 
 fn normalized_query_for_metric(metric: DistanceMetric, query: &[f32]) -> Option<NormalizedVector> {

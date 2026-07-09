@@ -122,11 +122,11 @@ fn should_reject_right_join_without_on_predicate() {
     let sql = "SELECT users.name FROM users RIGHT JOIN orders";
 
     // Act
-    let parsed = parse_statement(sql);
+    let error = parse_statement(sql).expect_err("RIGHT JOIN without ON should fail");
 
     // Assert
-    assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().0.contains("JOIN requires ON"));
+    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Syntax);
+    assert!(error.message().contains("JOIN requires ON"));
 }
 
 #[test]
@@ -135,11 +135,11 @@ fn should_reject_cross_join_with_on_predicate() {
     let sql = "SELECT users.name FROM users CROSS JOIN orders ON users.id = orders.user_id";
 
     // Act
-    let parsed = parse_statement(sql);
+    let error = parse_statement(sql).expect_err("CROSS JOIN with ON should fail");
 
     // Assert
-    assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().0.contains("unsupported FROM syntax"));
+    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Unsupported);
+    assert!(error.message().contains("unsupported FROM syntax"));
 }
 
 #[test]
@@ -408,9 +408,9 @@ fn should_reject_unsupported_grouping_sets_query() {
     let sql = "SELECT category, COUNT(*) FROM docs GROUP BY GROUPING SETS (category)";
 
     // Act
-    let parsed = parse_statement(sql);
+    let error = parse_statement(sql).expect_err("GROUPING SETS should fail");
 
     // Assert
-    assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().0.contains("GROUP BY"));
+    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Unsupported);
+    assert!(error.message().contains("GROUP BY"));
 }

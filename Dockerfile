@@ -35,6 +35,10 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 FROM node:24-bookworm-slim AS ui-builder
 
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
+
 WORKDIR /usr/src/cassie/ui
 
 COPY ui/package.json ui/package-lock.json ./

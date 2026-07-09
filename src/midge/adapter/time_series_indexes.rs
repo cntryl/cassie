@@ -29,6 +29,8 @@ struct TimeSeriesIndexRecord {
     timestamp: String,
 }
 
+type TimeSeriesIndexEntry = (Vec<u8>, Vec<u8>);
+
 impl Midge {
     /// Load documents for a newly-created time-series fixture collection.
     ///
@@ -304,12 +306,11 @@ impl Midge {
             && bucket_width_duration(index).is_some()
     }
 
-    #[allow(clippy::type_complexity)]
     fn time_series_index_entry(
         index: &IndexMeta,
         id: &str,
         payload: &serde_json::Value,
-    ) -> Result<Option<(Vec<u8>, Vec<u8>)>, CassieError> {
+    ) -> Result<Option<TimeSeriesIndexEntry>, CassieError> {
         if !Self::time_series_index_supports_storage(index) {
             return Ok(None);
         }

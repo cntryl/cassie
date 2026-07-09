@@ -1,7 +1,7 @@
 use super::Catalog;
 use crate::catalog::{
-    normalize_role_name, FunctionMeta, GraphMeta, NamespaceMeta, ProcedureMeta, ProjectionKind,
-    ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
+    name_matches, normalize_role_name, FunctionMeta, GraphMeta, NamespaceMeta, ProcedureMeta,
+    ProjectionKind, ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
 };
 
 impl Catalog {
@@ -14,7 +14,16 @@ impl Catalog {
 
     #[must_use]
     pub fn get_graph(&self, name: &str) -> Option<GraphMeta> {
-        self.graphs.read().get(&name.to_ascii_lowercase()).cloned()
+        let graphs = self.graphs.read();
+        graphs
+            .get(&name.to_ascii_lowercase())
+            .cloned()
+            .or_else(|| {
+                graphs
+                    .values()
+                    .find(|graph| name_matches(&graph.name, name))
+                    .cloned()
+            })
     }
 
     #[must_use]
@@ -47,7 +56,13 @@ impl Catalog {
 
     #[must_use]
     pub fn get_projection_metadata(&self, collection: &str) -> Option<ProjectionMeta> {
-        self.projections.read().get(collection).cloned()
+        let projections = self.projections.read();
+        projections.get(collection).cloned().or_else(|| {
+            projections
+                .iter()
+                .find(|(stored, _)| name_matches(stored, collection))
+                .map(|(_, metadata)| metadata.clone())
+        })
     }
 
     #[must_use]
@@ -64,9 +79,17 @@ impl Catalog {
 
     #[must_use]
     pub fn get_materialized_projection(&self, name: &str) -> Option<ProjectionMeta> {
-        self.projections
-            .read()
+        let projections = self.projections.read();
+        projections
             .get(name)
+            .or_else(|| {
+                projections
+                    .iter()
+                    .find(|(stored, metadata)| {
+                        metadata.kind == ProjectionKind::Materialized && name_matches(stored, name)
+                    })
+                    .map(|(_, metadata)| metadata)
+            })
             .filter(|metadata| metadata.kind == ProjectionKind::Materialized)
             .cloned()
     }
@@ -141,10 +164,14 @@ impl Catalog {
 
     #[must_use]
     pub fn get_function(&self, name: &str) -> Option<FunctionMeta> {
-        self.functions
-            .read()
-            .get(&name.to_ascii_lowercase())
-            .cloned()
+        let key = name.to_ascii_lowercase();
+        let functions = self.functions.read();
+        functions.get(&key).cloned().or_else(|| {
+            functions
+                .values()
+                .find(|function| name_matches(&function.name, name))
+                .cloned()
+        })
     }
 
     #[must_use]
@@ -167,7 +194,13 @@ impl Catalog {
 
     #[must_use]
     pub fn get_view(&self, name: &str) -> Option<ViewMeta> {
-        self.views.read().get(name).cloned()
+        let views = self.views.read();
+        views.get(name).cloned().or_else(|| {
+            views
+                .iter()
+                .find(|(stored, _)| name_matches(stored, name))
+                .map(|(_, metadata)| metadata.clone())
+        })
     }
 
     #[must_use]
@@ -190,10 +223,14 @@ impl Catalog {
 
     #[must_use]
     pub fn get_procedure(&self, name: &str) -> Option<ProcedureMeta> {
-        self.procedures
-            .read()
-            .get(&name.to_ascii_lowercase())
-            .cloned()
+        let key = name.to_ascii_lowercase();
+        let procedures = self.procedures.read();
+        procedures.get(&key).cloned().or_else(|| {
+            procedures
+                .values()
+                .find(|procedure| name_matches(&procedure.name, name))
+                .cloned()
+        })
     }
 
     #[must_use]
@@ -240,7 +277,14 @@ impl Catalog {
 
     #[must_use]
     pub fn get_rollup(&self, name: &str) -> Option<RollupMeta> {
-        self.rollups.read().get(&name.to_ascii_lowercase()).cloned()
+        let key = name.to_ascii_lowercase();
+        let rollups = self.rollups.read();
+        rollups.get(&key).cloned().or_else(|| {
+            rollups
+                .values()
+                .find(|rollup| name_matches(&rollup.name, name))
+                .cloned()
+        })
     }
 
     #[must_use]
@@ -279,10 +323,14 @@ impl Catalog {
 
     #[must_use]
     pub fn get_retention_policy(&self, name: &str) -> Option<RetentionPolicyMeta> {
-        self.retention_policies
-            .read()
-            .get(&name.to_ascii_lowercase())
-            .cloned()
+        let key = name.to_ascii_lowercase();
+        let policies = self.retention_policies.read();
+        policies.get(&key).cloned().or_else(|| {
+            policies
+                .values()
+                .find(|policy| name_matches(&policy.name, name))
+                .cloned()
+        })
     }
 
     #[must_use]

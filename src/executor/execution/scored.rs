@@ -102,23 +102,28 @@ where
     index.candidate_documents(query_terms)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[derive(Clone, Copy)]
+struct FulltextSearchTuning<'a> {
+    boost: &'a HashMap<String, f64>,
+    k1: &'a HashMap<String, f64>,
+    b: &'a HashMap<String, f64>,
+    analyzer: &'a HashMap<String, AnalyzerConfig>,
+}
+
 fn cached_search_context<D>(
     cassie: &Cassie,
     collection: &str,
     field: &str,
     documents: &[D],
-    field_boost: &HashMap<String, f64>,
-    field_k1: &HashMap<String, f64>,
-    field_b: &HashMap<String, f64>,
-    field_analyzer: &HashMap<String, AnalyzerConfig>,
+    tuning: FulltextSearchTuning<'_>,
 ) -> Result<filter::SearchContext, QueryError>
 where
     D: PostingListDocument,
 {
     let schema_epoch = cassie.runtime.schema_epoch();
     let data_epoch = cassie.runtime.data_epoch();
-    let analyzer_key = field_analyzer
+    let analyzer_key = tuning
+        .analyzer
         .get(&field.to_ascii_lowercase())
         .cloned()
         .unwrap_or_default()
@@ -140,19 +145,21 @@ where
     let context = filter::SearchContext::from_term_stats(
         field,
         documents.iter().map(PostingListDocument::term_stats),
-        field_boost,
-        field_k1,
-        field_b,
-        field_analyzer,
+        tuning.boost,
+        tuning.k1,
+        tuning.b,
+        tuning.analyzer,
     );
     query_cache::store_fulltext_stats(
         &cassie.midge,
         &cassie.runtime,
-        collection,
-        field,
-        &analyzer_key,
-        schema_epoch,
-        data_epoch,
+        query_cache::FulltextStatsCacheKey {
+            collection,
+            field,
+            analyzer_key: &analyzer_key,
+            schema_epoch,
+            data_epoch,
+        },
         &context,
     )
     .map_err(|error| QueryError::General(error.to_string()))?;
@@ -190,10 +197,12 @@ fn execute_fulltext_top_k(
         &spec.collection,
         &spec.text_field,
         &search_documents,
-        &search_index_options.field_boost,
-        &search_index_options.field_k1,
-        &search_index_options.field_b,
-        &search_index_options.field_analyzer,
+        FulltextSearchTuning {
+            boost: &search_index_options.field_boost,
+            k1: &search_index_options.field_k1,
+            b: &search_index_options.field_b,
+            analyzer: &search_index_options.field_analyzer,
+        },
     )?;
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
     let candidate_ids = if spec.require_match {
@@ -203,13 +212,15 @@ fn execute_fulltext_top_k(
     };
     let top = score_fulltext_top_k_candidates(
         cassie,
-        &search_documents,
-        candidate_ids.as_ref(),
-        &search_context,
-        &spec.text_field,
-        &query_terms,
-        spec.require_match,
-        spec.top_needed(),
+        FulltextCandidateScoringRequest {
+            documents: &search_documents,
+            candidate_ids: candidate_ids.as_ref(),
+            search_context: &search_context,
+            text_field: &spec.text_field,
+            query_terms: &query_terms,
+            require_match: spec.require_match,
+            top_needed: spec.top_needed(),
+        },
     );
 
     let rows = scored_candidates_to_rows(
@@ -229,45 +240,55 @@ fn execute_fulltext_top_k(
     Ok(rows)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn score_fulltext_top_k_candidates(
-    cassie: &Cassie,
-    documents: &[TokenizedFulltextDocument],
-    candidate_ids: Option<&HashSet<String>>,
-    search_context: &filter::SearchContext,
-    text_field: &str,
-    query_terms: &[String],
+#[derive(Clone, Copy)]
+struct FulltextCandidateScoringRequest<'a> {
+    documents: &'a [TokenizedFulltextDocument],
+    candidate_ids: Option<&'a HashSet<String>>,
+    search_context: &'a filter::SearchContext,
+    text_field: &'a str,
+    query_terms: &'a [String],
     require_match: bool,
     top_needed: usize,
+}
+
+fn score_fulltext_top_k_candidates(
+    cassie: &Cassie,
+    request: FulltextCandidateScoringRequest<'_>,
 ) -> BinaryHeap<ScoredSearchCandidate> {
     let worker_limit = cassie.runtime.limits().parallel_scoring_workers.max(1);
-    if worker_limit == 1 || documents.len() < batch::DEFAULT_BATCH_SIZE {
+    if worker_limit == 1 || request.documents.len() < batch::DEFAULT_BATCH_SIZE {
         cassie.runtime.record_parallel_scoring_fallback();
         return score_fulltext_partition(
-            documents,
-            candidate_ids,
-            search_context,
-            text_field,
-            query_terms,
-            require_match,
-            top_needed,
+            request.documents,
+            request.candidate_ids,
+            request.search_context,
+            request.text_field,
+            request.query_terms,
+            request.require_match,
+            request.top_needed,
         );
     }
 
-    let workers = worker_limit.min(documents.len().div_ceil(batch::DEFAULT_BATCH_SIZE).max(1));
-    let chunk_size = documents.len().div_ceil(workers).max(1);
+    let workers = worker_limit.min(
+        request
+            .documents
+            .len()
+            .div_ceil(batch::DEFAULT_BATCH_SIZE)
+            .max(1),
+    );
+    let chunk_size = request.documents.len().div_ceil(workers).max(1);
     let partials = std::thread::scope(|scope| {
         let mut handles = Vec::new();
-        for chunk in documents.chunks(chunk_size) {
+        for chunk in request.documents.chunks(chunk_size) {
             handles.push(scope.spawn(move || {
                 score_fulltext_partition(
                     chunk,
-                    candidate_ids,
-                    search_context,
-                    text_field,
-                    query_terms,
-                    require_match,
-                    top_needed,
+                    request.candidate_ids,
+                    request.search_context,
+                    request.text_field,
+                    request.query_terms,
+                    request.require_match,
+                    request.top_needed,
                 )
             }));
         }
@@ -278,12 +299,12 @@ fn score_fulltext_top_k_candidates(
     });
 
     let partitions = partials.len();
-    let mut merged = BinaryHeap::with_capacity(top_needed.saturating_add(1));
+    let mut merged = BinaryHeap::with_capacity(request.top_needed.saturating_add(1));
     let mut rows = 0usize;
     for partial in partials {
         for candidate in partial.into_vec() {
             rows += 1;
-            push_top_k(&mut merged, top_needed, candidate);
+            push_top_k(&mut merged, request.top_needed, candidate);
         }
     }
     cassie
@@ -338,45 +359,28 @@ fn execute_hybrid_top_k(
     let schema = cassie.catalog.get_schema(&spec.collection).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", spec.collection))
     })?;
-    let mut rows = batch::flatten_batches(scan::scan(cassie, session, &spec.collection)?);
-    if let Some(filter_expr) = &spec.filter {
-        if vector_prefilter_supported(filter_expr, &schema) {
-            let before = rows.len();
-            rows = filter::filter_rows(rows, filter_expr, params, None, user_functions, session)?;
-            cassie
-                .runtime
-                .record_hybrid_prefilter_usage(before, rows.len(), None);
-        } else {
-            return Ok(None);
-        }
-    }
+    let Some(rows) = prefilter_hybrid_rows(cassie, session, user_functions, params, spec, &schema)?
+    else {
+        return Ok(None);
+    };
     let search_index_options = search_context_for_fields(
         cassie,
         &spec.collection,
         std::slice::from_ref(&spec.text_field),
     )?;
     let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
-    let search_documents = rows
-        .into_iter()
-        .map(|row| TokenizedHybridDocument {
-            id: row
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string(),
-            text_stats: json_search_term_stats_value(row.get(&spec.text_field), &analyzer),
-            vector: row.get(&spec.vector_field).and_then(value_to_vector),
-        })
-        .collect::<Vec<_>>();
+    let search_documents = hybrid_search_documents(rows, spec, &analyzer);
     let search_context = cached_search_context(
         cassie,
         &spec.collection,
         &spec.text_field,
         &search_documents,
-        &search_index_options.field_boost,
-        &search_index_options.field_k1,
-        &search_index_options.field_b,
-        &search_index_options.field_analyzer,
+        FulltextSearchTuning {
+            boost: &search_index_options.field_boost,
+            k1: &search_index_options.field_k1,
+            b: &search_index_options.field_b,
+            analyzer: &search_index_options.field_analyzer,
+        },
     )?;
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
     let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
@@ -435,6 +439,46 @@ fn execute_hybrid_top_k(
         .record_hybrid_execution(started_at.elapsed(), text_candidate_count, rows.len());
     record_adaptive_candidate_decision(cassie, &adaptive, text_candidate_count, rows.len());
     Ok(Some(rows))
+}
+
+fn prefilter_hybrid_rows(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    spec: &HybridTopKSpec,
+    schema: &CollectionSchema,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let mut rows = batch::flatten_batches(scan::scan(cassie, session, &spec.collection)?);
+    if let Some(filter_expr) = &spec.filter {
+        if !vector_prefilter_supported(filter_expr, schema) {
+            return Ok(None);
+        }
+        let before = rows.len();
+        rows = filter::filter_rows(rows, filter_expr, params, None, user_functions, session)?;
+        cassie
+            .runtime
+            .record_hybrid_prefilter_usage(before, rows.len(), None);
+    }
+    Ok(Some(rows))
+}
+
+fn hybrid_search_documents(
+    rows: Vec<BatchRow>,
+    spec: &HybridTopKSpec,
+    analyzer: &AnalyzerConfig,
+) -> Vec<TokenizedHybridDocument> {
+    rows.into_iter()
+        .map(|row| TokenizedHybridDocument {
+            id: row
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            text_stats: json_search_term_stats_value(row.get(&spec.text_field), analyzer),
+            vector: row.get(&spec.vector_field).and_then(value_to_vector),
+        })
+        .collect()
 }
 
 fn search_context_for_fields(

@@ -358,7 +358,7 @@ fn should_restart_with_hydrated_catalog_through_the_binary() {
         let create = request_json(
             "POST",
             &base_url,
-            "/v1/collections",
+            "/api/v1/collections",
             Some(json!({
                 "name": collection,
                 "fields": [
@@ -374,7 +374,7 @@ fn should_restart_with_hydrated_catalog_through_the_binary() {
         let document = request_json(
             "POST",
             &base_url,
-            &format!("/v1/collections/{collection}/documents"),
+            &format!("/api/v1/collections/{collection}/documents"),
             Some(json!({"title": "alpha"})),
         )
         .await
@@ -403,7 +403,7 @@ fn should_restart_with_hydrated_catalog_through_the_binary() {
         let get = request_json(
             "GET",
             &base_url,
-            &format!("/v1/collections/{collection}/documents/{document_id}"),
+            &format!("/api/v1/collections/{collection}/documents/{document_id}"),
             None,
         )
         .await

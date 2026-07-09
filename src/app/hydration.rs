@@ -8,6 +8,7 @@ impl Cassie {
     pub fn hydrate_catalog(&self) -> Result<(), CassieError> {
         let started_at = Instant::now();
         self.reset_catalog_hydration();
+        self.hydrate_databases()?;
         self.hydrate_namespaces();
         self.hydrate_collections()?;
         self.hydrate_projection_state()?;
@@ -23,6 +24,19 @@ impl Cassie {
     fn reset_catalog_hydration(&self) {
         self.catalog.clear();
         self.invalidate_plan_cache();
+    }
+
+    fn hydrate_databases(&self) -> Result<(), CassieError> {
+        let databases = self.midge.list_databases().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list databases: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for database in databases {
+            self.catalog
+                .register_database(&database.name, database.description.clone());
+        }
+        Ok(())
     }
 
     fn hydrate_namespaces(&self) {

@@ -76,72 +76,30 @@ impl PgWireError {
     }
 
     pub(super) fn from_cassie_error(severity: PgWireSeverity, error: &CassieError) -> Self {
-        match error {
-            CassieError::Parse(message) => Self::new(severity, "42601", message.clone()),
-            CassieError::Unauthorized => Self::new(severity, "28000", error.to_string()),
-            CassieError::CollectionNotFound(table) => {
-                let mut pg_error = Self::new(severity, "42P01", error.to_string());
-                pg_error.table = Some(table.clone());
-                pg_error
-            }
-            CassieError::NotNullViolation {
-                table,
-                column,
-                constraint,
-            } => {
-                let mut pg_error = Self::new(severity, "23502", error.to_string());
-                pg_error.table = Some(table.clone());
-                pg_error.column = Some(column.clone());
-                pg_error.constraint.clone_from(constraint);
-                pg_error
-            }
-            CassieError::UniqueViolation {
-                table,
-                column,
-                constraint,
-            } => {
-                let mut pg_error = Self::new(severity, "23505", error.to_string());
-                pg_error.table = Some(table.clone());
-                pg_error.column = Some(column.clone());
-                pg_error.constraint = Some(constraint.clone());
-                pg_error
-            }
-            CassieError::CheckViolation {
-                table,
-                column,
-                constraint,
-            } => {
-                let mut pg_error = Self::new(severity, "23514", error.to_string());
-                pg_error.table = Some(table.clone());
-                pg_error.column = Some(column.clone());
-                pg_error.constraint = Some(constraint.clone());
-                pg_error
-            }
-            CassieError::ForeignKeyViolation {
-                table,
-                column,
-                constraint,
-                ..
-            } => {
-                let mut pg_error = Self::new(severity, "23503", error.to_string());
-                pg_error.table = Some(table.clone());
-                pg_error.column = Some(column.clone());
-                pg_error.constraint = Some(constraint.clone());
-                pg_error
-            }
-            CassieError::Unsupported(_) => Self::new(severity, "0A000", error.to_string()),
-            CassieError::InvalidVector(_) | CassieError::InvalidEmbedding(_) => {
-                Self::new(severity, "22000", error.to_string())
-            }
-            CassieError::EmbeddingUnavailable(_) => Self::new(severity, "58030", error.to_string()),
-            CassieError::Storage(_)
-            | CassieError::StorageBootstrap(_)
-            | CassieError::StorageMissingFamily(_)
-            | CassieError::StorageRetryable(_)
-            | CassieError::Planner(_)
-            | CassieError::Execution(_)
-            | CassieError::Configuration(_)
-            | CassieError::NotFound(_) => Self::new(severity, "XX000", error.to_string()),
-        }
+        let descriptor = error.descriptor();
+        let mut pg_error = Self::new(severity, descriptor.sql_state, descriptor.message);
+        pg_error.table = descriptor.table;
+        pg_error.column = descriptor.column;
+        pg_error.constraint = descriptor.constraint;
+        pg_error
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_map_retryable_storage_errors_to_cannot_connect_now_sqlstate() {
+        // Arrange
+        let error =
+            CassieError::StorageRetryable("temporary storage unavailable: fenced".to_string());
+
+        // Act
+        let pg_error = PgWireError::from_cassie_error(PgWireSeverity::Error, &error);
+
+        // Assert
+        assert_eq!(pg_error.code, "57P03");
+        assert_eq!(pg_error.severity.as_str(), "ERROR");
     }
 }

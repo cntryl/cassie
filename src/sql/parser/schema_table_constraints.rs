@@ -35,7 +35,7 @@ pub(super) fn apply_table_constraints(
             .iter_mut()
             .find(|field| field.name.eq_ignore_ascii_case(&constraint.field))
         else {
-            return Err(SqlError(format!(
+            return Err(SqlError::new(format!(
                 "table constraint references unknown column '{}'",
                 constraint.field
             )));
@@ -50,7 +50,7 @@ pub(super) fn apply_table_constraints(
 pub(super) fn parse_named_add_constraint(raw: &str) -> Result<Vec<FieldConstraint>, SqlError> {
     let raw = raw.trim();
     if !starts_with_keyword(raw, "add constraint") {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "ADD CONSTRAINT requires a constraint clause".into(),
         ));
     }
@@ -63,7 +63,7 @@ pub(super) fn parse_named_add_constraint(raw: &str) -> Result<Vec<FieldConstrain
 fn split_constraint_name(raw: &str) -> Result<(String, &str), SqlError> {
     let raw = raw.trim();
     if raw.is_empty() {
-        return Err(SqlError("CONSTRAINT requires a name".into()));
+        return Err(SqlError::new("CONSTRAINT requires a name".into()));
     }
 
     if raw.starts_with('"') {
@@ -84,7 +84,9 @@ fn split_constraint_name(raw: &str) -> Result<(String, &str), SqlError> {
             let name = parse_identifier(&raw[..=idx])?;
             return Ok((name, raw[idx + ch.len_utf8()..].trim_start()));
         }
-        return Err(SqlError(format!("unterminated quoted identifier '{raw}'")));
+        return Err(SqlError::new(format!(
+            "unterminated quoted identifier '{raw}'"
+        )));
     }
 
     let mut parts = raw.splitn(2, char::is_whitespace);
@@ -137,13 +139,15 @@ fn parse_table_constraint_body(
         let (fields, rest) = parse_parenthesized_field_list_with_rest(rest)?;
         let references = rest.trim_start();
         if !starts_with_keyword(references, "references") {
-            return Err(SqlError("FOREIGN KEY requires REFERENCES clause".into()));
+            return Err(SqlError::new(
+                "FOREIGN KEY requires REFERENCES clause".into(),
+            ));
         }
         let reference = references["references".len()..].trim_start();
         let (table, field, rest) = parse_references_target_with_rest(reference)?;
         let (on_delete, on_update) = parse_foreign_key_actions(rest)?;
         if fields.len() != 1 {
-            return Err(SqlError(
+            return Err(SqlError::new(
                 "FOREIGN KEY supports exactly one source column".into(),
             ));
         }
@@ -165,13 +169,13 @@ fn parse_table_constraint_body(
         return Ok(vec![constraint]);
     }
 
-    Err(SqlError("unsupported table constraint".into()))
+    Err(SqlError::new("unsupported table constraint".into()))
 }
 
 fn parse_parenthesized_field_list(raw: &str) -> Result<Vec<String>, SqlError> {
     let (fields, rest) = parse_parenthesized_field_list_with_rest(raw)?;
     if !rest.trim().is_empty() {
-        return Err(SqlError("unsupported tokens after field list".into()));
+        return Err(SqlError::new("unsupported tokens after field list".into()));
     }
     Ok(fields)
 }
@@ -179,13 +183,15 @@ fn parse_parenthesized_field_list(raw: &str) -> Result<Vec<String>, SqlError> {
 fn parse_parenthesized_field_list_with_rest(raw: &str) -> Result<(Vec<String>, &str), SqlError> {
     let raw = raw.trim_start();
     if !raw.starts_with('(') {
-        return Err(SqlError("constraint requires field list".into()));
+        return Err(SqlError::new("constraint requires field list".into()));
     }
     let close = super::find_matching_paren(raw, 0)
-        .ok_or_else(|| SqlError("constraint field list missing closing ')'".into()))?;
+        .ok_or_else(|| SqlError::new("constraint field list missing closing ')'".into()))?;
     let fields = parse_identifier_list(&raw[1..close])?;
     if fields.is_empty() || fields.iter().any(|field| field.trim().is_empty()) {
-        return Err(SqlError("constraint field list cannot be empty".into()));
+        return Err(SqlError::new(
+            "constraint field list cannot be empty".into(),
+        ));
     }
     Ok((fields, &raw[close + 1..]))
 }
@@ -201,14 +207,14 @@ fn parse_foreign_key_actions(raw: &str) -> Result<(String, String), SqlError> {
     let mut index = 0;
     while index < tokens.len() {
         if !tokens[index].eq_ignore_ascii_case("on") {
-            return Err(SqlError(format!(
+            return Err(SqlError::new(format!(
                 "unsupported FOREIGN KEY option '{}'",
                 tokens[index]
             )));
         }
         index += 1;
         let Some(target) = tokens.get(index) else {
-            return Err(SqlError("ON requires DELETE or UPDATE".into()));
+            return Err(SqlError::new("ON requires DELETE or UPDATE".into()));
         };
         index += 1;
         let (action, consumed) = parse_foreign_key_action(&tokens[index..])?;
@@ -218,7 +224,7 @@ fn parse_foreign_key_actions(raw: &str) -> Result<(String, String), SqlError> {
         } else if target.eq_ignore_ascii_case("update") {
             on_update = action;
         } else {
-            return Err(SqlError("ON requires DELETE or UPDATE".into()));
+            return Err(SqlError::new("ON requires DELETE or UPDATE".into()));
         }
     }
     Ok((on_delete, on_update))
@@ -226,7 +232,7 @@ fn parse_foreign_key_actions(raw: &str) -> Result<(String, String), SqlError> {
 
 fn parse_foreign_key_action(tokens: &[String]) -> Result<(String, usize), SqlError> {
     let Some(first) = tokens.first() else {
-        return Err(SqlError("FOREIGN KEY action is missing".into()));
+        return Err(SqlError::new("FOREIGN KEY action is missing".into()));
     };
     if first.eq_ignore_ascii_case("cascade") {
         return Ok(("CASCADE".to_string(), 1));
@@ -236,7 +242,7 @@ fn parse_foreign_key_action(tokens: &[String]) -> Result<(String, usize), SqlErr
     }
     if first.eq_ignore_ascii_case("no") {
         let Some(second) = tokens.get(1) else {
-            return Err(SqlError("NO must be followed by ACTION".into()));
+            return Err(SqlError::new("NO must be followed by ACTION".into()));
         };
         if second.eq_ignore_ascii_case("action") {
             return Ok(("NO ACTION".to_string(), 2));
@@ -244,7 +250,9 @@ fn parse_foreign_key_action(tokens: &[String]) -> Result<(String, usize), SqlErr
     }
     if first.eq_ignore_ascii_case("set") {
         let Some(second) = tokens.get(1) else {
-            return Err(SqlError("SET must be followed by NULL or DEFAULT".into()));
+            return Err(SqlError::new(
+                "SET must be followed by NULL or DEFAULT".into(),
+            ));
         };
         if second.eq_ignore_ascii_case("null") {
             return Ok(("SET NULL".to_string(), 2));
@@ -253,7 +261,7 @@ fn parse_foreign_key_action(tokens: &[String]) -> Result<(String, usize), SqlErr
             return Ok(("SET DEFAULT".to_string(), 2));
         }
     }
-    Err(SqlError(format!(
+    Err(SqlError::new(format!(
         "unsupported FOREIGN KEY action '{first}'"
     )))
 }

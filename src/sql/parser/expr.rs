@@ -142,7 +142,7 @@ pub(super) fn parse_not_expression(raw: &str) -> Result<Expr, SqlError> {
     if starts_with_keyword(raw, "not") {
         let rest = raw["not".len()..].trim();
         if rest.is_empty() {
-            return Err(SqlError("NOT requires an expression".into()));
+            return Err(SqlError::new("NOT requires an expression".into()));
         }
         return Ok(Expr::Not {
             expr: Box::new(parse_not_expression(rest)?),
@@ -233,9 +233,9 @@ pub(super) fn parse_between_expression(
     negated: bool,
 ) -> Result<Expr, SqlError> {
     let (low, high) = split_top_level(right, " and ")
-        .ok_or_else(|| SqlError("BETWEEN predicate requires AND upper bound".into()))?;
+        .ok_or_else(|| SqlError::new("BETWEEN predicate requires AND upper bound".into()))?;
     if high.trim().is_empty() {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "BETWEEN predicate requires an upper bound".to_string(),
         ));
     }
@@ -254,16 +254,20 @@ pub(super) fn parse_in_list_expression(
     negated: bool,
 ) -> Result<Expr, SqlError> {
     let values_raw = strip_parentheses(right.trim())
-        .ok_or_else(|| SqlError("IN predicate requires a parenthesized value list".into()))?;
+        .ok_or_else(|| SqlError::new("IN predicate requires a parenthesized value list".into()))?;
     if values_raw.trim().is_empty() {
-        return Err(SqlError("IN predicate requires at least one value".into()));
+        return Err(SqlError::new(
+            "IN predicate requires at least one value".into(),
+        ));
     }
     let values = split_csv(values_raw)
         .into_iter()
         .map(parse_expression)
         .collect::<Result<Vec<_>, _>>()?;
     if values.is_empty() {
-        return Err(SqlError("IN predicate requires at least one value".into()));
+        return Err(SqlError::new(
+            "IN predicate requires at least one value".into(),
+        ));
     }
 
     Ok(Expr::InList {
@@ -311,20 +315,20 @@ pub(super) fn parse_order_by(raw: &str) -> Result<Vec<OrderExpr>, SqlError> {
 pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     let raw = raw.trim();
     if raw.is_empty() {
-        return Err(SqlError("invalid expression token".into()));
+        return Err(SqlError::new("invalid expression token".into()));
     }
 
     if raw.starts_with('$') {
         let value = raw.trim_start_matches('$');
         if value.is_empty() {
-            return Err(SqlError("invalid parameter index".into()));
+            return Err(SqlError::new("invalid parameter index".into()));
         }
 
         let idx = value
             .parse::<usize>()
-            .map_err(|_| SqlError(format!("invalid parameter index '{raw}'")))?;
+            .map_err(|_| SqlError::new(format!("invalid parameter index '{raw}'")))?;
         if idx == 0 {
-            return Err(SqlError(format!("invalid parameter index '{raw}'")));
+            return Err(SqlError::new(format!("invalid parameter index '{raw}'")));
         }
         return Ok(Expr::Param(idx - 1));
     }
@@ -357,7 +361,7 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     }
 
     if raw.chars().any(char::is_whitespace) {
-        return Err(SqlError(format!("invalid expression token '{raw}'")));
+        return Err(SqlError::new(format!("invalid expression token '{raw}'")));
     }
 
     Ok(Expr::Column(raw.to_string()))
@@ -369,10 +373,10 @@ pub(super) fn parse_exists_expression(raw: &str) -> Result<Option<Expr>, SqlErro
         return Ok(None);
     }
     let inner = strip_parentheses(trimmed[6..].trim())
-        .ok_or_else(|| SqlError("EXISTS requires a parenthesized subquery".into()))?;
+        .ok_or_else(|| SqlError::new("EXISTS requires a parenthesized subquery".into()))?;
     let parsed = parse_statement(inner)?;
     if !matches!(parsed.statement, QueryStatement::Select(_)) {
-        return Err(SqlError("EXISTS requires a SELECT subquery".into()));
+        return Err(SqlError::new("EXISTS requires a SELECT subquery".into()));
     }
 
     Ok(Some(Expr::Exists(Box::new(parsed))))
@@ -384,9 +388,9 @@ pub(super) fn parse_cast_expression(raw: &str) -> Result<Option<Expr>, SqlError>
         return Ok(None);
     }
     let inner = strip_parentheses(trimmed[4..].trim())
-        .ok_or_else(|| SqlError("CAST requires parenthesized expression".into()))?;
+        .ok_or_else(|| SqlError::new("CAST requires parenthesized expression".into()))?;
     let (expr_raw, type_raw) = split_top_level(inner, " as ")
-        .ok_or_else(|| SqlError("CAST requires AS type clause".into()))?;
+        .ok_or_else(|| SqlError::new("CAST requires AS type clause".into()))?;
     let data_type = parse_data_type(type_raw.trim())?;
 
     Ok(Some(Expr::Cast {

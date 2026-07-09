@@ -5,8 +5,9 @@ use super::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
     ConstraintCheck, ConstraintOperator, CreateGraphStatement, CreateIndexStatement,
     CreateRoleStatement, CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement,
-    DataType, DropIndexStatement, DropRoleStatement, DropSchemaStatement, DropSequenceStatement,
-    DropTableStatement, Expr, FieldConstraint, FieldDefinition, HashSet, IndexKind,
+    CreateDatabaseStatement, DataType, DropDatabaseStatement, DropIndexStatement,
+    DropRoleStatement, DropSchemaStatement, DropSequenceStatement, DropTableStatement, Expr,
+    FieldConstraint, FieldDefinition, HashSet, IndexKind,
     ParsedStatement, QueryStatement, SqlError, Value,
 };
 
@@ -41,23 +42,23 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
 
     let open_paren = rest
         .find('(')
-        .ok_or_else(|| SqlError("CREATE TABLE requires a column list".into()))?;
+        .ok_or_else(|| SqlError::new("CREATE TABLE requires a column list".into()))?;
     let close_paren = find_matching_paren(rest, open_paren)
-        .ok_or_else(|| SqlError("CREATE TABLE requires closing ')'".into()))?;
+        .ok_or_else(|| SqlError::new("CREATE TABLE requires closing ')'".into()))?;
     if close_paren < open_paren {
-        return Err(SqlError("invalid CREATE TABLE definition".into()));
+        return Err(SqlError::new("invalid CREATE TABLE definition".into()));
     }
 
     let table = parse_identifier(rest[..open_paren].trim())?;
     let body = rest[(open_paren + 1)..close_paren].trim();
     let trailing = rest[(close_paren + 1)..].trim();
     if table.is_empty() {
-        return Err(SqlError("missing table name".into()));
+        return Err(SqlError::new("missing table name".into()));
     }
 
     let (options, trailing) = parse_index_options(trailing)?;
     if !trailing.is_empty() {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "unexpected tokens after CREATE TABLE columns".into(),
         ));
     }
@@ -67,7 +68,7 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
         for raw in split_csv(body) {
             let raw = raw.trim();
             if raw.is_empty() {
-                return Err(SqlError("empty column definition".into()));
+                return Err(SqlError::new("empty column definition".into()));
             }
             if let Some(constraints) = parse_table_constraint(raw)? {
                 apply_table_constraints(&mut fields, constraints)?;
@@ -79,26 +80,28 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
     }
 
     if fields.is_empty() {
-        return Err(SqlError("CREATE TABLE requires at least one column".into()));
+        return Err(SqlError::new(
+            "CREATE TABLE requires at least one column".into(),
+        ));
     }
 
     let mut seen = HashSet::new();
     for field in &fields {
         let name = field.name.to_ascii_lowercase();
         if !seen.insert(name.clone()) {
-            return Err(SqlError(format!("duplicate column name '{name}'")));
+            return Err(SqlError::new(format!("duplicate column name '{name}'")));
         }
     }
 
     let storage_mode = match options.get("storage") {
         Some(value) => {
             let Some(mode) = crate::catalog::CollectionStorageMode::parse_option(value) else {
-                return Err(SqlError(format!(
+                return Err(SqlError::new(format!(
                     "unsupported CREATE TABLE storage mode '{value}'"
                 )));
             };
             if matches!(mode, crate::catalog::CollectionStorageMode::ColumnIndexed) {
-                return Err(SqlError(
+                return Err(SqlError::new(
                     "CREATE TABLE storage mode 'column_indexed' is derived and cannot be created explicitly"
                         .to_string(),
                 ));
@@ -109,7 +112,9 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
     };
 
     if let Some(key) = options.keys().find(|key| key.as_str() != "storage") {
-        return Err(SqlError(format!("unsupported CREATE TABLE option '{key}'")));
+        return Err(SqlError::new(format!(
+            "unsupported CREATE TABLE option '{key}'"
+        )));
     }
 
     Ok(ParsedStatement {
@@ -128,16 +133,18 @@ pub(super) fn parse_create_graph_statement(sql: &str) -> Result<ParsedStatement,
     let rest = trimmed["create graph".len()..].trim();
     let (if_not_exists, rest) = parse_if_not_exists(rest);
     if rest.is_empty() {
-        return Err(SqlError("CREATE GRAPH requires a graph name".into()));
+        return Err(SqlError::new("CREATE GRAPH requires a graph name".into()));
     }
 
     let (name, body) = if let Some(open) = rest.find('(') {
         let close = find_matching_paren(rest, open)
-            .ok_or_else(|| SqlError("CREATE GRAPH requires closing ')'".into()))?;
+            .ok_or_else(|| SqlError::new("CREATE GRAPH requires closing ')'".into()))?;
         let name = rest[..open].trim();
         let trailing = rest[(close + 1)..].trim();
         if !trailing.is_empty() {
-            return Err(SqlError("unexpected tokens after CREATE GRAPH body".into()));
+            return Err(SqlError::new(
+                "unexpected tokens after CREATE GRAPH body".into(),
+            ));
         }
         (name, Some(rest[(open + 1)..close].trim()))
     } else {
@@ -145,7 +152,7 @@ pub(super) fn parse_create_graph_statement(sql: &str) -> Result<ParsedStatement,
     };
 
     if name.is_empty() || name.split_whitespace().count() != 1 {
-        return Err(SqlError("CREATE GRAPH requires one graph name".into()));
+        return Err(SqlError::new("CREATE GRAPH requires one graph name".into()));
     }
 
     let mut node_fields = Vec::new();
@@ -162,12 +169,12 @@ pub(super) fn parse_create_graph_statement(sql: &str) -> Result<ParsedStatement,
             } else if lower.starts_with("edges") {
                 ("edges", section["edges".len()..].trim())
             } else {
-                return Err(SqlError(format!(
+                return Err(SqlError::new(format!(
                     "unsupported CREATE GRAPH section '{section}'"
                 )));
             };
             let fields_body = parse_enclosed_parenthesized(raw_fields).ok_or_else(|| {
-                SqlError(format!(
+                SqlError::new(format!(
                     "CREATE GRAPH {target} requires fields in parentheses"
                 ))
             })?;
@@ -215,7 +222,7 @@ fn parse_graph_fields(raw: &str, section: &str) -> Result<Vec<FieldDefinition>, 
             .iter()
             .any(|reserved| parsed.name.eq_ignore_ascii_case(reserved))
         {
-            return Err(SqlError(format!(
+            return Err(SqlError::new(format!(
                 "CREATE GRAPH {section} field '{}' is reserved",
                 parsed.name
             )));
@@ -232,10 +239,10 @@ pub(super) fn parse_drop_table_statement(sql: &str) -> Result<ParsedStatement, S
     let (if_exists, rest) = parse_if_exists(rest);
     let table = rest.trim();
     if table.is_empty() {
-        return Err(SqlError("missing table name in DROP TABLE".into()));
+        return Err(SqlError::new("missing table name in DROP TABLE".into()));
     }
     if table.split_whitespace().count() != 1 {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "DROP TABLE supports only a single table name".into(),
         ));
     }
@@ -256,10 +263,10 @@ pub(super) fn parse_drop_schema_statement(sql: &str) -> Result<ParsedStatement, 
     let (if_exists, rest) = parse_if_exists(rest);
     let schema = rest.trim();
     if schema.is_empty() {
-        return Err(SqlError("missing schema name in DROP SCHEMA".into()));
+        return Err(SqlError::new("missing schema name in DROP SCHEMA".into()));
     }
     if schema.split_whitespace().count() != 1 {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "DROP SCHEMA supports only a single schema name".into(),
         ));
     }
@@ -273,24 +280,72 @@ pub(super) fn parse_drop_schema_statement(sql: &str) -> Result<ParsedStatement, 
     })
 }
 
+pub(super) fn parse_create_database_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed["create database".len()..].trim();
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
+    let name = rest.trim();
+    if name.is_empty() {
+        return Err(SqlError::new("missing database name in CREATE DATABASE".into()));
+    }
+    if name.split_whitespace().count() != 1 {
+        return Err(SqlError::new(
+            "CREATE DATABASE supports only one database name".into(),
+        ));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CreateDatabase(CreateDatabaseStatement {
+            name: name.to_string(),
+            if_not_exists,
+        }),
+    })
+}
+
+pub(super) fn parse_drop_database_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed["drop database".len()..].trim();
+    let (if_exists, rest) = parse_if_exists(rest);
+    let name = rest.trim();
+    if name.is_empty() {
+        return Err(SqlError::new("missing database name in DROP DATABASE".into()));
+    }
+    if name.split_whitespace().count() != 1 {
+        return Err(SqlError::new(
+            "DROP DATABASE supports only one database name".into(),
+        ));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::DropDatabase(DropDatabaseStatement {
+            name: name.to_string(),
+            if_exists,
+        }),
+    })
+}
+
 pub(super) fn parse_alter_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[11..].trim();
 
     let (if_exists, rest) = parse_if_exists(rest);
     if if_exists {
-        return Err(SqlError("ALTER TABLE IF EXISTS is not supported".into()));
+        return Err(SqlError::new(
+            "ALTER TABLE IF EXISTS is not supported".into(),
+        ));
     }
     let (table, op_clause) = split_first_token(rest)
-        .ok_or_else(|| SqlError("missing table name in ALTER TABLE".into()))?;
+        .ok_or_else(|| SqlError::new("missing table name in ALTER TABLE".into()))?;
     let table = parse_identifier(&table)?;
     if table.is_empty() {
-        return Err(SqlError("missing table name in ALTER TABLE".into()));
+        return Err(SqlError::new("missing table name in ALTER TABLE".into()));
     }
 
     let op_clause = op_clause.trim();
     if op_clause.is_empty() {
-        return Err(SqlError("missing alter operation".into()));
+        return Err(SqlError::new("missing alter operation".into()));
     }
 
     let operation = parse_alter_table_operation(&table, op_clause)?;
@@ -325,21 +380,21 @@ pub(super) fn parse_alter_table_operation(
     if lower.starts_with("drop column") {
         let field = parse_identifier(raw["drop column".len()..].trim())?;
         if field.is_empty() {
-            return Err(SqlError("DROP COLUMN requires a column name".into()));
+            return Err(SqlError::new("DROP COLUMN requires a column name".into()));
         }
         return Ok(AlterTableOperation::DropColumn { field });
     }
     if lower.starts_with("rename column") {
         let rest = raw["rename column".len()..].trim();
         let (from, to) = split_keyword(rest, "to")
-            .ok_or_else(|| SqlError("RENAME COLUMN requires TO clause".into()))?;
+            .ok_or_else(|| SqlError::new("RENAME COLUMN requires TO clause".into()))?;
         if from.split_whitespace().count() != 1 {
-            return Err(SqlError(
+            return Err(SqlError::new(
                 "RENAME COLUMN supports only one source column".into(),
             ));
         }
         if to.split_whitespace().count() != 1 {
-            return Err(SqlError(
+            return Err(SqlError::new(
                 "RENAME COLUMN supports only one target column".into(),
             ));
         }
@@ -351,10 +406,10 @@ pub(super) fn parse_alter_table_operation(
     if lower.starts_with("rename to") {
         let table = raw["rename to".len()..].trim();
         if table.is_empty() {
-            return Err(SqlError("RENAME TO requires a collection name".into()));
+            return Err(SqlError::new("RENAME TO requires a collection name".into()));
         }
         if table.split_whitespace().count() != 1 {
-            return Err(SqlError(
+            return Err(SqlError::new(
                 "RENAME TO supports only one collection name".into(),
             ));
         }
@@ -363,7 +418,7 @@ pub(super) fn parse_alter_table_operation(
         });
     }
 
-    Err(SqlError("unsupported ALTER TABLE operation".into()))
+    Err(SqlError::new("unsupported ALTER TABLE operation".into()))
 }
 
 pub(super) fn parse_create_sequence_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
@@ -380,10 +435,10 @@ pub(super) fn parse_create_schema_statement(sql: &str) -> Result<ParsedStatement
     let (if_not_exists, rest) = parse_if_not_exists(rest);
     let schema = rest.trim();
     if schema.is_empty() {
-        return Err(SqlError("missing schema name".into()));
+        return Err(SqlError::new("missing schema name".into()));
     }
     if schema.split_whitespace().count() != 1 {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "CREATE SCHEMA supports only one schema name".into(),
         ));
     }
@@ -402,23 +457,25 @@ pub(super) fn parse_alter_schema_statement(sql: &str) -> Result<ParsedStatement,
     let rest = trimmed[12..].trim();
 
     let (schema, rest) = split_first_token(rest)
-        .ok_or_else(|| SqlError("missing schema name in ALTER SCHEMA".into()))?;
+        .ok_or_else(|| SqlError::new("missing schema name in ALTER SCHEMA".into()))?;
     if schema.trim().is_empty() {
-        return Err(SqlError("missing schema name in ALTER SCHEMA".into()));
+        return Err(SqlError::new("missing schema name in ALTER SCHEMA".into()));
     }
 
     let rest = rest.trim();
     let lower = rest.to_lowercase();
     if !lower.starts_with("rename to") {
-        return Err(SqlError("unsupported ALTER SCHEMA operation".into()));
+        return Err(SqlError::new("unsupported ALTER SCHEMA operation".into()));
     }
 
     let target = rest["rename to".len()..].trim();
     if target.is_empty() {
-        return Err(SqlError("RENAME TO requires a schema name".into()));
+        return Err(SqlError::new("RENAME TO requires a schema name".into()));
     }
     if target.split_whitespace().count() != 1 {
-        return Err(SqlError("RENAME TO supports only one schema name".into()));
+        return Err(SqlError::new(
+            "RENAME TO supports only one schema name".into(),
+        ));
     }
 
     Ok(ParsedStatement {
@@ -443,9 +500,9 @@ pub(super) fn parse_create_role_statement(
 
     let name = tokens
         .next()
-        .ok_or_else(|| SqlError("missing role name".into()))?;
+        .ok_or_else(|| SqlError::new("missing role name".into()))?;
     if name.trim().is_empty() {
-        return Err(SqlError("missing role name".into()));
+        return Err(SqlError::new("missing role name".into()));
     }
 
     let mut login = user_alias;
@@ -457,11 +514,11 @@ pub(super) fn parse_create_role_statement(
             "password" => {
                 let raw_password = tokens
                     .next()
-                    .ok_or_else(|| SqlError("PASSWORD requires a value".into()))?;
+                    .ok_or_else(|| SqlError::new("PASSWORD requires a value".into()))?;
                 password = parse_optional_role_password(&raw_password)?;
             }
             other => {
-                return Err(SqlError(format!(
+                return Err(SqlError::new(format!(
                     "unsupported CREATE ROLE option '{other}'"
                 )));
             }
@@ -486,7 +543,7 @@ pub(super) fn parse_alter_role_statement(
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[10..].trim();
     let (name, rest) =
-        split_first_token(rest).ok_or_else(|| SqlError("missing role name".into()))?;
+        split_first_token(rest).ok_or_else(|| SqlError::new("missing role name".into()))?;
     let mut tokens = tokenize_schema_field(rest).into_iter();
     let mut login = None;
     let mut password = None;
@@ -498,17 +555,21 @@ pub(super) fn parse_alter_role_statement(
             "password" => {
                 let raw_password = tokens
                     .next()
-                    .ok_or_else(|| SqlError("PASSWORD requires a value".into()))?;
+                    .ok_or_else(|| SqlError::new("PASSWORD requires a value".into()))?;
                 password = parse_optional_role_password(&raw_password)?;
             }
             other => {
-                return Err(SqlError(format!("unsupported ALTER ROLE option '{other}'")));
+                return Err(SqlError::new(format!(
+                    "unsupported ALTER ROLE option '{other}'"
+                )));
             }
         }
     }
 
     if login.is_none() && password.is_none() {
-        return Err(SqlError("ALTER ROLE requires at least one option".into()));
+        return Err(SqlError::new(
+            "ALTER ROLE requires at least one option".into(),
+        ));
     }
 
     Ok(ParsedStatement {
@@ -527,10 +588,10 @@ pub(super) fn parse_drop_role_statement(sql: &str) -> Result<ParsedStatement, Sq
     let (if_exists, rest) = parse_if_exists(rest);
     let role = rest.trim();
     if role.is_empty() {
-        return Err(SqlError("missing role name".into()));
+        return Err(SqlError::new("missing role name".into()));
     }
     if role.split_whitespace().count() != 1 {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "DROP ROLE supports only a single role name".into(),
         ));
     }
@@ -578,22 +639,22 @@ pub(super) fn split_first_token(raw: &str) -> Option<(String, &str)> {
 pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlError> {
     let expression = raw.trim();
     if !expression.starts_with('(') || !expression.ends_with(')') {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "CHECK expression must be parenthesized".to_string(),
         ));
     }
     let inner = strip_parentheses(expression)
-        .ok_or_else(|| SqlError("invalid CHECK expression".to_string()))?
+        .ok_or_else(|| SqlError::new("invalid CHECK expression".to_string()))?
         .trim();
 
     let (left, op, right) = parse_simple_comparison(inner)
-        .ok_or_else(|| SqlError("unsupported CHECK expression".to_string()))?;
+        .ok_or_else(|| SqlError::new("unsupported CHECK expression".to_string()))?;
 
     if !left
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
     {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "CHECK expression field must be an identifier".to_string(),
         ));
     }
@@ -638,7 +699,7 @@ pub(super) fn parse_simple_comparison(raw: &str) -> Option<(String, ConstraintOp
 pub(super) fn parse_constraint_literal(raw: &str) -> Result<Value, SqlError> {
     let raw = raw.trim();
     if raw.is_empty() {
-        return Err(SqlError("invalid literal".to_string()));
+        return Err(SqlError::new("invalid literal".to_string()));
     }
 
     if raw.eq_ignore_ascii_case("null") {
@@ -718,5 +779,5 @@ pub(super) fn starts_with_keyword(raw: &str, keyword: &str) -> bool {
 }
 
 pub(super) fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {
-    DataType::parse_sql(raw).map_err(SqlError)
+    DataType::parse_sql(raw).map_err(SqlError::new)
 }

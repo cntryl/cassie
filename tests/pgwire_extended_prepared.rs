@@ -463,7 +463,9 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         seed_score_collection(&cassie, "extended_query_numbers");
         let (addr, server) = spawn_pgwire_server(&cassie).await;
@@ -503,7 +505,9 @@ fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         seed_score_collection(&cassie, "extended_query_parse_once");
         let (addr, server) = spawn_pgwire_server(&cassie).await;

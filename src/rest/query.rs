@@ -301,6 +301,8 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::AlterTable(_) => "ALTER TABLE",
         QueryStatement::CreateSequence(_) => "CREATE SEQUENCE",
         QueryStatement::DropSequence(_) => "DROP SEQUENCE",
+        QueryStatement::CreateDatabase(_) => "CREATE DATABASE",
+        QueryStatement::DropDatabase(_) => "DROP DATABASE",
         QueryStatement::CreateSchema(_) => "CREATE SCHEMA",
         QueryStatement::CreateView(_) => "CREATE VIEW",
         QueryStatement::DropView(_) => "DROP VIEW",

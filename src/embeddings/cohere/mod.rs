@@ -1,2 +1,2 @@
-pub use provider::CohereProvider;
+pub use provider::{CohereProvider, CohereProviderConfig};
 mod provider;

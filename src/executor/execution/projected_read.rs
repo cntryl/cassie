@@ -92,15 +92,18 @@ pub(super) fn execute_projected_filtered_read(
     ensure_temp_budget(controls, &batches)?;
 
     Ok(Some(finalize_projected_filtered_read(
-        cassie,
-        session,
-        plan,
-        user_functions,
-        params,
-        controls,
+        ProjectedReadFinalization {
+            cassie,
+            session,
+            plan,
+            user_functions,
+            params,
+            controls,
+            apply_filter: pushdown_filter.is_none(),
+            apply_sort: true,
+            index_usage: None,
+        },
         &mut batches,
-        pushdown_filter.is_none(),
-        true,
     )?))
 }
 
@@ -110,91 +113,97 @@ pub(super) enum ProjectedReadIndexUsage {
     SelectedScalarIndexFallback,
 }
 
-#[allow(clippy::too_many_arguments)]
+#[derive(Clone, Copy)]
+pub(super) struct ProjectedReadFinalization<'a> {
+    pub cassie: &'a Cassie,
+    pub session: Option<&'a CassieSession>,
+    pub plan: &'a LogicalPlan,
+    pub user_functions: &'a HashMap<String, FunctionMeta>,
+    pub params: &'a [Value],
+    pub controls: &'a QueryExecutionControls,
+    pub apply_filter: bool,
+    pub apply_sort: bool,
+    pub index_usage: Option<ProjectedReadIndexUsage>,
+}
+
 pub(super) fn finalize_projected_filtered_read(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    plan: &LogicalPlan,
-    user_functions: &HashMap<String, FunctionMeta>,
-    params: &[Value],
-    controls: &QueryExecutionControls,
+    finalization: ProjectedReadFinalization<'_>,
     batches: &mut Vec<Vec<BatchRow>>,
-    apply_filter: bool,
-    apply_sort: bool,
 ) -> Result<Vec<BatchRow>, QueryError> {
     finalize_projected_filtered_read_with_index_usage(
-        cassie,
-        session,
-        plan,
-        user_functions,
-        params,
-        controls,
+        ProjectedReadFinalization {
+            index_usage: None,
+            ..finalization
+        },
         batches,
-        apply_filter,
-        apply_sort,
-        None,
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn finalize_projected_filtered_read_with_index_usage(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    plan: &LogicalPlan,
-    user_functions: &HashMap<String, FunctionMeta>,
-    params: &[Value],
-    controls: &QueryExecutionControls,
+    finalization: ProjectedReadFinalization<'_>,
     batches: &mut Vec<Vec<BatchRow>>,
-    apply_filter: bool,
-    apply_sort: bool,
-    index_usage: Option<ProjectedReadIndexUsage>,
 ) -> Result<Vec<BatchRow>, QueryError> {
     let mut heap_top_k_collection_name = None;
-    if apply_filter {
-        if let Some(filter_expr) = &plan.filter {
+    if finalization.apply_filter {
+        if let Some(filter_expr) = &finalization.plan.filter {
             let filter_started = Instant::now();
             *batches = filter::filter_batches(
                 batches.clone(),
                 filter_expr,
-                params,
+                finalization.params,
                 None,
-                user_functions,
-                session,
+                finalization.user_functions,
+                finalization.session,
             )?;
-            ensure_temp_budget(controls, batches)?;
+            ensure_temp_budget(finalization.controls, batches)?;
             let _ = filter_started;
         }
     }
 
-    if apply_sort && !plan.order.is_empty() {
+    if finalization.apply_sort && !finalization.plan.order.is_empty() {
         let sort_started = Instant::now();
-        let (sorted_batches, collection_name) =
-            sort_projected_batches(batches.clone(), plan, params, user_functions, session);
+        let (sorted_batches, collection_name) = sort_projected_batches(
+            batches.clone(),
+            finalization.plan,
+            finalization.params,
+            finalization.user_functions,
+            finalization.session,
+        );
         *batches = sorted_batches;
         heap_top_k_collection_name = collection_name;
-        ensure_temp_budget(controls, batches)?;
+        ensure_temp_budget(finalization.controls, batches)?;
         let _ = sort_started;
     }
 
     *batches = projection::project_batches(
         batches.clone(),
-        &plan.projection,
-        params,
+        &finalization.plan.projection,
+        finalization.params,
         None,
-        user_functions,
-        session,
+        finalization.user_functions,
+        finalization.session,
     )?;
-    ensure_temp_budget(controls, batches)?;
+    ensure_temp_budget(finalization.controls, batches)?;
 
-    *batches = slice_batches_for_plan(batches.clone(), plan.offset, plan.limit);
+    *batches = slice_batches_for_plan(
+        batches.clone(),
+        finalization.plan.offset,
+        finalization.plan.limit,
+    );
 
     let rows = batch::flatten_batches(std::mem::take(batches));
     if let Some(collection) = heap_top_k_collection_name {
-        cassie
+        finalization
+            .cassie
             .runtime
             .record_read_path_heap_top_k(&collection, rows.len());
     }
-    record_covering_index_usage(cassie, plan, rows.len(), index_usage);
+    record_covering_index_usage(
+        finalization.cassie,
+        finalization.plan,
+        rows.len(),
+        finalization.index_usage,
+    );
 
     Ok(rows)
 }
@@ -226,15 +235,18 @@ fn execute_projected_point_lookup_read(
     let mut batches = vec![vec![row]];
 
     finalize_projected_filtered_read(
-        cassie,
-        session,
-        plan,
-        user_functions,
-        params,
-        controls,
+        ProjectedReadFinalization {
+            cassie,
+            session,
+            plan,
+            user_functions,
+            params,
+            controls,
+            apply_filter: false,
+            apply_sort: true,
+            index_usage: None,
+        },
         &mut batches,
-        false,
-        true,
     )
 }
 

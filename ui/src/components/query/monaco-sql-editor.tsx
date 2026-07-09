@@ -1,5 +1,11 @@
 import { state } from "@askrjs/askr";
 
+// Monaco's async load has been causing render-cycle instability elsewhere in
+// the page (see project memory: askr framework gotchas #8). Disabled for now
+// in favor of the plain-textarea fallback below; re-enable by flipping this
+// once that's tracked down, rather than fighting it here.
+const MONACO_ENABLED = false;
+
 export interface MonacoCompletionItem {
   label: string;
   detail?: string;
@@ -45,7 +51,8 @@ export function MonacoSqlEditor({
   const isTestMode = import.meta.env.MODE === "test";
   const [editorUnavailable, setEditorUnavailable] = state(false);
   const isEditorUnavailable = editorUnavailable();
-  const shouldUseFallback = isTestMode || typeof window === "undefined" || isEditorUnavailable;
+  const shouldUseFallback =
+    !MONACO_ENABLED || isTestMode || typeof window === "undefined" || isEditorUnavailable;
   const latestCompletionProvider = completionProvider ?? emptyCompletionItems;
   const [editorContext, setEditorContext] = state<MonacoEditorContext | null>(null);
 
@@ -175,6 +182,39 @@ export function MonacoSqlEditor({
     })();
   };
 
+  function handleFallbackKeyDown(event: KeyboardEvent) {
+    if (event.key !== "Tab" || event.shiftKey) {
+      return;
+    }
+
+    const input =
+      event.currentTarget instanceof HTMLTextAreaElement
+        ? event.currentTarget
+        : event.target instanceof HTMLTextAreaElement
+          ? event.target
+          : null;
+    if (!input) {
+      return;
+    }
+
+    // A plain <textarea> treats Tab as a focus-move, not an indent — that's
+    // fine for a form field but not for a code editor. Insert a soft tab at
+    // the cursor instead, and restore the cursor position after the
+    // controlled `value` update (assigning .value resets it to the end).
+    event.preventDefault();
+
+    const indent = "  ";
+    const { selectionStart, selectionEnd, value: current } = input;
+    const next = `${current.slice(0, selectionStart)}${indent}${current.slice(selectionEnd)}`;
+    const cursor = selectionStart + indent.length;
+
+    onChange(next);
+    requestAnimationFrame(() => {
+      input.selectionStart = cursor;
+      input.selectionEnd = cursor;
+    });
+  }
+
   if (shouldUseFallback) {
     return (
       <div
@@ -200,6 +240,7 @@ export function MonacoSqlEditor({
 
             onChange(input.value);
           }}
+          onKeyDown={handleFallbackKeyDown}
           disabled={disabled}
           rows={10}
           spellcheck={false}

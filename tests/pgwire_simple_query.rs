@@ -62,6 +62,22 @@ fn simple_query_frame(sql: &str) -> Vec<u8> {
     frame
 }
 
+fn password_message(password: &str) -> Vec<u8> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(password.as_bytes());
+    payload.push(0);
+
+    let mut frame = Vec::new();
+    frame.push(b'p');
+    frame.extend_from_slice(
+        &i32::try_from(payload.len() + 4)
+            .expect("password payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(&payload);
+    frame
+}
+
 fn copy_data_frame(payload: &[u8]) -> Vec<u8> {
     let mut frame = Vec::new();
     frame.push(b'd');
@@ -249,7 +265,17 @@ fn seed_simple_query_collection(cassie: &Cassie) {
 }
 
 async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    spawn_pgwire_server_with_config(
+        cassie,
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    )
+    .await
+}
+
+async fn spawn_pgwire_server_with_config(
+    cassie: &Cassie,
+    mut config: CassieRuntimeConfig,
+) -> (SocketAddr, PgwireServer) {
     config.password.clear();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -272,11 +298,26 @@ async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut Pgwire
         .expect("write startup");
     let (auth_tag, auth_payload) = read_wire_frame(reader).await;
     assert_eq!(auth_tag, b'R', "startup should return an auth response");
-    assert_eq!(
-        i32::from_be_bytes(auth_payload[0..4].try_into().expect("auth status")),
-        0,
-        "passwordless auth should succeed"
-    );
+    let auth_status = i32::from_be_bytes(auth_payload[0..4].try_into().expect("auth status"));
+    match auth_status {
+        0 => {}
+        3 => {
+            tokio::io::AsyncWriteExt::write_all(writer, &password_message("postgres"))
+                .await
+                .expect("write password");
+            tokio::io::AsyncWriteExt::flush(writer)
+                .await
+                .expect("flush password");
+            let (auth_ok_tag, auth_ok_payload) = read_wire_frame(reader).await;
+            assert_eq!(auth_ok_tag, b'R', "auth success should use auth response");
+            assert_eq!(
+                i32::from_be_bytes(auth_ok_payload[0..4].try_into().expect("auth ok status")),
+                0,
+                "cleartext auth should accept the configured password"
+            );
+        }
+        other => panic!("unexpected auth status {other}"),
+    }
     let startup_ready = read_until_ready(reader).await;
     assert_eq!(startup_ready, vec![b'I']);
 }
@@ -412,7 +453,9 @@ fn should_copy_csv_from_stdin_rows() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         seed_copy_collection(&cassie);
 
@@ -456,7 +499,9 @@ fn should_execute_binary_simple_query_return_backend_frames() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         seed_simple_query_collection(&cassie);
 
@@ -497,7 +542,9 @@ fn should_return_row_description_for_empty_simple_query_result() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
 
         let collection = "simple_query_empty_docs";
@@ -514,8 +561,6 @@ fn should_return_row_description_for_empty_simple_query_result() {
             .unwrap();
         cassie.register_collection(collection, schema);
 
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind listener");
@@ -535,13 +580,7 @@ fn should_return_row_description_for_empty_simple_query_result() {
         let (read_half, mut write_half) = socket.split();
         let mut reader = tokio::io::BufReader::new(read_half);
 
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
-            .await
-            .expect("write startup");
-        let auth = read_wire_frame(&mut reader).await;
-        assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_until_ready(&mut reader).await;
-        assert_eq!(startup_ready, vec![b'I']);
+        start_pgwire_session(&mut reader, &mut write_half).await;
 
         // Act
         tokio::io::AsyncWriteExt::write_all(
@@ -592,11 +631,10 @@ fn should_recover_ready_after_simple_query_error() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind listener");
@@ -617,13 +655,7 @@ fn should_recover_ready_after_simple_query_error() {
         let mut reader = tokio::io::BufReader::new(read_half);
 
         // Act
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
-            .await
-            .expect("write startup");
-        let auth = read_wire_frame(&mut reader).await;
-        assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_until_ready(&mut reader).await;
-        assert_eq!(startup_ready, vec![b'I']);
+        start_pgwire_session(&mut reader, &mut write_half).await;
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,
@@ -668,6 +700,67 @@ fn should_recover_ready_after_simple_query_error() {
             "error response should mention the missing table"
         );
         assert_eq!(ready.1, vec![b'I']);
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_report_deadline_exceeded_with_query_canceled_sqlstate() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("query_deadline");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.limits.query_timeout_ms = 0;
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        seed_simple_query_collection(&cassie);
+        let (addr, server) = spawn_pgwire_server_with_config(&cassie, config).await;
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+
+        // Act
+        start_pgwire_session(&mut reader, &mut write_half).await;
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &simple_query_frame("SELECT title FROM simple_query_docs"),
+        )
+        .await
+        .expect("write query");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("flush query");
+        let error = read_wire_frame(&mut reader).await;
+        let ready = read_wire_frame(&mut reader).await;
+        let error_fields = parse_error_fields(&error.1);
+
+        // Assert
+        assert_eq!(error.0, b'E');
+        assert_eq!(ready.0, b'Z');
+        assert_eq!(
+            error_fields
+                .iter()
+                .find(|(field, _)| *field == 'C')
+                .map(|(_, value)| value.as_str()),
+            Some("57014"),
+        );
+        assert!(
+            error_fields.iter().any(|(field, value)| {
+                *field == 'M' && value.contains("query timeout exceeded")
+            }),
+            "deadline error should mention query timeout"
+        );
 
         drop(socket);
         server.abort();

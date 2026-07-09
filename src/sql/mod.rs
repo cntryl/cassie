@@ -10,14 +10,16 @@ pub mod parser;
 
 pub use ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
-    CommonTableExpression, CopyFormat, CopyStatement, CreateSchemaStatement, CreateTableStatement,
-    CreateViewStatement, DeleteStatement, DropSchemaStatement, DropTableStatement,
-    DropViewStatement, FieldDefinition, InsertStatement, ParsedStatement, QuerySource,
-    QueryStatement, SelectItem, SelectStatement, UpdateStatement,
+    CatalogStatement, CatalogStatementRef, CommonTableExpression, CopyFormat, CopyStatement,
+    CreateSchemaStatement, CreateTableStatement, CreateViewStatement, DeleteStatement,
+    DropSchemaStatement, DropTableStatement, DropViewStatement, FieldDefinition, InsertStatement,
+    ParsedStatement, ProjectionStatement, ProjectionStatementRef, QuerySource, QueryStatement,
+    RetentionStatement, RetentionStatementRef, RuntimeStatement, RuntimeStatementRef, SelectItem,
+    SelectStatement, StatementFamily, StatementRoute, StatementRouteRef, UpdateStatement,
 };
 pub use binder::{bind, BoundStatement};
 pub use functions::registry;
-pub use parser::{parse_statement, SqlError};
+pub use parser::{parse_statement, SqlError, SqlErrorKind};
 
 const UNKNOWN_PARAMETER_TYPE_OID: i32 = 705;
 type FieldTypeMap = HashMap<String, DataType>;
@@ -423,6 +425,8 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         | QueryStatement::AlterTable(_)
         | QueryStatement::CreateSequence(_)
         | QueryStatement::DropSequence(_)
+        | QueryStatement::CreateDatabase(_)
+        | QueryStatement::DropDatabase(_)
         | QueryStatement::CreateSchema(_)
         | QueryStatement::CreateView(_)
         | QueryStatement::CreateRole(_)

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::catalog::{RollupAggregateMeta, RollupMeta, RollupState};
+use crate::catalog::{RollupAggregateMeta, RollupDefinition, RollupMeta, RollupState};
 use crate::executor::batch::{self, Batch, BatchRow};
 use crate::sql::ast::{Expr, FunctionCall, QuerySource, SelectItem};
 use crate::types::{DataType, FieldSchema, Schema, Value};
@@ -201,17 +201,17 @@ fn metadata_from_statement(
         .iter()
         .map(|item| aggregate_meta(cassie, &statement.source, item))
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(RollupMeta::new(
-        statement.name.clone(),
-        statement.source.clone(),
-        timestamp_field.clone(),
-        width.clone(),
+    Ok(RollupMeta::new(RollupDefinition {
+        name: statement.name.clone(),
+        source_collection: statement.source.clone(),
+        timestamp_field: timestamp_field.clone(),
+        bucket_width: width.clone(),
         origin,
-        expr_key(&Expr::Function(statement.bucket.clone())),
-        statement.group_by.iter().map(group_expr_name).collect(),
+        bucket_expr: expr_key(&Expr::Function(statement.bucket.clone())),
+        group_keys: statement.group_by.iter().map(group_expr_name).collect(),
         aggregates,
-        statement.filter.as_ref().map(expr_key),
-    ))
+        filter_expr: statement.filter.as_ref().map(expr_key),
+    }))
 }
 
 fn aggregate_meta(
@@ -347,7 +347,7 @@ fn rollup_projection(meta: &RollupMeta) -> Result<Vec<SelectItem>, QueryError> {
     let mut projection = Vec::new();
     projection.push(SelectItem::Expr {
         expr: crate::sql::parser::parse_expression(&meta.bucket_expr)
-            .map_err(|error| QueryError::General(error.0))?,
+            .map_err(|error| QueryError::General(error.to_string()))?,
         alias: Some(meta.bucket_expr.clone()),
     });
     projection.extend(meta.group_keys.iter().map(|name| SelectItem::Column {
@@ -356,7 +356,7 @@ fn rollup_projection(meta: &RollupMeta) -> Result<Vec<SelectItem>, QueryError> {
     }));
     for aggregate in &meta.aggregates {
         let Expr::Function(function) = crate::sql::parser::parse_expression(&aggregate.expression)
-            .map_err(|error| QueryError::General(error.0))?
+            .map_err(|error| QueryError::General(error.to_string()))?
         else {
             return Err(QueryError::General("invalid rollup aggregate".to_string()));
         };
@@ -371,7 +371,7 @@ fn rollup_projection(meta: &RollupMeta) -> Result<Vec<SelectItem>, QueryError> {
 fn rollup_group_by(meta: &RollupMeta) -> Result<Vec<Expr>, QueryError> {
     Ok(std::iter::once(
         crate::sql::parser::parse_expression(&meta.bucket_expr)
-            .map_err(|error| QueryError::General(error.0))?,
+            .map_err(|error| QueryError::General(error.to_string()))?,
     )
     .chain(meta.group_keys.iter().map(|key| Expr::Column(key.clone())))
     .collect::<Vec<_>>())
@@ -382,7 +382,7 @@ fn rollup_filter(meta: &RollupMeta) -> Result<Option<Expr>, QueryError> {
         .as_ref()
         .map(|raw| crate::sql::parser::parse_expression(raw))
         .transpose()
-        .map_err(|error| QueryError::General(error.0))
+        .map_err(|error| QueryError::General(error.to_string()))
 }
 
 fn read_rollup_source_batches(

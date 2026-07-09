@@ -475,7 +475,7 @@ fn should_reject_legacy_projection_metadata_on_reopen() {
         assert!(
             error
                 .to_string()
-                .contains("incompatible lexkey v2 storage layout"),
+                .contains("incompatible lexkey v3 storage layout"),
             "unexpected error: {error}"
         );
 

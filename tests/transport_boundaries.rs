@@ -60,6 +60,22 @@ fn simple_query_frame(sql: &str) -> Vec<u8> {
     frame
 }
 
+fn password_message(password: &str) -> Vec<u8> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(password.as_bytes());
+    payload.push(0);
+
+    let mut frame = Vec::new();
+    frame.push(b'p');
+    frame.extend_from_slice(
+        &i32::try_from(payload.len() + 4)
+            .expect("password payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(&payload);
+    frame
+}
+
 async fn read_auth_frame(
     reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
 ) -> (u8, Vec<u8>) {
@@ -167,7 +183,19 @@ async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut Pgwire
     tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "testdb"))
         .await
         .expect("startup write");
-    let _auth_frame = read_auth_frame(reader).await;
+    let auth_frame = read_auth_frame(reader).await;
+    if auth_request_code(&auth_frame.1) == Some(3) {
+        let password =
+            std::env::var("CASSIE_ADMIN_PASSWORD").unwrap_or_else(|_| "postgres".to_string());
+        tokio::io::AsyncWriteExt::write_all(writer, &password_message(&password))
+            .await
+            .expect("password write");
+        tokio::io::AsyncWriteExt::flush(writer)
+            .await
+            .expect("flush password");
+        let auth_ok = read_auth_frame(reader).await;
+        assert_eq!(auth_request_code(&auth_ok.1), Some(0));
+    }
     let _ready = read_until_ready(reader).await;
 }
 
@@ -240,6 +268,13 @@ fn assert_pgwire_boundary_metrics(metrics: &serde_json::Value) {
     );
 }
 
+fn auth_request_code(payload: &[u8]) -> Option<i32> {
+    payload
+        .get(..4)
+        .and_then(|bytes| bytes.try_into().ok())
+        .map(i32::from_be_bytes)
+}
+
 #[test]
 fn should_record_pgwire_blocking_boundary_metrics_for_simple_query() {
     // Arrange
@@ -308,7 +343,7 @@ fn should_record_rest_blocking_route_metrics_for_non_public_routes() {
             "fields": [{"name": "title", "type": "text"}]
         });
         let create = client
-            .post(format!("http://{addr}/v1/collections"))
+            .post(format!("http://{addr}/api/v1/collections"))
             .header("content-type", "application/json")
             .header("authorization", "Bearer postgres:route-password")
             .body(create_payload.to_string())
@@ -318,7 +353,7 @@ fn should_record_rest_blocking_route_metrics_for_non_public_routes() {
         assert_eq!(create.status(), reqwest::StatusCode::OK);
 
         let list = client
-            .get(format!("http://{addr}/v1/collections"))
+            .get(format!("http://{addr}/api/v1/collections"))
             .header("authorization", "Bearer postgres:route-password")
             .send()
             .await

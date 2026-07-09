@@ -4,33 +4,34 @@
   "scripts": {
     "clean": "npx rimraf node_modules dist",
     "dev": "vp dev",
+    "dev:mock": "VITE_MOCK_API=true vp dev",
     "build": "vp build",
     "preview": "vp preview",
     "test": "vp test",
     "gen": "npm run gen:adapters && npm run fmt",
     "gen:adapters": "npx @fgrzl/fetch-gen --input ../public/openapi.yml --output ./src/adapters/generated/api.ts",
     "type-check": "tsc --noEmit",
-    "lint": "vp lint src tests vite.config.ts",
-    "lint:fix": "vp lint src tests --fix",
+    "lint": "vp lint src tests dev vite.config.ts",
+    "lint:fix": "vp lint src tests dev --fix",
     "fmt": "vp fmt ."
   },
   "dependencies": {
-    "@askrjs/askr": "0.0.50",
+    "@askrjs/askr": "0.0.51",
     "@askrjs/lucide": "^0.0.3",
-    "@askrjs/themes": "0.0.10",
+    "@askrjs/themes": "0.0.11",
     "@askrjs/ui": "0.0.12",
     "@askrjs/vite": "0.0.5",
     "@fgrzl/fetch": "^2.0.0",
-    "monaco-editor": "^0.52.2"
+    "monaco-editor": "^0.53.0"
   },
   "devDependencies": {
     "@fgrzl/fetch-gen": "^2.0.0",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.1.1",
     "autoprefixer": "^10.5.2",
     "jsdom": "^29.1.1",
     "postcss": "^8.5.16",
     "typescript": "^6.0.3",
-    "vite-plus": "^0.2.2"
+    "vite-plus": "^0.2.4"
   },
-  "packageManager": "npm@11.16.0"
+  "packageManager": "npm@12.0.0"
 }

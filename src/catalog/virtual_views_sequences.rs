@@ -1,4 +1,6 @@
-use crate::catalog::{Catalog, SequenceMeta};
+use crate::catalog::{
+    relation_belongs_to_database, relation_schema_name, Catalog, SequenceMeta, local_name,
+};
 use crate::types::{DataType, Value};
 
 use super::VirtualRow;
@@ -20,19 +22,31 @@ pub(super) fn information_schema_sequences_schema() -> Vec<(String, DataType)> {
     ]
 }
 
-pub(super) fn information_schema_sequences(catalog: &Catalog) -> Vec<VirtualRow> {
+pub(super) fn information_schema_sequences(
+    catalog: &Catalog,
+    current_database: Option<&str>,
+) -> Vec<VirtualRow> {
     catalog
         .list_sequences()
         .into_iter()
+        .filter(|sequence| {
+            current_database
+                .is_none_or(|database| relation_belongs_to_database(&sequence.name, database))
+        })
         .map(sequence_row)
         .collect()
 }
 
 fn sequence_row(sequence: SequenceMeta) -> VirtualRow {
     vec![
-        string("sequence_catalog", "cassie"),
-        string("sequence_schema", "public"),
-        string("sequence_name", sequence.name),
+        string(
+            "sequence_catalog",
+            crate::catalog::relation_database_name(&sequence.name).unwrap_or_else(|| {
+                "cassie".to_string()
+            }),
+        ),
+        string("sequence_schema", relation_schema_name(&sequence.name)),
+        string("sequence_name", local_name(&sequence.name)),
         string("data_type", sequence_data_type(&sequence.data_type)),
         int_value("numeric_precision", numeric_precision(&sequence.data_type)),
         int_value("numeric_precision_radix", 2),

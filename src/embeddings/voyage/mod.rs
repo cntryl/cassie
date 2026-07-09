@@ -1,2 +1,2 @@
-pub use provider::VoyageProvider;
+pub use provider::{VoyageProvider, VoyageProviderConfig};
 mod provider;

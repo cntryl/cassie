@@ -132,7 +132,7 @@ fn should_use_hydrated_cardinality_estimates_for_index_plans() {
         let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
         let logical = optimizer::optimize(logical);
-        let cardinality_stats = catalog.cardinality.read().clone();
+        let cardinality_stats = catalog.cardinality_snapshot();
 
         // Act
         let physical_plan =
@@ -198,7 +198,7 @@ fn should_use_advanced_field_stats_for_selective_filter_estimates() {
         let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
         let logical = optimizer::optimize(logical);
-        let cardinality_stats = catalog.cardinality.read().clone();
+        let cardinality_stats = catalog.cardinality_snapshot();
 
         // Act
         let physical_plan =
@@ -259,7 +259,7 @@ fn should_choose_lower_cost_competing_scalar_index_from_stats() {
         let bound = binder::bind(parsed, &catalog).unwrap();
         let logical = logical::plan(&bound).unwrap();
         let logical = optimizer::optimize(logical);
-        let cardinality_stats = catalog.cardinality.read().clone();
+        let cardinality_stats = catalog.cardinality_snapshot();
 
         // Act
         let physical_plan =

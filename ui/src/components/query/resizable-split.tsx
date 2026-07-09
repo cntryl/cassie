@@ -10,7 +10,7 @@ interface ResizableSplitProps {
   second: unknown;
 }
 
-function clamp(value: number, min: number, max: number) {
+export function clamp(value: number, min: number, max: number) {
   if (Number.isNaN(value)) {
     return min;
   }
@@ -32,32 +32,60 @@ export function ResizableSplit({
   const [sizePercent, setSizePercent] = state(clamp(initialSize, minPercent, maxPercent));
   const [dragging, setDragging] = state(false);
   let container: HTMLElement | null = null;
+  let primaryPane: HTMLElement | null = null;
+  let handleEl: HTMLElement | null = null;
 
   function setContainer(node: HTMLElement | null) {
     container = node;
+  }
+
+  function setPrimaryPane(node: HTMLElement | null) {
+    primaryPane = node;
+  }
+
+  function setHandleEl(node: HTMLElement | null) {
+    handleEl = node;
+  }
+
+  // During drag, mutate the pane size and aria-valuenow directly instead of
+  // going through state() on every pointermove — a raw pointermove stream can
+  // fire dozens of times a second, and committing state() that often forces a
+  // full component re-render per event, which is what made dragging feel
+  // janky. state() is only committed once, at drag end (or per discrete
+  // keyboard step), mirroring the sidebar width CSS-var technique in
+  // _layout.tsx.
+  function applyPercent(nextPercent: number) {
+    if (primaryPane) {
+      if (orientation === "horizontal") {
+        primaryPane.style.inlineSize = `${nextPercent}%`;
+      } else {
+        primaryPane.style.blockSize = `${nextPercent}%`;
+      }
+    }
+    handleEl?.setAttribute("aria-valuenow", String(Math.round(nextPercent)));
   }
 
   function setSplit(nextPercent: number) {
     const clampedPercent = clamp(nextPercent, minPercent, maxPercent);
     setSizePercent(clampedPercent);
     onResize?.(clampedPercent);
+    return clampedPercent;
   }
 
-  function setSplitFromPointer(clientX: number, clientY: number) {
+  function percentFromPointer(clientX: number, clientY: number): number | null {
     const root = container;
     if (!root || !root.isConnected) {
-      return;
+      return null;
     }
 
     const rect = root.getBoundingClientRect();
-    const nextPercent = clamp(
+    return clamp(
       orientation === "horizontal"
         ? ((clientX - rect.left) / rect.width) * 100
         : ((clientY - rect.top) / rect.height) * 100,
       minPercent,
       maxPercent,
     );
-    setSplit(nextPercent);
   }
 
   function onPointerDown(event: PointerEvent) {
@@ -71,7 +99,10 @@ export function ResizableSplit({
     }
 
     setDragging(true);
-    setSplitFromPointer(event.clientX, event.clientY);
+    const percent = percentFromPointer(event.clientX, event.clientY);
+    if (percent !== null) {
+      applyPercent(percent);
+    }
     event.preventDefault();
     target.setPointerCapture(event.pointerId);
   }
@@ -81,7 +112,10 @@ export function ResizableSplit({
       return;
     }
 
-    setSplitFromPointer(event.clientX, event.clientY);
+    const percent = percentFromPointer(event.clientX, event.clientY);
+    if (percent !== null) {
+      applyPercent(percent);
+    }
     event.preventDefault();
   }
 
@@ -95,6 +129,8 @@ export function ResizableSplit({
       return;
     }
 
+    const percent = percentFromPointer(event.clientX, event.clientY) ?? sizePercent();
+    setSplit(percent);
     setDragging(false);
     target.releasePointerCapture(event.pointerId);
   }
@@ -167,11 +203,12 @@ export function ResizableSplit({
       data-dragging={isDragging ? "true" : undefined}
       data-testid={`query-resizable-split-${orientation}`}
     >
-      <div class="cassie-resizable-split-pane" style={primaryStyle}>
+      <div class="cassie-resizable-split-pane" ref={setPrimaryPane} style={primaryStyle}>
         {first}
       </div>
       <div
         class="cassie-resizable-split-handle"
+        ref={setHandleEl}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

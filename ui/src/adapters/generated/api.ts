@@ -23,39 +23,6 @@ import type { FetchClient, FetchResponse } from "@fgrzl/fetch";
  */
 export function createAdapter(client: FetchClient): {
   /**
-   * Health status
-   *
-   * @param options - Request options (signal, timeout, operationId)
-   * @returns Promise resolving to FetchResponse<Health>
-   */
-  getHealth: (options?: {
-    signal?: AbortSignal;
-    timeout?: number;
-    operationId?: string;
-  }) => Promise<FetchResponse<Health>>;
-  /**
-   * Liveness status
-   *
-   * @param options - Request options (signal, timeout, operationId)
-   * @returns Promise resolving to FetchResponse<Health>
-   */
-  getLiveness: (options?: {
-    signal?: AbortSignal;
-    timeout?: number;
-    operationId?: string;
-  }) => Promise<FetchResponse<Health>>;
-  /**
-   * Runtime metrics snapshot
-   *
-   * @param options - Request options (signal, timeout, operationId)
-   * @returns Promise resolving to FetchResponse<Record<string, any>>
-   */
-  getMetrics: (options?: {
-    signal?: AbortSignal;
-    timeout?: number;
-    operationId?: string;
-  }) => Promise<FetchResponse<Record<string, any>>>;
-  /**
    * Compare verification manifests
    *
    * @param body - Request body
@@ -221,8 +188,207 @@ export function createAdapter(client: FetchClient): {
     body: SearchRequest,
     options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
   ) => Promise<FetchResponse<QueryResult>>;
+  /**
+   * Health status
+   *
+   * @param options - Request options (signal, timeout, operationId)
+   * @returns Promise resolving to FetchResponse<Health>
+   */
+  getHealth: (options?: {
+    signal?: AbortSignal;
+    timeout?: number;
+    operationId?: string;
+  }) => Promise<FetchResponse<Health>>;
+  /**
+   * Liveness status
+   *
+   * @param options - Request options (signal, timeout, operationId)
+   * @returns Promise resolving to FetchResponse<Health>
+   */
+  getLiveness: (options?: {
+    signal?: AbortSignal;
+    timeout?: number;
+    operationId?: string;
+  }) => Promise<FetchResponse<Health>>;
+  /**
+   * Runtime metrics snapshot
+   *
+   * @param options - Request options (signal, timeout, operationId)
+   * @returns Promise resolving to FetchResponse<Record<string, any>>
+   */
+  getMetrics: (options?: {
+    signal?: AbortSignal;
+    timeout?: number;
+    operationId?: string;
+  }) => Promise<FetchResponse<Record<string, any>>>;
+  /**
+   * ECS Fargate target group health check
+   *
+   * @param options - Request options (signal, timeout, operationId)
+   * @returns Promise resolving to FetchResponse<Health>
+   */
+  getTargetz: (options?: {
+    signal?: AbortSignal;
+    timeout?: number;
+    operationId?: string;
+  }) => Promise<FetchResponse<Health>>;
 } {
   return {
+    compareProjectionConsistency: (
+      body: ConsistencyCheckRequest,
+      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
+    ): Promise<FetchResponse<ProjectionCheckReport>> => {
+      const finalOptions = {
+        ...options,
+        operationId: options?.operationId ?? "compareProjectionConsistency",
+      };
+      return client.post(
+        `/api/v1/admin/projection-consistency-checks`,
+        body,
+        undefined,
+        finalOptions,
+      );
+    },
+    getProjectionConsistencyReports: (options?: {
+      signal?: AbortSignal;
+      timeout?: number;
+      operationId?: string;
+    }): Promise<FetchResponse<ProjectionConsistencyReports>> => {
+      const finalOptions = {
+        ...options,
+        operationId: options?.operationId ?? "getProjectionConsistencyReports",
+      };
+      return client.get(`/api/v1/admin/projection-consistency-reports`, undefined, finalOptions);
+    },
+    exportProjectionManifest: (
+      projection: string,
+      body?: ExportManifestRequest,
+      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
+    ): Promise<FetchResponse<ProjectionManifest>> => {
+      const finalOptions = {
+        ...options,
+        operationId: options?.operationId ?? "exportProjectionManifest",
+      };
+      return client.post(
+        `/api/v1/admin/projections/${encodeURIComponent(String(projection))}/verification-manifest`,
+        body,
+        undefined,
+        finalOptions,
+      );
+    },
+    executeAdminQuery: (
+      body: QueryExecuteRequest,
+      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
+    ): Promise<FetchResponse<QueryResult>> => {
+      const finalOptions = { ...options, operationId: options?.operationId ?? "executeAdminQuery" };
+      return client.post(`/api/v1/admin/query/execute`, body, undefined, finalOptions);
+    },
+    explainAdminQuery: (
+      body: QueryExplainRequest,
+      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
+    ): Promise<FetchResponse<QueryResult>> => {
+      const finalOptions = { ...options, operationId: options?.operationId ?? "explainAdminQuery" };
+      return client.post(`/api/v1/admin/query/explain`, body, undefined, finalOptions);
+    },
+    getAdminQuerySchema: (options?: {
+      signal?: AbortSignal;
+      timeout?: number;
+      operationId?: string;
+    }): Promise<FetchResponse<QuerySchemaResponse>> => {
+      const finalOptions = {
+        ...options,
+        operationId: options?.operationId ?? "getAdminQuerySchema",
+      };
+      return client.get(`/api/v1/admin/query/schema`, undefined, finalOptions);
+    },
+    validateAdminQuery: (
+      body: QueryValidateRequest,
+      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
+    ): Promise<FetchResponse<QueryValidateResponse>> => {
+      const finalOptions = {
+        ...options,
+        operationId: options?.operationId ?? "validateAdminQuery",
+      };
+      return client.post(`/api/v1/admin/query/validate`, body, undefined, finalOptions);
+    },
+    createCollection: (
+      body: CollectionCreateRequest,
+      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
+    ): Promise<FetchResponse<CreateCollectionResponse>> => {
+      const finalOptions = { ...options, operationId: options?.operationId ?? "createCollection" };
+      return client.post(`/api/v1/collections`, body, undefined, finalOptions);
+    },
+    listCollections: (options?: {
+      signal?: AbortSignal;
+      timeout?: number;
+      operationId?: string;
+    }): Promise<FetchResponse<Array<string>>> => {
+      const finalOptions = { ...options, operationId: options?.operationId ?? "listCollections" };
+      return client.get(`/api/v1/collections`, undefined, finalOptions);
+    },
+    createDocument: (
+      collection: string,
+      body: DocumentPayload,
+      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
+    ): Promise<FetchResponse<CreateDocumentResponse>> => {
+      const finalOptions = { ...options, operationId: options?.operationId ?? "createDocument" };
+      return client.post(
+        `/api/v1/collections/${encodeURIComponent(String(collection))}/documents`,
+        body,
+        undefined,
+        finalOptions,
+      );
+    },
+    deleteDocument: (
+      collection: string,
+      id: string,
+      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
+    ): Promise<FetchResponse<DeleteDocumentResponse>> => {
+      const finalOptions = { ...options, operationId: options?.operationId ?? "deleteDocument" };
+      return client.del(
+        `/api/v1/collections/${encodeURIComponent(String(collection))}/documents/${encodeURIComponent(String(id))}`,
+        undefined,
+        finalOptions,
+      );
+    },
+    getDocument: (
+      collection: string,
+      id: string,
+      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
+    ): Promise<FetchResponse<DocumentPayload>> => {
+      const finalOptions = { ...options, operationId: options?.operationId ?? "getDocument" };
+      return client.get(
+        `/api/v1/collections/${encodeURIComponent(String(collection))}/documents/${encodeURIComponent(String(id))}`,
+        undefined,
+        finalOptions,
+      );
+    },
+    createIndex: (
+      collection: string,
+      body: CreateIndexRequest,
+      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
+    ): Promise<FetchResponse<VectorIndexResponse>> => {
+      const finalOptions = { ...options, operationId: options?.operationId ?? "createIndex" };
+      return client.post(
+        `/api/v1/collections/${encodeURIComponent(String(collection))}/indexes`,
+        body,
+        undefined,
+        finalOptions,
+      );
+    },
+    vectorSearch: (
+      collection: string,
+      body: SearchRequest,
+      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
+    ): Promise<FetchResponse<QueryResult>> => {
+      const finalOptions = { ...options, operationId: options?.operationId ?? "vectorSearch" };
+      return client.post(
+        `/api/v1/collections/${encodeURIComponent(String(collection))}/search`,
+        body,
+        undefined,
+        finalOptions,
+      );
+    },
     getHealth: (options?: {
       signal?: AbortSignal;
       timeout?: number;
@@ -247,155 +413,13 @@ export function createAdapter(client: FetchClient): {
       const finalOptions = { ...options, operationId: options?.operationId ?? "getMetrics" };
       return client.get(`/metrics`, undefined, finalOptions);
     },
-    compareProjectionConsistency: (
-      body: ConsistencyCheckRequest,
-      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
-    ): Promise<FetchResponse<ProjectionCheckReport>> => {
-      const finalOptions = {
-        ...options,
-        operationId: options?.operationId ?? "compareProjectionConsistency",
-      };
-      return client.post(`/v1/admin/projection-consistency-checks`, body, undefined, finalOptions);
-    },
-    getProjectionConsistencyReports: (options?: {
+    getTargetz: (options?: {
       signal?: AbortSignal;
       timeout?: number;
       operationId?: string;
-    }): Promise<FetchResponse<ProjectionConsistencyReports>> => {
-      const finalOptions = {
-        ...options,
-        operationId: options?.operationId ?? "getProjectionConsistencyReports",
-      };
-      return client.get(`/v1/admin/projection-consistency-reports`, undefined, finalOptions);
-    },
-    exportProjectionManifest: (
-      projection: string,
-      body?: ExportManifestRequest,
-      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
-    ): Promise<FetchResponse<ProjectionManifest>> => {
-      const finalOptions = {
-        ...options,
-        operationId: options?.operationId ?? "exportProjectionManifest",
-      };
-      return client.post(
-        `/v1/admin/projections/${encodeURIComponent(String(projection))}/verification-manifest`,
-        body,
-        undefined,
-        finalOptions,
-      );
-    },
-    executeAdminQuery: (
-      body: QueryExecuteRequest,
-      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
-    ): Promise<FetchResponse<QueryResult>> => {
-      const finalOptions = { ...options, operationId: options?.operationId ?? "executeAdminQuery" };
-      return client.post(`/v1/admin/query/execute`, body, undefined, finalOptions);
-    },
-    explainAdminQuery: (
-      body: QueryExplainRequest,
-      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
-    ): Promise<FetchResponse<QueryResult>> => {
-      const finalOptions = { ...options, operationId: options?.operationId ?? "explainAdminQuery" };
-      return client.post(`/v1/admin/query/explain`, body, undefined, finalOptions);
-    },
-    getAdminQuerySchema: (options?: {
-      signal?: AbortSignal;
-      timeout?: number;
-      operationId?: string;
-    }): Promise<FetchResponse<QuerySchemaResponse>> => {
-      const finalOptions = {
-        ...options,
-        operationId: options?.operationId ?? "getAdminQuerySchema",
-      };
-      return client.get(`/v1/admin/query/schema`, undefined, finalOptions);
-    },
-    validateAdminQuery: (
-      body: QueryValidateRequest,
-      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
-    ): Promise<FetchResponse<QueryValidateResponse>> => {
-      const finalOptions = {
-        ...options,
-        operationId: options?.operationId ?? "validateAdminQuery",
-      };
-      return client.post(`/v1/admin/query/validate`, body, undefined, finalOptions);
-    },
-    createCollection: (
-      body: CollectionCreateRequest,
-      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
-    ): Promise<FetchResponse<CreateCollectionResponse>> => {
-      const finalOptions = { ...options, operationId: options?.operationId ?? "createCollection" };
-      return client.post(`/v1/collections`, body, undefined, finalOptions);
-    },
-    listCollections: (options?: {
-      signal?: AbortSignal;
-      timeout?: number;
-      operationId?: string;
-    }): Promise<FetchResponse<Array<string>>> => {
-      const finalOptions = { ...options, operationId: options?.operationId ?? "listCollections" };
-      return client.get(`/v1/collections`, undefined, finalOptions);
-    },
-    createDocument: (
-      collection: string,
-      body: DocumentPayload,
-      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
-    ): Promise<FetchResponse<CreateDocumentResponse>> => {
-      const finalOptions = { ...options, operationId: options?.operationId ?? "createDocument" };
-      return client.post(
-        `/v1/collections/${encodeURIComponent(String(collection))}/documents`,
-        body,
-        undefined,
-        finalOptions,
-      );
-    },
-    deleteDocument: (
-      collection: string,
-      id: string,
-      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
-    ): Promise<FetchResponse<DeleteDocumentResponse>> => {
-      const finalOptions = { ...options, operationId: options?.operationId ?? "deleteDocument" };
-      return client.del(
-        `/v1/collections/${encodeURIComponent(String(collection))}/documents/${encodeURIComponent(String(id))}`,
-        undefined,
-        finalOptions,
-      );
-    },
-    getDocument: (
-      collection: string,
-      id: string,
-      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
-    ): Promise<FetchResponse<DocumentPayload>> => {
-      const finalOptions = { ...options, operationId: options?.operationId ?? "getDocument" };
-      return client.get(
-        `/v1/collections/${encodeURIComponent(String(collection))}/documents/${encodeURIComponent(String(id))}`,
-        undefined,
-        finalOptions,
-      );
-    },
-    createIndex: (
-      collection: string,
-      body: CreateIndexRequest,
-      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
-    ): Promise<FetchResponse<VectorIndexResponse>> => {
-      const finalOptions = { ...options, operationId: options?.operationId ?? "createIndex" };
-      return client.post(
-        `/v1/collections/${encodeURIComponent(String(collection))}/indexes`,
-        body,
-        undefined,
-        finalOptions,
-      );
-    },
-    vectorSearch: (
-      collection: string,
-      body: SearchRequest,
-      options?: { signal?: AbortSignal; timeout?: number; operationId?: string },
-    ): Promise<FetchResponse<QueryResult>> => {
-      const finalOptions = { ...options, operationId: options?.operationId ?? "vectorSearch" };
-      return client.post(
-        `/v1/collections/${encodeURIComponent(String(collection))}/search`,
-        body,
-        undefined,
-        finalOptions,
-      );
+    }): Promise<FetchResponse<Health>> => {
+      const finalOptions = { ...options, operationId: options?.operationId ?? "getTargetz" };
+      return client.get(`/targetz`, undefined, finalOptions);
     },
   };
 }

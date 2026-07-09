@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::runtime::ExecutionMode;
 use cassie::sql::parse_statement;
@@ -164,6 +165,7 @@ fn should_report_diagnostic_plan_cache_hit_after_query_execution() {
             &params,
             ExecutionMode::SimpleQuery,
             session.database.clone(),
+            session.search_path(),
         );
 
         // Assert
@@ -536,12 +538,12 @@ fn should_reuse_cf2_cached_plan_after_restart_without_l1_state() {
         .build()
         .expect("runtime");
 
-    runtime.block_on(async {
+        runtime.block_on(async {
         {
             let cassie = Cassie::new_with_data_dir(&path).unwrap();
             cassie.startup().unwrap();
 
-            let collection = "plan_cache_restart_docs";
+            let collection = canonical_relation_name("postgres", "public", "plan_cache_restart_docs");
             let schema = Schema {
                 fields: vec![FieldSchema {
                     name: "title".to_string(),
@@ -552,10 +554,10 @@ fn should_reuse_cf2_cached_plan_after_restart_without_l1_state() {
 
             cassie
                 .midge
-                .create_collection(collection, schema.clone())
+                .create_collection(&collection, schema.clone())
                 .unwrap();
             cassie.catalog.register_collection(
-                collection,
+                &collection,
                 schema
                     .fields
                     .iter()
@@ -565,7 +567,7 @@ fn should_reuse_cf2_cached_plan_after_restart_without_l1_state() {
             cassie
                 .midge
                 .put_document(
-                    collection,
+                    &collection,
                     Some("doc-1".to_string()),
                     serde_json::json!({"title": "alpha"}),
                 )
@@ -626,11 +628,12 @@ fn should_separate_cached_plans_by_adaptive_config() {
         .build()
         .expect("runtime");
 
-    runtime.block_on(async {
+        runtime.block_on(async {
         {
             let cassie = Cassie::new_with_data_dir(&path).unwrap();
             cassie.startup().unwrap();
-            let collection = "plan_cache_adaptive_config_docs";
+            let collection =
+                canonical_relation_name("postgres", "public", "plan_cache_adaptive_config_docs");
             let schema = Schema {
                 fields: vec![FieldSchema {
                     name: "title".to_string(),
@@ -641,10 +644,10 @@ fn should_separate_cached_plans_by_adaptive_config() {
 
             cassie
                 .midge
-                .create_collection(collection, schema.clone())
+                .create_collection(&collection, schema.clone())
                 .unwrap();
             cassie.catalog.register_collection(
-                collection,
+                &collection,
                 schema
                     .fields
                     .iter()
@@ -654,7 +657,7 @@ fn should_separate_cached_plans_by_adaptive_config() {
             cassie
                 .midge
                 .put_document(
-                    collection,
+                    &collection,
                     Some("doc-1".to_string()),
                     serde_json::json!({"title": "alpha"}),
                 )

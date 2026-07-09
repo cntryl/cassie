@@ -1,55 +1,80 @@
 import { state } from "@askrjs/askr";
-import { For } from "@askrjs/askr/control";
-import { currentRoute, Link } from "@askrjs/askr/router";
+import { DefaultPortal } from "@askrjs/askr/foundations";
+import { Link } from "@askrjs/askr/router";
 import { MenuIcon, MoonIcon, SunIcon } from "@askrjs/lucide";
-import { Block, Brand, BrandLabel, Button, Container, Grid, Text } from "@askrjs/themes/components";
-import {
-  Header,
-  NavBrand,
-  NavGroup,
-  Navbar,
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@askrjs/themes/components";
+import { Block, Brand, BrandLabel, Button, Container, Grid } from "@askrjs/themes/components";
+import { Header, NavBrand, NavGroup, Navbar, Sidebar } from "@askrjs/themes/components";
 import { ThemeToggle } from "@askrjs/themes/theme";
 
-import { adminRoutes } from "@/shared/admin-routes";
+import { clamp } from "@/components/query/resizable-split";
+import {
+  SIDEBAR_WIDTH_MAX_PX,
+  SIDEBAR_WIDTH_MIN_PX,
+  SidebarResizeHandle,
+} from "@/components/shell/sidebar-resize-handle";
 
-function currentPath() {
+const SIDEBAR_WIDTH_STORAGE_KEY = "cassie-admin-sidebar-width";
+const SIDEBAR_WIDTH_DEFAULT_PX = 288;
+
+function readPersistedSidebarWidth(): number {
+  if (typeof window === "undefined") {
+    return SIDEBAR_WIDTH_DEFAULT_PX;
+  }
+
   try {
-    return currentRoute().path;
+    const stored = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+    const parsed = stored === null ? Number.NaN : Number.parseFloat(stored);
+    if (Number.isNaN(parsed)) {
+      return SIDEBAR_WIDTH_DEFAULT_PX;
+    }
+
+    return clamp(parsed, SIDEBAR_WIDTH_MIN_PX, SIDEBAR_WIDTH_MAX_PX);
   } catch {
-    // Fall back only for non-router render contexts such as isolated shell tests.
+    return SIDEBAR_WIDTH_DEFAULT_PX;
+  }
+}
+
+function persistSidebarWidth(px: number) {
+  if (typeof window === "undefined") {
+    return;
   }
 
-  if (typeof window !== "undefined") {
-    return window.location.pathname;
+  try {
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(px));
+  } catch {
+    // Ignore persistence failures (private browsing, storage disabled, etc.).
   }
+}
 
-  return "/admin";
+function SidebarPortalHost(): JSX.Element | null {
+  return DefaultPortal() as JSX.Element | null;
 }
 
 export default function Layout({ children }: { children?: unknown }) {
   const [mobileNavOpen, setMobileNavOpen] = state(false);
-  const path = currentPath();
+  const [sidebarWidth, setSidebarWidth] = state(readPersistedSidebarWidth());
   const isMobileNavOpen = mobileNavOpen();
 
-  function closeMobileNavigation() {
-    setMobileNavOpen(false);
+  let rootEl: HTMLElement | null = null;
+
+  function setRootEl(node: unknown) {
+    rootEl = node instanceof HTMLElement ? node : null;
+    if (rootEl) {
+      rootEl.style.setProperty("--cassie-sidebar-width", `${sidebarWidth()}px`);
+    }
+  }
+
+  function handleSidebarDragMove(px: number) {
+    rootEl?.style.setProperty("--cassie-sidebar-width", `${px}px`);
+  }
+
+  function handleSidebarDragEnd(px: number) {
+    setSidebarWidth(px);
+    persistSidebarWidth(px);
   }
 
   function toggleMobileNavigation() {
     setMobileNavOpen(!mobileNavOpen());
-  }
-
-  function isActive(href: string) {
-    return path === href;
   }
 
   return (
@@ -58,17 +83,18 @@ export default function Layout({ children }: { children?: unknown }) {
       data-testid="cassie-admin-shell"
       minHeight="screen"
       direction="column"
+      ref={setRootEl}
     >
       <a class="skip-link" href="#main-content">
         Skip to main content
       </a>
 
       <Header sticky>
-        <Container paddingY="sm">
+        <Container size="full" paddingY="sm">
           <Navbar class="cassie-admin-navbar" aria-label="Cassie admin">
             <NavBrand>
               <Brand asChild>
-                <Link href="/admin" aria-label="Cassie admin home">
+                <Link href="/" aria-label="Cassie admin home">
                   <BrandLabel>Cassie Admin</BrandLabel>
                 </Link>
               </Brand>
@@ -87,24 +113,26 @@ export default function Layout({ children }: { children?: unknown }) {
         </Container>
       </Header>
 
-      <Container class="cassie-admin-workspace" paddingY="0" grow>
+      <Container class="cassie-admin-workspace" size="full" paddingX="0" paddingY="0" grow>
         <Grid
           class="cassie-admin-layout"
-          columns={{ base: 1, md: "13rem minmax(0, 1fr)" }}
-          gap="md"
-          align="start"
+          columns={{
+            base: 1,
+            md: "var(--cassie-sidebar-width, 18rem) var(--ak-space-2, 0.5rem) minmax(0, 1fr)",
+          }}
+          gap="0"
+          align="stretch"
         >
           <Sidebar
             class="cassie-admin-sidebar"
             collapsible="none"
             minHeight="auto"
             padding="md"
-            borderRight={false}
+            borderRight
             shrink={false}
             width="full"
             data-mobile-open={isMobileNavOpen ? "true" : undefined}
-            aria-label="Admin navigation"
-            role="navigation"
+            aria-label="Schema browser"
           >
             <Button
               type="button"
@@ -112,39 +140,25 @@ export default function Layout({ children }: { children?: unknown }) {
               variant="outline"
               aria-controls="cassie-admin-sidebar-panel"
               aria-expanded={isMobileNavOpen}
-              aria-label="Navigation menu"
+              aria-label="Toggle schema browser"
               onClick={toggleMobileNavigation}
             >
               <MenuIcon size={16} />
-              <span>Navigation</span>
+              <span>Schema browser</span>
             </Button>
 
             <div class="cassie-admin-sidebar-panel" id="cassie-admin-sidebar-panel">
-              <SidebarContent>
-                <SidebarGroup>
-                  <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      <For each={adminRoutes} by={(adminRoute) => adminRoute.path}>
-                        {(adminRoute) => (
-                          <SidebarMenuItem>
-                            <SidebarMenuButton active={isActive(adminRoute.path)} asChild>
-                              <Link href={adminRoute.path} onClick={closeMobileNavigation}>
-                                <adminRoute.icon size={16} aria-hidden="true" />
-                                <Text as="span" size="sm" weight="medium">
-                                  {adminRoute.label}
-                                </Text>
-                              </Link>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        )}
-                      </For>
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              </SidebarContent>
+              <div class="cassie-admin-sidebar-extra" data-testid="cassie-admin-sidebar-extra">
+                <SidebarPortalHost />
+              </div>
             </div>
           </Sidebar>
+
+          <SidebarResizeHandle
+            initialPx={sidebarWidth()}
+            onDragMove={handleSidebarDragMove}
+            onDragEnd={handleSidebarDragEnd}
+          />
 
           <div class="cassie-admin-route-surface">{children}</div>
         </Grid>

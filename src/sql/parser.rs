@@ -1,14 +1,17 @@
+use std::fmt;
+
 use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, IndexKind};
 use crate::sql::ast::{
     AlterRetentionPolicyStatement, AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement,
     AlterTableOperation, AlterTableStatement, BinaryOp, CallProcedureStatement,
     CommonTableExpression, CreateFunctionStatement, CreateGraphStatement, CreateIndexStatement,
-    CreateMaterializedProjectionStatement, CreateProcedureStatement,
+    CreateDatabaseStatement, CreateMaterializedProjectionStatement, CreateProcedureStatement,
     CreateRetentionPolicyStatement, CreateRoleStatement, CreateRollupStatement,
     CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement, CreateViewStatement,
     CteQuery, DropFunctionStatement, DropIndexStatement, DropMaterializedProjectionStatement,
     DropProcedureStatement, DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement,
-    DropSchemaStatement, DropSequenceStatement, DropTableStatement, DropViewStatement,
+    DropDatabaseStatement, DropSchemaStatement, DropSequenceStatement, DropTableStatement,
+    DropViewStatement,
     EnforceRetentionPolicyStatement, ExplainStatement, Expr, FieldDefinition, FunctionArg,
     FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr, ParsedStatement, QuerySource,
     QueryStatement, RefreshRollupStatement, SelectItem, SetStatement, ShowStatement, SortDirection,
@@ -19,8 +22,68 @@ use crate::types::DataType;
 use serde_json::Value;
 use std::collections::HashSet;
 
-#[derive(Debug)]
-pub struct SqlError(pub String);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SqlErrorKind {
+    Syntax,
+    Unsupported,
+}
+
+#[derive(Debug, Clone)]
+pub struct SqlError {
+    kind: SqlErrorKind,
+    message: String,
+}
+
+impl SqlError {
+    #[must_use]
+    pub fn new(message: String) -> Self {
+        let kind = infer_sql_error_kind(&message);
+        Self { kind, message }
+    }
+
+    #[must_use]
+    pub fn syntax(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::Syntax,
+            message,
+        }
+    }
+
+    #[must_use]
+    pub fn unsupported(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::Unsupported,
+            message,
+        }
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> SqlErrorKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+}
+
+impl fmt::Display for SqlError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for SqlError {}
+
+fn infer_sql_error_kind(message: &str) -> SqlErrorKind {
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("unsupported") || lower.contains("not supported") {
+        SqlErrorKind::Unsupported
+    } else {
+        SqlErrorKind::Syntax
+    }
+}
 
 #[path = "parser/clauses.rs"]
 mod clauses;
@@ -70,10 +133,11 @@ use rollups::{
 };
 use schema::{
     parse_alter_role_statement, parse_alter_schema_statement, parse_alter_table_statement,
-    parse_create_graph_statement, parse_create_index_statement, parse_create_role_statement,
-    parse_create_schema_statement, parse_create_sequence_statement, parse_create_table_statement,
-    parse_drop_index_statement, parse_drop_role_statement, parse_drop_schema_statement,
-    parse_drop_sequence_statement, parse_drop_table_statement, parse_index_options,
+    parse_create_database_statement, parse_create_graph_statement, parse_create_index_statement,
+    parse_create_role_statement, parse_create_schema_statement, parse_create_sequence_statement,
+    parse_create_table_statement, parse_drop_database_statement, parse_drop_index_statement,
+    parse_drop_role_statement, parse_drop_schema_statement, parse_drop_sequence_statement,
+    parse_drop_table_statement, parse_index_options,
 };
 use statements::{
     is_transaction_control_statement, is_unsupported_transaction_control_statement,
@@ -107,7 +171,9 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
         return Ok(parsed);
     }
 
-    Err(SqlError("unsupported SQL statement".into()))
+    Err(SqlError::unsupported(
+        "unsupported SQL statement".to_string(),
+    ))
 }
 
 fn parse_query_or_dml_statement(
@@ -131,7 +197,9 @@ fn parse_query_or_dml_statement(
     } else if is_transaction_control_statement(lower) {
         Ok(Some(parse_transaction_statement(trimmed)?))
     } else if is_unsupported_transaction_control_statement(lower) {
-        Err(SqlError("unsupported transaction control statement".into()))
+        Err(SqlError::unsupported(
+            "unsupported transaction control statement".to_string(),
+        ))
     } else {
         Ok(None)
     }
@@ -152,7 +220,7 @@ fn parse_access_control_statement(
     } else if starts_statement(lower, "drop role") || starts_statement(lower, "drop user") {
         Ok(Some(parse_drop_role_statement(trimmed)?))
     } else if let Some(message) = unsupported_privilege_statement(lower) {
-        Err(SqlError(message.to_string()))
+        Err(SqlError::unsupported(message.to_string()))
     } else {
         Ok(None)
     }
@@ -221,8 +289,8 @@ fn parse_view_or_index_statement(
     } else if starts_statement(lower, "repair projection") {
         Ok(Some(parse_repair_projection_statement(trimmed)?))
     } else if starts_statement(lower, "alter view") {
-        Err(SqlError(
-            "ALTER VIEW is not supported in this version".into(),
+        Err(SqlError::unsupported(
+            "ALTER VIEW is not supported in this version".to_string(),
         ))
     } else if starts_statement(lower, "create rollup") {
         Ok(Some(parse_create_rollup_statement(trimmed)?))
@@ -259,10 +327,14 @@ fn parse_table_or_schema_statement(
         Ok(Some(parse_create_graph_statement(trimmed)?))
     } else if starts_statement(lower, "create sequence") {
         Ok(Some(parse_create_sequence_statement(trimmed)?))
+    } else if starts_statement(lower, "create database") {
+        Ok(Some(parse_create_database_statement(trimmed)?))
     } else if starts_statement(lower, "drop table") {
         Ok(Some(parse_drop_table_statement(trimmed)?))
     } else if starts_statement(lower, "drop sequence") {
         Ok(Some(parse_drop_sequence_statement(trimmed)?))
+    } else if starts_statement(lower, "drop database") {
+        Ok(Some(parse_drop_database_statement(trimmed)?))
     } else if starts_statement(lower, "alter table") {
         Ok(Some(parse_alter_table_statement(trimmed)?))
     } else if starts_statement(lower, "create schema") {

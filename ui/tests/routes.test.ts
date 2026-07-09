@@ -1,24 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 import { getRoutes } from "@askrjs/askr/router";
 
-import { adminRoutes } from "@/shared/admin-routes";
 import "@/pages/_routes";
 
 describe("admin route registration", () => {
-  it("should_register_the_scaffold_admin_routes", () => {
+  it("should_register_the_query_page_as_the_root_route", () => {
     const paths = getRoutes().map((route) => route.path);
 
-    expect(paths).toEqual(expect.arrayContaining(adminRoutes.map((route) => route.path)));
-    expect(paths.filter((path) => adminRoutes.some((route) => route.path === path))).toHaveLength(
-      adminRoutes.length,
-    );
-  });
-
-  it("should_register_query_route_as_its_own_page", () => {
-    const queryRoutePath = "/admin/query";
-    const paths = getRoutes().map((route) => route.path);
-
-    expect(paths).toContain(queryRoutePath);
-    expect(paths.filter((path) => path === queryRoutePath)).toHaveLength(1);
+    expect(paths.filter((path) => path === "/")).toHaveLength(1);
   });
 });

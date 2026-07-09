@@ -60,10 +60,10 @@ pub(super) fn parse_field_definition_for_table(
 fn parse_field_name(parts: &mut impl Iterator<Item = String>) -> Result<String, SqlError> {
     let name = parts
         .next()
-        .ok_or_else(|| SqlError("invalid column definition".into()))?;
+        .ok_or_else(|| SqlError::new("invalid column definition".into()))?;
     let name = parse_identifier(name.trim())?;
     if name.is_empty() {
-        return Err(SqlError("invalid column definition".into()));
+        return Err(SqlError::new("invalid column definition".into()));
     }
     Ok(name)
 }
@@ -74,11 +74,13 @@ fn parse_field_type_token(
 ) -> Result<String, SqlError> {
     let type_token = parts
         .next()
-        .ok_or_else(|| SqlError(format!("missing data type for column '{name}'")))?
+        .ok_or_else(|| SqlError::new(format!("missing data type for column '{name}'")))?
         .trim()
         .to_string();
     if type_token.is_empty() {
-        return Err(SqlError(format!("missing data type for column '{name}'")));
+        return Err(SqlError::new(format!(
+            "missing data type for column '{name}'"
+        )));
     }
     Ok(type_token)
 }
@@ -94,20 +96,22 @@ fn apply_field_constraint(
         "constraint" => {
             let name = parts
                 .next()
-                .ok_or_else(|| SqlError("CONSTRAINT requires a name".into()))?;
+                .ok_or_else(|| SqlError::new("CONSTRAINT requires a name".into()))?;
             *pending_constraint_name = Some(parse_identifier(&name)?);
         }
         "not" => {
             let next = parts
                 .next()
-                .ok_or_else(|| SqlError("NOT must be followed by NULL".into()))?;
+                .ok_or_else(|| SqlError::new("NOT must be followed by NULL".into()))?;
             if !next.eq_ignore_ascii_case("null") {
-                return Err(SqlError(format!("unsupported constraint '{token} {next}'")));
+                return Err(SqlError::new(format!(
+                    "unsupported constraint '{token} {next}'"
+                )));
             }
             *saw_constraint = true;
             constraint.not_null = true;
         }
-        "null" => return Err(SqlError("unexpected NULL constraint".to_string())),
+        "null" => return Err(SqlError::new("unexpected NULL constraint".to_string())),
         "unique" => {
             *saw_constraint = true;
             constraint.unique = true;
@@ -117,28 +121,30 @@ fn apply_field_constraint(
         "primary" => {
             let next = parts
                 .next()
-                .ok_or_else(|| SqlError("PRIMARY must be followed by KEY".into()))?;
+                .ok_or_else(|| SqlError::new("PRIMARY must be followed by KEY".into()))?;
             if !next.eq_ignore_ascii_case("key") {
-                return Err(SqlError(format!("unsupported constraint '{token} {next}'")));
+                return Err(SqlError::new(format!(
+                    "unsupported constraint '{token} {next}'"
+                )));
             }
             *saw_constraint = true;
             constraint.primary_key = true;
             constraint.primary_key_name = pending_constraint_name.take();
             constraint.primary_key_ordinal = Some(1);
         }
-        "key" => return Err(SqlError("KEY without PRIMARY".to_string())),
+        "key" => return Err(SqlError::new("KEY without PRIMARY".to_string())),
         "default" => {
             *saw_constraint = true;
             let value = parts
                 .next()
-                .ok_or_else(|| SqlError("DEFAULT requires a value".into()))?;
+                .ok_or_else(|| SqlError::new("DEFAULT requires a value".into()))?;
             apply_default_constraint(constraint, &value)?;
         }
         "check" => {
             *saw_constraint = true;
             let expression = parts
                 .next()
-                .ok_or_else(|| SqlError("CHECK requires an expression".into()))?;
+                .ok_or_else(|| SqlError::new("CHECK requires an expression".into()))?;
             let remaining = parts.collect::<Vec<_>>().join(" ");
             let expression = if remaining.is_empty() {
                 expression
@@ -152,9 +158,9 @@ fn apply_field_constraint(
         }
         "references" => {
             *saw_constraint = true;
-            let reference = parts
-                .next()
-                .ok_or_else(|| SqlError("REFERENCES requires target table and column".into()))?;
+            let reference = parts.next().ok_or_else(|| {
+                SqlError::new("REFERENCES requires target table and column".into())
+            })?;
             let (table, field) = parse_references_target(&reference)?;
             constraint.references_table = Some(table);
             constraint.references_field = Some(field);
@@ -163,7 +169,7 @@ fn apply_field_constraint(
             constraint.foreign_key_on_delete = Some("NO ACTION".to_string());
             constraint.foreign_key_on_update = Some("NO ACTION".to_string());
         }
-        other => return Err(SqlError(format!("unsupported constraint '{other}'"))),
+        other => return Err(SqlError::new(format!("unsupported constraint '{other}'"))),
     }
     Ok(false)
 }
@@ -194,14 +200,16 @@ fn parse_field_data_type(
 ) -> Result<(crate::types::DataType, Option<String>), SqlError> {
     match raw.to_ascii_lowercase().as_str() {
         "serial" | "serial4" => {
-            let table = table.ok_or_else(|| SqlError("SERIAL requires a table name".into()))?;
+            let table =
+                table.ok_or_else(|| SqlError::new("SERIAL requires a table name".into()))?;
             Ok((
                 crate::types::DataType::Int,
                 Some(crate::catalog::serial_sequence_name(table, field)),
             ))
         }
         "bigserial" | "serial8" => {
-            let table = table.ok_or_else(|| SqlError("BIGSERIAL requires a table name".into()))?;
+            let table =
+                table.ok_or_else(|| SqlError::new("BIGSERIAL requires a table name".into()))?;
             Ok((
                 crate::types::DataType::BigInt,
                 Some(crate::catalog::serial_sequence_name(table, field)),

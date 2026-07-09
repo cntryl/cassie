@@ -243,11 +243,11 @@ fn should_reject_savepoint_without_name() {
     let sql = "SAVEPOINT";
 
     // Act
-    let parsed = parse_statement(sql);
+    let error = parse_statement(sql).expect_err("SAVEPOINT without a name should fail");
 
     // Assert
-    assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().0.contains("SAVEPOINT requires a name"));
+    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Syntax);
+    assert!(error.message().contains("SAVEPOINT requires a name"));
 }
 
 #[test]
@@ -256,11 +256,11 @@ fn should_reject_transaction_isolation_level_changes() {
     let sql = "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE";
 
     // Act
-    let parsed = parse_statement(sql);
+    let error = parse_statement(sql).expect_err("unsupported isolation changes should fail");
 
     // Assert
-    assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().0.contains("unsupported"));
+    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Unsupported);
+    assert!(error.message().contains("unsupported"));
 }
 
 #[test]
@@ -269,9 +269,9 @@ fn should_reject_two_phase_transaction_control() {
     let sql = "PREPARE TRANSACTION 'tx1'";
 
     // Act
-    let parsed = parse_statement(sql);
+    let error = parse_statement(sql).expect_err("two-phase transaction control should fail");
 
     // Assert
-    assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().0.contains("unsupported"));
+    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Unsupported);
+    assert!(error.message().contains("unsupported"));
 }

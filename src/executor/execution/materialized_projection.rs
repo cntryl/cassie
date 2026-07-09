@@ -74,16 +74,16 @@ pub(super) fn create_materialized_projection(
     reject_unsupported_sources(cassie, &build.source_collections)?;
     reject_nondeterministic_select(&build.select, user_functions)?;
 
-    let metadata = catalog::ProjectionMeta::materialized(
-        statement.name.clone(),
-        statement.query.clone(),
-        build.source_collections,
-        build.schema.clone(),
-        statement.options.clone(),
-        cassie.catalog.version(),
-        stable_projection_fingerprint(&statement.query),
-        now_ms(),
-    );
+    let metadata = catalog::ProjectionMeta::materialized(catalog::MaterializedProjectionSpec {
+        name: statement.name.clone(),
+        query: statement.query.clone(),
+        source_collections: build.source_collections,
+        output_schema: build.schema.clone(),
+        options: statement.options.clone(),
+        schema_epoch: cassie.catalog.version(),
+        definition_fingerprint: stable_projection_fingerprint(&statement.query),
+        created_ms: now_ms(),
+    });
     cassie
         .midge
         .put_projection_metadata(&metadata)
@@ -662,8 +662,8 @@ fn plan_projection_query(
     query: &str,
     _user_functions: &HashMap<String, FunctionMeta>,
 ) -> Result<ProjectionBuildPlan, QueryError> {
-    let parsed =
-        crate::sql::parser::parse_statement(query).map_err(|error| QueryError::General(error.0))?;
+    let parsed = crate::sql::parser::parse_statement(query)
+        .map_err(|error| QueryError::General(error.to_string()))?;
     if crate::sql::parameter_count(&parsed) != 0 {
         return Err(QueryError::General(
             "materialized projection definitions cannot contain bind parameters".into(),

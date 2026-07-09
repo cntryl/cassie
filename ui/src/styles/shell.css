@@ -1,5 +1,7 @@
 .cassie-admin-root {
+  block-size: 100dvh;
   min-inline-size: 0;
+  overflow: hidden;
 }
 
 .cassie-admin-navbar {
@@ -11,11 +13,16 @@
 }
 
 .cassie-admin-workspace {
+  inline-size: 100%;
+  max-inline-size: none;
   padding-block: 0;
+  padding-inline: 0;
 }
 
 .cassie-admin-layout {
-  min-block-size: 100%;
+  block-size: calc(100dvh - var(--ak-layout-navbar-height, 3.75rem) - 1px);
+  inline-size: 100%;
+  min-block-size: calc(100dvh - var(--ak-layout-navbar-height, 3.75rem) - 1px);
 }
 
 .cassie-admin-sidebar {
@@ -30,20 +37,57 @@
   display: none;
 }
 
+.cassie-admin-sidebar-resize-handle {
+  position: sticky;
+  inset-block-start: calc(var(--ak-layout-navbar-height, 3.75rem) + 1px);
+  block-size: calc(100dvh - var(--ak-layout-navbar-height, 3.75rem) - 1px);
+  inline-size: var(--ak-space-2, 0.5rem);
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.cassie-admin-sidebar-resize-handle:hover,
+.cassie-admin-sidebar-resize-handle[data-dragging="true"] {
+  background: color-mix(in srgb, var(--cassie-accent) 30%, transparent);
+}
+
+.cassie-admin-sidebar-resize-handle:focus-visible {
+  outline: 2px solid var(--cassie-focus-ring);
+  outline-offset: -2px;
+}
+
 .cassie-admin-sidebar-panel,
 .cassie-admin-route-surface {
   min-inline-size: 0;
 }
 
-.cassie-admin-route-surface {
-  inline-size: 100%;
-  max-inline-size: 100%;
+.cassie-admin-sidebar-panel {
+  display: flex;
+  block-size: 100%;
+  min-block-size: 0;
+  flex-direction: column;
+  gap: var(--ak-space-4, 1rem);
 }
 
-.cassie-admin-page {
-  display: grid;
-  gap: var(--ak-space-4, 1rem);
-  padding-block: var(--ak-space-4, 1rem);
+.cassie-admin-sidebar-extra {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: hidden;
+  padding-block-start: var(--ak-space-4, 1rem);
+  border-block-start: 1px solid var(--cassie-border-subtle);
+}
+
+.cassie-admin-sidebar-extra:empty {
+  display: none;
+}
+
+.cassie-admin-route-surface {
+  block-size: 100%;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-block-size: 0;
+  overflow: auto;
 }
 
 .cassie-admin-page-header {
@@ -75,7 +119,7 @@
   color: var(--cassie-text-muted);
 }
 
-.cassie-admin-page h1 {
+.cassie-query-page h1 {
   margin: 0;
   font-size: clamp(1.35rem, 1.2rem + 0.5vw, 1.75rem);
   font-weight: 760;
@@ -83,23 +127,22 @@
   line-height: 1.15;
 }
 
-.cassie-admin-page p {
+.cassie-query-page .cassie-admin-page-title-group p {
   max-inline-size: 60rem;
   margin: var(--ak-space-2, 0.5rem) 0 0;
   color: var(--cassie-text-muted);
   line-height: 1.45;
 }
 
-.cassie-admin-placeholder {
-  min-block-size: 12rem;
-  padding: var(--ak-space-4, 1rem);
-  border: 1px dashed var(--cassie-border);
-  border-radius: var(--cassie-panel-radius);
-  background: var(--cassie-surface-muted);
-}
-
 @media (max-width: 48rem) {
+  .cassie-admin-root {
+    block-size: auto;
+    min-block-size: 100dvh;
+    overflow: visible;
+  }
+
   .cassie-admin-layout {
+    block-size: auto;
     min-block-size: auto;
   }
 
@@ -117,17 +160,27 @@
     margin-block-end: var(--ak-space-sm, 0.625rem);
   }
 
+  .cassie-admin-sidebar-resize-handle {
+    display: none;
+  }
+
   .cassie-admin-sidebar-panel {
     display: none;
+    block-size: auto;
   }
 
   .cassie-admin-sidebar[data-mobile-open="true"] .cassie-admin-sidebar-panel {
     display: block;
   }
+
+  .cassie-admin-sidebar-extra {
+    max-block-size: min(24rem, 45dvh);
+    overflow: auto;
+  }
 }
 
 @media (min-width: 48rem) {
   .cassie-admin-navbar {
-    grid-template-columns: 13rem minmax(0, 1fr);
+    grid-template-columns: var(--cassie-sidebar-width, 18rem) minmax(0, 1fr);
   }
 }

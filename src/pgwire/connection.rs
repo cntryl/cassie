@@ -159,9 +159,21 @@ async fn handle_startup(
                 .clone()
                 .unwrap_or_else(|| config.user.clone());
             let startup_database = state.startup_database.clone();
-            if config.password.is_empty() {
-                state.authenticated = true;
+            if cassie.authentication_enabled() {
+                let _ = write_auth_cleartext(write_half).await;
+                ConnectionStep::Continue(HandshakeState::AwaitPassword {
+                    user: startup_user,
+                    database: startup_database,
+                })
+            } else {
                 let session = cassie.create_session(&startup_user, startup_database.clone());
+                if let Err(error) = cassie.ensure_session_database_exists(&session) {
+                    runtime.record_pgwire_protocol_error();
+                    let pg_error = PgWireError::from_cassie_error(PgWireSeverity::Fatal, &error);
+                    let _ = write_error_response(write_half, &pg_error).await;
+                    return ConnectionStep::Break;
+                }
+                state.authenticated = true;
                 state.session = Some(session.clone());
                 state.ready = ReadyState::Idle;
                 runtime.record_pgwire_auth_ok();
@@ -169,12 +181,6 @@ async fn handle_startup(
                 let _ = write_parameter_statuses(write_half).await;
                 let _ = write_ready_for_query(write_half, &session).await;
                 ConnectionStep::Continue(HandshakeState::Ready)
-            } else {
-                let _ = write_auth_cleartext(write_half).await;
-                ConnectionStep::Continue(HandshakeState::AwaitPassword {
-                    user: startup_user,
-                    database: startup_database,
-                })
             }
         }
         Ok(StartupFrame::CancelRequest) | Err(HandshakeError::Closed) => ConnectionStep::Break,
@@ -203,7 +209,9 @@ async fn handle_password(
         Ok(password) => {
             runtime.record_pgwire_message("password");
             let auth_result = run_pgwire_blocking(cassie, "pgwire_auth", move |cassie| {
-                cassie.authenticate_role(&user, Some(&password), database.clone())
+                cassie
+                    .authenticate_principal(&user, Some(&password), database.clone())
+                    .map(|principal| principal.session)
             })
             .await;
             match auth_result {

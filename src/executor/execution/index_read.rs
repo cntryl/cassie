@@ -63,16 +63,18 @@ pub(super) fn execute_scalar_index_read(
         projected_read::ProjectedReadIndexUsage::SelectedScalarIndexFallback
     };
     let rows = projected_read::finalize_projected_filtered_read_with_index_usage(
-        cassie,
-        session,
-        plan,
-        user_functions,
-        params,
-        controls,
+        projected_read::ProjectedReadFinalization {
+            cassie,
+            session,
+            plan,
+            user_functions,
+            params,
+            controls,
+            apply_filter: false,
+            apply_sort: !spec.sort_applied,
+            index_usage: Some(index_usage),
+        },
         &mut batches,
-        false,
-        !spec.sort_applied,
-        Some(index_usage),
     )?;
     Ok(Some(rows))
 }

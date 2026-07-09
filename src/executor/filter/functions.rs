@@ -1,8 +1,8 @@
 use super::search::{simple_search_score, SearchContext};
 use super::{
     cast_scalar, eval_scalar, evaluate_expr_value, function_cache_key, has_only_constant_args,
-    scalar_from_value, AnalyzerConfig, CassieSession, DataType, Expr, FunctionCall, FunctionMeta,
-    HashMap, QueryError, Value, FUNCTION_CACHE,
+    scalar_from_value, AnalyzerConfig, CassieSession, DataType, EvalContext, Expr, FunctionCall,
+    FunctionMeta, HashMap, QueryError, Value, FUNCTION_CACHE,
 };
 use crate::executor::batch::RowAccess;
 use time::format_description::well_known::Rfc3339;
@@ -11,22 +11,18 @@ use time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
     function: &FunctionCall,
     row: &R,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-    local_args: Option<&HashMap<String, Value>>,
+    context: EvalContext<'_>,
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
     if name == "coalesce" {
         return evaluate_coalesce(
             function,
             row,
-            params,
-            search_context,
-            user_functions,
-            session,
-            local_args,
+            context.params,
+            context.search_context,
+            context.user_functions,
+            context.session,
+            context.local_args,
         );
     }
 
@@ -37,11 +33,11 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
             evaluate_expr_value(
                 row,
                 arg,
-                params,
-                search_context,
-                user_functions,
-                session,
-                local_args,
+                context.params,
+                context.search_context,
+                context.user_functions,
+                context.session,
+                context.local_args,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -61,19 +57,14 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         }
     }
 
-    let result = evaluate_builtin_function(&name, function, &args, search_context, session)
-        .unwrap_or_else(|| {
-            evaluate_user_defined_function(
-                &name,
-                row,
-                params,
-                search_context,
-                user_functions,
-                session,
-                local_args,
-                args,
-            )
-        });
+    let result = evaluate_builtin_function(
+        &name,
+        function,
+        &args,
+        context.search_context,
+        context.session,
+    )
+    .unwrap_or_else(|| evaluate_user_defined_function(&name, row, context, args));
 
     if let Some(key) = cache_key {
         if let Ok(ref value) = result {
@@ -115,9 +106,12 @@ fn evaluate_system_function(
                 env!("CARGO_PKG_VERSION")
             ))
         })),
-        "current_schema" => {
-            Some(require_zero_args(name, args).map(|()| Value::String("public".to_string())))
-        }
+        "current_schema" => Some(require_zero_args(name, args).map(|()| {
+            Value::String(
+                session
+                    .map_or_else(|| "public".to_string(), CassieSession::current_schema),
+            )
+        })),
         "current_database" => Some(require_zero_args(name, args).map(|()| {
             Value::String(
                 session
@@ -230,18 +224,13 @@ fn evaluate_cast_function(name: &str, args: &[Value]) -> Option<Result<Value, Qu
     })
 }
 
-#[allow(clippy::too_many_arguments)]
 fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
     name: &str,
     row: &R,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-    local_args: Option<&HashMap<String, Value>>,
+    context: EvalContext<'_>,
     args: Vec<Value>,
 ) -> Result<Value, QueryError> {
-    let Some(metadata) = user_functions.get(name) else {
+    let Some(metadata) = context.user_functions.get(name) else {
         return Err(QueryError::General(format!(
             "unsupported function '{name}'"
         )));
@@ -254,7 +243,7 @@ fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         )));
     }
     let body = crate::sql::parser::parse_expression(&metadata.body).map_err(|error| {
-        QueryError::General(format!("invalid function body for '{}': {}", name, error.0))
+        QueryError::General(format!("invalid function body for '{name}': {error}"))
     })?;
     let locals = metadata
         .args
@@ -263,15 +252,15 @@ fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         .zip(args)
         .map(|(arg, value)| (arg.name.to_ascii_lowercase(), value))
         .collect::<HashMap<String, Value>>();
-    let merged_args = merge_local_args(local_args, locals);
+    let merged_args = merge_local_args(context.local_args, locals);
     eval_scalar(
         row,
         &body,
-        params,
-        search_context,
-        user_functions,
+        context.params,
+        context.search_context,
+        context.user_functions,
         Some(&merged_args),
-        session,
+        context.session,
     )
     .map(|value| value.to_value())
 }

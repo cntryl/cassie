@@ -1,4 +1,7 @@
-use crate::catalog::{Catalog, FieldConstraint, IndexMeta};
+use crate::catalog::{
+    relation_belongs_to_database, relation_schema_name, schema_belongs_to_database, Catalog,
+    FieldConstraint, IndexMeta, local_name,
+};
 use crate::types::{DataType, Value};
 
 use super::VirtualRow;
@@ -83,7 +86,7 @@ pub(super) fn type_schema() -> Vec<(String, DataType)> {
     ]
 }
 
-pub(super) fn pg_namespace(catalog: &Catalog) -> Vec<VirtualRow> {
+pub(super) fn pg_namespace(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = vec![
         namespace_row("information_schema"),
         namespace_row("pg_catalog"),
@@ -93,42 +96,68 @@ pub(super) fn pg_namespace(catalog: &Catalog) -> Vec<VirtualRow> {
         catalog
             .list_namespaces()
             .into_iter()
-            .map(|namespace| namespace_row(&namespace.name)),
+            .filter(|namespace| {
+                current_database
+                    .is_none_or(|database| schema_belongs_to_database(&namespace.name, database))
+            })
+            .map(|namespace| namespace_row(&local_name(&namespace.name))),
     );
     rows.sort_by_key(row_sort_key);
     rows.dedup_by_key(|row| row_sort_key(row));
     rows
 }
 
-pub(super) fn pg_class(catalog: &Catalog) -> Vec<VirtualRow> {
+pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = catalog
         .list_collections()
         .into_iter()
+        .filter(|collection| {
+            current_database
+                .is_none_or(|database| relation_belongs_to_database(&collection.name, database))
+        })
         .map(|collection| class_row(catalog, &collection.name, "r"))
         .collect::<Vec<_>>();
     rows.extend(
         catalog
             .list_views()
             .into_iter()
+            .filter(|view| {
+                current_database
+                    .is_none_or(|database| relation_belongs_to_database(&view.name, database))
+            })
             .map(|view| class_row(catalog, &view.name, "v")),
     );
     rows.extend(
         catalog
             .list_sequences()
             .into_iter()
+            .filter(|sequence| {
+                current_database
+                    .is_none_or(|database| relation_belongs_to_database(&sequence.name, database))
+            })
             .map(|sequence| class_row(catalog, &sequence.name, "S")),
     );
-    rows.extend(pg_indexes(catalog).into_iter().map(|index| {
-        let indexname = lookup_string(&index, "indexname");
-        class_row(catalog, &indexname, "i")
-    }));
+    rows.extend(
+        sorted_indexes(catalog)
+            .into_iter()
+            .filter(|index| {
+                current_database
+                    .is_none_or(|database| relation_belongs_to_database(&index.collection, database))
+            })
+            .map(|index| class_row(catalog, &index.name, "i")),
+    );
     rows.sort_by_key(row_sort_key);
     rows
 }
 
-pub(super) fn pg_attribute(catalog: &Catalog) -> Vec<VirtualRow> {
+pub(super) fn pg_attribute(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
     for collection in catalog.list_collections() {
+        if current_database
+            .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
+        {
+            continue;
+        }
         let Some(schema) = catalog.get_schema(&collection.name) else {
             continue;
         };
@@ -145,6 +174,11 @@ pub(super) fn pg_attribute(catalog: &Catalog) -> Vec<VirtualRow> {
         }
     }
     for view in catalog.list_views() {
+        if current_database
+            .is_some_and(|database| !relation_belongs_to_database(&view.name, database))
+        {
+            continue;
+        }
         for (index, field) in view.schema.fields.iter().enumerate() {
             rows.push(attribute_row(
                 &view.name,
@@ -159,28 +193,36 @@ pub(super) fn pg_attribute(catalog: &Catalog) -> Vec<VirtualRow> {
     rows
 }
 
-pub(super) fn pg_indexes(catalog: &Catalog) -> Vec<VirtualRow> {
+pub(super) fn pg_indexes(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     sorted_indexes(catalog)
         .into_iter()
+        .filter(|index| {
+            current_database
+                .is_none_or(|database| relation_belongs_to_database(&index.collection, database))
+        })
         .map(|index| {
             vec![
-                string("schemaname", "public"),
-                string("tablename", &index.collection),
-                string("indexname", &index.name),
+                string("schemaname", relation_schema_name(&index.collection)),
+                string("tablename", local_name(&index.collection)),
+                string("indexname", local_name(&index.name)),
                 string("indexdef", index_definition(&index)),
             ]
         })
         .collect()
 }
 
-pub(super) fn pg_index(catalog: &Catalog) -> Vec<VirtualRow> {
+pub(super) fn pg_index(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     sorted_indexes(catalog)
         .into_iter()
+        .filter(|index| {
+            current_database
+                .is_none_or(|database| relation_belongs_to_database(&index.collection, database))
+        })
         .map(|index| {
             let primary = index_is_primary(catalog, &index);
             vec![
-                string("indexrelid", &index.name),
-                string("indrelid", &index.collection),
+                string("indexrelid", local_name(&index.name)),
+                string("indrelid", local_name(&index.collection)),
                 int_value("indexrelid_oid", index_oid(&index.name)),
                 int_value("indrelid_oid", relation_oid(&index.collection)),
                 bool_value("indisunique", index.unique),
@@ -197,9 +239,14 @@ pub(super) fn pg_index(catalog: &Catalog) -> Vec<VirtualRow> {
         .collect()
 }
 
-pub(super) fn pg_attrdef(catalog: &Catalog) -> Vec<VirtualRow> {
+pub(super) fn pg_attrdef(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
     for collection in catalog.list_collections() {
+        if current_database
+            .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
+        {
+            continue;
+        }
         let Some(schema) = catalog.get_schema(&collection.name) else {
             continue;
         };
@@ -236,7 +283,7 @@ fn attribute_row(
     constraint: Option<&FieldConstraint>,
 ) -> VirtualRow {
     vec![
-        string("attrelid", relation),
+        string("attrelid", local_name(relation)),
         int_value("attrelid_oid", relation_oid(relation)),
         string("attname", field_name),
         int_value("attnum", index + 1),
@@ -261,12 +308,14 @@ fn namespace_row(name: &str) -> VirtualRow {
 }
 
 fn class_row(catalog: &Catalog, name: &str, kind: &str) -> VirtualRow {
+    let relation_name = local_name(name);
+    let schema_name = relation_schema_name(name);
     vec![
         int_value("oid", relation_kind_oid(kind, name)),
-        string("relname", name),
+        string("relname", relation_name),
         string("relkind", kind),
-        string("relnamespace", "public"),
-        int_value("relnamespace_oid", namespace_oid("public")),
+        string("relnamespace", &schema_name),
+        int_value("relnamespace_oid", namespace_oid(&schema_name)),
         int_value("relowner", postgres_role_oid()),
         bool_value("relhasindex", relation_has_indexes(catalog, name)),
         string("relpersistence", "p"),
@@ -282,7 +331,7 @@ fn relation_has_indexes(catalog: &Catalog, name: &str) -> bool {
 }
 
 fn sorted_indexes(catalog: &Catalog) -> Vec<IndexMeta> {
-    let mut indexes = catalog.indexes.read().values().cloned().collect::<Vec<_>>();
+    let mut indexes = catalog.all_indexes_snapshot();
     indexes.sort_by_key(|index| {
         (
             index.collection.to_ascii_lowercase(),
@@ -312,8 +361,8 @@ fn index_definition(index: &IndexMeta) -> String {
     format!(
         "CREATE {}INDEX {} ON {} ({})",
         if index.unique { "UNIQUE " } else { "" },
-        index.name,
-        index.collection,
+        local_name(&index.name),
+        local_name(&index.collection),
         keys
     ) + &include
         + &predicate

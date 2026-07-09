@@ -81,6 +81,14 @@ pub fn startup_frame(user: &str, database: &str) -> Vec<u8> {
     frame
 }
 
+pub fn password_message(password: &str) -> Vec<u8> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(password.as_bytes());
+    payload.push(0);
+
+    frontend_frame(b'p', &payload)
+}
+
 pub fn parse_frame(statement_name: &str, sql: &str) -> Vec<u8> {
     parse_frame_with_types(statement_name, sql, &[])
 }
@@ -203,6 +211,20 @@ pub async fn complete_startup(
         .expect("write startup");
     let auth = read_wire_frame(reader).await;
     assert_eq!(auth.0, b'R', "startup should return an auth response");
+    if auth_request_code(&auth.1) == Some(3) {
+        writer
+            .write_all(&password_message("postgres"))
+            .await
+            .expect("write password");
+        writer.flush().await.expect("flush password");
+        let auth_ok = read_wire_frame(reader).await;
+        assert_eq!(auth_ok.0, b'R', "password auth should return auth response");
+        assert_eq!(
+            auth_request_code(&auth_ok.1),
+            Some(0),
+            "password auth should complete with auth ok"
+        );
+    }
     let ready = read_until_ready(reader).await;
     assert_eq!(ready, vec![b'I']);
 }
@@ -281,6 +303,13 @@ pub fn parse_row_description(payload: &[u8]) -> Vec<RowDescription> {
     }
 
     fields
+}
+
+fn auth_request_code(payload: &[u8]) -> Option<i32> {
+    payload
+        .get(..4)
+        .and_then(|bytes| bytes.try_into().ok())
+        .map(i32::from_be_bytes)
 }
 
 pub fn parse_parameter_description(payload: &[u8]) -> Vec<i32> {

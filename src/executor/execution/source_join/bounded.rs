@@ -2,7 +2,7 @@ use super::{
     batch, catalog, check_timeout, collection_join_columns, collection_scan_fields, combine_rows,
     estimate_vectorized_join_bytes, execute_query_source, filter, join_field_for_collection,
     merge_join_keys, qualify_row, row_join_key, scan, BatchRow, CteContext, EquiJoinKeys, Expr,
-    JoinKind, QueryError, QuerySource, SourceExecutionEnv, Value,
+    JoinExecutionSpec, JoinKind, QueryError, QuerySource, SourceExecutionEnv, Value,
 };
 
 #[path = "bounded/side_selection.rs"]
@@ -33,30 +33,23 @@ struct IndexedJoinPlan {
     stream_scan_fields: Vec<String>,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn try_execute_indexed_bounded_inner_join(
     env: &SourceExecutionEnv<'_>,
-    left: &QuerySource,
-    right: &QuerySource,
-    kind: JoinKind,
-    on: &Expr,
-    _cte_context: &mut CteContext,
-    _outer_row: Option<&BatchRow>,
-    row_budget: Option<usize>,
+    spec: &JoinExecutionSpec<'_>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(output_budget) = row_budget else {
+    let Some(output_budget) = spec.row_budget else {
         return Ok(None);
     };
     if output_budget == 0 {
         return Ok(Some(Vec::new()));
     }
     let limits = env.cassie.runtime.limits();
-    if !limits.vectorized_joins_enabled || !matches!(kind, JoinKind::Inner) {
+    if !limits.vectorized_joins_enabled || !matches!(spec.kind, JoinKind::Inner) {
         return Ok(None);
     }
 
     let (QuerySource::Collection(left_collection), QuerySource::Collection(right_collection)) =
-        (left, right)
+        (spec.left, spec.right)
     else {
         return Ok(None);
     };
@@ -66,7 +59,7 @@ pub(super) fn try_execute_indexed_bounded_inner_join(
     let Some(right_columns) = collection_join_columns(env, right_collection) else {
         return Ok(None);
     };
-    let Some(keys) = merge_join_keys(on, &left_columns, &right_columns) else {
+    let Some(keys) = merge_join_keys(spec.on, &left_columns, &right_columns) else {
         return Ok(None);
     };
     let Some(plan) = indexed_join_plan(env, left_collection, right_collection, &keys) else {
@@ -77,7 +70,7 @@ pub(super) fn try_execute_indexed_bounded_inner_join(
         env,
         left_collection,
         right_collection,
-        on,
+        spec.on,
         &keys,
         &plan,
         output_budget,
@@ -249,21 +242,22 @@ fn indexed_side_for_dual_indexes(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn try_execute_streaming_bounded_inner_join(
     env: &SourceExecutionEnv<'_>,
-    left: &QuerySource,
-    right: &QuerySource,
-    kind: JoinKind,
-    on: &Expr,
+    join: &JoinExecutionSpec<'_>,
     cte_context: &mut CteContext,
-    outer_row: Option<&BatchRow>,
-    row_budget: Option<usize>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    if row_budget == Some(0) {
+    if join.row_budget == Some(0) {
         return Ok(Some(Vec::new()));
     }
-    let Some(spec) = streaming_join_spec(env, left, right, kind, on, row_budget) else {
+    let Some(spec) = streaming_join_spec(
+        env,
+        join.left,
+        join.right,
+        join.kind,
+        join.on,
+        join.row_budget,
+    ) else {
         return Ok(None);
     };
     let limits = env.cassie.runtime.limits();
@@ -281,10 +275,11 @@ pub(super) fn try_execute_streaming_bounded_inner_join(
         return execute_left_build_streaming_bounded_inner_join(env, &spec).map(Some);
     }
 
-    let right_rows = match load_streaming_right_rows(env, right, cte_context, outer_row, &spec)? {
-        StreamingRightRows::Rows(right_rows) => right_rows,
-        StreamingRightRows::Dense(rows) => return Ok(Some(rows)),
-    };
+    let right_rows =
+        match load_streaming_right_rows(env, join.right, cte_context, join.outer_row, &spec)? {
+            StreamingRightRows::Rows(right_rows) => right_rows,
+            StreamingRightRows::Dense(rows) => return Ok(Some(rows)),
+        };
     if right_rows.is_empty() {
         env.cassie.runtime.record_vectorized_join_execution(
             0,

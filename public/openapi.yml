@@ -9,8 +9,10 @@ info:
       - /health
       - /liveness
       - /metrics
+      - /targetz (ECS Fargate target group health check)
 
-    Collection and projection operations are authenticated by default using the
+    All versioned resource APIs live under /api/v1/*. Collection and
+    projection operations are authenticated by default using the
     `Authorization: Bearer <user>:<password>` header when
     `CASSIE_ADMIN_PASSWORD` is configured.
 servers:
@@ -669,6 +671,21 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
+  /targetz:
+    get:
+      tags: [Health]
+      summary: ECS Fargate target group health check
+      operationId: getTargetz
+      responses:
+        '200':
+          description: Target group health snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /metrics:
     get:
       tags: [Health]
@@ -685,7 +702,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/collections:
+  /api/v1/collections:
     get:
       tags: [Collections]
       summary: List collections
@@ -733,7 +750,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/collections/{collection}/documents:
+  /api/v1/collections/{collection}/documents:
     post:
       tags: [Collections]
       summary: Insert document into collection
@@ -770,7 +787,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/collections/{collection}/indexes:
+  /api/v1/collections/{collection}/indexes:
     post:
       tags: [Collections]
       summary: Create index on collection
@@ -809,7 +826,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/collections/{collection}/search:
+  /api/v1/collections/{collection}/search:
     post:
       tags: [Collections]
       summary: Search vectors in collection
@@ -846,7 +863,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/collections/{collection}/documents/{id}:
+  /api/v1/collections/{collection}/documents/{id}:
     get:
       tags: [Collections]
       summary: Get document by id
@@ -916,7 +933,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/admin/query/schema:
+  /api/v1/admin/query/schema:
     get:
       tags: [Query]
       summary: Get admin query schema tree
@@ -939,7 +956,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/admin/query/execute:
+  /api/v1/admin/query/execute:
     post:
       tags: [Query]
       summary: Execute an admin SQL query
@@ -970,7 +987,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/admin/query/validate:
+  /api/v1/admin/query/validate:
     post:
       tags: [Query]
       summary: Validate an admin SQL query
@@ -1001,7 +1018,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/admin/query/explain:
+  /api/v1/admin/query/explain:
     post:
       tags: [Query]
       summary: Explain an admin SQL query
@@ -1032,7 +1049,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/admin/projections/{projection}/verification-manifest:
+  /api/v1/admin/projections/{projection}/verification-manifest:
     post:
       tags: [Consistency]
       summary: Export projection verification manifest
@@ -1069,7 +1086,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/admin/projection-consistency-checks:
+  /api/v1/admin/projection-consistency-checks:
     post:
       tags: [Consistency]
       summary: Compare verification manifests
@@ -1098,7 +1115,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /v1/admin/projection-consistency-reports:
+  /api/v1/admin/projection-consistency-reports:
     get:
       tags: [Consistency]
       summary: Get latest projection consistency reports

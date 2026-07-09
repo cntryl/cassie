@@ -120,7 +120,7 @@ impl FieldConstraint {
 pub fn generated_constraint_name(collection: &str, field: &str, kind: &str) -> String {
     format!(
         "{}_{}_{}",
-        collection,
+        crate::catalog::local_name(collection),
         field,
         kind.to_ascii_lowercase().replace(' ', "_")
     )

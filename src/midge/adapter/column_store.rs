@@ -5,6 +5,28 @@ use super::{
 };
 use std::time::Duration;
 
+#[derive(Clone, Copy)]
+pub(crate) struct ColumnStoreScanRequest<'a> {
+    pub collection: &'a str,
+    pub row_schema: &'a RowSchema,
+    pub batch_size: usize,
+    pub projection: Option<&'a HashSet<String>>,
+    pub filter: Option<&'a RowFilter>,
+    pub limit: usize,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct OrderedColumnStoreScanRequest<'a> {
+    pub collection: &'a str,
+    pub row_schema: &'a RowSchema,
+    pub batch_size: usize,
+    pub projection: Option<&'a HashSet<String>>,
+    pub start_bound: Option<&'a OrderedRowBound>,
+    pub end_bound: Option<&'a OrderedRowBound>,
+    pub reverse: bool,
+    pub limit: usize,
+}
+
 impl Midge {
     /// # Errors
     ///
@@ -245,21 +267,14 @@ impl Midge {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn scan_column_store_rows_batched(
         tx: &cntryl_midge::Transaction,
-        collection: &str,
-        row_schema: &RowSchema,
-        batch_size: usize,
-        projection: Option<&HashSet<String>>,
-        _include_historical_aliases: bool,
-        filter: Option<&RowFilter>,
-        limit: usize,
+        request: ColumnStoreScanRequest<'_>,
     ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
         let scan_started = Instant::now();
         let mut row_decode = Duration::ZERO;
         let mut results = Vec::new();
-        if limit == 0 {
+        if request.limit == 0 {
             return Ok((
                 results,
                 MidgeScanTimings {
@@ -269,9 +284,9 @@ impl Midge {
             ));
         }
 
-        let mut current = Vec::with_capacity(batch_size.max(1));
+        let mut current = Vec::with_capacity(request.batch_size.max(1));
         let mut emitted = 0usize;
-        let row_prefix = Self::column_store_row_prefix(collection);
+        let row_prefix = Self::column_store_row_prefix(request.collection);
         let scan = tx
             .scan(&Query::new().prefix(row_prefix.clone().into()))
             .map_err(CassieError::from)?;
@@ -283,7 +298,12 @@ impl Midge {
 
             let decode_started = Instant::now();
             let payload = Self::project_column_store_document(
-                tx, collection, &id, row_schema, projection, filter,
+                tx,
+                request.collection,
+                &id,
+                request.row_schema,
+                request.projection,
+                request.filter,
             )?;
             row_decode += decode_started.elapsed();
             let Some(payload) = payload else {
@@ -292,11 +312,11 @@ impl Midge {
 
             current.push(DocumentRef { id, payload });
             emitted += 1;
-            if current.len() >= batch_size.max(1) {
+            if current.len() >= request.batch_size.max(1) {
                 results.push(current);
-                current = Vec::with_capacity(batch_size.max(1));
+                current = Vec::with_capacity(request.batch_size.max(1));
             }
-            if emitted >= limit {
+            if emitted >= request.limit {
                 if !current.is_empty() {
                     results.push(current);
                 }
@@ -323,23 +343,14 @@ impl Midge {
         ))
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn scan_ordered_column_store_rows_batched_by_id(
         tx: &cntryl_midge::Transaction,
-        collection: &str,
-        row_schema: &RowSchema,
-        batch_size: usize,
-        projection: Option<&HashSet<String>>,
-        _include_historical_aliases: bool,
-        start_bound: Option<&OrderedRowBound>,
-        end_bound: Option<&OrderedRowBound>,
-        reverse: bool,
-        limit: usize,
+        request: OrderedColumnStoreScanRequest<'_>,
     ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
         let scan_started = Instant::now();
         let mut row_decode = Duration::ZERO;
         let mut results = Vec::new();
-        if limit == 0 {
+        if request.limit == 0 {
             return Ok((
                 results,
                 MidgeScanTimings {
@@ -349,7 +360,7 @@ impl Midge {
             ));
         }
 
-        let row_prefix = Self::column_store_row_prefix(collection);
+        let row_prefix = Self::column_store_row_prefix(request.collection);
         let mut ids = Vec::new();
         let scan = tx
             .scan(&Query::new().prefix(row_prefix.clone().into()))
@@ -358,29 +369,34 @@ impl Midge {
             let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &row_prefix) else {
                 continue;
             };
-            if Self::within_ordered_bounds(&id, start_bound, end_bound) {
+            if Self::within_ordered_bounds(&id, request.start_bound, request.end_bound) {
                 ids.push(id);
             }
         }
         ids.sort();
-        if reverse {
+        if request.reverse {
             ids.reverse();
         }
 
-        let mut current = Vec::with_capacity(batch_size.max(1));
-        for id in ids.into_iter().take(limit) {
+        let mut current = Vec::with_capacity(request.batch_size.max(1));
+        for id in ids.into_iter().take(request.limit) {
             let decode_started = Instant::now();
             let payload = Self::project_column_store_document(
-                tx, collection, &id, row_schema, projection, None,
+                tx,
+                request.collection,
+                &id,
+                request.row_schema,
+                request.projection,
+                None,
             )?;
             row_decode += decode_started.elapsed();
             let Some(payload) = payload else {
                 continue;
             };
             current.push(DocumentRef { id, payload });
-            if current.len() >= batch_size.max(1) {
+            if current.len() >= request.batch_size.max(1) {
                 results.push(current);
-                current = Vec::with_capacity(batch_size.max(1));
+                current = Vec::with_capacity(request.batch_size.max(1));
             }
         }
 

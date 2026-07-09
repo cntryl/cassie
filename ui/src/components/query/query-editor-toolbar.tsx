@@ -26,7 +26,7 @@ export function QueryEditorToolbar({
     <div class="cassie-query-editor-toolbar" data-testid="query-editor-toolbar" role="toolbar">
       <Button
         type="button"
-        size="sm"
+        size="xs"
         variant="secondary"
         title="Format SQL"
         onPress={onFormat}
@@ -36,7 +36,7 @@ export function QueryEditorToolbar({
       </Button>
       <Button
         type="button"
-        size="sm"
+        size="xs"
         variant="secondary"
         title="Validate SQL"
         onPress={onValidate}
@@ -47,7 +47,7 @@ export function QueryEditorToolbar({
       </Button>
       <Button
         type="button"
-        size="sm"
+        size="xs"
         variant="secondary"
         title="Explain SQL execution plan"
         onPress={onExplain}
@@ -59,7 +59,7 @@ export function QueryEditorToolbar({
       <Button
         type="button"
         variant="primary"
-        size="sm"
+        size="xs"
         title="Execute SQL"
         disabled={!canRun}
         data-action="play"
@@ -72,7 +72,7 @@ export function QueryEditorToolbar({
         <Button
           type="button"
           variant="destructive"
-          size="sm"
+          size="xs"
           title="Stop running query operation"
           data-action="stop"
           onPress={onStop}

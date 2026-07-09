@@ -65,7 +65,7 @@ use cte::{execute_cte, CteContext};
 use dispatch::{
     build_logical_plan, check_timeout, ensure_temp_budget, ensure_temp_budget_for_rows,
     execute_physical_plan, execute_plan, execute_plan_with_execution_breakdown,
-    execute_plan_with_outer_row, resolve_exists_expr,
+    execute_plan_with_outer_row, plan_execution_env, resolve_exists_expr, ExistsResolutionContext,
 };
 #[cfg(test)]
 use dispatch::{preferred_access_path_route, AccessPathRoute};

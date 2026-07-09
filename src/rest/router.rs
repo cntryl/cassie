@@ -163,33 +163,11 @@ fn method_not_allowed_response(allow: &'static str) -> Response<RestBody> {
 }
 
 fn map_error(error: &crate::app::CassieError) -> (StatusCode, String) {
-    match error {
-        crate::app::CassieError::CollectionNotFound(_) => {
-            (StatusCode::NOT_FOUND, error.to_string())
-        }
-        crate::app::CassieError::NotNullViolation { .. }
-        | crate::app::CassieError::UniqueViolation { .. }
-        | crate::app::CassieError::CheckViolation { .. }
-        | crate::app::CassieError::ForeignKeyViolation { .. } => {
-            (StatusCode::CONFLICT, error.to_string())
-        }
-        crate::app::CassieError::NotFound(_) => (StatusCode::NOT_FOUND, error.to_string()),
-        crate::app::CassieError::Parse(_)
-        | crate::app::CassieError::InvalidVector(_)
-        | crate::app::CassieError::InvalidEmbedding(_)
-        | crate::app::CassieError::Planner(_)
-        | crate::app::CassieError::Execution(_) => (StatusCode::BAD_REQUEST, error.to_string()),
-        crate::app::CassieError::EmbeddingUnavailable(_)
-        | crate::app::CassieError::Configuration(_)
-        | crate::app::CassieError::StorageBootstrap(_)
-        | crate::app::CassieError::StorageMissingFamily(_)
-        | crate::app::CassieError::StorageRetryable(_)
-        | crate::app::CassieError::Storage(_) => {
-            (StatusCode::SERVICE_UNAVAILABLE, error.to_string())
-        }
-        crate::app::CassieError::Unauthorized => (StatusCode::UNAUTHORIZED, error.to_string()),
-        crate::app::CassieError::Unsupported(_) => (StatusCode::NOT_IMPLEMENTED, error.to_string()),
-    }
+    let descriptor = error.descriptor();
+    (
+        StatusCode::from_u16(descriptor.http_status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+        descriptor.message,
+    )
 }
 
 fn record_rest_error(
@@ -236,7 +214,7 @@ async fn route_request_with_admin_ui(
     let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     let started_at = Instant::now();
     let mut authenticated_role = None;
-    if !is_route_public(&method, segments.as_slice()) && !cassie.auth_password.is_empty() {
+    if !is_route_public(&method, segments.as_slice()) && cassie.authentication_enabled() {
         let role = match authenticate_rest_request(cassie.clone(), request.headers()).await {
             Ok(role) => role,
             Err((status, message)) => {
@@ -348,6 +326,10 @@ fn dispatch_health_routes(
             StatusCode::OK,
             &crate::rest::health::liveness(cassie),
         )),
+        ("GET", ["targetz"]) => Some(json_response(
+            StatusCode::OK,
+            &crate::rest::health::targetz(cassie),
+        )),
         ("GET", ["metrics"]) => Some(json_response(
             StatusCode::OK,
             &crate::rest::health::metrics(cassie),
@@ -365,7 +347,7 @@ async fn dispatch_collection_routes(
     started_at: Instant,
 ) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
     match (method.as_str(), segments) {
-        ("GET", ["v1", "collections"]) => run_rest_blocking_route(
+        ("GET", ["api", "v1", "collections"]) => run_rest_blocking_route(
             cassie,
             method,
             path,
@@ -375,7 +357,7 @@ async fn dispatch_collection_routes(
         )
         .await
         .map(|value| Some(json_response(StatusCode::OK, &value))),
-        ("POST", ["v1", "collections"]) => {
+        ("POST", ["api", "v1", "collections"]) => {
             let body = body.clone();
             run_rest_blocking_route(
                 cassie,
@@ -388,7 +370,7 @@ async fn dispatch_collection_routes(
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
-        ("POST", ["v1", "collections", collection, "documents"]) => {
+        ("POST", ["api", "v1", "collections", collection, "documents"]) => {
             let body = body.clone();
             let collection = (*collection).to_string();
             run_rest_blocking_route(
@@ -402,7 +384,7 @@ async fn dispatch_collection_routes(
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
-        ("POST", ["v1", "collections", collection, "indexes"]) => {
+        ("POST", ["api", "v1", "collections", collection, "indexes"]) => {
             let body = body.clone();
             let collection = (*collection).to_string();
             run_rest_blocking_route(
@@ -416,7 +398,7 @@ async fn dispatch_collection_routes(
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
-        ("POST", ["v1", "collections", collection, "search"]) => {
+        ("POST", ["api", "v1", "collections", collection, "search"]) => {
             let body = body.clone();
             let collection = (*collection).to_string();
             run_rest_blocking_route(
@@ -432,7 +414,7 @@ async fn dispatch_collection_routes(
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
-        ("GET", ["v1", "collections", collection, "documents", id]) => {
+        ("GET", ["api", "v1", "collections", collection, "documents", id]) => {
             let collection = (*collection).to_string();
             let id = (*id).to_string();
             run_rest_blocking_route(
@@ -446,7 +428,7 @@ async fn dispatch_collection_routes(
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
-        ("DELETE", ["v1", "collections", collection, "documents", id]) => {
+        ("DELETE", ["api", "v1", "collections", collection, "documents", id]) => {
             let collection = (*collection).to_string();
             let id = (*id).to_string();
             run_rest_blocking_route(
@@ -477,7 +459,7 @@ async fn dispatch_admin_routes(
     }
 
     match (context.method.as_str(), context.segments) {
-        ("POST", ["v1", "admin", "projections", projection, "verification-manifest"]) => {
+        ("POST", ["api", "v1", "admin", "projections", projection, "verification-manifest"]) => {
             let body = body.clone();
             let projection = (*projection).to_string();
             run_rest_blocking_route(
@@ -493,7 +475,7 @@ async fn dispatch_admin_routes(
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
-        ("POST", ["v1", "admin", "projection-consistency-checks"]) => {
+        ("POST", ["api", "v1", "admin", "projection-consistency-checks"]) => {
             let body = body.clone();
             run_rest_blocking_route(
                 cassie,
@@ -506,16 +488,18 @@ async fn dispatch_admin_routes(
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
-        ("GET", ["v1", "admin", "projection-consistency-reports"]) => run_rest_blocking_route(
-            cassie,
-            context.method,
-            context.path,
-            context.started_at,
-            "rest_route",
-            move |cassie| Ok(crate::rest::consistency::reports(&cassie)),
-        )
-        .await
-        .map(|value| Some(json_response(StatusCode::OK, &value))),
+        ("GET", ["api", "v1", "admin", "projection-consistency-reports"]) => {
+            run_rest_blocking_route(
+                cassie,
+                context.method,
+                context.path,
+                context.started_at,
+                "rest_route",
+                move |cassie| Ok(crate::rest::consistency::reports(&cassie)),
+            )
+            .await
+            .map(|value| Some(json_response(StatusCode::OK, &value)))
+        }
         _ => Ok(None),
     }
 }
@@ -526,7 +510,7 @@ async fn dispatch_admin_query_routes(
     body: &RestBytes,
 ) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
     match (context.method.as_str(), context.segments) {
-        ("GET", ["v1", "admin", "query", "schema"]) => run_rest_blocking_route(
+        ("GET", ["api", "v1", "admin", "query", "schema"]) => run_rest_blocking_route(
             cassie,
             context.method,
             context.path,
@@ -536,7 +520,7 @@ async fn dispatch_admin_query_routes(
         )
         .await
         .map(|value| Some(json_response(StatusCode::OK, &value))),
-        ("POST", ["v1", "admin", "query", "execute"]) => {
+        ("POST", ["api", "v1", "admin", "query", "execute"]) => {
             let body = body.clone();
             let user = rest_session_user(&cassie, context.authenticated_role);
             run_rest_blocking_route(
@@ -550,7 +534,7 @@ async fn dispatch_admin_query_routes(
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
-        ("POST", ["v1", "admin", "query", "validate"]) => {
+        ("POST", ["api", "v1", "admin", "query", "validate"]) => {
             let body = body.clone();
             run_rest_blocking_route(
                 cassie,
@@ -563,7 +547,7 @@ async fn dispatch_admin_query_routes(
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
-        ("POST", ["v1", "admin", "query", "explain"]) => {
+        ("POST", ["api", "v1", "admin", "query", "explain"]) => {
             let body = body.clone();
             let user = rest_session_user(&cassie, context.authenticated_role);
             run_rest_blocking_route(
@@ -583,8 +567,8 @@ async fn dispatch_admin_query_routes(
 
 fn admin_query_route_allow(segments: &[&str]) -> Option<&'static str> {
     match segments {
-        ["v1", "admin", "query", "schema"] => Some("GET"),
-        ["v1", "admin", "query", "execute" | "validate" | "explain"] => Some("POST"),
+        ["api", "v1", "admin", "query", "schema"] => Some("GET"),
+        ["api", "v1", "admin", "query", "execute" | "validate" | "explain"] => Some("POST"),
         _ => None,
     }
 }
@@ -662,13 +646,7 @@ where
 }
 
 fn is_route_public(method: &Method, segments: &[&str]) -> bool {
-    matches!(
-        (method, segments),
-        (
-            &Method::GET,
-            ["health" | "liveness" | "metrics"] | ["admin" | "assets", ..]
-        )
-    )
+    *method == Method::GET && segments.first() != Some(&"api")
 }
 
 fn default_admin_ui_dir() -> PathBuf {
@@ -684,21 +662,9 @@ async fn authenticate_rest_request(
     };
 
     let role = run_rest_blocking(cassie.clone(), "rest_auth", move |cassie| {
-        let session = cassie.authenticate_role(&user, password.as_deref(), None)?;
-        let Some(role) = cassie.lookup_role(&session.user).map_err(|error| {
-            crate::app::CassieError::StorageRetryable(format!(
-                "lookup role '{}': {error}",
-                session.user
-            ))
-        })?
-        else {
-            return Err(crate::app::CassieError::StorageRetryable(format!(
-                "role '{}' disappeared during authentication",
-                session.user
-            )));
-        };
-
-        Ok(role)
+        cassie
+            .authenticate_principal(&user, password.as_deref(), None)
+            .map(|principal| principal.role)
     })
     .await
     .map_err(|error| match error {
@@ -730,5 +696,51 @@ fn parse_rest_credentials(
         Some((user.trim().to_string(), Some(password.trim().to_string())))
     } else {
         Some((cassie.auth_user.clone(), Some(token.to_string())))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use uuid::Uuid;
+
+    fn data_dir(label: &str) -> String {
+        format!("/tmp/cassie-rest-router-{label}-{}", Uuid::new_v4())
+    }
+
+    #[test]
+    fn should_map_retryable_rest_boundary_failures_to_service_unavailable() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie =
+                Arc::new(Cassie::new_with_data_dir(data_dir("retryable")).expect("cassie"));
+
+            // Act
+            let error = run_rest_blocking(
+                cassie,
+                "rest_retryable",
+                |_| -> Result<(), crate::app::CassieError> {
+                    panic!("synthetic rest join failure");
+                },
+            )
+            .await
+            .expect_err("panic should map to retryable storage");
+            let mapped = map_error(&error);
+
+            // Assert
+            assert!(matches!(
+                error,
+                crate::app::CassieError::StorageRetryable(_)
+            ));
+            assert_eq!(mapped.0, StatusCode::SERVICE_UNAVAILABLE);
+            assert!(mapped
+                .1
+                .contains("rest blocking boundary 'rest_retryable' failed"));
+        });
     }
 }

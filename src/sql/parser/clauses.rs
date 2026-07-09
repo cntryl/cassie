@@ -82,7 +82,7 @@ pub(super) fn parse_clauses(rest: &str) -> Result<Vec<ClauseMatch>, SqlError> {
 
     for window in matches.windows(2) {
         if window[0].position == window[1].position {
-            return Err(SqlError(format!(
+            return Err(SqlError::new(format!(
                 "ambiguous clause token '{}' at position {}",
                 window[0].text(),
                 window[0].position,
@@ -93,7 +93,7 @@ pub(super) fn parse_clauses(rest: &str) -> Result<Vec<ClauseMatch>, SqlError> {
     let mut ordered = Vec::new();
     for clause in matches {
         if let ClauseToken::Unsupported(kind) = clause.token {
-            return Err(SqlError(format!("unsupported clause '{kind}'")));
+            return Err(SqlError::new(format!("unsupported clause '{kind}'")));
         }
         ordered.push(clause);
     }

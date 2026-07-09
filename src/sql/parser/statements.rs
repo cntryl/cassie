@@ -14,7 +14,7 @@ use super::{
 pub(super) fn parse_explain_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let rest = sql["EXPLAIN".len()..].trim();
     if rest.is_empty() {
-        return Err(SqlError("EXPLAIN requires a statement".to_string()));
+        return Err(SqlError::new("EXPLAIN requires a statement".to_string()));
     }
 
     let lower = rest.to_ascii_lowercase();
@@ -24,7 +24,7 @@ pub(super) fn parse_explain_statement(sql: &str) -> Result<ParsedStatement, SqlE
         (false, rest)
     };
     if inner_sql.is_empty() {
-        return Err(SqlError("EXPLAIN requires a statement".to_string()));
+        return Err(SqlError::new("EXPLAIN requires a statement".to_string()));
     }
 
     let statement = parse_statement(inner_sql)?;
@@ -126,7 +126,7 @@ pub(super) fn parse_transaction_statement(sql: &str) -> Result<ParsedStatement, 
             isolation: None,
         },
         ["rollback", "to", ..] => {
-            return Err(SqlError(
+            return Err(SqlError::new(
                 "ROLLBACK TO requires a savepoint name".to_string(),
             ));
         }
@@ -137,7 +137,7 @@ pub(super) fn parse_transaction_statement(sql: &str) -> Result<ParsedStatement, 
             isolation: None,
         },
         ["savepoint", ..] => {
-            return Err(SqlError("SAVEPOINT requires a name".to_string()));
+            return Err(SqlError::new("SAVEPOINT requires a name".to_string()));
         }
         ["release", name] | ["release", "savepoint", name] => TransactionStatement {
             action: TransactionAction::Release {
@@ -146,10 +146,12 @@ pub(super) fn parse_transaction_statement(sql: &str) -> Result<ParsedStatement, 
             isolation: None,
         },
         ["release", ..] => {
-            return Err(SqlError("RELEASE requires a savepoint name".to_string()));
+            return Err(SqlError::new(
+                "RELEASE requires a savepoint name".to_string(),
+            ));
         }
         _ => {
-            return Err(SqlError(
+            return Err(SqlError::new(
                 "unsupported transaction control statement".to_string(),
             ));
         }
@@ -169,12 +171,14 @@ pub(super) fn parse_savepoint_name(raw: &str, command: &str) -> Result<String, S
         raw_name
     };
     if name.is_empty() {
-        return Err(SqlError(format!("{command} requires a savepoint name")));
+        return Err(SqlError::new(format!(
+            "{command} requires a savepoint name"
+        )));
     }
     if name.chars().any(|character| {
         !(character.is_ascii_alphanumeric() || character == '_' || character == '-')
     }) {
-        return Err(SqlError(format!("invalid savepoint name '{name}'")));
+        return Err(SqlError::new(format!("invalid savepoint name '{name}'")));
     }
     Ok(name.to_ascii_lowercase())
 }
@@ -186,7 +190,7 @@ pub(super) fn parse_transaction_isolation(
         ["read", "committed"] => Ok(TransactionIsolation::ReadCommitted),
         ["repeatable", "read"] => Ok(TransactionIsolation::RepeatableRead),
         ["serializable"] => Ok(TransactionIsolation::Serializable),
-        _ => Err(SqlError(
+        _ => Err(SqlError::new(
             "unsupported transaction control statement".to_string(),
         )),
     }
@@ -196,7 +200,7 @@ pub(super) fn parse_show_statement(trimmed: &str) -> Result<ParsedStatement, Sql
     let trimmed = trimmed.trim().trim_end_matches(';').trim();
     let argument = trimmed[4..].trim();
     if argument.is_empty() {
-        return Err(SqlError("SHOW requires a parameter".into()));
+        return Err(SqlError::new("SHOW requires a parameter".into()));
     }
 
     Ok(ParsedStatement {
@@ -221,7 +225,7 @@ pub(super) fn parse_set_statement(trimmed: &str) -> Result<ParsedStatement, SqlE
     let trimmed = trimmed.trim().trim_end_matches(';').trim();
     let argument = trimmed[3..].trim();
     if argument.is_empty() {
-        return Err(SqlError("SET requires a parameter".into()));
+        return Err(SqlError::new("SET requires a parameter".into()));
     }
 
     let mut variable = argument;
@@ -236,7 +240,7 @@ pub(super) fn parse_set_statement(trimmed: &str) -> Result<ParsedStatement, SqlE
     }
 
     if variable.trim().is_empty() {
-        return Err(SqlError("invalid SET statement".into()));
+        return Err(SqlError::new("invalid SET statement".into()));
     }
 
     let variable_lower = variable.to_lowercase();
@@ -245,7 +249,7 @@ pub(super) fn parse_set_statement(trimmed: &str) -> Result<ParsedStatement, SqlE
         || variable_lower == "session authorization"
         || variable_lower.starts_with("session authorization ")
     {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "SET ROLE and SET SESSION AUTHORIZATION are not supported in this version".into(),
         ));
     }
@@ -263,7 +267,7 @@ pub(super) fn parse_create_function_statement(sql: &str) -> Result<ParsedStateme
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[15..].trim();
     if rest.to_lowercase().contains("security definer") {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "SECURITY DEFINER is not supported in this version".into(),
         ));
     }
@@ -272,28 +276,30 @@ pub(super) fn parse_create_function_statement(sql: &str) -> Result<ParsedStateme
 
     let name_end = rest
         .find('(')
-        .ok_or_else(|| SqlError("CREATE FUNCTION requires argument list".into()))?;
+        .ok_or_else(|| SqlError::new("CREATE FUNCTION requires argument list".into()))?;
     let name = rest[..name_end].trim();
     if name.is_empty() {
-        return Err(SqlError("CREATE FUNCTION requires a name".into()));
+        return Err(SqlError::new("CREATE FUNCTION requires a name".into()));
     }
 
     let rest = &rest[name_end + 1..];
     let close = rest
         .find(')')
-        .ok_or_else(|| SqlError("CREATE FUNCTION argument list is missing ')'".into()))?;
+        .ok_or_else(|| SqlError::new("CREATE FUNCTION argument list is missing ')'".into()))?;
     let args_raw = rest[..close].trim();
 
     let args = parse_function_args(args_raw)?;
 
     let mut remaining = rest[(close + 1)..].trim_start();
     if !starts_with_keyword(remaining, "returns") {
-        return Err(SqlError("CREATE FUNCTION requires RETURNS clause".into()));
+        return Err(SqlError::new(
+            "CREATE FUNCTION requires RETURNS clause".into(),
+        ));
     }
 
     remaining = remaining[7..].trim();
     let (return_type_raw, remaining) = split_keyword(remaining, "as")
-        .ok_or_else(|| SqlError("CREATE FUNCTION requires AS clause".into()))?;
+        .ok_or_else(|| SqlError::new("CREATE FUNCTION requires AS clause".into()))?;
     let (return_type, volatility) = parse_return_clause(return_type_raw)?;
 
     let body = parse_quoted_or_raw_body(remaining)?;
@@ -315,7 +321,7 @@ pub(super) fn parse_create_procedure_statement(sql: &str) -> Result<ParsedStatem
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[16..].trim();
     if rest.to_lowercase().contains("security definer") {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "SECURITY DEFINER is not supported in this version".into(),
         ));
     }
@@ -324,23 +330,23 @@ pub(super) fn parse_create_procedure_statement(sql: &str) -> Result<ParsedStatem
 
     let name_end = rest
         .find('(')
-        .ok_or_else(|| SqlError("CREATE PROCEDURE requires argument list".into()))?;
+        .ok_or_else(|| SqlError::new("CREATE PROCEDURE requires argument list".into()))?;
     let name = rest[..name_end].trim();
     if name.is_empty() {
-        return Err(SqlError("CREATE PROCEDURE requires a name".into()));
+        return Err(SqlError::new("CREATE PROCEDURE requires a name".into()));
     }
 
     let rest = &rest[name_end + 1..];
     let close = rest
         .find(')')
-        .ok_or_else(|| SqlError("CREATE PROCEDURE argument list is missing ')'".into()))?;
+        .ok_or_else(|| SqlError::new("CREATE PROCEDURE argument list is missing ')'".into()))?;
     let args_raw = rest[..close].trim();
 
     let args = parse_function_args(args_raw)?;
     let mut remaining = rest[(close + 1)..].trim_start();
 
     if !starts_with_keyword(remaining, "as") {
-        return Err(SqlError("CREATE PROCEDURE requires AS clause".into()));
+        return Err(SqlError::new("CREATE PROCEDURE requires AS clause".into()));
     }
     remaining = remaining[2..].trim();
 
@@ -363,18 +369,20 @@ pub(super) fn parse_create_view_statement(sql: &str) -> Result<ParsedStatement, 
     let (if_not_exists, rest) = parse_if_not_exists(rest);
 
     let as_pos = find_top_level_keyword(rest, 0, "as")
-        .ok_or_else(|| SqlError("CREATE VIEW requires AS clause".into()))?;
+        .ok_or_else(|| SqlError::new("CREATE VIEW requires AS clause".into()))?;
     let name = rest[..as_pos].trim();
     if name.is_empty() {
-        return Err(SqlError("CREATE VIEW requires a name".into()));
+        return Err(SqlError::new("CREATE VIEW requires a name".into()));
     }
     if name.split_whitespace().count() != 1 {
-        return Err(SqlError("CREATE VIEW supports only one view name".into()));
+        return Err(SqlError::new(
+            "CREATE VIEW supports only one view name".into(),
+        ));
     }
 
     let body = rest[as_pos + 2..].trim();
     if body.is_empty() {
-        return Err(SqlError("CREATE VIEW requires a query body".into()));
+        return Err(SqlError::new("CREATE VIEW requires a query body".into()));
     }
 
     Ok(ParsedStatement {
@@ -393,7 +401,9 @@ pub(super) fn parse_drop_function_statement(sql: &str) -> Result<ParsedStatement
     let (if_exists, rest) = parse_if_exists(rest);
 
     if rest.is_empty() {
-        return Err(SqlError("missing function name for DROP FUNCTION".into()));
+        return Err(SqlError::new(
+            "missing function name for DROP FUNCTION".into(),
+        ));
     }
 
     Ok(ParsedStatement {
@@ -411,7 +421,9 @@ pub(super) fn parse_drop_procedure_statement(sql: &str) -> Result<ParsedStatemen
     let (if_exists, rest) = parse_if_exists(rest);
 
     if rest.is_empty() {
-        return Err(SqlError("missing procedure name for DROP PROCEDURE".into()));
+        return Err(SqlError::new(
+            "missing procedure name for DROP PROCEDURE".into(),
+        ));
     }
 
     Ok(ParsedStatement {
@@ -429,11 +441,13 @@ pub(super) fn parse_drop_view_statement(sql: &str) -> Result<ParsedStatement, Sq
     let (if_exists, rest) = parse_if_exists(rest);
 
     if rest.is_empty() {
-        return Err(SqlError("missing view name for DROP VIEW".into()));
+        return Err(SqlError::new("missing view name for DROP VIEW".into()));
     }
 
     if rest.split_whitespace().count() != 1 {
-        return Err(SqlError("DROP VIEW supports only one view name".into()));
+        return Err(SqlError::new(
+            "DROP VIEW supports only one view name".into(),
+        ));
     }
 
     Ok(ParsedStatement {
@@ -451,17 +465,17 @@ pub(super) fn parse_call_statement(sql: &str) -> Result<ParsedStatement, SqlErro
 
     let open = rest
         .find('(')
-        .ok_or_else(|| SqlError("CALL requires argument list".into()))?;
+        .ok_or_else(|| SqlError::new("CALL requires argument list".into()))?;
     let close = rest
         .rfind(')')
-        .ok_or_else(|| SqlError("CALL argument list is missing ')'".into()))?;
+        .ok_or_else(|| SqlError::new("CALL argument list is missing ')'".into()))?;
     if close < open {
-        return Err(SqlError("invalid CALL syntax".into()));
+        return Err(SqlError::new("invalid CALL syntax".into()));
     }
 
     let name = rest[..open].trim();
     if name.is_empty() {
-        return Err(SqlError("CALL requires a procedure name".into()));
+        return Err(SqlError::new("CALL requires a procedure name".into()));
     }
 
     let args_raw = rest[(open + 1)..close].trim();
@@ -509,16 +523,16 @@ pub(super) fn parse_function_args(raw: &str) -> Result<Vec<FunctionArg>, SqlErro
         }
         let parts = tokenize_schema_field(token);
         if parts.is_empty() {
-            return Err(SqlError("invalid function argument".into()));
+            return Err(SqlError::new("invalid function argument".into()));
         }
 
         let name = parts[0].trim();
         if name.is_empty() || name.contains(',') {
-            return Err(SqlError("invalid function argument".into()));
+            return Err(SqlError::new("invalid function argument".into()));
         }
 
         if parts.len() < 2 {
-            return Err(SqlError(format!(
+            return Err(SqlError::new(format!(
                 "missing data type for function argument '{name}'"
             )));
         }
@@ -536,7 +550,7 @@ pub(super) fn parse_function_args(raw: &str) -> Result<Vec<FunctionArg>, SqlErro
 pub(super) fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), SqlError> {
     let tokens = raw.split_whitespace().collect::<Vec<_>>();
     if tokens.is_empty() {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "CREATE FUNCTION RETURNS clause is missing a type".into(),
         ));
     }
@@ -546,7 +560,7 @@ pub(super) fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), S
         match tokens[1].to_lowercase().as_str() {
             "immutable" => {
                 if tokens.len() > 2 {
-                    return Err(SqlError(
+                    return Err(SqlError::new(
                         "unexpected token after function volatility".into(),
                     ));
                 }
@@ -554,7 +568,7 @@ pub(super) fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), S
             }
             "stable" => {
                 if tokens.len() > 2 {
-                    return Err(SqlError(
+                    return Err(SqlError::new(
                         "unexpected token after function volatility".into(),
                     ));
                 }
@@ -562,14 +576,14 @@ pub(super) fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), S
             }
             "volatile" => {
                 if tokens.len() > 2 {
-                    return Err(SqlError(
+                    return Err(SqlError::new(
                         "unexpected token after function volatility".into(),
                     ));
                 }
                 Volatility::Volatile
             }
             _ => {
-                return Err(SqlError(format!(
+                return Err(SqlError::new(format!(
                     "unsupported function volatility '{}'; use IMMUTABLE/STABLE/VOLATILE",
                     tokens[1]
                 )));
@@ -580,7 +594,9 @@ pub(super) fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), S
     };
 
     if tokens.len() > 2 {
-        return Err(SqlError("unexpected token after RETURNS clause".into()));
+        return Err(SqlError::new(
+            "unexpected token after RETURNS clause".into(),
+        ));
     }
 
     Ok((data_type, volatility))
@@ -589,7 +605,7 @@ pub(super) fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), S
 pub(super) fn parse_quoted_or_raw_body(raw: &str) -> Result<String, SqlError> {
     let raw = raw.trim();
     if raw.is_empty() {
-        return Err(SqlError("empty function/procedure body".into()));
+        return Err(SqlError::new("empty function/procedure body".into()));
     }
 
     if let Ok((value, remainder)) = parse_sql_quoted_string(raw) {
@@ -610,7 +626,7 @@ pub(super) fn parse_sql_quoted_string(raw: &str) -> Result<(String, &str), SqlEr
         return Ok((raw[1..raw.len() - 1].to_string(), ""));
     }
 
-    Err(SqlError("not a quoted string".into()))
+    Err(SqlError::new("not a quoted string".into()))
 }
 
 pub(super) fn split_keyword<'a>(raw: &'a str, keyword: &'a str) -> Option<(&'a str, &'a str)> {

@@ -398,11 +398,11 @@ fn should_reject_not_without_expression() {
     let sql = "SELECT title FROM docs WHERE NOT";
 
     // Act
-    let parsed = parse_statement(sql);
+    let error = parse_statement(sql).expect_err("NOT without an expression should fail");
 
     // Assert
-    assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().0.contains("NOT requires an expression"));
+    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Syntax);
+    assert!(error.message().contains("NOT requires an expression"));
 }
 
 #[test]
@@ -411,11 +411,11 @@ fn should_reject_empty_in_list_predicate() {
     let sql = "SELECT title FROM docs WHERE title IN ()";
 
     // Act
-    let parsed = parse_statement(sql);
+    let error = parse_statement(sql).expect_err("empty IN predicate should fail");
 
     // Assert
-    assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().0.contains("IN predicate"));
+    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Syntax);
+    assert!(error.message().contains("IN predicate"));
 }
 
 #[test]
@@ -424,9 +424,9 @@ fn should_reject_exists_without_select_subquery() {
     let sql = "SELECT title FROM docs WHERE EXISTS (INSERT INTO docs (title) VALUES ('x'))";
 
     // Act
-    let parsed = parse_statement(sql);
+    let error = parse_statement(sql).expect_err("EXISTS without SELECT subquery should fail");
 
     // Assert
-    assert!(parsed.is_err());
-    assert!(parsed.unwrap_err().0.contains("EXISTS requires"));
+    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Syntax);
+    assert!(error.message().contains("EXISTS requires"));
 }

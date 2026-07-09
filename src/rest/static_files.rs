@@ -27,10 +27,10 @@ impl AdminUiStaticFiles {
         }
 
         match segments {
-            ["admin"] | ["admin", ..] => Some(self.serve_index().await),
             ["assets"] => Some(not_found_response()),
             ["assets", asset_segments @ ..] => Some(self.serve_asset(asset_segments).await),
-            _ => None,
+            ["api", ..] => None,
+            _ => Some(self.serve_index().await),
         }
     }
 

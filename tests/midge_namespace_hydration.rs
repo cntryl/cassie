@@ -1,5 +1,6 @@
 #![allow(unused_imports, dead_code)]
 use cassie::app::Cassie;
+use cassie::catalog::canonical_schema_name;
 use cassie::catalog::ProjectionRebuildState;
 use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::midge::adapter::{RowDecode, StorageFamily, StorageLayout};
@@ -79,7 +80,7 @@ fn should_reject_legacy_collections_index_on_reopen() {
         assert!(
             error
                 .to_string()
-                .contains("incompatible lexkey v2 storage layout"),
+                .contains("incompatible lexkey v3 storage layout"),
             "unexpected error: {error}"
         );
 
@@ -156,8 +157,9 @@ fn should_hydrate_namespace_catalog_from_schema_family() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
+        let namespace = canonical_schema_name("postgres", "reporting");
 
-        cassie.midge.create_namespace("reporting").unwrap();
+        cassie.midge.create_namespace(&namespace).unwrap();
 
         drop(cassie);
 
@@ -172,7 +174,7 @@ fn should_hydrate_namespace_catalog_from_schema_family() {
             .collect::<Vec<_>>();
 
         // Assert
-        assert!(namespaces.iter().any(|name| name == "reporting"));
+        assert!(namespaces.iter().any(|name| name == &namespace));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -190,12 +192,11 @@ fn should_hydrate_renamed_namespace_catalog_from_schema_family() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
+        let current = canonical_schema_name("postgres", "reporting");
+        let next = canonical_schema_name("postgres", "reporting_archive");
 
-        cassie.midge.create_namespace("reporting").unwrap();
-        cassie
-            .midge
-            .rename_namespace("reporting", "reporting_archive")
-            .unwrap();
+        cassie.midge.create_namespace(&current).unwrap();
+        cassie.midge.rename_namespace(&current, &next).unwrap();
 
         drop(cassie);
 
@@ -210,8 +211,8 @@ fn should_hydrate_renamed_namespace_catalog_from_schema_family() {
             .collect::<Vec<_>>();
 
         // Assert
-        assert!(!namespaces.iter().any(|name| name == "reporting"));
-        assert!(namespaces.iter().any(|name| name == "reporting_archive"));
+        assert!(!namespaces.iter().any(|name| name == &current));
+        assert!(namespaces.iter().any(|name| name == &next));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -229,9 +230,10 @@ fn should_hydrate_dropped_namespace_catalog_from_schema_family() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
+        let namespace = canonical_schema_name("postgres", "reporting");
 
-        cassie.midge.create_namespace("reporting").unwrap();
-        cassie.midge.drop_namespace("reporting").unwrap();
+        cassie.midge.create_namespace(&namespace).unwrap();
+        cassie.midge.drop_namespace(&namespace).unwrap();
 
         drop(cassie);
 
@@ -246,7 +248,7 @@ fn should_hydrate_dropped_namespace_catalog_from_schema_family() {
             .collect::<Vec<_>>();
 
         // Assert
-        assert!(!namespaces.iter().any(|name| name == "reporting"));
+        assert!(!namespaces.iter().any(|name| name == &namespace));
 
         let _ = std::fs::remove_dir_all(path);
     });

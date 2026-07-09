@@ -7,15 +7,48 @@ use super::{
 };
 use crate::embeddings::EmbeddingProvider;
 
+#[derive(Debug, Default)]
+struct DisabledProvider;
+
+impl EmbeddingProvider for DisabledProvider {
+    fn provider_name(&self) -> &'static str {
+        "disabled"
+    }
+
+    fn model_name(&self) -> &'static str {
+        "disabled"
+    }
+
+    fn dimensions(&self) -> usize {
+        0
+    }
+
+    fn embed_documents(
+        &self,
+        _inputs: &[String],
+    ) -> Result<Vec<Embedding>, crate::embeddings::EmbeddingError> {
+        Err(crate::embeddings::EmbeddingError::Unavailable {
+            provider: self.provider_name().to_string(),
+            reason: "embedding provider is disabled".to_string(),
+        })
+    }
+
+    fn embed_query(&self, _input: &str) -> Result<Embedding, crate::embeddings::EmbeddingError> {
+        Err(crate::embeddings::EmbeddingError::Unavailable {
+            provider: self.provider_name().to_string(),
+            reason: "embedding provider is disabled".to_string(),
+        })
+    }
+}
+
 pub(super) fn build_embedding_provider(
     config: &CassieRuntimeConfig,
 ) -> Result<Arc<dyn EmbeddingProvider>, CassieError> {
     match &config.embeddings {
-        EmbeddingsRuntimeConfig::Voyage => Ok(Arc::new(VoyageProvider)),
-        EmbeddingsRuntimeConfig::Cohere => Ok(Arc::new(CohereProvider)),
-        EmbeddingsRuntimeConfig::Disabled | EmbeddingsRuntimeConfig::Local => {
-            Ok(Arc::new(LocalProvider))
-        }
+        EmbeddingsRuntimeConfig::Disabled => Ok(Arc::new(DisabledProvider)),
+        EmbeddingsRuntimeConfig::Voyage(runtime) => build_voyage_provider(runtime),
+        EmbeddingsRuntimeConfig::Cohere(runtime) => build_cohere_provider(runtime),
+        EmbeddingsRuntimeConfig::Local(runtime) => build_local_provider(runtime),
         EmbeddingsRuntimeConfig::OpenAI(runtime) => build_openai_provider(runtime),
         EmbeddingsRuntimeConfig::OpenAiCompatible(runtime) => {
             build_openai_compatible_provider(runtime)
@@ -41,6 +74,46 @@ fn build_openai_provider(
     };
 
     let provider = OpenAiProvider::with_config(config)?;
+    Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
+}
+
+fn build_voyage_provider(
+    runtime: &super::VoyageRuntimeConfig,
+) -> Result<Arc<dyn EmbeddingProvider>, CassieError> {
+    let provider = VoyageProvider::with_config(super::VoyageProviderConfig {
+        api_key: runtime.api_key.clone(),
+        model: runtime.model.clone(),
+        dimensions: runtime.dimensions,
+        timeout: std::time::Duration::from_secs(runtime.timeout_seconds),
+        max_batch_size: runtime.max_batch_size,
+        max_retries: runtime.max_retries,
+        base_url: runtime.base_url.clone(),
+    })?;
+    Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
+}
+
+fn build_cohere_provider(
+    runtime: &super::CohereRuntimeConfig,
+) -> Result<Arc<dyn EmbeddingProvider>, CassieError> {
+    let provider = CohereProvider::with_config(super::CohereProviderConfig {
+        api_key: runtime.api_key.clone(),
+        model: runtime.model.clone(),
+        dimensions: runtime.dimensions,
+        timeout: std::time::Duration::from_secs(runtime.timeout_seconds),
+        max_batch_size: runtime.max_batch_size,
+        max_retries: runtime.max_retries,
+        base_url: runtime.base_url.clone(),
+    })?;
+    Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
+}
+
+fn build_local_provider(
+    runtime: &super::LocalRuntimeConfig,
+) -> Result<Arc<dyn EmbeddingProvider>, CassieError> {
+    let provider = LocalProvider::with_config(super::LocalProviderConfig {
+        model: runtime.model.clone(),
+        dimensions: runtime.dimensions,
+    })?;
     Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
 }
 

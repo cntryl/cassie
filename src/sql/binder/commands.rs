@@ -1,14 +1,16 @@
 use super::{
-    bind_select, collect_item, validate_expression, validate_function_calls, virtual_views,
-    CassieError, Catalog, CollectionSchema, DataType, Expr, HashMap, HashSet, InsertSource,
+    bind_select, collect_item, normalize_relation_name, resolve_relation_name,
+    validate_expression, validate_function_calls, virtual_views, BindingContext, CassieError,
+    Catalog, CatalogObjectKind, CollectionSchema, DataType, Expr, HashMap, HashSet, InsertSource,
     SelectItem,
 };
 
 pub(super) fn bind_insert(
     mut statement: crate::sql::ast::InsertStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<crate::sql::ast::InsertStatement, CassieError> {
-    let table = statement.table.trim().to_string();
+    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
             "INSERT requires a target table".into(),
@@ -102,7 +104,7 @@ pub(super) fn bind_insert(
     }
 
     if let InsertSource::Select(select) = statement.source {
-        let source = bind_select(*select, catalog, &HashMap::new())?;
+        let source = bind_select(*select, catalog, &HashMap::new(), context)?;
         statement.source = InsertSource::Select(Box::new(source));
     }
 
@@ -152,8 +154,9 @@ fn conflict_target_supported(catalog: &Catalog, table: &str, target_fields: &[St
 pub(super) fn bind_update(
     mut statement: crate::sql::ast::UpdateStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<crate::sql::ast::UpdateStatement, CassieError> {
-    let table = statement.table.trim().to_string();
+    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
             "UPDATE requires a target table".into(),
@@ -212,8 +215,9 @@ pub(super) fn bind_update(
 pub(super) fn bind_delete(
     mut statement: crate::sql::ast::DeleteStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<crate::sql::ast::DeleteStatement, CassieError> {
-    let table = statement.table.trim().to_string();
+    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
             "DELETE requires a target table".into(),
@@ -244,8 +248,9 @@ pub(super) fn bind_delete(
 pub(super) fn bind_create_rollup(
     mut statement: crate::sql::ast::CreateRollupStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateRollupStatement, CassieError> {
-    let name = statement.name.trim().to_string();
+    let name = normalize_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner("CREATE ROLLUP requires a name".into()));
     }
@@ -259,10 +264,7 @@ pub(super) fn bind_create_rollup(
         )));
     }
 
-    let source = statement.source.trim().to_string();
-    if source.is_empty() || !catalog.exists(&source) {
-        return Err(CassieError::CollectionNotFound(source));
-    }
+    let source = resolve_relation_name(statement.source.trim(), catalog, context)?;
     if virtual_views::schema(&source).is_some() || catalog.get_view(&source).is_some() {
         return Err(CassieError::Unsupported(format!(
             "rollup source '{source}' must be a base collection"
@@ -354,8 +356,9 @@ pub(super) fn bind_create_rollup(
 pub(super) fn bind_create_retention_policy(
     mut statement: crate::sql::ast::CreateRetentionPolicyStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateRetentionPolicyStatement, CassieError> {
-    let name = statement.name.trim().to_string();
+    let name = normalize_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE RETENTION POLICY requires a name".into(),
@@ -371,7 +374,7 @@ pub(super) fn bind_create_retention_policy(
         )));
     }
 
-    let collection = statement.collection.trim().to_string();
+    let collection = resolve_relation_name(statement.collection.trim(), catalog, context)?;
     let field = statement.timestamp_field.trim().to_string();
     validate_retention_target(catalog, &collection, &field)?;
     validate_retention_duration(&statement.retention_duration)?;
@@ -385,17 +388,19 @@ pub(super) fn bind_create_retention_policy(
 pub(super) fn bind_alter_retention_policy(
     mut statement: crate::sql::ast::AlterRetentionPolicyStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<crate::sql::ast::AlterRetentionPolicyStatement, CassieError> {
-    let name = statement.name.trim().to_string();
+    let name = normalize_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "ALTER RETENTION POLICY requires a name".into(),
         ));
     }
     if catalog.get_retention_policy(&name).is_none() {
-        return Err(CassieError::Planner(format!(
-            "retention policy '{name}' does not exist"
-        )));
+        return Err(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::RetentionPolicy,
+            name,
+        });
     }
     validate_retention_duration(&statement.retention_duration)?;
     statement.name = name;
@@ -405,17 +410,19 @@ pub(super) fn bind_alter_retention_policy(
 pub(super) fn bind_enforce_retention_policy(
     mut statement: crate::sql::ast::EnforceRetentionPolicyStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<crate::sql::ast::EnforceRetentionPolicyStatement, CassieError> {
-    let name = statement.name.trim().to_string();
+    let name = normalize_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "ENFORCE RETENTION POLICY requires a name".into(),
         ));
     }
     if catalog.get_retention_policy(&name).is_none() {
-        return Err(CassieError::Planner(format!(
-            "retention policy '{name}' does not exist"
-        )));
+        return Err(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::RetentionPolicy,
+            name,
+        });
     }
     validate_retention_timestamp(&statement.at)?;
     statement.name = name;

@@ -1,9 +1,11 @@
 use super::{
-    bind_select, bm25, infer_select_schema, is_reserved_namespace, select_contains_parameters,
-    virtual_views, AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation,
-    AlterTableStatement, CassieError, Catalog, CollectionSchema, CreateViewStatement, DataType,
-    DistanceMetric, DropIndexStatement, DropSchemaStatement, DropViewStatement, Expr, HashMap,
-    HashSet, QueryStatement,
+    bind_select, bm25, infer_select_schema, is_reserved_namespace, local_name,
+    normalize_relation_name, normalize_schema_name, resolve_relation_name, resolve_schema_name,
+    select_contains_parameters, virtual_views, AlterSchemaOperation, AlterSchemaStatement,
+    AlterTableOperation, AlterTableStatement, BindingContext, CassieError, Catalog,
+    CatalogObjectKind, CollectionSchema, CreateViewStatement, DataType, DistanceMetric,
+    DropIndexStatement, DropSchemaStatement, DropViewStatement, Expr, HashMap, HashSet,
+    QueryStatement,
 };
 
 #[path = "schema_alter_constraints.rs"]
@@ -18,8 +20,9 @@ use schema_alter_constraints::validate_alter_constraint_targets;
 pub(super) fn bind_create_table(
     mut statement: crate::sql::ast::CreateTableStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateTableStatement, CassieError> {
-    let name = statement.table.trim().to_string();
+    let name = normalize_relation_name(statement.table.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE TABLE requires a table name".into(),
@@ -59,7 +62,7 @@ pub(super) fn bind_create_table(
             )));
         }
 
-        for constraint in &field.constraints {
+        for constraint in &mut field.constraints {
             if constraint.primary_key {
                 if let Some(previous) = &primary_key_field {
                     return Err(CassieError::Planner(format!(
@@ -72,11 +75,13 @@ pub(super) fn bind_create_table(
                 constraint.references_table.as_deref(),
                 constraint.references_field.as_deref(),
             ) {
-                if !catalog.exists(table) {
+                let table = resolve_relation_name(table, catalog, context)?;
+                constraint.references_table = Some(table.clone());
+                if !catalog.exists(&table) {
                     return Err(CassieError::CollectionNotFound(table.to_string()));
                 }
                 let referenced_schema = catalog
-                    .get_schema(table)
+                    .get_schema(&table)
                     .ok_or_else(|| CassieError::CollectionNotFound(table.to_string()))?;
                 if !referenced_schema
                     .fields
@@ -89,11 +94,11 @@ pub(super) fn bind_create_table(
                 }
 
                 let references_supported =
-                    catalog.get_constraints(table).into_iter().any(|candidate| {
+                    catalog.get_constraints(&table).into_iter().any(|candidate| {
                         candidate.field.eq_ignore_ascii_case(reference_field)
                             && (candidate.primary_key || candidate.unique)
                     }) || catalog
-                        .list_indexes(table)
+                        .list_indexes(&table)
                         .into_iter()
                         .filter(|index| {
                             index.unique && index.kind == crate::catalog::IndexKind::Scalar
@@ -121,8 +126,9 @@ pub(super) fn bind_create_table(
 pub(super) fn bind_create_view(
     mut statement: CreateViewStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<CreateViewStatement, CassieError> {
-    let name = statement.name.trim().to_string();
+    let name = normalize_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner("CREATE VIEW requires a name".into()));
     }
@@ -135,7 +141,7 @@ pub(super) fn bind_create_view(
     }
 
     let parsed = crate::sql::parser::parse_statement(&statement.query)
-        .map_err(|error| CassieError::Parse(error.0))?;
+        .map_err(|error| CassieError::InvalidQuery(error.to_string()))?;
     let raw_sql = parsed.raw_sql.clone();
     let QueryStatement::Select(select) = parsed.statement else {
         return Err(CassieError::Planner(
@@ -143,7 +149,7 @@ pub(super) fn bind_create_view(
         ));
     };
 
-    let bound = bind_select(select, catalog, &HashMap::new())?;
+    let bound = bind_select(select, catalog, &HashMap::new(), context)?;
     if select_contains_parameters(&bound) {
         return Err(CassieError::Planner(
             "CREATE VIEW cannot contain bind parameters".into(),
@@ -160,8 +166,9 @@ pub(super) fn bind_create_view(
 pub(super) fn bind_drop_view(
     mut statement: DropViewStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<DropViewStatement, CassieError> {
-    let name = statement.name.trim().to_string();
+    let name = normalize_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner("DROP VIEW requires a name".into()));
     }
@@ -173,9 +180,10 @@ pub(super) fn bind_drop_view(
             )));
         }
         if !statement.if_exists {
-            return Err(CassieError::Planner(format!(
-                "view '{name}' does not exist"
-            )));
+            return Err(CassieError::CatalogObjectNotFound {
+                kind: CatalogObjectKind::View,
+                name,
+            });
         }
     }
 
@@ -186,8 +194,9 @@ pub(super) fn bind_drop_view(
 pub(super) fn bind_create_graph(
     mut statement: crate::sql::ast::CreateGraphStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateGraphStatement, CassieError> {
-    statement.name = statement.name.trim().to_string();
+    statement.name = normalize_relation_name(statement.name.trim(), context)?;
     if statement.name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE GRAPH requires a graph name".into(),
@@ -217,8 +226,9 @@ pub(super) fn bind_create_graph(
 pub(super) fn bind_create_index(
     statement: crate::sql::ast::CreateIndexStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateIndexStatement, CassieError> {
-    schema_indexes::bind_create_index(statement, catalog)
+    schema_indexes::bind_create_index(statement, catalog, context)
 }
 
 fn validate_graph_fields(
@@ -245,8 +255,9 @@ fn validate_graph_fields(
 pub(super) fn bind_drop_index(
     mut statement: DropIndexStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<DropIndexStatement, CassieError> {
-    let table = statement.table.trim().to_string();
+    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
             "DROP INDEX requires a collection name".into(),
@@ -269,9 +280,10 @@ pub(super) fn bind_drop_index(
     }
 
     if !statement.if_exists && catalog.get_index(&table, &name).is_none() {
-        return Err(CassieError::Planner(format!(
-            "index '{name}' does not exist on collection '{table}'"
-        )));
+        return Err(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::Index,
+            name,
+        });
     }
 
     statement.table = table;
@@ -282,21 +294,17 @@ pub(super) fn bind_drop_index(
 pub(super) fn bind_drop_schema(
     mut statement: DropSchemaStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<DropSchemaStatement, CassieError> {
-    let schema = statement.schema.trim().to_string();
+    let schema = resolve_schema_name(statement.schema.trim(), catalog, context)?;
     if schema.is_empty() {
         return Err(CassieError::Planner(
             "DROP SCHEMA requires a schema name".into(),
         ));
     }
-    if is_reserved_namespace(&schema) {
+    if is_reserved_namespace(&local_name(&schema)) {
         return Err(CassieError::Unsupported(format!(
             "namespace '{schema}' is reserved"
-        )));
-    }
-    if !statement.if_exists && !catalog.namespace_exists(&schema) {
-        return Err(CassieError::NotFound(format!(
-            "namespace '{schema}' does not exist"
         )));
     }
 
@@ -307,33 +315,29 @@ pub(super) fn bind_drop_schema(
 pub(super) fn bind_alter_schema(
     mut statement: AlterSchemaStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<AlterSchemaStatement, CassieError> {
-    let schema = statement.schema.trim().to_string();
+    let schema = resolve_schema_name(statement.schema.trim(), catalog, context)?;
     if schema.is_empty() {
         return Err(CassieError::Planner(
             "ALTER SCHEMA requires a schema name".into(),
         ));
     }
-    if is_reserved_namespace(&schema) {
+    if is_reserved_namespace(&local_name(&schema)) {
         return Err(CassieError::Unsupported(format!(
             "namespace '{schema}' is reserved"
-        )));
-    }
-    if !catalog.namespace_exists(&schema) {
-        return Err(CassieError::NotFound(format!(
-            "namespace '{schema}' does not exist"
         )));
     }
 
     match &mut statement.operation {
         AlterSchemaOperation::RenameTo { schema: target } => {
-            let next = target.trim().to_string();
+            let next = normalize_schema_name(target.trim(), context)?;
             if next.is_empty() {
                 return Err(CassieError::Planner(
                     "ALTER SCHEMA RENAME TO requires a schema name".into(),
                 ));
             }
-            if is_reserved_namespace(&next) {
+            if is_reserved_namespace(&local_name(&next)) {
                 return Err(CassieError::Unsupported(format!(
                     "namespace '{next}' is reserved"
                 )));
@@ -359,8 +363,9 @@ pub(super) fn bind_alter_schema(
 pub(super) fn bind_drop_table(
     mut statement: crate::sql::ast::DropTableStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<crate::sql::ast::DropTableStatement, CassieError> {
-    let table = statement.table.trim().to_string();
+    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
             "DROP TABLE requires a table name".into(),
@@ -381,8 +386,9 @@ pub(super) fn bind_drop_table(
 pub(super) fn bind_alter_table(
     mut statement: AlterTableStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<AlterTableStatement, CassieError> {
-    let table = statement.table.trim().to_string();
+    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
             "ALTER TABLE requires a table name".into(),

@@ -2,10 +2,11 @@ use super::plan_inspection;
 use super::{
     aggregate_accel, aggregate_exec, batch, build_logical_plan, catalog, check_timeout,
     deduce_text_fields, ensure_temp_budget, execute_plan, execute_plan_with_outer_row, filter,
-    graph, load_fulltext_index_options, projection, resolve_exists_expr, row_signature, scan, sort,
-    virtual_views, window_exec, AnalyzerConfig, Batch, BatchRow, BinaryOp, Cassie, CassieSession,
-    CteContext, Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan, QueryError,
-    QueryExecutionControls, QuerySource, Value,
+    graph, load_fulltext_index_options, plan_execution_env, projection, resolve_exists_expr,
+    row_signature, scan, sort, virtual_views, window_exec, AnalyzerConfig, Batch, BatchRow,
+    BinaryOp, Cassie, CassieSession, CteContext, ExistsResolutionContext, Expr, FunctionMeta,
+    HashMap, HashSet, Instant, JoinKind, LogicalPlan, QueryError, QueryExecutionControls,
+    QuerySource, Value,
 };
 
 #[path = "source_join.rs"]
@@ -51,13 +52,15 @@ pub(super) fn execute_query_source(
         } => {
             let (batches, text_fields) = source_join::execute_join_source(
                 env,
-                left,
-                right,
-                *kind,
-                on,
+                source_join::JoinExecutionSpec {
+                    left,
+                    right,
+                    kind: *kind,
+                    on,
+                    outer_row,
+                    row_budget,
+                },
                 cte_context,
-                outer_row,
-                row_budget,
             )?;
             ensure_temp_budget(env.controls, &batches)?;
             Ok((batches, text_fields))
@@ -71,7 +74,7 @@ fn execute_collection_source(
     qualify: bool,
     row_budget: Option<usize>,
 ) -> SourceExecution {
-    if let Some(rows) = virtual_views::rows(&env.cassie.catalog, name) {
+    if let Some(rows) = virtual_views::rows(&env.cassie.catalog, name, env.session) {
         return finalize_source_batches(
             env,
             materialize_virtual_rows(rows),
@@ -106,7 +109,7 @@ fn execute_view_source(
     qualify: bool,
 ) -> SourceExecution {
     let parsed = crate::sql::parser::parse_statement(&view.query)
-        .map_err(|error| QueryError::General(error.0))?;
+        .map_err(|error| QueryError::General(error.to_string()))?;
     let logical = build_logical_plan(&parsed)?;
     let mut view_cte_context = CteContext::new();
     let rows = execute_plan(
@@ -227,14 +230,17 @@ fn execute_subquery_source(
         set: select.set.clone(),
     };
     let mut subquery_context = cte_context.clone();
-    let rows = execute_plan_with_outer_row(
+    let plan_env = plan_execution_env(
         env.cassie,
         env.session,
-        &logical,
-        &mut subquery_context,
         env.user_functions,
         env.params,
         env.controls,
+    );
+    let rows = execute_plan_with_outer_row(
+        &plan_env,
+        &logical,
+        &mut subquery_context,
         if lateral { outer_row } else { None },
     )?;
     let text_fields = deduce_text_fields(
@@ -279,87 +285,82 @@ pub(super) use source_rows::{
     slice_rows, source_contains_lateral,
 };
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn execute_source_query_with_outer_row(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
+    env: &SourceExecutionEnv<'_>,
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
-    user_functions: &HashMap<String, FunctionMeta>,
-    params: &[Value],
-    controls: &QueryExecutionControls,
     outer_row: Option<&BatchRow>,
 ) -> Result<Vec<BatchRow>, QueryError> {
-    check_timeout(controls)?;
+    check_timeout(env.controls)?;
     let started_at = Instant::now();
-    if let Some(rows) = aggregate_accel::try_execute_column_batch_aggregate(cassie, session, plan)?
+    if let Some(rows) =
+        aggregate_accel::try_execute_column_batch_aggregate(env.cassie, env.session, plan)?
     {
         return Ok(rows);
     }
-    let env = source_execution_env(cassie, session, user_functions, params, controls);
-    let (mut batches, text_fields) = load_source_batches(&env, plan, cte_context, outer_row)?;
+    let (mut batches, text_fields) = load_source_batches(env, plan, cte_context, outer_row)?;
     let candidate_rows = batches.iter().map(std::vec::Vec::len).sum::<usize>();
     let fulltext_fields = plan_inspection::fulltext_query_fields(plan);
     let search_context =
-        build_search_context(cassie, plan, &batches, &text_fields, &fulltext_fields)?;
+        build_search_context(env.cassie, plan, &batches, &text_fields, &fulltext_fields)?;
     let phase_env = PhaseExecutionEnv {
-        cassie,
-        session,
-        params,
-        user_functions,
-        controls,
+        cassie: env.cassie,
+        session: env.session,
+        params: env.params,
+        user_functions: env.user_functions,
+        controls: env.controls,
         search_context: search_context.as_ref(),
     };
     let resolved_filter = resolve_plan_filter(
-        cassie,
-        session,
+        env.cassie,
+        env.session,
         plan,
         cte_context,
-        user_functions,
-        params,
-        controls,
+        env.user_functions,
+        env.params,
+        env.controls,
     )?;
     batches = apply_filter_phase(
         batches,
         resolved_filter.as_ref(),
-        params,
+        env.params,
         search_context.as_ref(),
-        user_functions,
-        session,
-        controls,
+        env.user_functions,
+        env.session,
+        env.controls,
     )?;
     batches = apply_aggregate_phase(&phase_env, batches, plan)?;
     batches = apply_window_phase(
         batches,
         plan,
-        params,
+        env.params,
         search_context.as_ref(),
-        user_functions,
-        session,
-        controls,
+        env.user_functions,
+        env.session,
+        env.controls,
     )?;
     batches = apply_sort_phase(
         batches,
         plan,
-        params,
+        env.params,
         search_context.as_ref(),
-        user_functions,
-        session,
-        controls,
+        env.user_functions,
+        env.session,
+        env.controls,
     )?;
     batches = apply_projection_phase(
         batches,
         plan,
-        params,
+        env.params,
         search_context.as_ref(),
-        user_functions,
-        session,
-        controls,
+        env.user_functions,
+        env.session,
+        env.controls,
     )?;
 
     let rows = finalize_plan_rows(&phase_env, plan, cte_context, batches)?;
     record_plan_metrics(
-        cassie,
+        env.cassie,
         plan,
         &fulltext_fields,
         started_at.elapsed(),
@@ -370,7 +371,7 @@ pub(super) fn execute_source_query_with_outer_row(
     Ok(rows)
 }
 
-fn source_execution_env<'a>(
+pub(super) fn source_execution_env<'a>(
     cassie: &'a Cassie,
     session: Option<&'a CassieSession>,
     user_functions: &'a HashMap<String, FunctionMeta>,
@@ -488,13 +489,15 @@ fn resolve_plan_filter(
 ) -> Result<Option<Expr>, QueryError> {
     plan.filter.as_ref().map_or(Ok(None), |filter_expr| {
         resolve_exists_expr(
-            cassie,
-            session,
+            &ExistsResolutionContext {
+                cassie,
+                session,
+                cte_context,
+                user_functions,
+                params,
+                controls,
+            },
             filter_expr,
-            cte_context,
-            user_functions,
-            params,
-            controls,
         )
         .map(Some)
     })

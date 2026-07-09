@@ -1,14 +1,15 @@
 use super::{
-    CallProcedureStatement, CassieError, Catalog, CreateFunctionStatement,
-    CreateProcedureStatement, DropFunctionStatement, DropProcedureStatement, Expr, HashSet,
-    QueryStatement,
+    normalize_relation_name, BindingContext, CallProcedureStatement, CassieError, Catalog,
+    CreateFunctionStatement, CreateProcedureStatement, DropFunctionStatement,
+    DropProcedureStatement, Expr, HashSet, QueryStatement,
 };
 
 pub(super) fn bind_create_function(
     mut statement: CreateFunctionStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<CreateFunctionStatement, CassieError> {
-    let name = statement.name.trim().to_string();
+    let name = normalize_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE FUNCTION requires a name".into(),
@@ -54,7 +55,7 @@ pub(super) fn bind_create_function(
         ));
     }
     let parsed_body = crate::sql::parser::parse_expression(&body).map_err(|error| {
-        CassieError::Planner(format!("invalid function body for '{name}': {}", error.0))
+        CassieError::Planner(format!("invalid function body for '{name}': {error}"))
     })?;
 
     if function_body_references(&parsed_body, &name) {
@@ -71,8 +72,9 @@ pub(super) fn bind_create_function(
 pub(super) fn bind_drop_function(
     mut statement: DropFunctionStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<DropFunctionStatement, CassieError> {
-    let name = statement.name.trim().to_string();
+    let name = normalize_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner("DROP FUNCTION requires a name".into()));
     }
@@ -90,8 +92,9 @@ pub(super) fn bind_drop_function(
 pub(super) fn bind_create_procedure(
     mut statement: CreateProcedureStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<CreateProcedureStatement, CassieError> {
-    let name = statement.name.trim().to_string();
+    let name = normalize_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE PROCEDURE requires a name".into(),
@@ -129,7 +132,7 @@ pub(super) fn bind_create_procedure(
     }
 
     let parsed_body = crate::sql::parse_statement(&body).map_err(|error| {
-        CassieError::Planner(format!("invalid procedure body for '{name}': {}", error.0))
+        CassieError::Planner(format!("invalid procedure body for '{name}': {error}"))
     })?;
     if matches!(parsed_body.statement, QueryStatement::Transaction(_)) {
         return Err(CassieError::Unsupported(
@@ -154,8 +157,9 @@ pub(super) fn bind_create_procedure(
 pub(super) fn bind_drop_procedure(
     mut statement: DropProcedureStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<DropProcedureStatement, CassieError> {
-    let name = statement.name.trim().to_string();
+    let name = normalize_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "DROP PROCEDURE requires a name".into(),
@@ -175,8 +179,9 @@ pub(super) fn bind_drop_procedure(
 pub(super) fn bind_call_procedure(
     statement: CallProcedureStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<CallProcedureStatement, CassieError> {
-    let name = statement.name.trim().to_string();
+    let name = normalize_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner("CALL requires a name".into()));
     }

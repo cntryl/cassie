@@ -34,7 +34,7 @@ fn command_outcome(
     execute_session_or_dml_command(cassie, session, command, params, user_functions, controls)
         .or_else(|| execute_projection_command_group(cassie, command, user_functions, controls))
         .or_else(|| execute_retention_sequence_group(cassie, command, user_functions, controls))
-        .or_else(|| execute_schema_object_group(cassie, command))
+        .or_else(|| execute_schema_object_group(cassie, session, command))
         .or_else(|| {
             execute_routine_group(cassie, session, command, params, user_functions, controls)
         })
@@ -51,10 +51,10 @@ fn execute_session_or_dml_command(
 ) -> Option<CommandExecution> {
     match command {
         LogicalCommand::Show(statement) => Some(CommandExecution::new(
-            super::session_command::execute_show(statement),
+            super::session_command::execute_show(session, statement),
         )),
         LogicalCommand::Set(statement) => Some(CommandExecution::new(
-            super::session_command::execute_set(statement),
+            super::session_command::execute_set(cassie, session, statement),
         )),
         LogicalCommand::Copy(_) => Some(CommandExecution::new(Err(QueryError::General(
             "COPY requires pgwire COPY FROM STDIN data stream".to_string(),
@@ -205,6 +205,7 @@ fn execute_retention_sequence_group(
 
 fn execute_schema_object_group(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     command: &LogicalCommand,
 ) -> Option<CommandExecution> {
     match command {
@@ -213,6 +214,12 @@ fn execute_schema_object_group(
         )),
         LogicalCommand::CreateGraph(statement) => Some(CommandExecution::invalidating(
             super::schema_command::create_graph(cassie, statement),
+        )),
+        LogicalCommand::CreateDatabase(statement) => Some(CommandExecution::invalidating(
+            super::schema_command::create_database(cassie, statement),
+        )),
+        LogicalCommand::DropDatabase(statement) => Some(CommandExecution::invalidating(
+            super::schema_command::drop_database(cassie, session, statement),
         )),
         LogicalCommand::CreateView(statement) => Some(CommandExecution::invalidating(
             super::schema_command::create_view(cassie, statement),

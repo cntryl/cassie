@@ -32,17 +32,19 @@ pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlErro
     };
 
     let select_pos = find_top_level_keyword(after_recursive, 0, "select")
-        .ok_or_else(|| SqlError("missing SELECT after WITH clause".into()))?;
+        .ok_or_else(|| SqlError::new("missing SELECT after WITH clause".into()))?;
 
     let cte_sql = after_recursive[..select_pos].trim();
     if cte_sql.is_empty() {
-        return Err(SqlError("missing CTE definition in WITH clause".into()));
+        return Err(SqlError::new(
+            "missing CTE definition in WITH clause".into(),
+        ));
     }
     if !after_recursive[select_pos..]
         .to_lowercase()
         .starts_with("select ")
     {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "only SELECT statements are supported in this stage".into(),
         ));
     }
@@ -57,7 +59,7 @@ pub(super) fn parse_projection_items(
 ) -> Result<Vec<crate::sql::ast::SelectItem>, SqlError> {
     let raw = raw.trim();
     if raw.is_empty() {
-        return Err(SqlError("missing projection".into()));
+        return Err(SqlError::new("missing projection".into()));
     }
 
     let mut projection = Vec::new();
@@ -76,7 +78,7 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
 
     let (expr_raw, alias) = parse_alias(token);
     if expr_raw.trim().is_empty() {
-        return Err(SqlError("invalid projection item".into()));
+        return Err(SqlError::new("invalid projection item".into()));
     }
 
     if let Some(function) = parse_window_function(expr_raw)? {
@@ -96,7 +98,7 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
         Expr::Column(name) => SelectItem::Column { name, alias },
         Expr::Binary { .. } => SelectItem::Expr { expr, alias },
         _ => {
-            return Err(SqlError("unsupported projection expression".into()));
+            return Err(SqlError::new("unsupported projection expression".into()));
         }
     })
 }
@@ -106,13 +108,13 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
         return Ok(None);
     };
     let function = parse_function(function_raw.trim())?
-        .ok_or_else(|| SqlError("window function requires function call".into()))?;
+        .ok_or_else(|| SqlError::new("window function requires function call".into()))?;
     let function_name = function.name.to_ascii_lowercase();
     if !matches!(
         function_name.as_str(),
         "row_number" | "rank" | "dense_rank" | "lag" | "lead" | "first_value" | "last_value"
     ) {
-        return Err(SqlError(format!(
+        return Err(SqlError::new(format!(
             "unsupported window function '{}'",
             function.name
         )));
@@ -120,7 +122,7 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
     if matches!(function_name.as_str(), "row_number" | "rank" | "dense_rank")
         && !function.args.is_empty()
     {
-        return Err(SqlError(format!(
+        return Err(SqlError::new(format!(
             "{} window function expects no args",
             function.name
         )));
@@ -130,14 +132,14 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
         "lag" | "lead" | "first_value" | "last_value"
     ) && function.args.len() != 1
     {
-        return Err(SqlError(format!(
+        return Err(SqlError::new(format!(
             "{} window function expects one arg",
             function.name
         )));
     }
 
     let over_body = strip_parentheses(over_raw.trim())
-        .ok_or_else(|| SqlError("window function OVER clause requires parentheses".into()))?;
+        .ok_or_else(|| SqlError::new("window function OVER clause requires parentheses".into()))?;
     let (partition_by, order_by) = parse_window_spec(over_body)?;
     Ok(Some(WindowFunctionCall {
         name: function.name,
@@ -174,7 +176,7 @@ pub(super) fn parse_window_spec(raw: &str) -> Result<(Vec<Expr>, Vec<OrderExpr>)
         return Ok((Vec::new(), parse_order_by(&raw["order by ".len()..])?));
     }
 
-    Err(SqlError("unsupported window function syntax".into()))
+    Err(SqlError::new("unsupported window function syntax".into()))
 }
 
 pub(super) fn parse_query_source(raw: &str) -> Result<QuerySource, SqlError> {
@@ -218,7 +220,7 @@ pub(super) fn parse_join_source(
     kind: JoinKind,
 ) -> Result<QuerySource, SqlError> {
     let (right, on) = split_top_level(right, " on ")
-        .ok_or_else(|| SqlError("JOIN requires ON predicate".into()))?;
+        .ok_or_else(|| SqlError::new("JOIN requires ON predicate".into()))?;
     Ok(QuerySource::Join {
         left: Box::new(parse_query_source(left)?),
         right: Box::new(parse_query_source(right)?),
@@ -277,7 +279,7 @@ pub(super) fn mark_source_lateral(source: QuerySource) -> QuerySource {
 pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlError> {
     let raw = raw.trim();
     if raw.is_empty() {
-        return Err(SqlError("missing collection in FROM".into()));
+        return Err(SqlError::new("missing collection in FROM".into()));
     }
 
     let lateral = raw.eq_ignore_ascii_case("lateral")
@@ -288,7 +290,7 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
 
     if raw.starts_with('(') {
         let close = matching_closing_paren(raw)
-            .ok_or_else(|| SqlError("invalid FROM subquery syntax".into()))?;
+            .ok_or_else(|| SqlError::new("invalid FROM subquery syntax".into()))?;
         let subquery_sql = &raw[1..close];
         let alias_raw = raw[close + 1..].trim();
         let alias = alias_raw
@@ -297,14 +299,16 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
             .unwrap_or(alias_raw)
             .trim();
         if alias.is_empty() || alias.split_whitespace().count() != 1 {
-            return Err(SqlError(
+            return Err(SqlError::new(
                 "FROM subquery requires a deterministic alias".into(),
             ));
         }
 
         let parsed = parse_statement(subquery_sql)?;
         let QueryStatement::Select(select) = parsed.statement else {
-            return Err(SqlError("FROM subquery must be a SELECT statement".into()));
+            return Err(SqlError::new(
+                "FROM subquery must be a SELECT statement".into(),
+            ));
         };
         return Ok(QuerySource::Subquery {
             alias: alias.to_string(),
@@ -329,7 +333,7 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
 
     let tokens = split_csv_quoted_by_space(raw);
     if tokens.len() != 1 {
-        return Err(SqlError("unsupported FROM syntax".into()));
+        return Err(SqlError::new("unsupported FROM syntax".into()));
     }
 
     Ok(QuerySource::Collection(tokens[0].trim().to_string()))
@@ -368,29 +372,32 @@ pub(super) fn parse_cte_definitions(
         }
 
         let as_pos = find_top_level_keyword(definition, 0, "as").ok_or_else(|| {
-            SqlError(format!("invalid CTE definition '{definition}': missing AS"))
+            SqlError::new(format!("invalid CTE definition '{definition}': missing AS"))
         })?;
         let head = definition[..as_pos].trim();
         let body = definition[as_pos + 2..].trim();
 
         let (name, aliases) = parse_cte_header(head)?;
         let body_sql = parse_enclosed_parenthesized(body)
-            .ok_or_else(|| SqlError(format!("invalid CTE body for '{name}'")))?;
+            .ok_or_else(|| SqlError::new(format!("invalid CTE body for '{name}'")))?;
         let query = if let Some(query) = parse_recursive_cte_query(&body_sql) {
             query
         } else {
-            let parsed_body = parse_statement(&body_sql)
-                .map_err(|error| SqlError(format!("invalid CTE body for '{name}': {}", error.0)))?;
+            let parsed_body = parse_statement(&body_sql).map_err(|error| {
+                SqlError::new(format!("invalid CTE body for '{name}': {error}"))
+            })?;
 
             CteQuery::Simple(Box::new(parsed_body))
         };
         if recursive && !matches!(query, CteQuery::Recursive { .. }) {
-            return Err(SqlError(format!(
+            return Err(SqlError::new(format!(
                 "recursive CTE '{name}' must include UNION ALL between anchor and recursive queries"
             )));
         }
         if !recursive && matches!(query, CteQuery::Recursive { .. }) {
-            return Err(SqlError("WITH clause is not marked RECURSIVE".to_string()));
+            return Err(SqlError::new(
+                "WITH clause is not marked RECURSIVE".to_string(),
+            ));
         }
 
         out.push(CommonTableExpression {
@@ -401,7 +408,7 @@ pub(super) fn parse_cte_definitions(
     }
 
     if out.is_empty() {
-        return Err(SqlError("empty WITH clause".into()));
+        return Err(SqlError::new("empty WITH clause".into()));
     }
 
     Ok(out)
@@ -427,18 +434,18 @@ pub(super) fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlEr
     if let Some(open) = open {
         let close = raw
             .rfind(')')
-            .ok_or_else(|| SqlError(format!("invalid CTE header '{raw}'")))?;
+            .ok_or_else(|| SqlError::new(format!("invalid CTE header '{raw}'")))?;
         if close <= open {
-            return Err(SqlError(format!("invalid CTE header '{raw}'")));
+            return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }
 
         let name = raw[..open].trim();
         if name.is_empty() || name.contains('(') || name.contains(')') {
-            return Err(SqlError(format!("invalid CTE header '{raw}'")));
+            return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }
 
         if !raw[close + 1..].trim().is_empty() {
-            return Err(SqlError(format!("invalid CTE header '{raw}'")));
+            return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }
 
         let aliases = raw[(open + 1)..close]
@@ -447,13 +454,13 @@ pub(super) fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlEr
             .filter(|alias| !alias.is_empty())
             .collect::<Vec<_>>();
         if aliases.is_empty() {
-            return Err(SqlError(format!("invalid CTE header '{raw}'")));
+            return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }
 
         Ok((name.to_string(), aliases))
     } else {
         if raw.contains('(') || raw.contains(')') {
-            return Err(SqlError(format!("invalid CTE header '{raw}'")));
+            return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }
 
         Ok((raw.to_string(), Vec::new()))

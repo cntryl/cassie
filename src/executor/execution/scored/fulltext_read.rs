@@ -62,10 +62,12 @@ pub(super) fn execute_fulltext_filtered_read(
         &spec.collection,
         &spec.text_field,
         &search_documents,
-        &search_index_options.field_boost,
-        &search_index_options.field_k1,
-        &search_index_options.field_b,
-        &search_index_options.field_analyzer,
+        super::FulltextSearchTuning {
+            boost: &search_index_options.field_boost,
+            k1: &search_index_options.field_k1,
+            b: &search_index_options.field_b,
+            analyzer: &search_index_options.field_analyzer,
+        },
     )?;
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
     let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);

@@ -401,27 +401,27 @@ fn should_enforce_deterministic_rest_bearer_auth() {
 
         // Act
         let unauthorized = client
-            .get(format!("http://{addr}/v1/collections"))
+            .get(format!("http://{addr}/api/v1/collections"))
             .send()
             .await
             .expect("request with no auth");
 
         let wrong_token = client
-            .get(format!("http://{addr}/v1/collections"))
+            .get(format!("http://{addr}/api/v1/collections"))
             .header("authorization", "Bearer sa:wrong-token")
             .send()
             .await
             .expect("request with wrong auth");
 
         let authorized = client
-            .get(format!("http://{addr}/v1/collections"))
+            .get(format!("http://{addr}/api/v1/collections"))
             .header("authorization", "Bearer sa:topsecret")
             .send()
             .await
             .expect("request with correct auth");
 
         let forbidden = client
-            .get(format!("http://{addr}/v1/collections"))
+            .get(format!("http://{addr}/api/v1/collections"))
             .header("authorization", "Bearer alice:alice-secret")
             .send()
             .await

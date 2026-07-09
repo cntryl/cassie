@@ -41,16 +41,8 @@ pub(super) fn try_execute_analytical_projection(
     let mut rewritten = plan.clone();
     rewritten.source = QuerySource::Collection(output_collection.clone());
     rewritten.collection = output_collection;
-    let rows = super::execute_plan_with_outer_row(
-        cassie,
-        session,
-        &rewritten,
-        cte_context,
-        user_functions,
-        params,
-        controls,
-        None,
-    )?;
+    let env = super::plan_execution_env(cassie, session, user_functions, params, controls);
+    let rows = super::execute_plan_with_outer_row(&env, &rewritten, cte_context, None)?;
     cassie
         .runtime
         .record_mixed_execution_optimized(projection_name);

@@ -1,18 +1,19 @@
 use super::{
     bind_statement, collect_projection_aliases, mem, qualified_fields,
-    recursive_cte_references_self, validate_distinct_on_order_prefix, validate_expression,
-    validate_expression_references, validate_functions, validate_order_by_references,
-    validate_projection_references, virtual_views, CassieError, Catalog, CteQuery, CteScope,
-    DataType, Expr, FunctionCall, HashSet, QuerySource, QueryStatement, SelectItem, SelectSet,
-    SelectStatement,
+    recursive_cte_references_self, resolve_relation_name, validate_distinct_on_order_prefix,
+    validate_expression, validate_expression_references, validate_functions,
+    validate_order_by_references, validate_projection_references, virtual_views, BindingContext,
+    CassieError, Catalog, CteQuery, CteScope, DataType, Expr, FunctionCall, HashSet,
+    QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement,
 };
 
 pub(super) fn bind_select(
     select: SelectStatement,
     catalog: &Catalog,
     outer_scope: &CteScope,
+    context: &BindingContext,
 ) -> Result<SelectStatement, CassieError> {
-    bind_select_with_lateral_fields(select, catalog, outer_scope, &HashSet::new())
+    bind_select_with_lateral_fields(select, catalog, outer_scope, &HashSet::new(), context)
 }
 
 pub(super) fn bind_select_with_lateral_fields(
@@ -20,6 +21,7 @@ pub(super) fn bind_select_with_lateral_fields(
     catalog: &Catalog,
     outer_scope: &CteScope,
     lateral_fields: &HashSet<String>,
+    context: &BindingContext,
 ) -> Result<SelectStatement, CassieError> {
     let mut scope = outer_scope.clone();
     let mut local_names = HashSet::new();
@@ -42,7 +44,7 @@ pub(super) fn bind_select_with_lateral_fields(
 
         let query = match cte.query {
             CteQuery::Simple(next) => {
-                CteQuery::Simple(Box::new(bind_statement(*next, catalog, &scope)?))
+                CteQuery::Simple(Box::new(bind_statement(*next, catalog, &scope, context)?))
             }
             CteQuery::Recursive { base, recursive } => {
                 if cte.aliases.is_empty() {
@@ -54,8 +56,9 @@ pub(super) fn bind_select_with_lateral_fields(
                 let mut recursive_scope = scope.clone();
                 recursive_scope.insert(cte_name_lc.clone(), cte.aliases.clone());
 
-                let bound_base = bind_statement(*base, catalog, &recursive_scope)?;
-                let bound_recursive = bind_statement(*recursive, catalog, &recursive_scope)?;
+                let bound_base = bind_statement(*base, catalog, &recursive_scope, context)?;
+                let bound_recursive =
+                    bind_statement(*recursive, catalog, &recursive_scope, context)?;
 
                 if !recursive_cte_references_self(&bound_recursive, cte_name) {
                     return Err(CassieError::Planner(format!(
@@ -99,6 +102,7 @@ pub(super) fn bind_select_with_lateral_fields(
         catalog,
         &scope,
         lateral_fields,
+        context,
     )?;
     let mut known_fields = source_fields(catalog, &source, &scope)?;
     known_fields.extend(lateral_fields.iter().cloned());
@@ -109,7 +113,7 @@ pub(super) fn bind_select_with_lateral_fields(
     validate_bound_select_references(&select, &known_fields, &projection_aliases)?;
 
     if let Some(set) = set {
-        let right = bind_select(*set.right, catalog, &scope)?;
+        let right = bind_select(*set.right, catalog, &scope, context)?;
         select.set = Some(Box::new(SelectSet {
             operator: set.operator,
             right: Box::new(right),
@@ -203,16 +207,17 @@ pub(super) fn bind_query_source_with_lateral_fields(
     catalog: &Catalog,
     scope: &CteScope,
     lateral_fields: &HashSet<String>,
+    context: &BindingContext,
 ) -> Result<QuerySource, CassieError> {
     match source {
         QuerySource::Collection(name) => {
             let source_name_lc = name.to_ascii_lowercase();
             if scope.contains_key(&source_name_lc) {
                 Ok(QuerySource::Cte(name))
-            } else if catalog.relation_exists(&name) || virtual_views::schema(&name).is_some() {
-                Ok(QuerySource::Collection(name))
             } else {
-                Err(CassieError::CollectionNotFound(name))
+                Ok(QuerySource::Collection(resolve_relation_name(
+                    &name, catalog, context,
+                )?))
             }
         }
         QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
@@ -243,8 +248,13 @@ pub(super) fn bind_query_source_with_lateral_fields(
         } => {
             let empty = HashSet::new();
             let visible_lateral_fields = if lateral { lateral_fields } else { &empty };
-            let select =
-                bind_select_with_lateral_fields(*select, catalog, scope, visible_lateral_fields)?;
+            let select = bind_select_with_lateral_fields(
+                *select,
+                catalog,
+                scope,
+                visible_lateral_fields,
+                context,
+            )?;
             Ok(QuerySource::Subquery {
                 alias,
                 select: Box::new(select),
@@ -257,8 +267,13 @@ pub(super) fn bind_query_source_with_lateral_fields(
             kind,
             on,
         } => {
-            let left =
-                bind_query_source_with_lateral_fields(*left, catalog, scope, lateral_fields)?;
+            let left = bind_query_source_with_lateral_fields(
+                *left,
+                catalog,
+                scope,
+                lateral_fields,
+                context,
+            )?;
             let mut right_lateral_fields = lateral_fields.clone();
             right_lateral_fields.extend(source_fields(catalog, &left, scope)?);
             let right = bind_query_source_with_lateral_fields(
@@ -266,6 +281,7 @@ pub(super) fn bind_query_source_with_lateral_fields(
                 catalog,
                 scope,
                 &right_lateral_fields,
+                context,
             )?;
             let joined = QuerySource::Join {
                 left: Box::new(left),

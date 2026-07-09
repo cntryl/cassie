@@ -12,9 +12,10 @@ use crate::catalog::{
     payload_contains_index_membership, payload_contains_vector_membership,
     CollectionCardinalityStats, CollectionMeta, CollectionStorageMode, ColumnBatchCodecMeta,
     ColumnBatchColumn, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchPayload,
-    ColumnBatchRow, ColumnBatchSegmentMeta, ColumnBatchValueRun, FieldCardinalityStats,
-    FieldConstraint, FieldHeavyHitter, FieldHistogramBucket, IndexKind, IndexMeta, NamespaceMeta,
-    OperationalAssignmentMeta, ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta,
+    ColumnBatchRow, ColumnBatchSegmentMeta, ColumnBatchValueRun, DatabaseMeta,
+    FieldCardinalityStats, FieldConstraint, FieldHeavyHitter, FieldHistogramBucket, IndexKind,
+    IndexMeta, NamespaceMeta, OperationalAssignmentMeta, ProjectionMeta, RetentionPolicyMeta,
+    RoleMeta, RollupMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord};
 use crate::midge::row_blob::{
@@ -34,6 +35,8 @@ mod capacity;
 mod cardinality_stats;
 mod column_batches;
 mod column_store;
+mod databases;
+pub(crate) use column_store::{ColumnStoreScanRequest, OrderedColumnStoreScanRequest};
 pub(crate) mod documents;
 mod fresh_documents;
 mod graphs;
@@ -60,7 +63,7 @@ pub(crate) mod time_series_indexes;
 mod vector_indexes;
 mod verification;
 
-pub(crate) use documents::{DocumentWriteBatchOptions, DocumentWriteOp};
+pub(crate) use documents::{DocumentWriteBatchOptions, DocumentWriteOp, OrderedRowScanRequest};
 pub(crate) use graphs::GraphEdgeRecord;
 pub(crate) use scan_types::OrderedRowBound;
 pub use scan_types::{
@@ -321,6 +324,18 @@ impl Midge {
         key_encoding::constraints_key(collection)
     }
 
+    fn database_key(name: &str) -> Vec<u8> {
+        key_encoding::database_key(name)
+    }
+
+    fn database_prefix() -> Vec<u8> {
+        key_encoding::database_prefix()
+    }
+
+    fn databases_key() -> Vec<u8> {
+        key_encoding::databases_key()
+    }
+
     fn namespace_key(namespace: &str) -> Vec<u8> {
         key_encoding::namespace_key(namespace)
     }
@@ -419,6 +434,15 @@ impl Midge {
         Ok(parsed)
     }
 
+    fn load_databases(tx: &cntryl_midge::Transaction) -> Result<Vec<String>, CassieError> {
+        let Some(raw) = tx.get(&Self::databases_key()).map_err(CassieError::from)? else {
+            return Ok(Vec::new());
+        };
+        let parsed: Vec<String> =
+            serde_json::from_slice(&raw).map_err(|error| CassieError::Parse(error.to_string()))?;
+        Ok(parsed)
+    }
+
     fn load_namespaces(tx: &cntryl_midge::Transaction) -> Result<Vec<String>, CassieError> {
         let Some(raw) = tx.get(&Self::namespaces_key()).map_err(CassieError::from)? else {
             return Ok(Vec::new());
@@ -435,6 +459,17 @@ impl Midge {
         let value = serde_json::to_vec(collections)
             .map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::collections_key(), value, None)
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    fn save_databases(
+        tx: &mut cntryl_midge::Transaction,
+        databases: &[String],
+    ) -> Result<(), CassieError> {
+        let value =
+            serde_json::to_vec(databases).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(Self::databases_key(), value, None)
             .map_err(CassieError::from)?;
         Ok(())
     }

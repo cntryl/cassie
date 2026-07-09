@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::catalog::{derive_scoped_name, name_matches};
 use crate::types::DataType;
 
 use super::Catalog;
@@ -48,17 +49,19 @@ impl Catalog {
 
     #[must_use]
     pub fn get_sequence(&self, name: &str) -> Option<SequenceMeta> {
-        self.sequences
-            .read()
-            .get(&name.to_ascii_lowercase())
-            .cloned()
+        let key = name.to_ascii_lowercase();
+        let sequences = self.sequences.read();
+        sequences.get(&key).cloned().or_else(|| {
+            sequences
+                .values()
+                .find(|sequence| name_matches(&sequence.name, name))
+                .cloned()
+        })
     }
 
     #[must_use]
     pub fn sequence_exists(&self, name: &str) -> bool {
-        self.sequences
-            .read()
-            .contains_key(&name.to_ascii_lowercase())
+        self.get_sequence(name).is_some()
     }
 
     #[must_use]
@@ -78,7 +81,7 @@ impl Catalog {
 
 #[must_use]
 pub fn serial_sequence_name(table: &str, field: &str) -> String {
-    format!("{table}_{field}_seq")
+    derive_scoped_name(table, |local| format!("{local}_{field}_seq"))
 }
 
 #[must_use]

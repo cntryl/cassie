@@ -1,11 +1,37 @@
-use super::auth::{hash_password, verify_password};
-use super::{normalize_role_name, Cassie, CassieError, CassieSession, RoleMeta};
+use super::auth::hash_password;
+use super::{normalize_role_name, Cassie, CassieError, CassieSession, CatalogObjectKind, RoleMeta};
 
 impl Cassie {
     #[must_use]
     pub fn create_session(&self, user: &str, database: Option<String>) -> CassieSession {
         let database = database.or_else(|| Some(self.default_database.clone()));
         CassieSession::new(user.to_string(), database)
+    }
+
+    #[must_use]
+    pub(crate) fn database_catalog_enforced(&self) -> bool {
+        self.is_started() || !self.catalog.list_databases().is_empty()
+    }
+
+    pub(crate) fn ensure_database_exists(&self, database: &str) -> Result<(), CassieError> {
+        if !self.database_catalog_enforced() || self.catalog.database_exists(database) {
+            return Ok(());
+        }
+
+        Err(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::Database,
+            name: database.to_string(),
+        })
+    }
+
+    pub(crate) fn ensure_session_database_exists(
+        &self,
+        session: &CassieSession,
+    ) -> Result<(), CassieError> {
+        let database = session
+            .current_database()
+            .unwrap_or(self.default_database.as_str());
+        self.ensure_database_exists(database)
     }
 
     pub(crate) fn lookup_role(&self, name: &str) -> Result<Option<RoleMeta>, CassieError> {
@@ -32,29 +58,8 @@ impl Cassie {
         password: Option<&str>,
         database: Option<String>,
     ) -> Result<CassieSession, CassieError> {
-        let normalized = normalize_role_name(user);
-        let Some(role) = self.lookup_role(&normalized)? else {
-            return Err(CassieError::Unauthorized);
-        };
-        if !role.can_login {
-            return Err(CassieError::Unauthorized);
-        }
-
-        if let Some(hash) = role.password_hash.as_deref() {
-            let Some(password) = password else {
-                return Err(CassieError::Unauthorized);
-            };
-            if !verify_password(hash, password)? {
-                return Err(CassieError::Unauthorized);
-            }
-        } else if password.is_some_and(|value| !value.is_empty()) {
-            return Err(CassieError::Unauthorized);
-        }
-
-        Ok(CassieSession::new(
-            role.name,
-            database.or_else(|| Some(self.default_database.clone())),
-        ))
+        self.authenticate_principal(user, password, database)
+            .map(|principal| principal.session)
     }
 
     /// # Errors
@@ -118,9 +123,10 @@ impl Cassie {
     ) -> Result<(), CassieError> {
         let normalized = normalize_role_name(name);
         let Some(mut role) = self.lookup_role(&normalized)? else {
-            return Err(CassieError::NotFound(format!(
-                "role '{normalized}' not found"
-            )));
+            return Err(CassieError::CatalogObjectNotFound {
+                kind: CatalogObjectKind::Role,
+                name: normalized,
+            });
         };
 
         if role.is_admin {
@@ -162,9 +168,10 @@ impl Cassie {
             if if_exists {
                 return Ok(());
             }
-            return Err(CassieError::NotFound(format!(
-                "role '{normalized}' not found"
-            )));
+            return Err(CassieError::CatalogObjectNotFound {
+                kind: CatalogObjectKind::Role,
+                name: normalized,
+            });
         };
 
         if role.is_admin {

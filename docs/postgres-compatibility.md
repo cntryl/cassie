@@ -64,6 +64,8 @@ Intentional differences:
 Supported:
 
 - Startup and authentication.
+- Passwordless startup when authentication is disabled.
+- Cleartext-password authentication when Cassie auth is enabled.
 - Simple query flow.
 - Extended query flow: parse, bind, describe, execute, sync, flush, and close.
 - Prepared statements and portals.
@@ -80,12 +82,22 @@ Unsupported or not yet guaranteed:
 - Full PostgreSQL backend protocol parity.
 - Every optional message type or server parameter exposed by PostgreSQL.
 - Function-call protocol messages and stray CopyData/CopyDone/CopyFail messages outside Cassie's supported COPY FROM STDIN flow.
-- Exhaustive SQLSTATE parity.
+- Exhaustive SQLSTATE parity outside documented/common failure paths.
 
 Intentional differences:
 
 - Protocol behavior maps to Cassie execution, catalog, and error surfaces.
 - Unsupported features should produce deterministic PostgreSQL-style errors where possible.
+
+Common pgwire-visible error mappings:
+
+- malformed SQL and invalid query text: SQLSTATE `42601`
+- unsupported features: SQLSTATE `0A000`
+- missing relations and views: SQLSTATE `42P01`
+- missing schemas: SQLSTATE `3F000`
+- deadline exceeded: SQLSTATE `57014`
+- retryable storage/runtime-boundary failures: SQLSTATE `57P03`
+- auth failures: SQLSTATE `28000`
 
 ## Catalog Compatibility
 

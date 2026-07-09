@@ -22,112 +22,107 @@ struct KeyedRow {
     row: BatchRow,
 }
 
-#[allow(clippy::too_many_arguments)]
+#[derive(Clone, Copy)]
+pub(super) struct JoinExecutionSpec<'a> {
+    pub(super) left: &'a QuerySource,
+    pub(super) right: &'a QuerySource,
+    pub(super) kind: JoinKind,
+    pub(super) on: &'a Expr,
+    pub(super) outer_row: Option<&'a BatchRow>,
+    pub(super) row_budget: Option<usize>,
+}
+
 pub(super) fn execute_join_source<'a>(
     env: &'a SourceExecutionEnv<'a>,
-    left: &'a QuerySource,
-    right: &'a QuerySource,
-    kind: JoinKind,
-    on: &'a Expr,
+    spec: JoinExecutionSpec<'a>,
     cte_context: &'a mut CteContext,
-    outer_row: Option<&'a BatchRow>,
-    row_budget: Option<usize>,
 ) -> SourceExecution {
-    if !source_contains_lateral(right) {
-        if let Some(joined) = bounded::try_execute_indexed_bounded_inner_join(
-            env,
-            left,
-            right,
-            kind,
-            on,
-            cte_context,
-            outer_row,
-            row_budget,
-        )? {
+    if !source_contains_lateral(spec.right) {
+        if let Some(joined) = bounded::try_execute_indexed_bounded_inner_join(env, &spec)? {
             return Ok(finish_join(joined));
         }
-        if let Some(joined) = bounded::try_execute_streaming_bounded_inner_join(
-            env,
-            left,
-            right,
-            kind,
-            on,
-            cte_context,
-            outer_row,
-            row_budget,
-        )? {
+        if let Some(joined) =
+            bounded::try_execute_streaming_bounded_inner_join(env, &spec, cte_context)?
+        {
             return Ok(finish_join(joined));
         }
     }
 
-    let left_row_budget = if matches!(kind, JoinKind::Left) {
-        row_budget
+    let left_row_budget = if matches!(spec.kind, JoinKind::Left) {
+        spec.row_budget
     } else {
         None
     };
-    let (left_batches, _left_text) =
-        execute_query_source(env, left, cte_context, true, outer_row, left_row_budget)?;
-    if source_contains_lateral(right) {
-        return execute_lateral_join(env, right, kind, on, cte_context, outer_row, left_batches);
+    let (left_batches, _left_text) = execute_query_source(
+        env,
+        spec.left,
+        cte_context,
+        true,
+        spec.outer_row,
+        left_row_budget,
+    )?;
+    if source_contains_lateral(spec.right) {
+        return execute_lateral_join(env, &spec, cte_context, left_batches);
     }
 
     let (right_batches, _right_text) =
-        execute_query_source(env, right, cte_context, true, outer_row, None)?;
+        execute_query_source(env, spec.right, cte_context, true, spec.outer_row, None)?;
     let left_rows = batch::flatten_batches(left_batches);
     let right_rows = batch::flatten_batches(right_batches);
     let left_columns = row_columns(&left_rows);
     let right_columns = row_columns(&right_rows);
 
-    let joined = match merge_join_keys(on, &left_columns, &right_columns)
-        .filter(|_| !matches!(kind, JoinKind::Cross))
+    let joined = match merge_join_keys(spec.on, &left_columns, &right_columns)
+        .filter(|_| !matches!(spec.kind, JoinKind::Cross))
     {
         Some(keys) => execute_vectorized_join(
             env,
-            kind,
-            on,
-            &keys,
-            &left_rows,
-            &right_rows,
-            &right_columns,
-            row_budget,
+            VectorizedJoinSpec {
+                kind: spec.kind,
+                keys: &keys,
+                left_rows: &left_rows,
+                right_rows: &right_rows,
+                right_columns: &right_columns,
+                row_budget: spec.row_budget,
+            },
         )?
         .map_or_else(
             || {
                 execute_merge_join(
                     env,
-                    kind,
-                    on,
                     &keys,
-                    &left_rows,
-                    &right_rows,
-                    &left_columns,
-                    &right_columns,
+                    JoinRowsSpec {
+                        kind: spec.kind,
+                        on: spec.on,
+                        left_rows: &left_rows,
+                        right_rows: &right_rows,
+                        left_columns: &left_columns,
+                        right_columns: &right_columns,
+                    },
                 )
             },
             Ok,
         )?,
         None => execute_nested_loop_join(
             env,
-            kind,
-            on,
-            &left_rows,
-            &right_rows,
-            &left_columns,
-            &right_columns,
+            JoinRowsSpec {
+                kind: spec.kind,
+                on: spec.on,
+                left_rows: &left_rows,
+                right_rows: &right_rows,
+                left_columns: &left_columns,
+                right_columns: &right_columns,
+            },
         )?,
     };
 
     Ok(finish_join(joined))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn execute_lateral_join<'a>(
     env: &'a SourceExecutionEnv<'a>,
-    right: &'a QuerySource,
-    kind: JoinKind,
-    on: &'a Expr,
+    spec: &'a JoinExecutionSpec<'a>,
     cte_context: &'a mut CteContext,
-    _outer_row: Option<&'a BatchRow>,
     left_batches: Vec<Batch>,
 ) -> SourceExecution {
     let left_rows = batch::flatten_batches(left_batches);
@@ -136,16 +131,16 @@ fn execute_lateral_join<'a>(
 
     for left_row in &left_rows {
         let (right_batches, _right_text) =
-            execute_query_source(env, right, cte_context, true, Some(left_row), None)?;
+            execute_query_source(env, spec.right, cte_context, true, Some(left_row), None)?;
         let right_rows = batch::flatten_batches(right_batches);
         let right_columns = row_columns(&right_rows);
         let mut matched = false;
         for right_row in &right_rows {
             let combined = combine_rows(left_row, right_row);
-            let passes = matches!(kind, JoinKind::Cross)
+            let passes = matches!(spec.kind, JoinKind::Cross)
                 || filter::eval_scalar(
                     &combined,
-                    on,
+                    spec.on,
                     env.params,
                     None,
                     env.user_functions,
@@ -160,7 +155,7 @@ fn execute_lateral_join<'a>(
             }
         }
 
-        if !matched && matches!(kind, JoinKind::Left | JoinKind::Full) {
+        if !matched && matches!(spec.kind, JoinKind::Left | JoinKind::Full) {
             joined.push(combine_row_with_nulls(left_row, &right_columns));
         }
     }
@@ -176,28 +171,32 @@ fn execute_lateral_join<'a>(
     Ok(finish_join(joined))
 }
 
-#[allow(clippy::too_many_arguments)]
+#[derive(Clone, Copy)]
+struct JoinRowsSpec<'a> {
+    kind: JoinKind,
+    on: &'a Expr,
+    left_rows: &'a [BatchRow],
+    right_rows: &'a [BatchRow],
+    left_columns: &'a [String],
+    right_columns: &'a [String],
+}
+
 fn execute_nested_loop_join(
     env: &SourceExecutionEnv<'_>,
-    kind: JoinKind,
-    on: &Expr,
-    left_rows: &[BatchRow],
-    right_rows: &[BatchRow],
-    left_columns: &[String],
-    right_columns: &[String],
+    spec: JoinRowsSpec<'_>,
 ) -> Result<Vec<BatchRow>, QueryError> {
     let mut joined = Vec::new();
-    let mut right_matched = vec![false; right_rows.len()];
+    let mut right_matched = vec![false; spec.right_rows.len()];
     let mut matched_rows = 0usize;
 
-    for left_row in left_rows {
+    for left_row in spec.left_rows {
         let mut matched = false;
-        for (right_index, right_row) in right_rows.iter().enumerate() {
+        for (right_index, right_row) in spec.right_rows.iter().enumerate() {
             let combined = combine_rows(left_row, right_row);
-            let passes = matches!(kind, JoinKind::Cross)
+            let passes = matches!(spec.kind, JoinKind::Cross)
                 || filter::eval_scalar(
                     &combined,
-                    on,
+                    spec.on,
                     env.params,
                     None,
                     env.user_functions,
@@ -213,27 +212,27 @@ fn execute_nested_loop_join(
             }
         }
 
-        if !matched && matches!(kind, JoinKind::Left | JoinKind::Full) {
-            joined.push(combine_row_with_nulls(left_row, right_columns));
+        if !matched && matches!(spec.kind, JoinKind::Left | JoinKind::Full) {
+            joined.push(combine_row_with_nulls(left_row, spec.right_columns));
         }
     }
 
-    if matches!(kind, JoinKind::Right | JoinKind::Full) {
-        for (right_index, right_row) in right_rows.iter().enumerate() {
+    if matches!(spec.kind, JoinKind::Right | JoinKind::Full) {
+        for (right_index, right_row) in spec.right_rows.iter().enumerate() {
             if !right_matched[right_index] {
-                joined.push(combine_nulls_with_row(left_columns, right_row));
+                joined.push(combine_nulls_with_row(spec.left_columns, right_row));
             }
         }
     }
 
     env.cassie.runtime.record_join_execution(
-        if matches!(kind, JoinKind::Cross) {
+        if matches!(spec.kind, JoinKind::Cross) {
             "cross"
         } else {
             "nested_loop"
         },
-        left_rows.len(),
-        right_rows.len(),
+        spec.left_rows.len(),
+        spec.right_rows.len(),
         matched_rows,
         joined.len(),
         None,
@@ -278,21 +277,26 @@ fn join_field_for_collection(key: &str, collection: &str) -> Option<String> {
     (!key.contains('.')).then(|| key.to_string())
 }
 
-#[allow(clippy::too_many_arguments)]
+#[derive(Clone, Copy)]
+struct VectorizedJoinSpec<'a> {
+    kind: JoinKind,
+    keys: &'a EquiJoinKeys,
+    left_rows: &'a [BatchRow],
+    right_rows: &'a [BatchRow],
+    right_columns: &'a [String],
+    row_budget: Option<usize>,
+}
+
 fn execute_vectorized_join(
     env: &SourceExecutionEnv<'_>,
-    kind: JoinKind,
-    _on: &Expr,
-    keys: &EquiJoinKeys,
-    left_rows: &[BatchRow],
-    right_rows: &[BatchRow],
-    right_columns: &[String],
-    row_budget: Option<usize>,
+    spec: VectorizedJoinSpec<'_>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(batch_size) = vectorized_join_batch_size(env, kind, left_rows, right_rows)? else {
+    let Some(batch_size) =
+        vectorized_join_batch_size(env, spec.kind, spec.left_rows, spec.right_rows)?
+    else {
         return Ok(None);
     };
-    let output_budget = row_budget.unwrap_or(usize::MAX);
+    let output_budget = spec.row_budget.unwrap_or(usize::MAX);
     if output_budget == 0 {
         env.cassie
             .runtime
@@ -301,8 +305,8 @@ fn execute_vectorized_join(
     }
 
     let mut build = std::collections::HashMap::<String, Vec<&BatchRow>>::new();
-    for right in right_rows {
-        let key = row_join_key(right, &keys.right);
+    for right in spec.right_rows {
+        let key = row_join_key(right, &spec.keys.right);
         build.entry(key).or_default().push(right);
     }
 
@@ -312,12 +316,12 @@ fn execute_vectorized_join(
     let mut matched_rows = 0usize;
     let mut joined = Vec::new();
 
-    'probe: for left_batch in left_rows.chunks(batch_size) {
+    'probe: for left_batch in spec.left_rows.chunks(batch_size) {
         check_timeout(env.controls)?;
         batches += 1;
         for left in left_batch {
             probe_rows += 1;
-            let key = row_join_key(left, &keys.left);
+            let key = row_join_key(left, &spec.keys.left);
             let mut matched = false;
             if let Some(right_group) = build.get(&key) {
                 for right in right_group {
@@ -330,8 +334,8 @@ fn execute_vectorized_join(
                 }
             }
 
-            if !matched && matches!(kind, JoinKind::Left) {
-                joined.push(combine_row_with_nulls(left, right_columns));
+            if !matched && matches!(spec.kind, JoinKind::Left) {
+                joined.push(combine_row_with_nulls(left, spec.right_columns));
                 if joined.len() >= output_budget {
                     break 'probe;
                 }
@@ -350,21 +354,15 @@ fn execute_vectorized_join(
     Ok(Some(joined))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn execute_merge_join(
     env: &SourceExecutionEnv<'_>,
-    kind: JoinKind,
-    on: &Expr,
     keys: &EquiJoinKeys,
-    left_rows: &[BatchRow],
-    right_rows: &[BatchRow],
-    left_columns: &[String],
-    right_columns: &[String],
+    spec: JoinRowsSpec<'_>,
 ) -> Result<Vec<BatchRow>, QueryError> {
-    let left_len = left_rows.len();
-    let right_len = right_rows.len();
-    let mut left_keyed = keyed_rows(left_rows, &keys.left);
-    let mut right_keyed = keyed_rows(right_rows, &keys.right);
+    let left_len = spec.left_rows.len();
+    let right_len = spec.right_rows.len();
+    let mut left_keyed = keyed_rows(spec.left_rows, &keys.left);
+    let mut right_keyed = keyed_rows(spec.right_rows, &keys.right);
     left_keyed.sort_by(|left, right| left.key.cmp(&right.key));
     right_keyed.sort_by(|left, right| left.key.cmp(&right.key));
 
@@ -380,18 +378,18 @@ fn execute_merge_join(
         {
             std::cmp::Ordering::Less => {
                 let group_end = keyed_group_end(&left_keyed, left_index);
-                if matches!(kind, JoinKind::Left | JoinKind::Full) {
+                if matches!(spec.kind, JoinKind::Left | JoinKind::Full) {
                     for left in &left_keyed[left_index..group_end] {
-                        joined.push(combine_row_with_nulls(&left.row, right_columns));
+                        joined.push(combine_row_with_nulls(&left.row, spec.right_columns));
                     }
                 }
                 left_index = group_end;
             }
             std::cmp::Ordering::Greater => {
                 let group_end = keyed_group_end(&right_keyed, right_index);
-                if matches!(kind, JoinKind::Right | JoinKind::Full) {
+                if matches!(spec.kind, JoinKind::Right | JoinKind::Full) {
                     for right in &right_keyed[right_index..group_end] {
-                        joined.push(combine_nulls_with_row(left_columns, &right.row));
+                        joined.push(combine_nulls_with_row(spec.left_columns, &right.row));
                     }
                 }
                 right_index = group_end;
@@ -401,12 +399,12 @@ fn execute_merge_join(
                 let right_end = keyed_group_end(&right_keyed, right_index);
                 let result = merge_equal_key_groups(
                     env,
-                    kind,
-                    on,
+                    spec.kind,
+                    spec.on,
                     &left_keyed[left_index..left_end],
                     &right_keyed[right_index..right_end],
-                    left_columns,
-                    right_columns,
+                    spec.left_columns,
+                    spec.right_columns,
                 )?;
                 matched_rows += result.matched_rows;
                 joined.extend(result.joined);
@@ -416,8 +414,18 @@ fn execute_merge_join(
         }
     }
 
-    append_left_unmatched(&mut joined, kind, &left_keyed[left_index..], right_columns);
-    append_right_unmatched(&mut joined, kind, left_columns, &right_keyed[right_index..]);
+    append_left_unmatched(
+        &mut joined,
+        spec.kind,
+        &left_keyed[left_index..],
+        spec.right_columns,
+    );
+    append_right_unmatched(
+        &mut joined,
+        spec.kind,
+        spec.left_columns,
+        &right_keyed[right_index..],
+    );
 
     env.cassie.runtime.record_join_execution(
         "merge",

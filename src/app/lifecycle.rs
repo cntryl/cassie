@@ -3,6 +3,7 @@ use super::{
     Arc, AtomicBool, BTreeMap, Cassie, CassieError, CassieRuntimeConfig, Catalog, Instant, Midge,
     Mutex, Ordering, Path, RuntimeState,
 };
+use crate::catalog::{canonical_schema_name, DEFAULT_SCHEMA};
 
 impl Cassie {
     /// # Errors
@@ -64,6 +65,7 @@ impl Cassie {
         families_ready.map_err(|error| {
             CassieError::StorageBootstrap(format!("bootstrap families: {error}"))
         })?;
+        self.bootstrap_default_database_if_empty()?;
 
         let schema_epoch = self.midge.schema_epoch();
         self.runtime
@@ -81,6 +83,28 @@ impl Cassie {
         self.runtime.mark_started();
         self.runtime.record_startup(started_at.elapsed());
         self.started.store(true, Ordering::SeqCst);
+        Ok(())
+    }
+
+    fn bootstrap_default_database_if_empty(&self) -> Result<(), CassieError> {
+        let databases = self
+            .midge
+            .list_databases()
+            .map_err(|error| CassieError::Storage(format!("list databases: {error}")))?;
+        if !databases.is_empty() {
+            return Ok(());
+        }
+
+        if !self.midge.list_namespaces().is_empty() || !self.midge.list_collections().is_empty() {
+            return Ok(());
+        }
+
+        self.midge
+            .create_database(&self.default_database, None)
+            .map_err(|error| CassieError::Storage(format!("bootstrap database: {error}")))?;
+        self.midge
+            .create_namespace(&canonical_schema_name(&self.default_database, DEFAULT_SCHEMA))
+            .map_err(|error| CassieError::Storage(format!("bootstrap public schema: {error}")))?;
         Ok(())
     }
 

@@ -1,13 +1,14 @@
 use super::{
     decode_projected_row, decode_projected_row_matching_with_aliases,
-    decode_projected_row_with_aliases, decode_row, encode_row, key_encoding, CassieError, DataType,
-    DocumentRef, HashSet, IndexKind, Instant, Midge, MidgeScanTimings, Query, RowDecode, RowFilter,
-    RowSchema, Schema, Uuid, WriteOptions,
+    decode_projected_row_with_aliases, decode_row, encode_row, key_encoding, CassieError,
+    ColumnStoreScanRequest, DataType, DocumentRef, HashSet, IndexKind, Instant, Midge,
+    MidgeScanTimings, Query, RowDecode, RowFilter, RowSchema, Schema, Uuid, WriteOptions,
 };
 use std::time::Duration;
 
 #[path = "documents/ordered_scan.rs"]
 mod ordered_scan;
+pub(crate) use ordered_scan::OrderedRowScanRequest;
 
 #[derive(Debug)]
 pub(crate) enum DocumentWriteOp {
@@ -691,13 +692,14 @@ impl Midge {
         if self.collection_uses_column_store(collection)? {
             return Self::scan_column_store_rows_batched(
                 &tx,
-                collection,
-                &row_schema,
-                batch_size,
-                projection.as_ref(),
-                include_historical_aliases,
-                filter,
-                limit,
+                ColumnStoreScanRequest {
+                    collection,
+                    row_schema: &row_schema,
+                    batch_size,
+                    projection: projection.as_ref(),
+                    filter,
+                    limit,
+                },
             );
         }
         let mut results = Vec::new();

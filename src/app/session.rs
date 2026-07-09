@@ -1,11 +1,14 @@
 use super::{
     normalize_role_name, Arc, BTreeMap, CassieError, Mutex, Serialize, TransactionIsolation,
 };
+use crate::catalog::DEFAULT_SCHEMA;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CassieSession {
     pub user: String,
     pub database: Option<String>,
+    #[serde(skip)]
+    search_path: Arc<Mutex<Vec<String>>>,
     #[serde(skip)]
     transaction: Arc<Mutex<SessionTransactionState>>,
     #[serde(skip)]
@@ -45,6 +48,7 @@ impl CassieSession {
         Self {
             user: normalize_role_name(user),
             database,
+            search_path: Arc::new(Mutex::new(vec![DEFAULT_SCHEMA.to_string()])),
             transaction: Arc::new(Mutex::new(SessionTransactionState {
                 status: SessionTransactionStatus::Idle,
                 isolation: None,
@@ -62,6 +66,37 @@ impl CassieSession {
             SessionTransactionStatus::InTransaction => "in_transaction",
             SessionTransactionStatus::Failed => "failed",
         }
+    }
+
+    #[must_use]
+    pub fn current_database(&self) -> Option<&str> {
+        self.database.as_deref()
+    }
+
+    #[must_use]
+    pub fn current_schema(&self) -> String {
+        self.search_path()
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| DEFAULT_SCHEMA.to_string())
+    }
+
+    #[must_use]
+    pub fn search_path(&self) -> Vec<String> {
+        let mut path = self.search_path.lock().clone();
+        if path.is_empty() {
+            path.push(DEFAULT_SCHEMA.to_string());
+        }
+        path
+    }
+
+    pub fn set_search_path(&self, path: Vec<String>) {
+        let normalized = if path.is_empty() {
+            vec![DEFAULT_SCHEMA.to_string()]
+        } else {
+            path
+        };
+        *self.search_path.lock() = normalized;
     }
 
     pub(crate) fn begin_transaction(

@@ -101,13 +101,15 @@ fn execute_ordered_row_id_page(
     let (documents, _timings) = cassie
         .midge
         .scan_ordered_rows_batched_by_id_limit_with_timings(
-            &spec.collection,
-            batch::DEFAULT_BATCH_SIZE,
-            RowDecode::ProjectedHistorical(spec.scan_fields()),
-            spec.start_bound.as_ref(),
-            spec.end_bound.as_ref(),
-            matches!(spec.direction, SortDirection::Desc),
-            Some(scan_limit),
+            crate::midge::adapter::OrderedRowScanRequest {
+                collection: &spec.collection,
+                batch_size: batch::DEFAULT_BATCH_SIZE,
+                decode: RowDecode::ProjectedHistorical(spec.scan_fields()),
+                start_bound: spec.start_bound.as_ref(),
+                end_bound: spec.end_bound.as_ref(),
+                reverse: matches!(spec.direction, SortDirection::Desc),
+                limit: Some(scan_limit),
+            },
         )
         .map_err(|error| QueryError::General(error.to_string()))?;
 

@@ -19,17 +19,18 @@ use crate::catalog::{
     FieldConstraint, RoleMeta,
 };
 use crate::config::{
-    CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiCompatibleRuntimeConfig,
-    OpenAiRuntimeConfig, SelfHostedEmbeddingRuntimeConfig,
+    CassieRuntimeConfig, CohereRuntimeConfig, EmbeddingsRuntimeConfig, LocalRuntimeConfig,
+    OpenAiCompatibleRuntimeConfig, OpenAiRuntimeConfig, SelfHostedEmbeddingRuntimeConfig,
+    VoyageRuntimeConfig,
 };
 use crate::embeddings::{
-    cohere::CohereProvider,
+    cohere::{CohereProvider, CohereProviderConfig},
     compatible::{OpenAiCompatibleProvider, OpenAiCompatibleProviderConfig},
-    local::LocalProvider,
+    local::{LocalProvider, LocalProviderConfig},
     ollama::{OllamaProvider, OllamaProviderConfig},
     openai::{OpenAiProvider, OpenAiProviderConfig},
     tei::{TeiProvider, TeiProviderConfig},
-    voyage::VoyageProvider,
+    voyage::{VoyageProvider, VoyageProviderConfig},
     DistanceMetric, Embedding, EmbeddingError, NormalizedVectorRecord, VectorIndexRecord,
     VectorIndexType,
 };
@@ -62,7 +63,7 @@ use cache::{
     QueryEmbeddingCacheKey, VectorSearchResultCacheKey,
 };
 pub(crate) use error::unsupported_sql_error;
-pub use error::CassieError;
+pub use error::{CassieError, CatalogObjectKind};
 pub use session::CassieSession;
 pub(crate) use session::TransactionRowChange;
 pub use state::{Cassie, CassieRuntimeConfigState};

@@ -35,11 +35,10 @@ impl CompatibilityServer {
     async fn start(label: &str) -> Self {
         with_fallback();
         let data_dir = data_dir(label);
-        let cassie = Cassie::new_with_data_dir(&data_dir).unwrap();
-        cassie.startup().unwrap();
-
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&data_dir, config.clone()).unwrap();
+        cassie.startup().unwrap();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

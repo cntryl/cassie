@@ -3,6 +3,10 @@ import autoprefixer from "autoprefixer";
 import { defineConfig } from "vite-plus";
 import type { UserConfig } from "@voidzero-dev/vite-plus-core";
 
+import { mockAdminQueryApiPlugin } from "./dev/mock-admin-query-api";
+
+const useMockApi = process.env.VITE_MOCK_API === "true";
+
 function fileUrlPath(path: string) {
   return decodeURIComponent(new URL(path, import.meta.url).pathname).replace(
     /^\/([A-Za-z]:\/)/,
@@ -27,6 +31,7 @@ const config = {
     askr({
       optimizeTemplates: true,
     }),
+    ...(useMockApi ? [mockAdminQueryApiPlugin()] : []),
   ],
   css: {
     transformer: "postcss",
@@ -42,7 +47,7 @@ const config = {
     port: 5174,
     open: true,
     proxy: {
-      "/v1": {
+      "/api": {
         target: cassieBackend,
         changeOrigin: true,
       },
@@ -51,6 +56,10 @@ const config = {
         changeOrigin: true,
       },
       "/liveness": {
+        target: cassieBackend,
+        changeOrigin: true,
+      },
+      "/targetz": {
         target: cassieBackend,
         changeOrigin: true,
       },

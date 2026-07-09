@@ -11,35 +11,36 @@ pub(super) fn parse_create_rollup_statement(sql: &str) -> Result<ParsedStatement
     let (if_not_exists, rest) = parse_if_not_exists(rest);
 
     let on_pos = find_top_level_keyword(rest, 0, "on")
-        .ok_or_else(|| SqlError("CREATE ROLLUP requires ON source".to_string()))?;
+        .ok_or_else(|| SqlError::new("CREATE ROLLUP requires ON source".to_string()))?;
     let name = rest[..on_pos].trim();
     if name.is_empty() {
-        return Err(SqlError("CREATE ROLLUP requires a name".to_string()));
+        return Err(SqlError::new("CREATE ROLLUP requires a name".to_string()));
     }
 
     let rest = rest[on_pos + 2..].trim();
-    let using_pos = find_top_level_keyword(rest, 0, "using")
-        .ok_or_else(|| SqlError("CREATE ROLLUP requires USING time_bucket(...)".to_string()))?;
+    let using_pos = find_top_level_keyword(rest, 0, "using").ok_or_else(|| {
+        SqlError::new("CREATE ROLLUP requires USING time_bucket(...)".to_string())
+    })?;
     let source = rest[..using_pos].trim();
     if source.is_empty() {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "CREATE ROLLUP requires a source collection".to_string(),
         ));
     }
 
     let rest = rest[using_pos + 5..].trim();
     let group_pos = find_top_level_keyword(rest, 0, "group by")
-        .ok_or_else(|| SqlError("CREATE ROLLUP requires GROUP BY".to_string()))?;
+        .ok_or_else(|| SqlError::new("CREATE ROLLUP requires GROUP BY".to_string()))?;
     let bucket_raw = rest[..group_pos].trim();
     let Expr::Function(bucket) = parse_expression(bucket_raw)? else {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "CREATE ROLLUP USING requires a function call".to_string(),
         ));
     };
 
     let rest = rest[group_pos + "group by".len()..].trim();
     let aggregates_pos = find_top_level_keyword(rest, 0, "aggregates")
-        .ok_or_else(|| SqlError("CREATE ROLLUP requires AGGREGATES".to_string()))?;
+        .ok_or_else(|| SqlError::new("CREATE ROLLUP requires AGGREGATES".to_string()))?;
     let group_raw = rest[..aggregates_pos].trim();
     let group_by = if group_raw.is_empty() {
         Vec::new()
@@ -58,7 +59,7 @@ pub(super) fn parse_create_rollup_statement(sql: &str) -> Result<ParsedStatement
         aggregate_raw = aggregate_raw[..where_pos].trim();
     }
     if aggregate_raw.is_empty() {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "CREATE ROLLUP requires aggregate expressions".to_string(),
         ));
     }
@@ -82,7 +83,7 @@ pub(super) fn parse_refresh_rollup_statement(sql: &str) -> Result<ParsedStatemen
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let name = trimmed["refresh rollup".len()..].trim();
     if name.is_empty() || name.split_whitespace().count() != 1 {
-        return Err(SqlError(
+        return Err(SqlError::new(
             "REFRESH ROLLUP requires one rollup name".to_string(),
         ));
     }
@@ -100,7 +101,9 @@ pub(super) fn parse_drop_rollup_statement(sql: &str) -> Result<ParsedStatement, 
     let (if_exists, rest) = parse_if_exists(rest);
     let name = rest.trim();
     if name.is_empty() || name.split_whitespace().count() != 1 {
-        return Err(SqlError("DROP ROLLUP requires one rollup name".to_string()));
+        return Err(SqlError::new(
+            "DROP ROLLUP requires one rollup name".to_string(),
+        ));
     }
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),

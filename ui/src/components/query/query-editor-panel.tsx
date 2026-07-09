@@ -12,7 +12,7 @@ interface QueryEditorPanelProps {
   onExplain: () => void;
   onPlay: () => void;
   onStop: () => void;
-  completionItems: MonacoCompletionItem[];
+  completionItems: () => MonacoCompletionItem[];
 }
 
 export function QueryEditorPanel({
@@ -52,7 +52,7 @@ export function QueryEditorPanel({
           value={query}
           onChange={onQueryChange}
           disabled={isRunning}
-          completionProvider={() => completionItems}
+          completionProvider={completionItems}
         />
       </div>
     </section>

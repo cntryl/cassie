@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
+use crate::midge::adapter::OrderedColumnStoreScanRequest;
+
 use super::super::OrderedRowBound;
 use super::{
     decode_projected_row, decode_projected_row_with_aliases, decode_row, key_encoding, CassieError,
@@ -75,6 +77,16 @@ struct OrderedRowScanConfig<'a> {
     scan_started: Instant,
 }
 
+pub(crate) struct OrderedRowScanRequest<'a> {
+    pub collection: &'a str,
+    pub batch_size: usize,
+    pub decode: RowDecode,
+    pub start_bound: Option<&'a OrderedRowBound>,
+    pub end_bound: Option<&'a OrderedRowBound>,
+    pub reverse: bool,
+    pub limit: Option<usize>,
+}
+
 impl OrderedScanSources {
     fn next_entry(&mut self, reverse: bool) -> Option<OrderedScanEntry> {
         let selection =
@@ -110,72 +122,56 @@ impl OrderedScanSources {
 }
 
 impl Midge {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn scan_ordered_rows_batched_by_id_limit_with_timings(
         &self,
-        collection: &str,
-        batch_size: usize,
-        decode: RowDecode,
-        start_bound: Option<&OrderedRowBound>,
-        end_bound: Option<&OrderedRowBound>,
-        reverse: bool,
-        limit: Option<usize>,
+        request: OrderedRowScanRequest<'_>,
     ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
-        self.scan_ordered_rows_batched_by_id(
-            collection,
-            batch_size,
-            decode,
-            start_bound,
-            end_bound,
-            reverse,
-            limit,
-        )
+        self.scan_ordered_rows_batched_by_id(request)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn scan_ordered_rows_batched_by_id(
         &self,
-        collection: &str,
-        batch_size: usize,
-        decode: RowDecode,
-        start_bound: Option<&OrderedRowBound>,
-        end_bound: Option<&OrderedRowBound>,
-        reverse: bool,
-        limit: Option<usize>,
+        request: OrderedRowScanRequest<'_>,
     ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
         let scan_started = Instant::now();
-        let row_schema = self.row_schema(collection)?;
-        let (projection, include_historical_aliases) = decode.into_projection();
+        let row_schema = self.row_schema(request.collection)?;
+        let (projection, include_historical_aliases) = request.decode.into_projection();
         let tx = self.begin_data_readonly_tx()?;
-        let batch_size = batch_size.max(1);
-        let limit = limit.unwrap_or(usize::MAX);
-        if self.collection_uses_column_store(collection)? {
+        let batch_size = request.batch_size.max(1);
+        let limit = request.limit.unwrap_or(usize::MAX);
+        if self.collection_uses_column_store(request.collection)? {
             return Self::scan_ordered_column_store_rows_batched_by_id(
                 &tx,
-                collection,
-                &row_schema,
-                batch_size,
-                projection.as_ref(),
-                include_historical_aliases,
-                start_bound,
-                end_bound,
-                reverse,
-                limit,
+                OrderedColumnStoreScanRequest {
+                    collection: request.collection,
+                    row_schema: &row_schema,
+                    batch_size,
+                    projection: projection.as_ref(),
+                    start_bound: request.start_bound,
+                    end_bound: request.end_bound,
+                    reverse: request.reverse,
+                    limit,
+                },
             );
         }
         if limit == 0 {
             return Ok(empty_scan_result(scan_started));
         }
 
-        let mut sources =
-            Self::ordered_scan_sources(&tx, collection, start_bound, end_bound, reverse)?;
+        let mut sources = Self::ordered_scan_sources(
+            &tx,
+            request.collection,
+            request.start_bound,
+            request.end_bound,
+            request.reverse,
+        )?;
         let config = OrderedRowScanConfig {
             row_schema: &row_schema,
             projection: projection.as_ref(),
             include_historical_aliases,
             batch_size,
             limit,
-            reverse,
+            reverse: request.reverse,
             scan_started,
         };
         Self::collect_ordered_rows(&mut sources, &config)

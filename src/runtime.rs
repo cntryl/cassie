@@ -33,6 +33,8 @@ pub struct PlanCacheKey {
     pub parameter_shape: Vec<ParameterShape>,
     pub mode: ExecutionMode,
     pub database: Option<String>,
+    #[serde(default)]
+    pub search_path: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -53,6 +55,7 @@ pub struct ExecutionResultCacheKey {
     pub schema_epoch: u64,
     pub data_epoch: u64,
     pub database: Option<String>,
+    pub search_path: Vec<String>,
     pub mode: ExecutionMode,
 }
 

@@ -30,6 +30,12 @@
   --cassie-panel-radius: var(--ak-radius-2, 0.5rem);
 }
 
+html,
+body,
+#app {
+  min-block-size: 100%;
+}
+
 body {
   min-height: 100vh;
   margin: 0;

@@ -2,6 +2,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use cassie::app::{Cassie, CassieError};
+use cassie::config::CassieRuntimeConfig;
+use cassie::types::{DataType, FieldSchema, Schema};
 use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
 use uuid::Uuid;
@@ -104,22 +106,22 @@ fn query_endpoint_cases(base_url: &str) -> Vec<QueryEndpointCase> {
     vec![
         (
             reqwest::Method::GET,
-            format!("{base_url}/v1/admin/query/schema"),
+            format!("{base_url}/api/v1/admin/query/schema"),
             None,
         ),
         (
             reqwest::Method::POST,
-            format!("{base_url}/v1/admin/query/execute"),
+            format!("{base_url}/api/v1/admin/query/execute"),
             Some(serde_json::json!({"sql": "SELECT 1"})),
         ),
         (
             reqwest::Method::POST,
-            format!("{base_url}/v1/admin/query/validate"),
+            format!("{base_url}/api/v1/admin/query/validate"),
             Some(serde_json::json!({"sql": "SELECT 1"})),
         ),
         (
             reqwest::Method::POST,
-            format!("{base_url}/v1/admin/query/explain"),
+            format!("{base_url}/api/v1/admin/query/explain"),
             Some(serde_json::json!({"sql": "SELECT 1"})),
         ),
     ]
@@ -138,6 +140,21 @@ fn section_items<'a>(schema: &'a serde_json::Value, section_id: &str) -> &'a [se
 
 fn contains_item(items: &[serde_json::Value], label: &str) -> bool {
     items.iter().any(|item| item["label"] == label)
+}
+
+async fn post_admin_query(
+    client: &Client,
+    base_url: &str,
+    path: &str,
+    sql: &str,
+) -> reqwest::Response {
+    client
+        .post(format!("{base_url}{path}"))
+        .header("authorization", ADMIN_AUTH)
+        .json(&serde_json::json!({ "sql": sql }))
+        .send()
+        .await
+        .expect("admin query request")
 }
 
 #[test]
@@ -196,7 +213,7 @@ fn should_execute_admin_query_through_rest() {
 
         // Act
         let response = client
-            .post(format!("{base_url}/v1/admin/query/execute"))
+            .post(format!("{base_url}/api/v1/admin/query/execute"))
             .header("authorization", ADMIN_AUTH)
             .json(&serde_json::json!({
                 "sql": "SELECT title FROM rest_admin_query_docs ORDER BY title"
@@ -237,7 +254,7 @@ fn should_validate_admin_query_through_rest() {
 
         // Act
         let valid = client
-            .post(format!("{base_url}/v1/admin/query/validate"))
+            .post(format!("{base_url}/api/v1/admin/query/validate"))
             .header("authorization", ADMIN_AUTH)
             .json(&serde_json::json!({
                 "sql": "SELECT title FROM rest_admin_query_docs"
@@ -248,7 +265,7 @@ fn should_validate_admin_query_through_rest() {
         let valid_status = valid.status();
         let valid_payload = valid.json::<serde_json::Value>().await.expect("valid json");
         let malformed = client
-            .post(format!("{base_url}/v1/admin/query/validate"))
+            .post(format!("{base_url}/api/v1/admin/query/validate"))
             .header("authorization", ADMIN_AUTH)
             .json(&serde_json::json!({"sql": "SELECT FROM"}))
             .send()
@@ -274,6 +291,153 @@ fn should_validate_admin_query_through_rest() {
 }
 
 #[test]
+fn should_map_admin_query_errors_to_semantic_http_statuses() {
+    // Arrange
+    with_fallback();
+    let data_dir = data_dir("query-errors");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        cassie.startup().expect("startup");
+        seed_query_catalog(&cassie);
+        let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
+        let client = Client::new();
+
+        // Act
+        let malformed = post_admin_query(
+            &client,
+            &base_url,
+            "/api/v1/admin/query/execute",
+            "SELECT FROM",
+        )
+        .await;
+        let missing = post_admin_query(
+            &client,
+            &base_url,
+            "/api/v1/admin/query/execute",
+            "SELECT title FROM missing_rest_admin_query_docs",
+        )
+        .await;
+        let unsupported = post_admin_query(
+            &client,
+            &base_url,
+            "/api/v1/admin/query/execute",
+            "COPY rest_admin_query_docs TO STDOUT",
+        )
+        .await;
+        let malformed_status = malformed.status();
+        let missing_status = missing.status();
+        let unsupported_status = unsupported.status();
+        let malformed_payload = malformed
+            .json::<serde_json::Value>()
+            .await
+            .expect("malformed");
+        let missing_payload = missing.json::<serde_json::Value>().await.expect("missing");
+        let unsupported_payload = unsupported
+            .json::<serde_json::Value>()
+            .await
+            .expect("unsupported");
+
+        // Assert
+        assert_eq!(malformed_status, StatusCode::BAD_REQUEST);
+        assert_eq!(missing_status, StatusCode::NOT_FOUND);
+        assert_eq!(unsupported_status, StatusCode::NOT_IMPLEMENTED);
+        assert!(malformed_payload["error"]
+            .as_str()
+            .expect("malformed error")
+            .contains("SELECT"));
+        assert!(missing_payload["error"]
+            .as_str()
+            .expect("missing error")
+            .contains("missing_rest_admin_query_docs"));
+        assert!(unsupported_payload["error"]
+            .as_str()
+            .expect("unsupported error")
+            .contains("unsupported feature"));
+
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+    });
+}
+
+#[test]
+fn should_return_gateway_timeout_for_admin_query_deadlines() {
+    // Arrange
+    with_fallback();
+    let data_dir = data_dir("deadline");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.limits.query_timeout_ms = 0;
+        let cassie =
+            Cassie::new_with_data_dir_and_config(&data_dir, config).expect("cassie with config");
+        cassie.startup().expect("startup");
+        cassie
+            .midge
+            .create_collection(
+                "rest_admin_timeout_docs",
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "title".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .expect("create timeout collection");
+        cassie.register_collection(
+            "rest_admin_timeout_docs",
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            },
+        );
+        cassie
+            .midge
+            .put_document(
+                "rest_admin_timeout_docs",
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .expect("seed timeout document");
+        let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
+        let client = Client::new();
+
+        // Act
+        let response = post_admin_query(
+            &client,
+            &base_url,
+            "/api/v1/admin/query/execute",
+            "SELECT title FROM rest_admin_timeout_docs",
+        )
+        .await;
+        let status = response.status();
+        let payload = response
+            .json::<serde_json::Value>()
+            .await
+            .expect("timeout payload");
+
+        // Assert
+        assert_eq!(status, StatusCode::GATEWAY_TIMEOUT);
+        assert_eq!(payload["error"], "query timeout exceeded");
+
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+    });
+}
+
+#[test]
 fn should_explain_admin_query_through_rest() {
     // Arrange
     with_fallback();
@@ -292,7 +456,7 @@ fn should_explain_admin_query_through_rest() {
 
         // Act
         let response = client
-            .post(format!("{base_url}/v1/admin/query/explain"))
+            .post(format!("{base_url}/api/v1/admin/query/explain"))
             .header("authorization", ADMIN_AUTH)
             .json(&serde_json::json!({
                 "sql": "SELECT title FROM rest_admin_query_docs WHERE title = 'alpha'"
@@ -336,7 +500,7 @@ fn should_return_admin_query_schema_sections_in_stable_order() {
 
         // Act
         let response = client
-            .get(format!("{base_url}/v1/admin/query/schema"))
+            .get(format!("{base_url}/api/v1/admin/query/schema"))
             .header("authorization", ADMIN_AUTH)
             .send()
             .await
@@ -400,7 +564,7 @@ fn should_return_method_not_allowed_for_known_admin_query_path() {
 
         // Act
         let response = client
-            .get(format!("{base_url}/v1/admin/query/execute"))
+            .get(format!("{base_url}/api/v1/admin/query/execute"))
             .header("authorization", ADMIN_AUTH)
             .send()
             .await

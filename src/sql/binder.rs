@@ -1,18 +1,22 @@
 use std::collections::{HashMap, HashSet};
 use std::mem;
 
-use crate::app::CassieError;
-use crate::catalog::{is_reserved_namespace, virtual_views, Catalog, CollectionSchema, IndexMeta};
+use crate::app::{CassieError, CatalogObjectKind};
+use crate::catalog::{
+    is_reserved_namespace, local_name, virtual_views, Catalog, CollectionSchema, IndexMeta,
+};
 use crate::embeddings::DistanceMetric;
 use crate::search::bm25;
 use crate::sql::ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
-    CallProcedureStatement, CommonTableExpression, CopyStatement, CreateFunctionStatement,
-    CreateProcedureStatement, CreateSchemaStatement, CreateSequenceStatement, CreateViewStatement,
-    CteQuery, DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
+    CallProcedureStatement, CatalogStatement, CommonTableExpression, CopyStatement,
+    CreateDatabaseStatement, CreateFunctionStatement, CreateProcedureStatement,
+    CreateSchemaStatement, CreateSequenceStatement, CreateViewStatement, CteQuery,
+    DropDatabaseStatement, DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
     DropSchemaStatement, DropSequenceStatement, DropViewStatement, Expr, FunctionCall,
-    InsertSource, OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectSet,
-    SelectStatement,
+    InsertSource, OrderExpr, ParsedStatement,
+    ProjectionStatement, QuerySource, QueryStatement, RuntimeStatement, SelectItem, SelectSet,
+    SelectStatement, StatementRoute,
 };
 use crate::types::{DataType, FieldSchema, Schema};
 
@@ -20,6 +24,8 @@ type CteScope = HashMap<String, Vec<String>>;
 
 #[path = "binder/commands.rs"]
 mod commands;
+#[path = "binder/context.rs"]
+mod context;
 #[path = "binder/inference.rs"]
 mod inference;
 #[path = "binder/routines.rs"]
@@ -36,6 +42,11 @@ mod validation;
 use commands::{
     bind_alter_retention_policy, bind_create_retention_policy, bind_create_rollup, bind_delete,
     bind_enforce_retention_policy, bind_insert, bind_update,
+};
+pub use context::BindingContext;
+use context::{
+    normalize_database_name, normalize_relation_name, normalize_schema_name, resolve_relation_name,
+    resolve_schema_name,
 };
 pub use inference::infer_select_schema;
 use routines::{
@@ -65,7 +76,18 @@ pub struct BoundStatement {
 ///
 /// Returns an error when validation, storage, or execution fails.
 pub fn bind(statement: ParsedStatement, catalog: &Catalog) -> Result<BoundStatement, CassieError> {
-    let statement = bind_statement(statement, catalog, &HashMap::new())?;
+    bind_with_context(statement, catalog, &BindingContext::default())
+}
+
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
+pub fn bind_with_context(
+    statement: ParsedStatement,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<BoundStatement, CassieError> {
+    let statement = bind_statement(statement, catalog, &HashMap::new(), context)?;
     let indexes = bound_indexes(&statement, catalog);
     Ok(BoundStatement { statement, indexes })
 }
@@ -98,239 +120,361 @@ fn bind_statement(
     statement: ParsedStatement,
     catalog: &Catalog,
     outer_scope: &CteScope,
+    context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
     let raw_sql = statement.raw_sql.clone();
-    match statement.statement {
-        QueryStatement::Select(select) => {
-            bind_select_statement(select, catalog, outer_scope, &raw_sql)
+    match statement.statement.into_route() {
+        StatementRoute::Runtime(statement) => {
+            bind_runtime_route(statement, catalog, outer_scope, &raw_sql, context)
         }
-        QueryStatement::Explain(statement) => {
-            bind_explain_statement(statement, catalog, outer_scope, &raw_sql)
+        StatementRoute::Catalog(statement) => {
+            bind_catalog_route(statement, catalog, &raw_sql, context)
         }
-        other => bind_non_select_statement(other, catalog, &raw_sql),
+        StatementRoute::Projection(statement) => {
+            bind_projection_route(statement, catalog, &raw_sql, context)
+        }
+        StatementRoute::Retention(statement) => {
+            bind_retention_route(statement, catalog, &raw_sql, context)
+        }
     }
 }
 
-fn bind_non_select_statement(
-    statement: QueryStatement,
+fn bind_runtime_route(
+    statement: RuntimeStatement,
     catalog: &Catalog,
+    outer_scope: &CteScope,
     raw_sql: &str,
+    context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
     match statement {
-        QueryStatement::Show(statement) => Ok(bind_show_statement(statement, raw_sql)),
-        QueryStatement::Set(statement) => Ok(bind_set_statement(statement, raw_sql)),
-        QueryStatement::Copy(statement) => {
-            bind_catalog_statement(raw_sql, bind_copy(statement, catalog), QueryStatement::Copy)
+        RuntimeStatement::Select(select) => {
+            bind_select_statement(select, catalog, outer_scope, raw_sql, context)
         }
-        QueryStatement::CreateTable(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_create_table(statement, catalog),
-            QueryStatement::CreateTable,
-        ),
-        QueryStatement::CreateGraph(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_create_graph(statement, catalog),
-            QueryStatement::CreateGraph,
-        ),
-        QueryStatement::DropTable(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_drop_table(statement, catalog),
-            QueryStatement::DropTable,
-        ),
-        QueryStatement::AlterTable(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_alter_table(statement, catalog),
-            QueryStatement::AlterTable,
-        ),
-        QueryStatement::CreateSequence(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_create_sequence(statement, catalog),
-            QueryStatement::CreateSequence,
-        ),
-        QueryStatement::DropSequence(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_drop_sequence(statement, catalog),
-            QueryStatement::DropSequence,
-        ),
-        QueryStatement::CreateIndex(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_create_index(statement, catalog),
-            QueryStatement::CreateIndex,
-        ),
-        QueryStatement::DropIndex(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_drop_index(statement, catalog),
-            QueryStatement::DropIndex,
-        ),
-        QueryStatement::CreateSchema(statement) => {
-            bind_create_schema_statement(statement, catalog, raw_sql)
+        RuntimeStatement::Explain(statement) => {
+            bind_explain_statement(statement, catalog, outer_scope, raw_sql, context)
         }
-        QueryStatement::DropSchema(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_drop_schema(statement, catalog),
-            QueryStatement::DropSchema,
-        ),
-        QueryStatement::AlterSchema(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_alter_schema(statement, catalog),
-            QueryStatement::AlterSchema,
-        ),
-        QueryStatement::CreateView(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_create_view(statement, catalog),
-            QueryStatement::CreateView,
-        ),
-        QueryStatement::DropView(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_drop_view(statement, catalog),
-            QueryStatement::DropView,
-        ),
-        other => bind_runtime_statement(other, catalog, raw_sql),
-    }
-}
-
-fn bind_runtime_statement(
-    statement: QueryStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-) -> Result<ParsedStatement, CassieError> {
-    match statement {
-        QueryStatement::CreateRollup(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_create_rollup(statement, catalog),
-            QueryStatement::CreateRollup,
-        ),
-        QueryStatement::RefreshRollup(statement) => {
-            bind_refresh_rollup_statement(statement, catalog, raw_sql)
+        RuntimeStatement::Show(statement) => Ok(bind_show_statement(statement, raw_sql)),
+        RuntimeStatement::Set(statement) => Ok(bind_set_statement(statement, raw_sql)),
+        RuntimeStatement::Copy(statement) => {
+            bind_catalog_statement(
+                raw_sql,
+                bind_copy(statement, catalog, context),
+                QueryStatement::Copy,
+            )
         }
-        QueryStatement::DropRollup(statement) => {
-            bind_drop_rollup_statement(statement, catalog, raw_sql)
-        }
-        QueryStatement::CreateMaterializedProjection(statement) => Ok(parsed_statement(
+        RuntimeStatement::Insert(statement) => bind_catalog_statement(
             raw_sql,
-            QueryStatement::CreateMaterializedProjection(statement),
-        )),
-        QueryStatement::RefreshMaterializedProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::RefreshMaterializedProjection(statement),
-        )),
-        QueryStatement::DropMaterializedProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::DropMaterializedProjection(statement),
-        )),
-        QueryStatement::AlterMaterializedProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::AlterMaterializedProjection(statement),
-        )),
-        QueryStatement::DropMaterializedProjectionVersion(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::DropMaterializedProjectionVersion(statement),
-        )),
-        QueryStatement::VerifyProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::VerifyProjection(statement),
-        )),
-        QueryStatement::DiffProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::DiffProjection(statement),
-        )),
-        QueryStatement::CompareProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::CompareProjection(statement),
-        )),
-        QueryStatement::PlanRepairProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::PlanRepairProjection(statement),
-        )),
-        QueryStatement::RepairProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::RepairProjection(statement),
-        )),
-        QueryStatement::CreateRetentionPolicy(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_create_retention_policy(statement, catalog),
-            QueryStatement::CreateRetentionPolicy,
-        ),
-        QueryStatement::AlterRetentionPolicy(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_alter_retention_policy(statement, catalog),
-            QueryStatement::AlterRetentionPolicy,
-        ),
-        QueryStatement::DropRetentionPolicy(statement) => {
-            bind_drop_retention_policy_statement(statement, catalog, raw_sql)
-        }
-        QueryStatement::EnforceRetentionPolicy(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_enforce_retention_policy(statement, catalog),
-            QueryStatement::EnforceRetentionPolicy,
-        ),
-        other => bind_program_statement(other, catalog, raw_sql),
-    }
-}
-
-fn bind_program_statement(
-    statement: QueryStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-) -> Result<ParsedStatement, CassieError> {
-    match statement {
-        QueryStatement::CreateRole(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::CreateRole(statement),
-        )),
-        QueryStatement::AlterRole(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::AlterRole(statement),
-        )),
-        QueryStatement::DropRole(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::DropRole(statement),
-        )),
-        QueryStatement::CreateFunction(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_create_function(statement, catalog),
-            QueryStatement::CreateFunction,
-        ),
-        QueryStatement::DropFunction(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_drop_function(statement, catalog),
-            QueryStatement::DropFunction,
-        ),
-        QueryStatement::CreateProcedure(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_create_procedure(statement, catalog),
-            QueryStatement::CreateProcedure,
-        ),
-        QueryStatement::DropProcedure(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_drop_procedure(statement, catalog),
-            QueryStatement::DropProcedure,
-        ),
-        QueryStatement::CallProcedure(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_call_procedure(statement, catalog),
-            QueryStatement::CallProcedure,
-        ),
-        QueryStatement::Insert(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_insert(statement, catalog),
+            bind_insert(statement, catalog, context),
             QueryStatement::Insert,
         ),
-        QueryStatement::Update(statement) => bind_catalog_statement(
+        RuntimeStatement::Update(statement) => bind_catalog_statement(
             raw_sql,
-            bind_update(statement, catalog),
+            bind_update(statement, catalog, context),
             QueryStatement::Update,
         ),
-        QueryStatement::Delete(statement) => bind_catalog_statement(
+        RuntimeStatement::Delete(statement) => bind_catalog_statement(
             raw_sql,
-            bind_delete(statement, catalog),
+            bind_delete(statement, catalog, context),
             QueryStatement::Delete,
         ),
-        QueryStatement::Transaction(statement) => Ok(parsed_statement(
+        RuntimeStatement::Transaction(statement) => Ok(parsed_statement(
             raw_sql,
             QueryStatement::Transaction(statement),
         )),
-        _ => unreachable!(),
+    }
+}
+
+fn bind_catalog_route(
+    statement: CatalogStatement,
+    catalog: &Catalog,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    match statement {
+        CatalogStatement::CreateTable(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_create_table(statement, catalog, context),
+            QueryStatement::CreateTable,
+        ),
+        CatalogStatement::CreateGraph(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_create_graph(statement, catalog, context),
+            QueryStatement::CreateGraph,
+        ),
+        CatalogStatement::DropTable(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_drop_table(statement, catalog, context),
+            QueryStatement::DropTable,
+        ),
+        CatalogStatement::AlterTable(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_alter_table(statement, catalog, context),
+            QueryStatement::AlterTable,
+        ),
+        CatalogStatement::CreateSequence(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_create_sequence(statement, catalog, context),
+            QueryStatement::CreateSequence,
+        ),
+        CatalogStatement::DropSequence(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_drop_sequence(statement, catalog, context),
+            QueryStatement::DropSequence,
+        ),
+        CatalogStatement::CreateDatabase(statement) => {
+            bind_create_database_statement(statement, catalog, raw_sql)
+        }
+        CatalogStatement::DropDatabase(statement) => {
+            bind_drop_database_statement(statement, catalog, raw_sql)
+        }
+        CatalogStatement::CreateSchema(statement) => {
+            bind_create_schema_statement(statement, catalog, raw_sql, context)
+        }
+        CatalogStatement::DropSchema(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_drop_schema(statement, catalog, context),
+            QueryStatement::DropSchema,
+        ),
+        CatalogStatement::AlterSchema(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_alter_schema(statement, catalog, context),
+            QueryStatement::AlterSchema,
+        ),
+        CatalogStatement::CreateView(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_create_view(statement, catalog, context),
+            QueryStatement::CreateView,
+        ),
+        CatalogStatement::DropView(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_drop_view(statement, catalog, context),
+            QueryStatement::DropView,
+        ),
+        CatalogStatement::CreateRole(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::CreateRole(statement),
+        )),
+        CatalogStatement::AlterRole(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::AlterRole(statement),
+        )),
+        CatalogStatement::DropRole(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::DropRole(statement),
+        )),
+        CatalogStatement::CreateFunction(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+        CatalogStatement::DropFunction(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+        CatalogStatement::CreateProcedure(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+        CatalogStatement::DropProcedure(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+        CatalogStatement::CallProcedure(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+        CatalogStatement::CreateIndex(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+        CatalogStatement::DropIndex(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+    }
+}
+
+fn bind_catalog_routine_or_index_route(
+    raw_sql: &str,
+    catalog: &Catalog,
+    statement: CatalogRoutineOrIndexStatement,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    match statement {
+        CatalogRoutineOrIndexStatement::CreateFunction(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_create_function(statement, catalog, context),
+            QueryStatement::CreateFunction,
+        ),
+        CatalogRoutineOrIndexStatement::DropFunction(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_drop_function(statement, catalog, context),
+            QueryStatement::DropFunction,
+        ),
+        CatalogRoutineOrIndexStatement::CreateProcedure(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_create_procedure(statement, catalog, context),
+            QueryStatement::CreateProcedure,
+        ),
+        CatalogRoutineOrIndexStatement::DropProcedure(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_drop_procedure(statement, catalog, context),
+            QueryStatement::DropProcedure,
+        ),
+        CatalogRoutineOrIndexStatement::CallProcedure(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_call_procedure(statement, catalog, context),
+            QueryStatement::CallProcedure,
+        ),
+        CatalogRoutineOrIndexStatement::CreateIndex(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_create_index(statement, catalog, context),
+            QueryStatement::CreateIndex,
+        ),
+        CatalogRoutineOrIndexStatement::DropIndex(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_drop_index(statement, catalog, context),
+            QueryStatement::DropIndex,
+        ),
+    }
+}
+
+enum CatalogRoutineOrIndexStatement {
+    CreateFunction(CreateFunctionStatement),
+    DropFunction(DropFunctionStatement),
+    CreateProcedure(CreateProcedureStatement),
+    DropProcedure(DropProcedureStatement),
+    CallProcedure(CallProcedureStatement),
+    CreateIndex(crate::sql::ast::CreateIndexStatement),
+    DropIndex(DropIndexStatement),
+}
+
+impl From<CreateFunctionStatement> for CatalogRoutineOrIndexStatement {
+    fn from(statement: CreateFunctionStatement) -> Self {
+        Self::CreateFunction(statement)
+    }
+}
+
+impl From<DropFunctionStatement> for CatalogRoutineOrIndexStatement {
+    fn from(statement: DropFunctionStatement) -> Self {
+        Self::DropFunction(statement)
+    }
+}
+
+impl From<CreateProcedureStatement> for CatalogRoutineOrIndexStatement {
+    fn from(statement: CreateProcedureStatement) -> Self {
+        Self::CreateProcedure(statement)
+    }
+}
+
+impl From<DropProcedureStatement> for CatalogRoutineOrIndexStatement {
+    fn from(statement: DropProcedureStatement) -> Self {
+        Self::DropProcedure(statement)
+    }
+}
+
+impl From<CallProcedureStatement> for CatalogRoutineOrIndexStatement {
+    fn from(statement: CallProcedureStatement) -> Self {
+        Self::CallProcedure(statement)
+    }
+}
+
+impl From<crate::sql::ast::CreateIndexStatement> for CatalogRoutineOrIndexStatement {
+    fn from(statement: crate::sql::ast::CreateIndexStatement) -> Self {
+        Self::CreateIndex(statement)
+    }
+}
+
+impl From<DropIndexStatement> for CatalogRoutineOrIndexStatement {
+    fn from(statement: DropIndexStatement) -> Self {
+        Self::DropIndex(statement)
+    }
+}
+
+fn bind_projection_route(
+    statement: ProjectionStatement,
+    catalog: &Catalog,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    match statement {
+        ProjectionStatement::CreateRollup(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_create_rollup(statement, catalog, context),
+            QueryStatement::CreateRollup,
+        ),
+        ProjectionStatement::RefreshRollup(statement) => {
+            bind_refresh_rollup_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::DropRollup(statement) => {
+            bind_drop_rollup_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::CreateMaterializedProjection(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::CreateMaterializedProjection(statement),
+        )),
+        ProjectionStatement::RefreshMaterializedProjection(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::RefreshMaterializedProjection(statement),
+        )),
+        ProjectionStatement::DropMaterializedProjection(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::DropMaterializedProjection(statement),
+        )),
+        ProjectionStatement::AlterMaterializedProjection(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::AlterMaterializedProjection(statement),
+        )),
+        ProjectionStatement::DropMaterializedProjectionVersion(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::DropMaterializedProjectionVersion(statement),
+        )),
+        ProjectionStatement::VerifyProjection(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::VerifyProjection(statement),
+        )),
+        ProjectionStatement::DiffProjection(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::DiffProjection(statement),
+        )),
+        ProjectionStatement::CompareProjection(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::CompareProjection(statement),
+        )),
+        ProjectionStatement::PlanRepairProjection(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::PlanRepairProjection(statement),
+        )),
+        ProjectionStatement::RepairProjection(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::RepairProjection(statement),
+        )),
+    }
+}
+
+fn bind_retention_route(
+    statement: crate::sql::ast::RetentionStatement,
+    catalog: &Catalog,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    match statement {
+        crate::sql::ast::RetentionStatement::CreateRetentionPolicy(statement) => {
+            bind_catalog_statement(
+                raw_sql,
+                bind_create_retention_policy(statement, catalog, context),
+                QueryStatement::CreateRetentionPolicy,
+            )
+        }
+        crate::sql::ast::RetentionStatement::AlterRetentionPolicy(statement) => {
+            bind_catalog_statement(
+                raw_sql,
+                bind_alter_retention_policy(statement, catalog, context),
+                QueryStatement::AlterRetentionPolicy,
+            )
+        }
+        crate::sql::ast::RetentionStatement::DropRetentionPolicy(statement) => {
+            bind_drop_retention_policy_statement(statement, catalog, raw_sql, context)
+        }
+        crate::sql::ast::RetentionStatement::EnforceRetentionPolicy(statement) => {
+            bind_catalog_statement(
+                raw_sql,
+                bind_enforce_retention_policy(statement, catalog, context),
+                QueryStatement::EnforceRetentionPolicy,
+            )
+        }
     }
 }
 
@@ -339,8 +483,9 @@ fn bind_select_statement(
     catalog: &Catalog,
     outer_scope: &CteScope,
     raw_sql: &str,
+    context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
-    let select = bind_select(select, catalog, outer_scope)?;
+    let select = bind_select(select, catalog, outer_scope, context)?;
     Ok(parsed_statement(raw_sql, QueryStatement::Select(select)))
 }
 
@@ -349,8 +494,9 @@ fn bind_explain_statement(
     catalog: &Catalog,
     outer_scope: &CteScope,
     raw_sql: &str,
+    context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
-    let inner = bind_statement(*statement.statement, catalog, outer_scope)?;
+    let inner = bind_statement(*statement.statement, catalog, outer_scope, context)?;
     Ok(parsed_statement(
         raw_sql,
         QueryStatement::Explain(crate::sql::ast::ExplainStatement {
@@ -380,18 +526,20 @@ fn bind_refresh_rollup_statement(
     statement: crate::sql::ast::RefreshRollupStatement,
     catalog: &Catalog,
     raw_sql: &str,
+    context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
     let crate::sql::ast::RefreshRollupStatement { name } = statement;
-    let name = name.trim().to_string();
+    let name = normalize_relation_name(name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "REFRESH ROLLUP requires a name".into(),
         ));
     }
     if catalog.get_rollup(&name).is_none() {
-        return Err(CassieError::Planner(format!(
-            "rollup '{name}' does not exist"
-        )));
+        return Err(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::Rollup,
+            name,
+        });
     }
     Ok(parsed_statement(
         raw_sql,
@@ -403,16 +551,18 @@ fn bind_drop_rollup_statement(
     statement: crate::sql::ast::DropRollupStatement,
     catalog: &Catalog,
     raw_sql: &str,
+    context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
     let crate::sql::ast::DropRollupStatement { name, if_exists } = statement;
-    let name = name.trim().to_string();
+    let name = normalize_relation_name(name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner("DROP ROLLUP requires a name".into()));
     }
     if !if_exists && catalog.get_rollup(&name).is_none() {
-        return Err(CassieError::Planner(format!(
-            "rollup '{name}' does not exist"
-        )));
+        return Err(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::Rollup,
+            name,
+        });
     }
     Ok(parsed_statement(
         raw_sql,
@@ -424,18 +574,20 @@ fn bind_drop_retention_policy_statement(
     statement: crate::sql::ast::DropRetentionPolicyStatement,
     catalog: &Catalog,
     raw_sql: &str,
+    context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
     let crate::sql::ast::DropRetentionPolicyStatement { name, if_exists } = statement;
-    let name = name.trim().to_string();
+    let name = normalize_relation_name(name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "DROP RETENTION POLICY requires a name".into(),
         ));
     }
     if !if_exists && catalog.get_retention_policy(&name).is_none() {
-        return Err(CassieError::Planner(format!(
-            "retention policy '{name}' does not exist"
-        )));
+        return Err(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::RetentionPolicy,
+            name,
+        });
     }
     Ok(parsed_statement(
         raw_sql,
@@ -450,16 +602,17 @@ fn bind_create_schema_statement(
     statement: CreateSchemaStatement,
     catalog: &Catalog,
     raw_sql: &str,
+    context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
     let CreateSchemaStatement {
         schema,
         if_not_exists,
     } = statement;
-    let schema = schema.trim().to_string();
+    let schema = normalize_schema_name(schema.trim(), context)?;
     if schema.is_empty() {
         return Err(CassieError::Planner("CREATE SCHEMA requires a name".into()));
     }
-    if is_reserved_namespace(&schema) {
+    if is_reserved_namespace(&local_name(&schema)) {
         return Err(CassieError::Unsupported(format!(
             "namespace '{schema}' is reserved"
         )));
@@ -476,6 +629,52 @@ fn bind_create_schema_statement(
             schema,
             if_not_exists,
         }),
+    ))
+}
+
+fn bind_create_database_statement(
+    statement: CreateDatabaseStatement,
+    catalog: &Catalog,
+    raw_sql: &str,
+) -> Result<ParsedStatement, CassieError> {
+    let CreateDatabaseStatement { name, if_not_exists } = statement;
+    let name = normalize_database_name(name.trim())?;
+    if name.is_empty() {
+        return Err(CassieError::Planner("CREATE DATABASE requires a name".into()));
+    }
+    if !if_not_exists && catalog.database_exists(&name) {
+        return Err(CassieError::Planner(format!(
+            "database '{name}' already exists"
+        )));
+    }
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::CreateDatabase(CreateDatabaseStatement {
+            name,
+            if_not_exists,
+        }),
+    ))
+}
+
+fn bind_drop_database_statement(
+    statement: DropDatabaseStatement,
+    catalog: &Catalog,
+    raw_sql: &str,
+) -> Result<ParsedStatement, CassieError> {
+    let DropDatabaseStatement { name, if_exists } = statement;
+    let name = normalize_database_name(name.trim())?;
+    if name.is_empty() {
+        return Err(CassieError::Planner("DROP DATABASE requires a name".into()));
+    }
+    if !if_exists && !catalog.database_exists(&name) {
+        return Err(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::Database,
+            name,
+        });
+    }
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::DropDatabase(DropDatabaseStatement { name, if_exists }),
     ))
 }
 
@@ -497,8 +696,9 @@ fn bind_catalog_statement<T>(
 fn bind_copy(
     mut statement: CopyStatement,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<CopyStatement, CassieError> {
-    statement.table = statement.table.trim().to_string();
+    statement.table = resolve_relation_name(statement.table.trim(), catalog, context)?;
     if statement.table.is_empty() {
         return Err(CassieError::Planner("COPY requires a target table".into()));
     }

@@ -694,7 +694,7 @@ fn should_bucket_timestamps_with_custom_origin() {
             .unwrap();
 
         // Assert
-        assert!(result.rows.len() == 1);
+        assert_eq!(result.rows.len(), 1);
         assert_eq!(
             result.rows[0],
             vec![

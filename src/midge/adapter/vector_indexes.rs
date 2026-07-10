@@ -1,6 +1,6 @@
 use super::{
     normalize_vector, CassieError, Midge, NormalizedVectorRecord, Query, StorageFamily,
-    VectorIndexRecord, WriteOptions,
+    VectorIndexRecord, VectorIndexState, WriteOptions,
 };
 
 impl Midge {
@@ -12,23 +12,125 @@ impl Midge {
         mut metadata: crate::embeddings::VectorIndexRecord,
     ) -> Result<(), CassieError> {
         let records = self.normalized_vector_records_for_index(&metadata)?;
-        match metadata.metadata.index_type {
-            crate::embeddings::VectorIndexType::Hnsw => {
-                metadata.metadata.hnsw_graph = Some(Self::build_hnsw_graph_from_records(
+        let state = match metadata.metadata.index_type {
+            crate::embeddings::VectorIndexType::Hnsw => VectorIndexState {
+                hnsw_graph: Some(Self::build_hnsw_graph_from_records(
                     &metadata,
                     records.clone(),
-                ));
-            }
-            crate::embeddings::VectorIndexType::IvfFlat => {
-                metadata.metadata.ivfflat_training = Some(
-                    Self::build_ivfflat_training_from_records(&metadata, &records),
-                );
-            }
-            crate::embeddings::VectorIndexType::BruteForce => {}
-        }
+                )),
+                ivfflat_training: None,
+            },
+            crate::embeddings::VectorIndexType::IvfFlat => VectorIndexState {
+                hnsw_graph: None,
+                ivfflat_training: Some(Self::build_ivfflat_training_from_records(
+                    &metadata, &records,
+                )),
+            },
+            crate::embeddings::VectorIndexType::BruteForce => VectorIndexState::default(),
+        };
+        metadata.metadata.hnsw_graph = None;
+        metadata.metadata.ivfflat_training = None;
         self.write_normalized_vectors_for_index(&metadata, &records)?;
+        self.write_vector_index_state(&metadata.collection, &metadata.field, state)?;
         self.write_vector_index_metadata(&metadata)?;
         Ok(())
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when storage state cannot be read.
+    pub fn get_vector_index_state(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Option<VectorIndexState>, CassieError> {
+        let tx = self.begin_data_readonly_tx()?;
+        let Some(raw) = tx
+            .get(&Self::vector_index_state_key(collection, field))
+            .map_err(CassieError::from)?
+        else {
+            return Ok(None);
+        };
+        serde_json::from_slice(&raw)
+            .map(Some)
+            .map_err(|error| CassieError::Parse(format!("invalid vector index state: {error}")))
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when derived vector-index state cannot be persisted.
+    pub fn put_vector_index_state(
+        &self,
+        collection: &str,
+        field: &str,
+        state: VectorIndexState,
+    ) -> Result<(), CassieError> {
+        self.write_vector_index_state(collection, field, state)
+    }
+
+    fn write_vector_index_state(
+        &self,
+        collection: &str,
+        field: &str,
+        state: VectorIndexState,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_data_rw_tx()?;
+        Self::write_vector_index_state_to_tx(&mut tx, collection, field, &state)?;
+        drop(state);
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+    }
+
+    pub(super) fn write_vector_index_state_to_tx(
+        tx: &mut cntryl_midge::Transaction,
+        collection: &str,
+        field: &str,
+        state: &VectorIndexState,
+    ) -> Result<(), CassieError> {
+        let value =
+            serde_json::to_vec(state).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(Self::vector_index_state_key(collection, field), value, None)
+            .map_err(CassieError::from)
+    }
+
+    pub(super) fn refresh_vector_index_states_in_tx(
+        tx: &mut cntryl_midge::Transaction,
+        indexes: &[VectorIndexRecord],
+    ) -> Result<(), CassieError> {
+        for index in indexes {
+            let records =
+                Self::normalized_vector_records_from_tx(tx, &index.collection, &index.field)?;
+            let state = match index.metadata.index_type {
+                crate::embeddings::VectorIndexType::Hnsw => VectorIndexState {
+                    hnsw_graph: Some(Self::build_hnsw_graph_from_records(index, records)),
+                    ivfflat_training: None,
+                },
+                crate::embeddings::VectorIndexType::IvfFlat => VectorIndexState {
+                    hnsw_graph: None,
+                    ivfflat_training: Some(Self::build_ivfflat_training_from_records(
+                        index, &records,
+                    )),
+                },
+                crate::embeddings::VectorIndexType::BruteForce => continue,
+            };
+            Self::write_vector_index_state_to_tx(tx, &index.collection, &index.field, &state)?;
+        }
+        Ok(())
+    }
+
+    fn normalized_vector_records_from_tx(
+        tx: &cntryl_midge::Transaction,
+        collection: &str,
+        field: &str,
+    ) -> Result<Vec<NormalizedVectorRecord>, CassieError> {
+        let scan = tx
+            .scan(&Query::new().prefix(Self::normalized_vector_prefix(collection, field).into()))
+            .map_err(CassieError::from)?;
+        let mut records = scan
+            .into_iter()
+            .filter_map(|(_key, raw)| serde_json::from_slice(&raw).ok())
+            .collect::<Vec<NormalizedVectorRecord>>();
+        records.sort_by(|left, right| left.id.cmp(&right.id));
+        Ok(records)
     }
 
     fn write_vector_index_metadata(
@@ -63,9 +165,11 @@ impl Midge {
             return Ok(None);
         };
 
-        serde_json::from_slice(&raw)
-            .map(Some)
-            .map_err(|error| CassieError::Parse(format!("invalid vector index metadata: {error}")))
+        let mut record: VectorIndexRecord = serde_json::from_slice(&raw).map_err(|error| {
+            CassieError::Parse(format!("invalid vector index metadata: {error}"))
+        })?;
+        self.hydrate_vector_index_state(&mut record)?;
+        Ok(Some(record))
     }
 
     /// # Errors
@@ -81,10 +185,24 @@ impl Midge {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
                 continue;
             };
+            let mut record = record;
+            self.hydrate_vector_index_state(&mut record)?;
             out.push(record);
         }
 
         Ok(out)
+    }
+
+    fn hydrate_vector_index_state(
+        &self,
+        record: &mut VectorIndexRecord,
+    ) -> Result<(), CassieError> {
+        let Some(state) = self.get_vector_index_state(&record.collection, &record.field)? else {
+            return Ok(());
+        };
+        record.metadata.hnsw_graph = state.hnsw_graph;
+        record.metadata.ivfflat_training = state.ivfflat_training;
+        Ok(())
     }
 
     pub(super) fn normalized_vector_record_from_value(
@@ -370,14 +488,17 @@ impl Midge {
         collection: &str,
     ) -> Result<usize, CassieError> {
         let mut refreshed = 0usize;
-        for mut index in self.list_vector_indexes()? {
+        for index in self.list_vector_indexes()? {
             if index.collection != collection
                 || index.metadata.index_type != crate::embeddings::VectorIndexType::Hnsw
             {
                 continue;
             }
-            index.metadata.hnsw_graph = Some(self.rebuild_hnsw_graph(&index)?);
-            self.write_vector_index_metadata(&index)?;
+            let state = VectorIndexState {
+                hnsw_graph: Some(self.rebuild_hnsw_graph(&index)?),
+                ivfflat_training: None,
+            };
+            self.write_vector_index_state(&index.collection, &index.field, state)?;
             refreshed += 1;
         }
         Ok(refreshed)
@@ -391,14 +512,17 @@ impl Midge {
         collection: &str,
     ) -> Result<usize, CassieError> {
         let mut refreshed = 0usize;
-        for mut index in self.list_vector_indexes()? {
+        for index in self.list_vector_indexes()? {
             if index.collection != collection
                 || index.metadata.index_type != crate::embeddings::VectorIndexType::IvfFlat
             {
                 continue;
             }
-            index.metadata.ivfflat_training = Some(self.rebuild_ivfflat_training(&index)?);
-            self.write_vector_index_metadata(&index)?;
+            let state = VectorIndexState {
+                hnsw_graph: None,
+                ivfflat_training: Some(self.rebuild_ivfflat_training(&index)?),
+            };
+            self.write_vector_index_state(&index.collection, &index.field, state)?;
             refreshed += 1;
         }
         Ok(refreshed)

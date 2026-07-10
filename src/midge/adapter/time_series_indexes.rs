@@ -81,6 +81,8 @@ impl Midge {
             .collection_schema(collection)
             .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
         let row_schema = self.row_schema(collection)?;
+        let write_gate = self.collection_write_gate(collection);
+        let _write_guard = write_gate.lock();
         let mut tx = self.begin_data_rw_tx()?;
         let mut ids = Vec::with_capacity(documents.len());
 
@@ -102,6 +104,7 @@ impl Midge {
         }
 
         let row_delta = i64::try_from(ids.len()).unwrap_or(i64::MAX);
+        Self::increment_data_epoch_in_tx(&mut tx)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         self.refresh_projection_hashes_after_write(collection, row_delta)?;
         Ok(ids)

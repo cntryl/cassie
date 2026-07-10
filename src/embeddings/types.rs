@@ -166,6 +166,19 @@ pub struct IvfFlatTrainingState {
     pub list_sizes: Vec<usize>,
 }
 
+/// Mutable, derived accelerator state for one immutable vector-index definition.
+///
+/// This record is deliberately stored in the data family. Keeping it separate
+/// from [`VectorIndexMetadata`] lets document writes publish rows, normalized
+/// vectors, and their accelerator state in the same transaction.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct VectorIndexState {
+    #[serde(default)]
+    pub hnsw_graph: Option<HnswGraphState>,
+    #[serde(default)]
+    pub ivfflat_training: Option<IvfFlatTrainingState>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct VectorIndexRecord {
     pub collection: String,

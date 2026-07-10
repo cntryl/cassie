@@ -440,10 +440,10 @@ fn should_enforce_deterministic_rest_bearer_auth() {
             .expect("metrics request");
 
         // Assert
-        assert!(unauthorized.status() == reqwest::StatusCode::UNAUTHORIZED);
-        assert!(wrong_token.status() == reqwest::StatusCode::UNAUTHORIZED);
+        assert_eq!(unauthorized.status(), reqwest::StatusCode::UNAUTHORIZED);
+        assert_eq!(wrong_token.status(), reqwest::StatusCode::UNAUTHORIZED);
         assert!(authorized.status().is_success());
-        assert!(forbidden.status() == reqwest::StatusCode::FORBIDDEN);
+        assert_eq!(forbidden.status(), reqwest::StatusCode::FORBIDDEN);
         assert!(health.status().is_success());
         assert!(metrics.status().is_success());
 

@@ -17,7 +17,7 @@ use crate::catalog::{
     IndexMeta, NamespaceMeta, OperationalAssignmentMeta, ProjectionMeta, RetentionPolicyMeta,
     RoleMeta, RollupMeta,
 };
-use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord};
+use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord, VectorIndexState};
 use crate::midge::row_blob::{
     decode_projected_row, decode_projected_row_matching_with_aliases,
     decode_projected_row_with_aliases, decode_row, encode_row, RowSchema,
@@ -154,6 +154,14 @@ impl Midge {
 
     fn vector_index_prefix() -> Vec<u8> {
         key_encoding::vector_index_prefix()
+    }
+
+    fn vector_index_state_key(collection: &str, field: &str) -> Vec<u8> {
+        key_encoding::vector_index_state_key(collection, field)
+    }
+
+    fn data_epoch_key() -> Vec<u8> {
+        key_encoding::data_epoch_key()
     }
 
     fn vector_index_collection_prefix(collection: &str) -> Vec<u8> {

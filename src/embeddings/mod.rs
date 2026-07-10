@@ -15,7 +15,7 @@ pub use crate::embeddings::provider::EmbeddingProvider;
 pub use crate::embeddings::types::{
     DistanceMetric, Embedding, HnswGraphNode, HnswGraphState, HnswIndexOptions,
     IvfFlatIndexOptions, IvfFlatTrainingState, NormalizedVectorRecord, VectorIndexMetadata,
-    VectorIndexRecord, VectorIndexType,
+    VectorIndexRecord, VectorIndexState, VectorIndexType,
 };
 
 pub const DEFAULT_EMBEDDING_MODEL: &str = "text-embedding-3-small";

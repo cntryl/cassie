@@ -26,6 +26,7 @@ const FAMILY_ROW_HASH: &[u8] = b"row-hash";
 const FAMILY_RANGE_HASH: &[u8] = b"range-hash";
 const FAMILY_ROOT_HASH: &[u8] = b"root-hash";
 const FAMILY_VECTOR_INDEX: &[u8] = b"vector-index";
+const FAMILY_VECTOR_INDEX_STATE: &[u8] = b"vector-index-state";
 const FAMILY_NORMALIZED_VECTOR: &[u8] = b"normalized-vector";
 const FAMILY_INDEX: &[u8] = b"index";
 const FAMILY_SCALAR_INDEX: &[u8] = b"scalar-index";
@@ -52,6 +53,7 @@ const FAMILY_ROLLUP: &[u8] = b"rollup";
 const FAMILY_RETENTION: &[u8] = b"retention";
 const FAMILY_GRAPH: &[u8] = b"graph";
 const FAMILY_GRAPH_ADJACENCY: &[u8] = b"graph-adjacency";
+const FAMILY_DATA_EPOCH: &[u8] = b"data-epoch";
 
 pub(super) const LEGACY_SCHEMA_PREFIXES: &[&[u8]] = &[b"__cassie__/", b"r/", b"doc:"];
 
@@ -121,6 +123,10 @@ pub(super) fn capacity_key_prefixes() -> Vec<CapacityKeyPrefix> {
 
 pub(super) fn layout_marker_key() -> Vec<u8> {
     key(FAMILY_LAYOUT, &[b"version"])
+}
+
+pub(super) fn data_epoch_key() -> Vec<u8> {
+    key(FAMILY_DATA_EPOCH, &[])
 }
 
 pub(super) fn legacy_v2_layout_prefix() -> Vec<u8> {
@@ -246,6 +252,10 @@ pub(super) fn vector_index_key(collection: &str, field: &str) -> Vec<u8> {
 
 pub(super) fn vector_index_prefix() -> Vec<u8> {
     prefix(FAMILY_VECTOR_INDEX, &[])
+}
+
+pub(super) fn vector_index_state_key(collection: &str, field: &str) -> Vec<u8> {
+    scoped_key(FAMILY_VECTOR_INDEX_STATE, collection, &[field.as_bytes()])
 }
 
 pub(super) fn vector_index_collection_prefix(collection: &str) -> Vec<u8> {

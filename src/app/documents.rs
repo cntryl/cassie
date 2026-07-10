@@ -58,6 +58,7 @@ impl Cassie {
             .put_document_with_stats(collection, id, payload)?;
         self.runtime
             .record_projection_write_batch(collection.to_string(), &stats);
+        self.refresh_runtime_data_epoch()?;
         self.refresh_document_write_metadata(collection, row_delta, &stats)?;
         Ok(row_id)
     }
@@ -114,6 +115,7 @@ impl Cassie {
                 .put_document_with_stats(collection, Some(id), payload)?;
         self.runtime
             .record_projection_write_batch(collection.to_string(), &stats);
+        self.refresh_runtime_data_epoch()?;
         self.refresh_document_write_metadata(collection, row_delta, &stats)?;
         Ok(row_id)
     }
@@ -137,8 +139,14 @@ impl Cassie {
         let (removed, stats, row_delta) = self.midge.delete_document_with_stats(collection, id)?;
         self.runtime
             .record_projection_write_batch(collection.to_string(), &stats);
+        self.refresh_runtime_data_epoch()?;
         self.refresh_document_write_metadata(collection, row_delta, &stats)?;
         Ok(removed)
+    }
+
+    fn refresh_runtime_data_epoch(&self) -> Result<(), CassieError> {
+        self.runtime.set_data_epoch(self.midge.data_epoch()?);
+        Ok(())
     }
 
     pub(crate) fn get_document_for_session(

@@ -26,6 +26,7 @@ pub(crate) struct DocumentWriteBatchReport {
     pub ids: Vec<String>,
     pub row_delta: i64,
     pub stats: crate::runtime::ProjectionWriteStats,
+    pub data_epoch: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -222,6 +223,8 @@ impl Midge {
         if operations.is_empty() {
             return Ok(DocumentWriteBatchReport::default());
         }
+        let write_gate = self.collection_write_gate(collection);
+        let _write_guard = write_gate.lock();
         let context = self.document_write_batch_context(collection)?;
         let prepared = Self::prepare_document_writes(collection, operations, &context)?;
         let mut tx = self.begin_data_rw_tx()?;
@@ -234,6 +237,9 @@ impl Midge {
                 prepared,
                 &mut report,
             )?;
+        }
+        if report_has_changes(&report) {
+            Self::refresh_vector_index_states_in_tx(&mut tx, &context.vector_indexes)?;
         }
         self.finish_document_write_batch(collection, options, tx, report)
     }
@@ -569,27 +575,22 @@ impl Midge {
         &self,
         collection: &str,
         options: DocumentWriteBatchOptions,
-        tx: cntryl_midge::Transaction,
+        mut tx: cntryl_midge::Transaction,
         mut report: DocumentWriteBatchReport,
     ) -> Result<DocumentWriteBatchReport, CassieError> {
-        let changed = report.stats.row_puts > 0
-            || report.stats.row_deletes > 0
-            || report.stats.index_puts > 0
-            || report.stats.index_deletes > 0
-            || report.stats.metadata_puts > 0
-            || report.stats.metadata_deletes > 0;
+        let changed = report_has_changes(&report);
         if !changed {
             tx.rollback().map_err(CassieError::from)?;
             return Ok(report);
         }
 
+        let epoch = Self::increment_data_epoch_in_tx(&mut tx)?;
         tx.commit(options.commit).map_err(CassieError::from)?;
+        report.data_epoch = Some(epoch);
         report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
 
         if options.refresh_after_commit {
-            let _ = self.rebuild_column_batches_for_collection(collection)?;
-            self.refresh_hnsw_indexes_for_collection(collection)?;
-            self.refresh_ivfflat_indexes_for_collection(collection)?;
+            let _ = self.rebuild_column_batches_for_collection(collection);
             self.refresh_projection_hashes_after_write(collection, report.row_delta)?;
         }
         Ok(report)
@@ -600,6 +601,41 @@ impl Midge {
         self.engine
             .flush_cf(&layout.data)
             .map_err(CassieError::from)
+    }
+
+    /// Returns the durable data epoch, or zero before the first changed write.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the persisted epoch is malformed or cannot be read.
+    pub fn data_epoch(&self) -> Result<u64, CassieError> {
+        let tx = self.begin_data_readonly_tx()?;
+        let Some(raw) = tx.get(&Self::data_epoch_key()).map_err(CassieError::from)? else {
+            return Ok(0);
+        };
+        let bytes: [u8; 8] = raw
+            .as_ref()
+            .try_into()
+            .map_err(|_| CassieError::Parse("invalid persisted data epoch".to_string()))?;
+        Ok(u64::from_be_bytes(bytes))
+    }
+
+    pub(super) fn increment_data_epoch_in_tx(
+        tx: &mut cntryl_midge::Transaction,
+    ) -> Result<u64, CassieError> {
+        let next = match tx.get(&Self::data_epoch_key()).map_err(CassieError::from)? {
+            Some(raw) => {
+                let bytes: [u8; 8] = raw
+                    .as_ref()
+                    .try_into()
+                    .map_err(|_| CassieError::Parse("invalid persisted data epoch".to_string()))?;
+                u64::from_be_bytes(bytes).wrapping_add(1)
+            }
+            None => 1,
+        };
+        tx.put(Self::data_epoch_key(), next.to_be_bytes().to_vec(), None)
+            .map_err(CassieError::from)?;
+        Ok(next)
     }
 
     /// # Errors
@@ -837,4 +873,13 @@ impl Midge {
         }
         Ok(())
     }
+}
+
+fn report_has_changes(report: &DocumentWriteBatchReport) -> bool {
+    report.stats.row_puts > 0
+        || report.stats.row_deletes > 0
+        || report.stats.index_puts > 0
+        || report.stats.index_deletes > 0
+        || report.stats.metadata_puts > 0
+        || report.stats.metadata_deletes > 0
 }

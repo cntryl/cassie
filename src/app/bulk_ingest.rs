@@ -100,6 +100,7 @@ impl Cassie {
             DocumentWriteBatchOptions::buffered(),
         )?;
         finish_copy_batch(self, statement, &report.stats)?;
+        self.runtime.set_data_epoch(self.midge.data_epoch()?);
         Ok(affected)
     }
 }
@@ -151,7 +152,6 @@ fn finish_copy_batch(
         .map_err(|error| CassieError::Execution(error.to_string()))?;
 
     cassie.midge.flush_data_family()?;
-    cassie.runtime.bump_data_epoch();
     Ok(())
 }
 

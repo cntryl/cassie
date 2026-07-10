@@ -240,6 +240,9 @@ impl Cassie {
             }
             Err(error) => return Err(error),
         };
+        if let Some(epoch) = write_report.data_epoch {
+            self.runtime.set_data_epoch(epoch);
+        }
         self.record_projection_replay_events(metadata, batch, &prepared.replay_event_ids)?;
         let mut write_stats = write_report.stats;
         write_stats.duplicate_checks = prepared.duplicate_checks;

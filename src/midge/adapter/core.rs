@@ -3,10 +3,14 @@ use super::{
     StorageFamily, StorageLayout, TransactionMode, WriteOptions, DATA_FAMILY_NAME,
     SCHEMA_FAMILY_NAME, TEMP_FAMILY_NAME,
 };
+use parking_lot::Mutex;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 pub struct Midge {
     pub(super) engine: Engine,
     pub(super) storage_layout: OnceLock<StorageLayout>,
+    collection_write_gates: Mutex<HashMap<String, Arc<Mutex<()>>>>,
 }
 
 impl Midge {
@@ -40,6 +44,7 @@ impl Midge {
         Ok(Self {
             engine,
             storage_layout: OnceLock::new(),
+            collection_write_gates: Mutex::new(HashMap::new()),
         })
     }
 
@@ -51,6 +56,7 @@ impl Midge {
         Ok(Self {
             engine: Engine::open(options).map_err(CassieError::from)?,
             storage_layout: OnceLock::new(),
+            collection_write_gates: Mutex::new(HashMap::new()),
         })
     }
 
@@ -159,5 +165,13 @@ impl Midge {
 
     pub fn storage_layout(&self) -> Option<StorageLayout> {
         self.storage_layout.get().cloned()
+    }
+
+    pub(super) fn collection_write_gate(&self, collection: &str) -> Arc<Mutex<()>> {
+        let mut gates = self.collection_write_gates.lock();
+        gates
+            .entry(collection.to_ascii_lowercase())
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .clone()
     }
 }

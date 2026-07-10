@@ -640,7 +640,7 @@ fn stable_catalog_oid(kind: &str, name: &str, base: i64) -> i64 {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in kind
         .bytes()
-        .chain([b':'])
+        .chain(*b":")
         .chain(name.to_ascii_lowercase().bytes())
     {
         hash ^= u64::from(byte);

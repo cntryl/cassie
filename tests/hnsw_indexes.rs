@@ -5,7 +5,6 @@ use cassie::embeddings::{
 };
 use cassie::midge::adapter::StorageFamily;
 use cassie::types::{DataType, FieldSchema, Schema, Value};
-use cntryl_midge::{TransactionMode, WriteOptions};
 
 #[path = "support/sql.rs"]
 mod support;
@@ -109,22 +108,23 @@ fn mutate_stored_hnsw_index(
     mut mutate: impl FnMut(&mut VectorIndexRecord),
 ) {
     let collection = canonical_hnsw_collection(collection);
-    let entries = cassie
+    let mut record = cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Schema, b"")
-        .unwrap();
-    let Some((key, mut record)) = entries.into_iter().find_map(|(key, value)| {
-        let record = serde_json::from_slice::<VectorIndexRecord>(&value).ok()?;
-        (record.collection == collection && record.field == "embedding").then_some((key, record))
-    }) else {
-        panic!("stored vector index metadata should exist");
-    };
+        .get_vector_index(&collection, "embedding")
+        .unwrap()
+        .expect("stored vector index metadata should exist");
     mutate(&mut record);
-
-    let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
-    tx.put(key, serde_json::to_vec(&record).unwrap(), None)
+    cassie
+        .midge
+        .put_vector_index_state(
+            &collection,
+            "embedding",
+            cassie::embeddings::VectorIndexState {
+                hnsw_graph: record.metadata.hnsw_graph,
+                ivfflat_training: record.metadata.ivfflat_training,
+            },
+        )
         .unwrap();
-    tx.commit(WriteOptions::sync()).unwrap();
 }
 
 fn assert_hnsw_fallback_query(
@@ -193,6 +193,40 @@ fn should_hydrate_persisted_hnsw_graph_state_after_restart() {
         .expect("hydrated hnsw graph state");
     assert_eq!(graph.row_count, 3);
     assert_eq!(graph.nodes.len(), 3);
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_store_hnsw_graph_state_in_the_data_family() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hnsw_graph_data_family");
+    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    cassie.startup().expect("startup");
+    let collection = "hnsw_graph_data_family";
+    register_hnsw_collection(&cassie, collection);
+    put_hnsw_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+
+    // Act
+    put_hnsw_index(&cassie, collection, 2);
+    let raw_metadata = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Schema, b"")
+        .expect("schema scan")
+        .into_iter()
+        .find_map(|(_key, value)| serde_json::from_slice::<VectorIndexRecord>(&value).ok())
+        .expect("vector index metadata");
+    let state = cassie
+        .midge
+        .get_vector_index_state(&canonical_hnsw_collection(collection), "embedding")
+        .expect("read state")
+        .expect("persisted state");
+
+    // Assert
+    assert!(raw_metadata.metadata.hnsw_graph.is_none());
+    assert!(state.hnsw_graph.is_some());
+    assert!(state.ivfflat_training.is_none());
 
     let _ = std::fs::remove_dir_all(path);
 }

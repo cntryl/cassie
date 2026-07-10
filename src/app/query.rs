@@ -697,8 +697,6 @@ impl Cassie {
 
         self.store_execution_result(&cache_context, &result);
 
-        self.bump_data_epoch_for_command(&result);
-
         if let Some(key) = cache_context.cache_key.as_ref() {
             self.observe_query_plan_usage(key, &physical, &provenance)?;
         }
@@ -906,16 +904,6 @@ impl Cassie {
         if let Some(exec_cache_key) = cache_context.exec_cache_key.clone() {
             self.runtime
                 .execution_result_cache_store(exec_cache_key, result.clone());
-        }
-    }
-
-    fn bump_data_epoch_for_command(&self, result: &QueryResult) {
-        let command = result.command.as_str();
-        if command.starts_with("INSERT")
-            || command.starts_with("UPDATE")
-            || command.starts_with("DELETE")
-        {
-            self.runtime.bump_data_epoch();
         }
     }
 

@@ -176,6 +176,12 @@ impl RuntimeState {
         self.invalidate_execution_result_cache();
     }
 
+    /// Installs the durable epoch loaded from storage and invalidates stale cache entries.
+    pub fn set_data_epoch(&self, epoch: u64) {
+        self.data_epoch.store(epoch, Ordering::SeqCst);
+        self.invalidate_execution_result_cache();
+    }
+
     pub fn index_feedback_epoch(&self) -> u64 {
         self.index_feedback_epoch.load(Ordering::SeqCst)
     }

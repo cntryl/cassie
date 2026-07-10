@@ -95,22 +95,23 @@ fn mutate_stored_ivfflat_index(
     collection: &str,
     mut mutate: impl FnMut(&mut VectorIndexRecord),
 ) {
-    let entries = cassie
+    let mut record = cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Schema, b"")
-        .unwrap();
-    let Some((key, mut record)) = entries.into_iter().find_map(|(key, value)| {
-        let record = serde_json::from_slice::<VectorIndexRecord>(&value).ok()?;
-        (record.collection == collection && record.field == "embedding").then_some((key, record))
-    }) else {
-        panic!("stored vector index metadata should exist");
-    };
+        .get_vector_index(collection, "embedding")
+        .unwrap()
+        .expect("stored vector index metadata should exist");
     mutate(&mut record);
-
-    let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
-    tx.put(key, serde_json::to_vec(&record).unwrap(), None)
+    cassie
+        .midge
+        .put_vector_index_state(
+            collection,
+            "embedding",
+            cassie::embeddings::VectorIndexState {
+                hnsw_graph: record.metadata.hnsw_graph,
+                ivfflat_training: record.metadata.ivfflat_training,
+            },
+        )
         .unwrap();
-    tx.commit(WriteOptions::sync()).unwrap();
 }
 
 fn ivfflat_row_count(cassie: &Cassie, collection: &str) -> usize {

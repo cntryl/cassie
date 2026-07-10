@@ -46,6 +46,7 @@ impl Cassie {
                         })?;
                     self.runtime
                         .record_projection_write_batch(collection.clone(), &report.stats);
+                    self.runtime.set_data_epoch(self.midge.data_epoch()?);
                     if report.stats.row_puts > 0
                         || report.stats.row_deletes > 0
                         || report.stats.index_puts > 0

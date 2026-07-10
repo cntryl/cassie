@@ -161,16 +161,20 @@ Guarantees:
 
 Current HNSW support:
 
-- Cassie persists and hydrates deterministic HNSW graph state in the vector-index metadata JSON.
+- Cassie persists and hydrates deterministic HNSW graph state in a vector-index state record
+  alongside immutable index metadata. Changed collection batches commit normalized-vector sidecars
+  and graph state together.
 - Compatible unfiltered top-k vector-distance searches use the graph candidate path, then fetch row
   vectors and re-rank exactly before returning SQL or REST-visible rows.
-- Document writes and deletes refresh graph state for affected collections. HNSW remains
+- Document writes and deletes refresh graph state for affected collections under a per-collection
+  write gate. HNSW remains
   experimental; missing, stale, incompatible, empty, or unsupported graph shapes fall back to the
   exact row/vector path with a deterministic fallback reason.
 
 Current IVFFlat support:
 
 - Cassie persists and hydrates IVFFlat metadata/options plus deterministic training state.
+  Changed collection batches commit normalized-vector sidecars and training state together.
 - SQL and REST top-k searches over compatible L2 vector-distance shapes probe trained lists, then
   fetch row vectors and re-rank exactly before returning visible rows.
 - Document writes and deletes refresh IVFFlat training state for affected collections. IVFFlat remains experimental; unsupported shapes fall back to the exact row/vector path.

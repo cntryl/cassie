@@ -49,7 +49,7 @@ fn should_parse_select_statement_with_aliases_filters_sorting_pagination() {
     }
 
     let filter = statement.filter.expect("filter expected");
-    let Expr::Binary { op: _, .. } = filter else {
+    let Expr::Binary { .. } = filter else {
         panic!("filter should be binary")
     };
 

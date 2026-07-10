@@ -197,6 +197,7 @@ Goal: support practical PostgreSQL client interoperability for read-model access
 | Feature Area | Status | Compatibility |
 | --- | --- | --- |
 | Pgwire startup and authentication | Implemented | Stable |
+| Authenticated read-only non-admin roles | Implemented baseline | Stable access contract; no GRANT/capability model |
 | Simple query protocol | Implemented | Stable |
 | Extended query protocol | Implemented | Stable |
 | Prepared statements and portals | Implemented | Stable |

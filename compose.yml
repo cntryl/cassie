@@ -4,11 +4,12 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
-      - "5432:5432"
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:5432:5432"
     environment:
       CASSIE_REST_LISTEN: 0.0.0.0:8080
       CASSIE_PGWIRE_LISTEN: 0.0.0.0:5432
+      CASSIE_ADMIN_PASSWORD: ${CASSIE_ADMIN_PASSWORD:?set a non-default bootstrap secret}
       CASSIE_MIDGE_DATA_DIR: /data/midge
     volumes:
       - cassie-data:/data

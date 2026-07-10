@@ -96,9 +96,12 @@ async fn dispatch_message(
                 runtime,
                 write_half,
                 state,
-                name,
-                query,
-                parameter_type_oids,
+                session,
+                ParseRequest {
+                    name,
+                    query,
+                    parameter_type_oids,
+                },
             )
             .await?;
         }
@@ -163,15 +166,25 @@ async fn dispatch_message(
     Ok(DispatchOutcome::Continue)
 }
 
+struct ParseRequest {
+    name: String,
+    query: String,
+    parameter_type_oids: Vec<i32>,
+}
+
 async fn handle_parse(
     cassie: Arc<Cassie>,
     runtime: &RuntimeState,
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
-    name: String,
-    query: String,
-    parameter_type_oids: Vec<i32>,
+    session: &CassieSession,
+    request: ParseRequest,
 ) -> Result<(), ExtendedQueryError> {
+    let ParseRequest {
+        name,
+        query,
+        parameter_type_oids,
+    } = request;
     if !name.is_empty() && state.prepared_statements.contains_key(&name) {
         return Err(ExtendedQueryError::protocol(format!(
             "prepared statement '{name}' already exists"
@@ -183,11 +196,19 @@ async fn handle_parse(
         ));
     }
     if let Some(error) = unsupported_sql_error(&query) {
+        if session.is_authenticated_read_only() {
+            return Err(ExtendedQueryError::cassie(
+                &CassieError::InsufficientPrivilege,
+            ));
+        }
         return Err(ExtendedQueryError::cassie(&error));
     }
 
     runtime.record_sql_parse();
     let parsed = crate::sql::parse_statement(&query).map_err(CassieError::from)?;
+    session
+        .authorize_statement(&parsed.statement)
+        .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let parameter_type_oids = normalize_parameter_type_oids(&parameter_type_oids);
     let parameter_types = crate::sql::parameter_type_oids_with_catalog(
         &parsed,

@@ -53,6 +53,7 @@ use crate::vector::{
     normalize as normalize_vector,
 };
 
+mod access;
 mod cache;
 mod error;
 mod session;

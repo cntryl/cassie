@@ -80,6 +80,7 @@ mod materialized_projection;
 mod projection_diff;
 mod projection_repair;
 mod retention;
+mod role_command;
 mod rollups;
 mod schema_command;
 mod sequence_command;

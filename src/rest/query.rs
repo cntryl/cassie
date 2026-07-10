@@ -1,4 +1,4 @@
-use crate::app::{Cassie, CassieError, QueryExplainOutput, QueryExplainPlan};
+use crate::app::{Cassie, CassieError, CassieSession, QueryExplainOutput, QueryExplainPlan};
 use crate::catalog::IndexKind;
 use crate::executor::{ColumnMeta, QueryResult};
 use crate::sql::ast::{QueryStatement, TransactionAction};
@@ -88,11 +88,19 @@ pub struct QuerySchemaItem {
 ///
 /// Returns an error when the request body is invalid or SQL execution fails.
 pub fn execute(cassie: &Cassie, user: &str, body: &[u8]) -> Result<RestQueryResult, CassieError> {
+    let session = cassie.create_session(user, None);
+    execute_with_session(cassie, &session, body)
+}
+
+pub(crate) fn execute_with_session(
+    cassie: &Cassie,
+    session: &CassieSession,
+    body: &[u8],
+) -> Result<RestQueryResult, CassieError> {
     let request: QueryExecuteRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
-    let session = cassie.create_session(user, None);
     cassie
-        .execute_sql(&session, request.sql.as_str(), Vec::new())
+        .execute_sql(session, request.sql.as_str(), Vec::new())
         .map(RestQueryResult::from)
 }
 
@@ -100,9 +108,19 @@ pub fn execute(cassie: &Cassie, user: &str, body: &[u8]) -> Result<RestQueryResu
 ///
 /// Returns an error when the request body is invalid or SQL validation fails.
 pub fn validate(cassie: &Cassie, body: &[u8]) -> Result<QueryValidateResponse, CassieError> {
+    let session = cassie.create_session(&cassie.auth_user, None);
+    validate_with_session(cassie, &session, body)
+}
+
+pub(crate) fn validate_with_session(
+    cassie: &Cassie,
+    session: &CassieSession,
+    body: &[u8],
+) -> Result<QueryValidateResponse, CassieError> {
     let request: QueryValidateRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
     let parsed = crate::sql::parse_statement(request.sql.as_str())?;
+    session.authorize_statement(&parsed.statement)?;
     let command = command_name(&parsed.statement).to_string();
     let fingerprint = crate::runtime::sql_fingerprint(&parsed);
     let columns = cassie
@@ -126,11 +144,19 @@ pub fn explain(
     user: &str,
     body: &[u8],
 ) -> Result<RestQueryExplainResponse, CassieError> {
+    let session = cassie.create_session(user, None);
+    explain_with_session(cassie, &session, body)
+}
+
+pub(crate) fn explain_with_session(
+    cassie: &Cassie,
+    session: &CassieSession,
+    body: &[u8],
+) -> Result<RestQueryExplainResponse, CassieError> {
     let request: QueryExplainRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
-    let session = cassie.create_session(user, None);
     cassie
-        .explain_sql(&session, request.sql.as_str(), Vec::new())
+        .explain_sql(session, request.sql.as_str(), Vec::new())
         .map(RestQueryExplainResponse::from)
 }
 

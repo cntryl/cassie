@@ -228,7 +228,7 @@ async fn route_request_with_admin_ui(
             }
         };
 
-        if !role.is_admin {
+        if !role.is_admin && !is_read_only_sql_route(&method, segments.as_slice()) {
             cassie.runtime.record_rest_request(
                 method.as_str(),
                 &path,
@@ -533,14 +533,16 @@ async fn dispatch_admin_query_routes(
             ["api", "v1", "admin", "query", "execute"] | ["api", "v1", "admin", "query-executions"],
         ) => {
             let body = body.clone();
-            let user = rest_session_user(&cassie, context.authenticated_role);
+            let session = rest_query_session(&cassie, context.authenticated_role);
             run_rest_blocking_route(
                 cassie,
                 context.method,
                 context.path,
                 context.started_at,
                 "rest_admin_query_execute",
-                move |cassie| crate::rest::query::execute(&cassie, user.as_str(), body.as_ref()),
+                move |cassie| {
+                    crate::rest::query::execute_with_session(&cassie, &session, body.as_ref())
+                },
             )
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
@@ -551,13 +553,16 @@ async fn dispatch_admin_query_routes(
             | ["api", "v1", "admin", "query-validations"],
         ) => {
             let body = body.clone();
+            let session = rest_query_session(&cassie, context.authenticated_role);
             run_rest_blocking_route(
                 cassie,
                 context.method,
                 context.path,
                 context.started_at,
                 "rest_admin_query_validate",
-                move |cassie| crate::rest::query::validate(&cassie, body.as_ref()),
+                move |cassie| {
+                    crate::rest::query::validate_with_session(&cassie, &session, body.as_ref())
+                },
             )
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
@@ -568,14 +573,16 @@ async fn dispatch_admin_query_routes(
             | ["api", "v1", "admin", "query-explanations"],
         ) => {
             let body = body.clone();
-            let user = rest_session_user(&cassie, context.authenticated_role);
+            let session = rest_query_session(&cassie, context.authenticated_role);
             run_rest_blocking_route(
                 cassie,
                 context.method,
                 context.path,
                 context.started_at,
                 "rest_admin_query_explain",
-                move |cassie| crate::rest::query::explain(&cassie, user.as_str(), body.as_ref()),
+                move |cassie| {
+                    crate::rest::query::explain_with_session(&cassie, &session, body.as_ref())
+                },
             )
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
@@ -597,8 +604,44 @@ fn admin_query_route_allow(segments: &[&str]) -> Option<&'static str> {
     }
 }
 
-fn rest_session_user(cassie: &Cassie, authenticated_role: Option<&RoleMeta>) -> String {
-    authenticated_role.map_or_else(|| cassie.auth_user.clone(), |role| role.name.clone())
+fn rest_query_session(
+    cassie: &Cassie,
+    authenticated_role: Option<&RoleMeta>,
+) -> crate::app::CassieSession {
+    authenticated_role.map_or_else(
+        || cassie.create_session(&cassie.auth_user, None),
+        |role| {
+            crate::app::CassieSession::authenticated(
+                role.name.clone(),
+                Some(cassie.default_database.clone()),
+                role.is_admin,
+            )
+        },
+    )
+}
+
+fn is_read_only_sql_route(method: &Method, segments: &[&str]) -> bool {
+    matches!(
+        (method.as_str(), segments),
+        (
+            "GET",
+            ["api", "v1", "admin", "query", "schema"] | ["api", "v1", "admin", "catalog"]
+        ) | (
+            "POST",
+            [
+                "api",
+                "v1",
+                "admin",
+                "query",
+                "execute" | "validate" | "explain"
+            ] | [
+                "api",
+                "v1",
+                "admin",
+                "query-executions" | "query-validations" | "query-explanations"
+            ]
+        )
+    )
 }
 
 fn unsupported_route(

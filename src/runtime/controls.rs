@@ -12,7 +12,7 @@ impl QueryExecutionControls {
     #[must_use]
     pub fn from_limits(limits: &CassieRuntimeLimits, started_at: Instant) -> Self {
         let deadline = if limits.query_timeout_ms == 0 {
-            Some(started_at)
+            None
         } else {
             started_at
                 .checked_add(Duration::from_millis(limits.query_timeout_ms))

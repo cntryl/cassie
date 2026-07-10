@@ -405,14 +405,15 @@ fn should_return_gateway_timeout_for_admin_query_deadlines() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.limits.query_timeout_ms = 0;
+        config.limits.query_timeout_ms = 1;
         let cassie =
             Cassie::new_with_data_dir_and_config(&data_dir, config).expect("cassie with config");
         cassie.startup().expect("startup");
+        let collection = canonical_relation_name("postgres", "public", "rest_admin_timeout_docs");
         cassie
             .midge
             .create_collection(
-                "rest_admin_timeout_docs",
+                &collection,
                 Schema {
                     fields: vec![FieldSchema {
                         name: "title".to_string(),
@@ -423,7 +424,7 @@ fn should_return_gateway_timeout_for_admin_query_deadlines() {
             )
             .expect("create timeout collection");
         cassie.register_collection(
-            "rest_admin_timeout_docs",
+            &collection,
             Schema {
                 fields: vec![FieldSchema {
                     name: "title".to_string(),
@@ -435,22 +436,21 @@ fn should_return_gateway_timeout_for_admin_query_deadlines() {
         cassie
             .midge
             .put_document(
-                "rest_admin_timeout_docs",
+                &collection,
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
             .expect("seed timeout document");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
+        let sql = format!(
+            "{}SELECT title FROM rest_admin_timeout_docs",
+            " ".repeat(1_000_000)
+        );
 
         // Act
-        let response = post_admin_query(
-            &client,
-            &base_url,
-            "/api/v1/admin/query/execute",
-            "SELECT title FROM rest_admin_timeout_docs",
-        )
-        .await;
+        let response =
+            post_admin_query(&client, &base_url, "/api/v1/admin/query/execute", &sql).await;
         let status = response.status();
         let payload = response
             .json::<serde_json::Value>()

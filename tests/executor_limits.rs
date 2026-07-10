@@ -6,11 +6,14 @@ use cassie::embeddings::{openai::OpenAiConfig, DistanceMetric, DEFAULT_EMBEDDING
 use cassie::executor;
 use cassie::planner::logical::LogicalPlan;
 use cassie::planner::physical::PhysicalPlan;
+use cassie::runtime::QueryExecutionControls;
 use cassie::sql::ast::{Expr, FunctionCall, QuerySource, SelectItem};
 use cassie::sql::binder;
 use cassie::sql::parser;
 use cassie::types::{DataType, FieldSchema, Schema, Value};
 use std::collections::BTreeMap;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 #[path = "support/executor.rs"]
@@ -18,7 +21,7 @@ mod support;
 use support::*;
 
 #[test]
-fn should_fail_query_when_query_timeout_is_exceeded() {
+fn should_execute_query_without_deadline_when_query_timeout_is_zero() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -65,16 +68,12 @@ fn should_fail_query_when_query_timeout_is_exceeded() {
         let session = cassie.create_session("tester", None);
 
         // Act
-        let result = cassie.execute_sql(&session, "SELECT title FROM exec_timeout", vec![]);
+        let result = cassie
+            .execute_sql(&session, "SELECT title FROM exec_timeout", vec![])
+            .expect("zero query timeout should disable the deadline");
 
         // Assert
-        let message = result
-            .expect_err("query should fail when timeout is configured to 0")
-            .to_string();
-        assert!(
-            message.contains("query timeout exceeded"),
-            "expected timeout error, got {message}"
-        );
+        assert_eq!(result.rows, vec![vec![Value::String("alpha".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -477,7 +476,13 @@ fn should_cleanup_parallel_aggregation_workers_on_timeout() {
     let path = data_dir("parallel_aggregation_timeout");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
-    config.limits.query_timeout_ms = 0;
+    config.limits.query_timeout_ms = 1;
+    let controls = QueryExecutionControls::from_limits(
+        &config.limits,
+        Instant::now()
+            .checked_sub(Duration::from_secs(1))
+            .expect("expired query start"),
+    );
     let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -524,14 +529,16 @@ fn should_cleanup_parallel_aggregation_workers_on_timeout() {
             })
             .collect::<Vec<_>>();
         cassie.midge.put_documents(collection, documents).unwrap();
-        let session = cassie.create_session("tester", None);
+        let parsed = parser::parse_statement(
+            "SELECT category, SUM(score) FROM exec_parallel_aggregation_timeout GROUP BY category",
+        )
+        .expect("parse aggregate");
+        let bound = binder::bind(parsed, &cassie.catalog).expect("bind aggregate");
+        let logical = cassie::planner::logical::plan(&bound).expect("plan aggregate");
+        let physical = Arc::new(cassie::planner::physical::build(logical));
 
         // Act
-        let result = cassie.execute_sql(
-            &session,
-            "SELECT category, SUM(score) FROM exec_parallel_aggregation_timeout GROUP BY category",
-            vec![],
-        );
+        let result = executor::run_with_controls(&cassie, &physical, vec![], &controls);
         let metrics = cassie.metrics();
 
         // Assert

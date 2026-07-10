@@ -578,6 +578,9 @@ impl Cassie {
         self.ensure_session_database_exists(session)?;
 
         if let Some(error) = unsupported_sql_error(sql) {
+            if session.is_authenticated_read_only() {
+                return Err(CassieError::InsufficientPrivilege);
+            }
             return Err(error);
         }
 
@@ -624,6 +627,9 @@ impl Cassie {
         self.ensure_session_database_exists(session)?;
 
         if let Some(error) = unsupported_sql_error(sql) {
+            if session.is_authenticated_read_only() {
+                return Err(CassieError::InsufficientPrivilege);
+            }
             return Err(error);
         }
 
@@ -708,6 +714,7 @@ impl Cassie {
         if controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);
         }
+        session.authorize_statement(&parsed.statement)?;
         if session.is_transaction_failed() && !Self::is_transaction_recovery(parsed) {
             return Err(CassieError::Execution(
                 "transaction is failed; rollback required".to_string(),

@@ -34,11 +34,13 @@ pub(super) async fn try_handle_simple_copy_query(
 ) -> SimpleCopyOutcome {
     let sql = sql.to_string();
     let context = binding_context(&cassie, &session);
+    let session_for_parse = session.clone();
     let statement = match run_pgwire_blocking(cassie.clone(), "pgwire_copy_parse", move |cassie| {
         if !sql.trim_start().to_ascii_lowercase().starts_with("copy ") {
             return Ok(None);
         }
         let parsed = crate::sql::parser::parse_statement(&sql)?;
+        session_for_parse.authorize_statement(&parsed.statement)?;
         let QueryStatement::Copy(_) = &parsed.statement else {
             return Ok(None);
         };

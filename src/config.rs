@@ -1,4 +1,5 @@
 use std::env;
+use std::net::SocketAddr;
 
 use crate::embeddings::openai::OpenAiConfig;
 
@@ -16,6 +17,9 @@ pub enum CassieRuntimeConfigError {
 
     #[error("CASSIE_EMBEDDINGS_PROVIDER='{provider}' is not available; use disabled, fallback, openai, openai_compatible, tei, ollama, voyage, cohere, or local")]
     UnsupportedEmbeddingProvider { provider: String },
+
+    #[error("default bootstrap password is unsafe for non-loopback listener '{listener}'")]
+    UnsafeDefaultPassword { listener: String },
 }
 
 #[derive(Debug, Clone)]
@@ -265,8 +269,29 @@ impl CassieRuntimeConfig {
         };
         config.limits = limits_from_env(&env_reader, &config.limits);
 
+        validate_bootstrap_password(&config)?;
+
         Ok(config)
     }
+}
+
+fn validate_bootstrap_password(
+    config: &CassieRuntimeConfig,
+) -> Result<(), CassieRuntimeConfigError> {
+    if config.password != "postgres" {
+        return Ok(());
+    }
+    for listener in [&config.pgwire_listen, &config.rest_listen] {
+        let Ok(address) = listener.parse::<SocketAddr>() else {
+            continue;
+        };
+        if !address.ip().is_loopback() {
+            return Err(CassieRuntimeConfigError::UnsafeDefaultPassword {
+                listener: listener.clone(),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn limits_from_env(
@@ -726,6 +751,36 @@ mod tests {
             fallback_config.embeddings,
             EmbeddingsRuntimeConfig::Disabled
         ));
+    }
+
+    #[test]
+    fn should_reject_default_password_on_non_loopback_listener() {
+        // Arrange
+        let values = HashMap::from([("CASSIE_PGWIRE_LISTEN", "0.0.0.0:5432")]);
+
+        // Act
+        let error = CassieRuntimeConfig::from_env_reader(env_reader(values))
+            .expect_err("default password must not expose a non-loopback listener");
+
+        // Assert
+        assert!(error.to_string().contains("unsafe"));
+        assert!(error.to_string().contains("0.0.0.0:5432"));
+    }
+
+    #[test]
+    fn should_allow_explicit_password_on_non_loopback_listener() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_PGWIRE_LISTEN", "0.0.0.0:5432"),
+            ("CASSIE_ADMIN_PASSWORD", "different-secret"),
+        ]);
+
+        // Act
+        let config = CassieRuntimeConfig::from_env_reader(env_reader(values))
+            .expect("explicit password should permit non-loopback listener");
+
+        // Assert
+        assert_eq!(config.password, "different-secret");
     }
 
     #[test]

@@ -69,6 +69,7 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::InvalidEmbedding(_) => "invalid_embedding",
         CassieError::EmbeddingUnavailable(_) => "embedding_unavailable",
         CassieError::Unauthorized => "unauthorized",
+        CassieError::InsufficientPrivilege => "insufficient_privilege",
         CassieError::CatalogObjectNotFound { .. } => "catalog_object_not_found",
         CassieError::NotFound(_) => "not_found",
         CassieError::Unsupported(_) => "unsupported",

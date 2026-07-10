@@ -126,6 +126,9 @@ pub enum CassieError {
     #[error("unauthorized")]
     Unauthorized,
 
+    #[error("insufficient privilege")]
+    InsufficientPrivilege,
+
     #[error("{kind} '{name}' does not exist")]
     CatalogObjectNotFound {
         kind: CatalogObjectKind,
@@ -179,6 +182,7 @@ impl CassieError {
                 service_unavailable_descriptor("58030", self.to_string())
             }
             Self::Unauthorized => unauthorized_descriptor(),
+            Self::InsufficientPrivilege => insufficient_privilege_descriptor(),
             Self::NotFound(_) => not_found_descriptor(self.to_string()),
             Self::Unsupported(_) => unsupported_descriptor(self.to_string()),
             Self::StorageRetryable(_) => service_unavailable_descriptor("57P03", self.to_string()),
@@ -324,6 +328,17 @@ fn unauthorized_descriptor() -> CassieErrorDescriptor {
         http_status: 401,
         sql_state: "28000",
         message: CassieError::Unauthorized.to_string(),
+        table: None,
+        column: None,
+        constraint: None,
+    }
+}
+
+fn insufficient_privilege_descriptor() -> CassieErrorDescriptor {
+    CassieErrorDescriptor {
+        http_status: 403,
+        sql_state: "42501",
+        message: CassieError::InsufficientPrivilege.to_string(),
         table: None,
         column: None,
         constraint: None,

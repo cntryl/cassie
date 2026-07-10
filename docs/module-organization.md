@@ -24,6 +24,7 @@ Access-path selection must stay open/closed: add a focused executor function and
 
 - `app/state.rs`: `Cassie` and runtime config state.
 - `app/session.rs`: `CassieSession` and transaction staging.
+- `app/access.rs`: authenticated session statement authorization.
 - `app/error.rs`: `CassieError`, unsupported SQL mapping, and conversion impls.
 - `app/cache.rs`: cache keys, normalized vector cache entries, plan-cache provenance, and app-local time helpers.
 - `app/hydration.rs`: catalog, role, cardinality, and runtime-feedback hydration.

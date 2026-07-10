@@ -3,11 +3,10 @@ use super::{
     QueryStatement, Schema,
 };
 use crate::sql::ast::{
-    AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation,
-    AlterTableStatement, CreateDatabaseStatement, CreateGraphStatement, CreateIndexStatement,
-    CreateRoleStatement, CreateSchemaStatement, CreateTableStatement, CreateViewStatement,
-    DropDatabaseStatement, DropIndexStatement, DropRoleStatement, DropSchemaStatement,
-    DropTableStatement, DropViewStatement,
+    AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
+    CreateDatabaseStatement, CreateGraphStatement, CreateIndexStatement, CreateSchemaStatement,
+    CreateTableStatement, CreateViewStatement, DropDatabaseStatement, DropIndexStatement,
+    DropSchemaStatement, DropTableStatement, DropViewStatement,
 };
 use crate::types::DataType;
 
@@ -323,44 +322,6 @@ pub(super) fn alter_schema(
     cassie.hydrate_catalog()?;
 
     Ok(empty_command("ALTER SCHEMA"))
-}
-
-pub(super) fn create_role(
-    cassie: &Cassie,
-    statement: &CreateRoleStatement,
-) -> Result<QueryResult, QueryError> {
-    cassie
-        .create_role(
-            &statement.name,
-            statement.login,
-            statement.password.clone(),
-            statement.if_not_exists,
-        )
-        .map_err(|error| QueryError::General(error.to_string()))?;
-
-    Ok(empty_command("CREATE ROLE"))
-}
-
-pub(super) fn alter_role(
-    cassie: &Cassie,
-    statement: &AlterRoleStatement,
-) -> Result<QueryResult, QueryError> {
-    cassie
-        .alter_role(&statement.name, statement.login, statement.password.clone())
-        .map_err(|error| QueryError::General(error.to_string()))?;
-
-    Ok(empty_command("ALTER ROLE"))
-}
-
-pub(super) fn drop_role(
-    cassie: &Cassie,
-    statement: &DropRoleStatement,
-) -> Result<QueryResult, QueryError> {
-    cassie
-        .drop_role(&statement.name, statement.if_exists)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-
-    Ok(empty_command("DROP ROLE"))
 }
 
 pub(super) fn create_index(

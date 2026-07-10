@@ -68,6 +68,7 @@ Supported:
 - Startup and authentication.
 - Passwordless startup when authentication is disabled.
 - Cleartext-password authentication when Cassie auth is enabled.
+- Authenticated non-admin roles are limited to SELECT, EXPLAIN SELECT, SHOW, SET, and transaction-control statements; forbidden statements return SQLSTATE `42501`.
 - Simple query flow.
 - Extended query flow: parse, bind, describe, execute, sync, flush, and close.
 - Prepared statements and portals.
@@ -101,6 +102,7 @@ Common pgwire-visible error mappings:
 - deadline exceeded: SQLSTATE `57014`
 - retryable-storage/runtime-boundary failures: SQLSTATE `57P03`
 - auth failures: SQLSTATE `28000`
+- insufficient privilege for authenticated read-only roles: SQLSTATE `42501`
 
 ## Catalog Compatibility
 

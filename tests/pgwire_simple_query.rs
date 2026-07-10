@@ -791,8 +791,9 @@ fn should_report_deadline_exceeded_with_query_canceled_sqlstate() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.limits.query_timeout_ms = 0;
+        config.limits.query_timeout_ms = 1;
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        cassie.startup().expect("startup");
         seed_simple_query_collection(&cassie);
         let (addr, server) = spawn_pgwire_server_with_config(&cassie, config).await;
         let mut socket = tokio::net::TcpStream::connect(addr)
@@ -803,12 +804,13 @@ fn should_report_deadline_exceeded_with_query_canceled_sqlstate() {
 
         // Act
         start_pgwire_session(&mut reader, &mut write_half).await;
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &simple_query_frame("SELECT title FROM simple_query_docs"),
-        )
-        .await
-        .expect("write query");
+        let sql = format!(
+            "{}SELECT title FROM simple_query_docs",
+            " ".repeat(1_000_000)
+        );
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &simple_query_frame(&sql))
+            .await
+            .expect("write query");
         tokio::io::AsyncWriteExt::flush(&mut write_half)
             .await
             .expect("flush query");
@@ -825,6 +827,7 @@ fn should_report_deadline_exceeded_with_query_canceled_sqlstate() {
                 .find(|(field, _)| *field == 'C')
                 .map(|(_, value)| value.as_str()),
             Some("57014"),
+            "unexpected pgwire error fields: {error_fields:?}",
         );
         assert!(
             error_fields.iter().any(|(field, value)| {

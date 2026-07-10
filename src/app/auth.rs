@@ -45,7 +45,8 @@ impl Cassie {
             validate_role_credentials(&role, password)?;
             let database = database.unwrap_or_else(|| self.default_database.clone());
             self.ensure_database_exists(&database)?;
-            let session = CassieSession::new(role.name.clone(), Some(database));
+            let session =
+                CassieSession::authenticated(role.name.clone(), Some(database), role.is_admin);
             return Ok(AuthenticatedPrincipal { session, role });
         }
 
@@ -74,7 +75,7 @@ impl Cassie {
         let role = RoleMeta::bootstrap_admin(&self.auth_user, None);
         let database = database.unwrap_or_else(|| self.default_database.clone());
         self.ensure_database_exists(&database)?;
-        let session = CassieSession::new(role.name.clone(), Some(database));
+        let session = CassieSession::authenticated(role.name.clone(), Some(database), true);
         Ok(AuthenticatedPrincipal { session, role })
     }
 }

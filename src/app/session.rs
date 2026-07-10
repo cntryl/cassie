@@ -8,11 +8,20 @@ pub struct CassieSession {
     pub user: String,
     pub database: Option<String>,
     #[serde(skip)]
+    access: SessionAccess,
+    #[serde(skip)]
     search_path: Arc<Mutex<Vec<String>>>,
     #[serde(skip)]
     transaction: Arc<Mutex<SessionTransactionState>>,
     #[serde(skip)]
     procedure_calls: Arc<Mutex<Vec<String>>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SessionAccess {
+    TrustedEmbedded,
+    AuthenticatedAdmin,
+    AuthenticatedReadOnly,
 }
 
 #[derive(Debug, Clone)]
@@ -45,9 +54,23 @@ pub(crate) enum TransactionRowChange {
 impl CassieSession {
     #[must_use]
     pub fn new(user: String, database: Option<String>) -> Self {
+        Self::with_access(user, database, SessionAccess::TrustedEmbedded)
+    }
+
+    pub(crate) fn authenticated(user: String, database: Option<String>, is_admin: bool) -> Self {
+        let access = if is_admin {
+            SessionAccess::AuthenticatedAdmin
+        } else {
+            SessionAccess::AuthenticatedReadOnly
+        };
+        Self::with_access(user, database, access)
+    }
+
+    fn with_access(user: String, database: Option<String>, access: SessionAccess) -> Self {
         Self {
             user: normalize_role_name(user),
             database,
+            access,
             search_path: Arc::new(Mutex::new(vec![DEFAULT_SCHEMA.to_string()])),
             transaction: Arc::new(Mutex::new(SessionTransactionState {
                 status: SessionTransactionStatus::Idle,
@@ -57,6 +80,10 @@ impl CassieSession {
             })),
             procedure_calls: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    pub(crate) fn is_authenticated_read_only(&self) -> bool {
+        self.access == SessionAccess::AuthenticatedReadOnly
     }
 
     #[must_use]

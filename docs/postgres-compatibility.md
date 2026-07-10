@@ -30,7 +30,8 @@ Supported:
 - INSERT, UPDATE, DELETE, and RETURNING.
 - COPY FROM STDIN over pgwire simple query with CSV payloads and optional HEADER.
 - BEGIN, COMMIT, ROLLBACK, SAVEPOINT, ROLLBACK TO, and RELEASE SAVEPOINT.
-- CREATE TABLE, ALTER TABLE, DROP TABLE, CREATE SCHEMA, DROP SCHEMA, CREATE INDEX, DROP INDEX, CREATE VIEW, and DROP VIEW.
+- CREATE DATABASE, DROP DATABASE, CREATE TABLE, ALTER TABLE, DROP TABLE, CREATE SCHEMA, ALTER SCHEMA RENAME TO, DROP SCHEMA, CREATE INDEX, DROP INDEX, CREATE VIEW, and DROP VIEW.
+- `current_database()`, `current_schema()`, `SHOW search_path`, and `SET search_path`.
 - Limited experimental CREATE PROCEDURE and CALL support for compatibility/admin workflows.
 - CAST(x AS type) and PostgreSQL-style x::type casts.
 
@@ -53,6 +54,7 @@ Unsupported or not yet guaranteed:
 Intentional differences:
 
 - Cassie stores tables as Midge-backed collections and row blobs.
+- Each session is bound to one existing database. Unqualified names resolve through that session's `search_path`, `public` is the default user schema, and cross-database relation references are intentionally unsupported.
 - Cassie materialized projections are read-only projection outputs with Cassie-specific lifecycle and versioning commands.
 - Cassie treats DML and transactions as projection-state mutation and operational correction tools, not a general OLTP workload contract.
 - Cassie procedure support executes supported Cassie SQL with Cassie semantics; it is not PostgreSQL procedural-language compatibility.
@@ -94,9 +96,10 @@ Common pgwire-visible error mappings:
 - malformed SQL and invalid query text: SQLSTATE `42601`
 - unsupported features: SQLSTATE `0A000`
 - missing relations and views: SQLSTATE `42P01`
+- missing databases: SQLSTATE `3D000`
 - missing schemas: SQLSTATE `3F000`
 - deadline exceeded: SQLSTATE `57014`
-- retryable storage/runtime-boundary failures: SQLSTATE `57P03`
+- retryable-storage/runtime-boundary failures: SQLSTATE `57P03`
 - auth failures: SQLSTATE `28000`
 
 ## Catalog Compatibility
@@ -110,6 +113,7 @@ Supported:
 - `information_schema.sequences` exposes supported sequence metadata for migration-tool introspection.
 - `pg_catalog.pg_attribute`, `pg_catalog.pg_attrdef`, and `pg_catalog.pg_index` expose table/view column metadata, simple default expressions, index uniqueness, primary-index status, and index key ordinals for supported row-store schemas.
 - `pg_catalog.pg_namespace`, `pg_catalog.pg_class`, `pg_catalog.pg_attribute`, `pg_catalog.pg_index`, and `pg_catalog.pg_constraint` expose deterministic OID-shaped companion metadata for generic database browser navigation.
+- `pg_catalog.pg_database` and `information_schema.schemata` expose the current multi-database catalog surface; `information_schema.tables`, `information_schema.columns`, `information_schema.views`, and constraint views are filtered to the current session database.
 - PostgreSQL metadata helper functions used by browser/catalog tools are supported where Cassie can answer deterministically: `pg_get_userbyid`, `quote_ident`, `format_type`, `pg_get_expr`, `has_schema_privilege`, `has_table_privilege`, `pg_table_is_visible`, and `obj_description`.
 
 Unsupported or not yet guaranteed:
@@ -124,7 +128,7 @@ The matrix tracks read-model workflows, not full PostgreSQL server equivalence. 
 
 | Client/workflow | Status | Validated read-model workflows | Validation |
 | --- | --- | --- | --- |
-| `tokio-postgres` | Supported baseline | Startup without password, simple query, extended prepared query, inferred parameter metadata for supported CRUD shapes, DDL/DML round trip, `ON CONFLICT`, foreign-key errors, NOT NULL/unique SQLSTATE metadata, recursive CTEs, syntax-error recovery, selected catalog metadata | Default `cargo test --locked --test compatibility_matrix` |
+| `tokio-postgres` | Supported baseline | Startup without password, simple query, extended prepared query, inferred parameter metadata for supported CRUD shapes, DDL/DML round trip, `current_database()`, `current_schema()`, `SHOW/SET search_path`, search-path relation resolution, missing-schema SQLSTATE `3F000`, `ON CONFLICT`, foreign-key errors, NOT NULL/unique SQLSTATE metadata, recursive CTEs, syntax-error recovery, selected catalog metadata | Default `cargo test --locked --test compatibility_matrix` |
 | `psql` | Experimental opt-in | Non-interactive connection, simple DDL/DML, simple SELECT output, and operational smoke usage against pgwire | Ignored `should_validate_psql_read_model_probe_when_enabled`; run `CASSIE_RUN_PSQL_COMPAT=1 cargo test --locked --test compatibility_matrix should_validate_psql_read_model_probe_when_enabled -- --ignored --nocapture` with local `psql` installed. Set `CASSIE_PSQL_BIN` to override the binary. |
 | `sqlx` | Untested/planned | Prepared read queries, connection pooling, compile-time or offline query checks for supported SQL, catalog probes used by migrations | No automated probe yet |
 | `diesel` | Untested/planned | Projection-table reads and supported schema metadata where Diesel does not require unsupported PostgreSQL catalog parity | No automated probe yet |
@@ -191,6 +195,7 @@ Status definitions:
 
 Current foundation fixture:
 
+- Fresh startup bootstraps the configured default database and persisted `public` schema when the Midge store is empty.
 - Cassie accepts the pipeline application schema used for the first ORM compatibility slice, including quoted identifiers, `JSONB`, `TIMESTAMP(n)`, named table primary-key constraints, composite indexes, and `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY ... REFERENCES ...`.
 - Simple named primary-key, unique, check, and foreign-key constraints are persisted in constraint metadata and exposed through `information_schema.table_constraints`, `information_schema.key_column_usage`, `information_schema.referential_constraints`, and `pg_catalog.pg_constraint`.
 - Direct foreign-key `CASCADE`, `SET NULL`, `SET DEFAULT`, `NO ACTION`, and `RESTRICT` actions are enforced for parent deletes and key updates when those actions are captured in constraint metadata.

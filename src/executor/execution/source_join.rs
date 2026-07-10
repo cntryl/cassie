@@ -1,8 +1,8 @@
 use super::{
     batch, catalog, check_timeout, combine_nulls_with_row, combine_row_with_nulls, combine_rows,
-    deduce_text_fields, execute_query_source, filter, qualify_row, row_columns, scan,
-    source_contains_lateral, value_sort_key, Batch, BatchRow, BinaryOp, CteContext, Expr, JoinKind,
-    QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
+    deduce_text_fields, execute_query_source, filter, qualify_row, row_columns, row_lookup_columns,
+    scan, source_contains_lateral, value_sort_key, Batch, BatchRow, BinaryOp, CteContext, Expr,
+    JoinKind, QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
 };
 
 const VECTOR_TO_MERGE_SWITCH_PAIR: &str = "vectorized_join_to_merge_join";
@@ -71,8 +71,10 @@ pub(super) fn execute_join_source<'a>(
     let right_rows = batch::flatten_batches(right_batches);
     let left_columns = row_columns(&left_rows);
     let right_columns = row_columns(&right_rows);
+    let left_lookup_columns = row_lookup_columns(&left_rows);
+    let right_lookup_columns = row_lookup_columns(&right_rows);
 
-    let joined = match merge_join_keys(spec.on, &left_columns, &right_columns)
+    let joined = match merge_join_keys(spec.on, &left_lookup_columns, &right_lookup_columns)
         .filter(|_| !matches!(spec.kind, JoinKind::Cross))
     {
         Some(keys) => execute_vectorized_join(
@@ -259,20 +261,24 @@ fn collection_scan_fields(env: &SourceExecutionEnv<'_>, collection: &str) -> Opt
 }
 
 fn qualify_column_names(columns: Vec<String>, qualifier: &str) -> Vec<String> {
-    let qualifier = qualifier.to_ascii_lowercase();
-    let mut out = Vec::with_capacity(columns.len() * 2);
+    let qualifiers = crate::catalog::qualifier_variants(qualifier);
+    let mut out = Vec::with_capacity(columns.len() * (qualifiers.len() + 1));
     for column in columns {
         out.push(column.clone());
-        out.push(format!("{qualifier}.{column}"));
+        for qualifier in &qualifiers {
+            out.push(format!("{qualifier}.{column}"));
+        }
     }
     out
 }
 
 fn join_field_for_collection(key: &str, collection: &str) -> Option<String> {
     let key_lower = key.to_ascii_lowercase();
-    let prefix = format!("{}.", collection.to_ascii_lowercase());
-    if key_lower.starts_with(&prefix) {
-        return Some(key[prefix.len()..].to_string());
+    for qualifier in crate::catalog::qualifier_variants(collection) {
+        let prefix = format!("{qualifier}.");
+        if key_lower.starts_with(&prefix) {
+            return Some(key[prefix.len()..].to_string());
+        }
     }
     (!key.contains('.')).then(|| key.to_string())
 }
@@ -681,5 +687,41 @@ fn append_right_unmatched(
         for right in rows {
             joined.push(combine_nulls_with_row(left_columns, &right.row));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_qualify_join_columns_with_suffix_variants() {
+        // Arrange
+        let columns = vec!["user_key".to_string()];
+
+        // Act
+        let qualified = qualify_column_names(columns, "postgres.public.users");
+
+        // Assert
+        assert!(qualified.contains(&"user_key".to_string()));
+        assert!(qualified.contains(&"users.user_key".to_string()));
+        assert!(qualified.contains(&"public.users.user_key".to_string()));
+        assert!(qualified.contains(&"postgres.public.users.user_key".to_string()));
+    }
+
+    #[test]
+    fn should_match_join_fields_for_local_qualified_names() {
+        // Arrange
+        let collection = "postgres.public.users";
+
+        // Act
+        let local = join_field_for_collection("users.user_key", collection);
+        let schema_qualified = join_field_for_collection("public.users.user_key", collection);
+        let canonical = join_field_for_collection("postgres.public.users.user_key", collection);
+
+        // Assert
+        assert_eq!(local.as_deref(), Some("user_key"));
+        assert_eq!(schema_qualified.as_deref(), Some("user_key"));
+        assert_eq!(canonical.as_deref(), Some("user_key"));
     }
 }

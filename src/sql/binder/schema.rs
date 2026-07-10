@@ -78,11 +78,11 @@ pub(super) fn bind_create_table(
                 let table = resolve_relation_name(table, catalog, context)?;
                 constraint.references_table = Some(table.clone());
                 if !catalog.exists(&table) {
-                    return Err(CassieError::CollectionNotFound(table.to_string()));
+                    return Err(CassieError::CollectionNotFound(table.clone()));
                 }
                 let referenced_schema = catalog
                     .get_schema(&table)
-                    .ok_or_else(|| CassieError::CollectionNotFound(table.to_string()))?;
+                    .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
                 if !referenced_schema
                     .fields
                     .iter()
@@ -94,19 +94,23 @@ pub(super) fn bind_create_table(
                 }
 
                 let references_supported =
-                    catalog.get_constraints(&table).into_iter().any(|candidate| {
-                        candidate.field.eq_ignore_ascii_case(reference_field)
-                            && (candidate.primary_key || candidate.unique)
-                    }) || catalog
-                        .list_indexes(&table)
+                    catalog
+                        .get_constraints(&table)
                         .into_iter()
-                        .filter(|index| {
-                            index.unique && index.kind == crate::catalog::IndexKind::Scalar
+                        .any(|candidate| {
+                            candidate.field.eq_ignore_ascii_case(reference_field)
+                                && (candidate.primary_key || candidate.unique)
                         })
-                        .any(|index| {
-                            let fields = index.normalized_fields();
-                            fields.len() == 1 && fields[0].eq_ignore_ascii_case(reference_field)
-                        });
+                        || catalog
+                            .list_indexes(&table)
+                            .into_iter()
+                            .filter(|index| {
+                                index.unique && index.kind == crate::catalog::IndexKind::Scalar
+                            })
+                            .any(|index| {
+                                let fields = index.normalized_fields();
+                                fields.len() == 1 && fields[0].eq_ignore_ascii_case(reference_field)
+                            });
 
                 if !references_supported {
                     return Err(CassieError::Planner(format!(

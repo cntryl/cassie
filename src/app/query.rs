@@ -1,3 +1,6 @@
+use super::query_explain::{
+    QueryExplainOutput, QueryPlanAnalyze, QueryPlanAnalyzeDiagnostics, QueryPlanOperatorActual,
+};
 use super::{
     current_time_millis, parser, query_cache, unsupported_sql_error, Arc, Cassie, CassieError,
     CassieSession, ColumnMeta, ExecutionMode, Instant, PlanCacheKey, PlanCacheProvenance,
@@ -241,7 +244,7 @@ impl Cassie {
         parameter_shape: Vec<crate::runtime::ParameterShape>,
         mode: ExecutionMode,
         database: Option<String>,
-        search_path: Vec<String>,
+        search_path: &[String],
     ) -> PlanCacheKey {
         PlanCacheKey {
             sql_fingerprint,
@@ -253,7 +256,7 @@ impl Cassie {
             parameter_shape,
             mode,
             database,
-            search_path,
+            search_path: search_path.to_owned(),
         }
     }
 
@@ -277,7 +280,7 @@ impl Cassie {
         params: &[crate::types::Value],
         mode: ExecutionMode,
         database: Option<String>,
-        search_path: Vec<String>,
+        search_path: &[String],
     ) -> bool {
         let key = self.plan_cache_key_from_fingerprint(
             crate::runtime::sql_fingerprint(parsed),
@@ -435,7 +438,7 @@ impl Cassie {
                 Vec::new(),
                 ExecutionMode::DescribeQuery,
                 None,
-                vec![crate::catalog::DEFAULT_SCHEMA.to_string()],
+                &[crate::catalog::DEFAULT_SCHEMA.to_string()],
             )
         });
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
@@ -533,6 +536,80 @@ impl Cassie {
         self.execute_sql_core(session, sql, params, mode, controls)
     }
 
+    pub(crate) fn explain_sql(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+    ) -> Result<QueryExplainOutput, CassieError> {
+        let query_started = Instant::now();
+        let running_guard = self.runtime.begin_running_query();
+        let controls = self.runtime.query_controls(query_started);
+        let result = self.explain_sql_core(session, sql, params, &controls);
+        let elapsed = query_started.elapsed();
+
+        match &result {
+            Ok(output) => self
+                .runtime
+                .record_query_success(elapsed, output.result.rows.len()),
+            Err(error) => {
+                self.runtime.record_query_error(elapsed, error);
+                if session.is_transaction_active() {
+                    session.mark_transaction_failed();
+                }
+            }
+        }
+
+        drop(running_guard);
+        let _ = self.run_deferred_schema_cleanup();
+        result
+    }
+
+    fn explain_sql_core(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryExplainOutput, CassieError> {
+        if session.user.is_empty() {
+            return Err(CassieError::Unauthorized);
+        }
+        self.ensure_session_database_exists(session)?;
+
+        if let Some(error) = unsupported_sql_error(sql) {
+            return Err(error);
+        }
+
+        if controls.is_timed_out() {
+            return Err(CassieError::DeadlineExceeded);
+        }
+
+        self.runtime.record_sql_parse();
+        let parsed = parser::parse_statement(sql)?;
+        let explain = if matches!(parsed.statement, QueryStatement::Explain(_)) {
+            parsed
+        } else {
+            self.runtime.record_sql_parse();
+            parser::parse_statement(&format!("EXPLAIN {}", sql.trim()))?
+        };
+
+        Self::ensure_statement_can_execute(session, &explain, controls)?;
+        let QueryStatement::Explain(statement) = explain.statement else {
+            return Err(CassieError::Execution(
+                "expected explain statement after explain wrapping".to_string(),
+            ));
+        };
+
+        self.explain_statement_output(
+            session,
+            *statement.statement,
+            params,
+            statement.analyze,
+            controls,
+        )
+    }
+
     fn execute_sql_core(
         &self,
         session: &CassieSession,
@@ -602,7 +679,7 @@ impl Cassie {
         let feedback = self.capture_query_feedback(
             cache_context.is_select,
             session.database.as_deref(),
-            session.search_path(),
+            &session.search_path(),
             &physical,
         );
         let execution = self.execute_physical_statement(session, &physical, params, controls);
@@ -664,7 +741,7 @@ impl Cassie {
                 crate::runtime::parameter_shape(params),
                 mode,
                 session.database.clone(),
-                session.search_path(),
+                &session.search_path(),
             )
         });
         let exec_cache_key = is_select.then(|| crate::runtime::ExecutionResultCacheKey {
@@ -756,7 +833,7 @@ impl Cassie {
         &self,
         is_select: bool,
         database: Option<&str>,
-        search_path: Vec<String>,
+        search_path: &[String],
         physical: &crate::planner::physical::PhysicalPlan,
     ) -> QueryFeedbackCapture {
         let keys = is_select.then(|| {
@@ -843,9 +920,23 @@ impl Cassie {
         analyze: bool,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        Ok(self
+            .explain_statement_output(session, statement, params, analyze, controls)?
+            .result)
+    }
+
+    fn explain_statement_output(
+        &self,
+        session: &CassieSession,
+        statement: crate::sql::ast::ParsedStatement,
+        params: Vec<crate::types::Value>,
+        analyze: bool,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryExplainOutput, CassieError> {
         let before = analyze.then(|| self.runtime.snapshot());
         let physical = self.compile_physical_plan(statement, Some(session), Some(controls))?;
         let mut plan = super::query_explain::plan_line(self, &physical);
+        let mut structured = super::query_explain::structured_plan(self, &physical);
 
         if analyze {
             let report = self.run_explain_analyze(
@@ -856,12 +947,18 @@ impl Cassie {
                 &before.expect("analyze snapshot"),
             )?;
             append_explain_analyze(&mut plan, &physical, &report);
+            structured.analyze = Some(structured_analyze(&physical, &report));
         }
 
-        Ok(QueryResult {
+        let result = QueryResult {
             columns: vec![ColumnMeta::text("QUERY PLAN")],
             rows: vec![vec![Value::String(plan)]],
             command: "EXPLAIN".to_string(),
+        };
+
+        Ok(QueryExplainOutput {
+            result,
+            plan: structured,
         })
     }
 
@@ -877,7 +974,7 @@ impl Cassie {
             .record_adaptive_plan_decision(&physical.adaptive_plan);
         let feedback_keys = self.feedback_keys_for_plan(
             session.database.as_deref(),
-            session.search_path(),
+            &session.search_path(),
             physical,
         );
         self.observe_feedback_lookup(&feedback_keys);
@@ -968,4 +1065,71 @@ fn actual_operator_diagnostics(
         })
         .collect::<Vec<_>>()
         .join("|")
+}
+
+fn structured_analyze(
+    physical: &crate::planner::physical::PhysicalPlan,
+    report: &ExplainAnalyzeReport,
+) -> QueryPlanAnalyze {
+    QueryPlanAnalyze {
+        actual_rows: report.result.rows.len(),
+        actual_ms: report.elapsed_ms,
+        operator_actuals: structured_operator_actuals(physical, report),
+        diagnostics: structured_analyze_diagnostics(report),
+    }
+}
+
+fn structured_operator_actuals(
+    physical: &crate::planner::physical::PhysicalPlan,
+    report: &ExplainAnalyzeReport,
+) -> Vec<QueryPlanOperatorActual> {
+    if physical.operators.is_empty() {
+        return vec![operator_actual("Command", physical, report)];
+    }
+
+    physical
+        .operators
+        .iter()
+        .map(|operator| operator_actual(format!("{operator:?}"), physical, report))
+        .collect()
+}
+
+fn operator_actual(
+    operator: impl Into<String>,
+    physical: &crate::planner::physical::PhysicalPlan,
+    report: &ExplainAnalyzeReport,
+) -> QueryPlanOperatorActual {
+    QueryPlanOperatorActual {
+        operator: operator.into(),
+        rows_in: physical.estimates.scan_rows,
+        rows_out: report.result.rows.len(),
+        elapsed_ms: report.elapsed_ms,
+        storage_reads: report.deltas.runtime.storage_reads,
+        storage_writes: report.deltas.runtime.storage_writes,
+        temp_writes: report.deltas.runtime.temp_writes,
+        candidates: report.deltas.runtime.candidate_count,
+        results: report.deltas.runtime.result_count,
+    }
+}
+
+fn structured_analyze_diagnostics(report: &ExplainAnalyzeReport) -> QueryPlanAnalyzeDiagnostics {
+    QueryPlanAnalyzeDiagnostics {
+        plan_cache_hits: report.deltas.plan_cache_hits,
+        plan_cache_misses: report.deltas.plan_cache_misses,
+        storage_reads: report.deltas.runtime.storage_reads,
+        storage_writes: report.deltas.runtime.storage_writes,
+        temp_writes: report.deltas.runtime.temp_writes,
+        candidate_count: report.deltas.runtime.candidate_count,
+        result_count: report.deltas.runtime.result_count,
+        parallel_aggregations: report.deltas.parallel_aggregations,
+        parallel_aggregation_fallback: report.deltas.parallel_aggregation_fallbacks,
+        parallel_aggregation_workers: report.deltas.parallel_aggregation_workers,
+        parallel_aggregation_groups: report.deltas.parallel_aggregation_groups,
+        adaptive_plan_decisions: report.deltas.adaptive_plan_decisions,
+        adaptive_plan_selected: report.deltas.adaptive_plan_selected,
+        operator_switch_attempts: report.deltas.operator_switch_attempts,
+        operator_switch_success: report.deltas.operator_switch_successes,
+        operator_switch_skips: report.deltas.operator_switch_skips,
+        operator_switch_fallbacks: report.deltas.operator_switch_fallbacks,
+    }
 }

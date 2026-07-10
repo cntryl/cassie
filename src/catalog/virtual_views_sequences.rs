@@ -1,5 +1,5 @@
 use crate::catalog::{
-    relation_belongs_to_database, relation_schema_name, Catalog, SequenceMeta, local_name,
+    local_name, relation_belongs_to_database, relation_schema_name, Catalog, SequenceMeta,
 };
 use crate::types::{DataType, Value};
 
@@ -33,17 +33,16 @@ pub(super) fn information_schema_sequences(
             current_database
                 .is_none_or(|database| relation_belongs_to_database(&sequence.name, database))
         })
-        .map(sequence_row)
+        .map(|sequence| sequence_row(&sequence))
         .collect()
 }
 
-fn sequence_row(sequence: SequenceMeta) -> VirtualRow {
+fn sequence_row(sequence: &SequenceMeta) -> VirtualRow {
     vec![
         string(
             "sequence_catalog",
-            crate::catalog::relation_database_name(&sequence.name).unwrap_or_else(|| {
-                "cassie".to_string()
-            }),
+            crate::catalog::relation_database_name(&sequence.name)
+                .unwrap_or_else(|| "cassie".to_string()),
         ),
         string("sequence_schema", relation_schema_name(&sequence.name)),
         string("sequence_name", local_name(&sequence.name)),

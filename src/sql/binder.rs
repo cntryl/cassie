@@ -14,9 +14,8 @@ use crate::sql::ast::{
     CreateSchemaStatement, CreateSequenceStatement, CreateViewStatement, CteQuery,
     DropDatabaseStatement, DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
     DropSchemaStatement, DropSequenceStatement, DropViewStatement, Expr, FunctionCall,
-    InsertSource, OrderExpr, ParsedStatement,
-    ProjectionStatement, QuerySource, QueryStatement, RuntimeStatement, SelectItem, SelectSet,
-    SelectStatement, StatementRoute,
+    InsertSource, OrderExpr, ParsedStatement, ProjectionStatement, QuerySource, QueryStatement,
+    RuntimeStatement, SelectItem, SelectSet, SelectStatement, StatementRoute,
 };
 use crate::types::{DataType, FieldSchema, Schema};
 
@@ -155,13 +154,11 @@ fn bind_runtime_route(
         }
         RuntimeStatement::Show(statement) => Ok(bind_show_statement(statement, raw_sql)),
         RuntimeStatement::Set(statement) => Ok(bind_set_statement(statement, raw_sql)),
-        RuntimeStatement::Copy(statement) => {
-            bind_catalog_statement(
-                raw_sql,
-                bind_copy(statement, catalog, context),
-                QueryStatement::Copy,
-            )
-        }
+        RuntimeStatement::Copy(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_copy(statement, catalog, context),
+            QueryStatement::Copy,
+        ),
         RuntimeStatement::Insert(statement) => bind_catalog_statement(
             raw_sql,
             bind_insert(statement, catalog, context),
@@ -401,46 +398,36 @@ fn bind_projection_route(
         ProjectionStatement::DropRollup(statement) => {
             bind_drop_rollup_statement(statement, catalog, raw_sql, context)
         }
-        ProjectionStatement::CreateMaterializedProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::CreateMaterializedProjection(statement),
-        )),
-        ProjectionStatement::RefreshMaterializedProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::RefreshMaterializedProjection(statement),
-        )),
-        ProjectionStatement::DropMaterializedProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::DropMaterializedProjection(statement),
-        )),
-        ProjectionStatement::AlterMaterializedProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::AlterMaterializedProjection(statement),
-        )),
-        ProjectionStatement::DropMaterializedProjectionVersion(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::DropMaterializedProjectionVersion(statement),
-        )),
-        ProjectionStatement::VerifyProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::VerifyProjection(statement),
-        )),
-        ProjectionStatement::DiffProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::DiffProjection(statement),
-        )),
-        ProjectionStatement::CompareProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::CompareProjection(statement),
-        )),
-        ProjectionStatement::PlanRepairProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::PlanRepairProjection(statement),
-        )),
-        ProjectionStatement::RepairProjection(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::RepairProjection(statement),
-        )),
+        ProjectionStatement::CreateMaterializedProjection(statement) => {
+            bind_create_materialized_projection_statement(statement, raw_sql, context)
+        }
+        ProjectionStatement::RefreshMaterializedProjection(statement) => {
+            bind_refresh_materialized_projection_statement(statement, raw_sql, context)
+        }
+        ProjectionStatement::DropMaterializedProjection(statement) => {
+            bind_drop_materialized_projection_statement(statement, raw_sql, context)
+        }
+        ProjectionStatement::AlterMaterializedProjection(statement) => {
+            bind_alter_materialized_projection_statement(statement, raw_sql, context)
+        }
+        ProjectionStatement::DropMaterializedProjectionVersion(statement) => {
+            bind_drop_materialized_projection_version_statement(statement, raw_sql, context)
+        }
+        ProjectionStatement::VerifyProjection(statement) => {
+            bind_verify_projection_statement(statement, raw_sql, context)
+        }
+        ProjectionStatement::DiffProjection(statement) => {
+            bind_diff_projection_statement(statement, raw_sql, context)
+        }
+        ProjectionStatement::CompareProjection(statement) => {
+            bind_compare_projection_statement(statement, raw_sql, context)
+        }
+        ProjectionStatement::PlanRepairProjection(statement) => {
+            bind_plan_repair_projection_statement(statement, raw_sql, context)
+        }
+        ProjectionStatement::RepairProjection(statement) => {
+            bind_repair_projection_statement(statement, raw_sql, context)
+        }
     }
 }
 
@@ -570,6 +557,170 @@ fn bind_drop_rollup_statement(
     ))
 }
 
+fn bind_create_materialized_projection_statement(
+    mut statement: crate::sql::ast::CreateMaterializedProjectionStatement,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    if statement.name.is_empty() {
+        return Err(CassieError::Planner(
+            "CREATE MATERIALIZED PROJECTION requires a name".into(),
+        ));
+    }
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::CreateMaterializedProjection(statement),
+    ))
+}
+
+fn bind_refresh_materialized_projection_statement(
+    mut statement: crate::sql::ast::RefreshMaterializedProjectionStatement,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    if statement.name.is_empty() {
+        return Err(CassieError::Planner(
+            "REFRESH MATERIALIZED PROJECTION requires a name".into(),
+        ));
+    }
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::RefreshMaterializedProjection(statement),
+    ))
+}
+
+fn bind_drop_materialized_projection_statement(
+    mut statement: crate::sql::ast::DropMaterializedProjectionStatement,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    if statement.name.is_empty() {
+        return Err(CassieError::Planner(
+            "DROP MATERIALIZED PROJECTION requires a name".into(),
+        ));
+    }
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::DropMaterializedProjection(statement),
+    ))
+}
+
+fn bind_alter_materialized_projection_statement(
+    mut statement: crate::sql::ast::AlterMaterializedProjectionStatement,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    if statement.name.is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER MATERIALIZED PROJECTION requires a name".into(),
+        ));
+    }
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::AlterMaterializedProjection(statement),
+    ))
+}
+
+fn bind_drop_materialized_projection_version_statement(
+    mut statement: crate::sql::ast::DropMaterializedProjectionVersionStatement,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    if statement.name.is_empty() {
+        return Err(CassieError::Planner(
+            "DROP MATERIALIZED PROJECTION VERSION requires a name".into(),
+        ));
+    }
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::DropMaterializedProjectionVersion(statement),
+    ))
+}
+
+fn bind_verify_projection_statement(
+    mut statement: crate::sql::ast::VerifyProjectionStatement,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    if statement.name.is_empty() {
+        return Err(CassieError::Planner(
+            "VERIFY PROJECTION requires a name".into(),
+        ));
+    }
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::VerifyProjection(statement),
+    ))
+}
+
+fn bind_diff_projection_statement(
+    mut statement: crate::sql::ast::DiffProjectionStatement,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    statement.left = normalize_projection_target(statement.left, context)?;
+    statement.right = normalize_projection_target(statement.right, context)?;
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::DiffProjection(statement),
+    ))
+}
+
+fn bind_compare_projection_statement(
+    mut statement: crate::sql::ast::CompareProjectionStatement,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    statement.target = normalize_projection_target(statement.target, context)?;
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::CompareProjection(statement),
+    ))
+}
+
+fn bind_plan_repair_projection_statement(
+    mut statement: crate::sql::ast::PlanRepairProjectionStatement,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    statement.target = normalize_projection_target(statement.target, context)?;
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::PlanRepairProjection(statement),
+    ))
+}
+
+fn bind_repair_projection_statement(
+    mut statement: crate::sql::ast::RepairProjectionStatement,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    statement.target = normalize_projection_target(statement.target, context)?;
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::RepairProjection(statement),
+    ))
+}
+
+fn normalize_projection_target(
+    mut target: crate::sql::ast::ProjectionDiffTarget,
+    context: &BindingContext,
+) -> Result<crate::sql::ast::ProjectionDiffTarget, CassieError> {
+    target.name = normalize_relation_name(target.name.trim(), context)?;
+    if target.name.is_empty() {
+        return Err(CassieError::Planner(
+            "projection targets require a name".into(),
+        ));
+    }
+    Ok(target)
+}
+
 fn bind_drop_retention_policy_statement(
     statement: crate::sql::ast::DropRetentionPolicyStatement,
     catalog: &Catalog,
@@ -637,10 +788,15 @@ fn bind_create_database_statement(
     catalog: &Catalog,
     raw_sql: &str,
 ) -> Result<ParsedStatement, CassieError> {
-    let CreateDatabaseStatement { name, if_not_exists } = statement;
+    let CreateDatabaseStatement {
+        name,
+        if_not_exists,
+    } = statement;
     let name = normalize_database_name(name.trim())?;
     if name.is_empty() {
-        return Err(CassieError::Planner("CREATE DATABASE requires a name".into()));
+        return Err(CassieError::Planner(
+            "CREATE DATABASE requires a name".into(),
+        ));
     }
     if !if_not_exists && catalog.database_exists(&name) {
         return Err(CassieError::Planner(format!(

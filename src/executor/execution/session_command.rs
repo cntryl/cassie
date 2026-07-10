@@ -15,12 +15,10 @@ pub(super) fn execute_show(
     match variable.as_str() {
         "search_path" => Ok(QueryResult {
             columns: vec![ColumnMeta::text("search_path")],
-            rows: vec![vec![Value::String(
-                session.map_or_else(
-                    || DEFAULT_SCHEMA.to_string(),
-                    |session| session.search_path().join(", "),
-                ),
-            )]],
+            rows: vec![vec![Value::String(session.map_or_else(
+                || DEFAULT_SCHEMA.to_string(),
+                |session| session.search_path().join(", "),
+            ))]],
             command: "SHOW".to_string(),
         }),
         "server_version" => Ok(QueryResult {
@@ -63,7 +61,7 @@ pub(super) fn execute_set(
                     "SET search_path requires a session".to_string(),
                 ));
             };
-            let path = parse_search_path(value)?;
+            let path = parse_search_path(value);
             validate_search_path(cassie, session, &path)?;
             session.set_search_path(path);
             Ok(QueryResult {
@@ -79,16 +77,16 @@ pub(super) fn execute_set(
     }
 }
 
-fn parse_search_path(raw: &str) -> Result<Vec<String>, QueryError> {
+fn parse_search_path(raw: &str) -> Vec<String> {
     let path = raw
         .split(',')
         .map(|entry| entry.trim().trim_matches('"').to_ascii_lowercase())
         .filter(|entry| !entry.is_empty())
         .collect::<Vec<_>>();
     if path.is_empty() {
-        return Ok(vec![DEFAULT_SCHEMA.to_string()]);
+        return vec![DEFAULT_SCHEMA.to_string()];
     }
-    Ok(path)
+    path
 }
 
 fn validate_search_path(
@@ -108,9 +106,12 @@ fn validate_search_path(
         }
         let scoped = canonical_schema_name(database, schema);
         if !cassie.catalog.namespace_exists(&scoped) {
-            return Err(QueryError::General(format!(
-                "schema '{schema}' does not exist in database '{database}'"
-            )));
+            return Err(QueryError::Cassie(
+                crate::app::CassieError::CatalogObjectNotFound {
+                    kind: crate::app::CatalogObjectKind::Schema,
+                    name: scoped,
+                },
+            ));
         }
     }
     Ok(())

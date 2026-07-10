@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
@@ -138,7 +139,7 @@ fn read_boundary_counter(
 }
 
 fn seed_transport_boundary_docs(cassie: &Cassie) {
-    let collection = "transport_boundary_docs";
+    let collection = canonical_relation_name("postgres", "public", "transport_boundary_docs");
     let schema = Schema {
         fields: vec![FieldSchema {
             name: "title".to_string(),
@@ -148,13 +149,13 @@ fn seed_transport_boundary_docs(cassie: &Cassie) {
     };
     cassie
         .midge
-        .create_collection(collection, schema.clone())
+        .create_collection(&collection, schema.clone())
         .unwrap();
-    cassie.register_collection(collection, schema);
+    cassie.register_collection(&collection, schema);
     cassie
         .midge
         .put_document(
-            collection,
+            &collection,
             Some("doc-1".to_string()),
             serde_json::json!({"title": "alpha"}),
         )
@@ -180,7 +181,7 @@ async fn spawn_pgwire_boundary_server(cassie: &Cassie) -> (SocketAddr, PgwireSer
 }
 
 async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {
-    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "testdb"))
+    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "postgres"))
         .await
         .expect("startup write");
     let auth_frame = read_auth_frame(reader).await;

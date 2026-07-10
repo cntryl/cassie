@@ -1,4 +1,5 @@
 import type {
+  QueryExplainResponse,
   QueryResult,
   QueryResultValue,
   QuerySchemaResponse,
@@ -8,7 +9,6 @@ import type {
   QueryExecutionResult,
   QuerySchema,
   QuerySchemaDatabase,
-  QuerySchemaNamespace,
   QuerySchemaSection,
   QueryValidationResult,
 } from "./query-models";
@@ -21,32 +21,18 @@ const QUERY_SCHEMA_SECTION_ORDER: QuerySchemaSection["id"][] = [
   "procedures",
 ];
 
-// The backend doesn't yet expose multiple databases/namespaces — the real
-// `/api/v1/admin/query/schema` endpoint still returns a flat `{ sections }`
-// shape (see src/rest/query.rs). These are placeholder labels (not a real
-// database/namespace name — Cassie is not Postgres, it only speaks the pg
-// wire protocol) so the tree has somewhere to nest today's data. Delete once
-// the backend response actually carries real database/namespace names.
-const DEFAULT_DATABASE_ID = "default";
-const DEFAULT_DATABASE_LABEL = "default";
+// The catalog endpoint returns flat sections. It scopes current objects through
+// canonical `database.schema.name` labels, so the UI derives tree grouping from
+// those labels while preserving the wire item payloads.
+const DEFAULT_DATABASE_ID = "postgres";
 const DEFAULT_NAMESPACE_ID = "public";
-const DEFAULT_NAMESPACE_LABEL = "public";
 
-// Not yet part of the generated `QuerySchemaResponse` type — a forward-compat
-// shim for when the backend ships real multi-database/namespace grouping.
-interface WireSchemaNamespace {
-  id: string;
-  label: string;
-  sections: QuerySchemaResponse["sections"];
-}
-
-interface WireSchemaDatabase {
-  id: string;
-  label: string;
-  namespaces: WireSchemaNamespace[];
-}
-
-type WireSchemaResponse = QuerySchemaResponse & { databases?: WireSchemaDatabase[] };
+type CatalogScope = { database: string; namespace: string };
+type ScopedSectionBucket = {
+  database: string;
+  namespace: string;
+  sections: Map<QuerySchemaSection["id"], QuerySchemaSection>;
+};
 
 function toSchemaId(value: string): QuerySchemaSection["id"] | null {
   if (
@@ -68,10 +54,31 @@ function sortItems(items: QuerySchemaSection["items"]) {
   );
 }
 
-// Items pass through unchanged (sortItems only reorders), so a forward-compat
-// `columns` array on a wire item (not yet part of the generated type — see
-// WireSchemaDatabase above) survives here and is visible to the tree/item
-// components even though this function's declared item type doesn't list it.
+function parseCanonicalScope(value: string): CatalogScope | null {
+  const parts = value.split(".");
+  if (parts.length !== 3 || parts.some((part) => part.trim().length === 0)) {
+    return null;
+  }
+
+  return {
+    database: parts[0],
+    namespace: parts[1],
+  };
+}
+
+function scopeForItem(item: QuerySchemaSection["items"][number]): CatalogScope {
+  return (
+    parseCanonicalScope(item.label) ??
+    parseCanonicalScope(item.id.split(":").slice(1).join(":")) ?? {
+      database: DEFAULT_DATABASE_ID,
+      namespace: DEFAULT_NAMESPACE_ID,
+    }
+  );
+}
+
+// Items pass through unchanged (sortItems only reorders), so extra fields on a
+// raw test fixture survive here even when the generated transport type does not
+// declare them.
 function normalizeSections(sections: QuerySchemaResponse["sections"]): QuerySchemaSection[] {
   const sectionsById = new Map<string, QuerySchemaSection>(
     sections
@@ -103,6 +110,115 @@ function normalizeSections(sections: QuerySchemaResponse["sections"]): QuerySche
   );
 }
 
+function sectionBucketsForScope(
+  sections: QuerySchemaResponse["sections"],
+): Map<QuerySchemaSection["id"], QuerySchemaSection> {
+  const buckets = new Map<QuerySchemaSection["id"], QuerySchemaSection>();
+
+  for (const section of sections) {
+    const sectionId = toSchemaId(section.id);
+    if (sectionId === null) {
+      continue;
+    }
+
+    buckets.set(sectionId, {
+      ...section,
+      id: sectionId,
+      items: [],
+    });
+  }
+
+  return buckets;
+}
+
+function bucketKey(scope: CatalogScope) {
+  return `${scope.database}::${scope.namespace}`;
+}
+
+function getScopedBucket(
+  buckets: Map<string, ScopedSectionBucket>,
+  sections: QuerySchemaResponse["sections"],
+  scope: CatalogScope,
+) {
+  const key = bucketKey(scope);
+  let bucket = buckets.get(key);
+
+  if (!bucket) {
+    bucket = {
+      database: scope.database,
+      namespace: scope.namespace,
+      sections: sectionBucketsForScope(sections),
+    };
+    buckets.set(key, bucket);
+  }
+
+  return bucket;
+}
+
+function groupFlatSectionsByCatalogScope(
+  sections: QuerySchemaResponse["sections"],
+): QuerySchemaDatabase[] {
+  const scopedBuckets = new Map<string, ScopedSectionBucket>();
+
+  for (const section of sections) {
+    const sectionId = toSchemaId(section.id);
+    if (sectionId === null) {
+      continue;
+    }
+
+    for (const item of section.items) {
+      const bucket = getScopedBucket(scopedBuckets, sections, scopeForItem(item));
+      const scopedSection =
+        bucket.sections.get(sectionId) ??
+        ({
+          ...section,
+          id: sectionId,
+          items: [],
+        } satisfies QuerySchemaSection);
+
+      scopedSection.items.push(item);
+      bucket.sections.set(sectionId, scopedSection);
+    }
+  }
+
+  if (scopedBuckets.size === 0) {
+    getScopedBucket(scopedBuckets, sections, {
+      database: DEFAULT_DATABASE_ID,
+      namespace: DEFAULT_NAMESPACE_ID,
+    });
+  }
+
+  const databases = new Map<string, QuerySchemaDatabase>();
+  for (const bucket of scopedBuckets.values()) {
+    let database = databases.get(bucket.database);
+    if (!database) {
+      database = {
+        id: bucket.database,
+        label: bucket.database,
+        namespaces: [],
+      };
+      databases.set(bucket.database, database);
+    }
+
+    database.namespaces.push({
+      id: bucket.namespace,
+      label: bucket.namespace,
+      sections: normalizeSections([...bucket.sections.values()]),
+    });
+  }
+
+  return [...databases.values()]
+    .map((database) => ({
+      ...database,
+      namespaces: database.namespaces.sort((left, right) =>
+        left.label.localeCompare(right.label, undefined, { sensitivity: "base" }),
+      ),
+    }))
+    .sort((left, right) =>
+      left.label.localeCompare(right.label, undefined, { sensitivity: "base" }),
+    );
+}
+
 function formatQueryValue(value: QueryResultValue): string | null {
   if (value === null) {
     return null;
@@ -120,38 +236,8 @@ function formatQueryValue(value: QueryResultValue): string | null {
 }
 
 export function mapSchemaResponse(dto: QuerySchemaResponse): QuerySchema {
-  const wire = dto as WireSchemaResponse;
-
-  if (wire.databases && wire.databases.length > 0) {
-    const databases: QuerySchemaDatabase[] = wire.databases.map((database) => ({
-      id: database.id,
-      label: database.label,
-      namespaces: database.namespaces.map(
-        (namespace): QuerySchemaNamespace => ({
-          id: namespace.id,
-          label: namespace.label,
-          sections: normalizeSections(namespace.sections),
-        }),
-      ),
-    }));
-
-    return { databases };
-  }
-
   return {
-    databases: [
-      {
-        id: DEFAULT_DATABASE_ID,
-        label: DEFAULT_DATABASE_LABEL,
-        namespaces: [
-          {
-            id: DEFAULT_NAMESPACE_ID,
-            label: DEFAULT_NAMESPACE_LABEL,
-            sections: normalizeSections(dto.sections),
-          },
-        ],
-      },
-    ],
+    databases: groupFlatSectionsByCatalogScope(dto.sections),
   };
 }
 
@@ -163,10 +249,31 @@ export function mapQueryResult(dto: QueryResult): QueryExecutionResult {
   };
 }
 
+export function mapQueryExplain(dto: QueryExplainResponse): QueryExecutionResult {
+  return {
+    ...mapQueryResult(dto),
+    plan: dto.plan,
+  };
+}
+
 export function mapQueryValidation(dto: QueryValidateResponse): QueryValidationResult {
   return {
     command: dto.command,
     columns: dto.columns?.map((column) => column.name) ?? [],
     valid: dto.valid,
   };
+}
+
+export function flattenCompletionItems(schema: QuerySchemaDatabase[]) {
+  return schema.flatMap((database) =>
+    database.namespaces.flatMap((namespace) =>
+      namespace.sections.flatMap((section) =>
+        section.items.map((item) => ({
+          label: item.label,
+          insertText: item.label,
+          detail: `${item.kind}${item.metadata ? ` · ${item.metadata}` : ""}`,
+        })),
+      ),
+    ),
+  );
 }

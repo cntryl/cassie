@@ -43,7 +43,17 @@ impl Catalog {
     }
 
     pub fn unregister_sequence(&self, name: &str) {
-        self.sequences.write().remove(&name.to_ascii_lowercase());
+        let mut sequences = self.sequences.write();
+        let key = name.to_ascii_lowercase();
+        if sequences.remove(&key).is_none() {
+            let matching_key = sequences
+                .iter()
+                .find(|(_, sequence)| name_matches(&sequence.name, name))
+                .map(|(stored_key, _)| stored_key.clone());
+            if let Some(stored_key) = matching_key {
+                sequences.remove(&stored_key);
+            }
+        }
         self.bump_version();
     }
 
@@ -72,7 +82,18 @@ impl Catalog {
     }
 
     pub fn set_sequence_current_value(&self, name: &str, current_value: i64) {
-        if let Some(sequence) = self.sequences.write().get_mut(&name.to_ascii_lowercase()) {
+        let mut sequences = self.sequences.write();
+        let key = name.to_ascii_lowercase();
+        if let Some(sequence) = sequences.get_mut(&key) {
+            sequence.current_value = current_value;
+            self.bump_version();
+            return;
+        }
+
+        if let Some(sequence) = sequences
+            .values_mut()
+            .find(|sequence| name_matches(&sequence.name, name))
+        {
             sequence.current_value = current_value;
             self.bump_version();
         }

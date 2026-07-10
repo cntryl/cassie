@@ -1,4 +1,4 @@
-use crate::app::{Cassie, CassieError};
+use crate::app::{Cassie, CassieError, QueryExplainOutput, QueryExplainPlan};
 use crate::catalog::IndexKind;
 use crate::executor::{ColumnMeta, QueryResult};
 use crate::sql::ast::{QueryStatement, TransactionAction};
@@ -40,6 +40,15 @@ pub struct RestQueryResult {
     pub columns: Vec<RestColumnMeta>,
     pub rows: Vec<Vec<serde_json::Value>>,
     pub command: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct RestQueryExplainResponse {
+    pub columns: Vec<RestColumnMeta>,
+    pub rows: Vec<Vec<serde_json::Value>>,
+    pub command: String,
+    pub plan: QueryExplainPlan,
 }
 
 #[derive(serde::Serialize)]
@@ -112,20 +121,17 @@ pub fn validate(cassie: &Cassie, body: &[u8]) -> Result<QueryValidateResponse, C
 /// # Errors
 ///
 /// Returns an error when the request body is invalid or SQL planning fails.
-pub fn explain(cassie: &Cassie, user: &str, body: &[u8]) -> Result<RestQueryResult, CassieError> {
+pub fn explain(
+    cassie: &Cassie,
+    user: &str,
+    body: &[u8],
+) -> Result<RestQueryExplainResponse, CassieError> {
     let request: QueryExplainRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
-    let parsed = crate::sql::parse_statement(request.sql.as_str())?;
-    let sql = if matches!(parsed.statement, QueryStatement::Explain(_)) {
-        request.sql
-    } else {
-        format!("EXPLAIN {}", request.sql.trim())
-    };
-
     let session = cassie.create_session(user, None);
     cassie
-        .execute_sql(&session, sql.as_str(), Vec::new())
-        .map(RestQueryResult::from)
+        .explain_sql(&session, request.sql.as_str(), Vec::new())
+        .map(RestQueryExplainResponse::from)
 }
 
 #[must_use]
@@ -379,6 +385,18 @@ impl From<QueryResult> for RestQueryResult {
                 .map(|row| row.into_iter().map(query_value_to_json).collect())
                 .collect(),
             command: result.command,
+        }
+    }
+}
+
+impl From<QueryExplainOutput> for RestQueryExplainResponse {
+    fn from(output: QueryExplainOutput) -> Self {
+        let result = RestQueryResult::from(output.result);
+        Self {
+            columns: result.columns,
+            rows: result.rows,
+            command: result.command,
+            plan: output.plan,
         }
     }
 }

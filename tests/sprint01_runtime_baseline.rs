@@ -1,3 +1,4 @@
+use cassie::catalog::canonical_relation_name;
 use cassie::config::EmbeddingsRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use cassie::{app::CassieError, Cassie, CassieRuntimeConfig};
@@ -56,7 +57,7 @@ fn should_startup_be_idempotent_without_state_corruption() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
 
-        let collection = "runtime_docs";
+        let collection = canonical_relation_name("postgres", "public", "runtime_docs");
         let schema = Schema {
             fields: vec![
                 FieldSchema {
@@ -74,12 +75,12 @@ fn should_startup_be_idempotent_without_state_corruption() {
 
         cassie
             .midge
-            .create_collection(collection, schema.clone())
+            .create_collection(&collection, schema.clone())
             .unwrap();
         let _ = cassie
             .midge
             .put_document(
-                collection,
+                &collection,
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha", "body": "first"}),
             )
@@ -87,13 +88,13 @@ fn should_startup_be_idempotent_without_state_corruption() {
 
         cassie.startup().unwrap();
         let baseline_collections = cassie.catalog.list_collections();
-        let baseline_docs = cassie.midge.scan_documents(collection).unwrap();
+        let baseline_docs = cassie.midge.scan_documents(&collection).unwrap();
         let baseline_layout = cassie.midge.ensure_families_ready().unwrap().clone();
 
         // Act
         cassie.startup().unwrap();
         let after_collections = cassie.catalog.list_collections();
-        let after_docs = cassie.midge.scan_documents(collection).unwrap();
+        let after_docs = cassie.midge.scan_documents(&collection).unwrap();
         let after_layout = cassie.midge.ensure_families_ready().unwrap().clone();
 
         // Assert

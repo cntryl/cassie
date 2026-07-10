@@ -4,6 +4,7 @@ use super::{
     scalar_from_value, AnalyzerConfig, CassieSession, DataType, EvalContext, Expr, FunctionCall,
     FunctionMeta, HashMap, QueryError, Value, FUNCTION_CACHE,
 };
+use crate::catalog::{name_matches, DEFAULT_SCHEMA, PG_CATALOG_SCHEMA};
 use crate::executor::batch::RowAccess;
 use time::format_description::well_known::Rfc3339;
 use time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
@@ -60,6 +61,7 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
     let result = evaluate_builtin_function(
         &name,
         function,
+        row,
         &args,
         context.search_context,
         context.session,
@@ -75,14 +77,15 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
     result
 }
 
-fn evaluate_builtin_function(
+fn evaluate_builtin_function<R: RowAccess + ?Sized>(
     name: &str,
     function: &FunctionCall,
+    row: &R,
     args: &[Value],
     search_context: Option<&SearchContext>,
     session: Option<&CassieSession>,
 ) -> Option<Result<Value, QueryError>> {
-    evaluate_system_function(name, args, session)
+    evaluate_system_function(name, row, args, session)
         .or_else(|| evaluate_text_function(name, args))
         .or_else(|| evaluate_search_function(name, function, args, search_context))
         .or_else(|| evaluate_vector_function(name, function, args))
@@ -90,8 +93,9 @@ fn evaluate_builtin_function(
         .or_else(|| (name == "time_bucket").then(|| evaluate_time_bucket(args)))
 }
 
-fn evaluate_system_function(
+fn evaluate_system_function<R: RowAccess + ?Sized>(
     name: &str,
+    row: &R,
     args: &[Value],
     session: Option<&CassieSession>,
 ) -> Option<Result<Value, QueryError>> {
@@ -108,8 +112,7 @@ fn evaluate_system_function(
         })),
         "current_schema" => Some(require_zero_args(name, args).map(|()| {
             Value::String(
-                session
-                    .map_or_else(|| "public".to_string(), CassieSession::current_schema),
+                session.map_or_else(|| "public".to_string(), CassieSession::current_schema),
             )
         })),
         "current_database" => Some(require_zero_args(name, args).map(|()| {
@@ -145,9 +148,56 @@ fn evaluate_system_function(
         | "pg_catalog.has_table_privilege" => {
             Some(require_arg_count_range(name, args, 2..=3).map(|()| Value::Bool(true)))
         }
-        "pg_table_is_visible" | "pg_catalog.pg_table_is_visible" => {
-            Some(require_arg_count(name, args, 1).map(|()| Value::Bool(true)))
+        "pg_table_is_visible" | "pg_catalog.pg_table_is_visible" => Some(
+            require_arg_count(name, args, 1)
+                .map(|()| Value::Bool(pg_table_is_visible(row, args, session))),
+        ),
+        _ => None,
+    }
+}
+
+fn pg_table_is_visible<R: RowAccess + ?Sized>(
+    row: &R,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> bool {
+    if let Some(Value::Int64(expected_oid)) = args.first() {
+        let Some(actual_oid) = row.get("oid").and_then(value_as_i64) else {
+            return false;
+        };
+        if actual_oid != *expected_oid {
+            return false;
         }
+    }
+
+    let schema = row
+        .get("relnamespace")
+        .and_then(value_as_string)
+        .or_else(|| row.get("schemaname").and_then(value_as_string))
+        .or_else(|| row.get("table_schema").and_then(value_as_string))
+        .unwrap_or_else(|| DEFAULT_SCHEMA.to_string());
+    if schema.eq_ignore_ascii_case(PG_CATALOG_SCHEMA) {
+        return true;
+    }
+
+    session.is_none_or(|session| {
+        session
+            .search_path()
+            .into_iter()
+            .any(|entry| entry.eq_ignore_ascii_case(&schema))
+    })
+}
+
+fn value_as_i64(value: &Value) -> Option<i64> {
+    match value {
+        Value::Int64(value) => Some(*value),
+        _ => None,
+    }
+}
+
+fn value_as_string(value: &Value) -> Option<String> {
+    match value {
+        Value::String(value) => Some(value.clone()),
         _ => None,
     }
 }
@@ -230,7 +280,18 @@ fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
     context: EvalContext<'_>,
     args: Vec<Value>,
 ) -> Result<Value, QueryError> {
-    let Some(metadata) = context.user_functions.get(name) else {
+    let lookup = name.to_ascii_lowercase();
+    let Some(metadata) = context
+        .user_functions
+        .get(name)
+        .or_else(|| context.user_functions.get(&lookup))
+        .or_else(|| {
+            context
+                .user_functions
+                .values()
+                .find(|metadata| name_matches(&metadata.name, name))
+        })
+    else {
         return Err(QueryError::General(format!(
             "unsupported function '{name}'"
         )));
@@ -248,10 +309,12 @@ fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
     let locals = metadata
         .args
         .iter()
-        .cloned()
         .zip(args)
-        .map(|(arg, value)| (arg.name.to_ascii_lowercase(), value))
-        .collect::<HashMap<String, Value>>();
+        .map(|(arg, value)| {
+            let value = cast_scalar(&scalar_from_value(&value), &arg.data_type)?;
+            Ok((arg.name.to_ascii_lowercase(), value.to_value()))
+        })
+        .collect::<Result<HashMap<String, Value>, QueryError>>()?;
     let merged_args = merge_local_args(context.local_args, locals);
     eval_scalar(
         row,
@@ -262,6 +325,7 @@ fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         Some(&merged_args),
         context.session,
     )
+    .and_then(|value| cast_scalar(&value, &metadata.return_type))
     .map(|value| value.to_value())
 }
 

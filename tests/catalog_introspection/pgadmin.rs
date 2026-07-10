@@ -226,7 +226,7 @@ fn should_support_pgadmin_browser_workflow_catalog_queries() {
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
-        let session = cassie.create_session("tester", Some("catalogdb".to_string()));
+        let session = cassie.create_session("tester", Some("postgres".to_string()));
         apply_pgadmin_catalog_fixture(&cassie, &session);
 
         // Act

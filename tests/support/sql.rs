@@ -27,6 +27,21 @@ pub fn data_dir(label: &str) -> String {
     dir.to_string_lossy().to_string()
 }
 
+pub fn canonical_test_collection(cassie: &Cassie, collection: &str) -> String {
+    cassie
+        .catalog
+        .get_schema(collection)
+        .map_or_else(|| collection.to_string(), |schema| schema.collection)
+}
+
+pub fn canonical_test_index(cassie: &Cassie, collection: &str, index_name: &str) -> String {
+    let collection = canonical_test_collection(cassie, collection);
+    cassie
+        .catalog
+        .get_index(&collection, index_name)
+        .map_or_else(|| index_name.to_string(), |index| index.name)
+}
+
 pub fn openai_runtime_for_vectors() -> CassieRuntimeConfig {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::OpenAI(OpenAiRuntimeConfig {
@@ -80,6 +95,8 @@ pub fn time_series_sidecar_records(
     collection: &str,
     index_name: &str,
 ) -> Vec<TimeSeriesSidecarRecord> {
+    let collection = canonical_test_collection(cassie, collection);
+    let index_name = canonical_test_index(cassie, &collection, index_name);
     cassie
         .midge
         .raw_scan_prefix(StorageFamily::Data, b"")
@@ -91,6 +108,8 @@ pub fn time_series_sidecar_records(
 }
 
 pub fn clear_time_series_sidecars(cassie: &Cassie, collection: &str, index_name: &str) {
+    let collection = canonical_test_collection(cassie, collection);
+    let index_name = canonical_test_index(cassie, &collection, index_name);
     let entries = cassie
         .midge
         .raw_scan_prefix(StorageFamily::Data, b"")

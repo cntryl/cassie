@@ -5,7 +5,7 @@ import Layout from "./_layout";
 const QueryPage = lazy(() => import("./query"));
 
 export function registerAppRoutes() {
-  group({ layout: Layout }, () => {
+  group({ layout: Layout, auth: true }, () => {
     route("/", QueryPage);
   });
 }

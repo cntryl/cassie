@@ -39,11 +39,19 @@ Current supported areas include:
 - Core SQL reads and projection-state mutation workflows.
 - Projection checkpoints, replay diagnostics, materialized projections, versioned builds, and active-version swaps.
 - Verification, repair planning, local hash repair, and repair audit reporting.
-- Table, schema, constraint, view, limited procedure, and catalog metadata.
+- Database, schema, `search_path`, constraint, view, limited procedure, and catalog metadata.
 - Scalar, composite, partial, expression, covering, full-text, vector, hybrid, and column-batch indexing surfaces.
 - Full-text search, vector search, hybrid scoring, and embedding-provider integration.
 - Column-batch scans, aggregate acceleration, time bucketing, rollups, EXPLAIN, metrics, and runtime diagnostics.
-- PostgreSQL wire protocol basics, extended query flow, prepared statements, SQLSTATE-style errors, and catalog probes.
+- PostgreSQL wire protocol basics, extended query flow, prepared statements, SQLSTATE-style errors, catalog probes, tokio-postgres baseline coverage, and opt-in psql/Prisma/SQLAlchemy probes.
+
+Current PostgreSQL-like session/database model:
+
+- Fresh startup bootstraps the configured default database and persisted `public` schema.
+- Each session is bound to one existing database; `current_database()`, `current_schema()`, `SHOW search_path`, and `SET search_path` follow that session scope.
+- Unqualified names resolve through the session `search_path` within the current database only.
+- Cross-database `database.schema.relation` references are intentionally unsupported.
+- Cassie-owned Midge layout is a clean-break lexkey `v3`; older flat or `v2` data directories must be recreated instead of migrated in place.
 - Local operational assignment metadata plus external route, drain, move, failure, and rollback contracts for node, tenant, partition, and projection routing.
 - Local snapshot and restore workflow for single-node Midge-backed recovery.
 - Advisory capacity-management guidance using metrics, EXPLAIN, catalog diagnostics, host disk measurements, and manual benchmark scenarios.

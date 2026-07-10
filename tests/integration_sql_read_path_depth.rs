@@ -332,6 +332,7 @@ fn should_scan_expression_index_after_restart_with_row_blob_projection() {
     runtime.block_on(async {
         {
             let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
 
             cassie
@@ -341,10 +342,15 @@ fn should_scan_expression_index_after_restart_with_row_blob_projection() {
                     vec![],
                 )
                 .unwrap();
+            let collection = cassie
+                .catalog
+                .get_schema("read_path_expression_index_restart")
+                .expect("catalog collection")
+                .collection;
             cassie
                 .midge
                 .put_document(
-                    "read_path_expression_index_restart",
+                    &collection,
                     Some("row-1".to_string()),
                     serde_json::json!({"title": "Alpha", "body": "kept in row blob"}),
                 )
@@ -352,7 +358,7 @@ fn should_scan_expression_index_after_restart_with_row_blob_projection() {
             cassie
                 .midge
                 .put_document(
-                    "read_path_expression_index_restart",
+                    &collection,
                     Some("row-2".to_string()),
                     serde_json::json!({"title": "Beta", "body": "filtered"}),
                 )
@@ -397,7 +403,10 @@ fn should_scan_expression_index_after_restart_with_row_blob_projection() {
         let Value::String(plan) = &explain.rows[0][0] else {
             panic!("expected textual plan");
         };
-        assert!(plan.contains("index=read_path_expression_index_restart_idx"));
+        assert!(
+            plan.contains("read_path_expression_index_restart_idx"),
+            "plan={plan}"
+        );
         assert!(plan.contains("access_path=index_seek"));
         assert!(plan.contains("access_path_reason=scalar-index-seek"));
         assert!(plan.contains("fallback_reason=none"));
@@ -405,9 +414,10 @@ fn should_scan_expression_index_after_restart_with_row_blob_projection() {
             after["read_paths"]["index_seek_scans"].as_u64().unwrap()
                 > before["read_paths"]["index_seek_scans"].as_u64().unwrap()
         );
-        assert_eq!(
-            after["read_paths"]["last_index_scan_index"].as_str(),
-            Some("read_path_expression_index_restart_idx")
+        assert!(
+            after["read_paths"]["last_index_scan_index"]
+                .as_str()
+                .is_some_and(|value| value.ends_with("read_path_expression_index_restart_idx"))
         );
 
         let _ = std::fs::remove_dir_all(path);

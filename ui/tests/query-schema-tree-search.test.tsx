@@ -11,8 +11,8 @@ import type { QuerySchemaDatabase } from "@/features/query/query-models";
 // that separate, already-reported issue.
 const schema: QuerySchemaDatabase[] = [
   {
-    id: "default",
-    label: "Database 1",
+    id: "postgres",
+    label: "postgres",
     namespaces: [
       {
         id: "public",
@@ -22,8 +22,18 @@ const schema: QuerySchemaDatabase[] = [
             id: "tables",
             label: "Tables",
             items: [
-              { id: "table:documents", kind: "table", label: "documents", metadata: "2 columns" },
-              { id: "table:accounts", kind: "table", label: "accounts", metadata: "6 columns" },
+              {
+                id: "table:postgres.public.documents",
+                kind: "table",
+                label: "postgres.public.documents",
+                metadata: "2 columns",
+              },
+              {
+                id: "table:postgres.public.accounts",
+                kind: "table",
+                label: "postgres.public.accounts",
+                metadata: "6 columns",
+              },
             ],
           },
           { id: "views", label: "Views", items: [] },
@@ -90,8 +100,8 @@ describe("schema tree search", () => {
     const body = root.querySelector('[aria-label="Schema sections"]');
     expect(body?.getAttribute("data-schema-mode")).toBe("results");
     const results = root.querySelector('[data-testid="query-schema-tree-results"]');
-    expect(results?.querySelector('[data-item-id="table:documents"]')).toBeTruthy();
-    expect(results?.querySelector('[data-item-id="table:accounts"]')).toBe(null);
+    expect(results?.querySelector('[data-item-id="table:postgres.public.documents"]')).toBeTruthy();
+    expect(results?.querySelector('[data-item-id="table:postgres.public.accounts"]')).toBe(null);
   });
 
   it("shows a no-matches message when nothing matches", async () => {
@@ -129,7 +139,7 @@ describe("schema tree search", () => {
     expect(
       root
         .querySelector('[data-testid="query-schema-tree-normal"]')
-        ?.querySelector('[data-item-id="table:accounts"]'),
+        ?.querySelector('[data-item-id="table:postgres.public.accounts"]'),
     ).toBeTruthy();
   });
 });

@@ -116,6 +116,20 @@ pub async fn run_connection(
     state.cleanup_pgwire_objects(&runtime);
 }
 
+#[cfg(debug_assertions)]
+#[doc(hidden)]
+/// Arms a one-shot retryable pgwire boundary failure for integration tests.
+///
+/// # Panics
+///
+/// Panics if the internal test hook registry is poisoned.
+pub fn arm_next_pgwire_blocking_retryable_failure_for_test(
+    cassie: &Cassie,
+    message: impl Into<String>,
+) {
+    blocking::arm_next_retryable_failure_for_test(cassie, message);
+}
+
 pub(crate) async fn reject_too_many_connections(mut socket: TcpStream) {
     let error = PgWireError::too_many_connections();
     let _ = write_error_response(&mut socket, &error).await;

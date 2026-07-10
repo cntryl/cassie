@@ -1,5 +1,6 @@
 use crate::app::Cassie;
 use crate::app::CassieError;
+use crate::catalog::{canonical_relation_name, DEFAULT_SCHEMA};
 use crate::types::{DataType, FieldSchema, Schema};
 use serde_json::Value;
 
@@ -46,13 +47,15 @@ pub fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> {
     let schema = Schema {
         fields: schema_fields,
     };
+    let collection =
+        canonical_relation_name(&cassie.default_database, DEFAULT_SCHEMA, &request.name);
 
     cassie
         .midge
-        .create_collection(&request.name, schema.clone())?;
+        .create_collection(&collection, schema.clone())?;
 
     cassie.catalog.register_collection(
-        &request.name,
+        &collection,
         schema
             .fields
             .iter()

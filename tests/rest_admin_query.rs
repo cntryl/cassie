@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use cassie::app::{Cassie, CassieError};
+use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use reqwest::{Client, StatusCode};
@@ -124,6 +125,26 @@ fn query_endpoint_cases(base_url: &str) -> Vec<QueryEndpointCase> {
             format!("{base_url}/api/v1/admin/query/explain"),
             Some(serde_json::json!({"sql": "SELECT 1"})),
         ),
+        (
+            reqwest::Method::GET,
+            format!("{base_url}/api/v1/admin/catalog"),
+            None,
+        ),
+        (
+            reqwest::Method::POST,
+            format!("{base_url}/api/v1/admin/query-executions"),
+            Some(serde_json::json!({"sql": "SELECT 1"})),
+        ),
+        (
+            reqwest::Method::POST,
+            format!("{base_url}/api/v1/admin/query-validations"),
+            Some(serde_json::json!({"sql": "SELECT 1"})),
+        ),
+        (
+            reqwest::Method::POST,
+            format!("{base_url}/api/v1/admin/query-explanations"),
+            Some(serde_json::json!({"sql": "SELECT 1"})),
+        ),
     ]
 }
 
@@ -140,6 +161,14 @@ fn section_items<'a>(schema: &'a serde_json::Value, section_id: &str) -> &'a [se
 
 fn contains_item(items: &[serde_json::Value], label: &str) -> bool {
     items.iter().any(|item| item["label"] == label)
+}
+
+fn plan_feature_enabled(plan: &serde_json::Value, feature_id: &str) -> bool {
+    plan["features"]
+        .as_array()
+        .expect("plan features")
+        .iter()
+        .any(|feature| feature["id"] == feature_id && feature["enabled"] == true)
 }
 
 async fn post_admin_query(
@@ -471,6 +500,30 @@ fn should_explain_admin_query_through_rest() {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(payload["command"], "EXPLAIN");
         assert_eq!(payload["columns"][0]["name"], "QUERY PLAN");
+        assert_eq!(payload["plan"]["format_version"], 1);
+        assert!(payload["plan"]["summary"]["collection"]
+            .as_str()
+            .expect("plan collection")
+            .ends_with("rest_admin_query_docs"));
+        assert_eq!(payload["plan"]["summary"]["access_path"], "index_seek");
+        assert_eq!(
+            payload["plan"]["summary"]["selected_index"],
+            canonical_relation_name("postgres", "public", "rest_admin_query_title_idx")
+        );
+        assert_eq!(payload["plan"]["nodes"][0]["kind"], "read");
+        assert_eq!(payload["plan"]["nodes"][0]["status"], "optimized");
+        assert!(plan_feature_enabled(&payload["plan"], "predicate_pushdown"));
+        assert!(plan_feature_enabled(&payload["plan"], "covered_index"));
+        assert_eq!(
+            payload["plan"]["diagnostics"]["access_path_reason"],
+            "scalar-index-seek"
+        );
+        assert!(
+            payload["plan"]["estimates"]["selected_cost"]
+                .as_u64()
+                .expect("selected cost")
+                > 0
+        );
         assert!(
             !payload["rows"].as_array().expect("rows").is_empty(),
             "explain should return at least one plan row"
@@ -522,23 +575,23 @@ fn should_return_admin_query_schema_sections_in_stable_order() {
         assert_eq!(status, StatusCode::OK);
         assert!(contains_item(
             section_items(&payload, "tables"),
-            "rest_admin_query_docs"
+            &canonical_relation_name("postgres", "public", "rest_admin_query_docs")
         ));
         assert!(contains_item(
             section_items(&payload, "views"),
-            "rest_admin_query_ready"
+            &canonical_relation_name("postgres", "public", "rest_admin_query_ready")
         ));
         assert!(contains_item(
             section_items(&payload, "indexes"),
-            "rest_admin_query_title_idx"
+            &canonical_relation_name("postgres", "public", "rest_admin_query_title_idx")
         ));
         assert!(contains_item(
             section_items(&payload, "udfs"),
-            "rest_query_identity"
+            &canonical_relation_name("postgres", "public", "rest_query_identity")
         ));
         assert!(contains_item(
             section_items(&payload, "procedures"),
-            "rest_query_store"
+            &canonical_relation_name("postgres", "public", "rest_query_store")
         ));
 
         stop_rest_server(shutdown, server).await;
@@ -547,7 +600,113 @@ fn should_return_admin_query_schema_sections_in_stable_order() {
 }
 
 #[test]
-fn should_return_method_not_allowed_for_known_admin_query_path() {
+fn should_serve_restful_admin_aliases() {
+    // Arrange
+    with_fallback();
+    let data_dir = data_dir("restful-aliases");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        cassie.startup().expect("startup");
+        seed_query_catalog(&cassie);
+        let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
+        let client = Client::new();
+
+        // Act
+        let catalog_response = client
+            .get(format!("{base_url}/api/v1/admin/catalog"))
+            .header("authorization", ADMIN_AUTH)
+            .send()
+            .await
+            .expect("catalog request");
+        let catalog_status = catalog_response.status();
+        let catalog_payload = catalog_response
+            .json::<serde_json::Value>()
+            .await
+            .expect("catalog json");
+        let catalog_section_ids = catalog_payload["sections"]
+            .as_array()
+            .expect("sections")
+            .iter()
+            .map(|section| section["id"].as_str().expect("section id"))
+            .collect::<Vec<_>>();
+
+        let execution_response = post_admin_query(
+            &client,
+            &base_url,
+            "/api/v1/admin/query-executions",
+            "SELECT title FROM rest_admin_query_docs ORDER BY title",
+        )
+        .await;
+        let execution_status = execution_response.status();
+        let execution_payload = execution_response
+            .json::<serde_json::Value>()
+            .await
+            .expect("execution json");
+
+        let validation_response = post_admin_query(
+            &client,
+            &base_url,
+            "/api/v1/admin/query-validations",
+            "SELECT title FROM rest_admin_query_docs ORDER BY title",
+        )
+        .await;
+        let validation_status = validation_response.status();
+        let validation_payload = validation_response
+            .json::<serde_json::Value>()
+            .await
+            .expect("validation json");
+
+        let explain_response = post_admin_query(
+            &client,
+            &base_url,
+            "/api/v1/admin/query-explanations",
+            "SELECT title FROM rest_admin_query_docs WHERE title = 'alpha'",
+        )
+        .await;
+        let explain_status = explain_response.status();
+        let explain_payload = explain_response
+            .json::<serde_json::Value>()
+            .await
+            .expect("explain json");
+
+        // Assert
+        assert_eq!(
+            catalog_section_ids,
+            vec!["tables", "views", "indexes", "udfs", "procedures"]
+        );
+        assert_eq!(catalog_status, StatusCode::OK);
+        assert!(contains_item(
+            section_items(&catalog_payload, "tables"),
+            &canonical_relation_name("postgres", "public", "rest_admin_query_docs")
+        ));
+        assert_eq!(execution_status, StatusCode::OK);
+        assert_eq!(execution_payload["command"], "SELECT");
+        assert_eq!(execution_payload["rows"][0][0], "alpha");
+        assert_eq!(validation_status, StatusCode::OK);
+        assert_eq!(validation_payload["valid"], true);
+        assert_eq!(validation_payload["command"], "SELECT");
+        assert_eq!(explain_status, StatusCode::OK);
+        assert_eq!(explain_payload["command"], "EXPLAIN");
+        assert_eq!(explain_payload["columns"][0]["name"], "QUERY PLAN");
+        assert_eq!(explain_payload["plan"]["format_version"], 1);
+        assert_eq!(explain_payload["plan"]["nodes"][0]["kind"], "read");
+        assert_eq!(
+            explain_payload["plan"]["diagnostics"]["access_path_reason"],
+            "scalar-index-seek"
+        );
+
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+    });
+}
+
+#[test]
+fn should_return_method_not_allowed_for_known_admin_query_paths() {
     // Arrange
     with_fallback();
     let data_dir = data_dir("method");
@@ -562,26 +721,31 @@ fn should_return_method_not_allowed_for_known_admin_query_path() {
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
 
-        // Act
-        let response = client
-            .get(format!("{base_url}/api/v1/admin/query/execute"))
-            .header("authorization", ADMIN_AUTH)
-            .send()
-            .await
-            .expect("method request");
-        let status = response.status();
-        let allow = response
-            .headers()
-            .get(reqwest::header::ALLOW)
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or_default()
-            .to_string();
-        let payload = response.json::<serde_json::Value>().await.expect("json");
+        for path in [
+            "/api/v1/admin/query/execute",
+            "/api/v1/admin/query-executions",
+        ] {
+            // Act
+            let response = client
+                .get(format!("{base_url}{path}"))
+                .header("authorization", ADMIN_AUTH)
+                .send()
+                .await
+                .expect("method request");
+            let status = response.status();
+            let allow = response
+                .headers()
+                .get(reqwest::header::ALLOW)
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or_default()
+                .to_string();
+            let payload = response.json::<serde_json::Value>().await.expect("json");
 
-        // Assert
-        assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
-        assert_eq!(allow, "POST");
-        assert_eq!(payload["error"], "method not allowed");
+            // Assert
+            assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
+            assert_eq!(allow, "POST");
+            assert_eq!(payload["error"], "method not allowed");
+        }
 
         stop_rest_server(shutdown, server).await;
         let _ = std::fs::remove_dir_all(data_dir);

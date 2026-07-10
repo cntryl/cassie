@@ -25,7 +25,7 @@ impl Cassie {
     pub(crate) fn feedback_keys_for_plan(
         &self,
         database: Option<&str>,
-        search_path: Vec<String>,
+        search_path: &[String],
         physical: &crate::planner::physical::PhysicalPlan,
     ) -> Vec<RuntimeFeedbackKey> {
         let schema_epoch = self.runtime.schema_epoch();
@@ -34,7 +34,7 @@ impl Cassie {
             let index = self.catalog.get_index(&physical.collection, index_name);
             keys.push(crate::runtime::normalized_feedback_key(
                 database.map(str::to_string),
-                search_path.clone(),
+                search_path.to_owned(),
                 schema_epoch,
                 &physical.collection,
                 "index_read",
@@ -44,7 +44,7 @@ impl Cassie {
         } else {
             keys.push(crate::runtime::normalized_feedback_key(
                 database.map(str::to_string),
-                search_path.clone(),
+                search_path.to_owned(),
                 schema_epoch,
                 &physical.collection,
                 "row_scan",
@@ -68,7 +68,7 @@ impl Cassie {
             if physical.operators.contains(&operator) {
                 keys.push(crate::runtime::normalized_feedback_key(
                     database.map(str::to_string),
-                    search_path.clone(),
+                    search_path.to_owned(),
                     schema_epoch,
                     &physical.collection,
                     family,
@@ -134,7 +134,7 @@ impl Cassie {
     fn select_operator_feedback_plan(
         &self,
         database: Option<&str>,
-        search_path: Vec<String>,
+        search_path: &[String],
         collection: &str,
         logical: &crate::planner::logical::LogicalPlan,
         selection: &crate::planner::physical::ReadOperatorSelection,
@@ -154,14 +154,13 @@ impl Cassie {
             );
         };
 
-        let (_base_key, base_estimate) =
-            self.feedback_planned_candidate(
-                database,
-                search_path.clone(),
-                collection,
-                logical,
-                base_candidate,
-            );
+        let (_base_key, base_estimate) = self.feedback_planned_candidate(
+            database,
+            search_path.to_owned(),
+            collection,
+            logical,
+            base_candidate,
+        );
         let mut chosen_candidate = base_candidate;
         let mut chosen_estimate = base_estimate.clone();
         let mut chosen_cost = if base_estimate.state == "used" {
@@ -177,7 +176,7 @@ impl Cassie {
         {
             let (_key, estimate) = self.feedback_planned_candidate(
                 database,
-                search_path.clone(),
+                search_path.to_owned(),
                 collection,
                 logical,
                 candidate,
@@ -242,7 +241,7 @@ impl Cassie {
         );
         let (operator_selected_index, operator_feedback) = self.select_operator_feedback_plan(
             session.and_then(CassieSession::current_database),
-            context.search_path.clone(),
+            &context.search_path,
             &optimized.collection,
             &optimized,
             &selection,

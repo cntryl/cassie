@@ -2,6 +2,7 @@
 use std::time::Duration;
 
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
@@ -316,17 +317,18 @@ fn score_schema() -> Schema {
 }
 
 fn seed_score_collection(cassie: &Cassie, collection: &str) {
+    let collection = canonical_relation_name("postgres", "public", collection);
     let schema = score_schema();
     cassie
         .midge
-        .create_collection(collection, schema.clone())
+        .create_collection(&collection, schema.clone())
         .unwrap();
-    cassie.register_collection(collection, schema);
+    cassie.register_collection(&collection, schema);
     for (id, score) in [("doc-1", 1), ("doc-2", 2)] {
         cassie
             .midge
             .put_document(
-                collection,
+                &collection,
                 Some(id.to_string()),
                 serde_json::json!({"score": score}),
             )
@@ -368,7 +370,7 @@ async fn connect_authenticated_pgwire(
         .expect("connect pgwire");
     let (read_half, mut write_half) = socket.into_split();
     let mut reader = tokio::io::BufReader::new(read_half);
-    tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
+    tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "postgres"))
         .await
         .expect("write startup");
     let auth = read_wire_frame(&mut reader).await;

@@ -112,7 +112,11 @@ export function QuerySchemaTree({ schema, selectedItemId, onSelectItem }: QueryS
         aria-label="Schema sections"
         data-schema-mode={schemaMode()}
       >
-        <div class="cassie-query-schema-tree-body-root" data-testid="query-schema-tree-normal">
+        <div
+          class="cassie-query-schema-tree-body-root"
+          data-testid="query-schema-tree-normal"
+          data-schema-panel="normal"
+        >
           <For each={getSchema} by={(database) => database.id}>
             {(database) => (
               <QuerySchemaTreeDatabase
@@ -126,7 +130,11 @@ export function QuerySchemaTree({ schema, selectedItemId, onSelectItem }: QueryS
 
         <p class="cassie-query-schema-empty-search">No matches for “{query()}”.</p>
 
-        <div class="cassie-query-schema-tree-body-root" data-testid="query-schema-tree-results">
+        <div
+          class="cassie-query-schema-tree-body-root"
+          data-testid="query-schema-tree-results"
+          data-schema-panel="results"
+        >
           <For each={matches} by={(group) => group.id}>
             {(group) => (
               <div class="cassie-query-schema-search-group" data-testid="query-schema-search-group">

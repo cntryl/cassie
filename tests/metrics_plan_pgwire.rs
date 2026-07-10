@@ -300,7 +300,7 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
             .expect("connect pgwire");
         let (read_half, mut write_half) = socket.split();
         let mut reader = tokio::io::BufReader::new(read_half);
-        let startup = startup_frame("postgres", "testdb");
+        let startup = startup_frame("postgres", "postgres");
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
             .await
             .expect("startup write");

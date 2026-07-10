@@ -331,10 +331,15 @@ fn should_project_complex_values_through_filtered_ordered_scan() {
                 vec![],
             )
             .unwrap();
+        let collection = cassie
+            .catalog
+            .get_schema("zero_copy_projected_complex_values")
+            .expect("collection schema")
+            .collection;
         cassie
             .midge
             .put_document(
-                "zero_copy_projected_complex_values",
+                &collection,
                 Some("doc-1".to_string()),
                 serde_json::json!({
                     "title": "alpha",
@@ -347,7 +352,7 @@ fn should_project_complex_values_through_filtered_ordered_scan() {
         cassie
             .midge
             .put_document(
-                "zero_copy_projected_complex_values",
+                &collection,
                 Some("doc-2".to_string()),
                 serde_json::json!({
                     "title": "alpha",

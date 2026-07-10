@@ -3,12 +3,11 @@ use super::{
     find_matching_paren, find_top_level_keyword, parse_enclosed_parenthesized,
     parse_optional_role_password, split_keyword, strip_parentheses, AlterRoleStatement,
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
-    ConstraintCheck, ConstraintOperator, CreateGraphStatement, CreateIndexStatement,
-    CreateRoleStatement, CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement,
-    CreateDatabaseStatement, DataType, DropDatabaseStatement, DropIndexStatement,
-    DropRoleStatement, DropSchemaStatement, DropSequenceStatement, DropTableStatement, Expr,
-    FieldConstraint, FieldDefinition, HashSet, IndexKind,
-    ParsedStatement, QueryStatement, SqlError, Value,
+    ConstraintCheck, ConstraintOperator, CreateDatabaseStatement, CreateGraphStatement,
+    CreateIndexStatement, CreateRoleStatement, CreateSchemaStatement, CreateSequenceStatement,
+    CreateTableStatement, DataType, DropDatabaseStatement, DropIndexStatement, DropRoleStatement,
+    DropSchemaStatement, DropSequenceStatement, DropTableStatement, Expr, FieldConstraint,
+    FieldDefinition, HashSet, IndexKind, ParsedStatement, QueryStatement, SqlError, Value,
 };
 
 #[path = "schema_fields.rs"]
@@ -286,7 +285,9 @@ pub(super) fn parse_create_database_statement(sql: &str) -> Result<ParsedStateme
     let (if_not_exists, rest) = parse_if_not_exists(rest);
     let name = rest.trim();
     if name.is_empty() {
-        return Err(SqlError::new("missing database name in CREATE DATABASE".into()));
+        return Err(SqlError::new(
+            "missing database name in CREATE DATABASE".into(),
+        ));
     }
     if name.split_whitespace().count() != 1 {
         return Err(SqlError::new(
@@ -309,7 +310,9 @@ pub(super) fn parse_drop_database_statement(sql: &str) -> Result<ParsedStatement
     let (if_exists, rest) = parse_if_exists(rest);
     let name = rest.trim();
     if name.is_empty() {
-        return Err(SqlError::new("missing database name in DROP DATABASE".into()));
+        return Err(SqlError::new(
+            "missing database name in DROP DATABASE".into(),
+        ));
     }
     if name.split_whitespace().count() != 1 {
         return Err(SqlError::new(

@@ -65,10 +65,12 @@ fn should_diff_projection_hashes_deterministically() {
         cassie
             .execute_sql(&session, "CREATE TABLE diff_right (title TEXT)", vec![])
             .unwrap();
+        let left = canonical_test_collection(&cassie, "diff_left");
+        let right = canonical_test_collection(&cassie, "diff_right");
         cassie
             .midge
             .put_document(
-                "diff_left",
+                &left,
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
@@ -76,7 +78,7 @@ fn should_diff_projection_hashes_deterministically() {
         cassie
             .midge
             .put_document(
-                "diff_right",
+                &right,
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "bravo"}),
             )
@@ -117,17 +119,18 @@ fn should_compare_projection_manifest_root_digest() {
         cassie
             .execute_sql(&session, "CREATE TABLE compare_docs (title TEXT)", vec![])
             .unwrap();
+        let collection = canonical_test_collection(&cassie, "compare_docs");
         cassie
             .midge
             .put_document(
-                "compare_docs",
+                &collection,
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
             .unwrap();
         let root = cassie
             .midge
-            .root_hash("compare_docs")
+            .root_hash(&collection)
             .unwrap()
             .expect("root hash");
         let sql = format!(
@@ -180,11 +183,13 @@ fn should_report_projection_diff_resume_cursor_for_bounded_output() {
                 vec![],
             )
             .unwrap();
+        let left = canonical_test_collection(&cassie, "diff_cursor_left");
+        let right = canonical_test_collection(&cassie, "diff_cursor_right");
         for row_id in ["doc-1", "doc-2", "doc-3"] {
             cassie
                 .midge
                 .put_document(
-                    "diff_cursor_left",
+                    &left,
                     Some(row_id.to_string()),
                     serde_json::json!({"title": "left"}),
                 )
@@ -192,7 +197,7 @@ fn should_report_projection_diff_resume_cursor_for_bounded_output() {
             cassie
                 .midge
                 .put_document(
-                    "diff_cursor_right",
+                    &right,
                     Some(row_id.to_string()),
                     serde_json::json!({"title": "right"}),
                 )
@@ -248,17 +253,18 @@ fn should_reject_projection_manifest_missing_hash_metadata() {
         cassie
             .execute_sql(&session, "CREATE TABLE compare_missing_docs (title TEXT)", vec![])
             .unwrap();
+        let collection = canonical_test_collection(&cassie, "compare_missing_docs");
         cassie
             .midge
             .put_document(
-                "compare_missing_docs",
+                &collection,
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
             .unwrap();
         let root = cassie
             .midge
-            .root_hash("compare_missing_docs")
+            .root_hash(&collection)
             .unwrap()
             .expect("root hash");
         let sql = format!(
@@ -312,17 +318,18 @@ fn should_persist_projection_comparison_report_after_restart() {
                     vec![],
                 )
                 .unwrap();
+            let collection = canonical_test_collection(&cassie, "comparison_report_docs");
             cassie
                 .midge
                 .put_document(
-                    "comparison_report_docs",
+                    &collection,
                     Some("doc-1".to_string()),
                     serde_json::json!({"title": "alpha"}),
                 )
                 .unwrap();
             let root = cassie
                 .midge
-                .root_hash("comparison_report_docs")
+                .root_hash(&collection)
                 .unwrap()
                 .expect("root hash");
             let sql = format!(

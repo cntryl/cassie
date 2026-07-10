@@ -1,5 +1,5 @@
 use super::VirtualRow;
-use crate::catalog::Catalog;
+use crate::catalog::{local_name, relation_belongs_to_database, relation_schema_name, Catalog};
 use crate::types::{DataType, Value};
 
 pub(super) fn schema() -> Vec<(String, DataType)> {
@@ -11,16 +11,21 @@ pub(super) fn schema() -> Vec<(String, DataType)> {
     ]
 }
 
-pub(super) fn rows(catalog: &Catalog) -> Vec<VirtualRow> {
+pub(super) fn rows(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = catalog
         .list_collections()
         .into_iter()
         .filter_map(|collection| {
+            if current_database
+                .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
+            {
+                return None;
+            }
             let metadata = catalog.get_collection(&collection.name)?;
             let storage_mode = catalog.collection_storage_mode(&collection.name)?;
             Some(vec![
-                string("schemaname", "public"),
-                string("tablename", &collection.name),
+                string("schemaname", relation_schema_name(&collection.name)),
+                string("tablename", local_name(&collection.name)),
                 string("storage_mode", storage_mode.as_str()),
                 int_value("storage_version", i64::from(metadata.storage_version)),
             ])

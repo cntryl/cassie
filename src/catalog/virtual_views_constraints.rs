@@ -1,6 +1,9 @@
 use std::collections::BTreeSet;
 
-use crate::catalog::{Catalog, FieldConstraint, IndexKind};
+use crate::catalog::{
+    local_name, relation_belongs_to_database, relation_schema_name, Catalog, FieldConstraint,
+    IndexKind,
+};
 use crate::types::{DataType, Value};
 
 use super::VirtualRow;
@@ -55,10 +58,18 @@ pub(super) fn pg_constraint_schema() -> Vec<(String, DataType)> {
     ]
 }
 
-pub(super) fn table_constraints(catalog: &Catalog) -> Vec<VirtualRow> {
+pub(super) fn table_constraints(
+    catalog: &Catalog,
+    current_database: Option<&str>,
+) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
     let mut seen = BTreeSet::new();
     for collection in catalog.list_collections() {
+        if current_database
+            .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
+        {
+            continue;
+        }
         for constraint in catalog.get_constraints(&collection.name) {
             if constraint.primary_key {
                 push_table_constraint(
@@ -102,9 +113,17 @@ pub(super) fn table_constraints(catalog: &Catalog) -> Vec<VirtualRow> {
     rows
 }
 
-pub(super) fn key_column_usage(catalog: &Catalog) -> Vec<VirtualRow> {
+pub(super) fn key_column_usage(
+    catalog: &Catalog,
+    current_database: Option<&str>,
+) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
     for collection in catalog.list_collections() {
+        if current_database
+            .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
+        {
+            continue;
+        }
         for constraint in catalog.get_constraints(&collection.name) {
             if constraint.primary_key {
                 rows.push(key_column_usage_row(
@@ -140,20 +159,32 @@ pub(super) fn key_column_usage(catalog: &Catalog) -> Vec<VirtualRow> {
     rows
 }
 
-pub(super) fn referential_constraints(catalog: &Catalog) -> Vec<VirtualRow> {
+pub(super) fn referential_constraints(
+    catalog: &Catalog,
+    current_database: Option<&str>,
+) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
     for collection in catalog.list_collections() {
+        if current_database
+            .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
+        {
+            continue;
+        }
         for constraint in catalog.get_constraints(&collection.name) {
             if constraint.references_table.is_none() || constraint.references_field.is_none() {
                 continue;
             }
+            let referenced_table = constraint.references_table.as_deref().unwrap_or_default();
             rows.push(vec![
-                string("constraint_schema", "public"),
+                string("constraint_schema", relation_schema_name(&collection.name)),
                 string(
                     "constraint_name",
                     constraint_name(&collection.name, &constraint, ConstraintKind::ForeignKey),
                 ),
-                string("unique_constraint_schema", "public"),
+                string(
+                    "unique_constraint_schema",
+                    relation_schema_name(referenced_table),
+                ),
                 string(
                     "unique_constraint_name",
                     referenced_unique_constraint_name(catalog, &constraint),
@@ -180,9 +211,14 @@ pub(super) fn referential_constraints(catalog: &Catalog) -> Vec<VirtualRow> {
     rows
 }
 
-pub(super) fn pg_constraint(catalog: &Catalog) -> Vec<VirtualRow> {
+pub(super) fn pg_constraint(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
     for collection in catalog.list_collections() {
+        if current_database
+            .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
+        {
+            continue;
+        }
         for constraint in catalog.get_constraints(&collection.name) {
             if constraint.primary_key {
                 rows.push(pg_constraint_row(
@@ -262,8 +298,8 @@ fn push_table_constraint(
         constraint_type.to_string(),
     )) {
         rows.push(vec![
-            string("table_schema", "public"),
-            string("table_name", collection),
+            string("table_schema", relation_schema_name(collection)),
+            string("table_name", local_name(collection)),
             string("constraint_name", constraint_name),
             string("constraint_type", constraint_type),
         ]);
@@ -278,8 +314,8 @@ fn key_column_usage_row(
     unique_position: Option<u32>,
 ) -> VirtualRow {
     vec![
-        string("table_schema", "public"),
-        string("table_name", collection),
+        string("table_schema", relation_schema_name(collection)),
+        string("table_name", local_name(collection)),
         string("column_name", field),
         string("constraint_name", constraint_name),
         int_value("ordinal_position", i64::from(ordinal_position)),
@@ -300,13 +336,14 @@ fn pg_constraint_row(
     referenced_field: Option<&str>,
 ) -> VirtualRow {
     let referenced_table = referenced_table.unwrap_or_default();
+    let schema_name = relation_schema_name(collection);
     vec![
         int_value(
             "oid",
             super::virtual_views_pg::constraint_oid(collection, &constraint_name),
         ),
         string("conname", constraint_name),
-        string("conrelid", collection),
+        string("conrelid", local_name(collection)),
         int_value(
             "conrelid_oid",
             super::virtual_views_pg::relation_oid(collection),
@@ -314,10 +351,10 @@ fn pg_constraint_row(
         string("contype", constraint_type),
         int_value(
             "connamespace_oid",
-            super::virtual_views_pg::namespace_oid("public"),
+            super::virtual_views_pg::namespace_oid(&schema_name),
         ),
         string("conkey", field_number(catalog, collection, field)),
-        string("confrelid", referenced_table),
+        string("confrelid", local_name(referenced_table)),
         int_value(
             "confrelid_oid",
             if referenced_table.is_empty() {

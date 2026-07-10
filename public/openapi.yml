@@ -11,10 +11,9 @@ info:
       - /metrics
       - /targetz (ECS Fargate target group health check)
 
-    All versioned resource APIs live under /api/v1/*. Collection and
-    projection operations are authenticated by default using the
-    `Authorization: Bearer <user>:<password>` header when
-    `CASSIE_ADMIN_PASSWORD` is configured.
+    All versioned resource APIs live under /api/v1/*. Collection and projection operations are authenticated by default using the `Authorization: Bearer <user>:<password>` header when `CASSIE_ADMIN_PASSWORD` is configured.
+    The REST API does not expose first-class `/api/v1/databases` or `/api/v1/schemas` resources.
+    Use the authenticated SQL administration endpoints for supported database, schema, table, view, function, and procedure statements.
 servers:
   - url: /
     description: Same-origin admin API server
@@ -23,11 +22,13 @@ tags:
   - name: Health
     description: Service health endpoints.
   - name: Collections
-    description: Collection, document, index, and search routes.
+    description: Collection, document, index, and search resources. Collection creation targets the default database and the `public` schema unless a scoped name is supplied elsewhere.
   - name: Consistency
-    description: Projection verification manifest and consistency helpers.
+    description: Projection verification-manifest and consistency-report resources for operational repair workflows.
+  - name: Catalog
+    description: Authenticated catalog browsing for database-scoped and schema-scoped SQL objects.
   - name: Query
-    description: Admin SQL query execution, validation, explain, and catalog metadata.
+    description: Authenticated SQL administration over HTTP for supported database, schema, table, view, function, and procedure statements.
 
 components:
   securitySchemes:
@@ -87,6 +88,29 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+  parameters:
+    CollectionName:
+      in: path
+      name: collection
+      required: true
+      description: The router accepts local names, schema-qualified names, or canonical `database.schema.name` identifiers.
+      schema:
+        type: string
+      example: postgres.public.visible_docs
+    DocumentId:
+      in: path
+      name: id
+      required: true
+      description: Server-generated document identifier.
+      schema:
+        type: string
+    ProjectionId:
+      in: path
+      name: projection
+      required: true
+      description: Projection identifier, typically a canonical relation name such as `postgres.public.orders`.
+      schema:
+        type: string
   schemas:
     Error:
       type: object
@@ -130,8 +154,402 @@ components:
               $ref: '#/components/schemas/QueryResultValue'
         command:
           type: string
+    QueryExplainResponse:
+      type: object
+      description: SQL explain response with PostgreSQL-style plan rows plus structured plan data for UI rendering.
+      required:
+        - columns
+        - rows
+        - command
+        - plan
+      properties:
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/ColumnMeta'
+        rows:
+          type: array
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/QueryResultValue'
+        command:
+          type: string
+        plan:
+          $ref: '#/components/schemas/QueryExplainPlan'
+    QueryExplainPlan:
+      type: object
+      description: Structured physical-plan summary intended for visual plan explorers.
+      required:
+        - format_version
+        - summary
+        - nodes
+        - attributes
+        - estimates
+        - features
+        - diagnostics
+      properties:
+        format_version:
+          type: integer
+          format: int32
+        summary:
+          $ref: '#/components/schemas/QueryPlanSummary'
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueryPlanNode'
+        attributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueryPlanAttribute'
+        estimates:
+          $ref: '#/components/schemas/QueryPlanEstimates'
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueryPlanFeature'
+        diagnostics:
+          $ref: '#/components/schemas/QueryPlanDiagnostics'
+        analyze:
+          $ref: '#/components/schemas/QueryPlanAnalyze'
+    QueryPlanSummary:
+      type: object
+      required:
+        - collection
+        - root_operator
+        - access_path
+        - selected_cost
+        - estimated_rows
+        - storage_mode
+      properties:
+        collection:
+          type: string
+        root_operator:
+          type: string
+        access_path:
+          type: string
+        selected_index:
+          type: string
+        selected_cost:
+          type: integer
+          format: int64
+        estimated_rows:
+          type: integer
+          format: int64
+        storage_mode:
+          type: string
+    QueryPlanNode:
+      type: object
+      required:
+        - id
+        - label
+        - kind
+        - detail
+        - status
+        - badges
+        - metrics
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        kind:
+          type: string
+        detail:
+          type: string
+        status:
+          type: string
+        badges:
+          type: array
+          items:
+            type: string
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueryPlanMetric'
+    QueryPlanMetric:
+      type: object
+      required:
+        - label
+        - value
+      properties:
+        label:
+          type: string
+        value:
+          type: string
+        unit:
+          type: string
+    QueryPlanAttribute:
+      type: object
+      required:
+        - label
+        - value
+        - intent
+      properties:
+        label:
+          type: string
+        value:
+          type: string
+        intent:
+          type: string
+    QueryPlanEstimates:
+      type: object
+      required:
+        - scan_rows
+        - index_rows
+        - join_rows
+        - search_rows
+        - vector_rows
+        - aggregate_rows
+        - scan_cost
+        - index_cost
+        - selected_cost
+        - cost_source
+        - rejected_alternatives
+      properties:
+        scan_rows:
+          type: integer
+          format: int64
+        index_rows:
+          type: integer
+          format: int64
+        join_rows:
+          type: integer
+          format: int64
+        search_rows:
+          type: integer
+          format: int64
+        vector_rows:
+          type: integer
+          format: int64
+        aggregate_rows:
+          type: integer
+          format: int64
+        scan_cost:
+          type: integer
+          format: int64
+        index_cost:
+          type: integer
+          format: int64
+        selected_cost:
+          type: integer
+          format: int64
+        cost_source:
+          type: string
+        rejected_alternatives:
+          type: array
+          items:
+            type: string
+    QueryPlanFeature:
+      type: object
+      required:
+        - id
+        - label
+        - enabled
+        - intent
+        - detail
+        - node_id
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        enabled:
+          type: boolean
+        intent:
+          type: string
+        detail:
+          type: string
+        node_id:
+          type: string
+    QueryPlanDiagnostics:
+      type: object
+      required:
+        - access_path_reason
+        - fallback_reason
+        - pagination_strategy
+        - early_stop
+        - projection_shape
+        - operator_feedback_state
+        - operator_feedback_reason
+        - adaptive_enabled
+        - adaptive_decision_point
+        - adaptive_candidates
+        - adaptive_selected_alternative
+        - adaptive_reason
+        - join_strategy
+        - join_fallback_reason
+        - rollup_rewrite
+        - projection_freshness
+      properties:
+        access_path_reason:
+          type: string
+        fallback_reason:
+          type: string
+        pagination_strategy:
+          type: string
+        early_stop:
+          type: string
+        projection_shape:
+          type: string
+        operator_feedback_state:
+          type: string
+        operator_feedback_reason:
+          type: string
+        adaptive_enabled:
+          type: boolean
+        adaptive_decision_point:
+          type: string
+        adaptive_candidates:
+          type: array
+          items:
+            type: string
+        adaptive_selected_alternative:
+          type: string
+        adaptive_reason:
+          type: string
+        join_strategy:
+          type: string
+        join_fallback_reason:
+          type: string
+        rollup_rewrite:
+          type: string
+        projection_freshness:
+          type: string
+    QueryPlanAnalyze:
+      type: object
+      required:
+        - actual_rows
+        - actual_ms
+        - operator_actuals
+        - diagnostics
+      properties:
+        actual_rows:
+          type: integer
+          format: int64
+        actual_ms:
+          type: integer
+          format: int64
+        operator_actuals:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueryPlanOperatorActual'
+        diagnostics:
+          $ref: '#/components/schemas/QueryPlanAnalyzeDiagnostics'
+    QueryPlanOperatorActual:
+      type: object
+      required:
+        - operator
+        - rows_in
+        - rows_out
+        - elapsed_ms
+        - storage_reads
+        - storage_writes
+        - temp_writes
+        - candidates
+        - results
+      properties:
+        operator:
+          type: string
+        rows_in:
+          type: integer
+          format: int64
+        rows_out:
+          type: integer
+          format: int64
+        elapsed_ms:
+          type: integer
+          format: int64
+        storage_reads:
+          type: integer
+          format: int64
+        storage_writes:
+          type: integer
+          format: int64
+        temp_writes:
+          type: integer
+          format: int64
+        candidates:
+          type: integer
+          format: int64
+        results:
+          type: integer
+          format: int64
+    QueryPlanAnalyzeDiagnostics:
+      type: object
+      required:
+        - plan_cache_hits_delta
+        - plan_cache_misses_delta
+        - storage_reads_delta
+        - storage_writes_delta
+        - temp_writes_delta
+        - candidate_count_delta
+        - result_count_delta
+        - parallel_aggregations_delta
+        - parallel_aggregation_fallback_delta
+        - parallel_aggregation_workers_delta
+        - parallel_aggregation_groups_delta
+        - adaptive_plan_decisions_delta
+        - adaptive_plan_selected_delta
+        - operator_switch_attempts_delta
+        - operator_switch_success_delta
+        - operator_switch_skips_delta
+        - operator_switch_fallbacks_delta
+      properties:
+        plan_cache_hits_delta:
+          type: integer
+          format: int64
+        plan_cache_misses_delta:
+          type: integer
+          format: int64
+        storage_reads_delta:
+          type: integer
+          format: int64
+        storage_writes_delta:
+          type: integer
+          format: int64
+        temp_writes_delta:
+          type: integer
+          format: int64
+        candidate_count_delta:
+          type: integer
+          format: int64
+        result_count_delta:
+          type: integer
+          format: int64
+        parallel_aggregations_delta:
+          type: integer
+          format: int64
+        parallel_aggregation_fallback_delta:
+          type: integer
+          format: int64
+        parallel_aggregation_workers_delta:
+          type: integer
+          format: int64
+        parallel_aggregation_groups_delta:
+          type: integer
+          format: int64
+        adaptive_plan_decisions_delta:
+          type: integer
+          format: int64
+        adaptive_plan_selected_delta:
+          type: integer
+          format: int64
+        operator_switch_attempts_delta:
+          type: integer
+          format: int64
+        operator_switch_success_delta:
+          type: integer
+          format: int64
+        operator_switch_skips_delta:
+          type: integer
+          format: int64
+        operator_switch_fallbacks_delta:
+          type: integer
+          format: int64
     QueryExecuteRequest:
       type: object
+      description: SQL statement payload for authenticated execution over HTTP.
       required:
         - sql
       properties:
@@ -139,6 +557,7 @@ components:
           type: string
     QueryValidateRequest:
       type: object
+      description: SQL statement payload for authenticated validation over HTTP.
       required:
         - sql
       properties:
@@ -160,6 +579,7 @@ components:
             $ref: '#/components/schemas/ColumnMeta'
     QueryExplainRequest:
       type: object
+      description: SQL statement payload for authenticated plan explanation over HTTP.
       required:
         - sql
       properties:
@@ -167,6 +587,7 @@ components:
           type: string
     QuerySchemaResponse:
       type: object
+      description: Catalog browser grouped by object kind for the SQL admin UI. Labels use canonical `database.schema.name` values when scope is available.
       required:
         - sections
       properties:
@@ -176,6 +597,7 @@ components:
             $ref: '#/components/schemas/QuerySchemaSection'
     QuerySchemaSection:
       type: object
+      description: Stable section grouping for catalog objects.
       required:
         - id
         - label
@@ -197,6 +619,7 @@ components:
             $ref: '#/components/schemas/QuerySchemaItem'
     QuerySchemaItem:
       type: object
+      description: SQL-accessible catalog object. Labels use canonical `database.schema.name` values when scope is available.
       required:
         - id
         - kind
@@ -259,12 +682,14 @@ components:
           type: string
     CollectionCreateRequest:
       type: object
+      description: Create a collection resource in the default database and `public` schema.
       required:
         - name
         - fields
       properties:
         name:
           type: string
+          description: Local collection name to create under the default database and `public` schema.
         description:
           type: string
         fields:
@@ -273,6 +698,7 @@ components:
             $ref: '#/components/schemas/FieldSpec'
     FieldSpec:
       type: object
+      description: Column definition for collection creation.
       required:
         - name
         - type
@@ -283,6 +709,7 @@ components:
           type: string
     CreateCollectionResponse:
       type: object
+      description: Collection creation acknowledgement.
       required:
         - collection
       properties:
@@ -290,6 +717,7 @@ components:
           type: string
     SearchRequest:
       type: object
+      description: Search-result request body scoped to one collection resource.
       required:
         - field
         - query
@@ -308,6 +736,7 @@ components:
           minimum: 0
     CreateDocumentResponse:
       type: object
+      description: Document-creation acknowledgement.
       required:
         - id
       properties:
@@ -315,6 +744,7 @@ components:
           type: string
     DeleteDocumentResponse:
       type: object
+      description: Document-deletion acknowledgement.
       required:
         - deleted
       properties:
@@ -322,6 +752,7 @@ components:
           type: boolean
     CreateIndexRequest:
       type: object
+      description: Index-creation request body scoped to one collection resource.
       required:
         - field
       properties:
@@ -334,6 +765,7 @@ components:
           $ref: '#/components/schemas/StringMap'
     VectorIndexResponse:
       type: object
+      description: Vector-index representation for a collection field.
       required:
         - collection
         - field
@@ -365,6 +797,7 @@ components:
           type: string
     ExportManifestRequest:
       type: object
+      description: Verification-manifest creation options.
       properties:
         instance_id:
           type: string
@@ -378,6 +811,7 @@ components:
           type: boolean
     ConsistencyCheckRequest:
       type: object
+      description: Consistency-report creation request body.
       required:
         - manifests
       properties:
@@ -638,6 +1072,7 @@ components:
             $ref: '#/components/schemas/ProjectionCheckReport'
     DocumentPayload:
       type: object
+      description: Arbitrary JSON document payload stored under a collection resource.
       additionalProperties: true
 
 paths:
@@ -706,6 +1141,7 @@ paths:
     get:
       tags: [Collections]
       summary: List collections
+      description: List collection resources known to the local node. Names are returned as stored relation identifiers, typically canonical `database.schema.name` values.
       operationId: listCollections
       security:
         - cassieAuth: []
@@ -723,6 +1159,7 @@ paths:
     post:
       tags: [Collections]
       summary: Create collection
+      description: Create a collection resource in the default database and `public` schema. Use the authenticated SQL administration endpoints when you need explicit database or schema DDL.
       operationId: createCollection
       security:
         - cassieAuth: []
@@ -754,15 +1191,12 @@ paths:
     post:
       tags: [Collections]
       summary: Insert document into collection
+      description: Create a document resource under the addressed collection.
       operationId: createDocument
       security:
         - cassieAuth: []
       parameters:
-        - in: path
-          name: collection
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/CollectionName'
       requestBody:
         required: true
         content:
@@ -791,15 +1225,12 @@ paths:
     post:
       tags: [Collections]
       summary: Create index on collection
+      description: Create an index resource under the addressed collection.
       operationId: createIndex
       security:
         - cassieAuth: []
       parameters:
-        - in: path
-          name: collection
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/CollectionName'
       requestBody:
         required: true
         content:
@@ -830,15 +1261,12 @@ paths:
     post:
       tags: [Collections]
       summary: Search vectors in collection
+      description: Create a transient search-result representation for the addressed collection.
       operationId: vectorSearch
       security:
         - cassieAuth: []
       parameters:
-        - in: path
-          name: collection
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/CollectionName'
       requestBody:
         required: true
         content:
@@ -867,20 +1295,13 @@ paths:
     get:
       tags: [Collections]
       summary: Get document by id
+      description: Retrieve a document resource by identifier from the addressed collection.
       operationId: getDocument
       security:
         - cassieAuth: []
       parameters:
-        - in: path
-          name: collection
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/CollectionName'
+        - $ref: '#/components/parameters/DocumentId'
       responses:
         '200':
           description: Document payload
@@ -901,20 +1322,13 @@ paths:
     delete:
       tags: [Collections]
       summary: Delete document by id
+      description: Delete a document resource by identifier from the addressed collection.
       operationId: deleteDocument
       security:
         - cassieAuth: []
       parameters:
-        - in: path
-          name: collection
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/CollectionName'
+        - $ref: '#/components/parameters/DocumentId'
       responses:
         '200':
           description: Delete result
@@ -933,10 +1347,36 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
+  /api/v1/admin/catalog:
+    get:
+      tags: [Catalog]
+      summary: List SQL catalog objects
+      description: List SQL-accessible catalog objects grouped for the admin query UI. Database and schema support is surfaced here through canonical object labels and through the authenticated SQL administration endpoints.
+      operationId: listAdminCatalog
+      security:
+        - cassieAuth: []
+      responses:
+        '200':
+          description: Query schema tree grouped by section
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuerySchemaResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /api/v1/admin/query/schema:
     get:
-      tags: [Query]
+      tags: [Catalog]
       summary: Get admin query schema tree
+      description: Legacy catalog alias. Prefer `GET /api/v1/admin/catalog`.
+      deprecated: true
       operationId: getAdminQuerySchema
       security:
         - cassieAuth: []
@@ -956,10 +1396,44 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
+  /api/v1/admin/query-executions:
+    post:
+      tags: [Query]
+      summary: Create SQL execution result
+      description: Execute one supported SQL statement over HTTP and return its row set or command result. Use this endpoint for authenticated database, schema, table, view, function, and procedure work when pgwire is not the transport in use.
+      operationId: createAdminQueryExecution
+      security:
+        - cassieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryExecuteRequest'
+      responses:
+        '200':
+          description: SQL execution result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /api/v1/admin/query/execute:
     post:
       tags: [Query]
       summary: Execute an admin SQL query
+      description: Legacy SQL-execution alias. Prefer `POST /api/v1/admin/query-executions`.
+      deprecated: true
       operationId: executeAdminQuery
       security:
         - cassieAuth: []
@@ -987,10 +1461,44 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
+  /api/v1/admin/query-validations:
+    post:
+      tags: [Query]
+      summary: Create SQL validation result
+      description: Validate one supported SQL statement over HTTP and return the inferred command metadata without executing the statement.
+      operationId: createAdminQueryValidation
+      security:
+        - cassieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryValidateRequest'
+      responses:
+        '200':
+          description: SQL validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryValidateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /api/v1/admin/query/validate:
     post:
       tags: [Query]
       summary: Validate an admin SQL query
+      description: Legacy SQL-validation alias. Prefer `POST /api/v1/admin/query-validations`.
+      deprecated: true
       operationId: validateAdminQuery
       security:
         - cassieAuth: []
@@ -1018,11 +1526,12 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
-  /api/v1/admin/query/explain:
+  /api/v1/admin/query-explanations:
     post:
       tags: [Query]
-      summary: Explain an admin SQL query
-      operationId: explainAdminQuery
+      summary: Create SQL explain result
+      description: Explain one supported SQL statement over HTTP and return PostgreSQL-style plan rows plus structured physical-plan data for visual plan explorers.
+      operationId: createAdminQueryExplanation
       security:
         - cassieAuth: []
       requestBody:
@@ -1033,11 +1542,11 @@ paths:
               $ref: '#/components/schemas/QueryExplainRequest'
       responses:
         '200':
-          description: Explain output as a query result
+          description: Explain output with text rows and structured plan data
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/QueryResult'
+                $ref: '#/components/schemas/QueryExplainResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1049,19 +1558,84 @@ paths:
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
 
+  /api/v1/admin/query/explain:
+    post:
+      tags: [Query]
+      summary: Explain an admin SQL query
+      description: Legacy SQL-explanation alias. Prefer `POST /api/v1/admin/query-explanations`.
+      deprecated: true
+      operationId: explainAdminQuery
+      security:
+        - cassieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryExplainRequest'
+      responses:
+        '200':
+          description: Explain output with text rows and structured plan data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryExplainResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/admin/projections/{projection}/verification-manifests:
+    post:
+      tags: [Consistency]
+      summary: Create projection verification manifest
+      description: Create a verification-manifest representation for the named projection resource.
+      operationId: createProjectionVerificationManifest
+      security:
+        - cassieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectionId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportManifestRequest'
+      responses:
+        '200':
+          description: Verification manifest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionManifest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /api/v1/admin/projections/{projection}/verification-manifest:
     post:
       tags: [Consistency]
       summary: Export projection verification manifest
+      description: Legacy verification-manifest alias. Prefer `POST /api/v1/admin/projections/{projection}/verification-manifests`.
+      deprecated: true
       operationId: exportProjectionManifest
       security:
         - cassieAuth: []
       parameters:
-        - in: path
-          name: projection
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ProjectionId'
       requestBody:
         required: false
         content:
@@ -1090,6 +1664,8 @@ paths:
     post:
       tags: [Consistency]
       summary: Compare verification manifests
+      description: Legacy consistency-report creation alias. Prefer `POST /api/v1/admin/projection-consistency-reports`.
+      deprecated: true
       operationId: compareProjectionConsistency
       security:
         - cassieAuth: []
@@ -1116,9 +1692,38 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
 
   /api/v1/admin/projection-consistency-reports:
+    post:
+      tags: [Consistency]
+      summary: Create projection consistency report
+      description: Create a projection-consistency report resource from the supplied verification manifests.
+      operationId: createProjectionConsistencyReport
+      security:
+        - cassieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsistencyCheckRequest'
+      responses:
+        '200':
+          description: Consistency report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionCheckReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
     get:
       tags: [Consistency]
       summary: Get latest projection consistency reports
+      description: List the latest stored projection-consistency report resources.
       operationId: getProjectionConsistencyReports
       security:
         - cassieAuth: []

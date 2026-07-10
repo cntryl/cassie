@@ -206,7 +206,7 @@ pub async fn complete_startup(
     writer: &mut (impl AsyncWrite + Unpin),
 ) {
     writer
-        .write_all(&startup_frame("postgres", "testdb"))
+        .write_all(&startup_frame("postgres", "postgres"))
         .await
         .expect("write startup");
     let auth = read_wire_frame(reader).await;

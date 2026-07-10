@@ -4,23 +4,36 @@ use std::sync::OnceLock;
 
 use crate::types::Value;
 
+pub(crate) type RowEntries = Vec<(String, Value)>;
+pub(crate) type RowAliases = Vec<(String, usize)>;
+
 #[derive(Debug, Clone)]
 pub(crate) struct BatchRow {
-    values: Vec<(String, Value)>,
+    values: RowEntries,
+    aliases: RowAliases,
     lookup: OnceLock<HashMap<String, usize>>,
 }
 
 impl BatchRow {
-    pub(crate) fn new(values: Vec<(String, Value)>) -> Self {
-        let lookup = OnceLock::new();
-        let _ = lookup.set(build_lookup(values.as_slice()));
-
-        Self { values, lookup }
+    pub(crate) fn new(values: RowEntries) -> Self {
+        Self::with_aliases(values, Vec::new())
     }
 
-    pub(crate) fn from_projected_values(values: Vec<(String, Value)>) -> Self {
+    pub(crate) fn with_aliases(values: RowEntries, aliases: RowAliases) -> Self {
+        let lookup = OnceLock::new();
+        let _ = lookup.set(build_lookup(values.as_slice(), aliases.as_slice()));
+
         Self {
             values,
+            aliases,
+            lookup,
+        }
+    }
+
+    pub(crate) fn from_projected_values(values: RowEntries) -> Self {
+        Self {
+            values,
+            aliases: Vec::new(),
             lookup: OnceLock::new(),
         }
     }
@@ -32,18 +45,26 @@ impl BatchRow {
     pub(crate) fn get(&self, name: &str) -> Option<&Value> {
         let lookup = self
             .lookup
-            .get_or_init(|| build_lookup(self.values.as_slice()));
+            .get_or_init(|| build_lookup(self.values.as_slice(), self.aliases.as_slice()));
         let index = *lookup.get(name)?;
         let entry = &self.values[index];
         Some(&entry.1)
     }
 
-    pub(crate) fn into_entries(self) -> Vec<(String, Value)> {
+    pub(crate) fn into_entries(self) -> RowEntries {
         self.values
     }
 
     pub(crate) fn into_values(self) -> Vec<Value> {
         self.values.into_iter().map(|(_, value)| value).collect()
+    }
+
+    pub(crate) fn aliases(&self) -> &[(String, usize)] {
+        self.aliases.as_slice()
+    }
+
+    pub(crate) fn into_parts(self) -> (RowEntries, RowAliases) {
+        (self.values, self.aliases)
     }
 
     #[cfg(test)]
@@ -57,10 +78,13 @@ pub(crate) trait RowAccess {
     fn entries(&self) -> &[(String, Value)];
 }
 
-fn build_lookup(values: &[(String, Value)]) -> HashMap<String, usize> {
-    let mut lookup = HashMap::with_capacity(values.len());
+fn build_lookup(values: &[(String, Value)], aliases: &[(String, usize)]) -> HashMap<String, usize> {
+    let mut lookup = HashMap::with_capacity(values.len() + aliases.len());
     for (index, (name, _)) in values.iter().enumerate() {
         lookup.entry(name.clone()).or_insert(index);
+    }
+    for (name, index) in aliases {
+        lookup.entry(name.clone()).or_insert(*index);
     }
     lookup
 }

@@ -21,6 +21,15 @@ fn compile_physical_plan(
         .unwrap()
 }
 
+fn scalar_index_sidecars(cassie: &Cassie, collection: &str) -> Vec<(Vec<u8>, Vec<u8>)> {
+    let prefix =
+        cassie::midge::adapter::Midge::scalar_index_collection_prefix_for_diagnostics(collection);
+    cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, prefix.as_slice())
+        .unwrap()
+}
+
 #[test]
 fn should_defer_drop_table_physical_cleanup_until_pinned_schema_epoch_drains() {
     // Arrange
@@ -49,6 +58,11 @@ fn should_defer_drop_table_physical_cleanup_until_pinned_schema_epoch_drains() {
                 vec![],
             )
             .unwrap();
+        let collection = cassie
+            .catalog
+            .get_schema("epoch_drop_docs")
+            .expect("catalog collection")
+            .collection;
         let pinned = cassie.begin_schema_epoch_guard_for_diagnostics();
 
         // Act
@@ -56,16 +70,16 @@ fn should_defer_drop_table_physical_cleanup_until_pinned_schema_epoch_drains() {
             .execute_sql(&session, "DROP TABLE epoch_drop_docs", vec![])
             .unwrap();
         let new_query = cassie.execute_sql(&session, "SELECT title FROM epoch_drop_docs", vec![]);
-        let rows_while_pinned = cassie.midge.scan_documents("epoch_drop_docs").unwrap();
+        let rows_while_pinned = cassie.midge.scan_documents(&collection).unwrap();
         cassie
             .run_deferred_schema_cleanup_for_diagnostics()
             .unwrap();
-        let rows_after_pinned_cleanup = cassie.midge.scan_documents("epoch_drop_docs").unwrap();
+        let rows_after_pinned_cleanup = cassie.midge.scan_documents(&collection).unwrap();
         drop(pinned);
         cassie
             .run_deferred_schema_cleanup_for_diagnostics()
             .unwrap();
-        let rows_after_drain = cassie.midge.scan_documents("epoch_drop_docs");
+        let rows_after_drain = cassie.midge.scan_documents(&collection);
 
         // Assert
         assert!(new_query.is_err());
@@ -116,14 +130,17 @@ fn should_defer_drop_index_sidecar_cleanup_until_pinned_schema_epoch_drains() {
                 vec![],
             )
             .unwrap();
-        let scalar_prefix =
-            cassie::midge::adapter::Midge::scalar_index_collection_prefix_for_diagnostics(
-                "epoch_drop_index_docs",
-            );
-        let sidecars_before = cassie
-            .midge
-            .raw_scan_prefix(StorageFamily::Data, scalar_prefix.as_slice())
-            .unwrap();
+        let collection = cassie
+            .catalog
+            .get_schema("epoch_drop_index_docs")
+            .expect("catalog collection")
+            .collection;
+        let stored_index_name = cassie
+            .catalog
+            .get_index(&collection, "epoch_drop_title_idx")
+            .expect("catalog index")
+            .name;
+        let sidecars_before = scalar_index_sidecars(&cassie, &collection);
         let pinned = cassie.begin_schema_epoch_guard_for_diagnostics();
 
         // Act
@@ -144,17 +161,19 @@ fn should_defer_drop_index_sidecar_cleanup_until_pinned_schema_epoch_drains() {
         cassie
             .run_deferred_schema_cleanup_for_diagnostics()
             .unwrap();
-        let sidecars_while_pinned = cassie
+        let sidecars_while_pinned = scalar_index_sidecars(&cassie, &collection);
+        let stored_index_while_pinned = cassie
             .midge
-            .raw_scan_prefix(StorageFamily::Data, scalar_prefix.as_slice())
+            .get_index(&collection, &stored_index_name)
             .unwrap();
         drop(pinned);
         cassie
             .run_deferred_schema_cleanup_for_diagnostics()
             .unwrap();
-        let sidecars_after_drain = cassie
+        let sidecars_after_drain = scalar_index_sidecars(&cassie, &collection);
+        let stored_index_after_drain = cassie
             .midge
-            .raw_scan_prefix(StorageFamily::Data, scalar_prefix.as_slice())
+            .get_index(&collection, &stored_index_name)
             .unwrap();
 
         // Assert
@@ -163,8 +182,14 @@ fn should_defer_drop_index_sidecar_cleanup_until_pinned_schema_epoch_drains() {
             panic!("expected explain text");
         };
         assert!(plan.contains("index=none"), "plan={plan}");
+        assert!(cassie
+            .catalog
+            .get_index(&collection, "epoch_drop_title_idx")
+            .is_none());
         assert!(!sidecars_while_pinned.is_empty());
+        assert!(stored_index_while_pinned.is_some());
         assert!(sidecars_after_drain.is_empty());
+        assert!(stored_index_after_drain.is_none());
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -198,6 +223,11 @@ fn should_defer_drop_view_metadata_cleanup_until_pinned_schema_epoch_drains() {
                 vec![],
             )
             .unwrap();
+        let view = cassie
+            .catalog
+            .get_view("epoch_view_ready")
+            .expect("catalog view")
+            .name;
         let pinned = cassie.begin_schema_epoch_guard_for_diagnostics();
 
         // Act
@@ -205,16 +235,16 @@ fn should_defer_drop_view_metadata_cleanup_until_pinned_schema_epoch_drains() {
             .execute_sql(&session, "DROP VIEW epoch_view_ready", vec![])
             .unwrap();
         let new_query = cassie.execute_sql(&session, "SELECT title FROM epoch_view_ready", vec![]);
-        let view_while_pinned = cassie.midge.get_view("epoch_view_ready").unwrap();
+        let view_while_pinned = cassie.midge.get_view(&view).unwrap();
         cassie
             .run_deferred_schema_cleanup_for_diagnostics()
             .unwrap();
-        let view_after_pinned_cleanup = cassie.midge.get_view("epoch_view_ready").unwrap();
+        let view_after_pinned_cleanup = cassie.midge.get_view(&view).unwrap();
         drop(pinned);
         cassie
             .run_deferred_schema_cleanup_for_diagnostics()
             .unwrap();
-        let view_after_drain = cassie.midge.get_view("epoch_view_ready").unwrap();
+        let view_after_drain = cassie.midge.get_view(&view).unwrap();
 
         // Assert
         assert!(new_query.is_err());
@@ -254,14 +284,16 @@ fn should_finish_pending_schema_cleanup_on_startup_without_rehydrating_dropped_t
                 vec![],
             )
             .unwrap();
+        let collection = cassie
+            .catalog
+            .get_schema("epoch_restart_drop_docs")
+            .expect("catalog collection")
+            .collection;
         let pinned = cassie.begin_schema_epoch_guard_for_diagnostics();
         cassie
             .execute_sql(&session, "DROP TABLE epoch_restart_drop_docs", vec![])
             .unwrap();
-        let rows_before_restart = cassie
-            .midge
-            .scan_documents("epoch_restart_drop_docs")
-            .unwrap();
+        let rows_before_restart = cassie.midge.scan_documents(&collection).unwrap();
         drop(pinned);
         drop(cassie);
 
@@ -274,7 +306,7 @@ fn should_finish_pending_schema_cleanup_on_startup_without_rehydrating_dropped_t
             "SELECT title FROM epoch_restart_drop_docs",
             vec![],
         );
-        let physical_rows = restarted.midge.scan_documents("epoch_restart_drop_docs");
+        let physical_rows = restarted.midge.scan_documents(&collection);
 
         // Assert
         assert_eq!(rows_before_restart.len(), 1);

@@ -4,6 +4,7 @@ mod pgwire;
 use std::time::Duration;
 
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use pgwire::*;
@@ -43,17 +44,18 @@ fn score_schema() -> Schema {
 }
 
 fn seed_scores(cassie: &Cassie, collection: &str) {
+    let collection = canonical_relation_name("postgres", "public", collection);
     let schema = score_schema();
     cassie
         .midge
-        .create_collection(collection, schema.clone())
+        .create_collection(&collection, schema.clone())
         .expect("create collection");
-    cassie.register_collection(collection, schema);
+    cassie.register_collection(&collection, schema);
     for (id, score) in [("doc-1", 1), ("doc-2", 2), ("doc-3", 3)] {
         cassie
             .midge
             .put_document(
-                collection,
+                &collection,
                 Some(id.to_string()),
                 serde_json::json!({ "score": score }),
             )
@@ -62,6 +64,7 @@ fn seed_scores(cassie: &Cassie, collection: &str) {
 }
 
 fn seed_binary_bind_docs(cassie: &Cassie, collection: &str) {
+    let collection = canonical_relation_name("postgres", "public", collection);
     let schema = Schema {
         fields: vec![
             FieldSchema {
@@ -83,13 +86,13 @@ fn seed_binary_bind_docs(cassie: &Cassie, collection: &str) {
     };
     cassie
         .midge
-        .create_collection(collection, schema.clone())
+        .create_collection(&collection, schema.clone())
         .expect("create collection");
-    cassie.register_collection(collection, schema);
+    cassie.register_collection(&collection, schema);
     cassie
         .midge
         .put_document(
-            collection,
+            &collection,
             Some("doc-1".to_string()),
             serde_json::json!({ "flag": true, "score": 7, "ratio": 3.5 }),
         )
@@ -173,7 +176,7 @@ fn should_close_connection_after_oversized_password_frame() {
 
         // Act
         socket
-            .write_all(&startup_frame("postgres", "testdb"))
+            .write_all(&startup_frame("postgres", "postgres"))
             .await
             .expect("write startup");
         let auth = {

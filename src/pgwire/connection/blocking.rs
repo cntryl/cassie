@@ -1,5 +1,12 @@
 use super::{str, Arc, Cassie, CassieError};
+#[cfg(debug_assertions)]
+use std::collections::HashMap;
+#[cfg(debug_assertions)]
+use std::sync::{Mutex, OnceLock};
 use tokio::task;
+
+#[cfg(debug_assertions)]
+static NEXT_RETRYABLE_FAILURES_FOR_TEST: OnceLock<Mutex<HashMap<usize, String>>> = OnceLock::new();
 
 pub(super) async fn run_pgwire_blocking<T>(
     cassie: Arc<Cassie>,
@@ -12,6 +19,12 @@ where
     let runtime = cassie.runtime.clone();
     let started_at = std::time::Instant::now();
     runtime.record_pgwire_boundary_started(operation_name);
+
+    #[cfg(debug_assertions)]
+    if let Some(message) = take_retryable_failure_for_test(&cassie) {
+        runtime.record_pgwire_boundary_error(operation_name, started_at.elapsed());
+        return Err(CassieError::StorageRetryable(message));
+    }
 
     let result = task::spawn_blocking(move || operation(cassie)).await;
 
@@ -33,6 +46,32 @@ where
             )))
         }
     }
+}
+
+#[cfg(debug_assertions)]
+pub(super) fn arm_next_retryable_failure_for_test(cassie: &Cassie, message: impl Into<String>) {
+    retryable_failures_for_test()
+        .lock()
+        .expect("pgwire retryable failure test registry")
+        .insert(runtime_key_for_test(cassie), message.into());
+}
+
+#[cfg(debug_assertions)]
+fn take_retryable_failure_for_test(cassie: &Cassie) -> Option<String> {
+    retryable_failures_for_test()
+        .lock()
+        .expect("pgwire retryable failure test registry")
+        .remove(&runtime_key_for_test(cassie))
+}
+
+#[cfg(debug_assertions)]
+fn retryable_failures_for_test() -> &'static Mutex<HashMap<usize, String>> {
+    NEXT_RETRYABLE_FAILURES_FOR_TEST.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[cfg(debug_assertions)]
+fn runtime_key_for_test(cassie: &Cassie) -> usize {
+    Arc::as_ptr(&cassie.runtime).cast::<()>() as usize
 }
 
 #[cfg(test)]

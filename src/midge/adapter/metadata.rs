@@ -4,6 +4,7 @@ use super::{
     ProjectionMeta, Query, RetentionPolicyMeta, RoleMeta, RollupMeta, Schema, StorageFamily,
     WriteOptions,
 };
+use crate::catalog::name_matches;
 
 impl Midge {
     /// # Errors
@@ -38,13 +39,25 @@ impl Midge {
         let raw = tx
             .get(&Self::index_key(collection, name))
             .map_err(CassieError::from)?;
-        let Some(raw) = raw else {
-            return Ok(None);
-        };
+        if let Some(raw) = raw {
+            return serde_json::from_slice(&raw)
+                .map(Some)
+                .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")));
+        }
 
-        serde_json::from_slice(&raw)
-            .map(Some)
-            .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))
+        let entries = tx
+            .scan(&Query::new().prefix(Self::index_prefix().into()))
+            .map_err(CassieError::from)?;
+        for (_key, raw_value) in entries {
+            let Ok(record) = serde_json::from_slice::<IndexMeta>(&raw_value) else {
+                continue;
+            };
+            if name_matches(&record.collection, collection) && name_matches(&record.name, name) {
+                return Ok(Some(record));
+            }
+        }
+
+        Ok(None)
     }
 
     /// # Errors
@@ -69,17 +82,21 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_index(&self, collection: &str, name: &str) -> Result<(), CassieError> {
         let metadata = self.get_index(collection, name)?;
+        let (stored_collection, stored_name) = metadata.as_ref().map_or_else(
+            || (collection.to_string(), name.to_string()),
+            |index| (index.collection.clone(), index.name.clone()),
+        );
         let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::index_key(collection, name))
+        tx.delete(Self::index_key(&stored_collection, &stored_name))
             .map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
         if let Some(index) = metadata {
             if index.kind == IndexKind::Scalar {
-                self.delete_scalar_index_data(collection, name)?;
+                self.delete_scalar_index_data(&index.collection, &index.name)?;
             }
             if index.kind == IndexKind::TimeSeries {
-                self.delete_time_series_index_data(collection, name)?;
+                self.delete_time_series_index_data(&index.collection, &index.name)?;
             }
         }
         Ok(())
@@ -194,6 +211,18 @@ impl Midge {
             out.push(record);
         }
         Ok(out)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn delete_graph(&self, name: &str) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.delete(Self::graph_key(name))
+            .map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        Ok(())
     }
 
     /// # Errors

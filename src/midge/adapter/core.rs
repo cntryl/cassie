@@ -145,10 +145,7 @@ impl Midge {
             }
 
             let mut v2_scan = tx
-                .scan(
-                    &Query::new()
-                        .prefix(key_encoding::legacy_v2_layout_prefix().into()),
-                )
+                .scan(&Query::new().prefix(key_encoding::legacy_v2_layout_prefix().into()))
                 .map_err(CassieError::from)?;
             if v2_scan.next().is_some() {
                 return Err(CassieError::StorageBootstrap(format!(

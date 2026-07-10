@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::rest::{collections, documents};
 use uuid::Uuid;
 
@@ -48,7 +49,7 @@ fn should_crud_collection_documents_through_rest() {
 
         // Assert
         assert_eq!(create["collection"], collection);
-        assert!(list.contains(&collection.to_string()));
+        assert!(list.contains(&canonical_relation_name("postgres", "public", collection)));
         assert_eq!(got["title"], "hello");
         assert_eq!(removed["deleted"], serde_json::Value::Bool(true));
 

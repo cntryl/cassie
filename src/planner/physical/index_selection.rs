@@ -2,6 +2,7 @@ use super::{
     scalar_index_plan_shape, time_series, BTreeSet, CollectionCardinalityStats, Expr, IndexKind,
     IndexMeta, LogicalPlan, PlanEstimates, QuerySource, ScalarIndexPlanPath,
 };
+use crate::catalog::name_matches;
 use std::hash::BuildHasher;
 
 #[derive(Debug, Clone)]
@@ -239,6 +240,12 @@ fn index_estimate<S: BuildHasher>(
 ) -> u64 {
     cardinality_stats
         .get(collection)
+        .or_else(|| {
+            cardinality_stats
+                .iter()
+                .find(|(stored, _)| name_matches(stored, collection))
+                .map(|(_, stats)| stats)
+        })
         .filter(|stats| stats.hydrated)
         .and_then(|stats| {
             stats.index_cardinality(&CollectionCardinalityStats::index_key(

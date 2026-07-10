@@ -1,20 +1,20 @@
 import { state } from "@askrjs/askr";
-import { DefaultPortal } from "@askrjs/askr/foundations";
 import { Link } from "@askrjs/askr/router";
-import { MenuIcon, MoonIcon, SunIcon } from "@askrjs/lucide";
+import { LogOutIcon, MenuIcon, MoonIcon, SunIcon } from "@askrjs/lucide";
 import { Block, Brand, BrandLabel, Button, Container, Grid } from "@askrjs/themes/components";
 import { Header, NavBrand, NavGroup, Navbar, Sidebar } from "@askrjs/themes/components";
 import { ThemeToggle } from "@askrjs/themes/theme";
 
-import { clamp } from "@/components/query/resizable-split";
+import { clamp } from "@/shared/drag-resize";
 import {
   SIDEBAR_WIDTH_MAX_PX,
   SIDEBAR_WIDTH_MIN_PX,
   SidebarResizeHandle,
 } from "@/components/shell/sidebar-resize-handle";
+import { SidebarPortalHost } from "@/components/shell/sidebar-portal-host";
 
 const SIDEBAR_WIDTH_STORAGE_KEY = "cassie-admin-sidebar-width";
-const SIDEBAR_WIDTH_DEFAULT_PX = 288;
+const SIDEBAR_WIDTH_DEFAULT_PX = 320;
 
 function readPersistedSidebarWidth(): number {
   if (typeof window === "undefined") {
@@ -46,31 +46,53 @@ function persistSidebarWidth(px: number) {
   }
 }
 
-function SidebarPortalHost(): JSX.Element | null {
-  return DefaultPortal() as JSX.Element | null;
-}
-
 export default function Layout({ children }: { children?: unknown }) {
   const [mobileNavOpen, setMobileNavOpen] = state(false);
   const [sidebarWidth, setSidebarWidth] = state(readPersistedSidebarWidth());
   const isMobileNavOpen = mobileNavOpen();
 
   let rootEl: HTMLElement | null = null;
+  let clearOverrideFrame: number | null = null;
 
   function setRootEl(node: unknown) {
     rootEl = node instanceof HTMLElement ? node : null;
-    if (rootEl) {
-      rootEl.style.setProperty("--cassie-sidebar-width", `${sidebarWidth()}px`);
+  }
+
+  function cancelPendingOverrideClear() {
+    if (clearOverrideFrame !== null) {
+      cancelAnimationFrame(clearOverrideFrame);
+      clearOverrideFrame = null;
     }
   }
 
+  // During a live drag, mutate the CSS var directly (imperative, no state
+  // commit) so dragging doesn't force a re-render per pointermove. The
+  // element's `style` prop below (driven by sidebarWidth()) is what keeps
+  // the var correct the rest of the time — on first mount, after the drag
+  // commits, and on *any other* unrelated re-render (e.g. toggling the
+  // theme), which previously reset the sidebar because the imperative-only
+  // value had no declarative backing and got wiped on the next patch.
   function handleSidebarDragMove(px: number) {
+    // A new drag starting/continuing supersedes any previous drag's queued
+    // cleanup below — without this, a release-then-immediately-regrab within
+    // one frame lets the stale rAF fire mid-drag and wipe this drag's
+    // just-applied width back to the old committed value.
+    cancelPendingOverrideClear();
     rootEl?.style.setProperty("--cassie-sidebar-width", `${px}px`);
   }
 
   function handleSidebarDragEnd(px: number) {
     setSidebarWidth(px);
     persistSidebarWidth(px);
+    // Clear the imperative override once the declarative style (from the
+    // committed sidebarWidth()) has taken over, so it doesn't keep masking
+    // future declarative updates via inline-style precedence.
+    cancelPendingOverrideClear();
+    const node = rootEl;
+    clearOverrideFrame = requestAnimationFrame(() => {
+      clearOverrideFrame = null;
+      node?.style.removeProperty("--cassie-sidebar-width");
+    });
   }
 
   function toggleMobileNavigation() {
@@ -83,6 +105,7 @@ export default function Layout({ children }: { children?: unknown }) {
       data-testid="cassie-admin-shell"
       minHeight="screen"
       direction="column"
+      style={{ "--cassie-sidebar-width": `${sidebarWidth()}px` }}
       ref={setRootEl}
     >
       <a class="skip-link" href="#main-content">
@@ -90,7 +113,7 @@ export default function Layout({ children }: { children?: unknown }) {
       </a>
 
       <Header sticky>
-        <Container size="full" paddingY="sm">
+        <Container size="full" paddingY="xs">
           <Navbar class="cassie-admin-navbar" aria-label="Cassie admin">
             <NavBrand>
               <Brand asChild>
@@ -108,6 +131,11 @@ export default function Layout({ children }: { children?: unknown }) {
                 lightIcon={<SunIcon size={16} />}
                 darkIcon={<MoonIcon size={16} />}
               />
+              <Button asChild variant="ghost" size="icon">
+                <Link href="/logout" aria-label="Sign out">
+                  <LogOutIcon size={16} aria-hidden="true" />
+                </Link>
+              </Button>
             </NavGroup>
           </Navbar>
         </Container>

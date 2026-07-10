@@ -427,6 +427,7 @@ fn should_rebuild_normalized_vector_sidecars_after_sql_writes() {
                 vec![],
             )
             .unwrap();
+        let collection = canonical_test_collection(&cassie, "normalized_sidecar_sql_rebuild");
 
         let row_id = match &cassie
             .execute_sql(
@@ -449,7 +450,7 @@ fn should_rebuild_normalized_vector_sidecars_after_sql_writes() {
             .unwrap();
 
         let vector_index = VectorIndexRecord {
-            collection: "normalized_sidecar_sql_rebuild".to_string(),
+            collection: collection.clone(),
             field: "embedding".to_string(),
             source_field: "title".to_string(),
             metadata: VectorIndexMetadata {
@@ -469,15 +470,15 @@ fn should_rebuild_normalized_vector_sidecars_after_sql_writes() {
         cassie.midge.put_vector_index(vector_index.clone()).unwrap();
         let stored = cassie
             .midge
-            .get_normalized_vector("normalized_sidecar_sql_rebuild", "embedding", &row_id)
+            .get_normalized_vector(&collection, "embedding", &row_id)
             .unwrap()
             .unwrap();
 
-        clear_normalized_sidecars(&cassie, "normalized_sidecar_sql_rebuild", "embedding");
+        clear_normalized_sidecars(&cassie, &collection, "embedding");
         assert!(
             cassie
                 .midge
-                .get_normalized_vector("normalized_sidecar_sql_rebuild", "embedding", &row_id)
+                .get_normalized_vector(&collection, "embedding", &row_id)
                 .unwrap()
                 .is_none()
         );
@@ -488,12 +489,12 @@ fn should_rebuild_normalized_vector_sidecars_after_sql_writes() {
             .unwrap();
         let rebuilt = cassie
             .midge
-            .get_normalized_vector("normalized_sidecar_sql_rebuild", "embedding", &row_id)
+            .get_normalized_vector(&collection, "embedding", &row_id)
             .unwrap()
             .unwrap();
 
         // Assert
-        assert_eq!(stored.collection, "normalized_sidecar_sql_rebuild");
+        assert_eq!(stored.collection, collection);
         assert_eq!(stored.field, "embedding");
         assert_eq!(stored.id, row_id);
         assert_eq!(stored.dimensions, 3);

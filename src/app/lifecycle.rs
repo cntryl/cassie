@@ -103,7 +103,10 @@ impl Cassie {
             .create_database(&self.default_database, None)
             .map_err(|error| CassieError::Storage(format!("bootstrap database: {error}")))?;
         self.midge
-            .create_namespace(&canonical_schema_name(&self.default_database, DEFAULT_SCHEMA))
+            .create_namespace(&canonical_schema_name(
+                &self.default_database,
+                DEFAULT_SCHEMA,
+            ))
             .map_err(|error| CassieError::Storage(format!("bootstrap public schema: {error}")))?;
         Ok(())
     }

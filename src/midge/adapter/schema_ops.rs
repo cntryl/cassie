@@ -484,13 +484,13 @@ impl Midge {
             current_name,
             next_name,
         )?;
-        schema_ops_helpers::rename_collection_indexes(&mut schema_tx, current_name, next_name)?;
-        schema_ops_helpers::rename_collection_retention_policies(
+        schema_ops_helpers::rename_collection_column_batch_metadata(
             &mut schema_tx,
             current_name,
             next_name,
         )?;
-        schema_ops_helpers::rename_collection_column_batch_metadata(
+        schema_ops_helpers::rename_collection_indexes(&mut schema_tx, current_name, next_name)?;
+        schema_ops_helpers::rename_collection_retention_policies(
             &mut schema_tx,
             current_name,
             next_name,

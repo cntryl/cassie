@@ -235,6 +235,7 @@ fn should_preserve_covering_scalar_index_order_after_restart() {
     runtime.block_on(async {
         {
             let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
                 .execute_sql(
@@ -243,10 +244,15 @@ fn should_preserve_covering_scalar_index_order_after_restart() {
                     vec![],
                 )
                 .unwrap();
+            let collection = cassie
+                .catalog
+                .get_schema("sql_covering_scalar_restart_order")
+                .expect("catalog collection")
+                .collection;
             cassie
                 .midge
                 .put_document(
-                    "sql_covering_scalar_restart_order",
+                    &collection,
                     Some("doc-2".to_string()),
                     serde_json::json!({"email": "a@example.com", "title": "alpha"}),
                 )
@@ -254,7 +260,7 @@ fn should_preserve_covering_scalar_index_order_after_restart() {
             cassie
                 .midge
                 .put_document(
-                    "sql_covering_scalar_restart_order",
+                    &collection,
                     Some("doc-1".to_string()),
                     serde_json::json!({"email": "a@example.com"}),
                 )
@@ -262,7 +268,7 @@ fn should_preserve_covering_scalar_index_order_after_restart() {
             cassie
                 .midge
                 .put_document(
-                    "sql_covering_scalar_restart_order",
+                    &collection,
                     Some("doc-3".to_string()),
                     serde_json::json!({"email": "b@example.com", "title": "beta"}),
                 )
@@ -332,6 +338,7 @@ fn should_persist_include_index_metadata_after_restart() {
     runtime.block_on(async {
         {
             let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
                 .execute_sql(
@@ -457,6 +464,7 @@ fn should_hydrate_partial_index_metadata_after_restart() {
     runtime.block_on(async {
         {
             let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
                 .execute_sql(
@@ -506,7 +514,7 @@ fn should_hydrate_partial_index_metadata_after_restart() {
         let Value::String(selected_plan) = &selected.rows[0][0] else {
             panic!("expected selected plan text");
         };
-        assert!(selected_plan.contains("index=sql_partial_index_restart_title_idx"));
+        assert!(selected_plan.contains("sql_partial_index_restart_title_idx"));
         let Value::String(fallback_plan) = &fallback.rows[0][0] else {
             panic!("expected fallback plan text");
         };
@@ -812,7 +820,7 @@ fn should_page_tenant_filtered_rows_through_composite_range_index() {
         let Value::String(plan) = &explain.rows[0][0] else {
             panic!("expected textual plan");
         };
-        assert!(plan.contains("index=tenant_filtered_page_lookup_idx"));
+        assert!(plan.contains("tenant_filtered_page_lookup_idx"), "plan={plan}");
         assert!(plan.contains("access_path=range_scan"));
         assert!(plan.contains("access_path_reason=scalar-index-range"));
         assert!(plan.contains("pagination_strategy=limit"));
@@ -827,9 +835,10 @@ fn should_page_tenant_filtered_rows_through_composite_range_index() {
                 .unwrap_or_default()
                 + 1,
         );
-        assert_eq!(
-            after["read_paths"]["last_index_scan_index"].as_str(),
-            Some("tenant_filtered_page_lookup_idx"),
+        assert!(
+            after["read_paths"]["last_index_scan_index"]
+                .as_str()
+                .is_some_and(|value| value.ends_with("tenant_filtered_page_lookup_idx"))
         );
 
         let _ = std::fs::remove_dir_all(path);

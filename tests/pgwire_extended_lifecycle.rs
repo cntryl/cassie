@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
@@ -312,7 +313,7 @@ fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
 }
 
 fn seed_close_cascade_collection(cassie: &Cassie) {
-    let collection = "extended_query_close_docs";
+    let collection = canonical_relation_name("postgres", "public", "extended_query_close_docs");
     let schema = Schema {
         fields: vec![FieldSchema {
             name: "title".to_string(),
@@ -322,13 +323,13 @@ fn seed_close_cascade_collection(cassie: &Cassie) {
     };
     cassie
         .midge
-        .create_collection(collection, schema.clone())
+        .create_collection(&collection, schema.clone())
         .unwrap();
-    cassie.register_collection(collection, schema);
+    cassie.register_collection(&collection, schema);
     cassie
         .midge
         .put_document(
-            collection,
+            &collection,
             Some("doc-1".to_string()),
             serde_json::json!({"title": "alpha"}),
         )
@@ -354,7 +355,7 @@ async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
 }
 
 async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {
-    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "testdb"))
+    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "postgres"))
         .await
         .expect("write startup");
     let auth = read_wire_frame(reader).await;

@@ -1,7 +1,7 @@
 use crate::app::CassieSession;
 use crate::catalog::{
-    relation_belongs_to_database, relation_schema_name, schema_belongs_to_database, Catalog,
-    DatabaseMeta, FieldConstraint, local_name,
+    local_name, relation_belongs_to_database, relation_schema_name, schema_belongs_to_database,
+    Catalog, DatabaseMeta, FieldConstraint,
 };
 use crate::types::{DataType, Value};
 
@@ -27,7 +27,11 @@ pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
 }
 
 #[must_use]
-pub fn rows(catalog: &Catalog, name: &str, session: Option<&CassieSession>) -> Option<Vec<VirtualRow>> {
+pub fn rows(
+    catalog: &Catalog,
+    name: &str,
+    session: Option<&CassieSession>,
+) -> Option<Vec<VirtualRow>> {
     let name = normalize_name(name);
     let current_database = session.and_then(CassieSession::current_database);
     information_schema_rows_for(catalog, name.as_str(), current_database)
@@ -60,9 +64,7 @@ fn information_schema_schema(name: &str) -> Option<Vec<(String, DataType)>> {
             text("table_name"),
             text("view_definition"),
         ]),
-        "information_schema.schemata" => {
-            Some(vec![text("catalog_name"), text("schema_name")])
-        }
+        "information_schema.schemata" => Some(vec![text("catalog_name"), text("schema_name")]),
         "information_schema.sequences" => {
             Some(virtual_views_sequences::information_schema_sequences_schema())
         }
@@ -248,19 +250,22 @@ fn information_schema_rows_for(
         "information_schema.tables" => Some(information_schema_tables(catalog, current_database)),
         "information_schema.columns" => Some(information_schema_columns(catalog, current_database)),
         "information_schema.views" => Some(information_schema_views(catalog, current_database)),
-        "information_schema.schemata" => Some(information_schema_schemata(catalog, current_database)),
+        "information_schema.schemata" => {
+            Some(information_schema_schemata(catalog, current_database))
+        }
         "information_schema.sequences" => Some(
             virtual_views_sequences::information_schema_sequences(catalog, current_database),
         ),
-        "information_schema.table_constraints" => {
-            Some(virtual_views_constraints::table_constraints(catalog))
-        }
-        "information_schema.key_column_usage" => {
-            Some(virtual_views_constraints::key_column_usage(catalog))
-        }
-        "information_schema.referential_constraints" => {
-            Some(virtual_views_constraints::referential_constraints(catalog))
-        }
+        "information_schema.table_constraints" => Some(
+            virtual_views_constraints::table_constraints(catalog, current_database),
+        ),
+        "information_schema.key_column_usage" => Some(virtual_views_constraints::key_column_usage(
+            catalog,
+            current_database,
+        )),
+        "information_schema.referential_constraints" => Some(
+            virtual_views_constraints::referential_constraints(catalog, current_database),
+        ),
         _ => None,
     }
 }
@@ -282,14 +287,23 @@ fn pg_catalog_core_rows(
 ) -> Option<Vec<VirtualRow>> {
     match name {
         "pg_catalog.pg_database" => Some(pg_database_rows(catalog)),
-        "pg_catalog.pg_namespace" => Some(virtual_views_pg::pg_namespace(catalog, current_database)),
+        "pg_catalog.pg_namespace" => {
+            Some(virtual_views_pg::pg_namespace(catalog, current_database))
+        }
         "pg_catalog.pg_class" => Some(virtual_views_pg::pg_class(catalog, current_database)),
-        "pg_catalog.pg_attribute" => Some(virtual_views_pg::pg_attribute(catalog, current_database)),
+        "pg_catalog.pg_attribute" => {
+            Some(virtual_views_pg::pg_attribute(catalog, current_database))
+        }
         "pg_catalog.pg_indexes" => Some(virtual_views_pg::pg_indexes(catalog, current_database)),
         "pg_catalog.pg_index" => Some(virtual_views_pg::pg_index(catalog, current_database)),
         "pg_catalog.pg_attrdef" => Some(virtual_views_pg::pg_attrdef(catalog, current_database)),
-        "pg_catalog.pg_table_storage" => Some(virtual_views_storage::rows(catalog)),
-        "pg_catalog.pg_constraint" => Some(virtual_views_constraints::pg_constraint(catalog)),
+        "pg_catalog.pg_table_storage" => {
+            Some(virtual_views_storage::rows(catalog, current_database))
+        }
+        "pg_catalog.pg_constraint" => Some(virtual_views_constraints::pg_constraint(
+            catalog,
+            current_database,
+        )),
         "pg_catalog.pg_roles" => Some(pg_roles_rows(catalog)),
         "pg_catalog.pg_rollups" => Some(pg_rollups_rows(catalog)),
         "pg_catalog.pg_type" => Some(virtual_views_pg::pg_type(catalog)),
@@ -655,9 +669,8 @@ fn information_schema_tables(catalog: &Catalog, current_database: Option<&str>) 
         .list_collections()
         .into_iter()
         .filter(|collection| {
-            current_database.is_none_or(|database| {
-                relation_belongs_to_database(&collection.name, database)
-            })
+            current_database
+                .is_none_or(|database| relation_belongs_to_database(&collection.name, database))
         })
         .map(|collection| {
             vec![
@@ -668,15 +681,22 @@ fn information_schema_tables(catalog: &Catalog, current_database: Option<&str>) 
         })
         .collect::<Vec<_>>();
 
-    rows.extend(catalog.list_views().into_iter().filter(|view| {
-        current_database.is_none_or(|database| relation_belongs_to_database(&view.name, database))
-    }).map(|view| {
-        vec![
-            string("table_schema", relation_schema_name(&view.name)),
-            string("table_name", local_name(&view.name)),
-            string("table_type", "VIEW"),
-        ]
-    }));
+    rows.extend(
+        catalog
+            .list_views()
+            .into_iter()
+            .filter(|view| {
+                current_database
+                    .is_none_or(|database| relation_belongs_to_database(&view.name, database))
+            })
+            .map(|view| {
+                vec![
+                    string("table_schema", relation_schema_name(&view.name)),
+                    string("table_name", local_name(&view.name)),
+                    string("table_type", "VIEW"),
+                ]
+            }),
+    );
 
     rows.sort_by_key(row_sort_key);
     rows
@@ -688,9 +708,9 @@ fn information_schema_columns(
 ) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
     for collection in catalog.list_collections() {
-        if current_database.is_some_and(|database| {
-            !relation_belongs_to_database(&collection.name, database)
-        }) {
+        if current_database
+            .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
+        {
             continue;
         }
         let Some(schema) = catalog.get_schema(&collection.name) else {
@@ -832,7 +852,8 @@ fn information_schema_views(catalog: &Catalog, current_database: Option<&str>) -
         .list_views()
         .into_iter()
         .filter(|view| {
-            current_database.is_none_or(|database| relation_belongs_to_database(&view.name, database))
+            current_database
+                .is_none_or(|database| relation_belongs_to_database(&view.name, database))
         })
         .map(|view| {
             vec![
@@ -870,9 +891,7 @@ fn information_schema_schemata(
             .list_namespaces()
             .into_iter()
             .filter(|namespace| {
-                current_database.is_none_or(|db| {
-                    schema_belongs_to_database(&namespace.name, db)
-                })
+                current_database.is_none_or(|db| schema_belongs_to_database(&namespace.name, db))
             })
             .map(|namespace| {
                 vec![

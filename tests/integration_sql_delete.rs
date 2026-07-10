@@ -193,6 +193,7 @@ fn should_ignore_legacy_fallback_key_for_sql_delete() {
                 vec![],
             )
             .unwrap();
+        let collection = canonical_test_collection(&cassie, "delete_legacy_cleanup");
         let inserted = cassie
             .execute_sql(
                 &session,
@@ -206,7 +207,7 @@ fn should_ignore_legacy_fallback_key_for_sql_delete() {
         };
         put_legacy_document(
             &cassie,
-            "delete_legacy_cleanup",
+            &collection,
             &row_id,
             &serde_json::json!({"title": "stale"}),
         );
@@ -219,10 +220,7 @@ fn should_ignore_legacy_fallback_key_for_sql_delete() {
                 vec![],
             )
             .unwrap();
-        let deleted = cassie
-            .midge
-            .get_document("delete_legacy_cleanup", &row_id)
-            .unwrap();
+        let deleted = cassie.midge.get_document(&collection, &row_id).unwrap();
 
         // Assert
         assert!(deleted.is_none());

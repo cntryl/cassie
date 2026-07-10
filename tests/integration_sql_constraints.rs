@@ -37,29 +37,30 @@ fn should_enforce_constraints_during_ingest() {
             )
 
 .unwrap();
+        let collection = canonical_test_collection(&cassie, "constraint_docs");
 
         let first = cassie
             .ingest_document(
-                "constraint_docs",
+                &collection,
                 serde_json::json!({"id": 1, "email": "a@example.com", "score": 25}),
             )
             .unwrap();
         let missing_not_null = cassie
-            .ingest_document("constraint_docs", serde_json::json!({"id": 2, "score": 20}));
+            .ingest_document(&collection, serde_json::json!({"id": 2, "score": 20}));
         let duplicate = cassie
             .ingest_document(
-                "constraint_docs",
+                &collection,
                 serde_json::json!({"id": 3, "email": "a@example.com", "score": 19}),
             );
         let rejected_check = cassie
             .ingest_document(
-                "constraint_docs",
+                &collection,
                 serde_json::json!({"id": 4, "email": "b@example.com", "score": 17}),
             );
 
         let inserted = cassie
             .midge
-            .get_document("constraint_docs", &first)
+            .get_document(&collection, &first)
 
             .unwrap()
             .expect("document inserted");
@@ -352,6 +353,11 @@ fn should_reject_insert_when_unique_index_value_is_duplicate() {
                 vec![],
             )
             .unwrap();
+        let collection = canonical_test_collection(&cassie, "unique_index_insert_duplicate");
+        let index = cassie
+            .catalog
+            .get_index(&collection, "unique_index_email_idx")
+            .expect("index metadata");
 
         // Act
         let inserted = cassie
@@ -366,7 +372,7 @@ fn should_reject_insert_when_unique_index_value_is_duplicate() {
         assert!(inserted
             .unwrap_err()
             .to_string()
-            .contains("unique index 'unique_index_email_idx' failed"));
+            .contains(&format!("unique index '{}' failed", index.name)));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -414,6 +420,11 @@ fn should_reject_update_when_unique_index_value_conflicts() {
                 vec![],
             )
             .unwrap();
+        let collection = canonical_test_collection(&cassie, "unique_index_update_conflict");
+        let index = cassie
+            .catalog
+            .get_index(&collection, "unique_index_update_email_idx")
+            .expect("index metadata");
 
         // Act
         let updated = cassie
@@ -428,7 +439,7 @@ fn should_reject_update_when_unique_index_value_conflicts() {
         assert!(updated
             .unwrap_err()
             .to_string()
-            .contains("unique index 'unique_index_update_email_idx' failed"));
+            .contains(&format!("unique index '{}' failed", index.name)));
 
         let _ = std::fs::remove_dir_all(path);
     });

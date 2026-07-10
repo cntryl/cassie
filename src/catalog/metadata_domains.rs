@@ -15,15 +15,12 @@ impl Catalog {
     #[must_use]
     pub fn get_graph(&self, name: &str) -> Option<GraphMeta> {
         let graphs = self.graphs.read();
-        graphs
-            .get(&name.to_ascii_lowercase())
-            .cloned()
-            .or_else(|| {
-                graphs
-                    .values()
-                    .find(|graph| name_matches(&graph.name, name))
-                    .cloned()
-            })
+        graphs.get(&name.to_ascii_lowercase()).cloned().or_else(|| {
+            graphs
+                .values()
+                .find(|graph| name_matches(&graph.name, name))
+                .cloned()
+        })
     }
 
     #[must_use]

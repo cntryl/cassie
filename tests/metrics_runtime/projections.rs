@@ -2,6 +2,13 @@ use super::{data_dir, with_fallback};
 use cassie::app::{Cassie, ProjectionReplayBatch, ProjectionReplayEvent};
 use cassie::catalog::ProjectionVerificationState;
 
+fn canonical_projection(cassie: &Cassie, projection: &str) -> String {
+    cassie
+        .catalog
+        .get_schema(projection)
+        .map_or_else(|| projection.to_string(), |schema| schema.collection)
+}
+
 fn projection_metric_delta(
     after: &serde_json::Value,
     before: &serde_json::Value,
@@ -34,6 +41,7 @@ fn should_record_projection_replay_write_amplification() {
                 vec![],
             )
             .unwrap();
+        let projection = canonical_projection(&cassie, "projection_replay_metrics_docs");
 
         let before = cassie.metrics();
         let events = vec![
@@ -53,7 +61,7 @@ fn should_record_projection_replay_write_amplification() {
             },
         ];
         let batch = ProjectionReplayBatch {
-            projection: "projection_replay_metrics_docs".to_string(),
+            projection,
             source_identity: "replay-metrics-stream".to_string(),
             batch_id: "replay-metrics-batch".to_string(),
             lag: 0,
@@ -108,9 +116,10 @@ fn should_record_duplicate_replay_checks_without_row_puts() {
                 vec![],
             )
             .unwrap();
+        let projection = canonical_projection(&cassie, "projection_replay_duplicate_docs");
 
         let first = ProjectionReplayBatch {
-            projection: "projection_replay_duplicate_docs".to_string(),
+            projection: projection.clone(),
             source_identity: "replay-dup-stream".to_string(),
             batch_id: "replay-dup-first".to_string(),
             lag: 0,
@@ -126,7 +135,7 @@ fn should_record_duplicate_replay_checks_without_row_puts() {
 
         let before = cassie.metrics();
         let second = ProjectionReplayBatch {
-            projection: "projection_replay_duplicate_docs".to_string(),
+            projection,
             source_identity: "replay-dup-stream".to_string(),
             batch_id: "replay-dup-second".to_string(),
             lag: 0,

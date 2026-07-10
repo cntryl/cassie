@@ -52,7 +52,7 @@ The largest remaining gaps are production evidence and operational depth gaps, n
 | Performance is a feature | Broad benchmark suite, performance contracts, manifest-owned 10k/100k manual scenarios, capacity signal guidance, and advisory capacity byte data exist. | Future work should improve scenario quality, capture repeatable local evidence, and add larger scale points. | P2 |
 | Event-sourcing native | Replay batches, checkpoint metadata, duplicate skip ledger, materialized projection builds, handler determinism contracts, replay failure guidance, verification, repair plans, local hash repair, repair runbooks, swaps, and local snapshot/restore exist. | Executable index/projection-version/full-rebuild repair semantics remain production-depth blockers until a safe mutation spec exists. | P2 |
 | Simplicity wins | Docs now frame Cassie as a read-model database, reject distributed SQL, define procedures as limited compatibility/admin support rather than application business logic, and provide experimental promotion criteria. | Individual experimental surfaces still need surface-specific evidence before any future promotion. | P3 |
-| Practical PostgreSQL access | pgwire startup, auth, simple/extended query, prepared statements, catalog probes, SQLSTATE-style errors, a maintained client matrix, default tokio-postgres coverage, plus opt-in psql and SQLAlchemy Core probes exist. | sqlx/diesel/prisma automation, broader ORM reflection behavior, and native extension integration remain future probe depth. | P1 |
+| Practical PostgreSQL access | pgwire startup, auth, simple/extended query, prepared statements, catalog probes, session-scope/search-path client coverage, SQLSTATE-style errors, a maintained client matrix, default tokio-postgres coverage, plus opt-in psql, Prisma CLI, and SQLAlchemy Core probes exist. | sqlx/diesel automation, broader Prisma/SQLAlchemy/pgAdmin4 behavior, migration-tool depth, and native extension integration remain future probe depth. | P1 |
 
 ## Archived README-Goal Baselines
 
@@ -165,9 +165,10 @@ Recommendation:
 
 Evidence:
 
-- `docs/postgres-compatibility.md` now contains a maintained read-model client matrix for tokio-postgres, psql, sqlx, diesel, prisma, SQLAlchemy, and migration-tool workflows.
-- `tests/compatibility_matrix.rs` covers tokio-postgres startup, simple and extended query flows, prepared queries, DDL/DML, `ON CONFLICT`, constraints, SQLSTATE metadata, recursive CTEs, and syntax-error recovery.
+- `docs/postgres-compatibility.md` now contains a maintained read-model client matrix for tokio-postgres, psql, sqlx, diesel, Prisma, SQLAlchemy, pgAdmin4, and migration-tool workflows.
+- `tests/compatibility_matrix.rs` covers tokio-postgres startup, simple and extended query flows, prepared queries, DDL/DML, session-scope/search-path behavior, `ON CONFLICT`, constraints, missing-schema SQLSTATE metadata, recursive CTEs, and syntax-error recovery.
 - An ignored optional `psql` probe validates non-interactive DDL/DML/query behavior when local `psql` is installed and `CASSIE_RUN_PSQL_COMPAT=1` is set.
+- An ignored optional Prisma CLI probe validates `prisma db pull --print` introspection for compatible row-store tables when Prisma is installed and `CASSIE_RUN_PRISMA_COMPAT=1` is set.
 - An ignored optional SQLAlchemy Core probe validates dialect startup metadata, catalog access, simple and bound-parameter reads, DDL/DML, and SQLSTATE propagation when Python `SQLAlchemy` and `psycopg` are installed and `CASSIE_RUN_SQLALCHEMY_COMPAT=1` is set; native hstore integration is disabled and remains outside the supported surface.
 - Untested clients are marked planned rather than implied supported.
 
@@ -179,7 +180,7 @@ The baseline now prevents broad unsupported claims, while deeper client-specific
 Recommendation:
 
 - Keep default compatibility tests centered on deterministic tokio-postgres coverage.
-- Add sqlx, diesel, prisma, broader SQLAlchemy reflection, and native extension probes through Phase 09 issue 07 only when they can be isolated from default-suite brittleness.
+- Add sqlx/diesel automation, broader Prisma/SQLAlchemy/pgAdmin4 probes, migration-tool depth, and native extension probes only when they can be isolated from default-suite brittleness.
 - Keep unsupported OLTP or PostgreSQL-server features intentionally out of scope.
 
 ### 7. Procedure Non-Goal Boundary Is Resolved
@@ -313,7 +314,7 @@ Closed baseline:
 - [Read-path depth](performance-contracts.md): narrow equality-prefix mixed ordering and exact expression-index equality seeks with EXPLAIN proof, metrics, restart coverage, and manual benchmark ownership.
 - [Projection replay contracts](projection-replay-contracts.md): handler-owned determinism, Cassie-owned replay metadata, duplicate/conflict handling, failure observability, restart hydration, and safe rebuild/verify/swap guidance.
 - [Time-series bucket-native storage](indexes-and-constraints.md): persisted bucket membership, row-backed fallback, mutation/restart/retention correctness, EXPLAIN storage diagnostics, and manual benchmark ownership.
-- [PostgreSQL Compatibility](postgres-compatibility.md): opt-in SQLAlchemy Core pgwire client probe coverage with default deterministic tokio-postgres baseline preserved.
+- [PostgreSQL Compatibility](postgres-compatibility.md): default deterministic tokio-postgres baseline plus opt-in psql, Prisma CLI, and SQLAlchemy Core probe coverage.
 - [Capacity Management](capacity-management.md): advisory local key/value byte accounting by Midge family and major Cassie read-model category through `/metrics.capacity`.
 - [Projection Repair Runbook](projection-repair-runbook.md): admin-only local plan, execute, verify, audit, rollback/escalate, and unsupported-scope procedures for projection repair.
 - [Feature Support](feature-support.md): adaptive read-operator selection confidence and cost-savings gates with EXPLAIN fallback diagnostics.

@@ -3,6 +3,7 @@ use super::{
     FieldSchema, FunctionCall, HashMap, QuerySource, QueryStatement, Schema, SelectItem,
     SelectStatement,
 };
+use crate::catalog::name_matches;
 
 /// # Errors
 ///
@@ -266,7 +267,7 @@ pub(super) fn schema_field_type(schema: &Schema, name: &str) -> Option<DataType>
     schema
         .fields
         .iter()
-        .find(|field| field.name.eq_ignore_ascii_case(name))
+        .find(|field| field.name.eq_ignore_ascii_case(name) || name_matches(&field.name, name))
         .map(|field| field.data_type.clone())
 }
 
@@ -276,7 +277,11 @@ pub(super) fn infer_function_return_type(
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
 ) -> Option<DataType> {
     let name = function.name.to_ascii_lowercase();
-    if let Some(metadata) = user_functions.get(&name) {
+    if let Some(metadata) = user_functions.get(&name).or_else(|| {
+        user_functions
+            .values()
+            .find(|metadata| name_matches(&metadata.name, &function.name))
+    }) {
         return Some(metadata.return_type.clone());
     }
 

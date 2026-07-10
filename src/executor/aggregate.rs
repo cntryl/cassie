@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
 
-use crate::catalog::{CollectionSchema, FunctionMeta};
+use crate::catalog::{name_matches, CollectionSchema, FunctionMeta};
 use crate::executor::ColumnMeta;
 use crate::sql::ast::SelectItem;
 use crate::types::DataType;
@@ -70,7 +70,12 @@ fn function_return_type<S: BuildHasher>(
     name: &str,
     user_functions: &HashMap<String, FunctionMeta, S>,
 ) -> Option<DataType> {
-    if let Some(metadata) = user_functions.get(&name.to_ascii_lowercase()) {
+    let lookup = name.to_ascii_lowercase();
+    if let Some(metadata) = user_functions.get(&lookup).or_else(|| {
+        user_functions
+            .values()
+            .find(|metadata| name_matches(&metadata.name, name))
+    }) {
         return Some(metadata.return_type.clone());
     }
 

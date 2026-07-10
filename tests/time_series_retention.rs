@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::sql::ast::QueryStatement;
 use cassie::sql::parse_statement;
 use cassie::types::Value;
@@ -6,6 +7,10 @@ use cassie::types::Value;
 #[path = "support/sql.rs"]
 mod support;
 use support::*;
+
+fn canonical_name(name: &str) -> String {
+    canonical_relation_name("postgres", "public", name)
+}
 
 fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_current_thread()
@@ -84,10 +89,13 @@ fn should_lifecycle_retention_policy_metadata() {
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
         restarted.startup().unwrap();
         let restarted_session = restarted.create_session("tester", None);
+        let policy_name = canonical_name("retention_catalog_policy");
         let policies = restarted
             .execute_sql(
                 &restarted_session,
-                "SELECT policy_name, retention_duration, state FROM pg_catalog.pg_retention_policies WHERE policy_name = 'retention_catalog_policy'",
+                &format!(
+                    "SELECT policy_name, retention_duration, state FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
+                ),
                 vec![],
             )
             .unwrap();
@@ -101,7 +109,9 @@ fn should_lifecycle_retention_policy_metadata() {
         let dropped = restarted
             .execute_sql(
                 &restarted_session,
-                "SELECT policy_name FROM pg_catalog.pg_retention_policies WHERE policy_name = 'retention_catalog_policy'",
+                &format!(
+                    "SELECT policy_name FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
+                ),
                 vec![],
             )
             .unwrap();
@@ -110,7 +120,7 @@ fn should_lifecycle_retention_policy_metadata() {
         assert_eq!(
             policies.rows,
             vec![vec![
-                Value::String("retention_catalog_policy".to_string()),
+                Value::String(policy_name),
                 Value::String("2 days".to_string()),
                 Value::String("ready".to_string()),
             ]]
@@ -191,10 +201,13 @@ fn should_enforce_retention_idempotently() {
             )
             .unwrap();
         let metrics = cassie.metrics();
+        let policy_name = canonical_name("retention_enforce_policy");
         let policies = cassie
             .execute_sql(
                 &session,
-                "SELECT last_deleted_rows, last_skipped_rows FROM pg_catalog.pg_retention_policies WHERE policy_name = 'retention_enforce_policy'",
+                &format!(
+                    "SELECT last_deleted_rows, last_skipped_rows FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
+                ),
                 vec![],
             )
             .unwrap();
@@ -269,10 +282,13 @@ fn should_mark_materialized_projection_stale_after_retention() {
                 vec![],
             )
             .unwrap();
+        let projection_name = canonical_name("retention_projection_view");
         let operations = cassie
             .execute_sql(
                 &session,
-                "SELECT freshness, rebuild_state, verification_state FROM pg_catalog.pg_projection_operations WHERE projection_name = 'retention_projection_view'",
+                &format!(
+                    "SELECT freshness, rebuild_state, verification_state FROM pg_catalog.pg_projection_operations WHERE projection_name = '{projection_name}'"
+                ),
                 vec![],
             )
             .unwrap();

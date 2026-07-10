@@ -2,6 +2,7 @@ use super::{
     is_equi_join_predicate, plan_uses_aggregate, plan_uses_fulltext, plan_uses_vector, BinaryOp,
     CollectionCardinalityStats, Expr, JoinKind, LogicalPlan, PlanEstimates, QuerySource,
 };
+use crate::catalog::name_matches;
 use std::hash::BuildHasher;
 
 impl PlanEstimates {
@@ -239,6 +240,12 @@ fn collection_stats<'a, S: BuildHasher>(
 ) -> Option<&'a CollectionCardinalityStats> {
     cardinality_stats
         .get(collection)
+        .or_else(|| {
+            cardinality_stats
+                .iter()
+                .find(|(stored, _)| name_matches(stored, collection))
+                .map(|(_, stats)| stats)
+        })
         .filter(|stats| stats.hydrated)
 }
 

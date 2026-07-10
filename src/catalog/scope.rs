@@ -102,7 +102,10 @@ impl RelationId {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParsedName {
     Unqualified(String),
-    SchemaQualified { schema: String, name: String },
+    SchemaQualified {
+        schema: String,
+        name: String,
+    },
     DatabaseQualified {
         database: String,
         schema: String,
@@ -123,11 +126,34 @@ pub fn canonical_relation_name(database: &str, schema: &str, name: &str) -> Stri
 #[must_use]
 pub fn local_name(raw: &str) -> String {
     match parse_name(raw) {
-        Ok(ParsedName::Unqualified(name))
-        | Ok(ParsedName::SchemaQualified { name, .. })
-        | Ok(ParsedName::DatabaseQualified { name, .. }) => name,
+        Ok(
+            ParsedName::Unqualified(name)
+            | ParsedName::SchemaQualified { name, .. }
+            | ParsedName::DatabaseQualified { name, .. },
+        ) => name,
         Err(_) => raw.to_string(),
     }
+}
+
+#[must_use]
+pub fn qualifier_variants(raw: &str) -> Vec<String> {
+    let normalized = raw.trim();
+    let Ok(parts) = split_identifier_path(normalized) else {
+        return vec![normalized.to_ascii_lowercase()];
+    };
+
+    let mut variants = Vec::with_capacity(parts.len());
+    for start in 0..parts.len() {
+        let variant = parts[start..]
+            .iter()
+            .map(|part| part.to_ascii_lowercase())
+            .collect::<Vec<_>>()
+            .join(".");
+        if !variant.is_empty() {
+            variants.push(variant);
+        }
+    }
+    variants
 }
 
 #[must_use]
@@ -146,7 +172,9 @@ pub fn parent_schema(raw: &str) -> Option<SchemaId> {
 #[must_use]
 pub fn derive_scoped_name(base: &str, derived_local_name: impl FnOnce(&str) -> String) -> String {
     if let Some(parent) = parent_schema(base) {
-        return parent.relation(derived_local_name(&local_name(base))).canonical_name();
+        return parent
+            .relation(derived_local_name(&local_name(base)))
+            .canonical_name();
     }
     derived_local_name(base)
 }
@@ -159,8 +187,7 @@ pub fn relation_database_name(raw: &str) -> Option<String> {
 #[must_use]
 pub fn relation_schema_name(raw: &str) -> String {
     RelationId::parse_canonical(raw)
-        .map(|relation| relation.schema)
-        .unwrap_or_else(|| DEFAULT_SCHEMA.to_string())
+        .map_or_else(|| DEFAULT_SCHEMA.to_string(), |relation| relation.schema)
 }
 
 #[must_use]
@@ -170,8 +197,7 @@ pub fn schema_database_name(raw: &str) -> Option<String> {
 
 #[must_use]
 pub fn relation_belongs_to_database(raw: &str, database: &str) -> bool {
-    relation_database_name(raw)
-        .is_none_or(|name| name.eq_ignore_ascii_case(database))
+    relation_database_name(raw).is_none_or(|name| name.eq_ignore_ascii_case(database))
 }
 
 #[must_use]
@@ -291,8 +317,8 @@ pub fn parse_name(raw: &str) -> Result<ParsedName, String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        canonical_relation_name, parse_name, split_identifier_path, ParsedName, RelationId,
-        SchemaId,
+        canonical_relation_name, parse_name, qualifier_variants, split_identifier_path, ParsedName,
+        RelationId, SchemaId,
     };
 
     #[test]
@@ -318,7 +344,10 @@ mod tests {
         // Assert
         assert_eq!(parsed, RelationId::new("tenant_db", "reporting", "orders"));
         assert_eq!(parsed.schema_id(), SchemaId::new("tenant_db", "reporting"));
-        assert_eq!(parsed.canonical_name(), canonical_relation_name("tenant_db", "reporting", "orders"));
+        assert_eq!(
+            parsed.canonical_name(),
+            canonical_relation_name("tenant_db", "reporting", "orders")
+        );
     }
 
     #[test]
@@ -344,6 +373,22 @@ mod tests {
                 schema: "reporting".to_string(),
                 name: "orders".to_string(),
             }
+        );
+    }
+
+    #[test]
+    fn should_return_qualifier_suffix_variants_for_canonical_relation_names() {
+        // Arrange
+        let variants = qualifier_variants("tenant_db.reporting.orders");
+
+        // Assert
+        assert_eq!(
+            variants,
+            vec![
+                "tenant_db.reporting.orders".to_string(),
+                "reporting.orders".to_string(),
+                "orders".to_string(),
+            ]
         );
     }
 }

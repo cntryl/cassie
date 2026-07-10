@@ -1,6 +1,6 @@
 use crate::catalog::{
-    relation_belongs_to_database, relation_schema_name, schema_belongs_to_database, Catalog,
-    FieldConstraint, IndexMeta, local_name,
+    local_name, name_matches, relation_belongs_to_database, relation_schema_name,
+    schema_belongs_to_database, Catalog, FieldConstraint, IndexMeta,
 };
 use crate::types::{DataType, Value};
 
@@ -141,8 +141,9 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
         sorted_indexes(catalog)
             .into_iter()
             .filter(|index| {
-                current_database
-                    .is_none_or(|database| relation_belongs_to_database(&index.collection, database))
+                current_database.is_none_or(|database| {
+                    relation_belongs_to_database(&index.collection, database)
+                })
             })
             .map(|index| class_row(catalog, &index.name, "i")),
     );
@@ -259,7 +260,7 @@ pub(super) fn pg_attrdef(catalog: &Catalog, current_database: Option<&str>) -> V
                 continue;
             };
             rows.push(vec![
-                string("adrelid", &schema.collection),
+                string("adrelid", local_name(&schema.collection)),
                 int_value("adnum", index + 1),
                 string("adsrc", default),
             ]);
@@ -369,16 +370,45 @@ fn index_definition(index: &IndexMeta) -> String {
 }
 
 fn index_is_primary(catalog: &Catalog, index: &IndexMeta) -> bool {
-    catalog
+    let primary_fields = catalog
         .get_constraints(&index.collection)
         .into_iter()
-        .any(|constraint| {
-            constraint.primary_key
-                && constraint
-                    .primary_key_name
-                    .as_deref()
-                    .is_some_and(|name| name.eq_ignore_ascii_case(&index.name))
+        .filter(|constraint| constraint.primary_key)
+        .collect::<Vec<_>>();
+    if primary_fields.is_empty() {
+        return false;
+    }
+
+    if primary_fields.iter().any(|constraint| {
+        constraint
+            .primary_key_name
+            .as_deref()
+            .is_some_and(|name| name_matches(name, &index.name))
+    }) {
+        return true;
+    }
+
+    let mut ordered_primary_fields = primary_fields
+        .into_iter()
+        .map(|constraint| {
+            (
+                constraint.primary_key_ordinal.unwrap_or(u32::MAX),
+                constraint.field,
+            )
         })
+        .collect::<Vec<_>>();
+    ordered_primary_fields.sort_by_key(|(ordinal, field)| (*ordinal, field.to_ascii_lowercase()));
+    let ordered_primary_fields = ordered_primary_fields
+        .into_iter()
+        .map(|(_, field)| field)
+        .collect::<Vec<_>>();
+    let index_fields = index.normalized_fields();
+
+    ordered_primary_fields.len() == index_fields.len()
+        && ordered_primary_fields
+            .iter()
+            .zip(index_fields.iter())
+            .all(|(left, right)| left.eq_ignore_ascii_case(right))
 }
 
 fn index_keys(catalog: &Catalog, index: &IndexMeta) -> String {
@@ -647,19 +677,6 @@ where
 
 fn bool_value(name: &str, value: bool) -> (String, Value) {
     (name.to_string(), Value::Bool(value))
-}
-
-fn lookup_string(row: &[(String, Value)], name: &str) -> String {
-    row.iter()
-        .find_map(|(column, value)| {
-            if column == name {
-                if let Value::String(value) = value {
-                    return Some(value.clone());
-                }
-            }
-            None
-        })
-        .unwrap_or_default()
 }
 
 fn row_sort_key(row: &VirtualRow) -> String {

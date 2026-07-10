@@ -102,6 +102,16 @@ fn db_error(error: &tokio_postgres::Error) -> &DbError {
         .expect("tokio-postgres should return a database error")
 }
 
+fn first_simple_value(messages: Vec<SimpleQueryMessage>) -> String {
+    messages
+        .into_iter()
+        .find_map(|message| match message {
+            SimpleQueryMessage::Row(row) => row.get(0).map(str::to_string),
+            _ => None,
+        })
+        .expect("simple query should return a row")
+}
+
 struct ProbeOutput {
     success: bool,
     timed_out: bool,
@@ -340,6 +350,110 @@ fn should_read_catalog_metadata_after_connect() {
         assert_eq!(row.get(0), Some(env!("CARGO_PKG_VERSION")));
         assert_eq!(row.get(1), Some("public"));
         assert_eq!(row.get(2), Some("postgres"));
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_preserve_session_search_path_with_tokio_postgres() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("session_search_path").await;
+        let (client, connection) = tokio::time::timeout(Duration::from_secs(5), server.connect())
+            .await
+            .expect("connect should complete within the timeout");
+        client
+            .batch_execute("CREATE SCHEMA reporting")
+            .await
+            .expect("schema creation should succeed");
+        client
+            .batch_execute("CREATE TABLE public.visible_docs (title TEXT)")
+            .await
+            .expect("public table creation should succeed");
+        client
+            .batch_execute("CREATE TABLE reporting.visible_docs (title TEXT)")
+            .await
+            .expect("reporting table creation should succeed");
+        client
+            .batch_execute("INSERT INTO public.visible_docs (title) VALUES ('public-doc')")
+            .await
+            .expect("public row insert should succeed");
+        client
+            .batch_execute("INSERT INTO reporting.visible_docs (title) VALUES ('reporting-doc')")
+            .await
+            .expect("reporting row insert should succeed");
+        let initial_path = first_simple_value(
+            client
+                .simple_query("SHOW search_path")
+                .await
+                .expect("initial search_path should be readable"),
+        );
+
+        // Act
+        client
+            .batch_execute("SET search_path = reporting")
+            .await
+            .expect("search_path update should succeed");
+        let updated_path = first_simple_value(
+            client
+                .simple_query("SHOW search_path")
+                .await
+                .expect("updated search_path should be readable"),
+        );
+        let schema = client
+            .query_one("SELECT current_schema()", &[])
+            .await
+            .expect("current schema should be readable");
+        let rows = client
+            .query("SELECT title FROM visible_docs ORDER BY title", &[])
+            .await
+            .expect("unqualified select should resolve through search_path");
+
+        // Assert
+        assert_eq!(initial_path, "public");
+        assert_eq!(updated_path, "reporting");
+        let current_schema: String = schema.try_get(0).expect("current_schema column");
+        assert_eq!(current_schema, "reporting");
+        assert_eq!(rows.len(), 1);
+        let title: String = rows[0].try_get(0).expect("title column");
+        assert_eq!(title, "reporting-doc");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_report_missing_search_path_schema_with_tokio_postgres() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("missing_search_path_schema").await;
+        let (client, connection) = tokio::time::timeout(Duration::from_secs(5), server.connect())
+            .await
+            .expect("connect should complete within the timeout");
+
+        // Act
+        let error = client
+            .batch_execute("SET search_path = missing_schema")
+            .await
+            .expect_err("missing schema should be rejected");
+
+        // Assert
+        let db_error = db_error(&error);
+        assert_eq!(db_error.code().code(), "3F000");
+        assert!(db_error.message().contains("missing_schema"));
 
         drop(client);
         server.shutdown(connection).await;

@@ -165,7 +165,7 @@ fn should_report_diagnostic_plan_cache_hit_after_query_execution() {
             &params,
             ExecutionMode::SimpleQuery,
             session.database.clone(),
-            session.search_path(),
+            &session.search_path(),
         );
 
         // Assert
@@ -538,12 +538,13 @@ fn should_reuse_cf2_cached_plan_after_restart_without_l1_state() {
         .build()
         .expect("runtime");
 
-        runtime.block_on(async {
+    runtime.block_on(async {
         {
             let cassie = Cassie::new_with_data_dir(&path).unwrap();
             cassie.startup().unwrap();
 
-            let collection = canonical_relation_name("postgres", "public", "plan_cache_restart_docs");
+            let collection =
+                canonical_relation_name("postgres", "public", "plan_cache_restart_docs");
             let schema = Schema {
                 fields: vec![FieldSchema {
                     name: "title".to_string(),
@@ -628,7 +629,7 @@ fn should_separate_cached_plans_by_adaptive_config() {
         .build()
         .expect("runtime");
 
-        runtime.block_on(async {
+    runtime.block_on(async {
         {
             let cassie = Cassie::new_with_data_dir(&path).unwrap();
             cassie.startup().unwrap();

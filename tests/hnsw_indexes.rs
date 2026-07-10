@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::embeddings::{
     DistanceMetric, HnswIndexOptions, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
 };
@@ -10,7 +11,12 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 mod support;
 use support::*;
 
+fn canonical_hnsw_collection(collection: &str) -> String {
+    canonical_relation_name("postgres", "public", collection)
+}
+
 fn register_hnsw_collection(cassie: &Cassie, collection: &str) {
+    let collection = canonical_hnsw_collection(collection);
     let schema = Schema {
         fields: vec![
             FieldSchema {
@@ -27,10 +33,10 @@ fn register_hnsw_collection(cassie: &Cassie, collection: &str) {
     };
     cassie
         .midge
-        .create_collection(collection, schema.clone())
+        .create_collection(&collection, schema.clone())
         .unwrap();
     cassie.register_collection(
-        collection,
+        &collection,
         schema
             .fields
             .iter()
@@ -40,10 +46,11 @@ fn register_hnsw_collection(cassie: &Cassie, collection: &str) {
 }
 
 fn put_hnsw_document(cassie: &Cassie, collection: &str, id: &str, embedding: [f64; 3]) {
+    let collection = canonical_hnsw_collection(collection);
     cassie
         .midge
         .put_document(
-            collection,
+            &collection,
             Some(id.to_string()),
             serde_json::json!({"content": id, "embedding": embedding}),
         )
@@ -52,7 +59,7 @@ fn put_hnsw_document(cassie: &Cassie, collection: &str, id: &str, embedding: [f6
 
 fn hnsw_index_record(collection: &str, ef_search: usize) -> VectorIndexRecord {
     VectorIndexRecord {
-        collection: collection.to_string(),
+        collection: canonical_hnsw_collection(collection),
         field: "embedding".to_string(),
         source_field: "content".to_string(),
         metadata: VectorIndexMetadata {
@@ -82,9 +89,10 @@ fn put_hnsw_index(cassie: &Cassie, collection: &str, ef_search: usize) -> Vector
 }
 
 fn stored_hnsw_index(cassie: &Cassie, collection: &str) -> VectorIndexRecord {
+    let collection = canonical_hnsw_collection(collection);
     cassie
         .midge
-        .get_vector_index(collection, "embedding")
+        .get_vector_index(&collection, "embedding")
         .unwrap()
         .expect("hnsw vector index should persist")
 }
@@ -100,6 +108,7 @@ fn mutate_stored_hnsw_index(
     collection: &str,
     mut mutate: impl FnMut(&mut VectorIndexRecord),
 ) {
+    let collection = canonical_hnsw_collection(collection);
     let entries = cassie
         .midge
         .raw_scan_prefix(StorageFamily::Schema, b"")
@@ -214,7 +223,7 @@ fn should_refresh_hnsw_graph_after_document_mutations() {
     let after_insert = stored_hnsw_index(&cassie, collection);
     cassie
         .midge
-        .delete_document(collection, "far")
+        .delete_document(&canonical_hnsw_collection(collection), "far")
         .expect("delete document");
     let after_delete = stored_hnsw_index(&cassie, collection);
 
@@ -291,9 +300,9 @@ fn should_reject_hnsw_sql_top_k_query_dimension_mismatch() {
         .expect_err("dimension mismatch should fail");
 
     // Assert
-    assert!(error.to_string().contains(
-        "vector_distance query for field 'embedding' on collection 'hnsw_sql_topk_dimension_mismatch' expects 3 dimensions but received 2"
-    ));
+    let error = error.to_string();
+    assert!(error.contains("vector_distance query for field 'embedding' on collection"));
+    assert!(error.contains("expects 3 dimensions but received 2"));
 
     let _ = std::fs::remove_dir_all(path);
 }

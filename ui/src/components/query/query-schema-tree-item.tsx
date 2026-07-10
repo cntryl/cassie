@@ -69,7 +69,7 @@ export function QuerySchemaTreeItem({ item, selected, onSelectItem }: QuerySchem
           data-testid="query-schema-item"
           data-item-id={item.id}
           data-item-kind={item.kind}
-          aria-pressed={isSelected}
+          aria-current={isSelected ? "true" : undefined}
           title={fullText}
           onClick={() => {
             onSelectItem(item);

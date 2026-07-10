@@ -8,9 +8,8 @@ use crate::catalog::{
     name_matches, CollectionCardinalityStats, CollectionMeta, CollectionSchema,
     CollectionStorageMode, DatabaseMeta, FieldConstraint, FieldMeta, FunctionMeta, GraphMeta,
     IndexKind, IndexMeta, NamespaceMeta, OperationalAssignmentMeta, ProcedureMeta,
-    ProjectionComparisonReportMeta,
-    ProjectionConsistencyReportMeta, ProjectionMeta, ProjectionRepairReportMeta,
-    RetentionPolicyMeta, RoleMeta, RollupMeta, SequenceMeta, ViewMeta,
+    ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta, ProjectionMeta,
+    ProjectionRepairReportMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, SequenceMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
@@ -43,10 +42,10 @@ pub struct Catalog {
     version: Arc<AtomicU64>,
 }
 
-#[path = "metadata_domains.rs"]
-mod metadata_domains;
 #[path = "metadata_databases.rs"]
 mod metadata_databases;
+#[path = "metadata_domains.rs"]
+mod metadata_domains;
 
 impl Catalog {
     #[must_use]
@@ -187,7 +186,9 @@ impl Catalog {
     pub fn namespace_exists(&self, namespace: &str) -> bool {
         let namespaces = self.namespaces.read();
         namespaces.contains_key(namespace)
-            || namespaces.keys().any(|stored| name_matches(stored, namespace))
+            || namespaces
+                .keys()
+                .any(|stored| name_matches(stored, namespace))
     }
 
     pub fn clear(&self) {
@@ -327,16 +328,37 @@ impl Catalog {
     }
 
     pub fn unregister_index(&self, collection: &str, name: &str) {
-        self.indexes
-            .write()
-            .remove(&Self::index_key(collection, name));
+        let mut indexes = self.indexes.write();
+        let key = Self::index_key(collection, name);
+        if indexes.remove(&key).is_none() {
+            let matching_key = indexes
+                .iter()
+                .find(|(_, index)| {
+                    name_matches(&index.collection, collection) && name_matches(&index.name, name)
+                })
+                .map(|(stored_key, _)| stored_key.clone());
+            if let Some(stored_key) = matching_key {
+                indexes.remove(&stored_key);
+            }
+        }
         self.bump_version();
     }
 
     #[must_use]
     pub fn get_index(&self, collection: &str, name: &str) -> Option<IndexMeta> {
         let indexes = self.indexes.read();
-        indexes.get(&Self::index_key(collection, name)).cloned()
+        indexes
+            .get(&Self::index_key(collection, name))
+            .cloned()
+            .or_else(|| {
+                indexes
+                    .values()
+                    .find(|index| {
+                        name_matches(&index.collection, collection)
+                            && name_matches(&index.name, name)
+                    })
+                    .cloned()
+            })
     }
 
     #[must_use]
@@ -383,7 +405,8 @@ impl Catalog {
         drop(schemas);
 
         let views = self.views.read();
-        views.get(collection)
+        views
+            .get(collection)
             .or_else(|| {
                 views
                     .iter()
@@ -615,7 +638,9 @@ impl Catalog {
     pub fn exists(&self, collection: &str) -> bool {
         let collections = self.collections.read();
         collections.contains_key(collection)
-            || collections.keys().any(|stored| name_matches(stored, collection))
+            || collections
+                .keys()
+                .any(|stored| name_matches(stored, collection))
     }
 
     #[must_use]
@@ -686,7 +711,13 @@ impl Catalog {
 
     #[must_use]
     pub fn get_cardinality_stats(&self, collection: &str) -> Option<CollectionCardinalityStats> {
-        self.cardinality.read().get(collection).cloned()
+        let cardinality = self.cardinality.read();
+        cardinality.get(collection).cloned().or_else(|| {
+            cardinality
+                .iter()
+                .find(|(stored, _)| name_matches(stored, collection))
+                .map(|(_, stats)| stats.clone())
+        })
     }
 
     #[must_use]
@@ -702,7 +733,16 @@ impl Catalog {
     }
 
     pub fn clear_cardinality_stats(&self, collection: &str) {
-        self.cardinality.write().remove(collection);
+        let mut cardinality = self.cardinality.write();
+        if cardinality.remove(collection).is_none() {
+            let matching_key = cardinality
+                .keys()
+                .find(|stored| name_matches(stored, collection))
+                .cloned();
+            if let Some(key) = matching_key {
+                cardinality.remove(&key);
+            }
+        }
         self.bump_version();
     }
 
@@ -735,7 +775,19 @@ impl Catalog {
     }
 
     pub fn remove_index_cardinality(&self, collection: &str, key: &str) {
-        if let Some(stats) = self.cardinality.write().get_mut(collection) {
+        let mut cardinality = self.cardinality.write();
+        let stored_key = if cardinality.contains_key(collection) {
+            Some(collection.to_string())
+        } else {
+            cardinality
+                .keys()
+                .find(|stored| name_matches(stored, collection))
+                .cloned()
+        };
+        if let Some(stats) = stored_key
+            .as_deref()
+            .and_then(|name| cardinality.get_mut(name))
+        {
             stats.indexes.remove(key);
             self.bump_version();
         }
@@ -754,9 +806,20 @@ impl Catalog {
     }
 
     pub fn unregister_vector_index(&self, collection: &str, field: &str) {
-        self.vector_indexes
-            .write()
-            .remove(&Self::vector_index_key(collection, field));
+        let mut indexes = self.vector_indexes.write();
+        let key = Self::vector_index_key(collection, field);
+        if indexes.remove(&key).is_none() {
+            let matching_key = indexes
+                .iter()
+                .find(|(_, record)| {
+                    name_matches(&record.collection, collection)
+                        && record.field.eq_ignore_ascii_case(field)
+                })
+                .map(|(stored_key, _)| stored_key.clone());
+            if let Some(stored_key) = matching_key {
+                indexes.remove(&stored_key);
+            }
+        }
         self.bump_version();
     }
 
@@ -770,6 +833,15 @@ impl Catalog {
         indexes
             .get(&Self::vector_index_key(collection, vector_field))
             .cloned()
+            .or_else(|| {
+                indexes
+                    .values()
+                    .find(|record| {
+                        name_matches(&record.collection, collection)
+                            && record.field.eq_ignore_ascii_case(vector_field)
+                    })
+                    .cloned()
+            })
     }
 
     #[must_use]
@@ -777,14 +849,14 @@ impl Catalog {
         let indexes = self.vector_indexes.read();
         indexes
             .values()
-            .filter(|record| record.collection == collection)
+            .filter(|record| name_matches(&record.collection, collection))
             .cloned()
             .collect()
     }
 
     pub fn clear_vector_indexes(&self, collection: &str) {
         let mut indexes = self.vector_indexes.write();
-        indexes.retain(|_, value| value.collection != collection);
+        indexes.retain(|_, value| !name_matches(&value.collection, collection));
         self.bump_version();
     }
 

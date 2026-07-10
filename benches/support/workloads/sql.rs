@@ -117,6 +117,7 @@ pub fn simple_10k_query_breakdown(ctx: &BenchContext) -> Ready<QueryBreakdownMic
         &params,
         ExecutionMode::SimpleQuery,
         ctx.session.database.clone(),
+        &ctx.session.search_path(),
     );
     let cache_us = micros(cache_started.elapsed());
     assert!(cache_hit, "expected warmed plan cache hit");

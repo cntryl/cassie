@@ -22,7 +22,7 @@
     "@askrjs/ui": "0.0.12",
     "@askrjs/vite": "0.0.5",
     "@fgrzl/fetch": "^2.0.0",
-    "monaco-editor": "^0.53.0"
+    "monaco-editor": "^0.55.1"
   },
   "devDependencies": {
     "@fgrzl/fetch-gen": "^2.0.0",

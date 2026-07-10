@@ -202,7 +202,9 @@ Goal: support practical PostgreSQL client interoperability for read-model access
 | Prepared statements and portals | Implemented | Stable |
 | SQLSTATE-style error responses | Implemented | Experimental mapping completeness |
 | Catalog probes | Implemented | Experimental |
-| psql, sqlx, diesel, prisma, SQLAlchemy matrix | Implemented baseline | Experimental |
+| `tokio-postgres` baseline | Implemented baseline | Stable client contract for documented covered workflows |
+| Opt-in psql/Prisma/SQLAlchemy probes | Implemented baseline | Experimental dependency-gated probe depth |
+| sqlx/diesel and broader tooling depth | Planned | Experimental/planned compatibility depth |
 
 ## Operational Scale
 
@@ -230,7 +232,7 @@ Goal: support horizontal expansion through externally orchestrated independent C
 - Treat `issues/phase-08/README.md` as the archived README-goal closure surface for operational metadata, snapshot/restore, repair, read optimization, time-series, client compatibility, production classification, and capacity-management documentation.
 - Use `issues/phase-09/README.md` as the archived production-depth follow-up surface; experimental promotion now follows [Experimental Promotion Criteria](experimental-promotion-criteria.md).
 - Tighten PostgreSQL compatibility documentation for already-implemented SQL features through the read-model access lens.
-- Expand remaining client compatibility probes for sqlx, diesel, prisma, broader SQLAlchemy reflection, and migration-tool read-model workflows.
+- Expand remaining client compatibility probes for sqlx/diesel automation, broader Prisma/SQLAlchemy/pgAdmin4 depth, and migration-tool read-model workflows.
 - Promote experimental catalog, limited procedure, rollup, HNSW, and embedding surfaces only through surface-specific future issues that satisfy [Experimental Promotion Criteria](experimental-promotion-criteria.md).
 - Add performance evidence for production-ready claims on planner, index, search, vector, and analytics paths.
 - Continue splitting large legacy modules before adding broad feature work in those areas.

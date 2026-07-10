@@ -77,7 +77,10 @@ fn should_select_time_series_index_for_timestamp_range_explain() {
             cassie::types::Value::String(value) => value,
             other => panic!("expected explain string, got {other:?}"),
         };
-        assert!(plan.contains("index=idx_ts_events_time"));
+        assert!(plan.contains(&format!(
+            "index={}",
+            canonical_test_index(&cassie, "ts_events", "idx_ts_events_time")
+        )));
         assert!(plan.contains("time_series=bucket_width:1 hour"));
         assert!(plan.contains("time_series_storage=bucket-native-v1"));
         assert!(plan.contains("partition_by:tenant"));
@@ -135,6 +138,7 @@ fn should_execute_timestamp_range_with_time_series_metrics() {
         let metrics = cassie.metrics();
         let sidecars =
             time_series_sidecar_records(&cassie, "ts_execute_events", "idx_ts_execute_time");
+        let index_name = canonical_test_index(&cassie, "ts_execute_events", "idx_ts_execute_time");
 
         // Assert
         assert_eq!(
@@ -161,7 +165,7 @@ fn should_execute_timestamp_range_with_time_series_metrics() {
         assert_eq!(metrics["time_series"]["buckets_skipped"].as_u64(), Some(1));
         assert_eq!(
             metrics["time_series"]["last_index"].as_str(),
-            Some("idx_ts_execute_time")
+            Some(index_name.as_str())
         );
 
         let _ = std::fs::remove_dir_all(path);
@@ -199,7 +203,7 @@ fn should_bulk_load_fresh_time_series_documents_for_bucket_reads() {
         cassie
             .midge
             .put_fresh_time_series_documents(
-                "ts_fresh_events",
+                &canonical_test_collection(&cassie, "ts_fresh_events"),
                 vec![
                     (
                         Some("event-1".to_string()),
@@ -335,6 +339,8 @@ fn should_preserve_time_series_range_reads_after_mutations_restart() {
             "ts_mutation_events",
             "idx_ts_mutation_time",
         );
+        let index_name =
+            canonical_test_index(&restarted, "ts_mutation_events", "idx_ts_mutation_time");
 
         // Assert
         assert_eq!(result.rows, vec![vec![cassie::types::Value::Int64(20)]]);
@@ -342,7 +348,10 @@ fn should_preserve_time_series_range_reads_after_mutations_restart() {
             cassie::types::Value::String(value) => value,
             other => panic!("expected explain string, got {other:?}"),
         };
-        assert!(plan.contains("index=idx_ts_mutation_time"));
+        assert!(plan.contains(&format!(
+            "index={}",
+            canonical_test_index(&restarted, "ts_mutation_events", "idx_ts_mutation_time")
+        )));
         assert!(plan.contains("time_series=bucket_width:1 hour"));
         assert!(plan.contains("time_series_storage=bucket-native-v1"));
         assert_eq!(sidecars.len(), 2);
@@ -353,7 +362,7 @@ fn should_preserve_time_series_range_reads_after_mutations_restart() {
         );
         assert_eq!(
             metrics["time_series"]["last_index"].as_str(),
-            Some("idx_ts_mutation_time")
+            Some(index_name.as_str())
         );
 
         let _ = std::fs::remove_dir_all(path);

@@ -36,7 +36,8 @@ Experimental surfaces require the evidence gates in [Experimental Promotion Crit
 | Set operations | UNION, UNION ALL, INTERSECT, EXCEPT | Stable | PostgreSQL-like |
 | Window functions | row_number, rank, dense_rank, lag, lead, first_value, last_value, supported frames | Stable | PostgreSQL-like with documented frame limits |
 | DML | INSERT, UPDATE, DELETE, RETURNING, `COPY ... FROM STDIN WITH (FORMAT csv)` | Stable/Experimental | PostgreSQL-like plus simple-query CSV bulk load |
-| DDL | CREATE TABLE, ALTER TABLE, DROP TABLE, CREATE SCHEMA, DROP SCHEMA, CREATE INDEX, DROP INDEX, CREATE ROLLUP, REFRESH ROLLUP, DROP ROLLUP, CREATE/ALTER/DROP/ENFORCE RETENTION POLICY | Stable/Experimental by object type | PostgreSQL-like plus Cassie-specific analytics |
+| DDL | CREATE/DROP DATABASE, CREATE/ALTER/DROP TABLE, CREATE/ALTER/DROP SCHEMA, CREATE/DROP INDEX, CREATE ROLLUP, REFRESH ROLLUP, DROP ROLLUP, CREATE/ALTER/DROP/ENFORCE RETENTION POLICY | Stable/Experimental by object type | PostgreSQL-like plus Cassie-specific analytics |
+| Session scope | `current_database()`, `current_schema()`, `SHOW search_path`, `SET search_path` | Stable | PostgreSQL-like current-database session model |
 | Transactions | BEGIN, COMMIT, ROLLBACK, savepoints | Stable | PostgreSQL-like with Cassie/Midge durability notes |
 | Views | CREATE VIEW, DROP VIEW, nested views | Stable | PostgreSQL-like read-only view behavior |
 | Functions | scalar functions, user-defined functions | Stable/Experimental | PostgreSQL-like where documented |
@@ -125,9 +126,9 @@ Unsupported procedural expectations include:
 
 | Category | Supported Items | Status | Compatibility |
 | --- | --- | --- | --- |
-| PostgreSQL wire | startup, passwordless startup when auth is disabled, cleartext-password auth when enabled, simple query, extended query, parse, bind, describe, execute, sync, close, simple-query COPY FROM STDIN CSV | Stable/Experimental | PostgreSQL-compatible subset |
+| PostgreSQL wire | startup, passwordless startup when auth is disabled, cleartext-password auth when enabled, simple query, extended query, parse, bind, describe, execute, sync, flush, close, simple-query COPY FROM STDIN CSV | Stable/Experimental | PostgreSQL-compatible subset |
 | Pgwire results | row description, data row, command complete, SQLSTATE-style error response, ready for query | Stable | PostgreSQL-compatible subset |
-| Pgwire compatibility | prepared statements, portals, text/binary formats, catalog introspection, shared semantic error mapping for malformed SQL, missing relations, unsupported features, deadlines, auth failures, and retryable storage failures | Stable/Experimental | PostgreSQL-compatible subset |
+| Pgwire compatibility | prepared statements, portals, text/binary formats, catalog introspection, shared semantic error mapping for malformed SQL, missing relations, missing schemas, unsupported features, deadlines, auth failures, and retryable-storage failures | Stable/Experimental | PostgreSQL-compatible subset |
 | HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin manifest export and consistency-check APIs, shared semantic error mapping, and bearer-style admin auth | Stable/Experimental | Cassie REST API |
 | Recovery | v1 local snapshots with `cassie-snapshot-manifest.json`, copied Midge data directory, manifest compatibility validation, restore to empty local data directory | Experimental | Cassie-specific local recovery; no remote orchestration or replication |
 | Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, cost-model diagnostics, index used, index feedback marker, operator feedback state/reason/cost/confidence diagnostics, adaptive decision/alternative/guard diagnostics, runtime operator switch candidate/pair/threshold/reason diagnostics, join strategy/key/sort/vectorized/fallback diagnostics, time-series index diagnostics, column-batch index used, storage-mode diagnostics, aggregate acceleration, rollup rewrite selected, mixed execution stages, analytical projection markers, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
@@ -138,7 +139,9 @@ Unsupported procedural expectations include:
 
 ## Projection Verification Surfaces
 
-- Cassie-owned Midge keys use the lexkey v2 storage layout. Existing v1 Midge directories with slash-delimited row keys, `doc:` legacy keys, or `__cassie__` key families are intentionally incompatible and must be recreated or rebuilt before startup.
+- Cassie-owned Midge keys use the lexkey v3 storage layout. Existing flat or `v2` Midge directories, slash-delimited row keys, `doc:` legacy keys, or `__cassie__` key families are intentionally incompatible and must be recreated before startup; Cassie does not attempt in-place migration.
+- Fresh startup bootstraps the configured default database plus persisted `public`; `pg_catalog.pg_database` and `information_schema.schemata` expose the live database/schema surface for the current session database.
+- Unqualified relation names resolve through the session `search_path` inside the current database only. Cross-database `database.schema.relation` references remain unsupported.
 - `CASSIE_OPERATOR_FEEDBACK_ENABLED=1` enables experimental operator-selection feedback. When unset, the planner stays on the deterministic base path and EXPLAIN reports feedback as ignored or disabled.
 - `CASSIE_ADAPTIVE_EXECUTION_ENABLED=1` enables experimental adaptive selection among prevalidated read-operator alternatives. `CASSIE_ADAPTIVE_MIN_COST_SAVINGS_BPS` controls the minimum observed savings required before an adaptive alternative replaces the base operator. `CASSIE_ADAPTIVE_MIN_CONFIDENCE_BPS` optionally requires a minimum operator-feedback confidence score before adaptive selection can pass; it defaults to `0`.
 - `CASSIE_OPERATOR_SWITCHING_ENABLED=1` enables experimental runtime switching for explicitly prevalidated switch pairs. The first supported pair is `vectorized_join_to_merge_join`, which replays left/right join inputs before emitting rows when `CASSIE_OPERATOR_SWITCH_JOIN_ROW_THRESHOLD` is exceeded.

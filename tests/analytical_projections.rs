@@ -1,6 +1,7 @@
 #![allow(unused_imports, dead_code)]
 
 use cassie::app::Cassie;
+use cassie::catalog::local_name;
 use cassie::sql::ast::QueryStatement;
 use cassie::types::Value;
 
@@ -142,6 +143,10 @@ fn should_route_covered_query_to_fresh_analytical_projection() {
             )
             .unwrap();
         let after = cassie.metrics();
+        let projection = cassie
+            .catalog
+            .get_materialized_projection("analytical_route")
+            .expect("materialized projection metadata");
 
         // Assert
         assert_eq!(
@@ -162,7 +167,10 @@ fn should_route_covered_query_to_fresh_analytical_projection() {
         let Value::String(plan) = &explained.rows[0][0] else {
             panic!("expected explain string");
         };
-        assert!(plan.contains("analytical_projection=analytical_route"));
+        assert!(plan.contains(&format!(
+            "analytical_projection={}",
+            projection.collection
+        )));
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -280,12 +288,15 @@ fn should_reject_dml_against_analytical_projection_output() {
             .get_materialized_projection("analytical_output")
             .and_then(|projection| projection.active_output_collection().map(str::to_string))
             .expect("active output collection");
+        let output_sql_name = local_name(&output);
 
         // Act
         let error = cassie
             .execute_sql(
                 &session,
-                &format!("INSERT INTO {output} (tenant, amount) VALUES ('acme', 10)"),
+                &format!(
+                    "INSERT INTO {output_sql_name} (tenant, amount) VALUES ('acme', 10)"
+                ),
                 vec![],
             )
             .unwrap_err();

@@ -2,11 +2,16 @@
 
 use cassie::app::{Cassie, CassieSnapshotManifest, CassieSnapshotOptions};
 use cassie::app::{ProjectionReplayBatch, ProjectionReplayEvent};
+use cassie::catalog::canonical_relation_name;
 use cassie::types::Value;
 
 #[path = "support/sql.rs"]
 mod support;
 use support::*;
+
+fn canonical_collection(name: &str) -> String {
+    canonical_relation_name("postgres", "public", name)
+}
 
 fn seed_replayed_projection(path: &str, table: &str) {
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -25,9 +30,10 @@ fn seed_replayed_projection(path: &str, table: &str) {
                 vec![],
             )
             .unwrap();
+        let projection = canonical_test_collection(&cassie, table);
         cassie
             .replay_projection_batch(ProjectionReplayBatch {
-                projection: table.to_string(),
+                projection: projection.clone(),
                 source_identity: "orders-stream".to_string(),
                 batch_id: "batch-1".to_string(),
                 lag: 0,
@@ -83,7 +89,9 @@ fn should_create_snapshot_manifest_with_projection_checkpoint_hash_metadata() {
     let projection = manifest
         .projections
         .iter()
-        .find(|projection| projection.projection_id == "snapshot_manifest_docs")
+        .find(|projection| {
+            projection.projection_id == canonical_collection("snapshot_manifest_docs")
+        })
         .expect("projection manifest");
     assert_eq!(projection.source_identity.as_deref(), Some("orders-stream"));
     assert_eq!(
@@ -128,6 +136,7 @@ fn should_restore_snapshot_to_new_data_dir_for_startup_query() {
         let cassie = Cassie::new_with_data_dir(&restored).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
+        let projection = canonical_test_collection(&cassie, "snapshot_restore_docs");
         let selected = cassie
             .execute_sql(
                 &session,
@@ -138,7 +147,9 @@ fn should_restore_snapshot_to_new_data_dir_for_startup_query() {
         let checkpoint = cassie
             .execute_sql(
                 &session,
-                "SELECT source_checkpoint, last_applied_event_id, freshness FROM pg_catalog.pg_projection_checkpoints WHERE collection = 'snapshot_restore_docs'",
+                &format!(
+                    "SELECT source_checkpoint, last_applied_event_id, freshness FROM pg_catalog.pg_projection_checkpoints WHERE collection = '{projection}'"
+                ),
                 vec![],
             )
             .unwrap();

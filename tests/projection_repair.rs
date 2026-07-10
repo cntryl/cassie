@@ -8,8 +8,9 @@ mod support;
 use support::*;
 
 fn corrupt_first_row_hash(cassie: &Cassie, collection: &str) {
-    let mut row_hash = cassie.midge.list_row_hashes(collection).unwrap()[0].clone();
-    let key = row_hash_storage_key(cassie, collection, &row_hash.row_id);
+    let collection = canonical_test_collection(cassie, collection);
+    let mut row_hash = cassie.midge.list_row_hashes(&collection).unwrap()[0].clone();
+    let key = row_hash_storage_key(cassie, &collection, &row_hash.row_id);
     row_hash.state = cassie::midge::adapter::StoredHashState::Stale;
     let mut tx = cassie
         .midge
@@ -86,6 +87,7 @@ fn should_plan_dry_run_repair_from_integrity_findings() {
                 vec![],
             )
             .unwrap();
+        let projection = canonical_test_collection(&cassie, "repair_plan_docs");
         corrupt_first_row_hash(&cassie, "repair_plan_docs");
         cassie
             .execute_sql(
@@ -126,7 +128,7 @@ fn should_plan_dry_run_repair_from_integrity_findings() {
             assert_eq!(plan.rows[0][5], Value::Bool(executable));
             assert_eq!(
                 plan.rows[0][6],
-                Value::String("VERIFY PROJECTION repair_plan_docs MODE full".to_string())
+                Value::String(format!("VERIFY PROJECTION {projection} MODE full"))
             );
         }
 
@@ -162,6 +164,7 @@ fn should_execute_verified_local_hash_repair_with_audit() {
                 vec![],
             )
             .unwrap();
+        let projection = canonical_test_collection(&cassie, "repair_execute_docs");
         corrupt_first_row_hash(&cassie, "repair_execute_docs");
         cassie
             .execute_sql(
@@ -182,7 +185,9 @@ fn should_execute_verified_local_hash_repair_with_audit() {
         let audit = cassie
             .execute_sql(
                 &session,
-                "SELECT state, scope, action, post_verification_state FROM pg_catalog.pg_projection_repair_reports WHERE projection_name = 'repair_execute_docs'",
+                &format!(
+                    "SELECT state, scope, action, post_verification_state FROM pg_catalog.pg_projection_repair_reports WHERE projection_name = '{projection}'"
+                ),
                 vec![],
             )
             .unwrap();
@@ -288,6 +293,7 @@ fn should_not_run_repair_from_query_path() {
                 vec![],
             )
             .unwrap();
+        let projection = canonical_test_collection(&cassie, "repair_query_path_docs");
         corrupt_first_row_hash(&cassie, "repair_query_path_docs");
         cassie
             .execute_sql(
@@ -308,7 +314,9 @@ fn should_not_run_repair_from_query_path() {
         let reports = cassie
             .execute_sql(
                 &session,
-                "SELECT state FROM pg_catalog.pg_projection_repair_reports WHERE projection_name = 'repair_query_path_docs'",
+                &format!(
+                    "SELECT state FROM pg_catalog.pg_projection_repair_reports WHERE projection_name = '{projection}'"
+                ),
                 vec![],
             )
             .unwrap();

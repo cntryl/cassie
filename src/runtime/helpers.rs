@@ -330,6 +330,7 @@ mod tests {
             parameter_shape: vec![ParameterShape::Int64],
             mode: ExecutionMode::SimpleQuery,
             database: Some("postgres".to_string()),
+            search_path: vec!["public".to_string()],
         };
         runtime.plan_cache_store(key.clone(), Arc::new(sample_plan()), false);
 

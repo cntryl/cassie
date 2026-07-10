@@ -125,7 +125,8 @@ pub(super) fn layout_marker_key() -> Vec<u8> {
 
 pub(super) fn legacy_v2_layout_prefix() -> Vec<u8> {
     let parts = [ROOT, LEXKEY, LEGACY_VERSION_V2];
-    let mut encoder = Encoder::with_capacity(parts.iter().map(|part| part.len()).sum::<usize>() + 4);
+    let mut encoder =
+        Encoder::with_capacity(parts.iter().map(|part| part.len()).sum::<usize>() + 4);
     encoder.encode_composite_into_buf(&parts);
     encoder.push_separator();
     encoder.into_vec()
@@ -328,7 +329,11 @@ pub(super) fn column_batch_segment_key(
     scoped_key(
         FAMILY_COLUMN_BATCH,
         collection,
-        &[index_name.as_bytes(), b"segment", encoded_segment.as_bytes()],
+        &[
+            index_name.as_bytes(),
+            b"segment",
+            encoded_segment.as_bytes(),
+        ],
     )
 }
 
@@ -454,7 +459,11 @@ pub(super) fn column_store_row_key(collection: &str, id: &str) -> Vec<u8> {
 }
 
 pub(super) fn column_store_deleted_key(collection: &str, id: &str) -> Vec<u8> {
-    scoped_key(FAMILY_COLUMN_STORE, collection, &[b"deleted", id.as_bytes()])
+    scoped_key(
+        FAMILY_COLUMN_STORE,
+        collection,
+        &[b"deleted", id.as_bytes()],
+    )
 }
 
 pub(super) fn column_store_field_key(collection: &str, field: &str, id: &str) -> Vec<u8> {
@@ -590,7 +599,12 @@ pub(super) fn time_series_index_entry_key(
     scoped_key(
         FAMILY_TIME_SERIES_INDEX,
         collection,
-        &[index_name.as_bytes(), b"data", bucket_key.as_bytes(), id.as_bytes()],
+        &[
+            index_name.as_bytes(),
+            b"data",
+            bucket_key.as_bytes(),
+            id.as_bytes(),
+        ],
     )
 }
 

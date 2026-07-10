@@ -8,6 +8,7 @@ import QueryPage from "@/pages/app/query";
 import {
   apiv1,
   type ColumnMeta,
+  type QueryExplainResponse,
   type QueryResult,
   type QuerySchemaResponse,
   type QueryValidateResponse,
@@ -20,15 +21,15 @@ const schemaResponse: QuerySchemaResponse = {
       label: "Tables",
       items: [
         {
-          id: "table:documents",
+          id: "table:postgres.public.documents",
           kind: "table",
-          label: "documents",
+          label: "postgres.public.documents",
           metadata: "2 columns",
         },
         {
-          id: "table:accounts",
+          id: "table:postgres.public.accounts",
           kind: "table",
-          label: "accounts",
+          label: "postgres.public.accounts",
           metadata: "6 columns",
         },
       ],
@@ -62,17 +63,17 @@ function mockQuerySchemaSuccess() {
     status: 200,
     statusText: "OK",
     headers: new Headers(),
-    url: "/api/v1/admin/query/schema",
+    url: "/api/v1/admin/catalog",
     data: schemaResponse,
     error: null,
   };
 
-  vi.spyOn(apiv1, "getAdminQuerySchema").mockResolvedValue(response);
+  vi.spyOn(apiv1, "listAdminCatalog").mockResolvedValue(response);
 }
 
 function mockQuerySchemaWithColumnsSuccess() {
   // Columns aren't part of the generated QuerySchemaResponse type yet (see
-  // query-mappers.ts's forward-compat comment) — cast the raw fixture.
+  // query-mappers.ts's forward-compat comment), so cast the raw fixture.
   const data = {
     sections: [
       {
@@ -80,13 +81,18 @@ function mockQuerySchemaWithColumnsSuccess() {
         label: "Tables",
         items: [
           {
-            id: "table:documents",
+            id: "table:postgres.public.documents",
             kind: "table",
-            label: "documents",
+            label: "postgres.public.documents",
             metadata: "2 columns",
             columns: [
-              { id: "documents:id", name: "id", dataType: "uuid", primaryKey: true },
-              { id: "documents:title", name: "title", dataType: "text" },
+              {
+                id: "postgres.public.documents:id",
+                name: "id",
+                dataType: "uuid",
+                primaryKey: true,
+              },
+              { id: "postgres.public.documents:title", name: "title", dataType: "text" },
             ],
           },
         ],
@@ -103,12 +109,12 @@ function mockQuerySchemaWithColumnsSuccess() {
     status: 200,
     statusText: "OK",
     headers: new Headers(),
-    url: "/api/v1/admin/query/schema",
+    url: "/api/v1/admin/catalog",
     data,
     error: null,
   };
 
-  vi.spyOn(apiv1, "getAdminQuerySchema").mockResolvedValue(response);
+  vi.spyOn(apiv1, "listAdminCatalog").mockResolvedValue(response);
 }
 
 function column(name: string): ColumnMeta {
@@ -123,13 +129,111 @@ function column(name: string): ColumnMeta {
   };
 }
 
+const explainPlan = {
+  format_version: 1,
+  summary: {
+    collection: "postgres.public.documents",
+    root_operator: "Select",
+    access_path: "index_seek",
+    selected_index: "postgres.public.idx_documents_title",
+    selected_cost: 4,
+    estimated_rows: 1,
+    storage_mode: "row",
+  },
+  nodes: [
+    {
+      id: "read",
+      label: "Read with idx_documents_title",
+      kind: "read",
+      detail: "postgres.public.documents via index_seek",
+      status: "optimized",
+      badges: ["index:idx_documents_title", "predicate pushdown"],
+      metrics: [
+        { label: "estimated rows", value: "1" },
+        { label: "selected cost", value: "4" },
+      ],
+    },
+    {
+      id: "project",
+      label: "Project rows",
+      kind: "project",
+      detail: "narrow",
+      status: "active",
+      badges: ["field:title"],
+      metrics: [{ label: "scan fields", value: "title" }],
+    },
+  ],
+  attributes: [
+    { label: "Access path", value: "index_seek", intent: "success" },
+    { label: "Index", value: "idx_documents_title", intent: "success" },
+    { label: "Projection", value: "narrow", intent: "neutral" },
+  ],
+  estimates: {
+    scan_rows: 230,
+    index_rows: 1,
+    join_rows: 0,
+    search_rows: 0,
+    vector_rows: 0,
+    aggregate_rows: 0,
+    scan_cost: 230,
+    index_cost: 4,
+    selected_cost: 4,
+    cost_source: "planner",
+    rejected_alternatives: ["full_scan"],
+  },
+  features: [
+    {
+      id: "predicate_pushdown",
+      label: "Predicate pushdown",
+      enabled: true,
+      intent: "success",
+      detail: "Filters applied before rows leave storage",
+      node_id: "read",
+    },
+    {
+      id: "projection_pruning",
+      label: "Projection pruning",
+      enabled: true,
+      intent: "success",
+      detail: "Read path narrows scanned fields when possible",
+      node_id: "read",
+    },
+    {
+      id: "top_k",
+      label: "Top K",
+      enabled: false,
+      intent: "neutral",
+      detail: "Ordering and limit can stop early",
+      node_id: "top_k",
+    },
+  ],
+  diagnostics: {
+    access_path_reason: "scalar-index-seek",
+    fallback_reason: "none",
+    pagination_strategy: "none",
+    early_stop: "none",
+    projection_shape: "narrow",
+    operator_feedback_state: "none",
+    operator_feedback_reason: "none",
+    adaptive_enabled: false,
+    adaptive_decision_point: "none",
+    adaptive_candidates: [],
+    adaptive_selected_alternative: "none",
+    adaptive_reason: "none",
+    join_strategy: "none",
+    join_fallback_reason: "none",
+    rollup_rewrite: "none",
+    projection_freshness: "current",
+  },
+} satisfies QueryExplainResponse["plan"];
+
 function mockValidateSuccess() {
   const response: FetchResponse<QueryValidateResponse> = {
     ok: true,
     status: 200,
     statusText: "OK",
     headers: new Headers(),
-    url: "/api/v1/admin/query/validate",
+    url: "/api/v1/admin/query-validations",
     data: {
       columns: [column("id"), column("name")],
       command: "SELECT",
@@ -138,7 +242,26 @@ function mockValidateSuccess() {
     error: null,
   };
 
-  vi.spyOn(apiv1, "validateAdminQuery").mockResolvedValue(response);
+  vi.spyOn(apiv1, "createAdminQueryValidation").mockResolvedValue(response);
+}
+
+function mockValidateError() {
+  const response: FetchResponse<QueryValidateResponse> = {
+    ok: false,
+    status: 400,
+    statusText: "Bad Request",
+    headers: new Headers(),
+    url: "/api/v1/admin/query-validations",
+    data: null,
+    error: {
+      message: 'syntax error at or near "SELET"',
+      status: 400,
+      statusText: "Bad Request",
+      url: "/api/v1/admin/query-validations",
+    },
+  };
+
+  vi.spyOn(apiv1, "createAdminQueryValidation").mockResolvedValue(response);
 }
 
 function mockExecuteSuccess() {
@@ -147,7 +270,7 @@ function mockExecuteSuccess() {
     status: 200,
     statusText: "OK",
     headers: new Headers(),
-    url: "/api/v1/admin/query/execute",
+    url: "/api/v1/admin/query-executions",
     data: {
       columns: [column("id"), column("name")],
       command: "SELECT",
@@ -156,7 +279,7 @@ function mockExecuteSuccess() {
     error: null,
   };
 
-  vi.spyOn(apiv1, "executeAdminQuery").mockResolvedValue(response);
+  vi.spyOn(apiv1, "createAdminQueryExecution").mockResolvedValue(response);
 }
 
 function mockExecuteWithNullSuccess() {
@@ -165,7 +288,7 @@ function mockExecuteWithNullSuccess() {
     status: 200,
     statusText: "OK",
     headers: new Headers(),
-    url: "/api/v1/admin/query/execute",
+    url: "/api/v1/admin/query-executions",
     data: {
       columns: [column("id"), column("name")],
       command: "SELECT",
@@ -177,25 +300,26 @@ function mockExecuteWithNullSuccess() {
     error: null,
   };
 
-  vi.spyOn(apiv1, "executeAdminQuery").mockResolvedValue(response);
+  vi.spyOn(apiv1, "createAdminQueryExecution").mockResolvedValue(response);
 }
 
 function mockExplainSuccess() {
-  const response: FetchResponse<QueryResult> = {
+  const response: FetchResponse<QueryExplainResponse> = {
     ok: true,
     status: 200,
     statusText: "OK",
     headers: new Headers(),
-    url: "/api/v1/admin/query/explain",
+    url: "/api/v1/admin/query-explanations",
     data: {
       columns: [column("QUERY PLAN")],
       command: "EXPLAIN",
-      rows: [["Seq Scan on documents\n  Filter: (id > 0)"]],
+      rows: [["Index Scan using idx_documents_title on documents\n  Index Cond: (title = 'one')"]],
+      plan: explainPlan,
     },
     error: null,
   };
 
-  vi.spyOn(apiv1, "explainAdminQuery").mockResolvedValue(response);
+  vi.spyOn(apiv1, "createAdminQueryExplanation").mockResolvedValue(response);
 }
 
 async function flushUi() {
@@ -294,7 +418,7 @@ describe("admin query page composition", () => {
     expect(queryPage).toBeTruthy();
     expect(queryPage?.id).toBe("main-content");
     expect(queryPage?.getAttribute("tabindex")).toBe("-1");
-    expect(queryPage?.getAttribute("aria-labelledby")).toBe("cassie-admin-page-title");
+    expect(queryPage?.getAttribute("aria-label")).toBe("Query");
     const schemaBrowser = root.querySelector('[aria-label="Schema browser"]');
     const schemaTree = root.querySelector('[data-testid="query-schema-tree"]');
     expect(schemaTree).toBeTruthy();
@@ -322,10 +446,30 @@ describe("admin query page composition", () => {
     expect(root.querySelector('[data-tab-content="results"]')).toBeTruthy();
   });
 
+  it("moves the active tab indicator when a different result tab is clicked", async () => {
+    const root = await mountQueryRoute();
+
+    const gridTab = root.querySelector('[data-testid="query-result-tab-results"]');
+    const listTab = root.querySelector('[data-testid="query-result-tab-list"]');
+    if (!(gridTab instanceof HTMLElement) || !(listTab instanceof HTMLElement)) {
+      throw new Error("Missing result tabs");
+    }
+
+    expect(gridTab.getAttribute("data-active")).toBe("true");
+    expect(listTab.getAttribute("data-active")).toBe(null);
+
+    listTab.click();
+    await flushUi();
+
+    expect(gridTab.getAttribute("data-active")).toBe(null);
+    expect(listTab.getAttribute("data-active")).toBe("true");
+    expect(root.querySelector('[data-tab-content="list"]')).toBeTruthy();
+  });
+
   it("updates query text on schema item selection", async () => {
     const root = await mountQueryRoute();
 
-    const schemaItem = root.querySelector('[data-item-id="table:documents"]');
+    const schemaItem = root.querySelector('[data-item-id="table:postgres.public.documents"]');
     if (!schemaItem) {
       throw new Error("Missing schema item");
     }
@@ -360,6 +504,45 @@ describe("admin query page composition", () => {
     expect(root.textContent).toContain("No query has run yet.");
   });
 
+  it("shows a danger toast when validation itself fails, instead of failing silently", async () => {
+    mockValidateError();
+    const root = await mountQueryRoute();
+
+    buttonByText(root, "Validate").click();
+    await waitForText(root, "Validation failed");
+
+    const toast = root.querySelector('[data-testid="query-validation-toast"]');
+    if (!(toast instanceof HTMLElement)) {
+      throw new Error("Missing validation toast");
+    }
+    expect(toast.hidden).toBe(false);
+    expect(toast.getAttribute("data-variant")).toBe("danger");
+    expect(toast.textContent).toContain('syntax error at or near "SELET"');
+  });
+
+  it("shows validation results as a dismissible toast, not a persistent banner", async () => {
+    mockValidateSuccess();
+    const root = await mountQueryRoute();
+
+    buttonByText(root, "Validate").click();
+    await waitForText(root, "Validation passed");
+
+    const toast = root.querySelector('[data-testid="query-validation-toast"]');
+    if (!(toast instanceof HTMLElement)) {
+      throw new Error("Missing validation toast");
+    }
+    expect(toast.hidden).toBe(false);
+    expect(toast.getAttribute("data-variant")).toBe("success");
+
+    const dismissButton = toast.querySelector('button[aria-label="Dismiss notification"]');
+    if (!(dismissButton instanceof HTMLElement)) {
+      throw new Error("Missing toast dismiss button");
+    }
+    dismissButton.click();
+    await flushUi();
+    expect(toast.hidden).toBe(true);
+  });
+
   it("should_expose_keyboard_resizing_for_split_handles", async () => {
     const root = await mountQueryRoute();
     const handle = root.querySelector(
@@ -378,6 +561,60 @@ describe("admin query page composition", () => {
     await flushUi();
 
     expect(handle.getAttribute("aria-valuenow")).toBe("64");
+  });
+
+  it("resizes the vertical split via pointer drag inside the full query page", async () => {
+    const root = await mountQueryRoute();
+    const container = root.querySelector('[data-testid="query-resizable-split-vertical"]');
+    const handle = container?.querySelector('[role="separator"]');
+    const pane = container?.querySelector(".cassie-resizable-split-pane");
+    if (
+      !(container instanceof HTMLElement) ||
+      !(handle instanceof HTMLElement) ||
+      !(pane instanceof HTMLElement)
+    ) {
+      throw new Error("Missing vertical split container, handle, or pane");
+    }
+
+    container.getBoundingClientRect = () =>
+      ({
+        top: 0,
+        left: 0,
+        width: 400,
+        height: 400,
+        right: 400,
+        bottom: 400,
+        x: 0,
+        y: 0,
+        toJSON() {
+          return {};
+        },
+      }) as DOMRect;
+    handle.setPointerCapture = () => {};
+    handle.releasePointerCapture = () => {};
+
+    expect(handle.getAttribute("aria-valuenow")).toBe("62");
+
+    handle.dispatchEvent(
+      new PointerEvent("pointerdown", { bubbles: true, clientX: 100, clientY: 248, pointerId: 1 }),
+    );
+    await flushUi();
+
+    handle.dispatchEvent(
+      new PointerEvent("pointermove", { bubbles: true, clientX: 100, clientY: 300, pointerId: 1 }),
+    );
+    await flushUi();
+
+    expect(handle.getAttribute("aria-valuenow")).toBe("75");
+    expect(pane.style.blockSize).toBe("75%");
+
+    handle.dispatchEvent(
+      new PointerEvent("pointerup", { bubbles: true, clientX: 100, clientY: 300, pointerId: 1 }),
+    );
+    await flushUi();
+
+    expect(handle.getAttribute("aria-valuenow")).toBe("75");
+    expect(pane.style.blockSize).toBe("75%");
   });
 
   it("collapses and expands schema sections, defaulting empty sections to collapsed", async () => {
@@ -401,17 +638,23 @@ describe("admin query page composition", () => {
 
     expect(tablesToggle.getAttribute("aria-expanded")).toBe("true");
     expect(viewsToggle.getAttribute("aria-expanded")).toBe("false");
-    expect(tablesSection.querySelector('[data-item-id="table:documents"]')).toBeTruthy();
+    expect(
+      tablesSection.querySelector('[data-item-id="table:postgres.public.documents"]'),
+    ).toBeTruthy();
 
     tablesToggle.click();
     await flushUi();
     expect(tablesToggle.getAttribute("aria-expanded")).toBe("false");
-    expect(tablesSection.querySelector('[data-item-id="table:documents"]')).toBe(null);
+    expect(tablesSection.querySelector('[data-item-id="table:postgres.public.documents"]')).toBe(
+      null,
+    );
 
     tablesToggle.click();
     await flushUi();
     expect(tablesToggle.getAttribute("aria-expanded")).toBe("true");
-    expect(tablesSection.querySelector('[data-item-id="table:documents"]')).toBeTruthy();
+    expect(
+      tablesSection.querySelector('[data-item-id="table:postgres.public.documents"]'),
+    ).toBeTruthy();
   });
 
   it("selects a schema item without overwriting the SQL editor", async () => {
@@ -419,7 +662,7 @@ describe("admin query page composition", () => {
     const editor = editorTextarea(root);
     const originalValue = editor.value;
 
-    const item = root.querySelector('[data-item-id="table:documents"]');
+    const item = root.querySelector('[data-item-id="table:postgres.public.documents"]');
     if (!(item instanceof HTMLElement)) {
       throw new Error("Missing schema item");
     }
@@ -428,7 +671,7 @@ describe("admin query page composition", () => {
     await flushUi();
 
     expect(editor.value).toBe(originalValue);
-    expect(item.getAttribute("aria-pressed")).toBe("true");
+    expect(item.getAttribute("aria-current")).toBe("true");
   });
 
   it("inserts a soft tab instead of moving focus when Tab is pressed in the SQL editor", async () => {
@@ -448,11 +691,29 @@ describe("admin query page composition", () => {
     expect(editor.value).toBe(`${originalValue}  `);
   });
 
-  it("nests schema sections under a default database and namespace, both expanded by default", async () => {
+  it("runs the query when Ctrl/Cmd+Enter is pressed in the SQL editor", async () => {
+    mockExecuteSuccess();
+    const root = await mountQueryRoute();
+    const editor = editorTextarea(root);
+
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    editor.dispatchEvent(event);
+    await waitForText(root, "1 row");
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(root.textContent).toContain("1 row");
+  });
+
+  it("nests schema sections under a postgres database and public namespace, both expanded by default", async () => {
     const root = await mountQueryRoute();
 
     const database = root.querySelector(
-      '[data-testid="query-schema-tree-database"][data-database="default"]',
+      '[data-testid="query-schema-tree-database"][data-database="postgres"]',
     );
     const namespace = root.querySelector(
       '[data-testid="query-schema-tree-namespace"][data-namespace="public"]',
@@ -474,23 +735,27 @@ describe("admin query page composition", () => {
         '[data-testid="query-schema-tree-namespace"][data-namespace="public"]',
       ),
     ).toBeTruthy();
-    expect(namespace.querySelector('[data-item-id="table:documents"]')).toBeTruthy();
+    expect(
+      namespace.querySelector('[data-item-id="table:postgres.public.documents"]'),
+    ).toBeTruthy();
 
     namespaceToggle.click();
     await flushUi();
     expect(namespaceToggle.getAttribute("aria-expanded")).toBe("false");
-    expect(namespace.querySelector('[data-item-id="table:documents"]')).toBe(null);
+    expect(namespace.querySelector('[data-item-id="table:postgres.public.documents"]')).toBe(null);
 
     namespaceToggle.click();
     await flushUi();
     expect(namespaceToggle.getAttribute("aria-expanded")).toBe("true");
-    expect(namespace.querySelector('[data-item-id="table:documents"]')).toBeTruthy();
+    expect(
+      namespace.querySelector('[data-item-id="table:postgres.public.documents"]'),
+    ).toBeTruthy();
   });
 
   it("renders a kind icon on schema items", async () => {
     const root = await mountQueryRoute();
 
-    const item = root.querySelector('[data-item-id="table:documents"]');
+    const item = root.querySelector('[data-item-id="table:postgres.public.documents"]');
     expect(item?.querySelector("svg")).toBeTruthy();
   });
 
@@ -498,7 +763,7 @@ describe("admin query page composition", () => {
     mockQuerySchemaWithColumnsSuccess();
     const root = await mountQueryRoute();
 
-    const item = root.querySelector('[data-item-id="table:documents"]');
+    const item = root.querySelector('[data-item-id="table:postgres.public.documents"]');
     const row = item?.closest('[data-testid="query-schema-item-row"]');
     if (!row) {
       throw new Error("Missing schema item row");
@@ -533,15 +798,20 @@ describe("admin query page composition", () => {
     expect(columnsList.hidden).toBe(true);
   });
 
-  it("renders the explain plan as formatted text, not JSON", async () => {
+  it("renders the explain plan as a visual plan with raw text, not JSON", async () => {
     mockExplainSuccess();
     const root = await mountQueryRoute();
 
     buttonByText(root, "Explain").click();
-    await waitForText(root, "Seq Scan on documents");
+    await waitForText(root, "Read with idx_documents_title");
 
     const planPanel = root.querySelector('[data-tab-content="plan"]');
+    expect(planPanel?.querySelector('[data-testid="query-plan-visual"]')).toBeTruthy();
+    expect(planPanel?.querySelectorAll('[data-testid="query-plan-node"]').length).toBe(2);
+    expect(planPanel?.textContent).toContain("Predicate pushdown");
+    expect(planPanel?.textContent).toContain("scalar-index-seek");
     expect(planPanel?.querySelector("pre.cassie-query-plan-text")).toBeTruthy();
+    expect(planPanel?.textContent).toContain("Index Scan using idx_documents_title");
     expect(planPanel?.querySelector(".cassie-query-json")).toBe(null);
   });
 

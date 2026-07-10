@@ -54,6 +54,7 @@ pub(super) fn mark_source_projections_stale(
 
 pub(super) fn create_materialized_projection(
     cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
     statement: &crate::sql::ast::CreateMaterializedProjectionStatement,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
@@ -70,7 +71,8 @@ pub(super) fn create_materialized_projection(
         )));
     }
 
-    let build = plan_projection_query(cassie, &statement.query, user_functions)?;
+    let context = projection_binding_context(cassie, session, Some(&statement.name));
+    let build = plan_projection_query(cassie, &statement.query, user_functions, &context)?;
     reject_unsupported_sources(cassie, &build.source_collections)?;
     reject_nondeterministic_select(&build.select, user_functions)?;
 
@@ -89,12 +91,13 @@ pub(super) fn create_materialized_projection(
         .put_projection_metadata(&metadata)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_projection_metadata(metadata);
-    refresh_materialized_projection(cassie, &statement.name, user_functions, controls)?;
+    refresh_materialized_projection(cassie, session, &statement.name, user_functions, controls)?;
     Ok(empty_command("CREATE MATERIALIZED PROJECTION"))
 }
 
 pub(super) fn refresh_materialized_projection(
     cassie: &Cassie,
+    _session: Option<&crate::app::CassieSession>,
     name: &str,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
@@ -519,7 +522,8 @@ fn build_specific_version(
             metadata.collection
         ))
     })?;
-    let build = plan_projection_query(cassie, &materialized.query, user_functions)?;
+    let context = projection_binding_context(cassie, None, Some(&metadata.collection));
+    let build = plan_projection_query(cassie, &materialized.query, user_functions, &context)?;
     let output_collection = metadata
         .versions
         .iter()
@@ -661,6 +665,7 @@ fn plan_projection_query(
     cassie: &Cassie,
     query: &str,
     _user_functions: &HashMap<String, FunctionMeta>,
+    context: &crate::sql::binder::BindingContext,
 ) -> Result<ProjectionBuildPlan, QueryError> {
     let parsed = crate::sql::parser::parse_statement(query)
         .map_err(|error| QueryError::General(error.to_string()))?;
@@ -669,7 +674,7 @@ fn plan_projection_query(
             "materialized projection definitions cannot contain bind parameters".into(),
         ));
     }
-    let bound = crate::sql::binder::bind(parsed, &cassie.catalog)
+    let bound = crate::sql::binder::bind_with_context(parsed, &cassie.catalog, context)
         .map_err(|error| QueryError::General(error.to_string()))?;
     let QueryStatement::Select(select) = &bound.statement.statement else {
         return Err(QueryError::General(
@@ -687,6 +692,45 @@ fn plan_projection_query(
         schema,
         source_collections,
     })
+}
+
+fn projection_binding_context(
+    cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
+    projection_name: Option<&str>,
+) -> crate::sql::binder::BindingContext {
+    let default_database = cassie.default_database.clone();
+    let default_path = vec![crate::catalog::DEFAULT_SCHEMA.to_string()];
+    if let Some(session) = session {
+        let database = session
+            .current_database()
+            .unwrap_or(default_database.as_str());
+        return if cassie.database_catalog_enforced() {
+            crate::sql::binder::BindingContext::scoped(database.to_string(), session.search_path())
+        } else {
+            crate::sql::binder::BindingContext::unscoped(
+                database.to_string(),
+                session.search_path(),
+            )
+        };
+    }
+
+    if let Some(relation) = projection_name.and_then(crate::catalog::RelationId::parse_canonical) {
+        let mut path = vec![relation.schema.clone()];
+        if !relation
+            .schema
+            .eq_ignore_ascii_case(crate::catalog::DEFAULT_SCHEMA)
+        {
+            path.push(crate::catalog::DEFAULT_SCHEMA.to_string());
+        }
+        return crate::sql::binder::BindingContext::scoped(relation.database, path);
+    }
+
+    if cassie.database_catalog_enforced() {
+        crate::sql::binder::BindingContext::scoped(default_database, default_path)
+    } else {
+        crate::sql::binder::BindingContext::unscoped(default_database, default_path)
+    }
 }
 
 fn reject_unsupported_sources(cassie: &Cassie, sources: &[String]) -> Result<(), QueryError> {

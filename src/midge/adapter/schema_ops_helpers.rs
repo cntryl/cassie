@@ -2,6 +2,7 @@ use super::{
     CassieError, ColumnBatchMetadata, FieldConstraint, IndexKind, IndexMeta, Midge,
     NormalizedVectorRecord, ProjectionMeta, Query, RetentionPolicyMeta,
 };
+use crate::catalog::{canonical_relation_name, local_name, RelationId};
 
 pub(super) struct DroppedCollectionIndexes {
     pub scalar_names: Vec<String>,
@@ -445,6 +446,7 @@ pub(super) fn rename_collection_indexes(
         let Ok(mut metadata) = serde_json::from_slice::<IndexMeta>(&raw_value) else {
             continue;
         };
+        metadata.name = renamed_scoped_relation_name(current_name, next_name, &metadata.name);
         metadata.collection = next_name.to_string();
         tx.delete(key).map_err(CassieError::from)?;
         let next_key = Midge::index_key(&metadata.collection, &metadata.name);
@@ -488,34 +490,81 @@ pub(super) fn rename_collection_column_batch_metadata(
     current_name: &str,
     next_name: &str,
 ) -> Result<(), CassieError> {
-    let current_prefix = Midge::column_batch_collection_prefix(current_name);
-    let next_prefix = Midge::column_batch_collection_prefix(next_name);
-    let column_batches = tx
-        .scan(&Query::new().prefix(current_prefix.clone().into()))
+    let index_prefix = Midge::index_collection_prefix(current_name);
+    let indexes = tx
+        .scan(&Query::new().prefix(index_prefix.into()))
         .map_err(CassieError::from)?;
-    let mut entries = Vec::new();
-    for (key, value) in column_batches {
-        entries.push((key, value));
-    }
-    for (key, value) in entries {
-        let Some(suffix) = key.strip_prefix(current_prefix.as_slice()) else {
+    let mut column_indexes = Vec::new();
+    for (_key, value) in indexes {
+        let Ok(metadata) = serde_json::from_slice::<IndexMeta>(&value) else {
             continue;
         };
-        let next_key = [next_prefix.as_slice(), suffix].concat();
-        tx.delete(key).map_err(CassieError::from)?;
+        if metadata.kind == IndexKind::Column {
+            column_indexes.push(metadata);
+        }
+    }
+    for index in column_indexes {
+        let current_index_name = index.name.clone();
+        let Some(value) = tx
+            .get(&Midge::column_batch_metadata_key(
+                current_name,
+                &current_index_name,
+            ))
+            .map_err(CassieError::from)?
+        else {
+            continue;
+        };
         let mut metadata: ColumnBatchMetadata =
             serde_json::from_slice(&value).map_err(|error| {
                 CassieError::Parse(format!("invalid column batch metadata: {error}"))
             })?;
+        let next_index_name =
+            renamed_scoped_relation_name(current_name, next_name, &current_index_name);
         metadata.collection = next_name.to_string();
+        metadata.index_name.clone_from(&next_index_name);
+        tx.delete(Midge::column_batch_metadata_key(
+            current_name,
+            &current_index_name,
+        ))
+        .map_err(CassieError::from)?;
         tx.put(
-            next_key,
+            Midge::column_batch_metadata_key(next_name, &next_index_name),
             serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?,
             None,
         )
         .map_err(CassieError::from)?;
     }
     Ok(())
+}
+
+fn renamed_scoped_relation_name(
+    current_name: &str,
+    next_name: &str,
+    relation_name: &str,
+) -> String {
+    let Some(current_relation) = RelationId::parse_canonical(current_name) else {
+        return relation_name.to_string();
+    };
+    let Some(next_relation) = RelationId::parse_canonical(next_name) else {
+        return relation_name.to_string();
+    };
+    let Some(relation) = RelationId::parse_canonical(relation_name) else {
+        return relation_name.to_string();
+    };
+    if relation
+        .database
+        .eq_ignore_ascii_case(&current_relation.database)
+        && relation
+            .schema
+            .eq_ignore_ascii_case(&current_relation.schema)
+    {
+        return canonical_relation_name(
+            &next_relation.database,
+            &next_relation.schema,
+            &local_name(relation_name),
+        );
+    }
+    relation_name.to_string()
 }
 
 pub(super) fn rename_collection_prefixed_data(

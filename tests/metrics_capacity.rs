@@ -27,6 +27,11 @@ fn seed_capacity_fixture(cassie: &Cassie, session: &cassie::app::CassieSession) 
             vec![],
         )
         .unwrap();
+    let collection = cassie
+        .catalog
+        .get_schema("metrics_capacity_docs")
+        .expect("catalog collection")
+        .collection;
     cassie
         .execute_sql(
             session,
@@ -58,7 +63,7 @@ fn seed_capacity_fixture(cassie: &Cassie, session: &cassie::app::CassieSession) 
     cassie
         .midge
         .put_vector_index(VectorIndexRecord {
-            collection: "metrics_capacity_docs".to_string(),
+            collection,
             field: "embedding".to_string(),
             source_field: "body".to_string(),
             metadata: VectorIndexMetadata {

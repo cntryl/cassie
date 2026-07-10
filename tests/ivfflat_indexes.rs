@@ -225,6 +225,7 @@ fn should_persist_ivfflat_vector_index_options() {
             vec![],
         )
         .unwrap();
+    let collection = canonical_test_collection(&cassie, "ivfflat_docs");
 
     // Act
     cassie
@@ -236,7 +237,7 @@ fn should_persist_ivfflat_vector_index_options() {
         .unwrap();
     let stored = cassie
         .midge
-        .get_vector_index("ivfflat_docs", "embedding")
+        .get_vector_index(&collection, "embedding")
         .unwrap()
         .expect("ivfflat vector index should persist");
 

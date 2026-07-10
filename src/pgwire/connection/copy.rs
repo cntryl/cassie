@@ -12,6 +12,19 @@ pub(super) enum SimpleCopyOutcome {
     ConnectionClosed,
 }
 
+fn binding_context(cassie: &Cassie, session: &CassieSession) -> crate::sql::binder::BindingContext {
+    let database = session
+        .current_database()
+        .unwrap_or(cassie.default_database.as_str())
+        .to_string();
+    let search_path = session.search_path();
+    if cassie.database_catalog_enforced() {
+        crate::sql::binder::BindingContext::scoped(database, search_path)
+    } else {
+        crate::sql::binder::BindingContext::unscoped(database, search_path)
+    }
+}
+
 pub(super) async fn try_handle_simple_copy_query(
     cassie: Arc<Cassie>,
     session: CassieSession,
@@ -20,6 +33,7 @@ pub(super) async fn try_handle_simple_copy_query(
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
     let sql = sql.to_string();
+    let context = binding_context(&cassie, &session);
     let statement = match run_pgwire_blocking(cassie.clone(), "pgwire_copy_parse", move |cassie| {
         if !sql.trim_start().to_ascii_lowercase().starts_with("copy ") {
             return Ok(None);
@@ -28,7 +42,7 @@ pub(super) async fn try_handle_simple_copy_query(
         let QueryStatement::Copy(_) = &parsed.statement else {
             return Ok(None);
         };
-        let bound = crate::sql::binder::bind(parsed, &cassie.catalog)?;
+        let bound = crate::sql::binder::bind_with_context(parsed, &cassie.catalog, &context)?;
         let QueryStatement::Copy(statement) = bound.statement.statement else {
             return Ok(None);
         };

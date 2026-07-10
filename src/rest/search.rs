@@ -17,6 +17,14 @@ pub struct SearchRequest {
     pub offset: Option<usize>,
 }
 
+fn resolve_collection(cassie: &Cassie, collection: &str) -> Result<String, CassieError> {
+    cassie
+        .catalog
+        .get_schema(collection)
+        .map(|schema| schema.collection)
+        .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))
+}
+
 /// # Errors
 ///
 /// Returns an error when validation, storage, or execution fails.
@@ -44,9 +52,10 @@ pub fn vector_search(
 
     let limit = request.limit.unwrap_or(10);
     let offset = request.offset.unwrap_or(0);
+    let collection = resolve_collection(cassie, collection)?;
 
     let result = cassie.execute_vector_search(
-        collection,
+        &collection,
         &request.field,
         &request.query,
         metric,

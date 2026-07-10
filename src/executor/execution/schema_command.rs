@@ -319,9 +319,8 @@ pub(super) fn alter_schema(
         .midge
         .rename_namespace(&target_schema, &next_schema)
         .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie
-        .catalog
-        .rename_namespace(&target_schema, &next_schema);
+    rename_schema_descendants(cassie, &target_schema, &next_schema)?;
+    cassie.hydrate_catalog()?;
 
     Ok(empty_command("ALTER SCHEMA"))
 }
@@ -608,6 +607,281 @@ fn refresh_table_cardinality_stats(cassie: &Cassie, table: &str) -> Result<(), Q
         .map_err(|error| QueryError::General(error.to_string()))
 }
 
+fn rename_schema_descendants(
+    cassie: &Cassie,
+    current_schema: &str,
+    next_schema: &str,
+) -> Result<(), QueryError> {
+    let collection_renames = cassie
+        .catalog
+        .list_collections()
+        .into_iter()
+        .filter(|collection| object_in_schema(&collection.name, current_schema))
+        .map(|collection| {
+            (
+                collection.name.clone(),
+                rewrite_relation_name_for_schema(&collection.name, current_schema, next_schema),
+            )
+        })
+        .collect::<Vec<_>>();
+    let relation_renames = relation_rename_map(&collection_renames);
+
+    rename_schema_collections(cassie, &collection_renames)?;
+    rename_schema_views(cassie, current_schema, next_schema)?;
+    rename_schema_sequences(cassie, current_schema, next_schema)?;
+    rename_schema_graphs(cassie, current_schema, next_schema, &relation_renames)?;
+    rename_schema_rollups(cassie, current_schema, next_schema, &relation_renames)?;
+    rename_schema_retention_policies(cassie, current_schema, next_schema, &relation_renames)?;
+    rename_schema_materialized_projections(cassie, current_schema, next_schema, &relation_renames)?;
+
+    Ok(())
+}
+
+type RelationRenames = std::collections::HashMap<String, String>;
+
+fn relation_rename_map(collection_renames: &[(String, String)]) -> RelationRenames {
+    collection_renames.iter().cloned().collect()
+}
+
+fn rename_schema_collections(
+    cassie: &Cassie,
+    collection_renames: &[(String, String)],
+) -> Result<(), QueryError> {
+    for (current, next) in collection_renames {
+        cassie.midge.rename_collection(current, next)?;
+    }
+    Ok(())
+}
+
+fn rename_schema_views(
+    cassie: &Cassie,
+    current_schema: &str,
+    next_schema: &str,
+) -> Result<(), QueryError> {
+    for mut view in cassie
+        .catalog
+        .list_views()
+        .into_iter()
+        .filter(|view| object_in_schema(&view.name, current_schema))
+    {
+        let current_name = view.name.clone();
+        view.name = rewrite_relation_name_for_schema(&view.name, current_schema, next_schema);
+        view.query = rewrite_schema_qualified_sql(&view.query, current_schema, next_schema);
+        cassie.midge.delete_view(&current_name)?;
+        cassie.midge.put_view(&view)?;
+    }
+    Ok(())
+}
+
+fn rename_schema_sequences(
+    cassie: &Cassie,
+    current_schema: &str,
+    next_schema: &str,
+) -> Result<(), QueryError> {
+    for mut sequence in cassie
+        .catalog
+        .list_sequences()
+        .into_iter()
+        .filter(|sequence| object_in_schema(&sequence.name, current_schema))
+    {
+        let current_name = sequence.name.clone();
+        sequence.name =
+            rewrite_relation_name_for_schema(&sequence.name, current_schema, next_schema);
+        cassie.midge.delete_sequence(&current_name)?;
+        cassie.midge.put_sequence(&sequence)?;
+    }
+    Ok(())
+}
+
+fn rename_schema_graphs(
+    cassie: &Cassie,
+    current_schema: &str,
+    next_schema: &str,
+    relation_renames: &RelationRenames,
+) -> Result<(), QueryError> {
+    for mut graph in cassie.catalog.list_graphs() {
+        let current_name = graph.name.clone();
+        let next_name = rewrite_relation_name_from_map(
+            &graph.name,
+            relation_renames,
+            current_schema,
+            next_schema,
+        );
+        let next_node_collection = rewrite_relation_name_from_map(
+            &graph.node_collection,
+            relation_renames,
+            current_schema,
+            next_schema,
+        );
+        let next_edge_collection = rewrite_relation_name_from_map(
+            &graph.edge_collection,
+            relation_renames,
+            current_schema,
+            next_schema,
+        );
+        if current_name == next_name
+            && graph.node_collection == next_node_collection
+            && graph.edge_collection == next_edge_collection
+        {
+            continue;
+        }
+        graph.name = next_name;
+        graph.node_collection = next_node_collection;
+        graph.edge_collection = next_edge_collection;
+        cassie.midge.delete_graph(&current_name)?;
+        cassie.midge.put_graph(&graph)?;
+    }
+    Ok(())
+}
+
+fn rename_schema_rollups(
+    cassie: &Cassie,
+    current_schema: &str,
+    next_schema: &str,
+    relation_renames: &RelationRenames,
+) -> Result<(), QueryError> {
+    for mut rollup in cassie.catalog.list_rollups() {
+        let current_name = rollup.name.clone();
+        let next_name = rewrite_relation_name_from_map(
+            &rollup.name,
+            relation_renames,
+            current_schema,
+            next_schema,
+        );
+        let next_source = rewrite_relation_name_from_map(
+            &rollup.source_collection,
+            relation_renames,
+            current_schema,
+            next_schema,
+        );
+        let next_output = rewrite_relation_name_from_map(
+            &rollup.output_collection,
+            relation_renames,
+            current_schema,
+            next_schema,
+        );
+        if current_name == next_name
+            && rollup.source_collection == next_source
+            && rollup.output_collection == next_output
+        {
+            continue;
+        }
+        rollup.name = next_name;
+        rollup.source_collection = next_source;
+        rollup.output_collection = next_output;
+        cassie.midge.delete_rollup(&current_name)?;
+        cassie.midge.put_rollup(&rollup)?;
+    }
+    Ok(())
+}
+
+fn rename_schema_retention_policies(
+    cassie: &Cassie,
+    current_schema: &str,
+    next_schema: &str,
+    relation_renames: &RelationRenames,
+) -> Result<(), QueryError> {
+    for mut policy in cassie.catalog.list_retention_policies() {
+        let current_name = policy.name.clone();
+        let next_name = rewrite_relation_name_from_map(
+            &policy.name,
+            relation_renames,
+            current_schema,
+            next_schema,
+        );
+        let next_collection = rewrite_relation_name_from_map(
+            &policy.collection,
+            relation_renames,
+            current_schema,
+            next_schema,
+        );
+        if current_name == next_name && policy.collection == next_collection {
+            continue;
+        }
+        policy.name = next_name;
+        policy.collection = next_collection;
+        cassie.midge.delete_retention_policy(&current_name)?;
+        cassie.midge.put_retention_policy(&policy)?;
+    }
+    Ok(())
+}
+
+fn rename_schema_materialized_projections(
+    cassie: &Cassie,
+    current_schema: &str,
+    next_schema: &str,
+    relation_renames: &RelationRenames,
+) -> Result<(), QueryError> {
+    for mut projection in cassie
+        .catalog
+        .list_projection_metadata()
+        .into_iter()
+        .filter(|projection| projection.kind == catalog::ProjectionKind::Materialized)
+    {
+        let current_name = projection.collection.clone();
+        let next_name = rewrite_relation_name_from_map(
+            &projection.collection,
+            relation_renames,
+            current_schema,
+            next_schema,
+        );
+        let mut changed = current_name != next_name;
+        projection.collection.clone_from(&next_name);
+        if projection.projection_id == current_name {
+            projection.projection_id.clone_from(&next_name);
+        }
+        if let Some(materialized) = projection.materialized.as_mut() {
+            materialized.name.clone_from(&next_name);
+            materialized.query =
+                rewrite_schema_qualified_sql(&materialized.query, current_schema, next_schema);
+            let next_output = rewrite_relation_name_from_map(
+                &materialized.output_collection,
+                relation_renames,
+                current_schema,
+                next_schema,
+            );
+            changed |= materialized.output_collection != next_output;
+            materialized.output_collection = next_output;
+            for source_collection in &mut materialized.source_collections {
+                let next_source = rewrite_relation_name_from_map(
+                    source_collection,
+                    relation_renames,
+                    current_schema,
+                    next_schema,
+                );
+                changed |= *source_collection != next_source;
+                *source_collection = next_source;
+            }
+        }
+        for version in &mut projection.versions {
+            let next_output = rewrite_relation_name_from_map(
+                &version.output_collection,
+                relation_renames,
+                current_schema,
+                next_schema,
+            );
+            changed |= version.output_collection != next_output;
+            version.output_collection = next_output;
+        }
+        if let Some(target) = projection.integrity.target.as_mut() {
+            let next_target = rewrite_relation_name_from_map(
+                target,
+                relation_renames,
+                current_schema,
+                next_schema,
+            );
+            changed |= *target != next_target;
+            *target = next_target;
+        }
+        if !changed {
+            continue;
+        }
+        cassie.midge.delete_projection_metadata(&current_name)?;
+        cassie.midge.put_projection_metadata(&projection)?;
+    }
+    Ok(())
+}
+
 fn schema_is_empty(cassie: &Cassie, schema: &str) -> bool {
     !cassie
         .catalog
@@ -661,7 +935,9 @@ fn database_is_empty(cassie: &Cassie, database: &str) -> bool {
             .catalog
             .list_collections()
             .into_iter()
-            .any(|collection| crate::catalog::relation_belongs_to_database(&collection.name, database))
+            .any(|collection| {
+                crate::catalog::relation_belongs_to_database(&collection.name, database)
+            })
         && !cassie
             .catalog
             .list_views()
@@ -709,6 +985,42 @@ fn object_in_schema(name: &str, schema: &str) -> bool {
             .as_ref()
             .is_none_or(|relation_database| relation_database.eq_ignore_ascii_case(database))
     })
+}
+
+fn rewrite_relation_name_for_schema(name: &str, current_schema: &str, next_schema: &str) -> String {
+    let Some(database) = crate::catalog::schema_database_name(current_schema) else {
+        return name.to_string();
+    };
+    crate::catalog::canonical_relation_name(
+        &database,
+        &crate::catalog::local_name(next_schema),
+        &crate::catalog::local_name(name),
+    )
+}
+
+fn rewrite_relation_name_from_map(
+    name: &str,
+    relation_renames: &std::collections::HashMap<String, String>,
+    current_schema: &str,
+    next_schema: &str,
+) -> String {
+    relation_renames.get(name).cloned().unwrap_or_else(|| {
+        if object_in_schema(name, current_schema) {
+            rewrite_relation_name_for_schema(name, current_schema, next_schema)
+        } else {
+            name.to_string()
+        }
+    })
+}
+
+fn rewrite_schema_qualified_sql(raw: &str, current_schema: &str, next_schema: &str) -> String {
+    let current_local = crate::catalog::local_name(current_schema);
+    let next_local = crate::catalog::local_name(next_schema);
+    raw.replace(&format!("{current_local}."), &format!("{next_local}."))
+        .replace(
+            &format!("\"{current_local}\"."),
+            &format!("\"{next_local}\"."),
+        )
 }
 
 fn empty_command(command: &str) -> QueryResult {

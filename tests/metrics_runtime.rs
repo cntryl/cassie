@@ -1,5 +1,5 @@
 use cassie::app::Cassie;
-use cassie::catalog::{IndexKind, IndexMeta};
+use cassie::catalog::{canonical_relation_name, IndexKind, IndexMeta};
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
 
@@ -8,6 +8,10 @@ mod projections;
 
 fn with_fallback() {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+}
+
+fn canonical_public_relation(name: &str) -> String {
+    canonical_relation_name("postgres", "public", name)
 }
 
 fn data_dir(label: &str) -> String {
@@ -59,6 +63,54 @@ fn seed_read_path_collection(cassie: &Cassie) {
             .put_document(collection, Some(id.to_string()), payload)
             .unwrap();
     }
+}
+
+fn seed_cardinality_metrics_fixture(cassie: &Cassie, collection: &str, index: &str) {
+    let schema = Schema {
+        fields: vec![
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    };
+
+    cassie.midge.create_database("postgres", None).unwrap();
+    cassie.midge.create_namespace("postgres.public").unwrap();
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .unwrap();
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("doc-1".to_string()),
+            serde_json::json!({"title": "alpha", "body": "bravo"}),
+        )
+        .unwrap();
+    cassie
+        .midge
+        .put_index(&IndexMeta {
+            collection: collection.to_string(),
+            name: index.to_string(),
+            field: "title".to_string(),
+            fields: vec!["title".to_string()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: false,
+            options: std::collections::BTreeMap::default(),
+        })
+        .unwrap();
+    cassie.midge.delete_cardinality_stats(collection).unwrap();
 }
 
 fn read_path_baseline(metrics: &serde_json::Value) -> ReadPathBaseline {
@@ -133,6 +185,7 @@ fn should_report_runtime_metrics_snapshot() {
         cassie.startup().unwrap();
 
         let collection = "metrics_runtime_docs";
+        let canonical_collection = canonical_public_relation(collection);
         let schema = Schema {
             fields: vec![FieldSchema {
                 name: "title".to_string(),
@@ -143,13 +196,13 @@ fn should_report_runtime_metrics_snapshot() {
 
         cassie
             .midge
-            .create_collection(collection, schema.clone())
+            .create_collection(&canonical_collection, schema.clone())
             .unwrap();
-        cassie.register_collection(collection, schema.clone());
+        cassie.register_collection(&canonical_collection, schema.clone());
         cassie
             .midge
             .put_document(
-                collection,
+                &canonical_collection,
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
@@ -259,56 +312,15 @@ fn should_expose_cardinality_metrics_with_explain_plan_estimates() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let collection = "metrics_cardinality_docs";
-        let schema = Schema {
-            fields: vec![
-                FieldSchema {
-                    name: "title".to_string(),
-                    data_type: DataType::Text,
-                    nullable: true,
-                },
-                FieldSchema {
-                    name: "body".to_string(),
-                    data_type: DataType::Text,
-                    nullable: true,
-                },
-            ],
-        };
-
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("doc-1".to_string()),
-                serde_json::json!({"title": "alpha", "body": "bravo"}),
-            )
-            .unwrap();
-        cassie
-            .midge
-            .put_index(&IndexMeta {
-                collection: collection.to_string(),
-                name: "idx_title".to_string(),
-                field: "title".to_string(),
-                fields: vec!["title".to_string()],
-                expressions: Vec::new(),
-                include_fields: Vec::new(),
-                predicate: None,
-                kind: IndexKind::Scalar,
-                unique: false,
-                options: std::collections::BTreeMap::default(),
-            })
-            .unwrap();
-        cassie.midge.delete_cardinality_stats(collection).unwrap();
+        let collection = canonical_public_relation("metrics_cardinality_docs");
+        let index = canonical_public_relation("idx_title");
+        seed_cardinality_metrics_fixture(&cassie, &collection, &index);
 
         // Act
         cassie.startup().unwrap();
         cassie
             .ingest_document(
-                collection,
+                &collection,
                 serde_json::json!({"title": "beta", "body": "charlie"}),
             )
             .unwrap();

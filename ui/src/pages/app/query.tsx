@@ -1,227 +1,31 @@
-import { For } from "@askrjs/askr/control";
 import { state } from "@askrjs/askr";
 import { Portal } from "@askrjs/askr/foundations";
-import { SendIcon, TriangleAlertIcon } from "@askrjs/lucide";
-import {
-  Alert,
-  Button,
-  EmptyState,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-  Text,
-} from "@askrjs/themes/components";
+import { TriangleAlertIcon } from "@askrjs/lucide";
+import { Alert, Button } from "@askrjs/themes/components";
 
 import { QueryEditorPanel } from "@/components/query/query-editor-panel";
+import { QueryExecutionBanner } from "@/components/query/query-execution-banner";
+import { QueryExecutionSummary } from "@/components/query/query-execution-summary";
+import { QueryPlaceholder } from "@/components/query/query-placeholder";
+import { QueryPlanText } from "@/components/query/query-plan-text";
+import { QueryResultJson } from "@/components/query/query-result-json";
+import { QueryResultTable } from "@/components/query/query-result-table";
 import { QueryResultTab, QueryResultsTabs } from "@/components/query/query-results-tabs";
-import {
-  QuerySchemaDatabase,
-  QuerySchemaItem,
-  QueryExecutionResult,
-  QueryValidationResult,
-} from "@/features/query/query-models";
+import { QuerySchemaTree } from "@/components/query/query-schema-tree";
+import type { QueryValidationToastData } from "@/components/query/query-validation-toast";
+import { QueryValidationToast } from "@/components/query/query-validation-toast";
+import { ResizableSplit } from "@/components/query/resizable-split";
+import { flattenCompletionItems } from "@/features/query/query-mappers";
+import { QuerySchemaItem, QueryStatus } from "@/features/query/query-models";
 import { createAdminQuerySchemaQuery } from "@/features/query/query-query";
 import {
   createExecuteQueryMutation,
   createExplainQueryMutation,
   createValidateQueryMutation,
 } from "@/features/query/query-actions";
-import { QuerySchemaTree } from "@/components/query/query-schema-tree";
-import { ResizableSplit } from "@/components/query/resizable-split";
 import { apiErrorMessage } from "@/shared/errors/api";
 
-type QueryStatus = "idle" | "running" | "explaining" | "validating";
-
 const defaultQuery = "SELECT id, name\nFROM documents\nLIMIT 10;";
-
-function flattenCompletionItems(schema: QuerySchemaDatabase[]) {
-  return schema.flatMap((database) =>
-    database.namespaces.flatMap((namespace) =>
-      namespace.sections.flatMap((section) =>
-        section.items.map((item) => ({
-          label: item.label,
-          insertText: item.label,
-          detail: `${item.kind}${item.metadata ? ` · ${item.metadata}` : ""}`,
-        })),
-      ),
-    ),
-  );
-}
-
-function QueryPlaceholder({ title, description }: { title: string; description: string }) {
-  return (
-    <EmptyState
-      class="cassie-query-results-placeholder"
-      title={title}
-      titleAs="h3"
-      description={description}
-      aria-label={title}
-    />
-  );
-}
-
-function QueryResultCell({ value }: { value: string | null }) {
-  if (value === null) {
-    return (
-      <TableCell class="cassie-query-cell-null">
-        <span class="cassie-query-cell-null-label">NULL</span>
-      </TableCell>
-    );
-  }
-
-  return <TableCell>{value}</TableCell>;
-}
-
-function QueryResultTable({ result }: { result: QueryExecutionResult }) {
-  const columns = Array.isArray(result.columns) ? result.columns : [];
-  const rows = Array.isArray(result.rows) ? result.rows : [];
-
-  if (columns.length === 0) {
-    return <QueryPlaceholder title="No columns" description="This query returned no columns." />;
-  }
-
-  return (
-    <div class="cassie-query-result-table-wrap">
-      <Table class="cassie-query-result-table">
-        <TableHead>
-          <TableRow>
-            <TableHeaderCell class="cassie-query-row-number-cell" aria-hidden="true" />
-            <For each={columns} by={(_, index) => index}>
-              {(column) => <TableHeaderCell>{column}</TableHeaderCell>}
-            </For>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={columns.length + 1} class="cassie-query-empty-result-cell">
-                <QueryPlaceholder title="No rows" description="The query returned zero rows." />
-              </TableCell>
-            </TableRow>
-          ) : null}
-          <For each={rows} by={(_, index) => index}>
-            {(row, index) => (
-              <TableRow>
-                <TableCell class="cassie-query-row-number-cell">{index() + 1}</TableCell>
-                <For each={row} by={(_, cellIndex) => cellIndex}>
-                  {(value) => <QueryResultCell value={value} />}
-                </For>
-              </TableRow>
-            )}
-          </For>
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-
-function QueryPlanText({ result }: { result: QueryExecutionResult }) {
-  const isSinglePlanColumn =
-    result.columns.length === 1 && result.rows.length === 1 && result.rows[0].length === 1;
-
-  if (!isSinglePlanColumn) {
-    return <QueryResultJson result={result} />;
-  }
-
-  return (
-    <pre class="cassie-query-plan-text">
-      <code>{result.rows[0][0] ?? ""}</code>
-    </pre>
-  );
-}
-
-function QueryResultJson({ result }: { result: QueryExecutionResult }) {
-  return (
-    <pre class="cassie-query-json">
-      <code>
-        {JSON.stringify(
-          { command: result.command, columns: result.columns, rows: result.rows },
-          null,
-          2,
-        )}
-      </code>
-    </pre>
-  );
-}
-
-function QueryExecutionSummary({ result }: { result: QueryExecutionResult | null }) {
-  if (!result) {
-    return null;
-  }
-
-  const rowCount = Array.isArray(result.rows) ? result.rows.length : 0;
-  const columnCount = Array.isArray(result.columns) ? result.columns.length : 0;
-  const rowText = `${rowCount} row${rowCount === 1 ? "" : "s"}`;
-  const columnText = `${columnCount} column${columnCount === 1 ? "" : "s"}`;
-
-  return (
-    <section class="cassie-query-execution-summary" aria-label="Execution summary">
-      <p class="cassie-query-execution-summary-command">
-        <strong>Command</strong>
-        <span>{result.command}</span>
-      </p>
-      <p class="cassie-query-execution-summary-meta">
-        {rowText} · {columnText}
-      </p>
-    </section>
-  );
-}
-
-function QueryExecutionBanner({
-  status,
-  isBusy,
-  validation,
-  errorMessage,
-}: {
-  status: QueryStatus;
-  isBusy: boolean;
-  validation: QueryValidationResult | null;
-  errorMessage: string | null;
-}) {
-  const banner = (() => {
-    if (errorMessage !== null) {
-      return {
-        variant: "danger" as const,
-        title: "Query action failed",
-        description: errorMessage,
-      };
-    }
-
-    if (isBusy) {
-      return {
-        variant: "info" as const,
-        title: "Query action",
-        description:
-          status === "running"
-            ? "Running query..."
-            : status === "explaining"
-              ? "Generating explain plan..."
-              : status === "validating"
-                ? "Validating SQL..."
-                : "Working on query operation...",
-      };
-    }
-
-    if (validation) {
-      return {
-        variant: validation.valid ? ("success" as const) : ("warning" as const),
-        title: validation.valid ? "Validation passed" : "Validation failed",
-        description: `Command ${validation.command}`,
-      };
-    }
-
-    return null;
-  })();
-
-  if (!banner) {
-    return null;
-  }
-
-  return <Alert variant={banner.variant} title={banner.title} description={banner.description} />;
-}
 
 export default function QueryPage() {
   const schemaQuery = createAdminQuerySchemaQuery();
@@ -234,6 +38,68 @@ export default function QueryPage() {
   const [selectedItemId, setSelectedItemId] = state<string | null>(null);
   const [status, setStatus] = state<QueryStatus>("idle");
   const [editorHeight, setEditorHeight] = state(62);
+  const [validationToast, setValidationToast] = state<QueryValidationToastData | null>(null);
+
+  // Plain closure state, not state() — this timer id is never rendered, only
+  // read inside the handlers below, so making it reactive would just force a
+  // needless extra re-render on every show/dismiss.
+  let validationToastTimer: ReturnType<typeof setTimeout> | null = null;
+  let isValidationToastSuspended = false;
+
+  function clearValidationToastTimer() {
+    if (validationToastTimer !== null) {
+      clearTimeout(validationToastTimer);
+      validationToastTimer = null;
+    }
+  }
+
+  function scheduleValidationToastDismiss() {
+    clearValidationToastTimer();
+    if (isValidationToastSuspended) {
+      return;
+    }
+    validationToastTimer = setTimeout(() => {
+      validationToastTimer = null;
+      setValidationToast(null);
+    }, 4000);
+  }
+
+  function showValidationToast(toast: QueryValidationToastData) {
+    setValidationToast(toast);
+    scheduleValidationToastDismiss();
+  }
+
+  function dismissValidationToast() {
+    clearValidationToastTimer();
+    setValidationToast(null);
+  }
+
+  // Pause the auto-dismiss while the toast is hovered or has focus (e.g. on
+  // its dismiss button) so it can't disappear out from under a user who's
+  // still reading or interacting with it, then resume the countdown once
+  // they leave — otherwise a screen-reader user tabbing to the dismiss
+  // button could have the toast vanish mid-interaction.
+  function suspendValidationToastTimer() {
+    isValidationToastSuspended = true;
+    clearValidationToastTimer();
+  }
+
+  function resumeValidationToastTimer() {
+    isValidationToastSuspended = false;
+    if (validationToast() !== null) {
+      scheduleValidationToastDismiss();
+    }
+  }
+
+  // askr has no onUnmount/onCleanup hook; the established pattern in this
+  // codebase (see monaco-sql-editor.tsx's mountEditor) is a ref callback that
+  // fires with null on unmount. Used here only to stop a pending toast timer
+  // from firing against a torn-down page.
+  function handleMainRef(node: HTMLElement | null) {
+    if (node === null) {
+      clearValidationToastTimer();
+    }
+  }
 
   const getSchemaDatabases = () => schemaQuery.data?.databases ?? [];
   const getCompletionItems = () => flattenCompletionItems(getSchemaDatabases());
@@ -243,13 +109,9 @@ export default function QueryPage() {
   const isValidating = validateMutation.pending || status() === "validating";
   const isQueryBusy = status() !== "idle" || isExecutionBusy || isValidating;
   const activeExecution = activeTab() === "plan" ? explainMutation.result : executeMutation.result;
-  const validationResult = validateMutation.result;
   const canRun = hasQuery && !isQueryBusy;
 
   const actionErrorMessage = (() => {
-    if (validateMutation.error !== null) {
-      return apiErrorMessage(validateMutation.error);
-    }
     if (executeMutation.error !== null) {
       return apiErrorMessage(executeMutation.error);
     }
@@ -275,6 +137,7 @@ export default function QueryPage() {
     validateMutation.reset();
     explainMutation.reset();
     setStatus("idle");
+    dismissValidationToast();
   }
 
   function handleQueryChange(nextQuery: string) {
@@ -290,7 +153,7 @@ export default function QueryPage() {
     setSelectedItemId(item.id);
   }
 
-  function handleFormatQuery() {
+  function handleTrimQuery() {
     handleQueryChange(query().trim());
   }
 
@@ -303,6 +166,28 @@ export default function QueryPage() {
     validateMutation.reset();
     try {
       await validateMutation.execute({ sql: query() });
+      if (validateMutation.result) {
+        const result = validateMutation.result;
+        showValidationToast({
+          variant: result.valid ? "success" : "warning",
+          title: result.valid ? "Validation passed" : "Validation failed",
+          description: `Command ${result.command}`,
+        });
+      }
+    } catch {
+      // MutationCell.execute() always rethrows on failure (including an
+      // intentional abort via the Stop button), so a failed/aborted request
+      // never reaches the success branch above — it lands here instead.
+      // validateMutation.error is only non-null for a genuine failure (an
+      // abort leaves it null), which is what distinguishes "show an error
+      // toast" from "the user cancelled, stay silent" below.
+      if (validateMutation.error !== null) {
+        showValidationToast({
+          variant: "danger",
+          title: "Validation failed",
+          description: apiErrorMessage(validateMutation.error),
+        });
+      }
     } finally {
       setStatus("idle");
     }
@@ -371,15 +256,22 @@ export default function QueryPage() {
         />
       </Portal>
 
+      <QueryValidationToast
+        toast={validationToast()}
+        onDismiss={dismissValidationToast}
+        onPause={suspendValidationToastTimer}
+        onResume={resumeValidationToastTimer}
+      />
+
       <main
         class="cassie-query-page cassie-query-shell"
         data-slot="main"
         data-query-page="true"
         id="main-content"
         tabindex={-1}
-        aria-labelledby="cassie-admin-page-title"
+        aria-label="Query"
+        ref={handleMainRef}
       >
-
         {schemaQuery.loading && !schemaQuery.data ? (
           <p class="cassie-query-loading">Loading query schema…</p>
         ) : null}
@@ -405,7 +297,7 @@ export default function QueryPage() {
                 query={query()}
                 onQueryChange={handleQueryChange}
                 isRunning={isQueryBusy}
-                onFormat={handleFormatQuery}
+                onTrim={handleTrimQuery}
                 onValidate={handleValidate}
                 onExplain={handleExplain}
                 onPlay={handlePlay}
@@ -418,14 +310,13 @@ export default function QueryPage() {
                 <QueryExecutionBanner
                   status={status()}
                   isBusy={isQueryBusy}
-                  validation={validationResult ?? null}
                   errorMessage={actionErrorMessage}
                 />
 
                 <QueryExecutionSummary result={activeExecution} />
 
                 <QueryResultsTabs
-                  activeTab={activeTab()}
+                  activeTab={activeTab}
                   onTabChange={handleTabChange}
                   resultsContent={
                     activeExecution ? (

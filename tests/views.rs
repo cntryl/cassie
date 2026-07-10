@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::types::{DataType, FieldSchema, Schema, Value};
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -14,6 +15,7 @@ fn data_dir(label: &str) -> PathBuf {
 }
 
 fn seed_view_docs(cassie: &Cassie, collection: &str) {
+    let collection = canonical_relation_name("postgres", "public", collection);
     let schema = Schema {
         fields: vec![
             FieldSchema {
@@ -31,10 +33,10 @@ fn seed_view_docs(cassie: &Cassie, collection: &str) {
 
     cassie
         .midge
-        .create_collection(collection, schema.clone())
+        .create_collection(&collection, schema.clone())
         .unwrap();
     cassie.register_collection(
-        collection,
+        &collection,
         schema
             .fields
             .iter()
@@ -44,7 +46,7 @@ fn seed_view_docs(cassie: &Cassie, collection: &str) {
     cassie
         .midge
         .put_document(
-            collection,
+            &collection,
             None,
             serde_json::json!({
                 "title": "alpha",
@@ -66,6 +68,7 @@ fn should_create_select_drop_user_defined_view() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
         let collection = "view_docs";
         seed_view_docs(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -113,6 +116,7 @@ fn should_select_from_nested_user_defined_views() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
         let collection = "view_nested_docs";
         seed_view_docs(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -163,6 +167,7 @@ fn should_hydrate_user_defined_views_after_restart() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
         let collection = "view_restart_docs";
         seed_view_docs(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -211,6 +216,7 @@ fn should_reject_dml_against_user_defined_view() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
         let collection = "view_read_only_docs";
         seed_view_docs(&cassie, collection);
         let session = cassie.create_session("tester", None);

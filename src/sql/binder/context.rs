@@ -157,11 +157,7 @@ pub fn resolve_relation_name(
 
         if let ParsedName::Unqualified(name) = &parsed {
             for schema in &context.search_path {
-                let candidate = if is_system_schema(schema) {
-                    format!("{schema}.{name}")
-                } else {
-                    format!("{schema}.{name}")
-                };
+                let candidate = format!("{schema}.{name}");
                 if catalog.relation_exists(&candidate)
                     || crate::catalog::virtual_views::schema(&candidate).is_some()
                 {

@@ -1,7 +1,7 @@
 #![allow(unused_imports, dead_code)]
 
 use cassie::app::Cassie;
-use cassie::catalog::CollectionCardinalityStats;
+use cassie::catalog::{canonical_relation_name, CollectionCardinalityStats};
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 
@@ -23,22 +23,34 @@ fn vectorized_join_budget_config(temp_spill_budget_bytes: usize) -> CassieRuntim
     config
 }
 
+fn canonical_collection(name: &str) -> String {
+    canonical_relation_name("postgres", "public", name)
+}
+
 fn hydrate_cardinality(cassie: &Cassie, collection: &str) {
+    let collection = canonical_collection(collection);
     let stats = cassie
         .midge
-        .rebuild_cardinality_stats_for_collection(collection)
+        .rebuild_cardinality_stats_for_collection(&collection)
         .expect("cardinality stats");
-    cassie.catalog.hydrate_cardinality_stats(collection, stats);
+    cassie.catalog.hydrate_cardinality_stats(&collection, stats);
 }
 
 fn hydrate_row_count_only(cassie: &Cassie, collection: &str, row_count: u64) {
+    let collection = canonical_collection(collection);
     cassie.catalog.hydrate_cardinality_stats(
-        collection,
+        &collection,
         CollectionCardinalityStats {
             row_count,
             ..CollectionCardinalityStats::default()
         },
     );
+}
+
+fn clear_cardinality(cassie: &Cassie, collection: &str) {
+    cassie
+        .catalog
+        .clear_cardinality_stats(&canonical_collection(collection));
 }
 
 fn metric_delta(after: &serde_json::Value, before: &serde_json::Value, path: &[&str]) -> u64 {
@@ -70,6 +82,7 @@ fn create_join_tables(
 }
 
 fn put_users(cassie: &Cassie, table: &str, count: usize) {
+    let table = canonical_collection(table);
     let users = (0..count)
         .map(|index| {
             (
@@ -81,10 +94,11 @@ fn put_users(cassie: &Cassie, table: &str, count: usize) {
             )
         })
         .collect();
-    cassie.midge.put_fresh_documents(table, users).unwrap();
+    cassie.midge.put_fresh_documents(&table, users).unwrap();
 }
 
 fn put_users_with_keys(cassie: &Cassie, table: &str, keys: &[i64]) {
+    let table = canonical_collection(table);
     let users = keys
         .iter()
         .enumerate()
@@ -98,10 +112,11 @@ fn put_users_with_keys(cassie: &Cassie, table: &str, keys: &[i64]) {
             )
         })
         .collect();
-    cassie.midge.put_fresh_documents(table, users).unwrap();
+    cassie.midge.put_fresh_documents(&table, users).unwrap();
 }
 
 fn put_orders(cassie: &Cassie, table: &str, keys: &[i64]) {
+    let table = canonical_collection(table);
     let orders = keys
         .iter()
         .enumerate()
@@ -115,7 +130,7 @@ fn put_orders(cassie: &Cassie, table: &str, keys: &[i64]) {
             )
         })
         .collect();
-    cassie.midge.put_fresh_documents(table, orders).unwrap();
+    cassie.midge.put_fresh_documents(&table, orders).unwrap();
 }
 
 fn select_inner_sql(users_table: &str, orders_table: &str, limit: usize) -> String {
@@ -176,9 +191,10 @@ fn should_sample_row_count_stats_to_reduce_larger_bounded_join_without_field_sta
             1_000
         );
         assert!(metric_delta(&after, &before, &["joins", "vectorized_probe_rows_total"]) <= 5);
+        let expected_orders = canonical_collection("row_count_sample_orders");
         assert_eq!(
             after["read_paths"]["last_collection_scan_collection"].as_str(),
-            Some("row_count_sample_orders")
+            Some(expected_orders.as_str())
         );
 
         let _ = std::fs::remove_dir_all(path);
@@ -234,9 +250,10 @@ fn should_use_fanout_stats_to_reduce_larger_bounded_join_build_side() {
             1_000
         );
         assert!(metric_delta(&after, &before, &["joins", "vectorized_probe_rows_total"]) <= 5);
+        let expected_orders = canonical_collection("fanout_large_orders");
         assert_eq!(
             after["read_paths"]["last_collection_scan_collection"].as_str(),
-            Some("fanout_large_orders")
+            Some(expected_orders.as_str())
         );
 
         let _ = std::fs::remove_dir_all(path);
@@ -295,13 +312,15 @@ fn should_probe_indexed_right_source_for_bounded_inner_join() {
                 vec![Value::String("user-001".to_string()), Value::Int64(1)],
             ]
         );
+        let expected_orders = canonical_collection("bounded_right_idx_orders");
+        let expected_index = canonical_collection("bounded_right_idx_orders_key_idx");
         assert_eq!(
             after["read_paths"]["last_index_scan_collection"].as_str(),
-            Some("bounded_right_idx_orders")
+            Some(expected_orders.as_str())
         );
         assert_eq!(
             after["read_paths"]["last_index_scan_index"].as_str(),
-            Some("bounded_right_idx_orders_key_idx")
+            Some(expected_index.as_str())
         );
         assert!(metric_delta(&after, &before, &["read_paths", "index_seek_scans"]) > 0);
         assert!(metric_delta(&after, &before, &["read_paths", "collection_scan_rows"]) <= 2);
@@ -350,13 +369,15 @@ fn should_keep_existing_left_index_probe_when_estimates_tie() {
 
         // Assert
         assert_eq!(result.rows.len(), 2);
+        let expected_users = canonical_collection("bounded_tie_users");
+        let expected_index = canonical_collection("bounded_tie_users_key_idx");
         assert_eq!(
             metrics["read_paths"]["last_index_scan_collection"].as_str(),
-            Some("bounded_tie_users")
+            Some(expected_users.as_str())
         );
         assert_eq!(
             metrics["read_paths"]["last_index_scan_index"].as_str(),
-            Some("bounded_tie_users_key_idx")
+            Some(expected_index.as_str())
         );
 
         let _ = std::fs::remove_dir_all(path);
@@ -406,9 +427,10 @@ fn should_select_smaller_build_side_for_late_match_bounded_inner_join() {
             ]
         );
         assert!(metric_delta(&after, &before, &["joins", "vectorized_build_rows_total"]) <= 2);
+        let expected_orders = canonical_collection("late_large_orders");
         assert_eq!(
             after["read_paths"]["last_collection_scan_collection"].as_str(),
-            Some("late_large_orders")
+            Some(expected_orders.as_str())
         );
 
         let _ = std::fs::remove_dir_all(path);
@@ -440,12 +462,8 @@ fn should_use_bounded_row_count_probe_when_cardinality_stats_are_missing() {
             .chain([0_i64, 1_i64])
             .collect::<Vec<_>>();
         put_orders(&cassie, "missing_probe_orders", &order_keys);
-        cassie
-            .catalog
-            .clear_cardinality_stats("missing_probe_users");
-        cassie
-            .catalog
-            .clear_cardinality_stats("missing_probe_orders");
+        clear_cardinality(&cassie, "missing_probe_users");
+        clear_cardinality(&cassie, "missing_probe_orders");
         let before = cassie.metrics();
 
         // Act
@@ -467,9 +485,10 @@ fn should_use_bounded_row_count_probe_when_cardinality_stats_are_missing() {
             ]
         );
         assert!(metric_delta(&after, &before, &["joins", "vectorized_build_rows_total"]) <= 2);
+        let expected_orders = canonical_collection("missing_probe_orders");
         assert_eq!(
             after["read_paths"]["last_collection_scan_collection"].as_str(),
-            Some("missing_probe_orders")
+            Some(expected_orders.as_str())
         );
         assert_eq!(
             after["joins"]["last_bounded_side_selection_reason"].as_str(),
@@ -506,12 +525,8 @@ fn should_keep_existing_streaming_join_when_missing_stats_do_not_prove_smaller_l
             "ambiguous_missing_stats_orders",
             &[0, 1, 2, 3, 99, 99],
         );
-        cassie
-            .catalog
-            .clear_cardinality_stats("ambiguous_missing_stats_users");
-        cassie
-            .catalog
-            .clear_cardinality_stats("ambiguous_missing_stats_orders");
+        clear_cardinality(&cassie, "ambiguous_missing_stats_users");
+        clear_cardinality(&cassie, "ambiguous_missing_stats_orders");
         let before = cassie.metrics();
 
         // Act
@@ -534,9 +549,10 @@ fn should_keep_existing_streaming_join_when_missing_stats_do_not_prove_smaller_l
             metric_delta(&after, &before, &["joins", "vectorized_build_rows_total"]),
             6
         );
+        let expected_users = canonical_collection("ambiguous_missing_stats_users");
         assert_eq!(
             after["read_paths"]["last_collection_scan_collection"].as_str(),
-            Some("ambiguous_missing_stats_users")
+            Some(expected_users.as_str())
         );
         assert_eq!(
             after["joins"]["last_bounded_side_selection_reason"].as_str(),
@@ -574,10 +590,8 @@ fn should_keep_existing_streaming_join_when_left_probe_exceeds_temp_budget() {
             .chain([0_i64, 1_i64])
             .collect::<Vec<_>>();
         put_orders(&cassie, "budget_probe_orders", &order_keys);
-        cassie.catalog.clear_cardinality_stats("budget_probe_users");
-        cassie
-            .catalog
-            .clear_cardinality_stats("budget_probe_orders");
+        clear_cardinality(&cassie, "budget_probe_users");
+        clear_cardinality(&cassie, "budget_probe_orders");
 
         // Act
         let result = cassie

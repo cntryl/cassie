@@ -590,6 +590,11 @@ fn should_keep_transaction_insert_out_of_storage_until_commit() {
                 vec![],
             )
             .unwrap();
+        let collection = cassie
+            .catalog
+            .get_schema("transaction_storage_routing")
+            .expect("catalog collection")
+            .collection;
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
 
         // Act
@@ -604,15 +609,9 @@ fn should_keep_transaction_insert_out_of_storage_until_commit() {
             Value::String(value) => value.clone(),
             _ => panic!("expected row id"),
         };
-        let before_commit = cassie
-            .midge
-            .get_document("transaction_storage_routing", &row_id)
-            .unwrap();
+        let before_commit = cassie.midge.get_document(&collection, &row_id).unwrap();
         cassie.execute_sql(&session, "COMMIT", vec![]).unwrap();
-        let after_commit = cassie
-            .midge
-            .get_document("transaction_storage_routing", &row_id)
-            .unwrap();
+        let after_commit = cassie.midge.get_document(&collection, &row_id).unwrap();
 
         // Assert
         assert!(before_commit.is_none());

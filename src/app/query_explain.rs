@@ -1,220 +1,645 @@
-use super::{vector_prefilter_fallback_reason, vector_prefilter_supported, Cassie};
+use super::Cassie;
+use crate::executor::QueryResult;
+
+mod text;
+
+const PLAN_FORMAT_VERSION: u32 = 1;
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryExplainOutput {
+    pub result: QueryResult,
+    pub plan: QueryExplainPlan,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryExplainPlan {
+    pub format_version: u32,
+    pub summary: QueryPlanSummary,
+    pub nodes: Vec<QueryPlanNode>,
+    pub attributes: Vec<QueryPlanAttribute>,
+    pub estimates: QueryPlanEstimates,
+    pub features: Vec<QueryPlanFeature>,
+    pub diagnostics: QueryPlanDiagnostics,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub analyze: Option<QueryPlanAnalyze>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryPlanSummary {
+    pub collection: String,
+    pub root_operator: String,
+    pub access_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_index: Option<String>,
+    pub selected_cost: u64,
+    pub estimated_rows: u64,
+    pub storage_mode: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryPlanNode {
+    pub id: String,
+    pub label: String,
+    pub kind: String,
+    pub detail: String,
+    pub status: String,
+    pub badges: Vec<String>,
+    pub metrics: Vec<QueryPlanMetric>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryPlanMetric {
+    pub label: String,
+    pub value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryPlanAttribute {
+    pub label: String,
+    pub value: String,
+    pub intent: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryPlanEstimates {
+    pub scan_rows: u64,
+    pub index_rows: u64,
+    pub join_rows: u64,
+    pub search_rows: u64,
+    pub vector_rows: u64,
+    pub aggregate_rows: u64,
+    pub scan_cost: u64,
+    pub index_cost: u64,
+    pub selected_cost: u64,
+    pub cost_source: String,
+    pub rejected_alternatives: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryPlanFeature {
+    pub id: String,
+    pub label: String,
+    pub enabled: bool,
+    pub intent: String,
+    pub detail: String,
+    pub node_id: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryPlanDiagnostics {
+    pub access_path_reason: String,
+    pub fallback_reason: String,
+    pub pagination_strategy: String,
+    pub early_stop: String,
+    pub projection_shape: String,
+    pub operator_feedback_state: String,
+    pub operator_feedback_reason: String,
+    pub adaptive_enabled: bool,
+    pub adaptive_decision_point: String,
+    pub adaptive_candidates: Vec<String>,
+    pub adaptive_selected_alternative: String,
+    pub adaptive_reason: String,
+    pub join_strategy: String,
+    pub join_fallback_reason: String,
+    pub rollup_rewrite: String,
+    pub projection_freshness: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryPlanAnalyze {
+    pub actual_rows: usize,
+    pub actual_ms: u128,
+    pub operator_actuals: Vec<QueryPlanOperatorActual>,
+    pub diagnostics: QueryPlanAnalyzeDiagnostics,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryPlanOperatorActual {
+    pub operator: String,
+    pub rows_in: u64,
+    pub rows_out: usize,
+    pub elapsed_ms: u128,
+    pub storage_reads: u64,
+    pub storage_writes: u64,
+    pub temp_writes: u64,
+    pub candidates: u64,
+    pub results: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryPlanAnalyzeDiagnostics {
+    #[serde(rename = "plan_cache_hits_delta")]
+    pub plan_cache_hits: u64,
+    #[serde(rename = "plan_cache_misses_delta")]
+    pub plan_cache_misses: u64,
+    #[serde(rename = "storage_reads_delta")]
+    pub storage_reads: u64,
+    #[serde(rename = "storage_writes_delta")]
+    pub storage_writes: u64,
+    #[serde(rename = "temp_writes_delta")]
+    pub temp_writes: u64,
+    #[serde(rename = "candidate_count_delta")]
+    pub candidate_count: u64,
+    #[serde(rename = "result_count_delta")]
+    pub result_count: u64,
+    #[serde(rename = "parallel_aggregations_delta")]
+    pub parallel_aggregations: u64,
+    #[serde(rename = "parallel_aggregation_fallback_delta")]
+    pub parallel_aggregation_fallback: u64,
+    #[serde(rename = "parallel_aggregation_workers_delta")]
+    pub parallel_aggregation_workers: u64,
+    #[serde(rename = "parallel_aggregation_groups_delta")]
+    pub parallel_aggregation_groups: u64,
+    #[serde(rename = "adaptive_plan_decisions_delta")]
+    pub adaptive_plan_decisions: u64,
+    #[serde(rename = "adaptive_plan_selected_delta")]
+    pub adaptive_plan_selected: u64,
+    #[serde(rename = "operator_switch_attempts_delta")]
+    pub operator_switch_attempts: u64,
+    #[serde(rename = "operator_switch_success_delta")]
+    pub operator_switch_success: u64,
+    #[serde(rename = "operator_switch_skips_delta")]
+    pub operator_switch_skips: u64,
+    #[serde(rename = "operator_switch_fallbacks_delta")]
+    pub operator_switch_fallbacks: u64,
+}
+
+pub(crate) fn structured_plan(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+) -> QueryExplainPlan {
+    QueryExplainPlan {
+        format_version: PLAN_FORMAT_VERSION,
+        summary: plan_summary(cassie, physical),
+        nodes: plan_nodes(cassie, physical),
+        attributes: plan_attributes(cassie, physical),
+        estimates: plan_estimates(physical),
+        features: plan_features(cassie, physical),
+        diagnostics: plan_diagnostics(cassie, physical),
+        analyze: None,
+    }
+}
 
 pub(super) fn plan_line(
     cassie: &Cassie,
     physical: &crate::planner::physical::PhysicalPlan,
 ) -> String {
-    [
-        read_plan_section(cassie, physical),
-        operator_feedback_section(physical),
-        adaptive_plan_section(physical),
-        phase03_section(cassie, physical),
-        join_section(physical),
-        vectorized_join_section(cassie, physical),
-        acceleration_section(cassie, physical),
-        cost_section(physical),
-    ]
-    .join(" ")
+    text::plan_line(cassie, physical)
 }
 
-fn read_plan_section(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan) -> String {
-    let projection_pruning = !physical.read.projected_scan_fields.is_empty();
-    let scan_fields = if projection_pruning {
-        physical.read.projected_scan_fields.join(",")
+fn plan_summary(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+) -> QueryPlanSummary {
+    QueryPlanSummary {
+        collection: physical.collection.clone(),
+        root_operator: physical
+            .operators
+            .first()
+            .map_or_else(|| "Command".to_string(), |operator| format!("{operator:?}")),
+        access_path: physical.read.access_path.as_str().to_string(),
+        selected_index: physical.read.selected_index.clone(),
+        selected_cost: selected_cost(physical),
+        estimated_rows: selected_estimated_rows(physical),
+        storage_mode: storage_mode(cassie, physical),
+    }
+}
+
+fn selected_estimated_rows(physical: &crate::planner::physical::PhysicalPlan) -> u64 {
+    if physical.read.selected_index.is_some() {
+        physical.estimates.index_rows
     } else {
-        "all".to_string()
-    };
-    let scan_limit = physical
-        .read
-        .scan_limit
-        .map_or_else(|| "none".to_string(), |limit| limit.to_string());
-    let storage_mode = cassie
+        physical.estimates.scan_rows
+    }
+}
+
+fn storage_mode(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan) -> String {
+    cassie
         .catalog
         .collection_storage_mode(&physical.collection)
-        .map_or_else(|| "unknown".to_string(), |mode| mode.as_str().to_string());
-    format!(
-        "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} access_path={} access_path_reason={} fallback_reason={} pagination_strategy={} top_k_mode={} early_stop={} projection_shape={} storage_mode={} index_aware={} index={} index_feedback={}",
-        physical.collection,
-        operators_description(physical),
-        physical.read.predicate_pushdown,
-        projection_pruning,
-        scan_fields,
-        physical.read.scan_limit.is_some(),
-        scan_limit,
-        physical.read.access_path.as_str(),
-        physical.read.access_path_reason.as_str(),
-        physical.read.fallback_reason.as_deref().unwrap_or("none"),
-        physical.read.pagination_strategy.as_str(),
-        physical.top_k.mode.as_str(),
-        physical.read.early_stop.as_str(),
-        physical.projection.shape.as_str(),
-        storage_mode,
-        physical.read.selected_index.is_some(),
-        physical.read.selected_index.as_deref().unwrap_or("none"),
-        index_feedback(physical)
-    )
+        .map_or_else(|| "unknown".to_string(), |mode| mode.as_str().to_string())
 }
 
-fn operators_description(physical: &crate::planner::physical::PhysicalPlan) -> String {
-    let operators = physical
-        .operators
-        .iter()
-        .map(|operator| format!("{operator:?}"))
-        .collect::<Vec<_>>()
-        .join(">");
-    if operators.is_empty() {
-        "Command".to_string()
-    } else {
-        operators
+fn plan_nodes(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+) -> Vec<QueryPlanNode> {
+    let mut nodes = vec![read_node(cassie, physical)];
+
+    if physical.join.strategy.is_some() || !physical.join.keys.is_empty() {
+        nodes.push(join_node(physical));
+    }
+
+    if physical.aggregate.parallel_candidate || physical.aggregate.acceleration {
+        nodes.push(aggregate_node(physical));
+    }
+
+    if physical.top_k.enabled {
+        nodes.push(top_k_node(physical));
+    }
+
+    nodes.push(project_node(physical));
+    nodes
+}
+
+fn read_node(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan) -> QueryPlanNode {
+    let mut badges = Vec::new();
+    if let Some(index) = physical.read.selected_index.as_ref() {
+        badges.push(format!("index:{index}"));
+    }
+    if physical.read.predicate_pushdown {
+        badges.push("predicate pushdown".to_string());
+    }
+    if !physical.read.projected_scan_fields.is_empty() {
+        badges.push("projection pruning".to_string());
+    }
+    if physical.read.covered_index {
+        badges.push("covered index".to_string());
+    }
+    if let Some(index) = physical.read.column_batch_index.as_ref() {
+        badges.push(format!("column batch:{index}"));
+    }
+
+    QueryPlanNode {
+        id: "read".to_string(),
+        label: read_node_label(physical),
+        kind: "read".to_string(),
+        detail: format!(
+            "{} via {}",
+            physical.collection,
+            physical.read.access_path.as_str()
+        ),
+        status: read_node_status(physical),
+        badges,
+        metrics: vec![
+            metric(
+                "estimated rows",
+                selected_estimated_rows(physical).to_string(),
+                None,
+            ),
+            metric("selected cost", selected_cost(physical).to_string(), None),
+            metric("storage", storage_mode(cassie, physical), None),
+        ],
     }
 }
 
-fn index_feedback(physical: &crate::planner::physical::PhysicalPlan) -> &'static str {
-    if physical.read.selected_index.is_some() {
-        "enabled"
-    } else {
-        "none"
+fn read_node_label(physical: &crate::planner::physical::PhysicalPlan) -> String {
+    match physical.read.selected_index.as_deref() {
+        Some(index) => format!("Read with {index}"),
+        None => "Read collection".to_string(),
     }
 }
 
-fn operator_feedback_section(physical: &crate::planner::physical::PhysicalPlan) -> String {
-    let feedback = &physical.operator_feedback;
-    format!(
-        "operator_feedback={} operator_feedback_reason={} operator_feedback_base_candidate={} operator_feedback_selected_candidate={} operator_feedback_base_cost={} operator_feedback_adjusted_cost={} operator_feedback_confidence_bps={} operator_feedback_age_ms={} operator_feedback_samples={} operator_feedback_outliers={}",
-        non_empty_or_none(&feedback.state),
-        non_empty_or_none(&feedback.reason),
-        non_empty_or_none(&feedback.base_candidate),
-        non_empty_or_none(&feedback.selected_candidate),
-        feedback.base_selected_cost,
-        feedback.adjusted_selected_cost,
-        feedback.confidence_bps,
-        feedback.age_ms,
-        feedback.samples,
-        feedback.outlier_samples
-    )
-}
-
-fn adaptive_plan_section(physical: &crate::planner::physical::PhysicalPlan) -> String {
-    let adaptive_plan = &physical.adaptive_plan;
-    let adaptive_candidates = if adaptive_plan.candidates.is_empty() {
-        "none".to_string()
+fn read_node_status(physical: &crate::planner::physical::PhysicalPlan) -> String {
+    if physical.read.fallback_reason.is_some() {
+        "fallback".to_string()
+    } else if physical.read.selected_index.is_some()
+        || physical.read.predicate_pushdown
+        || physical.read.covered_index
+    {
+        "optimized".to_string()
     } else {
-        adaptive_plan.candidates.join("|")
-    };
-    format!(
-        "adaptive_plan_enabled={} adaptive_decision_point={} adaptive_candidates={} adaptive_base_alternative={} adaptive_selected_alternative={} adaptive_guard={} adaptive_guard_passed={} adaptive_reason={} adaptive_diagnostic={}",
-        adaptive_plan.enabled,
-        non_empty_or_none(&adaptive_plan.decision_point),
-        adaptive_candidates,
-        non_empty_or_none(&adaptive_plan.base_alternative),
-        non_empty_or_none(&adaptive_plan.selected_alternative),
-        non_empty_or_none(&adaptive_plan.guard),
-        adaptive_plan.guard_passed,
-        non_empty_or_none(&adaptive_plan.reason),
-        non_empty_or_none(&adaptive_plan.diagnostic)
-    )
+        "baseline".to_string()
+    }
 }
 
-fn phase03_section(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan) -> String {
-    let diagnostics = phase03_diagnostics(cassie, physical);
-    let top_k_limit = physical
-        .top_k
-        .limit
-        .map_or_else(|| "none".to_string(), |limit| limit.to_string());
-    format!(
-        "covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} time_series_storage={} top_k={} top_k_limit={} candidate_budget={}",
-        physical.read.covered_index,
-        physical.read.column_batch_index.as_deref().unwrap_or("none"),
-        diagnostics.column_native,
-        diagnostics.hybrid_row_column,
-        diagnostics.vectorized_aggregate,
-        diagnostics.parallel_pipeline,
-        diagnostics.analytical_projection,
-        prefilter_description(cassie, physical),
-        time_series_description(cassie, physical),
-        time_series_storage_description(cassie, physical),
-        physical.top_k.enabled,
-        top_k_limit,
-        candidate_budget(cassie, physical)
-    )
+fn join_node(physical: &crate::planner::physical::PhysicalPlan) -> QueryPlanNode {
+    QueryPlanNode {
+        id: "join".to_string(),
+        label: format!(
+            "{} join",
+            physical.join.strategy.as_deref().unwrap_or("runtime")
+        ),
+        kind: "join".to_string(),
+        detail: if physical.join.keys.is_empty() {
+            "No join keys captured".to_string()
+        } else {
+            physical.join.keys.join(", ")
+        },
+        status: if physical.join.fallback_reason.is_some() {
+            "fallback".to_string()
+        } else {
+            "optimized".to_string()
+        },
+        badges: vec![format!("sort required:{}", physical.join.sort_required)],
+        metrics: vec![metric(
+            "estimated rows",
+            physical.estimates.join_rows.to_string(),
+            None,
+        )],
+    }
 }
 
-fn join_section(physical: &crate::planner::physical::PhysicalPlan) -> String {
-    let join_keys = if physical.join.keys.is_empty() {
-        "none".to_string()
+fn aggregate_node(physical: &crate::planner::physical::PhysicalPlan) -> QueryPlanNode {
+    let mut badges = Vec::new();
+    if physical.aggregate.parallel_candidate {
+        badges.push("parallel candidate".to_string());
+    }
+    if physical.aggregate.acceleration {
+        badges.push("accelerated".to_string());
+    }
+
+    QueryPlanNode {
+        id: "aggregate".to_string(),
+        label: "Aggregate".to_string(),
+        kind: "aggregate".to_string(),
+        detail: "Group and aggregate rows".to_string(),
+        status: if physical.aggregate.acceleration {
+            "optimized".to_string()
+        } else {
+            "baseline".to_string()
+        },
+        badges,
+        metrics: vec![metric(
+            "estimated rows",
+            physical.estimates.aggregate_rows.to_string(),
+            None,
+        )],
+    }
+}
+
+fn top_k_node(physical: &crate::planner::physical::PhysicalPlan) -> QueryPlanNode {
+    QueryPlanNode {
+        id: "top_k".to_string(),
+        label: "Top K".to_string(),
+        kind: "top_k".to_string(),
+        detail: format!("{} ordering", physical.top_k.mode.as_str()),
+        status: if matches!(
+            physical.top_k.mode,
+            crate::planner::physical::TopKMode::Storage
+        ) {
+            "optimized".to_string()
+        } else {
+            "baseline".to_string()
+        },
+        badges: vec![format!(
+            "limit:{}",
+            physical
+                .top_k
+                .limit
+                .map_or_else(|| "none".to_string(), |limit| limit.to_string())
+        )],
+        metrics: vec![metric(
+            "candidate budget",
+            physical.top_k.limit.unwrap_or_default().to_string(),
+            None,
+        )],
+    }
+}
+
+fn project_node(physical: &crate::planner::physical::PhysicalPlan) -> QueryPlanNode {
+    QueryPlanNode {
+        id: "project".to_string(),
+        label: "Project rows".to_string(),
+        kind: "project".to_string(),
+        detail: physical.projection.shape.as_str().to_string(),
+        status: "active".to_string(),
+        badges: projection_badges(physical),
+        metrics: vec![metric(
+            "scan fields",
+            if physical.read.projected_scan_fields.is_empty() {
+                "all".to_string()
+            } else {
+                physical.read.projected_scan_fields.join(", ")
+            },
+            None,
+        )],
+    }
+}
+
+fn projection_badges(physical: &crate::planner::physical::PhysicalPlan) -> Vec<String> {
+    if physical.read.projected_scan_fields.is_empty() {
+        vec!["all fields".to_string()]
     } else {
-        physical.join.keys.join(",")
-    };
-    format!(
-        "join_strategy={} join_keys={} join_sort_required={} join_fallback_reason={}",
-        physical.join.strategy.as_deref().unwrap_or("none"),
-        join_keys,
-        physical.join.sort_required,
-        physical.join.fallback_reason.as_deref().unwrap_or("none")
-    )
+        physical
+            .read
+            .projected_scan_fields
+            .iter()
+            .map(|field| format!("field:{field}"))
+            .collect()
+    }
 }
 
-fn vectorized_join_section(
+fn plan_attributes(
     cassie: &Cassie,
     physical: &crate::planner::physical::PhysicalPlan,
-) -> String {
-    let limits = cassie.runtime.limits();
-    let vectorized = vectorized_join_status(physical, &limits);
-    let operator_switch = operator_switch_status(physical, &limits);
-    format!(
-        "vectorized_join_candidate={} vectorized_join_enabled={} vectorized_join_batch_size={} vectorized_join_fallback_reason={} operator_switch_candidate={} operator_switch_enabled={} operator_switch_pair={} operator_switch_threshold={} operator_switch_reason={}",
-        vectorized.candidate,
-        vectorized.enabled,
-        vectorized.batch_size,
-        vectorized.fallback_reason,
-        operator_switch.candidate,
-        operator_switch.enabled,
-        operator_switch.pair,
-        operator_switch.threshold,
-        operator_switch.reason
-    )
+) -> Vec<QueryPlanAttribute> {
+    vec![
+        attribute(
+            "Access path",
+            physical.read.access_path.as_str(),
+            attribute_intent(physical.read.selected_index.is_some()),
+        ),
+        attribute(
+            "Index",
+            physical.read.selected_index.as_deref().unwrap_or("none"),
+            attribute_intent(physical.read.selected_index.is_some()),
+        ),
+        attribute(
+            "Top K",
+            physical.top_k.mode.as_str(),
+            attribute_intent(physical.top_k.enabled),
+        ),
+        attribute(
+            "Pagination",
+            physical.read.pagination_strategy.as_str(),
+            "neutral",
+        ),
+        attribute("Projection", physical.projection.shape.as_str(), "neutral"),
+        attribute("Storage", storage_mode(cassie, physical), "neutral"),
+        attribute(
+            "Freshness",
+            projection_freshness(cassie, physical),
+            "neutral",
+        ),
+    ]
 }
 
-fn acceleration_section(
-    cassie: &Cassie,
-    physical: &crate::planner::physical::PhysicalPlan,
-) -> String {
-    let mixed = mixed_execution_diagnostics(physical);
-    format!(
-        "aggregate_parallel={} aggregate_acceleration={} rollup_rewrite={} mixed_execution={} mixed_stages={} exact_baseline={} projection_freshness={}",
-        physical.aggregate.parallel_candidate,
-        physical.aggregate.acceleration,
-        crate::executor::rollup_rewrite_name_for_plan(cassie, &physical.logical)
-            .unwrap_or_else(|| "none".to_string()),
-        mixed.enabled,
-        mixed.stages,
-        mixed.exact_baseline,
-        projection_freshness(cassie, physical)
-    )
+fn attribute(
+    label: impl Into<String>,
+    value: impl Into<String>,
+    intent: impl Into<String>,
+) -> QueryPlanAttribute {
+    QueryPlanAttribute {
+        label: label.into(),
+        value: value.into(),
+        intent: intent.into(),
+    }
 }
 
-fn cost_section(physical: &crate::planner::physical::PhysicalPlan) -> String {
+fn attribute_intent(enabled: bool) -> &'static str {
+    if enabled {
+        "success"
+    } else {
+        "neutral"
+    }
+}
+
+fn metric(label: impl Into<String>, value: String, unit: Option<&str>) -> QueryPlanMetric {
+    QueryPlanMetric {
+        label: label.into(),
+        value,
+        unit: unit.map(str::to_string),
+    }
+}
+
+fn plan_estimates(physical: &crate::planner::physical::PhysicalPlan) -> QueryPlanEstimates {
     let estimates = &physical.estimates;
-    let rejected_alternatives = if estimates.rejected_alternatives.is_empty() {
-        "none".to_string()
-    } else {
-        estimates.rejected_alternatives.join(",")
-    };
-    format!(
-        "cost_model=v{} selected_cost={} scan_cost={} index_cost={} cost_source={} rejected_alternatives={} estimates=scan:{} index:{} join:{} search:{} vector:{} aggregate:{}",
-        estimates.cost_model_version,
-        selected_cost(physical),
-        estimates.scan_cost,
-        estimates.index_cost,
-        estimates.cost_source,
-        rejected_alternatives,
-        estimates.scan_rows,
-        estimates.index_rows,
-        estimates.join_rows,
-        estimates.search_rows,
-        estimates.vector_rows,
-        estimates.aggregate_rows
-    )
+    QueryPlanEstimates {
+        scan_rows: estimates.scan_rows,
+        index_rows: estimates.index_rows,
+        join_rows: estimates.join_rows,
+        search_rows: estimates.search_rows,
+        vector_rows: estimates.vector_rows,
+        aggregate_rows: estimates.aggregate_rows,
+        scan_cost: estimates.scan_cost,
+        index_cost: estimates.index_cost,
+        selected_cost: selected_cost(physical),
+        cost_source: estimates.cost_source.clone(),
+        rejected_alternatives: estimates.rejected_alternatives.clone(),
+    }
+}
+
+fn plan_features(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+) -> Vec<QueryPlanFeature> {
+    let limits = cassie.runtime.limits();
+    vec![
+        feature(
+            "predicate_pushdown",
+            "Predicate pushdown",
+            physical.read.predicate_pushdown,
+            "Filters applied before rows leave storage",
+            "read",
+        ),
+        feature(
+            "projection_pruning",
+            "Projection pruning",
+            !physical.read.projected_scan_fields.is_empty(),
+            "Read path narrows scanned fields when possible",
+            "read",
+        ),
+        feature(
+            "covered_index",
+            "Covered index",
+            physical.read.covered_index,
+            "Selected index satisfies the requested projection",
+            "read",
+        ),
+        feature(
+            "column_batch",
+            "Column batch",
+            physical.read.column_batch_index.is_some(),
+            "Column-batch path can serve the selected index",
+            "read",
+        ),
+        feature(
+            "top_k",
+            "Top K",
+            physical.top_k.enabled,
+            "Ordering and limit can stop early",
+            "top_k",
+        ),
+        feature(
+            "aggregate_parallel",
+            "Parallel aggregate",
+            physical.aggregate.parallel_candidate,
+            "Aggregate is eligible for worker parallelism",
+            "aggregate",
+        ),
+        feature(
+            "aggregate_acceleration",
+            "Aggregate acceleration",
+            physical.aggregate.acceleration,
+            "Rollup or projection can accelerate aggregation",
+            "aggregate",
+        ),
+        feature(
+            "vectorized_join_candidate",
+            "Vector join candidate",
+            physical.join.vectorized.candidate,
+            "Join shape can use a vectorized candidate path",
+            "join",
+        ),
+        feature(
+            "vectorized_join_enabled",
+            "Vector join enabled",
+            physical.join.vectorized.candidate && limits.vectorized_joins_enabled,
+            "Runtime limits allow the vectorized join path",
+            "join",
+        ),
+    ]
+}
+
+fn feature(
+    id: impl Into<String>,
+    label: impl Into<String>,
+    enabled: bool,
+    detail: impl Into<String>,
+    node_id: impl Into<String>,
+) -> QueryPlanFeature {
+    QueryPlanFeature {
+        id: id.into(),
+        label: label.into(),
+        enabled,
+        intent: attribute_intent(enabled).to_string(),
+        detail: detail.into(),
+        node_id: node_id.into(),
+    }
+}
+
+fn plan_diagnostics(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+) -> QueryPlanDiagnostics {
+    let adaptive = &physical.adaptive_plan;
+    QueryPlanDiagnostics {
+        access_path_reason: physical.read.access_path_reason.clone(),
+        fallback_reason: physical
+            .read
+            .fallback_reason
+            .clone()
+            .unwrap_or_else(|| "none".to_string()),
+        pagination_strategy: physical.read.pagination_strategy.as_str().to_string(),
+        early_stop: physical.read.early_stop.as_str().to_string(),
+        projection_shape: physical.projection.shape.as_str().to_string(),
+        operator_feedback_state: non_empty_or_none(&physical.operator_feedback.state).to_string(),
+        operator_feedback_reason: non_empty_or_none(&physical.operator_feedback.reason).to_string(),
+        adaptive_enabled: adaptive.enabled,
+        adaptive_decision_point: non_empty_or_none(&adaptive.decision_point).to_string(),
+        adaptive_candidates: adaptive.candidates.clone(),
+        adaptive_selected_alternative: non_empty_or_none(&adaptive.selected_alternative)
+            .to_string(),
+        adaptive_reason: non_empty_or_none(&adaptive.reason).to_string(),
+        join_strategy: physical
+            .join
+            .strategy
+            .clone()
+            .unwrap_or_else(|| "none".to_string()),
+        join_fallback_reason: physical
+            .join
+            .fallback_reason
+            .clone()
+            .unwrap_or_else(|| "none".to_string()),
+        rollup_rewrite: crate::executor::rollup_rewrite_name_for_plan(cassie, &physical.logical)
+            .unwrap_or_else(|| "none".to_string()),
+        projection_freshness: projection_freshness(cassie, physical),
+    }
 }
 
 fn non_empty_or_none(value: &str) -> &str {
@@ -252,371 +677,4 @@ fn projection_freshness(
             || "unavailable".to_string(),
             |projection| projection.freshness.as_str().to_string(),
         )
-}
-
-struct VectorizedJoinStatus {
-    candidate: bool,
-    enabled: bool,
-    batch_size: usize,
-    fallback_reason: String,
-}
-
-fn vectorized_join_status(
-    physical: &crate::planner::physical::PhysicalPlan,
-    limits: &crate::config::CassieRuntimeLimits,
-) -> VectorizedJoinStatus {
-    let candidate = physical.join.vectorized.candidate;
-    let enabled = candidate && limits.vectorized_joins_enabled;
-    let fallback_reason = if enabled {
-        "none".to_string()
-    } else if candidate {
-        "disabled".to_string()
-    } else {
-        physical
-            .join
-            .vectorized
-            .fallback_reason
-            .clone()
-            .unwrap_or_else(|| "none".to_string())
-    };
-    VectorizedJoinStatus {
-        candidate,
-        enabled,
-        batch_size: limits.vectorized_join_batch_size.max(1),
-        fallback_reason,
-    }
-}
-
-struct OperatorSwitchStatus {
-    candidate: bool,
-    enabled: bool,
-    pair: &'static str,
-    threshold: usize,
-    reason: &'static str,
-}
-
-fn operator_switch_status(
-    physical: &crate::planner::physical::PhysicalPlan,
-    limits: &crate::config::CassieRuntimeLimits,
-) -> OperatorSwitchStatus {
-    let candidate = physical.join.vectorized.candidate;
-    let enabled = candidate && limits.operator_switching_enabled.is_enabled();
-    OperatorSwitchStatus {
-        candidate,
-        enabled,
-        pair: if candidate {
-            "vectorized_join_to_merge_join"
-        } else {
-            "none"
-        },
-        threshold: limits.operator_switch_join_row_threshold,
-        reason: operator_switch_reason(candidate, enabled),
-    }
-}
-
-fn operator_switch_reason(candidate: bool, enabled: bool) -> &'static str {
-    if enabled {
-        "armed"
-    } else if candidate {
-        "disabled"
-    } else {
-        "not_prevalidated"
-    }
-}
-
-fn prefilter_description(
-    cassie: &Cassie,
-    physical: &crate::planner::physical::PhysicalPlan,
-) -> String {
-    match physical.logical.filter.as_ref() {
-        None => "none".to_string(),
-        Some(filter) => {
-            if let Some(index) = physical.read.selected_index.as_deref() {
-                format!("index={index}")
-            } else if let Some(schema) = cassie.catalog.get_schema(&physical.collection) {
-                if vector_prefilter_supported(filter, &schema) {
-                    "row-scan".to_string()
-                } else {
-                    format!(
-                        "fallback={}",
-                        vector_prefilter_fallback_reason(filter, &schema)
-                    )
-                }
-            } else {
-                "fallback=missing-schema".to_string()
-            }
-        }
-    }
-}
-
-fn time_series_description(
-    cassie: &Cassie,
-    physical: &crate::planner::physical::PhysicalPlan,
-) -> String {
-    let Some(index_name) = physical.read.selected_index.as_deref() else {
-        return "none".to_string();
-    };
-    let Some(index) = cassie.catalog.get_index(&physical.collection, index_name) else {
-        return "none".to_string();
-    };
-    if index.kind != crate::catalog::IndexKind::TimeSeries {
-        return "none".to_string();
-    }
-    let bucket_width = index
-        .options
-        .get("bucket_width")
-        .cloned()
-        .unwrap_or_else(|| "none".to_string());
-    let partition_by = index
-        .options
-        .get("partition_by")
-        .cloned()
-        .unwrap_or_else(|| "none".to_string());
-    let range_filter = physical.logical.filter.is_some();
-    format!("bucket_width:{bucket_width},partition_by:{partition_by},range_filter:{range_filter}")
-}
-
-fn time_series_storage_description(
-    cassie: &Cassie,
-    physical: &crate::planner::physical::PhysicalPlan,
-) -> String {
-    let Some(index_name) = physical.read.selected_index.as_deref() else {
-        return "none".to_string();
-    };
-    let Some(index) = cassie.catalog.get_index(&physical.collection, index_name) else {
-        return "none".to_string();
-    };
-    if index.kind != crate::catalog::IndexKind::TimeSeries {
-        return "none".to_string();
-    }
-    if time_series_bucket_width_supported(index.options.get("bucket_width").map(String::as_str)) {
-        "bucket-native-v1".to_string()
-    } else {
-        "row-backed-fallback".to_string()
-    }
-}
-
-fn time_series_bucket_width_supported(raw: Option<&str>) -> bool {
-    let Some(raw) = raw else {
-        return false;
-    };
-    let mut parts = raw.split_whitespace();
-    let amount = parts.next().and_then(|value| value.parse::<u64>().ok());
-    let unit = parts.next().map(str::to_ascii_lowercase);
-    amount.is_some_and(|value| value > 0)
-        && parts.next().is_none()
-        && matches!(
-            unit.as_deref(),
-            Some("minute" | "minutes" | "hour" | "hours" | "day" | "days")
-        )
-}
-
-fn candidate_budget(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan) -> String {
-    physical
-        .top_k
-        .limit
-        .map(|top_needed| {
-            let limits = cassie.runtime.limits();
-            let feedback_budget = cassie
-                .runtime
-                .feedback_candidate_budget(&physical.collection)
-                .unwrap_or_default();
-            top_needed
-                .max(limits.adaptive_candidate_min)
-                .max(feedback_budget)
-                .min(limits.adaptive_candidate_max)
-        })
-        .map_or_else(|| "none".to_string(), |budget| budget.to_string())
-}
-
-#[derive(Clone, Copy)]
-enum DiagnosticFlag {
-    Enabled,
-    Disabled,
-}
-
-impl DiagnosticFlag {
-    const fn from_bool(value: bool) -> Self {
-        if value {
-            Self::Enabled
-        } else {
-            Self::Disabled
-        }
-    }
-
-    const fn is_enabled(self) -> bool {
-        matches!(self, Self::Enabled)
-    }
-}
-
-impl std::fmt::Display for DiagnosticFlag {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(match self {
-            Self::Enabled => "true",
-            Self::Disabled => "false",
-        })
-    }
-}
-
-struct Phase03Diagnostics {
-    column_native: DiagnosticFlag,
-    hybrid_row_column: DiagnosticFlag,
-    vectorized_aggregate: DiagnosticFlag,
-    parallel_pipeline: DiagnosticFlag,
-    analytical_projection: String,
-}
-
-fn phase03_diagnostics(
-    cassie: &Cassie,
-    physical: &crate::planner::physical::PhysicalPlan,
-) -> Phase03Diagnostics {
-    let column_native = physical.read.column_batch_index.is_some();
-    let hybrid_row_column = column_native
-        && (physical.logical.filter.is_some()
-            || !physical.logical.order.is_empty()
-            || !physical.logical.projection.is_empty());
-    let parallel_pipeline = physical.aggregate.parallel_candidate
-        || physical
-            .operators
-            .iter()
-            .any(|operator| matches!(operator, crate::planner::physical::Operator::VectorSearch));
-    let analytical_projection = cassie
-        .catalog
-        .list_projection_metadata()
-        .into_iter()
-        .filter_map(|metadata| metadata.materialized.map(|mat| (metadata.collection, mat)))
-        .find(|(_, materialized)| {
-            materialized
-                .options
-                .get("analytical")
-                .is_some_and(|value| value.eq_ignore_ascii_case("true"))
-                && materialized
-                    .source_collections
-                    .iter()
-                    .any(|source| source == &physical.collection)
-        })
-        .map_or_else(|| "none".to_string(), |(name, _)| name);
-
-    Phase03Diagnostics {
-        column_native: DiagnosticFlag::from_bool(column_native),
-        hybrid_row_column: DiagnosticFlag::from_bool(hybrid_row_column),
-        vectorized_aggregate: DiagnosticFlag::from_bool(physical.aggregate.acceleration),
-        parallel_pipeline: DiagnosticFlag::from_bool(parallel_pipeline),
-        analytical_projection,
-    }
-}
-
-struct MixedExecutionDiagnostics {
-    enabled: bool,
-    stages: String,
-    exact_baseline: &'static str,
-}
-
-fn mixed_execution_diagnostics(
-    physical: &crate::planner::physical::PhysicalPlan,
-) -> MixedExecutionDiagnostics {
-    let inputs = MixedExecutionInputs::from_plan(physical);
-    let enabled = inputs.is_enabled();
-    let stages = mixed_execution_stages(&inputs);
-
-    MixedExecutionDiagnostics {
-        enabled,
-        stages,
-        exact_baseline: if enabled {
-            "source_row_exact_baseline"
-        } else {
-            "none"
-        },
-    }
-}
-
-struct MixedExecutionInputs {
-    operators: MixedOperatorUse,
-    clauses: MixedClauseUse,
-}
-
-struct MixedOperatorUse {
-    fulltext: DiagnosticFlag,
-    vector: DiagnosticFlag,
-    aggregate: DiagnosticFlag,
-}
-
-struct MixedClauseUse {
-    filter: DiagnosticFlag,
-    order: DiagnosticFlag,
-    offset: DiagnosticFlag,
-    limit: DiagnosticFlag,
-}
-
-impl MixedExecutionInputs {
-    fn from_plan(physical: &crate::planner::physical::PhysicalPlan) -> Self {
-        Self {
-            operators: MixedOperatorUse {
-                fulltext: DiagnosticFlag::from_bool(has_operator(
-                    physical,
-                    &crate::planner::physical::Operator::FullTextSearch,
-                )),
-                vector: DiagnosticFlag::from_bool(has_operator(
-                    physical,
-                    &crate::planner::physical::Operator::VectorSearch,
-                )),
-                aggregate: DiagnosticFlag::from_bool(has_operator(
-                    physical,
-                    &crate::planner::physical::Operator::Aggregate,
-                )),
-            },
-            clauses: MixedClauseUse {
-                filter: DiagnosticFlag::from_bool(physical.logical.filter.is_some()),
-                order: DiagnosticFlag::from_bool(!physical.logical.order.is_empty()),
-                offset: DiagnosticFlag::from_bool(physical.logical.offset.is_some()),
-                limit: DiagnosticFlag::from_bool(physical.logical.limit.is_some()),
-            },
-        }
-    }
-
-    fn is_enabled(&self) -> bool {
-        let uses_fulltext = self.operators.fulltext.is_enabled();
-        let uses_vector = self.operators.vector.is_enabled();
-        let uses_aggregate = self.operators.aggregate.is_enabled();
-        (uses_fulltext && uses_vector) || ((uses_fulltext || uses_vector) && uses_aggregate)
-    }
-}
-
-fn has_operator(
-    physical: &crate::planner::physical::PhysicalPlan,
-    target: &crate::planner::physical::Operator,
-) -> bool {
-    physical.operators.contains(target)
-}
-
-fn mixed_execution_stages(inputs: &MixedExecutionInputs) -> String {
-    let mut stages = Vec::new();
-    let uses_search =
-        inputs.operators.fulltext.is_enabled() || inputs.operators.vector.is_enabled();
-    if uses_search {
-        stages.push("candidate_generation");
-    }
-    if inputs.clauses.filter.is_enabled() {
-        stages.push("metadata_prefilter");
-    }
-    if uses_search {
-        stages.push("exact_scoring");
-    }
-    if inputs.operators.aggregate.is_enabled() {
-        stages.push("analytical_grouping");
-    }
-    if inputs.clauses.order.is_enabled() {
-        stages.push("ordering");
-    }
-    if inputs.clauses.offset.is_enabled() {
-        stages.push("offset");
-    }
-    if inputs.clauses.limit.is_enabled() {
-        stages.push("limit");
-    }
-    if stages.is_empty() {
-        "none".to_string()
-    } else {
-        stages.join(">")
-    }
 }

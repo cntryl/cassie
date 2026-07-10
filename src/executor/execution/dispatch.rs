@@ -447,7 +447,7 @@ pub(super) fn resolve_exists_expr<'a>(
         Expr::Not { expr } => resolve_not_exists_expr(context, expr),
         Expr::Cast { expr, data_type } => resolve_cast_exists_expr(context, expr, data_type),
         Expr::Exists(statement) => {
-            let logical = build_logical_plan(statement.as_ref())?;
+            let logical = build_exists_logical_plan(context, statement.as_ref())?;
             let logical = bounded_exists_logical(logical);
             let mut subquery_context = context.cte_context.clone();
             let env = plan_execution_env(
@@ -547,6 +547,52 @@ fn resolve_cast_exists_expr<'a>(
     })
 }
 
+fn build_exists_logical_plan(
+    context: &ExistsResolutionContext<'_>,
+    statement: &crate::sql::ast::ParsedStatement,
+) -> Result<LogicalPlan, QueryError> {
+    let binding_context = exists_binding_context(context);
+    let bound = crate::sql::binder::bind_with_context(
+        statement.clone(),
+        &context.cassie.catalog,
+        &binding_context,
+    )
+    .map_err(|error| QueryError::General(error.to_string()))?;
+    let plan = crate::planner::logical::plan(&bound)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    if plan.command.is_some() {
+        return Err(QueryError::General(
+            "CTE statements cannot include command statements".into(),
+        ));
+    }
+    Ok(plan)
+}
+
+fn statement_binding_context(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+) -> crate::sql::binder::BindingContext {
+    let database = session
+        .and_then(CassieSession::current_database)
+        .unwrap_or(cassie.default_database.as_str())
+        .to_string();
+    let search_path = session.map_or_else(
+        || vec![crate::catalog::DEFAULT_SCHEMA.to_string()],
+        CassieSession::search_path,
+    );
+    if cassie.database_catalog_enforced() {
+        crate::sql::binder::BindingContext::scoped(database, search_path)
+    } else {
+        crate::sql::binder::BindingContext::unscoped(database, search_path)
+    }
+}
+
+fn exists_binding_context(
+    context: &ExistsResolutionContext<'_>,
+) -> crate::sql::binder::BindingContext {
+    statement_binding_context(context.cassie, context.session)
+}
+
 pub(super) fn build_logical_plan(
     statement: &crate::sql::ast::ParsedStatement,
 ) -> Result<LogicalPlan, QueryError> {
@@ -555,6 +601,26 @@ pub(super) fn build_logical_plan(
         indexes: Vec::new(),
     })
     .map_err(|error| QueryError::General(error.to_string()))?;
+
+    if plan.command.is_some() {
+        return Err(QueryError::General(
+            "CTE statements cannot include command statements".into(),
+        ));
+    }
+
+    Ok(plan)
+}
+
+pub(super) fn build_logical_plan_in_session(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    statement: &crate::sql::ast::ParsedStatement,
+) -> Result<LogicalPlan, QueryError> {
+    let context = statement_binding_context(cassie, session);
+    let bound = crate::sql::binder::bind_with_context(statement.clone(), &cassie.catalog, &context)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let plan = crate::planner::logical::plan(&bound)
+        .map_err(|error| QueryError::General(error.to_string()))?;
 
     if plan.command.is_some() {
         return Err(QueryError::General(

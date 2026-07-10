@@ -1,7 +1,7 @@
 use super::{
-    bind_select, collect_item, normalize_relation_name, resolve_relation_name,
-    validate_expression, validate_function_calls, virtual_views, BindingContext, CassieError,
-    Catalog, CatalogObjectKind, CollectionSchema, DataType, Expr, HashMap, HashSet, InsertSource,
+    bind_select, collect_item, normalize_relation_name, resolve_relation_name, validate_expression,
+    validate_function_calls, virtual_views, BindingContext, CassieError, Catalog,
+    CatalogObjectKind, CollectionSchema, DataType, Expr, HashMap, HashSet, InsertSource,
     SelectItem,
 };
 

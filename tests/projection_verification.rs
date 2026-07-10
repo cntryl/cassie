@@ -56,12 +56,13 @@ fn should_keep_row_hashes_deterministic_across_restart_schema_epoch_changes() {
                 vec![],
             )
             .unwrap();
-        let row_id = cassie.midge.scan_documents("projection_hash_docs").unwrap()[0]
+        let collection = canonical_test_collection(&cassie, "projection_hash_docs");
+        let row_id = cassie.midge.scan_documents(&collection).unwrap()[0]
             .id
             .clone();
         let first = cassie
             .midge
-            .row_hash("projection_hash_docs", &row_id)
+            .row_hash(&collection, &row_id)
             .unwrap()
             .unwrap();
         drop(cassie);
@@ -70,7 +71,7 @@ fn should_keep_row_hashes_deterministic_across_restart_schema_epoch_changes() {
         restarted.startup().unwrap();
         let restarted_hash = restarted
             .midge
-            .row_hash("projection_hash_docs", &row_id)
+            .row_hash(&collection, &row_id)
             .unwrap()
             .unwrap();
 
@@ -84,7 +85,7 @@ fn should_keep_row_hashes_deterministic_across_restart_schema_epoch_changes() {
             .unwrap();
         let schema_hash = restarted
             .midge
-            .row_hash("projection_hash_docs", &row_id)
+            .row_hash(&collection, &row_id)
             .unwrap()
             .unwrap();
         restarted
@@ -96,7 +97,7 @@ fn should_keep_row_hashes_deterministic_across_restart_schema_epoch_changes() {
             .unwrap();
         let updated_hash = restarted
             .midge
-            .row_hash("projection_hash_docs", &row_id)
+            .row_hash(&collection, &row_id)
             .unwrap()
             .unwrap();
 
@@ -141,24 +142,21 @@ fn should_report_empty_projection_root_after_delete() {
             .unwrap();
         let row_id = cassie
             .midge
-            .scan_documents("projection_delete_docs")
+            .scan_documents(&canonical_test_collection(
+                &cassie,
+                "projection_delete_docs",
+            ))
             .unwrap()[0]
             .id
             .clone();
+        let collection = canonical_test_collection(&cassie, "projection_delete_docs");
 
         // Act
         cassie
             .execute_sql(&session, "DELETE FROM projection_delete_docs", vec![])
             .unwrap();
-        let row_hash = cassie
-            .midge
-            .row_hash("projection_delete_docs", &row_id)
-            .unwrap();
-        let root = cassie
-            .midge
-            .root_hash("projection_delete_docs")
-            .unwrap()
-            .unwrap();
+        let row_hash = cassie.midge.row_hash(&collection, &row_id).unwrap();
+        let root = cassie.midge.root_hash(&collection).unwrap().unwrap();
 
         // Assert
         assert!(row_hash.is_none());
@@ -193,6 +191,7 @@ fn should_expose_projection_verification_state_through_catalog_views() {
                 vec![],
             )
             .unwrap();
+        let projection = canonical_test_collection(&cassie, "projection_view_docs");
 
         // Act
         let verified = cassie
@@ -205,21 +204,27 @@ fn should_expose_projection_verification_state_through_catalog_views() {
         let hashes = cassie
             .execute_sql(
                 &session,
-                "SELECT row_state, row_count, range_count, root_state FROM pg_catalog.pg_projection_hashes WHERE projection_name = 'projection_view_docs'",
+                &format!(
+                    "SELECT row_state, row_count, range_count, root_state FROM pg_catalog.pg_projection_hashes WHERE projection_name = '{projection}'"
+                ),
                 vec![],
             )
             .unwrap();
         let operations = cassie
             .execute_sql(
                 &session,
-                "SELECT freshness, verification_state, root_state FROM pg_catalog.pg_projection_operations WHERE projection_name = 'projection_view_docs'",
+                &format!(
+                    "SELECT freshness, verification_state, root_state FROM pg_catalog.pg_projection_operations WHERE projection_name = '{projection}'"
+                ),
                 vec![],
             )
             .unwrap();
         let reports = cassie
             .execute_sql(
                 &session,
-                "SELECT state, mode, mismatch_count, missing_count, stale_count FROM pg_catalog.pg_projection_integrity_reports WHERE projection_name = 'projection_view_docs'",
+                &format!(
+                    "SELECT state, mode, mismatch_count, missing_count, stale_count FROM pg_catalog.pg_projection_integrity_reports WHERE projection_name = '{projection}'"
+                ),
                 vec![],
             )
             .unwrap();
@@ -286,13 +291,9 @@ fn should_report_integrity_failure_for_corrupt_row_hash() {
                 vec![],
             )
             .unwrap();
-        let mut row_hash = cassie
-            .midge
-            .list_row_hashes("projection_corrupt_docs")
-            .unwrap()[0]
-            .clone();
-        let row_hash_key =
-            row_hash_storage_key(&cassie, "projection_corrupt_docs", &row_hash.row_id);
+        let collection = canonical_test_collection(&cassie, "projection_corrupt_docs");
+        let mut row_hash = cassie.midge.list_row_hashes(&collection).unwrap()[0].clone();
+        let row_hash_key = row_hash_storage_key(&cassie, &collection, &row_hash.row_id);
         row_hash.digest = "00000000000000000000000000000000".to_string();
         let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
         tx.put(row_hash_key, serde_json::to_vec(&row_hash).unwrap(), None)
@@ -320,6 +321,7 @@ fn should_report_integrity_failure_for_corrupt_row_hash() {
 }
 
 fn row_hash_storage_key(cassie: &Cassie, collection: &str, row_id: &str) -> Vec<u8> {
+    let collection = canonical_test_collection(cassie, collection);
     cassie
         .midge
         .raw_scan_prefix(StorageFamily::Data, b"")

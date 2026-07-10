@@ -4,6 +4,7 @@ use std::thread;
 use std::{fmt::Write as FmtWrite, path::Path};
 
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::config::{
     CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig,
     SelfHostedEmbeddingRuntimeConfig,
@@ -82,6 +83,10 @@ fn data_dir(label: &str) -> String {
     path.to_string_lossy().to_string()
 }
 
+fn canonical_collection(name: &str) -> String {
+    canonical_relation_name("postgres", "public", name)
+}
+
 fn openai_runtime_with_server(base_url: String) -> CassieRuntimeConfig {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::OpenAI(OpenAiRuntimeConfig {
@@ -150,6 +155,7 @@ fn ollama_response_body(vectors: &[Vec<f32>]) -> String {
 }
 
 fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str) {
+    let collection = canonical_collection(collection);
     let entries = cassie
         .midge
         .raw_scan_prefix(StorageFamily::Data, b"")
@@ -635,7 +641,7 @@ fn should_create_hnsw_vector_index_with_rest_option_parity() {
     );
     let stored = cassie
         .midge
-        .get_vector_index("rest_hnsw_options", "embedding")
+        .get_vector_index(&canonical_collection("rest_hnsw_options"), "embedding")
         .unwrap()
         .expect("stored vector index");
 

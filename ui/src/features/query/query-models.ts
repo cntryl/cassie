@@ -1,3 +1,5 @@
+import type { QueryExplainPlan } from "@/adapters";
+
 export type QuerySchemaSectionId = "tables" | "views" | "indexes" | "udfs" | "procedures";
 
 export type QuerySchemaItemKind = "table" | "view" | "index" | "udf" | "procedure";
@@ -43,6 +45,7 @@ export interface QueryExecutionResult {
   command: string;
   columns: string[];
   rows: Array<Array<string | null>>;
+  plan?: QueryExplainPlan;
 }
 
 export interface QueryValidationResult {
@@ -50,3 +53,5 @@ export interface QueryValidationResult {
   columns: string[];
   valid: boolean;
 }
+
+export type QueryStatus = "idle" | "running" | "explaining" | "validating";

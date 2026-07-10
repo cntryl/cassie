@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
 
-use cassie::app::Cassie;
+use cassie::app::{Cassie, CassieSession};
 use cassie::app::{ProjectionReplayBatch, ProjectionReplayEvent};
 use cassie::catalog::ProjectionVerificationState;
 use cassie::sql::ast::{
@@ -11,6 +11,60 @@ use cassie::types::Value;
 #[path = "support/sql.rs"]
 mod support;
 use support::*;
+
+fn execute_statement(cassie: &Cassie, session: &CassieSession, sql: &str) {
+    cassie.execute_sql(session, sql, vec![]).unwrap();
+}
+
+fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
+    cassie.execute_sql(session, sql, vec![]).unwrap().rows
+}
+
+fn seed_materialized_projection_version_fixture(
+    cassie: &Cassie,
+    session: &CassieSession,
+) -> String {
+    execute_statement(
+        cassie,
+        session,
+        "CREATE TABLE projection_version_docs (title TEXT)",
+    );
+    execute_statement(
+        cassie,
+        session,
+        "INSERT INTO projection_version_docs (title) VALUES ('alpha')",
+    );
+    execute_statement(
+        cassie,
+        session,
+        "CREATE MATERIALIZED PROJECTION projection_versioned AS SELECT title FROM projection_version_docs",
+    );
+    let projection = cassie
+        .catalog
+        .get_materialized_projection("projection_versioned")
+        .expect("materialized projection metadata")
+        .collection;
+    execute_statement(
+        cassie,
+        session,
+        "INSERT INTO projection_version_docs (title) VALUES ('bravo')",
+    );
+    projection
+}
+
+fn projection_version_rows(
+    cassie: &Cassie,
+    session: &CassieSession,
+    projection: &str,
+) -> Vec<Vec<Value>> {
+    query_rows(
+        cassie,
+        session,
+        &format!(
+            "SELECT version_id, state FROM pg_catalog.pg_projection_versions WHERE projection_name = '{projection}' ORDER BY version_id"
+        ),
+    )
+}
 
 #[test]
 fn should_parse_materialized_projection_lifecycle_commands() {
@@ -74,8 +128,9 @@ fn should_replay_projection_batch_idempotently_with_checkpoint_metadata() {
                 vec![],
             )
             .unwrap();
+        let projection = canonical_test_collection(&cassie, "projection_replay_docs");
         let batch = ProjectionReplayBatch {
-            projection: "projection_replay_docs".to_string(),
+            projection: projection.clone(),
             source_identity: "orders-stream".to_string(),
             batch_id: "batch-1".to_string(),
             lag: 0,
@@ -101,7 +156,9 @@ fn should_replay_projection_batch_idempotently_with_checkpoint_metadata() {
         let checkpoint = cassie
             .execute_sql(
                 &session,
-                "SELECT source_identity, source_checkpoint, last_applied_event_id, replay_batch_id, freshness FROM pg_catalog.pg_projection_checkpoints WHERE collection = 'projection_replay_docs'",
+                &format!(
+                    "SELECT source_identity, source_checkpoint, last_applied_event_id, replay_batch_id, freshness FROM pg_catalog.pg_projection_checkpoints WHERE collection = '{projection}'"
+                ),
                 vec![],
             )
             .unwrap();
@@ -153,9 +210,10 @@ fn should_skip_existing_projection_events_while_applying_new_replay_events() {
                 vec![],
             )
             .unwrap();
+        let projection = canonical_test_collection(&cassie, "projection_replay_mixed_docs");
         cassie
             .replay_projection_batch(ProjectionReplayBatch {
-                projection: "projection_replay_mixed_docs".to_string(),
+                projection: projection.clone(),
                 source_identity: "orders-stream".to_string(),
                 batch_id: "batch-1".to_string(),
                 lag: 0,
@@ -172,7 +230,7 @@ fn should_skip_existing_projection_events_while_applying_new_replay_events() {
         // Act
         let replay = cassie
             .replay_projection_batch(ProjectionReplayBatch {
-                projection: "projection_replay_mixed_docs".to_string(),
+                projection,
                 source_identity: "orders-stream".to_string(),
                 batch_id: "batch-2".to_string(),
                 lag: 0,
@@ -238,6 +296,7 @@ fn should_mark_large_replay_hashes_stale_without_eager_rebuild() {
                 vec![],
             )
             .unwrap();
+        let projection = canonical_test_collection(&cassie, "projection_replay_large_docs");
         let mut csv = String::new();
         for index in 0..600 {
             use std::fmt::Write as _;
@@ -247,7 +306,7 @@ fn should_mark_large_replay_hashes_stale_without_eager_rebuild() {
             .copy_from_csv_stdin(
                 &session,
                 &CopyStatement {
-                    table: "projection_replay_large_docs".to_string(),
+                    table: projection.clone(),
                     columns: vec!["_id".to_string(), "title".to_string(), "score".to_string()],
                     format: CopyFormat::Csv,
                     header: false,
@@ -259,7 +318,7 @@ fn should_mark_large_replay_hashes_stale_without_eager_rebuild() {
         // Act
         cassie
             .replay_projection_batch(ProjectionReplayBatch {
-                projection: "projection_replay_large_docs".to_string(),
+                projection,
                 source_identity: "large-replay-stream".to_string(),
                 batch_id: "large-replay-batch".to_string(),
                 lag: 0,
@@ -323,9 +382,10 @@ fn should_report_failed_freshness_for_out_of_order_replay() {
                 vec![],
             )
             .unwrap();
+        let projection = canonical_test_collection(&cassie, "projection_replay_order_docs");
         cassie
             .replay_projection_batch(ProjectionReplayBatch {
-                projection: "projection_replay_order_docs".to_string(),
+                projection: projection.clone(),
                 source_identity: "orders-stream".to_string(),
                 batch_id: "batch-1".to_string(),
                 lag: 0,
@@ -342,7 +402,7 @@ fn should_report_failed_freshness_for_out_of_order_replay() {
         // Act
         let error = cassie
             .replay_projection_batch(ProjectionReplayBatch {
-                projection: "projection_replay_order_docs".to_string(),
+                projection: projection.clone(),
                 source_identity: "orders-stream".to_string(),
                 batch_id: "batch-2".to_string(),
                 lag: 1,
@@ -358,7 +418,9 @@ fn should_report_failed_freshness_for_out_of_order_replay() {
         let checkpoint = cassie
             .execute_sql(
                 &session,
-                "SELECT freshness, last_error FROM pg_catalog.pg_projection_checkpoints WHERE collection = 'projection_replay_order_docs'",
+                &format!(
+                    "SELECT freshness, last_error FROM pg_catalog.pg_projection_checkpoints WHERE collection = '{projection}'"
+                ),
                 vec![],
             )
             .unwrap();
@@ -394,11 +456,12 @@ fn should_fail_duplicate_event_id_in_batch_without_partial_replay() {
                 vec![],
             )
             .unwrap();
+        let projection = canonical_test_collection(&cassie, "projection_replay_conflict_docs");
 
         // Act
         let error = cassie
             .replay_projection_batch(ProjectionReplayBatch {
-                projection: "projection_replay_conflict_docs".to_string(),
+                projection: projection.clone(),
                 source_identity: "orders-stream".to_string(),
                 batch_id: "batch-conflict".to_string(),
                 lag: 2,
@@ -430,7 +493,9 @@ fn should_fail_duplicate_event_id_in_batch_without_partial_replay() {
         let checkpoint = cassie
             .execute_sql(
                 &session,
-                "SELECT freshness, replay_batch_id, source_checkpoint, last_applied_event_id, last_error FROM pg_catalog.pg_projection_checkpoints WHERE collection = 'projection_replay_conflict_docs'",
+                &format!(
+                    "SELECT freshness, replay_batch_id, source_checkpoint, last_applied_event_id, last_error FROM pg_catalog.pg_projection_checkpoints WHERE collection = '{projection}'"
+                ),
                 vec![],
             )
             .unwrap();
@@ -442,7 +507,9 @@ fn should_fail_duplicate_event_id_in_batch_without_partial_replay() {
         let restarted_checkpoint = restarted
             .execute_sql(
                 &restarted_session,
-                "SELECT freshness, replay_batch_id, source_checkpoint, last_applied_event_id, last_error FROM pg_catalog.pg_projection_checkpoints WHERE collection = 'projection_replay_conflict_docs'",
+                &format!(
+                    "SELECT freshness, replay_batch_id, source_checkpoint, last_applied_event_id, last_error FROM pg_catalog.pg_projection_checkpoints WHERE collection = '{projection}'"
+                ),
                 vec![],
             )
             .unwrap();
@@ -502,6 +569,11 @@ fn should_refresh_materialized_projection_after_source_write() {
                 vec![],
             )
             .unwrap();
+        let projection = cassie
+            .catalog
+            .get_materialized_projection("projection_ready")
+            .expect("materialized projection metadata")
+            .collection;
         let initial = cassie
             .execute_sql(
                 &session,
@@ -519,7 +591,9 @@ fn should_refresh_materialized_projection_after_source_write() {
         let stale = cassie
             .execute_sql(
                 &session,
-                "SELECT state FROM pg_catalog.pg_materialized_projections WHERE projection_name = 'projection_ready'",
+                &format!(
+                    "SELECT state FROM pg_catalog.pg_materialized_projections WHERE projection_name = '{projection}'"
+                ),
                 vec![],
             )
             .unwrap();
@@ -618,93 +692,47 @@ fn should_activate_built_materialized_projection_version() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE projection_version_docs (title TEXT)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO projection_version_docs (title) VALUES ('alpha')",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE MATERIALIZED PROJECTION projection_versioned AS SELECT title FROM projection_version_docs",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO projection_version_docs (title) VALUES ('bravo')",
-                vec![],
-            )
-            .unwrap();
+        let projection = seed_materialized_projection_version_fixture(&cassie, &session);
 
         // Act
-        cassie
-            .execute_sql(
-                &session,
-                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
-                vec![],
-            )
-            .unwrap();
-        let before_swap = cassie
-            .execute_sql(
-                &session,
-                "SELECT title FROM projection_versioned ORDER BY title",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "ALTER MATERIALIZED PROJECTION projection_versioned ACTIVATE VERSION v2",
-                vec![],
-            )
-            .unwrap();
-        let after_swap = cassie
-            .execute_sql(
-                &session,
-                "SELECT title FROM projection_versioned ORDER BY title",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "DROP MATERIALIZED PROJECTION VERSION projection_versioned VERSION v1",
-                vec![],
-            )
-            .unwrap();
-        let versions = cassie
-            .execute_sql(
-                &session,
-                "SELECT version_id, state FROM pg_catalog.pg_projection_versions WHERE projection_name = 'projection_versioned' ORDER BY version_id",
-                vec![],
-            )
-            .unwrap();
+        execute_statement(
+            &cassie,
+            &session,
+            "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+        );
+        let before_swap = query_rows(
+            &cassie,
+            &session,
+            "SELECT title FROM projection_versioned ORDER BY title",
+        );
+        execute_statement(
+            &cassie,
+            &session,
+            "ALTER MATERIALIZED PROJECTION projection_versioned ACTIVATE VERSION v2",
+        );
+        let after_swap = query_rows(
+            &cassie,
+            &session,
+            "SELECT title FROM projection_versioned ORDER BY title",
+        );
+        execute_statement(
+            &cassie,
+            &session,
+            "DROP MATERIALIZED PROJECTION VERSION projection_versioned VERSION v1",
+        );
+        let versions = projection_version_rows(&cassie, &session, &projection);
 
         // Assert
+        assert_eq!(before_swap, vec![vec![Value::String("alpha".to_string())]]);
         assert_eq!(
-            before_swap.rows,
-            vec![vec![Value::String("alpha".to_string())]]
-        );
-        assert_eq!(
-            after_swap.rows,
+            after_swap,
             vec![
                 vec![Value::String("alpha".to_string())],
                 vec![Value::String("bravo".to_string())],
             ]
         );
         assert_eq!(
-            versions.rows,
+            versions,
             vec![vec![
                 Value::String("v2".to_string()),
                 Value::String("active".to_string())

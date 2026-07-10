@@ -15,7 +15,8 @@ impl Midge {
             let metadata = DatabaseMeta::new(name, description);
             let value = serde_json::to_vec(&metadata)
                 .map_err(|error| CassieError::Parse(error.to_string()))?;
-            tx.put(database_key, value, None).map_err(CassieError::from)?;
+            tx.put(database_key, value, None)
+                .map_err(CassieError::from)?;
         }
 
         let mut databases = Self::load_databases(&tx)?;

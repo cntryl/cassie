@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
@@ -217,8 +218,15 @@ fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
     fields
 }
 
+fn error_field(fields: &[(char, String)], tag: char) -> Option<&str> {
+    fields
+        .iter()
+        .find(|(field, _)| *field == tag)
+        .map(|(_, value)| value.as_str())
+}
+
 fn seed_copy_collection(cassie: &Cassie) {
-    let collection = "simple_copy_docs";
+    let collection = canonical_relation_name("postgres", "public", "simple_copy_docs");
     let schema = Schema {
         fields: vec![
             FieldSchema {
@@ -235,13 +243,13 @@ fn seed_copy_collection(cassie: &Cassie) {
     };
     cassie
         .midge
-        .create_collection(collection, schema.clone())
+        .create_collection(&collection, schema.clone())
         .unwrap();
-    cassie.register_collection(collection, schema);
+    cassie.register_collection(&collection, schema);
 }
 
 fn seed_simple_query_collection(cassie: &Cassie) {
-    let collection = "simple_query_docs";
+    let collection = canonical_relation_name("postgres", "public", "simple_query_docs");
     let schema = Schema {
         fields: vec![FieldSchema {
             name: "title".to_string(),
@@ -251,13 +259,13 @@ fn seed_simple_query_collection(cassie: &Cassie) {
     };
     cassie
         .midge
-        .create_collection(collection, schema.clone())
+        .create_collection(&collection, schema.clone())
         .unwrap();
-    cassie.register_collection(collection, schema);
+    cassie.register_collection(&collection, schema);
     cassie
         .midge
         .put_document(
-            collection,
+            &collection,
             Some("doc-1".to_string()),
             serde_json::json!({"title": "alpha"}),
         )
@@ -293,7 +301,7 @@ async fn spawn_pgwire_server_with_config(
 }
 
 async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {
-    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "testdb"))
+    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "postgres"))
         .await
         .expect("write startup");
     let (auth_tag, auth_payload) = read_wire_frame(reader).await;
@@ -391,7 +399,12 @@ async fn send_copy_rows(
 }
 
 fn assert_copy_complete_frames(complete: &WireFrame, ready: &WireFrame) {
-    assert_eq!(complete.0, b'C', "copy should complete command");
+    assert_eq!(
+        complete.0,
+        b'C',
+        "copy should complete command: {:?}",
+        parse_error_fields(&complete.1)
+    );
     let mut command_cursor = 0usize;
     assert_eq!(read_cstring(&complete.1, &mut command_cursor), "COPY 2");
     assert_eq!(ready.0, b'Z');
@@ -547,7 +560,7 @@ fn should_return_row_description_for_empty_simple_query_result() {
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
 
-        let collection = "simple_query_empty_docs";
+        let collection = canonical_relation_name("postgres", "public", "simple_query_empty_docs");
         let schema = Schema {
             fields: vec![FieldSchema {
                 name: "title".to_string(),
@@ -557,9 +570,9 @@ fn should_return_row_description_for_empty_simple_query_result() {
         };
         cassie
             .midge
-            .create_collection(collection, schema.clone())
+            .create_collection(&collection, schema.clone())
             .unwrap();
-        cassie.register_collection(collection, schema);
+        cassie.register_collection(&collection, schema);
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -698,6 +711,64 @@ fn should_recover_ready_after_simple_query_error() {
                 *field == 'M' && value.contains("missing_simple_query_table")
             }),
             "error response should mention the missing table"
+        );
+        assert_eq!(ready.1, vec![b'I']);
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_report_retryable_storage_error_with_cannot_connect_now_sqlstate() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("retryable_storage");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        cassie.startup().unwrap();
+        let (addr, server) = spawn_pgwire_server(&cassie).await;
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+
+        // Act
+        start_pgwire_session(&mut reader, &mut write_half).await;
+        cassie::pgwire::connection::arm_next_pgwire_blocking_retryable_failure_for_test(
+            &cassie,
+            "pgwire blocking boundary test retryable failure",
+        );
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &simple_query_frame("SELECT version()"),
+        )
+        .await
+        .expect("write query");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("flush query");
+        let error = read_wire_frame(&mut reader).await;
+        let ready = read_wire_frame(&mut reader).await;
+        let error_fields = parse_error_fields(&error.1);
+
+        // Assert
+        assert_eq!(error.0, b'E');
+        assert_eq!(ready.0, b'Z');
+        assert_eq!(error_field(&error_fields, 'C'), Some("57P03"));
+        assert_eq!(
+            error_field(&error_fields, 'M'),
+            Some("temporary storage unavailable: pgwire blocking boundary test retryable failure")
         );
         assert_eq!(ready.1, vec![b'I']);
 

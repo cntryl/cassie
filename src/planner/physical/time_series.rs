@@ -1,4 +1,5 @@
 use super::{BTreeSet, BinaryOp, Expr, IndexKind, IndexMeta};
+use crate::catalog::name_matches;
 
 pub(super) fn selected_time_series_index(
     collection: &str,
@@ -11,7 +12,9 @@ pub(super) fn selected_time_series_index(
     }
     indexes
         .iter()
-        .filter(|index| index.collection == collection && index.kind == IndexKind::TimeSeries)
+        .filter(|index| {
+            name_matches(&index.collection, collection) && index.kind == IndexKind::TimeSeries
+        })
         .find(|index| {
             index
                 .normalized_fields()

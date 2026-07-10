@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
@@ -113,7 +114,7 @@ async fn read_until_ready(
 }
 
 fn seed_pgwire_metrics_collection(cassie: &Cassie) {
-    let collection = "pgwire_metrics_docs";
+    let collection = canonical_relation_name("postgres", "public", "pgwire_metrics_docs");
     let schema = Schema {
         fields: vec![FieldSchema {
             name: "title".to_string(),
@@ -124,10 +125,10 @@ fn seed_pgwire_metrics_collection(cassie: &Cassie) {
 
     cassie
         .midge
-        .create_collection(collection, schema.clone())
+        .create_collection(&collection, schema.clone())
         .unwrap();
     cassie.catalog.register_collection(
-        collection,
+        &collection,
         schema
             .fields
             .iter()
@@ -137,7 +138,7 @@ fn seed_pgwire_metrics_collection(cassie: &Cassie) {
     cassie
         .midge
         .put_document(
-            collection,
+            &collection,
             Some("doc-1".to_string()),
             serde_json::json!({"title": "alpha"}),
         )
@@ -170,7 +171,7 @@ async fn run_pgwire_metrics_query(addr: SocketAddr) -> Vec<WireFrame> {
     let (read_half, mut write_half) = socket.split();
     let mut reader = tokio::io::BufReader::new(read_half);
 
-    let startup = startup_frame("postgres", "testdb");
+    let startup = startup_frame("postgres", "postgres");
     tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
         .await
         .expect("startup write");

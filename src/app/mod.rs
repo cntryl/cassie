@@ -94,5 +94,6 @@ mod vector_search;
 mod write_refresh;
 
 pub use consistency::ProjectionManifestExportOptions;
+pub use query_explain::{QueryExplainOutput, QueryExplainPlan};
 pub use replay::{ProjectionReplayBatch, ProjectionReplayEvent, ProjectionReplayReport};
 pub use snapshots::{CassieSnapshotManifest, CassieSnapshotOptions};

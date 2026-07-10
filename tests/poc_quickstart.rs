@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::types::Value;
 use uuid::Uuid;
 
@@ -75,7 +76,11 @@ fn should_execute_embedded_read_model_poc_flow() {
     let Value::String(plan) = &explain.rows[0][0] else {
         panic!("expected textual plan");
     };
-    assert!(plan.contains("index=poc_orders_lookup_idx"), "plan={plan}");
+    let expected_index = canonical_relation_name("postgres", "public", "poc_orders_lookup_idx");
+    assert!(
+        plan.contains(&format!("index={expected_index}")),
+        "plan={plan}"
+    );
 
     let _ = std::fs::remove_dir_all(path);
 }

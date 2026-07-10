@@ -123,10 +123,10 @@ impl Midge {
     fn complete_drop_index_cleanup(&self, table: &str, index: &str) -> Result<(), CassieError> {
         if let Some(metadata) = self.get_index(table, index)? {
             if matches!(metadata.kind, IndexKind::Vector) {
-                self.delete_vector_index(table, &metadata.field)?;
+                self.delete_vector_index(&metadata.collection, &metadata.field)?;
             }
             if matches!(metadata.kind, IndexKind::Column) {
-                self.delete_column_batches(table, &metadata.name)?;
+                self.delete_column_batches(&metadata.collection, &metadata.name)?;
             }
         }
         self.delete_index(table, index)

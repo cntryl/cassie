@@ -32,7 +32,9 @@ fn command_outcome(
     controls: &QueryExecutionControls,
 ) -> CommandExecution {
     execute_session_or_dml_command(cassie, session, command, params, user_functions, controls)
-        .or_else(|| execute_projection_command_group(cassie, command, user_functions, controls))
+        .or_else(|| {
+            execute_projection_command_group(cassie, session, command, user_functions, controls)
+        })
         .or_else(|| execute_retention_sequence_group(cassie, command, user_functions, controls))
         .or_else(|| execute_schema_object_group(cassie, session, command))
         .or_else(|| {
@@ -89,6 +91,7 @@ fn execute_session_or_dml_command(
 
 fn execute_projection_command_group(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     command: &LogicalCommand,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
@@ -107,6 +110,7 @@ fn execute_projection_command_group(
             Some(CommandExecution::invalidating(
                 super::materialized_projection::create_materialized_projection(
                     cassie,
+                    session,
                     statement,
                     user_functions,
                     controls,
@@ -117,6 +121,7 @@ fn execute_projection_command_group(
             Some(CommandExecution::invalidating(
                 super::materialized_projection::refresh_materialized_projection(
                     cassie,
+                    session,
                     &statement.name,
                     user_functions,
                     controls,

@@ -11,8 +11,8 @@ pub mod repair;
 pub mod retention;
 pub mod roles;
 pub mod rollups;
-pub mod scope;
 pub mod schemas;
+pub mod scope;
 pub mod sequences;
 pub mod virtual_views;
 
@@ -55,14 +55,14 @@ pub use rollups::{
     output_collection_name, RollupAggregateMeta, RollupDefinition, RollupMeta, RollupRefreshCursor,
     RollupState,
 };
+pub use schemas::{CollectionSchema, FieldMeta};
 pub use scope::{
     canonical_relation_name, canonical_schema_name, derive_scoped_name, is_reserved_namespace,
-    is_system_schema, local_name, name_matches, parse_name, relation_belongs_to_database,
-    relation_database_name, relation_schema_name, schema_belongs_to_database,
-    schema_database_name, split_identifier_path, DatabaseMeta, ParsedName, RelationId, SchemaId,
-    DEFAULT_SCHEMA, INFORMATION_SCHEMA, PG_CATALOG_SCHEMA,
+    is_system_schema, local_name, name_matches, parse_name, qualifier_variants,
+    relation_belongs_to_database, relation_database_name, relation_schema_name,
+    schema_belongs_to_database, schema_database_name, split_identifier_path, DatabaseMeta,
+    ParsedName, RelationId, SchemaId, DEFAULT_SCHEMA, INFORMATION_SCHEMA, PG_CATALOG_SCHEMA,
 };
-pub use schemas::{CollectionSchema, FieldMeta};
 pub use sequences::{
     canonical_nextval_expression, parse_nextval_default_expression, serial_sequence_name,
     SequenceMeta,

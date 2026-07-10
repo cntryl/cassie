@@ -6,7 +6,7 @@ use cassie::catalog::CollectionCardinalityStats;
 #[path = "support/sql.rs"]
 mod support;
 
-use support::{data_dir, with_fallback};
+use support::{canonical_test_collection, data_dir, with_fallback};
 
 fn metric_delta(after: &serde_json::Value, before: &serde_json::Value, key: &str) -> u64 {
     after["cardinality"][key]
@@ -36,21 +36,22 @@ fn should_increment_cardinality_for_unindexed_document_write_without_rebuild() {
                 vec![],
             )
             .unwrap();
+        let collection = canonical_test_collection(&cassie, "incremental_docs");
         let before = cassie.metrics();
 
         // Act
         let id = cassie
             .ingest_document(
-                "incremental_docs",
+                &collection,
                 serde_json::json!({"title": "alpha", "body": "bravo"}),
             )
             .unwrap();
         let after_insert = cassie.metrics();
         let insert_stats = cassie
             .catalog
-            .get_cardinality_stats("incremental_docs")
+            .get_cardinality_stats(&collection)
             .expect("insert cardinality stats");
-        cassie::rest::documents::delete(&cassie, "incremental_docs", &id).unwrap();
+        cassie::rest::documents::delete(&cassie, &collection, &id).unwrap();
         let after_delete = cassie.metrics();
 
         // Assert
@@ -58,7 +59,7 @@ fn should_increment_cardinality_for_unindexed_document_write_without_rebuild() {
         assert!(insert_stats.hydrated);
         let delete_stats = cassie
             .catalog
-            .get_cardinality_stats("incremental_docs")
+            .get_cardinality_stats(&collection)
             .expect("incremental cardinality stats");
         assert_eq!(delete_stats.row_count, 0);
         assert!(delete_stats.hydrated);
@@ -92,6 +93,7 @@ fn should_rebuild_cardinality_when_index_membership_changes() {
                 vec![],
             )
             .unwrap();
+        let collection = canonical_test_collection(&cassie, "indexed_docs");
         cassie
             .execute_sql(
                 &session,
@@ -104,7 +106,7 @@ fn should_rebuild_cardinality_when_index_membership_changes() {
         // Act
         cassie
             .ingest_document(
-                "indexed_docs",
+                &collection,
                 serde_json::json!({"title": "alpha", "body": "bravo"}),
             )
             .unwrap();
@@ -113,13 +115,15 @@ fn should_rebuild_cardinality_when_index_membership_changes() {
         // Assert
         let stats = cassie
             .catalog
-            .get_cardinality_stats("indexed_docs")
+            .get_cardinality_stats(&collection)
             .expect("indexed cardinality stats");
+        let index = cassie
+            .catalog
+            .get_index(&collection, "idx_indexed_title")
+            .expect("index metadata");
         assert_eq!(stats.row_count, 1);
         assert_eq!(
-            stats.index_cardinality(&CollectionCardinalityStats::scalar_index_key(
-                "idx_indexed_title"
-            )),
+            stats.index_cardinality(&CollectionCardinalityStats::scalar_index_key(&index.name)),
             Some(1)
         );
         assert_eq!(metric_delta(&after, &before, "rebuilds"), 1);

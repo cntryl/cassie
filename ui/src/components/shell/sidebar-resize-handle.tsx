@@ -1,6 +1,4 @@
-import { state } from "@askrjs/askr";
-
-import { clamp } from "@/components/query/resizable-split";
+import { createDragResize } from "@/shared/drag-resize";
 
 export const SIDEBAR_WIDTH_MIN_PX = 224;
 export const SIDEBAR_WIDTH_MAX_PX = 512;
@@ -16,117 +14,36 @@ export function SidebarResizeHandle({
   onDragMove,
   onDragEnd,
 }: SidebarResizeHandleProps) {
-  const [px, setPx] = state(clamp(initialPx, SIDEBAR_WIDTH_MIN_PX, SIDEBAR_WIDTH_MAX_PX));
-  const [dragging, setDragging] = state(false);
-  let startClientX = 0;
-  let startPx = 0;
-  let handleEl: HTMLElement | null = null;
-
-  function setHandleEl(node: HTMLElement | null) {
-    handleEl = node;
-  }
-
-  // During drag, only mutate the CSS var (via onDragMove, already imperative
-  // in _layout.tsx) and aria-valuenow directly — a raw pointermove stream can
-  // fire dozens of times a second, and committing state() that often forces a
-  // full component re-render per event, which is what made dragging feel
-  // janky. state() is only committed once, at drag end (or per discrete
-  // keyboard step).
-  function applyPxImperative(nextPx: number) {
-    const clamped = clamp(nextPx, SIDEBAR_WIDTH_MIN_PX, SIDEBAR_WIDTH_MAX_PX);
-    onDragMove(clamped);
-    handleEl?.setAttribute("aria-valuenow", String(Math.round(clamped)));
-    return clamped;
-  }
-
-  function onPointerDown(event: PointerEvent) {
-    const target = event.currentTarget;
-    if (!(target instanceof HTMLElement)) {
-      return;
-    }
-
-    setDragging(true);
-    startClientX = event.clientX;
-    startPx = px();
-    event.preventDefault();
-    target.setPointerCapture(event.pointerId);
-  }
-
-  function onPointerMove(event: PointerEvent) {
-    if (!dragging()) {
-      return;
-    }
-
-    applyPxImperative(startPx + (event.clientX - startClientX));
-    event.preventDefault();
-  }
-
-  function onPointerUp(event: PointerEvent) {
-    if (!dragging()) {
-      return;
-    }
-
-    const target = event.currentTarget;
-    if (target instanceof HTMLElement) {
-      target.releasePointerCapture(event.pointerId);
-    }
-
-    const finalPx = applyPxImperative(startPx + (event.clientX - startClientX));
-    setPx(finalPx);
-    setDragging(false);
-    onDragEnd(finalPx);
-  }
-
-  function onKeyDown(event: KeyboardEvent) {
-    const smallStep = 16;
-    const largeStep = 48;
-    const step = event.shiftKey ? largeStep : smallStep;
-    const current = px();
-
-    const nextPx = (() => {
-      if (event.key === "Home") {
-        return SIDEBAR_WIDTH_MIN_PX;
-      }
-      if (event.key === "End") {
-        return SIDEBAR_WIDTH_MAX_PX;
-      }
-      if (event.key === "ArrowLeft") {
-        return current - step;
-      }
-      if (event.key === "ArrowRight") {
-        return current + step;
-      }
-
-      return null;
-    })();
-
-    if (nextPx === null) {
-      return;
-    }
-
-    event.preventDefault();
-    const clamped = applyPxImperative(nextPx);
-    setPx(clamped);
-    onDragEnd(clamped);
-  }
+  const resize = createDragResize({
+    min: SIDEBAR_WIDTH_MIN_PX,
+    max: SIDEBAR_WIDTH_MAX_PX,
+    initialValue: initialPx,
+    smallStep: 16,
+    largeStep: 48,
+    decreaseKeys: ["ArrowLeft"],
+    increaseKeys: ["ArrowRight"],
+    computeNextValue: (event, start) => start.value + (event.clientX - start.clientX),
+    applyValue: onDragMove,
+    onCommit: onDragEnd,
+  });
 
   return (
     <div
       class="cassie-admin-sidebar-resize-handle"
-      ref={setHandleEl}
+      ref={resize.setHandleEl}
       data-testid="admin-sidebar-resize-handle"
-      data-dragging={dragging() ? "true" : undefined}
+      data-dragging={resize.dragging() ? "true" : undefined}
       role="separator"
       aria-orientation="horizontal"
       aria-label="Resize navigation sidebar"
       aria-valuemin={SIDEBAR_WIDTH_MIN_PX}
       aria-valuemax={SIDEBAR_WIDTH_MAX_PX}
-      aria-valuenow={Math.round(px())}
+      aria-valuenow={Math.round(resize.value())}
       tabIndex={0}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onKeyDown={onKeyDown}
+      onPointerDown={resize.onPointerDown}
+      onPointerMove={resize.onPointerMove}
+      onPointerUp={resize.onPointerUp}
+      onKeyDown={resize.onKeyDown}
     />
   );
 }

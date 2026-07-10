@@ -1,6 +1,6 @@
 use super::plan_inspection;
 use super::{
-    aggregate_accel, aggregate_exec, batch, build_logical_plan, catalog, check_timeout,
+    aggregate_accel, aggregate_exec, batch, build_logical_plan_in_session, catalog, check_timeout,
     deduce_text_fields, ensure_temp_budget, execute_plan, execute_plan_with_outer_row, filter,
     graph, load_fulltext_index_options, plan_execution_env, projection, resolve_exists_expr,
     row_signature, scan, sort, virtual_views, window_exec, AnalyzerConfig, Batch, BatchRow,
@@ -110,7 +110,7 @@ fn execute_view_source(
 ) -> SourceExecution {
     let parsed = crate::sql::parser::parse_statement(&view.query)
         .map_err(|error| QueryError::General(error.to_string()))?;
-    let logical = build_logical_plan(&parsed)?;
+    let logical = build_logical_plan_in_session(env.cassie, env.session, &parsed)?;
     let mut view_cte_context = CteContext::new();
     let rows = execute_plan(
         env.cassie,
@@ -282,7 +282,7 @@ use source_rows::{
 };
 pub(super) use source_rows::{
     combine_nulls_with_row, combine_row_with_nulls, combine_rows, qualify_row, row_columns,
-    slice_rows, source_contains_lateral,
+    row_lookup_columns, slice_rows, source_contains_lateral,
 };
 
 pub(super) fn execute_source_query_with_outer_row(

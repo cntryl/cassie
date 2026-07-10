@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 use tokio_postgres::NoTls;
@@ -17,6 +18,10 @@ fn vectorized_join_config() -> CassieRuntimeConfig {
     config.limits.vectorized_joins_enabled = true;
     config.limits.vectorized_join_batch_size = 2;
     config
+}
+
+fn canonical_collection(name: &str) -> String {
+    canonical_relation_name("postgres", "public", name)
 }
 
 fn seed_read_model_hot_paths(cassie: &Cassie, session: &cassie::app::CassieSession) {
@@ -138,14 +143,16 @@ fn seed_indexed_join_tables(cassie: &Cassie, session: &cassie::app::CassieSessio
             )
         })
         .collect();
+    let users_collection = canonical_collection("read_model_indexed_users");
     cassie
         .midge
-        .put_fresh_documents("read_model_indexed_users", users)
+        .put_fresh_documents(&users_collection, users)
         .unwrap();
+    let orders_collection = canonical_collection("read_model_indexed_orders");
     cassie
         .midge
         .put_fresh_documents(
-            "read_model_indexed_orders",
+            &orders_collection,
             vec![
                 (
                     Some("order-150".to_string()),
@@ -494,11 +501,11 @@ fn should_stop_vectorized_join_after_unordered_limit_budget() {
         }
         cassie
             .midge
-            .put_fresh_documents("read_model_limit_users", users)
+            .put_fresh_documents(&canonical_collection("read_model_limit_users"), users)
             .unwrap();
         cassie
             .midge
-            .put_fresh_documents("read_model_limit_orders", orders)
+            .put_fresh_documents(&canonical_collection("read_model_limit_orders"), orders)
             .unwrap();
         let before = cassie.metrics();
 
@@ -580,12 +587,12 @@ fn should_push_unordered_left_join_limit_into_left_source_scan() {
         }
         cassie
             .midge
-            .put_fresh_documents("read_model_budget_users", users)
+            .put_fresh_documents(&canonical_collection("read_model_budget_users"), users)
             .unwrap();
         cassie
             .midge
             .put_fresh_documents(
-                "read_model_budget_orders",
+                &canonical_collection("read_model_budget_orders"),
                 vec![(
                     Some("order-000".to_string()),
                     serde_json::json!({
@@ -712,12 +719,12 @@ fn should_stream_unindexed_bounded_inner_join_until_output_budget() {
         }
         cassie
             .midge
-            .put_fresh_documents("read_model_stream_users", users)
+            .put_fresh_documents(&canonical_collection("read_model_stream_users"), users)
             .unwrap();
         cassie
             .midge
             .put_fresh_documents(
-                "read_model_stream_orders",
+                &canonical_collection("read_model_stream_orders"),
                 vec![
                     (
                         Some("order-000".to_string()),
@@ -827,11 +834,11 @@ fn should_stream_dense_bounded_inner_join_without_materializing_right_source() {
         }
         cassie
             .midge
-            .put_fresh_documents("read_model_dense_stream_users", users)
+            .put_fresh_documents(&canonical_collection("read_model_dense_stream_users"), users)
             .unwrap();
         cassie
             .midge
-            .put_fresh_documents("read_model_dense_stream_orders", orders)
+            .put_fresh_documents(&canonical_collection("read_model_dense_stream_orders"), orders)
             .unwrap();
         let before = cassie.metrics();
 

@@ -1,4 +1,5 @@
 use super::{key_encoding, CassieError, Midge, StorageFamily, WriteOptions};
+use crate::catalog::name_matches;
 
 impl Midge {
     /// # Errors
@@ -26,7 +27,10 @@ impl Midge {
             .get(&key_encoding::sequence_key(name))
             .map_err(CassieError::from)?;
         let Some(raw) = raw else {
-            return Ok(None);
+            return Ok(self
+                .list_sequences()?
+                .into_iter()
+                .find(|sequence| name_matches(&sequence.name, name)));
         };
         serde_json::from_slice(&raw)
             .map(Some)
@@ -56,8 +60,11 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_sequence(&self, name: &str) -> Result<(), CassieError> {
+        let stored_name = self
+            .get_sequence(name)?
+            .map_or_else(|| name.to_string(), |sequence| sequence.name);
         let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(key_encoding::sequence_key(name))
+        tx.delete(key_encoding::sequence_key(&stored_name))
             .map_err(CassieError::from)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
@@ -67,9 +74,13 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn next_sequence_value(&self, name: &str) -> Result<i64, CassieError> {
+        let stored_name = self
+            .get_sequence(name)?
+            .ok_or_else(|| CassieError::NotFound(format!("sequence '{name}' does not exist")))?
+            .name;
         let mut tx = self.begin_schema_rw_tx()?;
         let raw = tx
-            .get(&key_encoding::sequence_key(name))
+            .get(&key_encoding::sequence_key(&stored_name))
             .map_err(CassieError::from)?
             .ok_or_else(|| CassieError::NotFound(format!("sequence '{name}' does not exist")))?;
         let mut metadata: crate::catalog::SequenceMeta =
@@ -83,7 +94,7 @@ impl Midge {
         metadata.current_value = next;
         let value =
             serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
-        tx.put(key_encoding::sequence_key(name), value, None)
+        tx.put(key_encoding::sequence_key(&stored_name), value, None)
             .map_err(CassieError::from)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(next)

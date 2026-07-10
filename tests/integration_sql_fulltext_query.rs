@@ -619,6 +619,7 @@ fn should_hydrate_fulltext_analyzer_options_after_restart() {
     runtime.block_on(async {
         {
             let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
                 .execute_sql(
@@ -690,6 +691,7 @@ fn should_hydrate_fulltext_tokenizer_options_after_restart() {
     runtime.block_on(async {
         {
             let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
                 .execute_sql(

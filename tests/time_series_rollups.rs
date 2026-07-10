@@ -1,10 +1,14 @@
 use cassie::app::Cassie;
-use cassie::catalog::RollupState;
+use cassie::catalog::{canonical_relation_name, RollupState};
 use cassie::types::Value;
 
 #[path = "support/sql.rs"]
 mod support;
 use support::*;
+
+fn canonical_name(name: &str) -> String {
+    canonical_relation_name("postgres", "public", name)
+}
 
 fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_current_thread()
@@ -81,6 +85,7 @@ fn should_rewrite_query_after_rollup_creation() {
         let metrics = cassie.metrics();
 
         // Assert
+        let rollup_name = canonical_name("rollup_rewrite_events_hourly");
         assert_eq!(
             selected.rows,
             vec![
@@ -101,12 +106,9 @@ fn should_rewrite_query_after_rollup_creation() {
         assert_eq!(metrics["rollups"]["rewrite_hits"].as_u64(), Some(1));
         assert!(matches!(
             &explain.rows[0][0],
-            Value::String(plan) if plan.contains("rollup_rewrite=rollup_rewrite_events_hourly")
+            Value::String(plan) if plan.contains(&format!("rollup_rewrite={rollup_name}"))
         ));
-        assert!(cassie
-            .catalog
-            .get_rollup("rollup_rewrite_events_hourly")
-            .is_some());
+        assert!(cassie.catalog.get_rollup(&rollup_name).is_some());
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -191,12 +193,15 @@ fn should_cleanup_rollup_after_restart_drop() {
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
         restarted.startup().unwrap();
         let session = restarted.create_session("tester", None);
+        let rollup_name = canonical_name("rollup_restart_events_hourly");
 
         // Act
         let catalog_rows = restarted
             .execute_sql(
                 &session,
-                "SELECT rollup_name, state FROM pg_catalog.pg_rollups WHERE rollup_name = 'rollup_restart_events_hourly'",
+                &format!(
+                    "SELECT rollup_name, state FROM pg_catalog.pg_rollups WHERE rollup_name = '{rollup_name}'"
+                ),
                 vec![],
             )
             .unwrap();
@@ -208,14 +213,11 @@ fn should_cleanup_rollup_after_restart_drop() {
         assert_eq!(
             catalog_rows.rows,
             vec![vec![
-                Value::String("rollup_restart_events_hourly".to_string()),
+                Value::String(rollup_name.clone()),
                 Value::String("ready".to_string())
             ]]
         );
-        assert!(restarted
-            .catalog
-            .get_rollup("rollup_restart_events_hourly")
-            .is_none());
+        assert!(restarted.catalog.get_rollup(&rollup_name).is_none());
 
         let _ = std::fs::remove_dir_all(path);
     });

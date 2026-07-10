@@ -44,7 +44,9 @@ impl Cassie {
             .get_projection_metadata(projection)
             .or_else(|| self.midge.projection_metadata(projection).ok().flatten())
             .ok_or_else(|| CassieError::NotFound(format!("projection not found: {projection}")))?;
-        let hash_collection = metadata.active_output_collection().unwrap_or(projection);
+        let hash_collection = metadata
+            .active_output_collection()
+            .unwrap_or(metadata.projection_id());
         let root = self.midge.root_hash(hash_collection)?;
         let mut ranges = self.midge.list_range_hashes(hash_collection)?;
         ranges.sort_by_key(|range| range.range_id);

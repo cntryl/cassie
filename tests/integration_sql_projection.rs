@@ -554,6 +554,7 @@ fn should_execute_projected_crud_queries_against_column_store_tables() {
         let collection = "sql_column_store_projection_crud";
 
         seed_column_store_projection_crud(&cassie, &session);
+        let canonical_collection = canonical_test_collection(&cassie, collection);
 
         // Act
         let before = cassie
@@ -570,7 +571,7 @@ fn should_execute_projected_crud_queries_against_column_store_tables() {
                 vec![],
             )
             .unwrap();
-        let documents = cassie.midge.scan_documents(collection).unwrap();
+        let documents = cassie.midge.scan_documents(&canonical_collection).unwrap();
         cassie
             .execute_sql(
                 &session,

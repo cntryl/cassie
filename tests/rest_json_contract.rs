@@ -2,6 +2,10 @@ use cassie::app::Cassie;
 use cassie::rest::{collections, documents, health, query};
 use uuid::Uuid;
 
+#[path = "support/sql.rs"]
+mod support;
+use support::canonical_test_collection;
+
 fn with_fallback() {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
 }
@@ -32,9 +36,10 @@ fn setup_query_values(cassie: &Cassie) {
             Vec::new(),
         )
         .expect("create values table");
+    let collection = canonical_test_collection(cassie, "rest_json_query_values");
     cassie
         .ingest_document(
-            "rest_json_query_values",
+            &collection,
             serde_json::json!({
                 "text_value": "alpha",
                 "int_value": 7,
@@ -305,6 +310,36 @@ fn should_keep_openapi_payload_properties_snake_case() {
             is_snake_case_property(property),
             "OpenAPI payload property '{property}' on line {} is not snake_case",
             line_index + 1
+        );
+    }
+}
+
+#[test]
+fn should_document_restful_catalog_contract_in_openapi() {
+    // Arrange
+    let openapi = std::fs::read_to_string("public/openapi.yml").expect("openapi");
+
+    // Act
+    let expected_entries = [
+        "/api/v1/admin/catalog:",
+        "/api/v1/admin/query-executions:",
+        "/api/v1/admin/query-validations:",
+        "/api/v1/admin/query-explanations:",
+        "/api/v1/admin/projections/{projection}/verification-manifests:",
+        "QueryExplainResponse:",
+        "Structured physical-plan summary intended for visual plan explorers.",
+        "Explain output with text rows and structured plan data",
+        "The REST API does not expose first-class `/api/v1/databases` or `/api/v1/schemas` resources.",
+        "Use the authenticated SQL administration endpoints for supported database, schema, table, view, function, and procedure statements.",
+        "The router accepts local names, schema-qualified names, or canonical `database.schema.name` identifiers.",
+        "Labels use canonical `database.schema.name` values when scope is available.",
+    ];
+
+    // Assert
+    for expected in expected_entries {
+        assert!(
+            openapi.contains(expected),
+            "expected OpenAPI contract to contain: {expected}"
         );
     }
 }

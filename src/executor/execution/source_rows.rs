@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+use crate::catalog::qualifier_variants;
 use crate::catalog::virtual_views;
 use crate::sql::ast::{Expr, FunctionCall, QuerySource, SelectItem, SelectSet, SetOperator};
 use crate::types::{DataType, Schema, Value};
@@ -90,19 +91,28 @@ pub(in crate::executor::execution) fn source_contains_lateral(source: &QuerySour
 }
 
 pub(in crate::executor::execution) fn qualify_row(row: BatchRow, qualifier: &str) -> BatchRow {
-    let qualifier = qualifier.to_ascii_lowercase();
-    let mut values = Vec::new();
-    for (name, value) in row.into_entries() {
-        values.push((name.clone(), value.clone()));
-        values.push((format!("{qualifier}.{name}"), value));
+    let qualifiers = qualifier_variants(qualifier);
+    let (values, mut aliases) = row.into_parts();
+    for (index, (name, _)) in values.iter().enumerate() {
+        for qualifier in &qualifiers {
+            aliases.push((format!("{qualifier}.{name}"), index));
+        }
     }
-    BatchRow::new(values)
+    BatchRow::with_aliases(values, aliases)
 }
 
 pub(in crate::executor::execution) fn combine_rows(left: &BatchRow, right: &BatchRow) -> BatchRow {
     let mut values = left.entries().to_vec();
+    let left_width = values.len();
     values.extend(right.entries().iter().cloned());
-    BatchRow::new(values)
+    let mut aliases = left.aliases().to_vec();
+    aliases.extend(
+        right
+            .aliases()
+            .iter()
+            .map(|(name, index)| (name.clone(), left_width + index)),
+    );
+    BatchRow::with_aliases(values, aliases)
 }
 
 pub(in crate::executor::execution) fn combine_row_with_nulls(
@@ -115,7 +125,7 @@ pub(in crate::executor::execution) fn combine_row_with_nulls(
             .iter()
             .map(|column| (column.clone(), Value::Null)),
     );
-    BatchRow::new(values)
+    BatchRow::with_aliases(values, left.aliases().to_vec())
 }
 
 pub(in crate::executor::execution) fn combine_nulls_with_row(
@@ -126,14 +136,32 @@ pub(in crate::executor::execution) fn combine_nulls_with_row(
         .iter()
         .map(|column| (column.clone(), Value::Null))
         .collect::<Vec<_>>();
+    let left_width = values.len();
     values.extend(right.entries().iter().cloned());
-    BatchRow::new(values)
+    let aliases = right
+        .aliases()
+        .iter()
+        .map(|(name, index)| (name.clone(), left_width + index))
+        .collect();
+    BatchRow::with_aliases(values, aliases)
 }
 
 pub(in crate::executor::execution) fn row_columns(rows: &[BatchRow]) -> Vec<String> {
     let mut columns = Vec::new();
     for row in rows {
         for (column, _) in row.entries() {
+            if !columns.contains(column) {
+                columns.push(column.clone());
+            }
+        }
+    }
+    columns
+}
+
+pub(in crate::executor::execution) fn row_lookup_columns(rows: &[BatchRow]) -> Vec<String> {
+    let mut columns = row_columns(rows);
+    for row in rows {
+        for (column, _) in row.aliases() {
             if !columns.contains(column) {
                 columns.push(column.clone());
             }
@@ -383,5 +411,77 @@ pub(crate) fn value_sort_key(value: &Value) -> String {
         Value::String(value) => format!("4:{value}"),
         Value::Vector(value) => format!("5:{:?}", value.values),
         Value::Json(value) => format!("6:{value}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_add_qualified_lookup_without_duplicate_entries() {
+        // Arrange
+        let row = BatchRow::new(vec![
+            ("user_key".to_string(), Value::Int64(7)),
+            ("name".to_string(), Value::String("alpha".to_string())),
+        ]);
+
+        // Act
+        let qualified = qualify_row(row, "postgres.public.users");
+
+        // Assert
+        assert_eq!(qualified.entries().len(), 2);
+        assert_eq!(qualified.get("user_key"), Some(&Value::Int64(7)));
+        assert_eq!(qualified.get("users.user_key"), Some(&Value::Int64(7)));
+        assert_eq!(
+            qualified.get("public.users.user_key"),
+            Some(&Value::Int64(7))
+        );
+        assert_eq!(
+            qualified.get("postgres.public.users.user_key"),
+            Some(&Value::Int64(7))
+        );
+    }
+
+    #[test]
+    fn should_preserve_qualified_lookup_when_combining_rows() {
+        // Arrange
+        let left = qualify_row(
+            BatchRow::new(vec![("user_key".to_string(), Value::Int64(7))]),
+            "postgres.public.users",
+        );
+        let right = qualify_row(
+            BatchRow::new(vec![("total".to_string(), Value::Int64(42))]),
+            "postgres.public.orders",
+        );
+
+        // Act
+        let combined = combine_rows(&left, &right);
+
+        // Assert
+        assert_eq!(combined.entries().len(), 2);
+        assert_eq!(combined.get("users.user_key"), Some(&Value::Int64(7)));
+        assert_eq!(combined.get("orders.total"), Some(&Value::Int64(42)));
+        assert_eq!(combined.get("public.orders.total"), Some(&Value::Int64(42)));
+    }
+
+    #[test]
+    fn should_include_aliases_in_lookup_columns_without_expanding_entries() {
+        // Arrange
+        let rows = vec![qualify_row(
+            BatchRow::new(vec![("user_key".to_string(), Value::Int64(7))]),
+            "postgres.public.users",
+        )];
+
+        // Act
+        let output_columns = row_columns(&rows);
+        let lookup_columns = row_lookup_columns(&rows);
+
+        // Assert
+        assert_eq!(output_columns, vec!["user_key".to_string()]);
+        assert!(lookup_columns.contains(&"user_key".to_string()));
+        assert!(lookup_columns.contains(&"users.user_key".to_string()));
+        assert!(lookup_columns.contains(&"public.users.user_key".to_string()));
+        assert!(lookup_columns.contains(&"postgres.public.users.user_key".to_string()));
     }
 }

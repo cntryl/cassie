@@ -1,8 +1,8 @@
 import { Button } from "@askrjs/themes/components";
-import { CheckCircle2Icon, PlayIcon, RefreshCwIcon, SquareIcon } from "@askrjs/lucide";
+import { CheckCircle2Icon, EraserIcon, ListTreeIcon, PlayIcon, SquareIcon } from "@askrjs/lucide";
 
 interface QueryEditorToolbarProps {
-  onFormat: () => void;
+  onTrim: () => void;
   onValidate: () => void;
   onExplain: () => void;
   onPlay: () => void;
@@ -12,7 +12,7 @@ interface QueryEditorToolbarProps {
 }
 
 export function QueryEditorToolbar({
-  onFormat,
+  onTrim,
   onValidate,
   onExplain,
   onPlay,
@@ -28,11 +28,12 @@ export function QueryEditorToolbar({
         type="button"
         size="xs"
         variant="secondary"
-        title="Format SQL"
-        onPress={onFormat}
+        title="Trim whitespace"
+        onPress={onTrim}
         disabled={isBusy}
       >
-        Fmt
+        <EraserIcon size={14} />
+        <span>Trim</span>
       </Button>
       <Button
         type="button"
@@ -53,7 +54,7 @@ export function QueryEditorToolbar({
         onPress={onExplain}
         disabled={!canRun}
       >
-        <RefreshCwIcon size={14} />
+        <ListTreeIcon size={14} />
         <span>Explain</span>
       </Button>
       <Button
@@ -71,7 +72,7 @@ export function QueryEditorToolbar({
       {isBusy ? (
         <Button
           type="button"
-          variant="destructive"
+          variant="outline"
           size="xs"
           title="Stop running query operation"
           data-action="stop"

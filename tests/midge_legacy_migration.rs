@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::midge::adapter::StorageFamily;
 use cassie::types::{DataType, FieldSchema, Schema};
 use cntryl_midge::{TransactionMode, WriteOptions};
@@ -67,11 +68,12 @@ fn should_ignore_legacy_doc_key_written_after_bootstrap() {
     // Arrange
     let path = data_dir("post_bootstrap_doc");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let collection = canonical_relation_name("postgres", "public", "legacy_break");
     cassie.midge.ensure_families_ready().unwrap();
     cassie
         .midge
         .create_collection(
-            "legacy_break",
+            &collection,
             Schema {
                 fields: vec![FieldSchema {
                     name: "title".to_string(),
@@ -93,7 +95,7 @@ fn should_ignore_legacy_doc_key_written_after_bootstrap() {
     tx.commit(WriteOptions::sync()).unwrap();
 
     // Act
-    let scanned = cassie.midge.scan_documents("legacy_break").unwrap();
+    let scanned = cassie.midge.scan_documents(&collection).unwrap();
     let legacy_entries = cassie
         .midge
         .raw_scan_prefix(StorageFamily::Data, b"doc:")

@@ -1,4 +1,5 @@
-use cassie::app::{Cassie, ProjectionManifestExportOptions};
+use cassie::app::{Cassie, CassieError, ProjectionManifestExportOptions};
+use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 use uuid::Uuid;
@@ -6,6 +7,10 @@ use uuid::Uuid;
 #[path = "support/sql.rs"]
 mod support;
 use support::*;
+
+fn canonical_collection(name: &str) -> String {
+    canonical_relation_name("postgres", "public", name)
+}
 
 fn create_manifest_source(
     label: &str,
@@ -23,10 +28,11 @@ fn create_manifest_source(
             vec![],
         )
         .expect("create table");
+    let projection = canonical_collection("consistency_docs");
     cassie
         .midge
         .put_document(
-            "consistency_docs",
+            &projection,
             Some("doc-2".to_string()),
             serde_json::json!({
                 "title": title,
@@ -38,7 +44,7 @@ fn create_manifest_source(
     cassie
         .midge
         .put_document(
-            "consistency_docs",
+            &projection,
             Some("doc-1".to_string()),
             serde_json::json!({
                 "title": "alpha",
@@ -52,7 +58,20 @@ fn create_manifest_source(
     options.generated_ms = Some(4_000_000_000_000);
     options.ttl_ms = Some(86_400_000);
     options.include_row_hashes = true;
-    (cassie, dir, "consistency_docs".to_string(), options)
+    (cassie, dir, projection, options)
+}
+
+async fn spawn_rest_server(
+    cassie: Cassie,
+) -> (String, tokio::task::JoinHandle<Result<(), CassieError>>) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind listener");
+    let addr = listener.local_addr().expect("listener address");
+    drop(listener);
+    let server = tokio::spawn(cassie::rest::router::run(addr.to_string(), cassie));
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    (format!("http://{addr}"), server)
 }
 
 #[test]
@@ -222,10 +241,11 @@ fn should_rehydrate_persisted_consistency_report_after_restart() {
                 vec![],
             )
             .expect("create table");
+        let projection = canonical_collection("consistency_restart_docs");
         cassie
             .midge
             .put_document(
-                "consistency_restart_docs",
+                &projection,
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
@@ -235,10 +255,10 @@ fn should_rehydrate_persisted_consistency_report_after_restart() {
         let mut right_options = ProjectionManifestExportOptions::for_instance("instance-b");
         right_options.generated_ms = Some(4_000_000_000_000);
         let left_manifest = cassie
-            .export_projection_verification_manifest("consistency_restart_docs", left_options)
+            .export_projection_verification_manifest(&projection, left_options)
             .expect("left manifest");
         let right_manifest = cassie
-            .export_projection_verification_manifest("consistency_restart_docs", right_options)
+            .export_projection_verification_manifest(&projection, right_options)
             .expect("right manifest");
 
         // Act
@@ -341,29 +361,24 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
                 vec![],
             )
             .expect("create table");
+        let projection = canonical_collection("consistency_rest_docs");
         cassie
             .midge
             .put_document(
-                "consistency_rest_docs",
+                &projection,
                 Some("doc-1".to_string()),
                 serde_json::json!({"title": "alpha"}),
             )
             .expect("insert doc");
 
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind listener");
-        let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-        let server = tokio::spawn(cassie::rest::router::run(addr.to_string(), cassie.clone()));
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        let (base_url, server) = spawn_rest_server(cassie.clone()).await;
         let client = reqwest::Client::new();
         let nonce = Uuid::new_v4().to_string();
 
         // Act
         let unauthorized = client
             .post(format!(
-                "http://{addr}/api/v1/admin/projections/consistency_rest_docs/verification-manifest"
+                "{base_url}/api/v1/admin/projections/consistency_rest_docs/verification-manifest"
             ))
             .json(&serde_json::json!({"instance_id": format!("unauthorized-{nonce}")}))
             .send()
@@ -371,7 +386,7 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
             .expect("unauthorized request");
         let manifest = client
             .post(format!(
-                "http://{addr}/api/v1/admin/projections/consistency_rest_docs/verification-manifest"
+                "{base_url}/api/v1/admin/projections/consistency_rest_docs/verification-manifest"
             ))
             .header("authorization", "Bearer sa:topsecret")
             .json(&serde_json::json!({
@@ -388,7 +403,7 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
             .expect("manifest json");
         let report = client
             .post(format!(
-                "http://{addr}/api/v1/admin/projection-consistency-checks"
+                "{base_url}/api/v1/admin/projection-consistency-checks"
             ))
             .header("authorization", "Bearer sa:topsecret")
             .json(&serde_json::json!({"manifests": [manifest.clone(), manifest]}))
@@ -403,6 +418,114 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
         assert_eq!(unauthorized.status(), reqwest::StatusCode::UNAUTHORIZED);
         assert_eq!(report["state"], "consistent");
         assert_eq!(report["manifest_count"], 2);
+
+        server.abort();
+        let _ = server.await;
+    });
+
+    cassie.shutdown();
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_support_restful_projection_consistency_aliases() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projection_consistency_restful_aliases");
+    let config = CassieRuntimeConfig {
+        user: "sa".to_string(),
+        password: "topsecret".to_string(),
+        ..CassieRuntimeConfig::default()
+    };
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE consistency_rest_alias_docs (title TEXT)",
+                vec![],
+            )
+            .expect("create table");
+        let projection = canonical_collection("consistency_rest_alias_docs");
+        cassie
+            .midge
+            .put_document(
+                &projection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"title": "alpha"}),
+            )
+            .expect("insert doc");
+
+        let (base_url, server) = spawn_rest_server(cassie.clone()).await;
+        let client = reqwest::Client::new();
+
+        // Act
+        let manifest_response = client
+            .post(format!(
+                "{base_url}/api/v1/admin/projections/consistency_rest_alias_docs/verification-manifests"
+            ))
+            .header("authorization", "Bearer sa:topsecret")
+            .json(&serde_json::json!({
+                "instance_id": "rest-a",
+                "generated_ms": 4_000_000_000_000_u64,
+                "ttl_ms": 86_400_000_u64,
+                "include_row_hashes": true
+            }))
+            .send()
+            .await
+            .expect("manifest request");
+        let manifest_status = manifest_response.status();
+        let manifest = manifest_response
+            .json::<serde_json::Value>()
+            .await
+            .expect("manifest json");
+
+        let report_response = client
+            .post(format!("{base_url}/api/v1/admin/projection-consistency-reports"))
+            .header("authorization", "Bearer sa:topsecret")
+            .json(&serde_json::json!({"manifests": [manifest.clone(), manifest]}))
+            .send()
+            .await
+            .expect("report request");
+        let report_status = report_response.status();
+        let report = report_response
+            .json::<serde_json::Value>()
+            .await
+            .expect("report json");
+
+        let report_list_response = client
+            .get(format!("{base_url}/api/v1/admin/projection-consistency-reports"))
+            .header("authorization", "Bearer sa:topsecret")
+            .send()
+            .await
+            .expect("reports request");
+        let report_list_status = report_list_response.status();
+        let reports = report_list_response
+            .json::<serde_json::Value>()
+            .await
+            .expect("reports json");
+
+        // Assert
+        assert_eq!(manifest_status, reqwest::StatusCode::OK);
+        assert_eq!(report_status, reqwest::StatusCode::OK);
+        assert_eq!(report_list_status, reqwest::StatusCode::OK);
+        assert_eq!(report["state"], "consistent");
+        assert_eq!(report["manifest_count"], 2);
+        assert!(
+            reports["reports"]
+                .as_array()
+                .expect("reports")
+                .iter()
+                .any(|entry| entry["report_id"] == report["report_id"]),
+            "expected created report to appear in GET /projection-consistency-reports"
+        );
 
         server.abort();
         let _ = server.await;

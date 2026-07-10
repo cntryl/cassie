@@ -3,8 +3,8 @@ use super::{
     recursive_cte_references_self, resolve_relation_name, validate_distinct_on_order_prefix,
     validate_expression, validate_expression_references, validate_functions,
     validate_order_by_references, validate_projection_references, virtual_views, BindingContext,
-    CassieError, Catalog, CteQuery, CteScope, DataType, Expr, FunctionCall, HashSet,
-    QuerySource, QueryStatement, SelectItem, SelectSet, SelectStatement,
+    CassieError, Catalog, CteQuery, CteScope, DataType, Expr, FunctionCall, HashSet, QuerySource,
+    QueryStatement, SelectItem, SelectSet, SelectStatement,
 };
 
 pub(super) fn bind_select(

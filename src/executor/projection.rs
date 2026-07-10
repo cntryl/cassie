@@ -137,7 +137,11 @@ pub(crate) fn project_batches(
     session: Option<&CassieSession>,
 ) -> Result<Vec<Batch>, QueryError> {
     let ops = compile_projection_ops(projection);
-    if ops.iter().all(ProjectionOp::can_move_owned) {
+    if ops.iter().all(ProjectionOp::can_move_owned)
+        && batches
+            .iter()
+            .all(|batch| batch.iter().all(|row| row.aliases().is_empty()))
+    {
         return Ok(batches
             .into_iter()
             .map(|batch| project_owned_batch(batch, &ops))
@@ -421,5 +425,38 @@ mod tests {
         // Assert
         assert_eq!(row.get("payload"), Some(&Value::Json(payload)));
         assert_eq!(row.get("embedding"), Some(&Value::Vector(vector)));
+    }
+
+    #[test]
+    fn should_fallback_from_owned_projection_for_alias_backed_rows() {
+        // Arrange
+        let batches = vec![vec![BatchRow::with_aliases(
+            vec![
+                ("id".to_string(), Value::String("doc-1".to_string())),
+                ("name".to_string(), Value::String("alpha".to_string())),
+            ],
+            vec![("users.name".to_string(), 1)],
+        )]];
+        let projection = vec![SelectItem::Column {
+            name: "users.name".to_string(),
+            alias: None,
+        }];
+
+        // Act
+        let projected = project_batches(
+            batches,
+            projection.as_slice(),
+            &[],
+            None,
+            &HashMap::new(),
+            None,
+        )
+        .expect("project batches");
+
+        // Assert
+        assert_eq!(
+            projected[0][0].get("users.name"),
+            Some(&Value::String("alpha".to_string()))
+        );
     }
 }

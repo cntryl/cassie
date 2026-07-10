@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use cassie::app::Cassie;
+use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
@@ -312,7 +313,7 @@ fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
 }
 
 fn seed_recovery_collection(cassie: &Cassie) {
-    let collection = "extended_query_recovery_docs";
+    let collection = canonical_relation_name("postgres", "public", "extended_query_recovery_docs");
     let schema = Schema {
         fields: vec![FieldSchema {
             name: "title".to_string(),
@@ -322,13 +323,13 @@ fn seed_recovery_collection(cassie: &Cassie) {
     };
     cassie
         .midge
-        .create_collection(collection, schema.clone())
+        .create_collection(&collection, schema.clone())
         .unwrap();
-    cassie.register_collection(collection, schema);
+    cassie.register_collection(&collection, schema);
     cassie
         .midge
         .put_document(
-            collection,
+            &collection,
             Some("doc-1".to_string()),
             serde_json::json!({"title": "alpha"}),
         )
@@ -354,7 +355,7 @@ async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
 }
 
 async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {
-    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "testdb"))
+    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "postgres"))
         .await
         .expect("write startup");
     let auth = read_wire_frame(reader).await;
@@ -453,7 +454,15 @@ async fn read_ready_frames(reader: &mut PgwireReader<'_>) -> Vec<WireFrame> {
 }
 
 fn assert_recovered_query_frames(frames: &[WireFrame]) {
-    assert_eq!(frames.len(), 6, "recovered query should execute normally");
+    let tags = frames
+        .iter()
+        .map(|frame| char::from(frame.0))
+        .collect::<String>();
+    assert_eq!(
+        frames.len(),
+        6,
+        "recovered query should execute normally, tags={tags}"
+    );
     assert_eq!(frames[0].0, b'1');
     assert_eq!(frames[1].0, b'2');
     assert_eq!(frames[2].0, b'T');
@@ -565,9 +574,12 @@ fn should_reject_copy_data_message_with_unsupported_error() {
         let mut reader = tokio::io::BufReader::new(read_half);
 
         // Act
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
-            .await
-            .expect("write startup");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &startup_frame("postgres", "postgres"),
+        )
+        .await
+        .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
         let startup_ready = read_until_ready(&mut reader).await;
@@ -691,9 +703,12 @@ fn should_return_unsupported_error_for_copy_statement() {
         let mut reader = tokio::io::BufReader::new(read_half);
 
         // Act
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "testdb"))
-            .await
-            .expect("write startup");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &startup_frame("postgres", "postgres"),
+        )
+        .await
+        .expect("write startup");
         let auth = read_wire_frame(&mut reader).await;
         assert_eq!(auth.0, b'R', "startup should return an auth response");
         let startup_ready = read_until_ready(&mut reader).await;

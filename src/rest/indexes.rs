@@ -22,30 +22,39 @@ fn default_kind() -> String {
     "vector".to_string()
 }
 
+fn resolve_collection(cassie: &Cassie, collection: &str) -> Result<String, CassieError> {
+    cassie
+        .catalog
+        .get_schema(collection)
+        .map(|schema| schema.collection)
+        .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))
+}
+
 /// # Errors
 ///
 /// Returns an error when validation, storage, or execution fails.
 pub fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Value, CassieError> {
     let payload = parse_create_index_request(body)?;
     validate_index_kind(&payload)?;
+    let collection = resolve_collection(cassie, collection)?;
     let schema = cassie
         .midge
-        .collection_schema(collection)
-        .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+        .collection_schema(&collection)
+        .ok_or_else(|| CassieError::CollectionNotFound(collection.clone()))?;
     let source_field = required_source_field(&payload)?;
-    let vector_dimensions = vector_field_dimensions(&schema, collection, &payload.field)?;
+    let vector_dimensions = vector_field_dimensions(&schema, &collection, &payload.field)?;
     let metadata = vector_index_metadata(cassie, &payload, vector_dimensions)?;
 
     if let Some(existing) =
-        existing_vector_index_response(cassie, collection, &payload, &source_field, &metadata)?
+        existing_vector_index_response(cassie, &collection, &payload, &source_field, &metadata)?
     {
         return Ok(existing);
     }
 
-    validate_source_field(&schema, collection, &source_field)?;
+    validate_source_field(&schema, &collection, &source_field)?;
 
     let record = VectorIndexRecord {
-        collection: collection.to_string(),
+        collection: collection.clone(),
         field: payload.field.clone(),
         source_field,
         metadata,
@@ -53,7 +62,7 @@ pub fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Value, C
 
     cassie.midge.put_vector_index(record.clone())?;
     cassie.register_vector_index(record.clone());
-    Ok(vector_index_response(collection, &record, "created"))
+    Ok(vector_index_response(&collection, &record, "created"))
 }
 
 fn parse_create_index_request(body: &[u8]) -> Result<CreateIndexRequest, CassieError> {

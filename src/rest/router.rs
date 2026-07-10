@@ -459,7 +459,10 @@ async fn dispatch_admin_routes(
     }
 
     match (context.method.as_str(), context.segments) {
-        ("POST", ["api", "v1", "admin", "projections", projection, "verification-manifest"]) => {
+        (
+            "POST",
+            ["api", "v1", "admin", "projections", projection, "verification-manifest" | "verification-manifests"],
+        ) => {
             let body = body.clone();
             let projection = (*projection).to_string();
             run_rest_blocking_route(
@@ -475,7 +478,10 @@ async fn dispatch_admin_routes(
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
-        ("POST", ["api", "v1", "admin", "projection-consistency-checks"]) => {
+        (
+            "POST",
+            ["api", "v1", "admin", "projection-consistency-checks" | "projection-consistency-reports"],
+        ) => {
             let body = body.clone();
             run_rest_blocking_route(
                 cassie,
@@ -510,17 +516,22 @@ async fn dispatch_admin_query_routes(
     body: &RestBytes,
 ) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
     match (context.method.as_str(), context.segments) {
-        ("GET", ["api", "v1", "admin", "query", "schema"]) => run_rest_blocking_route(
-            cassie,
-            context.method,
-            context.path,
-            context.started_at,
-            "rest_admin_query_schema",
-            move |cassie| Ok(crate::rest::query::schema(&cassie)),
-        )
-        .await
-        .map(|value| Some(json_response(StatusCode::OK, &value))),
-        ("POST", ["api", "v1", "admin", "query", "execute"]) => {
+        ("GET", ["api", "v1", "admin", "query", "schema"] | ["api", "v1", "admin", "catalog"]) => {
+            run_rest_blocking_route(
+                cassie,
+                context.method,
+                context.path,
+                context.started_at,
+                "rest_admin_query_schema",
+                move |cassie| Ok(crate::rest::query::schema(&cassie)),
+            )
+            .await
+            .map(|value| Some(json_response(StatusCode::OK, &value)))
+        }
+        (
+            "POST",
+            ["api", "v1", "admin", "query", "execute"] | ["api", "v1", "admin", "query-executions"],
+        ) => {
             let body = body.clone();
             let user = rest_session_user(&cassie, context.authenticated_role);
             run_rest_blocking_route(
@@ -534,7 +545,11 @@ async fn dispatch_admin_query_routes(
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
-        ("POST", ["api", "v1", "admin", "query", "validate"]) => {
+        (
+            "POST",
+            ["api", "v1", "admin", "query", "validate"]
+            | ["api", "v1", "admin", "query-validations"],
+        ) => {
             let body = body.clone();
             run_rest_blocking_route(
                 cassie,
@@ -547,7 +562,11 @@ async fn dispatch_admin_query_routes(
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
-        ("POST", ["api", "v1", "admin", "query", "explain"]) => {
+        (
+            "POST",
+            ["api", "v1", "admin", "query", "explain"]
+            | ["api", "v1", "admin", "query-explanations"],
+        ) => {
             let body = body.clone();
             let user = rest_session_user(&cassie, context.authenticated_role);
             run_rest_blocking_route(
@@ -567,8 +586,13 @@ async fn dispatch_admin_query_routes(
 
 fn admin_query_route_allow(segments: &[&str]) -> Option<&'static str> {
     match segments {
-        ["api", "v1", "admin", "query", "schema"] => Some("GET"),
+        ["api", "v1", "admin", "query", "schema"] | ["api", "v1", "admin", "catalog"] => {
+            Some("GET")
+        }
         ["api", "v1", "admin", "query", "execute" | "validate" | "explain"] => Some("POST"),
+        ["api", "v1", "admin", "query-executions" | "query-validations" | "query-explanations"] => {
+            Some("POST")
+        }
         _ => None,
     }
 }

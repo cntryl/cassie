@@ -2,6 +2,7 @@ use super::{
     CassieError, Catalog, CommonTableExpression, CteQuery, Expr, FunctionCall, HashMap, HashSet,
     OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
 };
+use crate::catalog::name_matches;
 
 pub(super) fn select_contains_parameters(select: &SelectStatement) -> bool {
     select.ctes.iter().any(cte_contains_parameters)
@@ -156,12 +157,14 @@ pub(super) fn qualified_fields(
     qualifier: &str,
     fields: impl IntoIterator<Item = String>,
 ) -> HashSet<String> {
-    let qualifier = qualifier.to_ascii_lowercase();
+    let qualifiers = crate::catalog::qualifier_variants(qualifier);
     let mut out = HashSet::new();
     for field in fields {
         let field = field.to_ascii_lowercase();
         out.insert(field.clone());
-        out.insert(format!("{qualifier}.{field}"));
+        for qualifier in &qualifiers {
+            out.insert(format!("{qualifier}.{field}"));
+        }
     }
     out
 }
@@ -239,7 +242,13 @@ pub(super) fn validate_function_calls(
             }
             continue;
         }
-        let Some(arity) = signatures.get(&function.name.to_ascii_lowercase()) else {
+        let lookup = function.name.to_ascii_lowercase();
+        let Some(arity) = signatures.get(&lookup).or_else(|| {
+            signatures
+                .iter()
+                .find(|(candidate, _)| name_matches(candidate, &function.name))
+                .map(|(_, arity)| arity)
+        }) else {
             return Err(CassieError::Planner(format!(
                 "unsupported function '{}'",
                 function.name

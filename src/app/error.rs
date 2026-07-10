@@ -1,4 +1,5 @@
 use super::{EmbeddingError, QueryError};
+use crate::catalog::local_name;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CatalogObjectKind {
@@ -153,7 +154,7 @@ pub enum CassieError {
 impl CassieError {
     pub(crate) fn descriptor(&self) -> CassieErrorDescriptor {
         match self {
-            Self::CollectionNotFound(table) => missing_relation_descriptor(table.clone()),
+            Self::CollectionNotFound(table) => missing_relation_descriptor(table),
             Self::CatalogObjectNotFound { kind, name } => {
                 missing_catalog_object_descriptor(*kind, name, self.to_string())
             }
@@ -185,7 +186,8 @@ impl CassieError {
     }
 }
 
-fn missing_relation_descriptor(table: String) -> CassieErrorDescriptor {
+fn missing_relation_descriptor(table: &str) -> CassieErrorDescriptor {
+    let table = local_name(table);
     CassieErrorDescriptor {
         http_status: 404,
         sql_state: "42P01",
@@ -206,7 +208,7 @@ fn missing_catalog_object_descriptor(
         sql_state: kind.sql_state(),
         message,
         table: matches!(kind, CatalogObjectKind::Relation | CatalogObjectKind::View)
-            .then(|| name.to_string()),
+            .then(|| local_name(name)),
         column: None,
         constraint: None,
     }
@@ -270,11 +272,12 @@ fn conflict_descriptor(
     constraint: Option<String>,
     message: String,
 ) -> CassieErrorDescriptor {
+    let table = local_name(table);
     CassieErrorDescriptor {
         http_status: 409,
         sql_state,
         message,
-        table: Some(table.to_string()),
+        table: Some(table),
         column: Some(column.to_string()),
         constraint,
     }

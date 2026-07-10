@@ -487,6 +487,7 @@ impl From<crate::sql::SqlError> for CassieError {
 
 impl From<cntryl_midge::MidgeError> for CassieError {
     fn from(value: cntryl_midge::MidgeError) -> Self {
+        let message = value.to_string();
         match value {
             cntryl_midge::MidgeError::WriteStall(message) => {
                 CassieError::StorageRetryable(format!("midge write stalled: {message}"))
@@ -506,7 +507,10 @@ impl From<cntryl_midge::MidgeError> for CassieError {
                     CassieError::Storage(message)
                 }
             }
-            other => CassieError::Storage(other.to_string()),
+            _ if message.to_ascii_lowercase().contains("write conflict") => {
+                CassieError::StorageRetryable(format!("midge write conflict: {message}"))
+            }
+            _ => CassieError::Storage(message),
         }
     }
 }

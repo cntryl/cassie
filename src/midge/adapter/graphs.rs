@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::{check_document_write_failure_point, DocumentWriteFailurePoint};
+
 use super::{encode_row, CassieError, Midge, StorageFamily, Uuid, WriteOptions};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,6 +125,8 @@ impl Midge {
             Self::put_graph_edge_record(tx, &record)?;
             puts = puts.saturating_add(2);
         }
+
+        check_document_write_failure_point(DocumentWriteFailurePoint::GraphAdjacency)?;
 
         Ok((deletes, puts))
     }

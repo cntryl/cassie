@@ -1,16 +1,18 @@
 use super::{
-    decode_projected_row, decode_projected_row_matching_with_aliases,
-    decode_projected_row_with_aliases, decode_row, encode_row, key_encoding, CassieError,
-    ColumnStoreScanRequest, DataType, DocumentRef, HashSet, IndexKind, Instant, Midge,
+    check_document_write_failure_point, decode_projected_row,
+    decode_projected_row_matching_with_aliases, decode_projected_row_with_aliases, decode_row,
+    encode_row, key_encoding, CassieError, ColumnStoreScanRequest, DataType, DocumentRef,
+    DocumentWriteFailurePoint, FieldConstraint, HashSet, IndexKind, IndexMeta, Instant, Midge,
     MidgeScanTimings, Query, RowDecode, RowFilter, RowSchema, Schema, Uuid, WriteOptions,
 };
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 #[path = "documents/ordered_scan.rs"]
 mod ordered_scan;
 pub(crate) use ordered_scan::OrderedRowScanRequest;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum DocumentWriteOp {
     Put {
         id: String,
@@ -65,6 +67,8 @@ struct DocumentWriteBatchContext {
     uses_column_store: bool,
     vector_indexes: Vec<crate::embeddings::VectorIndexRecord>,
     vector_fields: Vec<String>,
+    unique_constraints: Vec<FieldConstraint>,
+    unique_scalar_indexes: Vec<IndexMeta>,
     scalar_indexes: Vec<super::IndexMeta>,
     time_series_indexes: Vec<super::IndexMeta>,
     graph: Option<crate::catalog::GraphMeta>,
@@ -75,6 +79,18 @@ struct ExistingDocumentState {
     payload: Option<serde_json::Value>,
     row_exists: bool,
     legacy_exists: bool,
+}
+
+#[derive(Debug)]
+enum UniqueReservationDescriptor {
+    UniqueConstraint {
+        table: String,
+        field: String,
+        constraint: String,
+    },
+    UniqueIndex {
+        name: String,
+    },
 }
 
 impl Midge {
@@ -223,25 +239,82 @@ impl Midge {
         if operations.is_empty() {
             return Ok(DocumentWriteBatchReport::default());
         }
-        let write_gate = self.collection_write_gate(collection);
-        let _write_guard = write_gate.lock();
-        let context = self.document_write_batch_context(collection)?;
-        let prepared = Self::prepare_document_writes(collection, operations, &context)?;
-        let mut tx = self.begin_data_rw_tx()?;
-        let mut report = DocumentWriteBatchReport::default();
-        for prepared in prepared {
-            Self::apply_prepared_document_write(
-                &mut tx,
-                collection,
-                &context,
-                prepared,
-                &mut report,
-            )?;
+        let mut writes = BTreeMap::new();
+        writes.insert(collection.to_string(), operations);
+        let mut reports = self.apply_document_write_batches_with_options(&writes, options)?;
+        Ok(reports.remove(collection).unwrap_or_default())
+    }
+
+    pub(crate) fn apply_document_write_batches_with_options(
+        &self,
+        writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
+        options: DocumentWriteBatchOptions,
+    ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
+        if writes.is_empty() {
+            return Ok(BTreeMap::new());
         }
-        if report_has_changes(&report) {
-            Self::refresh_vector_index_states_in_tx(&mut tx, &context.vector_indexes)?;
+
+        let mut attempts = 0u8;
+        loop {
+            attempts = attempts.saturating_add(1);
+
+            let mut prepared_writes = Vec::new();
+            let mut collections = writes
+                .iter()
+                .filter(|(_, operations)| !operations.is_empty())
+                .map(|(collection, operations)| (collection.clone(), operations.clone()))
+                .collect::<Vec<_>>();
+            collections.sort_by(|(left, _), (right, _)| {
+                left.to_ascii_lowercase().cmp(&right.to_ascii_lowercase())
+            });
+
+            let write_gates = collections
+                .iter()
+                .map(|(collection, _)| self.collection_write_gate(collection))
+                .collect::<Vec<_>>();
+            let mut write_guards = Vec::with_capacity(write_gates.len());
+            for write_gate in &write_gates {
+                write_guards.push(write_gate.lock());
+            }
+
+            for (collection, operations) in &collections {
+                let context = self.document_write_batch_context(collection)?;
+                let prepared =
+                    Self::prepare_document_writes(collection, operations.clone(), &context)?;
+                prepared_writes.push((collection.clone(), context, prepared));
+            }
+
+            let mut tx = self.begin_data_rw_tx()?;
+            let mut reports = BTreeMap::new();
+            let mut changed_collections = Vec::new();
+
+            for (collection, context, prepared_collection) in prepared_writes {
+                let mut report = DocumentWriteBatchReport::default();
+                for prepared in prepared_collection {
+                    Self::apply_prepared_document_write(
+                        &mut tx,
+                        &collection,
+                        &context,
+                        prepared,
+                        &mut report,
+                    )?;
+                }
+                if report_has_changes(&report) {
+                    Self::refresh_vector_index_states_in_tx(&mut tx, &context.vector_indexes)?;
+                    changed_collections.push(collection.clone());
+                }
+                reports.insert(collection, report);
+            }
+
+            match self.finish_document_write_batches(options, tx, reports, changed_collections) {
+                Ok(reports) => return Ok(reports),
+                Err(error)
+                    if attempts < 8
+                        && matches!(&error, CassieError::StorageRetryable(message) if message.to_ascii_lowercase().starts_with("midge write conflict")) =>
+                    {}
+                Err(error) => return Err(error),
+            }
         }
-        self.finish_document_write_batch(collection, options, tx, report)
     }
 
     fn document_write_batch_context(
@@ -262,25 +335,42 @@ impl Midge {
             .iter()
             .map(|index| index.field.clone())
             .collect::<Vec<_>>();
-        let scalar_indexes = self
-            .list_indexes()?
-            .into_iter()
+        let indexes = self.list_indexes()?;
+        let scalar_indexes = indexes
+            .iter()
             .filter(|index| index.collection == collection && index.kind == IndexKind::Scalar)
+            .cloned()
             .collect::<Vec<_>>();
-        let time_series_indexes = self
-            .list_indexes()?
+        let unique_scalar_indexes = indexes
+            .iter()
+            .filter(|index| {
+                index.collection == collection && index.kind == IndexKind::Scalar && index.unique
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let time_series_indexes = indexes
             .into_iter()
             .filter(|index| index.collection == collection && index.kind == IndexKind::TimeSeries)
             .collect::<Vec<_>>();
         let graph = self.graph_for_edge_collection(collection)?;
-        let needs_existing_payload =
-            !scalar_indexes.is_empty() || !time_series_indexes.is_empty() || graph.is_some();
+        let constraints = self
+            .load_constraints(collection)?
+            .into_iter()
+            .filter(|constraint| constraint.unique || constraint.primary_key)
+            .collect::<Vec<_>>();
+        let needs_existing_payload = !constraints.is_empty()
+            || !unique_scalar_indexes.is_empty()
+            || !scalar_indexes.is_empty()
+            || !time_series_indexes.is_empty()
+            || graph.is_some();
         Ok(DocumentWriteBatchContext {
             schema,
             row_schema,
             uses_column_store,
             vector_indexes,
             vector_fields,
+            unique_constraints: constraints,
+            unique_scalar_indexes,
             scalar_indexes,
             time_series_indexes,
             graph,
@@ -417,6 +507,14 @@ impl Midge {
         let payload = prepared
             .payload
             .expect("prepared put operation must include payload");
+        Self::sync_unique_reservations_for_document(
+            tx,
+            collection,
+            context,
+            &prepared.id,
+            existing.payload.as_ref(),
+            Some(&payload),
+        )?;
         let row_key = Self::row_key(collection, &prepared.id);
         let legacy_key = Self::doc_key(collection, &prepared.id);
         let replacing = existing.row_exists || existing.legacy_exists;
@@ -441,6 +539,7 @@ impl Midge {
         } else {
             tx.put(row_key, row_blob, None).map_err(CassieError::from)?;
         }
+        check_document_write_failure_point(DocumentWriteFailurePoint::Row)?;
         Self::write_document_hash_to_tx(
             tx,
             collection,
@@ -452,6 +551,7 @@ impl Midge {
             tx.delete(legacy_key).map_err(CassieError::from)?;
         }
         Self::write_normalized_vector_records(tx, &prepared.normalized_records)?;
+        check_document_write_failure_point(DocumentWriteFailurePoint::NormalizedVector)?;
         let index_changes = Self::sync_secondary_indexes_for_write(
             tx,
             context,
@@ -489,6 +589,14 @@ impl Midge {
         existing: &ExistingDocumentState,
         report: &mut DocumentWriteBatchReport,
     ) -> Result<(), CassieError> {
+        Self::sync_unique_reservations_for_document(
+            tx,
+            collection,
+            context,
+            &prepared.id,
+            existing.payload.as_ref(),
+            None,
+        )?;
         let row_key = Self::row_key(collection, &prepared.id);
         let legacy_key = Self::doc_key(collection, &prepared.id);
         if existing.row_exists && context.uses_column_store {
@@ -504,6 +612,7 @@ impl Midge {
         if existing.legacy_exists {
             tx.delete(legacy_key).map_err(CassieError::from)?;
         }
+        check_document_write_failure_point(DocumentWriteFailurePoint::Row)?;
         if existing.row_exists || existing.legacy_exists {
             Self::delete_document_hash_to_tx(tx, collection, &prepared.id)?;
             report.stats.metadata_deletes = report.stats.metadata_deletes.saturating_add(1);
@@ -516,6 +625,7 @@ impl Midge {
             &prepared.id,
             &context.vector_fields,
         )?;
+        check_document_write_failure_point(DocumentWriteFailurePoint::NormalizedVector)?;
         let index_changes = Self::sync_secondary_indexes_for_write(
             tx,
             context,
@@ -531,6 +641,131 @@ impl Midge {
             .index_puts
             .saturating_add(u64::try_from(index_changes.1).unwrap_or(0));
         Ok(())
+    }
+
+    fn sync_unique_reservations_for_document(
+        tx: &mut cntryl_midge::Transaction,
+        collection: &str,
+        context: &DocumentWriteBatchContext,
+        id: &str,
+        previous_payload: Option<&serde_json::Value>,
+        next_payload: Option<&serde_json::Value>,
+    ) -> Result<(), CassieError> {
+        let owner = id.as_bytes();
+        let mut stale_targets = Self::collect_unique_reservation_targets(
+            collection,
+            &context.unique_constraints,
+            &context.unique_scalar_indexes,
+            previous_payload,
+        )?;
+        let next_targets = Self::collect_unique_reservation_targets(
+            collection,
+            &context.unique_constraints,
+            &context.unique_scalar_indexes,
+            next_payload,
+        )?;
+
+        for (key, _descriptor) in stale_targets.drain(..) {
+            if !Self::unique_reservation_targets_contains(&key, &next_targets) {
+                tx.delete(key).map_err(CassieError::from)?;
+            }
+        }
+
+        for (key, descriptor) in next_targets {
+            if let Some(current_owner) = tx.get(&key).map_err(CassieError::from)? {
+                if current_owner != owner {
+                    return Err(match descriptor {
+                        UniqueReservationDescriptor::UniqueConstraint {
+                            table,
+                            field,
+                            constraint,
+                        } => CassieError::UniqueViolation {
+                            table,
+                            column: field,
+                            constraint,
+                        },
+                        UniqueReservationDescriptor::UniqueIndex { name } => {
+                            CassieError::InvalidVector(format!("unique index '{name}' failed"))
+                        }
+                    });
+                }
+                continue;
+            }
+            tx.put(key, owner.to_vec(), None)
+                .map_err(CassieError::from)?;
+        }
+
+        Ok(())
+    }
+
+    fn collect_unique_reservation_targets(
+        collection: &str,
+        constraints: &[FieldConstraint],
+        unique_indexes: &[IndexMeta],
+        payload: Option<&serde_json::Value>,
+    ) -> Result<Vec<(Vec<u8>, UniqueReservationDescriptor)>, CassieError> {
+        let Some(payload) = payload else {
+            return Ok(Vec::new());
+        };
+
+        let mut targets = Vec::new();
+        for constraint in constraints {
+            let Some(value) = payload.get(&constraint.field) else {
+                continue;
+            };
+            if value.is_null() {
+                continue;
+            }
+
+            let key = key_encoding::unique_constraint_reservation_key(
+                collection,
+                &constraint.field,
+                value,
+            )?;
+            let kind = if constraint.primary_key {
+                "PRIMARY KEY"
+            } else {
+                "UNIQUE"
+            };
+            targets.push((
+                key,
+                UniqueReservationDescriptor::UniqueConstraint {
+                    table: collection.to_string(),
+                    field: constraint.field.clone(),
+                    constraint: crate::catalog::generated_constraint_name(
+                        collection,
+                        &constraint.field,
+                        kind,
+                    ),
+                },
+            ));
+        }
+
+        for index in unique_indexes {
+            let Some(values) = Self::scalar_index_key_values(index, payload)? else {
+                continue;
+            };
+            let key = key_encoding::unique_scalar_index_reservation_key(
+                collection,
+                &index.name,
+                &values,
+            )?;
+            targets.push((
+                key,
+                UniqueReservationDescriptor::UniqueIndex {
+                    name: index.name.clone(),
+                },
+            ));
+        }
+
+        Ok(targets)
+    }
+
+    fn unique_reservation_targets_contains(
+        candidate: &[u8],
+        targets: &[(Vec<u8>, UniqueReservationDescriptor)],
+    ) -> bool {
+        targets.iter().any(|(key, _)| key == candidate)
     }
 
     fn sync_secondary_indexes_for_write(
@@ -571,29 +806,50 @@ impl Midge {
         ))
     }
 
-    fn finish_document_write_batch(
+    fn finish_document_write_batches(
         &self,
-        collection: &str,
         options: DocumentWriteBatchOptions,
         mut tx: cntryl_midge::Transaction,
-        mut report: DocumentWriteBatchReport,
-    ) -> Result<DocumentWriteBatchReport, CassieError> {
-        let changed = report_has_changes(&report);
-        if !changed {
+        mut reports: BTreeMap<String, DocumentWriteBatchReport>,
+        changed_collections: Vec<String>,
+    ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
+        if changed_collections.is_empty() {
             tx.rollback().map_err(CassieError::from)?;
-            return Ok(report);
+            return Ok(reports);
         }
 
+        for collection in &changed_collections {
+            Self::increment_collection_generation_in_tx(&mut tx, collection)?;
+        }
         let epoch = Self::increment_data_epoch_in_tx(&mut tx)?;
+        if let Err(error) = super::check_document_write_conflict_injection() {
+            tx.rollback().map_err(CassieError::from)?;
+            return Err(error);
+        }
         tx.commit(options.commit).map_err(CassieError::from)?;
-        report.data_epoch = Some(epoch);
-        report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
+        let mut sorted_changed_collections = changed_collections;
+        sorted_changed_collections.sort();
+
+        for collection in &sorted_changed_collections {
+            let Some(report) = reports.get_mut(collection) else {
+                return Err(CassieError::Execution(format!(
+                    "missing write report for collection '{collection}'"
+                )));
+            };
+            report.data_epoch = Some(epoch);
+            report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
+        }
 
         if options.refresh_after_commit {
-            let _ = self.rebuild_column_batches_for_collection(collection);
-            self.refresh_projection_hashes_after_write(collection, report.row_delta)?;
+            for collection in sorted_changed_collections {
+                if let Some(report) = reports.get(&collection) {
+                    let _ = self.rebuild_column_batches_for_collection(&collection);
+                    self.refresh_projection_hashes_after_write(&collection, report.row_delta)?;
+                }
+            }
         }
-        Ok(report)
+
+        Ok(reports)
     }
 
     pub(crate) fn flush_data_family(&self) -> Result<(), CassieError> {
@@ -620,6 +876,25 @@ impl Midge {
         Ok(u64::from_be_bytes(bytes))
     }
 
+    /// Returns the durable generation for a collection, or zero before its first changed write.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the persisted generation is malformed or cannot be read.
+    pub fn collection_generation(&self, collection: &str) -> Result<u64, CassieError> {
+        let tx = self.begin_data_readonly_tx()?;
+        let Some(raw) = tx
+            .get(&Self::collection_generation_key(collection))
+            .map_err(CassieError::from)?
+        else {
+            return Ok(0);
+        };
+        let bytes: [u8; 8] = raw.as_ref().try_into().map_err(|_| {
+            CassieError::Parse("invalid persisted collection generation".to_string())
+        })?;
+        Ok(u64::from_be_bytes(bytes))
+    }
+
     pub(super) fn increment_data_epoch_in_tx(
         tx: &mut cntryl_midge::Transaction,
     ) -> Result<u64, CassieError> {
@@ -634,6 +909,25 @@ impl Midge {
             None => 1,
         };
         tx.put(Self::data_epoch_key(), next.to_be_bytes().to_vec(), None)
+            .map_err(CassieError::from)?;
+        Ok(next)
+    }
+
+    fn increment_collection_generation_in_tx(
+        tx: &mut cntryl_midge::Transaction,
+        collection: &str,
+    ) -> Result<u64, CassieError> {
+        let key = Self::collection_generation_key(collection);
+        let next = match tx.get(&key).map_err(CassieError::from)? {
+            Some(raw) => {
+                let bytes: [u8; 8] = raw.as_ref().try_into().map_err(|_| {
+                    CassieError::Parse("invalid persisted collection generation".to_string())
+                })?;
+                u64::from_be_bytes(bytes).wrapping_add(1)
+            }
+            None => 1,
+        };
+        tx.put(key, next.to_be_bytes().to_vec(), None)
             .map_err(CassieError::from)?;
         Ok(next)
     }

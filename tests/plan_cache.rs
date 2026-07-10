@@ -566,12 +566,7 @@ fn should_reuse_cf2_cached_plan_after_restart_without_l1_state() {
                     .collect(),
             );
             cassie
-                .midge
-                .put_document(
-                    &collection,
-                    Some("doc-1".to_string()),
-                    serde_json::json!({"title": "alpha"}),
-                )
+                .ingest_document(&collection, serde_json::json!({"title": "alpha"}))
                 .unwrap();
 
             let session = cassie.create_session("alice", None);

@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use time::{format_description::well_known::Rfc3339, Duration as TimeDuration, OffsetDateTime};
 
 use super::{
-    decode_projected_row, encode_row, key_encoding, CassieError, DocumentRef, Midge, RowDecode,
-    Uuid,
+    check_document_write_failure_point, decode_projected_row, encode_row, key_encoding,
+    CassieError, DocumentRef, DocumentWriteFailurePoint, Midge, RowDecode, Uuid,
 };
 use crate::catalog::{IndexKind, IndexMeta};
 
@@ -151,6 +151,8 @@ impl Midge {
                 }
             }
         }
+
+        check_document_write_failure_point(DocumentWriteFailurePoint::TimeSeriesIndex)?;
 
         Ok((deletes, puts))
     }

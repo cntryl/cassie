@@ -3,12 +3,12 @@ use cntryl_lexkey::{Encoder, LexKey};
 use crate::app::CassieError;
 use crate::catalog::split_identifier_path;
 
-pub(super) const LAYOUT_VERSION: &str = "3";
-pub(super) const LAYOUT_MARKER_VALUE: &[u8] = b"cassie-midge-lexkey-v3";
+pub(super) const LAYOUT_VERSION: &str = "4";
+pub(super) const LAYOUT_MARKER_VALUE: &[u8] = b"cassie-midge-lexkey-v4";
 
 const ROOT: &[u8] = b"cassie";
 const LEXKEY: &[u8] = b"lexkey";
-const VERSION: &[u8] = b"v3";
+const VERSION: &[u8] = b"v4";
 const LEGACY_VERSION_V2: &[u8] = b"v2";
 
 const FAMILY_LAYOUT: &[u8] = b"layout";
@@ -31,6 +31,7 @@ const FAMILY_NORMALIZED_VECTOR: &[u8] = b"normalized-vector";
 const FAMILY_INDEX: &[u8] = b"index";
 const FAMILY_SCALAR_INDEX: &[u8] = b"scalar-index";
 const FAMILY_TIME_SERIES_INDEX: &[u8] = b"time-series-index";
+const FAMILY_UNIQUE_RESERVATION: &[u8] = b"unique-reservation";
 const FAMILY_COLUMN_BATCH: &[u8] = b"column-batch";
 const FAMILY_FUNCTION: &[u8] = b"function";
 const FAMILY_PROCEDURE: &[u8] = b"procedure";
@@ -54,6 +55,7 @@ const FAMILY_RETENTION: &[u8] = b"retention";
 const FAMILY_GRAPH: &[u8] = b"graph";
 const FAMILY_GRAPH_ADJACENCY: &[u8] = b"graph-adjacency";
 const FAMILY_DATA_EPOCH: &[u8] = b"data-epoch";
+const FAMILY_COLLECTION_GENERATION: &[u8] = b"collection-generation";
 
 pub(super) const LEGACY_SCHEMA_PREFIXES: &[&[u8]] = &[b"__cassie__/", b"r/", b"doc:"];
 
@@ -86,6 +88,7 @@ pub(super) fn capacity_key_prefixes() -> Vec<CapacityKeyPrefix> {
         (CapacityKeyKind::ScalarIndex, FAMILY_SCALAR_INDEX),
         (CapacityKeyKind::ScalarIndex, FAMILY_TIME_SERIES_INDEX),
         (CapacityKeyKind::IndexMetadata, FAMILY_INDEX),
+        (CapacityKeyKind::IndexMetadata, FAMILY_UNIQUE_RESERVATION),
         (CapacityKeyKind::VectorSidecar, FAMILY_VECTOR_INDEX),
         (CapacityKeyKind::VectorSidecar, FAMILY_NORMALIZED_VECTOR),
         (CapacityKeyKind::ColumnBatch, FAMILY_COLUMN_BATCH),
@@ -127,6 +130,10 @@ pub(super) fn layout_marker_key() -> Vec<u8> {
 
 pub(super) fn data_epoch_key() -> Vec<u8> {
     key(FAMILY_DATA_EPOCH, &[])
+}
+
+pub(super) fn collection_generation_key(collection: &str) -> Vec<u8> {
+    scoped_key(FAMILY_COLLECTION_GENERATION, collection, &[])
 }
 
 pub(super) fn legacy_v2_layout_prefix() -> Vec<u8> {
@@ -258,6 +265,10 @@ pub(super) fn vector_index_state_key(collection: &str, field: &str) -> Vec<u8> {
     scoped_key(FAMILY_VECTOR_INDEX_STATE, collection, &[field.as_bytes()])
 }
 
+pub(super) fn vector_index_state_prefix(collection: &str) -> Vec<u8> {
+    scoped_prefix(FAMILY_VECTOR_INDEX_STATE, collection, &[])
+}
+
 pub(super) fn vector_index_collection_prefix(collection: &str) -> Vec<u8> {
     scoped_prefix(FAMILY_VECTOR_INDEX, collection, &[])
 }
@@ -320,6 +331,44 @@ pub(super) fn time_series_index_data_prefix(collection: &str, index_name: &str) 
         collection,
         &[index_name.as_bytes(), b"data"],
     )
+}
+
+pub(super) fn unique_constraint_reservation_prefix(collection: &str) -> Vec<u8> {
+    scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"constraint"])
+}
+
+pub(super) fn unique_constraint_reservation_key(
+    collection: &str,
+    field: &str,
+    value: &serde_json::Value,
+) -> Result<Vec<u8>, CassieError> {
+    let mut key = scoped_key(
+        FAMILY_UNIQUE_RESERVATION,
+        collection,
+        &[b"constraint", field.as_bytes()],
+    );
+    append_scalar_value(&mut key, value)?;
+    Ok(key)
+}
+
+pub(super) fn unique_scalar_index_reservation_key(
+    collection: &str,
+    index_name: &str,
+    values: &[serde_json::Value],
+) -> Result<Vec<u8>, CassieError> {
+    let mut key = scoped_key(
+        FAMILY_UNIQUE_RESERVATION,
+        collection,
+        &[b"index", index_name.as_bytes()],
+    );
+    for value in values {
+        append_scalar_value(&mut key, value)?;
+    }
+    Ok(key)
+}
+
+pub(super) fn unique_index_reservation_prefix(collection: &str) -> Vec<u8> {
+    scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"index"])
 }
 
 pub(super) fn column_batch_metadata_key(collection: &str, index_name: &str) -> Vec<u8> {

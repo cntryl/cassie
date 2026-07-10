@@ -145,7 +145,7 @@ fn should_route_schema_data_temp_across_families() {
         assert!(legacy_schema_entries.is_empty());
         assert!(schema_entries
             .iter()
-            .any(|(_, value)| value.as_slice() == b"cassie-midge-lexkey-v3"));
+            .any(|(_, value)| value.as_slice() == b"cassie-midge-lexkey-v4"));
         assert!(
             temp_entries.is_empty(),
             "temp family should start empty in bootstrap state"
@@ -235,7 +235,7 @@ fn should_reject_v1_data_prefix_after_reopen() {
         assert!(
             error
                 .to_string()
-                .contains("incompatible lexkey v3 storage layout"),
+                .contains("incompatible lexkey v4 storage layout"),
             "unexpected error: {error}"
         );
 

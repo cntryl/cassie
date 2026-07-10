@@ -78,7 +78,7 @@ Supported:
 - Positive extended-query execute row limits can suspend portals and emit portal-suspended frames; `max_rows = 0` executes all remaining rows.
 - Extended-query protocol errors enter sync-drain mode and return deterministic PostgreSQL-style error fields before ReadyForQuery.
 - Row description, data row, command complete, error response, and ready-for-query messages.
-- Text and binary format paths covered by tests.
+- Text format and limited binary format paths are covered by tests for the currently implemented subset of result types; unsupported binary representations are rejected as unsupported features.
 
 Unsupported or not yet guaranteed:
 

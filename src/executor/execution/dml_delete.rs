@@ -12,6 +12,27 @@ pub(in crate::executor::execution) fn execute_delete(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    let collections = cassie.referential_write_collections(&statement.table);
+    cassie.midge.with_collection_write_gates(&collections, || {
+        execute_delete_with_held_referential_gates(
+            cassie,
+            session,
+            statement,
+            params,
+            user_functions,
+            controls,
+        )
+    })
+}
+
+fn execute_delete_with_held_referential_gates(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    statement: &crate::sql::ast::DeleteStatement,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
     let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", statement.table))

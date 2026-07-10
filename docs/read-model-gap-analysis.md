@@ -124,9 +124,9 @@ No active Phase 09 execution issue remains after the current rebaseline. Remaini
 
 Evidence:
 
-- `issues/phase-06/README.md` archives point lookup, scalar index seek/prefix/range scans, ordered bounded scans, row-id keyset/top-k, EXPLAIN labels, metrics, and benchmark ownership.
+- Existing docs archive point lookup, scalar index seek/prefix/range scans, ordered bounded scans, row-id keyset/top-k, EXPLAIN labels, metrics, and benchmark ownership.
 - Tenant filtered pages using composite scalar equality-prefix plus range/order fields are covered by integration tests and documented performance contracts.
-- Phase 09 issue 04 adds narrow mixed-order equality-prefix proof and exact expression-index equality seeks with EXPLAIN, metrics, restart, and benchmark ownership.
+- Follow-on read-path work adds narrow mixed-order equality-prefix proof and exact expression-index equality seeks with EXPLAIN, metrics, restart, and benchmark ownership.
 - Follow-on depth adds expression range/order lowering and mixed-direction suffix ordering when a selective equality-prefix index can bound the candidate set.
 
 Impact:
@@ -136,7 +136,7 @@ The MVP baseline covers the core single-node read-model shapes, but not every ad
 
 Recommendation:
 
-- Treat the Phase 06 archived scope plus tenant filtered-page coverage as the MVP read-optimization baseline.
+- Treat the established baseline plus tenant filtered-page coverage as the MVP read-optimization baseline.
 - Track mixed-direction suffixes without selective equality-prefix support only as explicit future slices with EXPLAIN assertions and metrics.
 - Prioritize tenant-scoped filtered pages, time-range pages, and projection-shaped reads over generic SQL breadth.
 
@@ -219,7 +219,7 @@ Recommendation:
 
 - Keep production-ready classification separate from implementation status.
 - Promote feature families only when the linked evidence and blockers in `docs/production-readiness.md` support the claim.
-- Use Phase 09 issue 11 to define promotion criteria for experimental surfaces before making stronger production claims.
+- Use the current experimental promotion program to define promotion criteria for experimental surfaces before making stronger production claims.
 
 ## P2 Follow-Up Gaps
 
@@ -282,9 +282,9 @@ Recommendation:
 - Add extraction work before any future production-depth slice needs substantial changes in an oversized file.
 - Split by ownership: repair execution, adaptive planning, and read-path proof modules.
 
-## Archived Phase 08 Backlog
+## Prior Closure Baseline
 
-Phase 08 closed the README-goal gaps in execution order and is now archived:
+The historical README-goal closure included:
 
 Closed baseline:
 
@@ -301,7 +301,7 @@ Closed baseline:
 
 Remaining sequence:
 
-- None for Phase 08 README-goal closure.
+- No additional backlog remains in that historical closure cycle.
 
 ## Phase 09 Follow-On Backlog
 
@@ -322,7 +322,7 @@ Closed baseline:
 
 Remaining sequence:
 
-- None for Phase 09 production-depth rebaseline.
+- The current focus is evidence closure in the active remediation slice rather than a broad phase list.
 
 ## Acceptance Criteria For README Alignment
 

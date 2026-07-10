@@ -61,7 +61,7 @@ Cassie assumes an event-sourced architecture. Data is projection data, projectio
 
 ### Midge storage layout
 
-Cassie uses a lexkey v2 Midge key layout for all Cassie-owned storage keys. This is a breaking on-disk layout: data directories created with the earlier slash-delimited or `__cassie__` v1 keys are rejected at startup and must be discarded, restored from a compatible snapshot, or rebuilt from projection sources.
+Cassie uses a clean-break lexkey v4 Midge key layout for all Cassie-owned storage keys. This is a breaking on-disk layout: data directories created with the earlier slash-delimited, `v1`, `v2`, or `v3` keys are rejected at startup and must be discarded, restored from a compatible snapshot, or rebuilt from projection sources.
 
 ### Simplicity wins
 

@@ -270,7 +270,7 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 [[package]]
 name = "cntryl-lexkey"
 version = "0.1.0"
-source = "git+https://github.com/cntryl/lexkey-rs?branch=main#40cb5e21cbafba763b7931a04f6c6ae2fc5a67a3"
+source = "git+https://github.com/cntryl/lexkey-rs?rev=40cb5e21cbafba763b7931a04f6c6ae2fc5a67a3#40cb5e21cbafba763b7931a04f6c6ae2fc5a67a3"
 dependencies = [
  "bytes",
  "hex",
@@ -280,7 +280,7 @@ dependencies = [
 [[package]]
 name = "cntryl-midge"
 version = "0.1.0"
-source = "git+https://github.com/cntryl/midge?branch=main#199ddf1a10b2e614a8e4d6f1b7e190122f209bc6"
+source = "git+https://github.com/cntryl/midge?rev=199ddf1a10b2e614a8e4d6f1b7e190122f209bc6#199ddf1a10b2e614a8e4d6f1b7e190122f209bc6"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -328,7 +328,7 @@ dependencies = [
 [[package]]
 name = "cntryl-stress"
 version = "0.3.0"
-source = "git+https://github.com/cntryl/stress?branch=main#c2ef35ae955a7ea06c526a36990d78611b0510b5"
+source = "git+https://github.com/cntryl/stress?rev=c2ef35ae955a7ea06c526a36990d78611b0510b5#c2ef35ae955a7ea06c526a36990d78611b0510b5"
 dependencies = [
  "cntryl-stress-macros",
  "linkme",
@@ -339,7 +339,7 @@ dependencies = [
 [[package]]
 name = "cntryl-stress-macros"
 version = "0.3.0"
-source = "git+https://github.com/cntryl/stress?branch=main#c2ef35ae955a7ea06c526a36990d78611b0510b5"
+source = "git+https://github.com/cntryl/stress?rev=c2ef35ae955a7ea06c526a36990d78611b0510b5#c2ef35ae955a7ea06c526a36990d78611b0510b5"
 dependencies = [
  "proc-macro2",
  "quote",

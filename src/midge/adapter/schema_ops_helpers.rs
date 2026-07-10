@@ -567,12 +567,10 @@ fn renamed_scoped_relation_name(
     relation_name.to_string()
 }
 
-pub(super) fn rename_collection_prefixed_data(
-    data_tx: &mut cntryl_midge::Transaction,
-    current_name: &str,
-    next_name: &str,
-) -> Result<(), CassieError> {
-    for (current_prefix, next_prefix, is_normalized_vector) in [
+type CollectionRenamePrefix = (Vec<u8>, Vec<u8>, bool);
+
+fn collection_rename_prefixes(current_name: &str, next_name: &str) -> [CollectionRenamePrefix; 12] {
+    [
         (
             Midge::row_prefix(current_name),
             Midge::row_prefix(next_name),
@@ -599,6 +597,21 @@ pub(super) fn rename_collection_prefixed_data(
             true,
         ),
         (
+            Midge::vector_index_state_prefix(current_name),
+            Midge::vector_index_state_prefix(next_name),
+            false,
+        ),
+        (
+            super::key_encoding::unique_constraint_reservation_prefix(current_name),
+            super::key_encoding::unique_constraint_reservation_prefix(next_name),
+            false,
+        ),
+        (
+            super::key_encoding::unique_index_reservation_prefix(current_name),
+            super::key_encoding::unique_index_reservation_prefix(next_name),
+            false,
+        ),
+        (
             Midge::column_store_collection_prefix(current_name),
             Midge::column_store_collection_prefix(next_name),
             false,
@@ -618,7 +631,17 @@ pub(super) fn rename_collection_prefixed_data(
             Midge::range_hash_prefix(next_name),
             false,
         ),
-    ] {
+    ]
+}
+
+pub(super) fn rename_collection_prefixed_data(
+    data_tx: &mut cntryl_midge::Transaction,
+    current_name: &str,
+    next_name: &str,
+) -> Result<(), CassieError> {
+    for (current_prefix, next_prefix, is_normalized_vector) in
+        collection_rename_prefixes(current_name, next_name)
+    {
         let documents = data_tx
             .scan(&Query::new().prefix(current_prefix.clone().into()))
             .map_err(CassieError::from)?;

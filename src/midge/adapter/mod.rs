@@ -1,6 +1,8 @@
+use std::cell::Cell;
 use std::collections::HashSet;
 use std::env;
 use std::path::Path;
+use std::sync::atomic::AtomicU8;
 use std::sync::OnceLock;
 use std::time::Instant;
 
@@ -30,6 +32,109 @@ mod raw_ops;
 mod transactions;
 
 pub use core::Midge;
+
+static DOCUMENT_WRITE_FAILPOINT: AtomicU8 = AtomicU8::new(0);
+static DOCUMENT_WRITE_FAILPOINT_TEST_GUARD: OnceLock<parking_lot::Mutex<()>> = OnceLock::new();
+
+thread_local! {
+    static DOCUMENT_WRITE_CONFLICTS_REMAINING: Cell<u8> = const { Cell::new(0) };
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[doc(hidden)]
+pub enum DocumentWriteFailurePoint {
+    Row,
+    ScalarIndex,
+    TimeSeriesIndex,
+    GraphAdjacency,
+    NormalizedVector,
+    VectorState,
+}
+
+impl DocumentWriteFailurePoint {
+    const fn code(self) -> u8 {
+        match self {
+            Self::Row => 1,
+            Self::ScalarIndex => 2,
+            Self::TimeSeriesIndex => 3,
+            Self::GraphAdjacency => 4,
+            Self::NormalizedVector => 5,
+            Self::VectorState => 6,
+        }
+    }
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Row => "row",
+            Self::ScalarIndex => "scalar-index",
+            Self::TimeSeriesIndex => "time-series-index",
+            Self::GraphAdjacency => "graph-adjacency",
+            Self::NormalizedVector => "normalized-vector",
+            Self::VectorState => "vector-state",
+        }
+    }
+}
+
+#[doc(hidden)]
+pub fn set_document_write_failure_point(point: Option<DocumentWriteFailurePoint>) {
+    DOCUMENT_WRITE_FAILPOINT.store(
+        point.map_or(0, DocumentWriteFailurePoint::code),
+        std::sync::atomic::Ordering::SeqCst,
+    );
+}
+
+#[doc(hidden)]
+pub fn document_write_failure_point_test_guard() -> parking_lot::MutexGuard<'static, ()> {
+    DOCUMENT_WRITE_FAILPOINT_TEST_GUARD
+        .get_or_init(|| parking_lot::Mutex::new(()))
+        .lock()
+}
+
+#[doc(hidden)]
+pub(crate) fn check_document_write_failure_point(
+    point: DocumentWriteFailurePoint,
+) -> Result<(), CassieError> {
+    let requested = DOCUMENT_WRITE_FAILPOINT
+        .compare_exchange(
+            point.code(),
+            0,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        )
+        .ok();
+    if requested.is_none() {
+        return Ok(());
+    }
+
+    Err(CassieError::Execution(format!(
+        "injected test failure after {} mutation",
+        point.label()
+    )))
+}
+
+#[doc(hidden)]
+pub fn set_document_write_conflicts_remaining(remaining: u8) {
+    DOCUMENT_WRITE_CONFLICTS_REMAINING.with(|counter| counter.set(remaining));
+}
+
+#[doc(hidden)]
+pub(crate) fn check_document_write_conflict_injection() -> Result<(), CassieError> {
+    let injected = DOCUMENT_WRITE_CONFLICTS_REMAINING.with(|counter| {
+        let remaining = counter.get();
+        if remaining == 0 {
+            return false;
+        }
+        counter.set(remaining.saturating_sub(1));
+        true
+    });
+    if injected {
+        return Err(CassieError::StorageRetryable(
+            "midge write conflict: injected test conflict".to_string(),
+        ));
+    }
+
+    Ok(())
+}
 
 mod capacity;
 mod cardinality_stats;
@@ -160,8 +265,16 @@ impl Midge {
         key_encoding::vector_index_state_key(collection, field)
     }
 
+    fn vector_index_state_prefix(collection: &str) -> Vec<u8> {
+        key_encoding::vector_index_state_prefix(collection)
+    }
+
     fn data_epoch_key() -> Vec<u8> {
         key_encoding::data_epoch_key()
+    }
+
+    fn collection_generation_key(collection: &str) -> Vec<u8> {
+        key_encoding::collection_generation_key(collection)
     }
 
     fn vector_index_collection_prefix(collection: &str) -> Vec<u8> {

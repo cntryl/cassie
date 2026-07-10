@@ -1,6 +1,7 @@
 use super::{
-    normalize_vector, CassieError, Midge, NormalizedVectorRecord, Query, StorageFamily,
-    VectorIndexRecord, VectorIndexState, WriteOptions,
+    check_document_write_failure_point, normalize_vector, CassieError, DocumentWriteFailurePoint,
+    Midge, NormalizedVectorRecord, Query, StorageFamily, VectorIndexRecord, VectorIndexState,
+    WriteOptions,
 };
 
 impl Midge {
@@ -89,7 +90,9 @@ impl Midge {
         let value =
             serde_json::to_vec(state).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::vector_index_state_key(collection, field), value, None)
-            .map_err(CassieError::from)
+            .map_err(CassieError::from)?;
+        check_document_write_failure_point(DocumentWriteFailurePoint::VectorState)?;
+        Ok(())
     }
 
     pub(super) fn refresh_vector_index_states_in_tx(

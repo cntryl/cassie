@@ -319,6 +319,75 @@ fn should_reject_update_when_unique_value_conflicts() {
 }
 
 #[test]
+fn should_allow_only_one_concurrent_unique_insert_to_commit() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("unique_concurrent_insert");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE unique_concurrent_insert (email TEXT UNIQUE)",
+                vec![],
+            )
+            .unwrap();
+
+        let cassie = std::sync::Arc::new(cassie);
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+        let workers = (0..2)
+            .map(|_| {
+                let cassie = std::sync::Arc::clone(&cassie);
+                let barrier = std::sync::Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    let session = cassie.create_session("tester", None);
+                    barrier.wait();
+                    cassie.execute_sql(
+                        &session,
+                        "INSERT INTO unique_concurrent_insert (email) VALUES ('same@example.com')",
+                        vec![],
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+        barrier.wait();
+
+        // Act
+        let results = workers
+            .into_iter()
+            .map(|worker| worker.join().expect("worker completed"))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(results.iter().filter(|result| result.is_err()).count(), 1);
+        assert!(results.iter().any(|result| {
+            result
+                .as_ref()
+                .err()
+                .is_some_and(|error| error.to_string().contains("unique constraint"))
+        }));
+        let selected = cassie
+            .execute_sql(
+                &cassie.create_session("tester", None),
+                "SELECT email FROM unique_concurrent_insert",
+                vec![],
+            )
+            .unwrap();
+        assert_eq!(selected.rows.len(), 1);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_reject_insert_when_unique_index_value_is_duplicate() {
     // Arrange
     with_fallback();

@@ -29,6 +29,21 @@ The current engineering backlog is cleanup-first. New feature work should not st
 | P1 | Reduce architecture drift in oversized orchestration modules and compatibility shims before adding behavior | In progress | Large cross-cutting files and drifted boundaries increase refactor risk, hide ownership, and make pedantic cleanup more expensive. |
 | P1 | Reconcile docs, tests, and implementation whenever compatibility claims are narrower than the code or broader than actual behavior | In progress | Cleanup must leave explicit contracts, not stale claims that silently regress under new work. |
 
+## Active Remediation Program (ordered)
+
+The current ordered closure program is the Audit Remediation Program in this task slice:
+
+1. Phase 0 — restore trustworthy gates and claims.
+2. Phase 1 — atomic write and constraint correctness.
+3. Phase 2 — derived-state publication and crash recovery.
+4. Phase 3 — stable SQL semantics.
+5. Phase 4 — transaction and pgwire contract alignment.
+6. Phase 5 — persisted retrieval in lexkey v4.
+7. Phase 6 — scoped REST, TLS, sessions, and UI.
+8. Phase 7 — analytics, recovery, and operational correctness.
+9. Phase 8 — benchmark and promotion evidence.
+10. Phase 9 — delivery, supply chain, and maintainability.
+
 ## Projection Lifecycle & Replay Safety
 
 Goal: make projection construction, replay, rebuilds, freshness, and activation deterministic and observable.
@@ -70,11 +85,11 @@ Goal: provide the core PostgreSQL-like query surface expected by application cod
 | Aggregates, GROUP BY, HAVING | Implemented | Stable |
 | Joins, EXISTS, NOT EXISTS, lateral forms | Implemented | Stable |
 | Subqueries and correlated subqueries | Implemented | Stable |
-| CTEs and recursive CTEs | Implemented | Stable |
+| CTEs and recursive CTEs | Implemented | Stable/Experimental |
 | Set operations | Implemented | Stable |
-| Window functions | Implemented | Stable with documented frame limits |
+| Window functions | Implemented | Experimental with phase-3 frame-contract alignment |
 | DML and RETURNING | Implemented | Stable for projection-state mutation paths |
-| Transactions and savepoints | Implemented | Stable with Cassie/Midge durability notes for projection workflows |
+| Transactions and savepoints | Implemented | Stable/Experimental with single-collection and DDL restrictions |
 
 ## Schema & Catalog
 
@@ -83,7 +98,7 @@ Goal: make schema definition, metadata, and introspection predictable for users 
 | Feature Area | Status | Compatibility |
 | --- | --- | --- |
 | Tables and schemas | Implemented | Stable |
-| Constraints and defaults | Implemented | Stable |
+| Constraints and defaults | Implemented | Stable/Experimental |
 | Views and nested views | Implemented | Stable |
 | Limited procedures and CALL | Implemented | Experimental compatibility/admin surface |
 | Catalog metadata and virtual views | Implemented | Experimental |
@@ -111,12 +126,12 @@ Goal: expose document-native search, vector, hybrid, and embedding workflows thr
 | Feature Area | Status | Compatibility |
 | --- | --- | --- |
 | Full-text inverted index and BM25 | Implemented | Cassie-specific |
-| `search`, `search_score`, `snippet` | Implemented | Cassie-specific |
-| Vector values and distance functions | Implemented | Cassie-specific with pgvector-style operators |
+| `search`, `search_score`, `snippet` | Implemented (experimental) | Cassie-specific |
+| Vector values and distance functions | Implemented (experimental) | Cassie-specific with pgvector-style operators |
 | HNSW vector indexes | Implemented | Experimental exact re-rank |
 | IVFFlat vector index metadata/options | Implemented | Experimental |
 | IVFFlat trained candidate execution | Implemented | Experimental exact re-rank |
-| Hybrid scoring | Implemented | Cassie-specific |
+| Hybrid scoring | Implemented (experimental) | Cassie-specific |
 | Graph retrieval table functions | Implemented baseline | Experimental Cassie-specific |
 | Embedding providers and validation | Implemented | Experimental |
 
@@ -126,7 +141,7 @@ Goal: provide analytical read acceleration and operational visibility while keep
 
 | Feature Area | Status | Compatibility |
 | --- | --- | --- |
-| Column batches and covered scans | Implemented | Cassie-specific |
+| Column batches and covered scans | Implemented (experimental) | Cassie-specific |
 | Segment pruning | Implemented | Cassie-specific |
 | Aggregate acceleration | Implemented | Cassie-specific |
 | `time_bucket` fixed windows | Implemented | Cassie-specific deterministic function |
@@ -142,7 +157,7 @@ Goal: provide analytical read acceleration and operational visibility while keep
 
 Goal: define the runtime and access-path contracts that later write/read optimization must preserve.
 
-Phase 04 is complete and archived in `docs/performance-contracts.md` and `issues/phase-04/README.md`.
+Phase 04 is complete and documented in `docs/performance-contracts.md`.
 Phase 04 treats pgwire and REST as async interfaces over a synchronous Rust engine.
 Supported runtime paths must define where async IO stops, where synchronous engine work starts, and which blocking boundary protects Tokio worker tasks.
 Phase 04 also defines read access-path vocabulary before write-side index/key-layout work or read-side planner/executor work consumes it.
@@ -228,10 +243,10 @@ Goal: support horizontal expansion through externally orchestrated independent C
 - Prioritize query patterns required by real read models over feature parity with any general-purpose database.
 - Treat the archived phase 04 contract surface as the reference for explicit async transport boundaries, synchronous engine paths, blocking offload, runtime-boundary diagnostics, and read access-path contracts.
 - Keep future write-path changes aligned with the archived phase 05 contracts in `docs/performance-contracts.md`.
-- Treat the archived phase 06 surface in `issues/phase-06/README.md` plus the Phase 09 read-path depth in `docs/performance-contracts.md` as the reference for implemented Midge-native read paths, access-path assertions, and projection-shaped read diagnostics. Remaining read-optimization depth is limited to explicit follow-on slices such as mixed-direction suffix ordering beyond supporting scalar-index row-id suffixes, production adaptive thresholds, and bounded join adaptivity when neither bounded row-count probes nor supportive join-key samples can prove a smaller build side.
-- Treat the archived phase 07 surface in `issues/phase-07/README.md` as the reference for advanced query, adaptive execution, column-store table mode, and offline consistency-comparison behavior.
-- Treat `issues/phase-08/README.md` as the archived README-goal closure surface for operational metadata, snapshot/restore, repair, read optimization, time-series, client compatibility, production classification, and capacity-management documentation.
-- Use `issues/phase-09/README.md` as the archived production-depth follow-up surface; experimental promotion now follows [Experimental Promotion Criteria](experimental-promotion-criteria.md).
+- Treat the documented read-path implementation in `docs/performance-contracts.md` as the reference for implemented Midge-native read paths, access-path assertions, and projection-shaped read diagnostics. Remaining read-optimization depth is limited to explicit follow-on slices such as mixed-direction suffix ordering beyond supporting scalar-index row-id suffixes, production adaptive thresholds, and bounded join adaptivity when neither bounded row-count probes nor supportive join-key samples can prove a smaller build side.
+- Treat current explicit documentation and evidence surfaces as the reference for advanced query, adaptive execution, column-store table mode, and offline consistency-comparison behavior.
+- Use current audit programs and the active implementation slice list in `docs/read-model-autopilot-plan.md` for README-goal closure context.
+- Experimental promotion follows [Experimental Promotion Criteria](experimental-promotion-criteria.md).
 - Tighten PostgreSQL compatibility documentation for already-implemented SQL features through the read-model access lens.
 - Expand remaining client compatibility probes for sqlx/diesel automation, broader Prisma/SQLAlchemy/pgAdmin4 depth, and migration-tool read-model workflows.
 - Promote experimental catalog, limited procedure, rollup, HNSW, and embedding surfaces only through surface-specific future issues that satisfy [Experimental Promotion Criteria](experimental-promotion-criteria.md).

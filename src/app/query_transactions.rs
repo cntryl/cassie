@@ -1,4 +1,5 @@
-use crate::midge::adapter::DocumentWriteOp;
+use crate::midge::adapter::{DocumentWriteBatchOptions, DocumentWriteOp};
+use std::collections::BTreeMap;
 
 use super::{
     Cassie, CassieError, CassieSession, QueryResult, TransactionAction, TransactionRowChange,
@@ -22,10 +23,10 @@ impl Cassie {
                         "transaction is failed; rollback required".to_string(),
                     ));
                 }
-                let mut changed_collections = Vec::new();
-                for (collection, writes) in session.transaction_writes() {
+                let mut writes = BTreeMap::new();
+                for (collection, collection_writes) in session.transaction_writes() {
                     let mut write_ops = Vec::new();
-                    for (id, change) in writes {
+                    for (id, change) in collection_writes {
                         write_ops.push(match change {
                             TransactionRowChange::Upsert(payload) => {
                                 DocumentWriteOp::Put { id, payload }
@@ -37,25 +38,40 @@ impl Cassie {
                     if write_ops.is_empty() {
                         continue;
                     }
+                    writes.insert(collection, write_ops);
+                }
 
-                    let report = self
+                let mut changed_collections = Vec::new();
+                if !writes.is_empty() {
+                    let reports = self
                         .midge
-                        .apply_document_write_batch(&collection, write_ops)
+                        .apply_document_write_batches_with_options(
+                            &writes,
+                            DocumentWriteBatchOptions::sync(),
+                        )
                         .inspect_err(|_| {
                             session.mark_transaction_failed();
                         })?;
-                    self.runtime
-                        .record_projection_write_batch(collection.clone(), &report.stats);
-                    self.runtime.set_data_epoch(self.midge.data_epoch()?);
-                    if report.stats.row_puts > 0
-                        || report.stats.row_deletes > 0
-                        || report.stats.index_puts > 0
-                        || report.stats.index_deletes > 0
-                        || report.stats.metadata_puts > 0
-                        || report.stats.metadata_deletes > 0
-                        || report.stats.batch_flushes > 0
-                    {
-                        changed_collections.push(collection.clone());
+
+                    let mut latest_epoch = None;
+                    for (collection, report) in reports {
+                        self.runtime
+                            .record_projection_write_batch(collection.clone(), &report.stats);
+                        if report.stats.row_puts > 0
+                            || report.stats.row_deletes > 0
+                            || report.stats.index_puts > 0
+                            || report.stats.index_deletes > 0
+                            || report.stats.metadata_puts > 0
+                            || report.stats.metadata_deletes > 0
+                            || report.stats.batch_flushes > 0
+                        {
+                            changed_collections.push(collection.clone());
+                        }
+                        latest_epoch = latest_epoch.or(report.data_epoch);
+                    }
+
+                    if let Some(epoch) = latest_epoch {
+                        self.runtime.set_data_epoch(epoch);
                     }
                 }
 

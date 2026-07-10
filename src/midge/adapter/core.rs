@@ -3,14 +3,15 @@ use super::{
     StorageFamily, StorageLayout, TransactionMode, WriteOptions, DATA_FAMILY_NAME,
     SCHEMA_FAMILY_NAME, TEMP_FAMILY_NAME,
 };
-use parking_lot::Mutex;
+use parking_lot::{Mutex, ReentrantMutex};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 pub struct Midge {
     pub(super) engine: Engine,
     pub(super) storage_layout: OnceLock<StorageLayout>,
-    collection_write_gates: Mutex<HashMap<String, Arc<Mutex<()>>>>,
+    collection_write_gates: Mutex<HashMap<String, Arc<ReentrantMutex<()>>>>,
+    referential_write_gate: ReentrantMutex<()>,
 }
 
 impl Midge {
@@ -45,6 +46,7 @@ impl Midge {
             engine,
             storage_layout: OnceLock::new(),
             collection_write_gates: Mutex::new(HashMap::new()),
+            referential_write_gate: ReentrantMutex::new(()),
         })
     }
 
@@ -57,6 +59,7 @@ impl Midge {
             engine: Engine::open(options).map_err(CassieError::from)?,
             storage_layout: OnceLock::new(),
             collection_write_gates: Mutex::new(HashMap::new()),
+            referential_write_gate: ReentrantMutex::new(()),
         })
     }
 
@@ -167,11 +170,31 @@ impl Midge {
         self.storage_layout.get().cloned()
     }
 
-    pub(super) fn collection_write_gate(&self, collection: &str) -> Arc<Mutex<()>> {
+    pub(crate) fn with_collection_write_gates<T>(
+        &self,
+        collections: &[String],
+        operation: impl FnOnce() -> T,
+    ) -> T {
+        let _referential_guard = self.referential_write_gate.lock();
+        let mut names = collections
+            .iter()
+            .map(|collection| collection.to_ascii_lowercase())
+            .collect::<Vec<_>>();
+        names.sort();
+        names.dedup();
+        let gates = names
+            .iter()
+            .map(|collection| self.collection_write_gate(collection))
+            .collect::<Vec<_>>();
+        let _guards = gates.iter().map(|gate| gate.lock()).collect::<Vec<_>>();
+        operation()
+    }
+
+    pub(crate) fn collection_write_gate(&self, collection: &str) -> Arc<ReentrantMutex<()>> {
         let mut gates = self.collection_write_gates.lock();
         gates
             .entry(collection.to_ascii_lowercase())
-            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .or_insert_with(|| Arc::new(ReentrantMutex::new(())))
             .clone()
     }
 }

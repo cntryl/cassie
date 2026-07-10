@@ -1,5 +1,10 @@
 name: CI
 
+env:
+  RUST_TOOLCHAIN: 1.96.0
+  CNTRYL_TOOLS_REPO: https://github.com/cntryl/tools
+  CNTRYL_TOOLS_REV: d36dc1c09462a4fd691ed9fdcc4413eb61f0c80c
+
 on:
   push:
     branches:
@@ -17,14 +22,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Update Rust
-        run: rustup update
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
 
-      - name: Install Rust components
-        run: rustup component add rustfmt clippy
+      - name: Setup Rust
+        uses: actions/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt, clippy
 
       - name: Install cntryl-tools
-        run: cargo install --git https://github.com/cntryl/tools
+        run: cargo install --git ${{ env.CNTRYL_TOOLS_REPO }} --rev ${{ env.CNTRYL_TOOLS_REV }} --locked --force
 
       - name: Cargo fmt check
         run: cargo fmt --all -- --check
@@ -46,3 +58,24 @@ jobs:
 
       - name: Cargo test
         run: cargo test --locked
+
+      - name: Install UI dependencies
+        run: cd ui && npm ci
+
+      - name: Verify generated adapters are fresh
+        run: |
+          cd ui
+          npm run gen:adapters
+          git diff --exit-code
+
+      - name: UI test
+        run: cd ui && npm test -- --run
+
+      - name: UI type-check
+        run: cd ui && npm run type-check
+
+      - name: UI lint
+        run: cd ui && npm run lint
+
+      - name: UI build
+        run: cd ui && npm run build

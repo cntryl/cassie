@@ -1,4 +1,7 @@
-use super::{key_encoding, CassieError, Midge, RowDecode};
+use super::{
+    check_document_write_failure_point, key_encoding, CassieError, DocumentWriteFailurePoint,
+    Midge, RowDecode,
+};
 use crate::catalog::{IndexKind, IndexMeta};
 use crate::executor::filter;
 use crate::sql::ast::Expr;
@@ -77,6 +80,8 @@ impl Midge {
                 }
             }
         }
+
+        check_document_write_failure_point(DocumentWriteFailurePoint::ScalarIndex)?;
 
         Ok((deletes, puts))
     }
@@ -221,7 +226,7 @@ impl Midge {
         Ok(Some((key, value)))
     }
 
-    fn scalar_index_key_values(
+    pub(crate) fn scalar_index_key_values(
         index: &IndexMeta,
         payload: &serde_json::Value,
     ) -> Result<Option<Vec<serde_json::Value>>, CassieError> {

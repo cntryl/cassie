@@ -37,6 +37,28 @@ impl Cassie {
         apply_defaults: bool,
         exclude_id: Option<&str>,
     ) -> Result<String, CassieError> {
+        let collections = self.referential_write_collections(collection);
+        self.midge.with_collection_write_gates(&collections, || {
+            self.write_document_for_session_with_held_collection_gates(
+                session,
+                collection,
+                id,
+                payload,
+                apply_defaults,
+                exclude_id,
+            )
+        })
+    }
+
+    fn write_document_for_session_with_held_collection_gates(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        id: Option<String>,
+        payload: serde_json::Value,
+        apply_defaults: bool,
+        exclude_id: Option<&str>,
+    ) -> Result<String, CassieError> {
         let payload = self.prepare_document_write_for_session(
             session,
             collection,
@@ -126,6 +148,18 @@ impl Cassie {
         collection: &str,
         id: &str,
     ) -> Result<bool, CassieError> {
+        let collections = self.referential_write_collections(collection);
+        self.midge.with_collection_write_gates(&collections, || {
+            self.delete_document_for_session_with_held_collection_gates(session, collection, id)
+        })
+    }
+
+    fn delete_document_for_session_with_held_collection_gates(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        id: &str,
+    ) -> Result<bool, CassieError> {
         if let Some(session) = session {
             if session.is_transaction_active() {
                 let existed = self
@@ -147,6 +181,39 @@ impl Cassie {
     fn refresh_runtime_data_epoch(&self) -> Result<(), CassieError> {
         self.runtime.set_data_epoch(self.midge.data_epoch()?);
         Ok(())
+    }
+
+    pub(crate) fn referential_write_collections(&self, collection: &str) -> Vec<String> {
+        let canonical_name = |name: &str| {
+            self.catalog
+                .get_schema(name)
+                .map_or_else(|| name.to_string(), |schema| schema.collection)
+        };
+        let collection = canonical_name(collection);
+        let mut collections = vec![collection.clone()];
+        for constraint in self.catalog.get_constraints(&collection) {
+            if let Some(referenced_table) = constraint.references_table {
+                collections.push(canonical_name(&referenced_table));
+            }
+        }
+        for candidate in self.catalog.list_collections() {
+            if self
+                .catalog
+                .get_constraints(&candidate.name)
+                .iter()
+                .any(|constraint| {
+                    constraint
+                        .references_table
+                        .as_deref()
+                        .is_some_and(|referenced| {
+                            canonical_name(referenced).eq_ignore_ascii_case(&collection)
+                        })
+                })
+            {
+                collections.push(candidate.name);
+            }
+        }
+        collections
     }
 
     pub(crate) fn get_document_for_session(

@@ -32,13 +32,13 @@ Experimental surfaces require the evidence gates in [Experimental Promotion Crit
 | Semi/anti joins | EXISTS, NOT EXISTS | Stable | PostgreSQL-like |
 | Lateral | LATERAL, CROSS APPLY, OUTER APPLY | Stable | PostgreSQL-like with Cassie syntax support |
 | Subqueries | scalar subqueries, FROM subqueries, predicate subqueries, correlated subqueries | Stable | PostgreSQL-like |
-| CTEs | WITH, WITH RECURSIVE | Stable | PostgreSQL-like |
+| CTEs | WITH, WITH RECURSIVE | Stable/Experimental | PostgreSQL-like where behavior is known; unsupported recursive edge cases are rejected deterministically |
 | Set operations | UNION, UNION ALL, INTERSECT, EXCEPT | Stable | PostgreSQL-like |
-| Window functions | row_number, rank, dense_rank, lag, lead, first_value, last_value, supported frames | Stable | PostgreSQL-like with documented frame limits |
+| Window functions | row_number, rank, dense_rank, lag, lead, first_value, last_value, supported frames | Stable/Experimental | PostgreSQL-like where implemented; frame semantics are being aligned with documented limits |
 | DML | INSERT, UPDATE, DELETE, RETURNING, `COPY ... FROM STDIN WITH (FORMAT csv)` | Stable/Experimental | PostgreSQL-like plus simple-query CSV bulk load |
 | DDL | CREATE/DROP DATABASE, CREATE/ALTER/DROP TABLE, CREATE/ALTER/DROP SCHEMA, CREATE/DROP INDEX, CREATE ROLLUP, REFRESH ROLLUP, DROP ROLLUP, CREATE/ALTER/DROP/ENFORCE RETENTION POLICY | Stable/Experimental by object type | PostgreSQL-like plus Cassie-specific analytics |
 | Session scope | `current_database()`, `current_schema()`, `SHOW search_path`, `SET search_path` | Stable | PostgreSQL-like current-database session model |
-| Transactions | BEGIN, COMMIT, ROLLBACK, savepoints | Stable | PostgreSQL-like with Cassie/Midge durability notes |
+| Transactions | BEGIN, COMMIT, ROLLBACK, savepoints | Stable/Experimental | PostgreSQL-like with explicit single-collection/DDL limits |
 | Views | CREATE VIEW, DROP VIEW, nested views | Stable | PostgreSQL-like read-only view behavior |
 | Functions | scalar functions, user-defined functions | Stable/Experimental | PostgreSQL-like where documented |
 | Procedures | CREATE PROCEDURE, CALL | Experimental | Limited compatibility/admin surface, not a business-logic platform |
@@ -49,10 +49,10 @@ Experimental surfaces require the evidence gates in [Experimental Promotion Crit
 
 | Category | Supported Items | Status | Compatibility |
 | --- | --- | --- | --- |
-| Full-text | search(field, query), search_score(field, query), snippet(field, query) | Stable | Cassie-specific |
-| Vector | vector_score, vector_distance, cosine_distance, dot_product, l2_distance | Stable | Cassie-specific |
+| Full-text | search(field, query), search_score(field, query), snippet(field, query) | Stable/Experimental | Cassie-specific |
+| Vector | vector_score, vector_distance, cosine_distance, dot_product, l2_distance | Stable/Experimental | Cassie-specific |
 | pgvector syntax | `<=>`, `<->`, `<#>`, vector(n) | Stable/Experimental | pgvector-style, not full extension parity |
-| Hybrid | hybrid_score(text_score, vector_score) | Stable | Cassie-specific |
+| Hybrid | hybrid_score(text_score, vector_score) | Stable/Experimental | Cassie-specific |
 | Graph | CREATE GRAPH, graph_neighbors, graph_expand, graph_shortest_path | Experimental | Cassie-specific graph retrieval over read-model projections |
 | Embeddings | provider auth/config, model and dimension validation, timeout/retry/batch controls, hosted OpenAI-compatible providers, hosted Voyage/Cohere providers, and deterministic local hash embeddings | Experimental | Cassie-specific |
 | Projections | projection metadata, source checkpoints, freshness, replay batch diagnostics, schema version, offset, lag, rebuild state | Experimental | Cassie-specific |
@@ -85,11 +85,11 @@ Unsupported procedural expectations include:
 | Covering | INCLUDE (...) | Stable | PostgreSQL-like syntax with Cassie planner behavior |
 | Partial | CREATE INDEX ... WHERE ... | Experimental | PostgreSQL-like syntax; limited predicate implication |
 | Expression | CREATE INDEX ON table (lower(email)) | Experimental | PostgreSQL-like syntax; Cassie expression equivalence |
-| Full-text | inverted index | Stable | Cassie-specific |
+| Full-text | inverted index | Stable/Experimental | Cassie-specific |
 | Vector | brute force, HNSW, IVFFlat | Stable/Experimental | Cassie-specific with pgvector-style operators |
-| Hybrid | text candidate plus vector rerank metadata | Stable | Cassie-specific |
+| Hybrid | text candidate plus vector rerank metadata | Stable/Experimental | Cassie-specific |
 | Graph | outbound/inbound adjacency sidecars for graph edge tables | Experimental | Cassie-specific |
-| Column-store | USING column indexes, compressed column batches, covered scan acceleration, segment pruning | Stable | Cassie-specific |
+| Column-store | USING column indexes, compressed column batches, covered scan acceleration, segment pruning | Stable/Experimental | Cassie-specific |
 | Time-series | timestamp range index metadata and planner selection | Experimental | Cassie-specific |
 | Merkle | integrity index | Planned | Cassie-specific |
 
@@ -97,11 +97,11 @@ Unsupported procedural expectations include:
 
 | Category | Supported Items | Status | Compatibility |
 | --- | --- | --- | --- |
-| Identity | PRIMARY KEY | Stable | PostgreSQL-like |
-| Nullability | NOT NULL | Stable | PostgreSQL-like |
-| Uniqueness | UNIQUE | Stable | PostgreSQL-like |
-| Validation | CHECK | Stable | PostgreSQL-like |
-| Defaults | DEFAULT | Stable | PostgreSQL-like |
+| Identity | PRIMARY KEY | Stable/Experimental | PostgreSQL-like |
+| Nullability | NOT NULL | Stable/Experimental | PostgreSQL-like |
+| Uniqueness | UNIQUE | Stable/Experimental | PostgreSQL-like |
+| Validation | CHECK | Stable/Experimental | PostgreSQL-like |
+| Defaults | DEFAULT | Stable/Experimental | PostgreSQL-like |
 | References | FOREIGN KEY | Stable/Experimental | PostgreSQL-like with documented limits |
 | Generated | generated columns | Stable/Experimental | PostgreSQL-like with documented limits |
 
@@ -128,7 +128,7 @@ Unsupported procedural expectations include:
 | --- | --- | --- | --- |
 | PostgreSQL wire | startup, passwordless startup when auth is disabled, cleartext-password auth when enabled, simple query, extended query, parse, bind, describe, execute, sync, flush, close, simple-query COPY FROM STDIN CSV | Stable/Experimental | PostgreSQL-compatible subset |
 | Pgwire results | row description, data row, command complete, SQLSTATE-style error response, ready for query | Stable | PostgreSQL-compatible subset |
-| Pgwire compatibility | prepared statements, portals, text/binary formats, catalog introspection, shared semantic error mapping for malformed SQL, missing relations, missing schemas, unsupported features, deadlines, auth failures, and retryable-storage failures | Stable/Experimental | PostgreSQL-compatible subset |
+| Pgwire compatibility | prepared statements, portals, text and limited binary formats, catalog introspection, shared semantic error mapping for malformed SQL, missing relations, missing schemas, unsupported features, deadlines, auth failures, and retryable-storage failures | Stable/Experimental | PostgreSQL-compatible subset |
 | Role access | authenticated administrators retain the supported SQL surface; authenticated non-admin roles are read-only and may use SELECT, EXPLAIN SELECT, SHOW, SET, and transaction control | Stable baseline | SQLSTATE `42501` and HTTP 403 for forbidden statements; no GRANT/capability SQL |
 | HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin manifest export and consistency-check APIs, shared semantic error mapping, and bearer-style admin auth | Stable/Experimental | Cassie REST API |
 | Recovery | v1 local snapshots with `cassie-snapshot-manifest.json`, copied Midge data directory, manifest compatibility validation, restore to empty local data directory | Experimental | Cassie-specific local recovery; no remote orchestration or replication |
@@ -140,13 +140,13 @@ Unsupported procedural expectations include:
 
 ## Projection Verification Surfaces
 
-- Cassie-owned Midge keys use the lexkey v3 storage layout. Existing flat or `v2` Midge directories, slash-delimited row keys, `doc:` legacy keys, or `__cassie__` key families are intentionally incompatible and must be recreated before startup; Cassie does not attempt in-place migration.
+- Cassie-owned Midge keys use the lexkey v4 storage layout. Existing flat or `v1`/`v2`/`v3` Midge directories, slash-delimited row keys, `doc:` legacy keys, or `__cassie__` key families are intentionally incompatible and must be recreated before startup; Cassie does not attempt in-place migration.
 - Fresh startup bootstraps the configured default database plus persisted `public`; `pg_catalog.pg_database` and `information_schema.schemata` expose the live database/schema surface for the current session database.
 - Unqualified relation names resolve through the session `search_path` inside the current database only. Cross-database `database.schema.relation` references remain unsupported.
 - `CASSIE_OPERATOR_FEEDBACK_ENABLED=1` enables experimental operator-selection feedback. When unset, the planner stays on the deterministic base path and EXPLAIN reports feedback as ignored or disabled.
 - `CASSIE_ADAPTIVE_EXECUTION_ENABLED=1` enables experimental adaptive selection among prevalidated read-operator alternatives. `CASSIE_ADAPTIVE_MIN_COST_SAVINGS_BPS` controls the minimum observed savings required before an adaptive alternative replaces the base operator. `CASSIE_ADAPTIVE_MIN_CONFIDENCE_BPS` optionally requires a minimum operator-feedback confidence score before adaptive selection can pass; it defaults to `0`.
 - `CASSIE_OPERATOR_SWITCHING_ENABLED=1` enables experimental runtime switching for explicitly prevalidated switch pairs. The first supported pair is `vectorized_join_to_merge_join`, which replays left/right join inputs before emitting rows when `CASSIE_OPERATOR_SWITCH_JOIN_ROW_THRESHOLD` is exceeded.
-- REST admin auth accepts `Authorization: Bearer user:password` or the bootstrap-token shorthand. Pgwire and REST both use the same credential-validation and role-lookup service.
+- REST admin auth currently accepts `Authorization: Bearer user:password` during compatibility operation; migration to session-token-only auth is tracked in the active remediation program. Pgwire and REST both use the same credential-validation and role-lookup service.
 - Authenticated non-admin roles are read-only across pgwire and the REST SQL routes. DML, COPY, DDL, role/routine administration, projection lifecycle/repair, retention, and operational commands fail before planning or execution. Public embedded sessions created with `CassieSession::new` or `Cassie::create_session` remain trusted in-process callers.
 - Hosted embedding providers use provider-specific `CASSIE_VOYAGE_*` and `CASSIE_COHERE_*` settings. `CASSIE_LOCAL_MODEL` and `CASSIE_LOCAL_DIMENSIONS` enable the deterministic local provider for tests, development, and explicit local-only deployments.
 - `CREATE TABLE ... WITH (storage = column_store)` creates a column-store table. `pg_catalog.pg_table_storage` and EXPLAIN `storage_mode` expose the effective table mode (`row-store`, `column-indexed`, or `column-store`).

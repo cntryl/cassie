@@ -2,6 +2,7 @@ use super::{
     CassieError, ColumnFamilyHandle, FamilyScope, Midge, StorageFamily, TransactionMode,
     DEFAULT_FAMILY_NAME,
 };
+use cntryl_midge::ConflictPolicy;
 
 impl Midge {
     /// # Errors
@@ -122,6 +123,8 @@ impl Midge {
     }
 
     pub(super) fn begin_data_rw_tx(&self) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.data_tx(TransactionMode::ReadWrite)
+        let mut tx = self.data_tx(TransactionMode::ReadWrite)?;
+        tx.set_conflict_policy(ConflictPolicy::AbortOnWriteConflict);
+        Ok(tx)
     }
 }

@@ -80,7 +80,7 @@ fn should_create_snapshot_manifest_with_projection_checkpoint_hash_metadata() {
 
     // Assert
     assert_eq!(manifest, manifest_file);
-    assert_eq!(manifest.format_version, 1);
+    assert_eq!(manifest.format_version, 2);
     assert_eq!(manifest.cassie_version, env!("CARGO_PKG_VERSION"));
     assert_eq!(manifest.generated_ms, 1_234);
     assert_eq!(manifest.compatibility_status, "compatible");
@@ -103,6 +103,44 @@ fn should_create_snapshot_manifest_with_projection_checkpoint_hash_metadata() {
     assert_eq!(projection.hash.digest_length, 16);
     assert!(projection.hash.root_digest.is_some());
     assert_eq!(projection.hash.root_state, "current");
+
+    let _ = std::fs::remove_dir_all(source);
+    let _ = std::fs::remove_dir_all(snapshot);
+}
+
+#[test]
+fn should_record_collection_generations_for_snapshot_consistency() {
+    // Arrange
+    with_fallback();
+    let source = data_dir("snapshot_collection_generations_source");
+    let snapshot = data_dir("snapshot_collection_generations_bundle");
+    seed_replayed_projection(&source, "snapshot_collection_generations_docs");
+    let collection = canonical_collection("snapshot_collection_generations_docs");
+
+    // Act
+    let manifest = Cassie::create_snapshot_from_data_dir(
+        &source,
+        &snapshot,
+        CassieSnapshotOptions {
+            generated_ms: Some(4_680),
+        },
+    )
+    .expect("create snapshot");
+    let source_cassie = Cassie::new_with_data_dir(&source).expect("reopen source");
+    source_cassie.startup().expect("start source");
+
+    // Assert
+    let generation = source_cassie
+        .midge
+        .collection_generation(&collection)
+        .expect("source generation");
+    let recorded = manifest
+        .collections
+        .iter()
+        .find(|entry| entry.collection == collection)
+        .expect("collection generation manifest");
+    assert_eq!(recorded.generation, generation);
+    assert!(manifest.data_epoch > 0);
 
     let _ = std::fs::remove_dir_all(source);
     let _ = std::fs::remove_dir_all(snapshot);

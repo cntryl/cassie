@@ -174,6 +174,8 @@ pub struct IvfFlatTrainingState {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct VectorIndexState {
     #[serde(default)]
+    pub built_generation: u64,
+    #[serde(default)]
     pub hnsw_graph: Option<HnswGraphState>,
     #[serde(default)]
     pub ivfflat_training: Option<IvfFlatTrainingState>,
@@ -192,6 +194,8 @@ pub struct NormalizedVectorRecord {
     pub collection: String,
     pub field: String,
     pub id: String,
+    #[serde(default)]
+    pub built_generation: u64,
     pub dimensions: usize,
     pub metric: DistanceMetric,
     pub normalization_version: u32,

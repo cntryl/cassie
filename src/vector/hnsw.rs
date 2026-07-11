@@ -783,6 +783,7 @@ mod tests {
                 vec![-1.0, 0.0, 0.0],
             ])
             .map(|(id, values)| NormalizedVectorRecord {
+                built_generation: 0,
                 collection: "docs".to_string(),
                 field: "embedding".to_string(),
                 id: id.to_string(),

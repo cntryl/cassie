@@ -43,6 +43,9 @@ const FAMILY_NAMESPACE: &[u8] = b"namespace";
 const FAMILY_NAMESPACES: &[u8] = b"namespaces";
 const FAMILY_SCHEMA_EPOCH: &[u8] = b"schema-epoch";
 const FAMILY_SCHEMA_CLEANUP: &[u8] = b"schema-cleanup";
+const FAMILY_INDEX_PUBLICATION: &[u8] = b"index-publication";
+const FAMILY_SCHEMA_OPERATION: &[u8] = b"schema-operation";
+const FAMILY_FIELD_RENAME_OPERATION: &[u8] = b"field-rename-operation";
 const FAMILY_COLLECTIONS: &[u8] = b"collections";
 const FAMILY_ROW: &[u8] = b"row";
 const FAMILY_LEGACY_DOC: &[u8] = b"legacy-doc";
@@ -56,6 +59,7 @@ const FAMILY_GRAPH: &[u8] = b"graph";
 const FAMILY_GRAPH_ADJACENCY: &[u8] = b"graph-adjacency";
 const FAMILY_DATA_EPOCH: &[u8] = b"data-epoch";
 const FAMILY_COLLECTION_GENERATION: &[u8] = b"collection-generation";
+const FAMILY_MAINTENANCE_DEBT: &[u8] = b"maintenance-debt";
 
 pub(super) const LEGACY_SCHEMA_PREFIXES: &[&[u8]] = &[b"__cassie__/", b"r/", b"doc:"];
 
@@ -134,6 +138,14 @@ pub(super) fn data_epoch_key() -> Vec<u8> {
 
 pub(super) fn collection_generation_key(collection: &str) -> Vec<u8> {
     scoped_key(FAMILY_COLLECTION_GENERATION, collection, &[])
+}
+
+pub(super) fn maintenance_debt_key(collection: &str, artifact: &str) -> Vec<u8> {
+    scoped_key(FAMILY_MAINTENANCE_DEBT, collection, &[artifact.as_bytes()])
+}
+
+pub(super) fn maintenance_debt_prefix() -> Vec<u8> {
+    prefix(FAMILY_MAINTENANCE_DEBT, &[])
 }
 
 pub(super) fn legacy_v2_layout_prefix() -> Vec<u8> {
@@ -307,6 +319,34 @@ pub(super) fn schema_cleanup_key(cleanup_id: &str) -> Vec<u8> {
 
 pub(super) fn schema_cleanup_prefix() -> Vec<u8> {
     prefix(FAMILY_SCHEMA_CLEANUP, &[])
+}
+
+pub(super) fn index_publication_key(collection: &str, index: &str) -> Vec<u8> {
+    scoped_key(FAMILY_INDEX_PUBLICATION, collection, &[index.as_bytes()])
+}
+
+pub(super) fn index_publication_prefix() -> Vec<u8> {
+    prefix(FAMILY_INDEX_PUBLICATION, &[])
+}
+
+pub(super) fn schema_operation_key(current: &str, next: &str) -> Vec<u8> {
+    scoped_key(FAMILY_SCHEMA_OPERATION, current, &[next.as_bytes()])
+}
+
+pub(super) fn schema_operation_prefix() -> Vec<u8> {
+    prefix(FAMILY_SCHEMA_OPERATION, &[])
+}
+
+pub(super) fn field_rename_operation_key(collection: &str, current: &str, next: &str) -> Vec<u8> {
+    scoped_key(
+        FAMILY_FIELD_RENAME_OPERATION,
+        collection,
+        &[current.as_bytes(), next.as_bytes()],
+    )
+}
+
+pub(super) fn field_rename_operation_prefix() -> Vec<u8> {
+    prefix(FAMILY_FIELD_RENAME_OPERATION, &[])
 }
 
 pub(super) fn scalar_index_collection_prefix(collection: &str) -> Vec<u8> {

@@ -1,8 +1,8 @@
 use super::{
-    key_encoding, payload_contains_index_membership, payload_contains_vector_membership,
-    CassieError, CollectionCardinalityStats, FieldConstraint, IndexKind, IndexMeta, Midge,
-    ProjectionMeta, Query, RetentionPolicyMeta, RoleMeta, RollupMeta, Schema, StorageFamily,
-    WriteOptions,
+    check_index_publication_failure_point, key_encoding, payload_contains_index_membership,
+    payload_contains_vector_membership, CassieError, CollectionCardinalityStats, FieldConstraint,
+    IndexKind, IndexMeta, Midge, ProjectionMeta, Query, RetentionPolicyMeta, RoleMeta, RollupMeta,
+    Schema, StorageFamily, WriteOptions,
 };
 use crate::catalog::name_matches;
 
@@ -11,20 +11,9 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_index(&self, metadata: &IndexMeta) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
-        let key = Self::index_key(&metadata.collection, &metadata.name);
-        let value =
-            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
-        tx.put(key, value, None).map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
-            .map_err(CassieError::from)?;
-        if metadata.kind == IndexKind::Scalar {
-            self.rebuild_scalar_index_for_index(metadata)?;
-        }
-        if metadata.kind == IndexKind::TimeSeries {
-            self.rebuild_time_series_index_for_index(metadata)?;
-        }
-        Ok(())
+        self.prepare_index_publication(metadata)?;
+        check_index_publication_failure_point()?;
+        self.replay_pending_index_publications()
     }
 
     /// # Errors
@@ -376,7 +365,15 @@ impl Midge {
         collection: &str,
     ) -> Result<Option<CollectionCardinalityStats>, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
-        Self::load_cardinality_stats_from_tx(&tx, collection)
+        let stats = Self::load_cardinality_stats_from_tx(&tx, collection)?;
+        let generation = self.collection_generation(collection)?;
+        if stats
+            .as_ref()
+            .is_some_and(|stats| stats.built_generation != generation)
+        {
+            return Ok(None);
+        }
+        Ok(stats)
     }
 
     /// # Errors
@@ -407,8 +404,10 @@ impl Midge {
         collection: &str,
         stats: &CollectionCardinalityStats,
     ) -> Result<(), CassieError> {
+        let mut stats = stats.clone();
+        stats.built_generation = self.collection_generation(collection)?;
         let mut tx = self.begin_schema_rw_tx()?;
-        Self::save_cardinality_stats_to_tx(&mut tx, collection, stats)?;
+        Self::save_cardinality_stats_to_tx(&mut tx, collection, &stats)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
     }

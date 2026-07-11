@@ -1,11 +1,25 @@
 use super::{
-    key_encoding, CassieError, CollectionMeta, ColumnBatchMetadata, FieldConstraint, FieldSchema,
-    IndexKind, IndexMeta, Midge, NamespaceMeta, NormalizedVectorRecord, ProjectionMeta, Query,
+    check_collection_rename_failure_point, check_field_rename_failure_point, key_encoding,
+    CassieError, CollectionMeta, ColumnBatchMetadata, FieldConstraint, FieldSchema, IndexKind,
+    IndexMeta, Midge, NamespaceMeta, NormalizedVectorRecord, ProjectionMeta, Query,
     RetentionPolicyMeta, RowSchema, Schema, WriteOptions,
 };
 
 #[path = "schema_ops_helpers.rs"]
 mod schema_ops_helpers;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct PendingCollectionRename {
+    current_name: String,
+    next_name: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct PendingFieldRename {
+    collection: String,
+    current_name: String,
+    next_name: String,
+}
 
 impl Midge {
     /// # Errors
@@ -397,6 +411,7 @@ impl Midge {
         current_name: &str,
         next_name: &str,
     ) -> Result<(), CassieError> {
+        self.save_pending_field_rename(collection, current_name, next_name)?;
         let mut tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(collection);
         let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
@@ -454,17 +469,9 @@ impl Midge {
         )?;
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
-        schema_ops_helpers::rename_normalized_vector_records(
-            self,
-            collection,
-            current_name,
-            next_name,
-        )?;
-        self.rebuild_scalar_indexes_for_collection(collection)?;
-        self.rebuild_time_series_indexes_for_collection(collection)?;
-        let _ = self.rebuild_column_batches_for_collection(collection)?;
-        self.rebuild_projection_hashes(collection)?;
-        Ok(())
+        check_field_rename_failure_point()?;
+        self.complete_field_rename_data(collection, current_name, next_name)?;
+        self.clear_pending_field_rename(collection, current_name, next_name)
     }
 
     /// # Errors
@@ -475,6 +482,7 @@ impl Midge {
         current_name: &str,
         next_name: &str,
     ) -> Result<(), CassieError> {
+        self.save_pending_collection_rename(current_name, next_name)?;
         let mut schema_tx = self.begin_schema_rw_tx()?;
         schema_ops_helpers::rename_collection_schema_entries(
             &mut schema_tx,
@@ -504,9 +512,33 @@ impl Midge {
         schema_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
+        check_collection_rename_failure_point()?;
+        self.complete_collection_rename_data(current_name, next_name)?;
+        self.clear_pending_collection_rename(current_name, next_name)
+    }
 
+    fn complete_collection_rename_data(
+        &self,
+        current_name: &str,
+        next_name: &str,
+    ) -> Result<(), CassieError> {
         let mut data_tx = self.begin_data_rw_tx()?;
         schema_ops_helpers::rename_collection_prefixed_data(&mut data_tx, current_name, next_name)?;
+        if let Some(generation) = data_tx
+            .get(&Self::collection_generation_key(current_name))
+            .map_err(CassieError::from)?
+        {
+            data_tx
+                .delete(Self::collection_generation_key(current_name))
+                .map_err(CassieError::from)?;
+            data_tx
+                .put(
+                    Self::collection_generation_key(next_name),
+                    generation.to_vec(),
+                    None,
+                )
+                .map_err(CassieError::from)?;
+        }
         if let Some(root) = data_tx
             .get(&Self::root_hash_key(current_name))
             .map_err(CassieError::from)?
@@ -523,7 +555,149 @@ impl Midge {
             .map_err(CassieError::from)?;
         self.rebuild_time_series_indexes_for_collection(next_name)?;
         self.rebuild_projection_hashes(next_name)?;
-
         Ok(())
+    }
+
+    /// Replays schema operations whose schema commit completed before their data-family work.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a journal record cannot be read, replayed, or cleared.
+    pub fn replay_pending_schema_operations(&self) -> Result<(), CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        let entries = tx
+            .scan(&Query::new().prefix(Self::schema_operation_prefix().into()))
+            .map_err(CassieError::from)?;
+        let pending = entries
+            .into_iter()
+            .map(|(_, raw)| {
+                serde_json::from_slice::<PendingCollectionRename>(&raw).map_err(|error| {
+                    CassieError::Parse(format!("invalid schema operation: {error}"))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        for rename in pending {
+            if self.collection_schema(&rename.next_name).is_some() {
+                self.complete_collection_rename_data(&rename.current_name, &rename.next_name)?;
+            }
+            self.clear_pending_collection_rename(&rename.current_name, &rename.next_name)?;
+        }
+        self.replay_pending_field_renames()?;
+        Ok(())
+    }
+
+    fn complete_field_rename_data(
+        &self,
+        collection: &str,
+        current: &str,
+        next: &str,
+    ) -> Result<(), CassieError> {
+        schema_ops_helpers::rename_normalized_vector_records(self, collection, current, next)?;
+        self.rebuild_scalar_indexes_for_collection(collection)?;
+        self.rebuild_time_series_indexes_for_collection(collection)?;
+        let _ = self.rebuild_column_batches_for_collection(collection)?;
+        self.rebuild_projection_hashes(collection)?;
+        Ok(())
+    }
+
+    fn replay_pending_field_renames(&self) -> Result<(), CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        let entries = tx
+            .scan(&Query::new().prefix(Self::field_rename_operation_prefix().into()))
+            .map_err(CassieError::from)?;
+        let pending = entries
+            .into_iter()
+            .map(|(_, raw)| {
+                serde_json::from_slice::<PendingFieldRename>(&raw).map_err(|error| {
+                    CassieError::Parse(format!("invalid field rename operation: {error}"))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        for rename in pending {
+            let schema_rename_committed =
+                self.collection_schema(&rename.collection)
+                    .is_some_and(|schema| {
+                        schema
+                            .fields
+                            .iter()
+                            .any(|field| field.name.eq_ignore_ascii_case(&rename.next_name))
+                            && !schema
+                                .fields
+                                .iter()
+                                .any(|field| field.name.eq_ignore_ascii_case(&rename.current_name))
+                    });
+            if schema_rename_committed {
+                self.complete_field_rename_data(
+                    &rename.collection,
+                    &rename.current_name,
+                    &rename.next_name,
+                )?;
+            }
+            self.clear_pending_field_rename(
+                &rename.collection,
+                &rename.current_name,
+                &rename.next_name,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn save_pending_field_rename(
+        &self,
+        collection: &str,
+        current: &str,
+        next: &str,
+    ) -> Result<(), CassieError> {
+        let pending = PendingFieldRename {
+            collection: collection.to_string(),
+            current_name: current.to_string(),
+            next_name: next.to_string(),
+        };
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.put(
+            Self::field_rename_operation_key(collection, current, next),
+            serde_json::to_vec(&pending).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+    }
+
+    fn clear_pending_field_rename(
+        &self,
+        collection: &str,
+        current: &str,
+        next: &str,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.delete(Self::field_rename_operation_key(collection, current, next))
+            .map_err(CassieError::from)?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+    }
+
+    fn save_pending_collection_rename(&self, current: &str, next: &str) -> Result<(), CassieError> {
+        let rename = PendingCollectionRename {
+            current_name: current.to_string(),
+            next_name: next.to_string(),
+        };
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.put(
+            Self::schema_operation_key(current, next),
+            serde_json::to_vec(&rename).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+    }
+
+    fn clear_pending_collection_rename(
+        &self,
+        current: &str,
+        next: &str,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.delete(Self::schema_operation_key(current, next))
+            .map_err(CassieError::from)?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
     }
 }

@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::collections::HashSet;
 use std::env;
 use std::path::Path;
-use std::sync::atomic::AtomicU8;
+use std::sync::atomic::{AtomicBool, AtomicU8};
 use std::sync::OnceLock;
 use std::time::Instant;
 
@@ -35,6 +35,11 @@ pub use core::Midge;
 
 static DOCUMENT_WRITE_FAILPOINT: AtomicU8 = AtomicU8::new(0);
 static DOCUMENT_WRITE_FAILPOINT_TEST_GUARD: OnceLock<parking_lot::Mutex<()>> = OnceLock::new();
+static COLUMN_BATCH_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
+static PROJECTION_HASH_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
+static INDEX_PUBLICATION_FAILPOINT: AtomicBool = AtomicBool::new(false);
+static COLLECTION_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
+static FIELD_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
 
 thread_local! {
     static DOCUMENT_WRITE_CONFLICTS_REMAINING: Cell<u8> = const { Cell::new(0) };
@@ -88,6 +93,76 @@ pub fn document_write_failure_point_test_guard() -> parking_lot::MutexGuard<'sta
     DOCUMENT_WRITE_FAILPOINT_TEST_GUARD
         .get_or_init(|| parking_lot::Mutex::new(()))
         .lock()
+}
+
+#[doc(hidden)]
+pub fn set_column_batch_maintenance_failure_point(enabled: bool) {
+    COLUMN_BATCH_MAINTENANCE_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub(crate) fn check_column_batch_maintenance_failure_point() -> Result<(), CassieError> {
+    if COLUMN_BATCH_MAINTENANCE_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        return Err(CassieError::Execution(
+            "injected test failure during column batch maintenance".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn set_projection_hash_maintenance_failure_point(enabled: bool) {
+    PROJECTION_HASH_MAINTENANCE_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub(crate) fn check_projection_hash_maintenance_failure_point() -> Result<(), CassieError> {
+    if PROJECTION_HASH_MAINTENANCE_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        return Err(CassieError::Execution(
+            "injected test failure during projection hash maintenance".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn set_index_publication_failure_point(enabled: bool) {
+    INDEX_PUBLICATION_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub(crate) fn check_index_publication_failure_point() -> Result<(), CassieError> {
+    if INDEX_PUBLICATION_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        return Err(CassieError::Execution(
+            "injected test failure during index publication".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn set_collection_rename_failure_point(enabled: bool) {
+    COLLECTION_RENAME_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub(crate) fn check_collection_rename_failure_point() -> Result<(), CassieError> {
+    if COLLECTION_RENAME_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        return Err(CassieError::Execution(
+            "injected test failure after collection rename schema commit".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn set_field_rename_failure_point(enabled: bool) {
+    FIELD_RENAME_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub(crate) fn check_field_rename_failure_point() -> Result<(), CassieError> {
+    if FIELD_RENAME_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        return Err(CassieError::Execution(
+            "injected test failure after field rename schema commit".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 #[doc(hidden)]
@@ -152,6 +227,8 @@ use layout::{
     SCHEMA_FAMILY_NAME, TEMP_FAMILY_NAME,
 };
 pub use layout::{StorageFamily, StorageLayout};
+mod index_publication;
+mod maintenance;
 mod metadata;
 mod operational;
 mod operator_feedback;
@@ -275,6 +352,22 @@ impl Midge {
 
     fn collection_generation_key(collection: &str) -> Vec<u8> {
         key_encoding::collection_generation_key(collection)
+    }
+
+    fn maintenance_debt_key(collection: &str, artifact: &str) -> Vec<u8> {
+        key_encoding::maintenance_debt_key(collection, artifact)
+    }
+
+    fn maintenance_debt_prefix() -> Vec<u8> {
+        key_encoding::maintenance_debt_prefix()
+    }
+
+    fn index_publication_key(collection: &str, index: &str) -> Vec<u8> {
+        key_encoding::index_publication_key(collection, index)
+    }
+
+    fn index_publication_prefix() -> Vec<u8> {
+        key_encoding::index_publication_prefix()
     }
 
     fn vector_index_collection_prefix(collection: &str) -> Vec<u8> {
@@ -479,6 +572,22 @@ impl Midge {
 
     fn schema_cleanup_prefix() -> Vec<u8> {
         key_encoding::schema_cleanup_prefix()
+    }
+
+    fn schema_operation_key(current: &str, next: &str) -> Vec<u8> {
+        key_encoding::schema_operation_key(current, next)
+    }
+
+    fn schema_operation_prefix() -> Vec<u8> {
+        key_encoding::schema_operation_prefix()
+    }
+
+    fn field_rename_operation_key(collection: &str, current: &str, next: &str) -> Vec<u8> {
+        key_encoding::field_rename_operation_key(collection, current, next)
+    }
+
+    fn field_rename_operation_prefix() -> Vec<u8> {
+        key_encoding::field_rename_operation_prefix()
     }
 
     fn collections_key() -> Vec<u8> {

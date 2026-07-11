@@ -201,6 +201,7 @@ fn vector_records(rows: usize) -> Vec<NormalizedVectorRecord> {
                 collection: "bench_documents".to_string(),
                 field: "embedding".to_string(),
                 id: format!("doc-{index}"),
+                built_generation: 0,
                 dimensions: 3,
                 metric: DistanceMetric::L2,
                 normalization_version: NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION,

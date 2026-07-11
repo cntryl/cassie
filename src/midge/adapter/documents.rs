@@ -818,8 +818,14 @@ impl Midge {
             return Ok(reports);
         }
 
+        let mut generations = BTreeMap::new();
         for collection in &changed_collections {
-            Self::increment_collection_generation_in_tx(&mut tx, collection)?;
+            let generation = Self::increment_collection_generation_in_tx(&mut tx, collection)?;
+            self.stamp_normalized_vectors_generation_in_tx(&mut tx, collection, generation)?;
+            self.stamp_vector_index_states_generation_in_tx(&mut tx, collection, generation)?;
+            Self::record_column_batch_maintenance_debt_in_tx(&mut tx, collection, generation)?;
+            Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, collection, generation)?;
+            generations.insert(collection.clone(), generation);
         }
         let epoch = Self::increment_data_epoch_in_tx(&mut tx)?;
         if let Err(error) = super::check_document_write_conflict_injection() {
@@ -843,8 +849,13 @@ impl Midge {
         if options.refresh_after_commit {
             for collection in sorted_changed_collections {
                 if let Some(report) = reports.get(&collection) {
-                    let _ = self.rebuild_column_batches_for_collection(&collection);
-                    self.refresh_projection_hashes_after_write(&collection, report.row_delta)?;
+                    let generation = generations[&collection];
+                    let _ = self.complete_column_batch_maintenance(&collection, generation);
+                    let _ = self.complete_projection_hash_maintenance(
+                        &collection,
+                        generation,
+                        report.row_delta,
+                    );
                 }
             }
         }
@@ -913,7 +924,7 @@ impl Midge {
         Ok(next)
     }
 
-    fn increment_collection_generation_in_tx(
+    pub(super) fn increment_collection_generation_in_tx(
         tx: &mut cntryl_midge::Transaction,
         collection: &str,
     ) -> Result<u64, CassieError> {

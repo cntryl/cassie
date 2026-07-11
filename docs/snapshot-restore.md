@@ -26,7 +26,10 @@ Projection hash metadata includes algorithm, digest length, canonical encoder ve
 
 ## Workflow
 
-Create snapshots from a quiesced local data directory with `Cassie::create_snapshot_from_data_dir`.
+Create snapshots from a local data directory with `Cassie::create_snapshot_from_data_dir`. The v2
+manifest records schema/data epochs and every collection generation before copying, then verifies
+the same values after the copy. If the source changed during the copy, Cassie removes the partial
+payload and returns an error so the caller can retry.
 Restore snapshots into an empty local data directory with `Cassie::restore_snapshot`, then start a Cassie instance against that restored directory.
 
 Restore validates the manifest before copying data.

@@ -83,6 +83,17 @@ impl Cassie {
         );
         self.run_deferred_schema_cleanup()
             .map_err(|error| CassieError::Storage(format!("schema cleanup: {error}")))?;
+        self.midge
+            .replay_pending_schema_operations()
+            .map_err(|error| CassieError::Storage(format!("schema operation recovery: {error}")))?;
+        self.midge
+            .replay_pending_index_publications()
+            .map_err(|error| {
+                CassieError::Storage(format!("index publication recovery: {error}"))
+            })?;
+        self.midge
+            .retry_maintenance_debt()
+            .map_err(|error| CassieError::Storage(format!("maintenance recovery: {error}")))?;
 
         self.hydrate_catalog()
             .map_err(|error| CassieError::Storage(format!("catalog hydration: {error}")))?;

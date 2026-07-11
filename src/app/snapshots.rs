@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{current_time_millis, Cassie, CassieError, Midge};
 
-const SNAPSHOT_FORMAT_VERSION: u16 = 1;
+const SNAPSHOT_FORMAT_VERSION: u16 = 2;
 const SNAPSHOT_MANIFEST_FILE: &str = "cassie-snapshot-manifest.json";
 const SNAPSHOT_MIDGE_DIR: &str = "midge";
 const SNAPSHOT_COMPATIBLE: &str = "compatible";
@@ -21,9 +21,17 @@ pub struct CassieSnapshotManifest {
     pub cassie_version: String,
     pub generated_ms: u64,
     pub schema_epoch: u64,
+    pub data_epoch: u64,
     pub compatibility_status: String,
     pub midge_data_path: String,
     pub projections: Vec<CassieSnapshotProjectionManifest>,
+    pub collections: Vec<CassieSnapshotCollectionManifest>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CassieSnapshotCollectionManifest {
+    pub collection: String,
+    pub generation: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,7 +90,20 @@ impl Cassie {
             midge.ensure_families_ready()?;
             build_snapshot_manifest(&midge, options)?
         };
-        copy_dir_recursive(data_dir, &snapshot_dir.join(SNAPSHOT_MIDGE_DIR))?;
+        let copied_midge_dir = snapshot_dir.join(SNAPSHOT_MIDGE_DIR);
+        copy_dir_recursive(data_dir, &copied_midge_dir)?;
+        let copied_generation = {
+            let midge = Midge::new_strict_with_data_dir(data_dir)?;
+            midge.ensure_families_ready()?;
+            build_snapshot_manifest(&midge, options)?
+        };
+        if !same_snapshot_generation(&manifest, &copied_generation) {
+            fs::remove_dir_all(&copied_midge_dir)
+                .map_err(|error| io_error("remove inconsistent snapshot copy", &error))?;
+            return Err(CassieError::Storage(
+                "snapshot source changed while copying; retry snapshot".to_string(),
+            ));
+        }
         write_snapshot_manifest(snapshot_dir, &manifest)?;
         Ok(manifest)
     }
@@ -117,6 +138,7 @@ fn build_snapshot_manifest(
     options: CassieSnapshotOptions,
 ) -> Result<CassieSnapshotManifest, CassieError> {
     let schema_epoch = midge.schema_epoch()?;
+    let data_epoch = midge.data_epoch()?;
     let mut projections = midge
         .list_projection_metadata()?
         .into_iter()
@@ -127,16 +149,38 @@ fn build_snapshot_manifest(
             .cmp(&right.projection_id)
             .then_with(|| left.collection.cmp(&right.collection))
     });
+    let mut collections = midge
+        .list_collections()
+        .into_iter()
+        .map(|collection| {
+            Ok(CassieSnapshotCollectionManifest {
+                generation: midge.collection_generation(&collection)?,
+                collection,
+            })
+        })
+        .collect::<Result<Vec<_>, CassieError>>()?;
+    collections.sort_by(|left, right| left.collection.cmp(&right.collection));
 
     Ok(CassieSnapshotManifest {
         format_version: SNAPSHOT_FORMAT_VERSION,
         cassie_version: env!("CARGO_PKG_VERSION").to_string(),
         generated_ms: options.generated_ms.unwrap_or_else(current_time_millis),
         schema_epoch,
+        data_epoch,
         compatibility_status: SNAPSHOT_COMPATIBLE.to_string(),
         midge_data_path: SNAPSHOT_MIDGE_DIR.to_string(),
         projections,
+        collections,
     })
+}
+
+fn same_snapshot_generation(
+    before: &CassieSnapshotManifest,
+    after: &CassieSnapshotManifest,
+) -> bool {
+    before.schema_epoch == after.schema_epoch
+        && before.data_epoch == after.data_epoch
+        && before.collections == after.collections
 }
 
 fn snapshot_projection_manifest(

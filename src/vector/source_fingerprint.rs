@@ -74,6 +74,7 @@ mod tests {
 
     fn record(id: &str, values: Vec<f32>) -> NormalizedVectorRecord {
         NormalizedVectorRecord {
+            built_generation: 0,
             collection: "docs".to_string(),
             field: "embedding".to_string(),
             id: id.to_string(),

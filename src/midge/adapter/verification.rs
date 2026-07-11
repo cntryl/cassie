@@ -81,6 +81,8 @@ pub struct RootHashRecord {
     pub version_id: Option<String>,
     pub collection: String,
     pub schema_epoch: u64,
+    #[serde(default)]
+    pub built_generation: u64,
     pub row_count: u64,
     pub range_count: u64,
     pub algorithm: String,
@@ -177,9 +179,12 @@ impl Midge {
         else {
             return Ok(None);
         };
-        serde_json::from_slice(&raw)
-            .map(Some)
-            .map_err(|error| CassieError::Parse(format!("invalid root hash metadata: {error}")))
+        let root: RootHashRecord = serde_json::from_slice(&raw)
+            .map_err(|error| CassieError::Parse(format!("invalid root hash metadata: {error}")))?;
+        if root.built_generation != self.collection_generation(collection)? {
+            return Ok(None);
+        }
+        Ok(Some(root))
     }
 
     /// # Errors
@@ -210,6 +215,7 @@ impl Midge {
         collection: &str,
     ) -> Result<RootHashRecord, CassieError> {
         let row_schema = self.row_schema(collection)?;
+        let generation = self.collection_generation(collection)?;
         let documents = self.scan_documents(collection)?;
         let mut live_ids = BTreeSet::new();
         let mut records = Vec::with_capacity(documents.len());
@@ -232,6 +238,7 @@ impl Midge {
             collection,
             None,
             row_schema.schema_version,
+            generation,
             &records,
             &ranges,
         );
@@ -267,6 +274,7 @@ impl Midge {
         documents: Vec<(String, serde_json::Value)>,
     ) -> Result<(super::documents::DocumentWriteBatchReport, RootHashRecord), CassieError> {
         let row_schema = self.row_schema(collection)?;
+        let generation = self.collection_generation(collection)?;
         let mut tx = self.begin_data_rw_tx()?;
         let mut report = super::documents::DocumentWriteBatchReport::default();
         let mut records = Vec::with_capacity(documents.len());
@@ -293,6 +301,7 @@ impl Midge {
             collection,
             None,
             row_schema.schema_version,
+            generation,
             &records,
             &ranges,
         );
@@ -682,6 +691,7 @@ fn verify_projection_hash_component(
         collection,
         None,
         row_schema.schema_version,
+        midge.collection_generation(collection)?,
         &stored_rows,
         &expected_ranges,
     );
@@ -764,6 +774,7 @@ fn build_root_hash_record(
     collection: &str,
     version_id: Option<String>,
     schema_epoch: u32,
+    built_generation: u64,
     rows: &[RowHashRecord],
     ranges: &[RangeHashRecord],
 ) -> RootHashRecord {
@@ -786,6 +797,7 @@ fn build_root_hash_record(
         version_id,
         collection: collection.to_string(),
         schema_epoch: u64::from(schema_epoch),
+        built_generation,
         row_count: rows.len() as u64,
         range_count: ranges.len() as u64,
         algorithm: ROW_HASH_ALGORITHM.to_string(),

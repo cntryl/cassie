@@ -34,6 +34,9 @@ pub struct ColumnBatchMetadata {
     pub collection: String,
     pub index_name: String,
     pub schema_epoch: u64,
+    /// Durable collection generation represented by the batch payloads.
+    #[serde(default)]
+    pub built_generation: u64,
     pub fields: Vec<String>,
     pub segment_size: usize,
     pub segments: Vec<ColumnBatchSegmentMeta>,

@@ -98,6 +98,7 @@ fn should_use_hydrated_cardinality_estimates_for_index_plans() {
     catalog.hydrate_cardinality_stats(
         "planner_cardinality_hydrated",
         cassie::catalog::CollectionCardinalityStats {
+            built_generation: 0,
             row_count: 42,
             hydrated: true,
             indexes: std::collections::BTreeMap::from([(
@@ -158,6 +159,7 @@ fn should_use_advanced_field_stats_for_selective_filter_estimates() {
     catalog.hydrate_cardinality_stats(
         "planner_cardinality_advanced",
         cassie::catalog::CollectionCardinalityStats {
+            built_generation: 0,
             row_count: 100,
             hydrated: true,
             indexes: std::collections::BTreeMap::from([(
@@ -231,6 +233,7 @@ fn should_choose_lower_cost_competing_scalar_index_from_stats() {
     catalog.hydrate_cardinality_stats(
         "planner_competing_indexes",
         cassie::catalog::CollectionCardinalityStats {
+            built_generation: 0,
             row_count: 100,
             hydrated: true,
             indexes: std::collections::BTreeMap::from([

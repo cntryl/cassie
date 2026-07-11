@@ -159,6 +159,7 @@ mod tests {
     fn should_denormalize_vector_record() {
         // Arrange
         let record = NormalizedVectorRecord {
+            built_generation: 0,
             collection: "docs".to_string(),
             field: "embedding".to_string(),
             id: "doc".to_string(),
@@ -181,6 +182,7 @@ mod tests {
     fn should_report_stale_ivfflat_source_fingerprint() {
         // Arrange
         let records = vec![NormalizedVectorRecord {
+            built_generation: 0,
             collection: "docs".to_string(),
             field: "embedding".to_string(),
             id: "doc".to_string(),
@@ -218,6 +220,7 @@ mod tests {
     fn should_report_missing_ivfflat_assignment_coverage() {
         // Arrange
         let records = vec![NormalizedVectorRecord {
+            built_generation: 0,
             collection: "docs".to_string(),
             field: "embedding".to_string(),
             id: "doc".to_string(),

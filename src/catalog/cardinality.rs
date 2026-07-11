@@ -45,6 +45,8 @@ pub struct FieldHeavyHitter {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct CollectionCardinalityStats {
+    #[serde(default)]
+    pub built_generation: u64,
     pub row_count: u64,
     pub hydrated: bool,
     #[serde(default)]

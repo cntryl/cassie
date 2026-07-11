@@ -135,6 +135,7 @@ impl Midge {
         documents.sort_by(|left, right| left.id.cmp(&right.id));
 
         let schema_epoch = self.schema_epoch()?;
+        let built_generation = self.collection_generation(&index.collection)?;
         let mut segments = Vec::new();
         let mut payloads = Vec::new();
         for (segment_id, chunk) in documents.chunks(segment_size).enumerate() {
@@ -174,6 +175,7 @@ impl Midge {
             collection: index.collection.clone(),
             index_name: index.name.clone(),
             schema_epoch,
+            built_generation,
             fields,
             segment_size,
             segments,
@@ -310,6 +312,11 @@ impl Midge {
         {
             return Ok(PreparedColumnBatchScan::Fallback(
                 ColumnBatchScanFallbackReason::SegmentSizeMismatch,
+            ));
+        }
+        if metadata.built_generation != self.collection_generation(collection)? {
+            return Ok(PreparedColumnBatchScan::Fallback(
+                ColumnBatchScanFallbackReason::GenerationMismatch,
             ));
         }
         let wanted = wanted_column_batch_fields(fields);

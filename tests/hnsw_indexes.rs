@@ -120,6 +120,7 @@ fn mutate_stored_hnsw_index(
             &collection,
             "embedding",
             cassie::embeddings::VectorIndexState {
+                built_generation: 0,
                 hnsw_graph: record.metadata.hnsw_graph,
                 ivfflat_training: record.metadata.ivfflat_training,
             },

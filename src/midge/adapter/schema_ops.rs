@@ -1,8 +1,9 @@
 use super::{
-    check_collection_rename_failure_point, check_field_rename_failure_point, key_encoding,
-    CassieError, CollectionMeta, ColumnBatchMetadata, FieldConstraint, FieldSchema, IndexKind,
-    IndexMeta, Midge, NamespaceMeta, NormalizedVectorRecord, ProjectionMeta, Query,
-    RetentionPolicyMeta, RowSchema, Schema, WriteOptions,
+    check_collection_rename_failure_point, check_field_drop_failure_point,
+    check_field_rename_failure_point, key_encoding, CassieError, CollectionMeta,
+    ColumnBatchMetadata, FieldConstraint, FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta,
+    NormalizedVectorRecord, ProjectionMeta, Query, RetentionPolicyMeta, RowSchema, Schema,
+    WriteOptions,
 };
 
 #[path = "schema_ops_helpers.rs"]
@@ -19,6 +20,14 @@ struct PendingFieldRename {
     collection: String,
     current_name: String,
     next_name: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct PendingFieldDrop {
+    collection: String,
+    field: String,
+    scalar_names: Vec<String>,
+    time_series_names: Vec<String>,
 }
 
 impl Midge {
@@ -392,14 +401,23 @@ impl Midge {
             .map_err(CassieError::from)?;
         let dropped_indexes =
             schema_ops_helpers::drop_referencing_indexes_in_tx(&mut tx, collection, field)?;
+        let pending = PendingFieldDrop {
+            collection: collection.to_string(),
+            field: field.to_string(),
+            scalar_names: dropped_indexes.scalar_names.clone(),
+            time_series_names: dropped_indexes.time_series_names.clone(),
+        };
+        tx.put(
+            Self::field_drop_operation_key(collection, field),
+            serde_json::to_vec(&pending).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
-        schema_ops_helpers::delete_dropped_field_data(self, collection, field, dropped_indexes)?;
-        self.rebuild_scalar_indexes_for_collection(collection)?;
-        self.rebuild_time_series_indexes_for_collection(collection)?;
-        let _ = self.rebuild_column_batches_for_collection(collection)?;
-        self.rebuild_projection_hashes(collection)?;
-        Ok(())
+        check_field_drop_failure_point()?;
+        self.complete_field_drop_data(&pending)?;
+        self.clear_pending_field_drop(collection, field)
     }
 
     /// # Errors
@@ -583,6 +601,7 @@ impl Midge {
             self.clear_pending_collection_rename(&rename.current_name, &rename.next_name)?;
         }
         self.replay_pending_field_renames()?;
+        self.replay_pending_field_drops()?;
         Ok(())
     }
 
@@ -671,6 +690,60 @@ impl Midge {
     ) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::field_rename_operation_key(collection, current, next))
+            .map_err(CassieError::from)?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+    }
+
+    fn complete_field_drop_data(&self, pending: &PendingFieldDrop) -> Result<(), CassieError> {
+        schema_ops_helpers::delete_dropped_field_data(
+            self,
+            &pending.collection,
+            &pending.field,
+            schema_ops_helpers::DroppedCollectionIndexes {
+                scalar_names: pending.scalar_names.clone(),
+                time_series_names: pending.time_series_names.clone(),
+            },
+        )?;
+        self.rebuild_scalar_indexes_for_collection(&pending.collection)?;
+        self.rebuild_time_series_indexes_for_collection(&pending.collection)?;
+        let _ = self.rebuild_column_batches_for_collection(&pending.collection)?;
+        self.rebuild_projection_hashes(&pending.collection)?;
+        Ok(())
+    }
+
+    fn replay_pending_field_drops(&self) -> Result<(), CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        let entries = tx
+            .scan(&Query::new().prefix(Self::field_drop_operation_prefix().into()))
+            .map_err(CassieError::from)?;
+        let pending = entries
+            .into_iter()
+            .map(|(_, raw)| {
+                serde_json::from_slice::<PendingFieldDrop>(&raw).map_err(|error| {
+                    CassieError::Parse(format!("invalid field drop operation: {error}"))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        for drop in pending {
+            let committed = self
+                .collection_schema(&drop.collection)
+                .is_some_and(|schema| {
+                    !schema
+                        .fields
+                        .iter()
+                        .any(|entry| entry.name.eq_ignore_ascii_case(&drop.field))
+                });
+            if committed {
+                self.complete_field_drop_data(&drop)?;
+            }
+            self.clear_pending_field_drop(&drop.collection, &drop.field)?;
+        }
+        Ok(())
+    }
+
+    fn clear_pending_field_drop(&self, collection: &str, field: &str) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.delete(Self::field_drop_operation_key(collection, field))
             .map_err(CassieError::from)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)
     }

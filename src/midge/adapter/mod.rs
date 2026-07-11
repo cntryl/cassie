@@ -40,6 +40,7 @@ static PROJECTION_HASH_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false
 static INDEX_PUBLICATION_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static COLLECTION_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
+static FIELD_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
 
 thread_local! {
     static DOCUMENT_WRITE_CONFLICTS_REMAINING: Cell<u8> = const { Cell::new(0) };
@@ -160,6 +161,20 @@ pub(crate) fn check_field_rename_failure_point() -> Result<(), CassieError> {
     if FIELD_RENAME_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
         return Err(CassieError::Execution(
             "injected test failure after field rename schema commit".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn set_field_drop_failure_point(enabled: bool) {
+    FIELD_DROP_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub(crate) fn check_field_drop_failure_point() -> Result<(), CassieError> {
+    if FIELD_DROP_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        return Err(CassieError::Execution(
+            "injected test failure after field drop schema commit".to_string(),
         ));
     }
     Ok(())
@@ -588,6 +603,14 @@ impl Midge {
 
     fn field_rename_operation_prefix() -> Vec<u8> {
         key_encoding::field_rename_operation_prefix()
+    }
+
+    fn field_drop_operation_key(collection: &str, field: &str) -> Vec<u8> {
+        key_encoding::field_drop_operation_key(collection, field)
+    }
+
+    fn field_drop_operation_prefix() -> Vec<u8> {
+        key_encoding::field_drop_operation_prefix()
     }
 
     fn collections_key() -> Vec<u8> {

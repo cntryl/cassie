@@ -46,6 +46,7 @@ const FAMILY_SCHEMA_CLEANUP: &[u8] = b"schema-cleanup";
 const FAMILY_INDEX_PUBLICATION: &[u8] = b"index-publication";
 const FAMILY_SCHEMA_OPERATION: &[u8] = b"schema-operation";
 const FAMILY_FIELD_RENAME_OPERATION: &[u8] = b"field-rename-operation";
+const FAMILY_FIELD_DROP_OPERATION: &[u8] = b"field-drop-operation";
 const FAMILY_COLLECTIONS: &[u8] = b"collections";
 const FAMILY_ROW: &[u8] = b"row";
 const FAMILY_LEGACY_DOC: &[u8] = b"legacy-doc";
@@ -347,6 +348,14 @@ pub(super) fn field_rename_operation_key(collection: &str, current: &str, next: 
 
 pub(super) fn field_rename_operation_prefix() -> Vec<u8> {
     prefix(FAMILY_FIELD_RENAME_OPERATION, &[])
+}
+
+pub(super) fn field_drop_operation_key(collection: &str, field: &str) -> Vec<u8> {
+    scoped_key(FAMILY_FIELD_DROP_OPERATION, collection, &[field.as_bytes()])
+}
+
+pub(super) fn field_drop_operation_prefix() -> Vec<u8> {
+    prefix(FAMILY_FIELD_DROP_OPERATION, &[])
 }
 
 pub(super) fn scalar_index_collection_prefix(collection: &str) -> Vec<u8> {

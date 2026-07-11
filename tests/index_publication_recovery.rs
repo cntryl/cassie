@@ -7,12 +7,15 @@ use cassie::types::Value;
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{canonical_test_collection, data_dir, with_fallback};
+use support::{canonical_test_collection, data_dir, openai_runtime_for_vectors, with_fallback};
+
+static INDEX_PUBLICATION_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[test]
 fn should_replay_prepared_scalar_index_publication_after_restart() {
     // Arrange
     with_fallback();
+    let _failpoint_guard = INDEX_PUBLICATION_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("index_publication_recovery");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -80,6 +83,74 @@ fn should_replay_prepared_scalar_index_publication_after_restart() {
             .is_some());
         assert_eq!(result.rows, vec![vec![Value::String("alpha".to_string())]]);
     });
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_hide_vector_index_until_prepared_publication_replays() {
+    // Arrange
+    with_fallback();
+    let _failpoint_guard = INDEX_PUBLICATION_FAILPOINT_GUARD.lock().unwrap();
+    let path = data_dir("vector_index_publication_recovery");
+    let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors())
+        .expect("create Cassie");
+    cassie.startup().expect("start Cassie");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE vector_index_publication_docs (content TEXT, embedding VECTOR(1536))",
+            vec![],
+        )
+        .expect("create table");
+
+    // Act
+    set_index_publication_failure_point(true);
+    assert!(cassie
+        .execute_sql(
+            &session,
+            "CREATE INDEX vector_index_publication_idx ON vector_index_publication_docs USING vector (embedding) WITH (source_field = content, metric = l2)",
+            vec![],
+        )
+        .is_err());
+
+    // Assert
+    assert!(cassie
+        .catalog
+        .list_vector_indexes("vector_index_publication_docs")
+        .is_empty());
+    assert!(cassie
+        .catalog
+        .get_index(
+            "vector_index_publication_docs",
+            "vector_index_publication_idx"
+        )
+        .is_none());
+    assert!(cassie
+        .midge
+        .get_vector_index("vector_index_publication_docs", "embedding")
+        .expect("read prepared vector metadata")
+        .is_some());
+
+    drop(cassie);
+    let restarted = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors())
+        .expect("reopen Cassie");
+    restarted.startup().expect("replay prepared vector index");
+    assert_eq!(
+        restarted
+            .catalog
+            .list_vector_indexes("vector_index_publication_docs")
+            .len(),
+        1
+    );
+    assert!(restarted
+        .catalog
+        .get_index(
+            "vector_index_publication_docs",
+            "vector_index_publication_idx"
+        )
+        .is_some());
 
     let _ = std::fs::remove_dir_all(path);
 }

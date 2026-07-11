@@ -93,6 +93,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     alongside generation and other collection-prefixed state.
   - [x] Collection-rename replay preserves an already-committed destination write when a
     same-key source row is still present after an interrupted schema commit.
+  - [x] Prepared vector index publication keeps the in-memory vector registry hidden until the
+    generic index metadata commit succeeds, then rehydrates both records on restart replay.
   - [x] Drop-index cleanup removes scalar/time-series sidecars before metadata and retries safely
     after an injected metadata-interruption failure.
 - [x] Make snapshot capture consistency executable, not documentation-only.

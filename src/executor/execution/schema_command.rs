@@ -337,15 +337,17 @@ pub(super) fn create_index(
             "column indexes are not supported on column-store tables".to_string(),
         ));
     }
-    if matches!(statement.kind, catalog::IndexKind::Vector) {
+    let vector_index = if matches!(statement.kind, catalog::IndexKind::Vector) {
         let vector_index = super::vector_index_command::vector_index_metadata(cassie, statement)?;
 
         cassie
             .midge
             .put_vector_index(vector_index.clone())
             .map_err(|error| QueryError::General(error.to_string()))?;
-        cassie.catalog.register_vector_index(vector_index);
-    }
+        Some(vector_index)
+    } else {
+        None
+    };
 
     let metadata = catalog::IndexMeta {
         collection: statement.table.clone(),
@@ -372,6 +374,9 @@ pub(super) fn create_index(
         .put_index(&metadata)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_index(metadata.clone());
+    if let Some(vector_index) = vector_index {
+        cassie.catalog.register_vector_index(vector_index);
+    }
     if matches!(metadata.kind, catalog::IndexKind::Column) {
         cassie
             .midge

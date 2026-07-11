@@ -1,4 +1,4 @@
-use cassie::app::Cassie;
+use cassie::app::{Cassie, CassieSession};
 use cassie::catalog::ColumnBatchMetadata;
 use cassie::midge::adapter::{RowHashRecord, StorageFamily};
 use cassie::sql::ast::{ProjectionRepairScope, QueryStatement};
@@ -53,6 +53,43 @@ fn delete_column_batch_metadata(cassie: &Cassie, collection: &str, index_name: &
         }
     }
     tx.commit(cntryl_midge::WriteOptions::sync()).unwrap();
+}
+
+fn seed_full_rebuild_fixture(cassie: &Cassie, session: &CassieSession) -> String {
+    cassie
+        .execute_sql(
+            session,
+            "CREATE TABLE repair_full_rebuild_source (title TEXT, score INT)",
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            session,
+            "INSERT INTO repair_full_rebuild_source (title, score) VALUES ('alpha', 1)",
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            session,
+            "CREATE MATERIALIZED PROJECTION repair_full_rebuild AS SELECT title, score FROM repair_full_rebuild_source",
+            vec![],
+        )
+        .unwrap();
+    let metadata = cassie
+        .catalog
+        .get_materialized_projection("repair_full_rebuild")
+        .expect("materialized projection metadata");
+    let projection = metadata.collection.clone();
+    let output_collection = metadata
+        .materialized
+        .as_ref()
+        .expect("materialized projection definition")
+        .output_collection
+        .clone();
+    corrupt_first_row_hash(cassie, &output_collection);
+    projection
 }
 
 #[test]
@@ -319,6 +356,96 @@ fn should_execute_verified_column_index_repair_with_audit() {
             .get_column_batch_metadata(&collection, &index_name)
             .unwrap()
             .is_some());
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_execute_verified_full_rebuild_repair_with_audit() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projection_repair_full_rebuild_execute");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        let projection = seed_full_rebuild_fixture(&cassie, &session);
+
+        // Act
+        let verification = cassie
+            .execute_sql(
+                &session,
+                "VERIFY PROJECTION repair_full_rebuild MODE full",
+                vec![],
+            )
+            .unwrap();
+        let plan = cassie
+            .execute_sql(
+                &session,
+                "PLAN REPAIR PROJECTION repair_full_rebuild SCOPE full-rebuild",
+                vec![],
+            )
+            .unwrap();
+        let repair = cassie
+            .execute_sql(
+                &session,
+                "REPAIR PROJECTION repair_full_rebuild SCOPE full-rebuild",
+                vec![],
+            )
+            .unwrap();
+        let audit = cassie
+            .execute_sql(
+                &session,
+                &format!(
+                    "SELECT state, scope, action, post_verification_state FROM pg_catalog.pg_projection_repair_reports WHERE projection_name = '{projection}'"
+                ),
+                vec![],
+            )
+            .unwrap();
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT title, score FROM repair_full_rebuild ORDER BY title",
+                vec![],
+            )
+            .unwrap();
+        drop(cassie);
+
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().unwrap();
+        let restarted_session = restarted.create_session("tester", None);
+        let restarted_selected = restarted
+            .execute_sql(
+                &restarted_session,
+                "SELECT title, score FROM repair_full_rebuild ORDER BY title",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(verification.rows[0][0], Value::String("failed".to_string()));
+        assert_eq!(verification.rows[0][6], Value::Bool(true));
+        assert_eq!(plan.rows[0][5], Value::Bool(true));
+        assert_eq!(repair.rows[0][0], Value::String("completed".to_string()));
+        assert_eq!(repair.rows[0][7], Value::String("verified".to_string()));
+        assert_eq!(audit.rows[0][0], Value::String("completed".to_string()));
+        assert_eq!(audit.rows[0][1], Value::String("full_rebuild".to_string()));
+        assert_eq!(
+            audit.rows[0][2],
+            Value::String("refresh_materialized_projection".to_string())
+        );
+        assert_eq!(audit.rows[0][3], Value::String("verified".to_string()));
+        assert_eq!(
+            selected.rows,
+            vec![vec![Value::String("alpha".to_string()), Value::Int64(1)]]
+        );
+        assert_eq!(restarted_selected.rows, selected.rows);
 
         let _ = std::fs::remove_dir_all(path);
     });

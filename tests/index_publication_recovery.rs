@@ -154,3 +154,75 @@ fn should_hide_vector_index_until_prepared_publication_replays() {
 
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_rebuild_column_batches_before_prepared_publication_replays() {
+    // Arrange
+    with_fallback();
+    let _failpoint_guard = INDEX_PUBLICATION_FAILPOINT_GUARD.lock().unwrap();
+    let path = data_dir("column_index_publication_recovery");
+    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    cassie.startup().expect("start Cassie");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE column_index_publication_docs (title TEXT)",
+            vec![],
+        )
+        .expect("create table");
+    cassie
+        .execute_sql(
+            &session,
+            "INSERT INTO column_index_publication_docs (title) VALUES ('alpha')",
+            vec![],
+        )
+        .expect("seed row");
+
+    // Act
+    set_index_publication_failure_point(true);
+    assert!(cassie
+        .execute_sql(
+            &session,
+            "CREATE INDEX column_index_publication_idx ON column_index_publication_docs USING column (title)",
+            vec![],
+        )
+        .is_err());
+    let collection = canonical_test_collection(&cassie, "column_index_publication_docs");
+    assert!(cassie
+        .midge
+        .get_index(&collection, "column_index_publication_idx")
+        .expect("read unpublished column index")
+        .is_none());
+    assert!(cassie
+        .midge
+        .get_column_batch_metadata(&collection, "column_index_publication_idx")
+        .expect("read unpublished column batches")
+        .is_none());
+    drop(cassie);
+
+    let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+    restarted.startup().expect("replay prepared column index");
+
+    // Assert
+    let index = restarted
+        .midge
+        .get_index(&collection, "column_index_publication_idx")
+        .expect("read replayed column index")
+        .expect("column index after replay");
+    let metadata = restarted
+        .midge
+        .get_column_batch_metadata(&collection, &index.name)
+        .expect("read replayed column batches")
+        .expect("column batches after replay");
+    assert_eq!(
+        metadata.built_generation,
+        restarted
+            .midge
+            .collection_generation(&collection)
+            .expect("collection generation")
+    );
+    assert_eq!(metadata.segments.len(), 1);
+
+    let _ = std::fs::remove_dir_all(path);
+}

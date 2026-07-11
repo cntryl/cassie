@@ -95,6 +95,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     same-key source row is still present after an interrupted schema commit.
   - [x] Prepared vector index publication keeps the in-memory vector registry hidden until the
     generic index metadata commit succeeds, then rehydrates both records on restart replay.
+  - [x] Prepared column index publication rebuilds column batches before generic metadata becomes
+    visible, including restart replay after an interrupted publication.
   - [x] Drop-index cleanup removes scalar/time-series sidecars before metadata and retries safely
     after an injected metadata-interruption failure.
 - [x] Make snapshot capture consistency executable, not documentation-only.

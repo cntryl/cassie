@@ -377,12 +377,6 @@ pub(super) fn create_index(
     if let Some(vector_index) = vector_index {
         cassie.catalog.register_vector_index(vector_index);
     }
-    if matches!(metadata.kind, catalog::IndexKind::Column) {
-        cassie
-            .midge
-            .rebuild_column_batches_for_index(&metadata)
-            .map_err(|error| QueryError::General(error.to_string()))?;
-    }
     refresh_table_cardinality_stats(cassie, &statement.table)?;
 
     Ok(empty_command("CREATE INDEX"))

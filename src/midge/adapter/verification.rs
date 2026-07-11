@@ -428,6 +428,7 @@ impl Midge {
             indexes,
             &mut checked_components,
             &mut skipped_components,
+            &mut stats,
         )?;
 
         let failed = stats.mismatches > 0 || stats.missing > 0 || stats.stale > 0;
@@ -713,20 +714,49 @@ fn verify_projection_index_component(
     indexes: bool,
     checked_components: &mut Vec<String>,
     skipped_components: &mut Vec<String>,
+    stats: &mut IntegrityCounts,
 ) -> Result<(), CassieError> {
     if !indexes {
         skipped_components.push("indexes".to_string());
         return Ok(());
     }
     checked_components.push("indexes".to_string());
-    let indexes = midge.list_indexes()?;
+    let indexes = midge
+        .list_indexes()?
+        .into_iter()
+        .filter(|index| index.collection == collection)
+        .collect::<Vec<_>>();
     let vector_indexes = midge.list_vector_indexes_canonical()?;
-    if indexes.iter().all(|index| index.collection != collection)
-        && vector_indexes
-            .iter()
-            .all(|index| index.collection != collection)
-    {
+    let vector_indexes = vector_indexes
+        .into_iter()
+        .filter(|index| index.collection == collection)
+        .collect::<Vec<_>>();
+    if indexes.is_empty() && vector_indexes.is_empty() {
         skipped_components.push("index_entries".to_string());
+        return Ok(());
+    }
+
+    let generation = midge.collection_generation(collection)?;
+    for index in &indexes {
+        if index.kind != crate::catalog::IndexKind::Column {
+            continue;
+        }
+        match midge.get_column_batch_metadata(collection, &index.name)? {
+            Some(metadata) if metadata.built_generation == generation => {}
+            Some(_) => stats.stale = stats.stale.saturating_add(1),
+            None => stats.missing = stats.missing.saturating_add(1),
+        }
+    }
+    for index in &vector_indexes {
+        if index.metadata.index_type == crate::embeddings::VectorIndexType::BruteForce {
+            continue;
+        }
+        if midge
+            .get_vector_index_state(collection, &index.field)?
+            .is_none()
+        {
+            stats.missing = stats.missing.saturating_add(1);
+        }
     }
     Ok(())
 }

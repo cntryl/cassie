@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use cassie::catalog::ColumnBatchMetadata;
 use cassie::midge::adapter::{RowHashRecord, StorageFamily};
 use cassie::sql::ast::{ProjectionRepairScope, QueryStatement};
 use cassie::types::Value;
@@ -32,6 +33,26 @@ fn row_hash_storage_key(cassie: &Cassie, collection: &str, row_id: &str) -> Vec<
             (record.collection == collection && record.row_id == row_id).then_some(key)
         })
         .expect("row hash key should exist")
+}
+
+fn delete_column_batch_metadata(cassie: &Cassie, collection: &str, index_name: &str) {
+    let entries = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, b"")
+        .unwrap();
+    let mut tx = cassie
+        .midge
+        .data_tx(cntryl_midge::TransactionMode::ReadWrite)
+        .unwrap();
+    for (key, value) in entries {
+        let Ok(metadata) = serde_json::from_slice::<ColumnBatchMetadata>(&value) else {
+            continue;
+        };
+        if metadata.collection == collection && metadata.index_name == index_name {
+            tx.delete(key).unwrap();
+        }
+    }
+    tx.commit(cntryl_midge::WriteOptions::sync()).unwrap();
 }
 
 #[test]
@@ -206,6 +227,98 @@ fn should_execute_verified_local_hash_repair_with_audit() {
             Value::String("rebuild_projection_hashes".to_string())
         );
         assert_eq!(audit.rows[0][3], Value::String("verified".to_string()));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_execute_verified_column_index_repair_with_audit() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projection_repair_index_execute");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE repair_index_docs (title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO repair_index_docs (title) VALUES ('alpha')",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX repair_index_docs_idx ON repair_index_docs USING column (title)",
+                vec![],
+            )
+            .unwrap();
+        let collection = canonical_test_collection(&cassie, "repair_index_docs");
+        let index_name = cassie
+            .midge
+            .get_index(&collection, "repair_index_docs_idx")
+            .unwrap()
+            .unwrap()
+            .name;
+        delete_column_batch_metadata(&cassie, &collection, &index_name);
+
+        // Act
+        let verification = cassie
+            .execute_sql(
+                &session,
+                "VERIFY PROJECTION repair_index_docs MODE indexes_only",
+                vec![],
+            )
+            .unwrap();
+        let plan = cassie
+            .execute_sql(
+                &session,
+                "PLAN REPAIR PROJECTION repair_index_docs SCOPE index",
+                vec![],
+            )
+            .unwrap();
+        let repair = cassie
+            .execute_sql(
+                &session,
+                "REPAIR PROJECTION repair_index_docs SCOPE index",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(verification.rows[0][0], Value::String("failed".to_string()));
+        assert_eq!(verification.rows[0][4], Value::Int64(1));
+        assert_eq!(verification.rows[0][6], Value::Bool(true));
+        assert_eq!(plan.rows[0][5], Value::Bool(true));
+        assert_eq!(repair.rows[0][0], Value::String("completed".to_string()));
+        assert_eq!(repair.rows[0][7], Value::String("verified".to_string()));
+        assert!(cassie
+            .midge
+            .get_column_batch_metadata(&collection, &index_name)
+            .unwrap()
+            .is_some());
+        drop(cassie);
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().unwrap();
+        assert!(restarted
+            .midge
+            .get_column_batch_metadata(&collection, &index_name)
+            .unwrap()
+            .is_some());
 
         let _ = std::fs::remove_dir_all(path);
     });

@@ -114,6 +114,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   projection-version, and full-rebuild scopes.
   - Keep repair local, admin-only, audited, idempotent, rollback-aware, and post-verified.
   - Add interruption/restart tests and larger-manifest verification evidence.
+  - [x] Index scope now repairs verified column-batch sidecars under a collection write gate,
+    records an audit report, requires post-verification, and survives restart.
 
 ## Phase 3 — stable SQL semantics
 

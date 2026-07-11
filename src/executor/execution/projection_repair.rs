@@ -51,10 +51,7 @@ pub(super) fn repair_projection(
         )));
     }
 
-    cassie
-        .midge
-        .rebuild_projection_hashes(&plan.target_collection)
-        .map_err(|error| QueryError::General(error.to_string()))?;
+    execute_repair_action(cassie, &plan)?;
     let verification = super::materialized_projection::verify_projection(
         cassie,
         &VerifyProjectionStatement {
@@ -72,6 +69,13 @@ pub(super) fn repair_projection(
             _ => None,
         })
         .unwrap_or_else(|| "unknown".to_string());
+    if plan.post_verification_state != "verified" {
+        return Err(QueryError::General(format!(
+            "repair scope '{}' failed post-verification with state '{}'",
+            statement.scope.as_str(),
+            plan.post_verification_state
+        )));
+    }
 
     let report_id = format!(
         "repair-{}-{}-{}",
@@ -138,10 +142,14 @@ fn build_repair_plan(
         format!("stale_count={}", integrity.stale_count),
     ];
     let action = action_for_scope(scope).to_string();
-    let executable = matches!(
-        scope,
-        ProjectionRepairScope::Row | ProjectionRepairScope::Range
-    ) && integrity.repairable;
+    let executable = match scope {
+        ProjectionRepairScope::Row | ProjectionRepairScope::Range => integrity.repairable,
+        ProjectionRepairScope::Index => {
+            integrity.repairable
+                && integrity.mode == ProjectionVerificationMode::IndexesOnly.as_str()
+        }
+        ProjectionRepairScope::ProjectionVersion | ProjectionRepairScope::FullRebuild => false,
+    };
 
     if matches!(
         scope,
@@ -170,6 +178,64 @@ fn build_repair_plan(
         post_verification_state: "not_run".to_string(),
         last_error: None,
     })
+}
+
+fn execute_repair_action(cassie: &Cassie, plan: &RepairPlan) -> Result<(), QueryError> {
+    match plan.scope {
+        ProjectionRepairScope::Row | ProjectionRepairScope::Range => cassie
+            .midge
+            .rebuild_projection_hashes(&plan.target_collection)
+            .map(|_| ())
+            .map_err(|error| QueryError::General(error.to_string())),
+        ProjectionRepairScope::Index => cassie
+            .midge
+            .with_collection_write_gates(std::slice::from_ref(&plan.target_collection), || {
+                execute_index_repair(cassie, &plan.target_collection)
+            }),
+        ProjectionRepairScope::ProjectionVersion | ProjectionRepairScope::FullRebuild => {
+            Err(QueryError::General(format!(
+                "repair scope '{}' is not executable by Cassie",
+                plan.scope.as_str()
+            )))
+        }
+    }
+}
+
+fn execute_index_repair(cassie: &Cassie, collection: &str) -> Result<(), QueryError> {
+    cassie
+        .midge
+        .rebuild_scalar_indexes_for_collection(collection)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie
+        .midge
+        .rebuild_time_series_indexes_for_collection(collection)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie
+        .midge
+        .rebuild_column_batches_for_collection(collection)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let vector_indexes = cassie
+        .midge
+        .list_vector_indexes()
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    for index in vector_indexes
+        .into_iter()
+        .filter(|index| index.collection.eq_ignore_ascii_case(collection))
+    {
+        cassie
+            .midge
+            .rebuild_normalized_vectors_for_index(&index)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+    }
+    cassie
+        .midge
+        .refresh_hnsw_indexes_for_collection(collection)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie
+        .midge
+        .refresh_ivfflat_indexes_for_collection(collection)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    Ok(())
 }
 
 fn projection_metadata(cassie: &Cassie, name: &str) -> Result<catalog::ProjectionMeta, QueryError> {

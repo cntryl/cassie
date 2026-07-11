@@ -91,12 +91,12 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     safe across a second restart.
   - [x] Collection-rename journals are published only after validation and move maintenance debt
     alongside generation and other collection-prefixed state.
-- [ ] Make snapshot capture consistency executable, not documentation-only.
+- [x] Make snapshot capture consistency executable, not documentation-only.
   - [x] Test a source mutation during copy and require retry/failure without leaving a usable
     partial snapshot.
   - [x] Validate restored per-collection generations, schema/data epochs, journal/debt state, and
     query results before accepting the restore.
-  - [ ] Add a true concurrent snapshot/write test; deterministic source-mutation rejection and
+  - [x] Add a true concurrent snapshot/write test; deterministic source-mutation rejection and
     interrupted-copy cleanup are covered below.
   - [x] Failed snapshot and restore copies remove partial directories before returning errors.
 - [x] Resolve the planned “Merkle integrity index” row in `docs/feature-support.md`; the current

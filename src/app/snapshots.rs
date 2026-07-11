@@ -86,7 +86,7 @@ impl Cassie {
         data_dir: &Path,
         snapshot_dir: &Path,
         options: CassieSnapshotOptions,
-        after_copy: F,
+        during_copy: F,
     ) -> Result<CassieSnapshotManifest, CassieError>
     where
         F: FnOnce(&Path) -> Result<(), CassieError>,
@@ -111,8 +111,9 @@ impl Cassie {
                 build_snapshot_manifest(&midge, options)?
             };
             let copied_midge_dir = snapshot_dir.join(SNAPSHOT_MIDGE_DIR);
-            copy_dir_recursive(data_dir, &copied_midge_dir)?;
-            after_copy(data_dir)?;
+            let mut copy_hook = Some(during_copy);
+            let mut during_copy = |_: &Path| copy_hook.take().map_or(Ok(()), |hook| hook(data_dir));
+            copy_dir_recursive_with_hook(data_dir, &copied_midge_dir, &mut during_copy)?;
             let copied_generation = {
                 let midge = Midge::new_strict_with_data_dir(data_dir)?;
                 midge.ensure_families_ready()?;
@@ -428,6 +429,15 @@ fn prepare_restore_target(path: &Path) -> Result<(), CassieError> {
 }
 
 fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), CassieError> {
+    let mut no_hook = |_path: &Path| Ok(());
+    copy_dir_recursive_with_hook(source, target, &mut no_hook)
+}
+
+fn copy_dir_recursive_with_hook(
+    source: &Path,
+    target: &Path,
+    hook: &mut dyn FnMut(&Path) -> Result<(), CassieError>,
+) -> Result<(), CassieError> {
     if !source.is_dir() {
         return Err(CassieError::NotFound(format!(
             "source directory not found: {}",
@@ -443,10 +453,11 @@ fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), CassieError> {
             .file_type()
             .map_err(|error| io_error("read file type", &error))?;
         if file_type.is_dir() {
-            copy_dir_recursive(&source_path, &target_path)?;
+            copy_dir_recursive_with_hook(&source_path, &target_path, hook)?;
         } else if file_type.is_file() {
             fs::copy(&source_path, &target_path)
                 .map_err(|error| io_error("copy snapshot file", &error))?;
+            hook(&source_path)?;
         } else {
             return Err(CassieError::Unsupported(format!(
                 "snapshot copy does not support special file: {}",
@@ -464,6 +475,38 @@ fn io_error(operation: &str, error: &std::io::Error) -> CassieError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_invoke_snapshot_copy_hook_during_recursive_copy() {
+        // Arrange
+        let source = std::env::temp_dir().join(format!(
+            "cassie-snapshot-hook-source-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let target = std::env::temp_dir().join(format!(
+            "cassie-snapshot-hook-target-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&source).expect("create hook source");
+        fs::write(source.join("first-file"), b"first").expect("seed first file");
+        fs::write(source.join("second-file"), b"second").expect("seed second file");
+        let mut hook_calls = 0usize;
+
+        // Act
+        copy_dir_recursive_with_hook(&source, &target, &mut |_path| {
+            hook_calls += 1;
+            Ok(())
+        })
+        .expect("copy source");
+
+        // Assert
+        assert_eq!(hook_calls, 2);
+        assert_eq!(fs::read(target.join("first-file")).unwrap(), b"first");
+        assert_eq!(fs::read(target.join("second-file")).unwrap(), b"second");
+
+        let _ = fs::remove_dir_all(source);
+        let _ = fs::remove_dir_all(target);
+    }
 
     #[test]
     fn should_reject_snapshot_when_source_mutates_during_copy() {
@@ -495,6 +538,27 @@ mod tests {
             .expect("seed source table");
         drop(cassie);
 
+        let (start_writer, writer_started) = std::sync::mpsc::channel();
+        let (writer_finished, writer_done) = std::sync::mpsc::channel();
+        let (copy_continue, wait_for_copy) = std::sync::mpsc::channel();
+        let writer_source = source.clone();
+        let writer = std::thread::spawn(move || {
+            writer_started.recv().expect("start snapshot writer");
+            let cassie = Cassie::new_with_data_dir(&writer_source).expect("open writer Cassie");
+            cassie.startup().expect("start writer Cassie");
+            let session = cassie.create_session("writer", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO snapshot_mutation_docs (title) VALUES ('during-copy')",
+                    Vec::new(),
+                )
+                .expect("mutate source during copy");
+            drop(cassie);
+            writer_finished.send(()).expect("report source mutation");
+            wait_for_copy.recv().expect("finish snapshot copy");
+        });
+
         // Act
         let error = Cassie::create_snapshot_with_copy_hook(
             &source,
@@ -502,20 +566,20 @@ mod tests {
             CassieSnapshotOptions {
                 generated_ms: Some(7_913),
             },
-            |source| {
-                let cassie = Cassie::new_with_data_dir(source)?;
-                cassie.startup()?;
-                let session = cassie.create_session("tester", None);
-                cassie
-                    .execute_sql(
-                        &session,
-                        "INSERT INTO snapshot_mutation_docs (title) VALUES ('during-copy')",
-                        Vec::new(),
-                    )
-                    .map(|_| ())
+            |_source| {
+                start_writer
+                    .send(())
+                    .map_err(|error| CassieError::Storage(error.to_string()))?;
+                writer_done
+                    .recv()
+                    .map_err(|error| CassieError::Storage(error.to_string()))?;
+                copy_continue
+                    .send(())
+                    .map_err(|error| CassieError::Storage(error.to_string()))
             },
         )
         .expect_err("source mutation must invalidate snapshot");
+        writer.join().expect("join snapshot writer");
 
         // Assert
         assert!(error

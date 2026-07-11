@@ -61,7 +61,7 @@ Cassie assumes an event-sourced architecture. Data is projection data, projectio
 
 ### Midge storage layout
 
-Cassie uses a clean-break lexkey v4 Midge key layout for all Cassie-owned storage keys. This is a breaking on-disk layout: data directories created with the earlier slash-delimited, `v1`, `v2`, or `v3` keys are rejected at startup and must be discarded, restored from a compatible snapshot, or rebuilt from projection sources.
+Cassie uses the clean-break lexkey v5 Midge key layout for all Cassie-owned storage keys. This is a breaking on-disk layout: existing v4 and older data directories, including flat or slash-delimited keys, `doc:` keys, and `__cassie__` key families, are rejected at startup and must be discarded, restored from a compatible v2 snapshot, or rebuilt from projection sources. Cassie does not migrate them in place.
 
 ### Simplicity wins
 

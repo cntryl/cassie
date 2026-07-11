@@ -7,9 +7,10 @@ use parking_lot::RwLock;
 use crate::catalog::{
     local_name, name_matches, parse_name, CollectionCardinalityStats, CollectionMeta,
     CollectionSchema, CollectionStorageMode, DatabaseMeta, FieldConstraint, FieldMeta,
-    FunctionMeta, GraphMeta, IndexKind, IndexMeta, NamespaceMeta, OperationalAssignmentMeta,
-    ProcedureMeta, ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta, ProjectionMeta,
-    ProjectionRepairReportMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, SequenceMeta, ViewMeta,
+    FunctionMeta, GraphMeta, IndexKind, IndexMeta, MaintenanceDebtMeta, NamespaceMeta,
+    OperationalAssignmentMeta, ProcedureMeta, ProjectionComparisonReportMeta,
+    ProjectionConsistencyReportMeta, ProjectionMeta, ProjectionRepairReportMeta,
+    RetentionPolicyMeta, RoleMeta, RollupMeta, SequenceMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
@@ -39,6 +40,7 @@ pub struct Catalog {
         Arc<RwLock<HashMap<String, ProjectionConsistencyReportMeta>>>,
     pub(super) projection_repair_reports: Arc<RwLock<HashMap<String, ProjectionRepairReportMeta>>>,
     pub(super) operational_assignments: Arc<RwLock<HashMap<String, OperationalAssignmentMeta>>>,
+    pub(super) maintenance_debts: Arc<RwLock<HashMap<String, MaintenanceDebtMeta>>>,
     version: Arc<AtomicU64>,
 }
 
@@ -72,6 +74,7 @@ impl Catalog {
             projection_consistency_reports: Arc::new(RwLock::new(HashMap::new())),
             projection_repair_reports: Arc::new(RwLock::new(HashMap::new())),
             operational_assignments: Arc::new(RwLock::new(HashMap::new())),
+            maintenance_debts: Arc::new(RwLock::new(HashMap::new())),
             version: Arc::new(AtomicU64::new(0)),
         }
     }
@@ -222,6 +225,7 @@ impl Catalog {
         self.projection_consistency_reports.write().clear();
         self.projection_repair_reports.write().clear();
         self.operational_assignments.write().clear();
+        self.maintenance_debts.write().clear();
         self.bump_version();
     }
 

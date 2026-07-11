@@ -20,6 +20,7 @@ planning, tenant movement, or workload-specific benchmark thresholds.
 | `pg_catalog.pg_projection_operations` | Projection version, freshness, checkpoint, lag, rebuild, verification, and last-error state. |
 | `pg_catalog.pg_table_storage` | Effective table storage mode: row-store, column-indexed, or column-store. |
 | `pg_catalog.pg_projection_integrity_reports` and `pg_catalog.pg_projection_repair_reports` | Verification and repair pressure after rebuilds or divergence checks. |
+| `pg_catalog.pg_maintenance_debt` | Persisted derived-state retry pressure, target generations, redacted errors, and fallback reasons for rollup and other maintenance artifacts. |
 | [Performance Contracts](performance-contracts.md) | Manual 10k/100k benchmark scenarios, deployment-profile ids, and the evidence labels that tie workloads to metrics. |
 
 ## Capacity Dimensions

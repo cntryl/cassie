@@ -7,17 +7,24 @@ use super::{
 
 const COLUMN_BATCH_ARTIFACT: &str = "column_batch";
 const PROJECTION_HASH_ARTIFACT: &str = "projection_hash";
+pub(crate) const ROLLUP_ARTIFACT: &str = "rollup";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-struct MaintenanceDebt {
-    collection: String,
-    artifact: String,
-    target_generation: u64,
-    retry_count: u32,
-    last_error: Option<String>,
+pub(crate) struct MaintenanceDebt {
+    pub(crate) collection: String,
+    pub(crate) artifact: String,
+    pub(crate) target_generation: u64,
+    pub(crate) retry_count: u32,
+    pub(crate) last_error: Option<String>,
 }
 
 impl Midge {
+    pub(crate) fn validate_recovery_state(&self) -> Result<(), CassieError> {
+        self.pending_schema_cleanups()?;
+        self.list_maintenance_debt()?;
+        self.validate_pending_index_publications()
+    }
+
     pub(super) fn record_column_batch_maintenance_debt_in_tx(
         tx: &mut cntryl_midge::Transaction,
         collection: &str,
@@ -42,6 +49,14 @@ impl Midge {
             PROJECTION_HASH_ARTIFACT,
             target_generation,
         )
+    }
+
+    pub(super) fn record_rollup_maintenance_debt_in_tx(
+        tx: &mut cntryl_midge::Transaction,
+        collection: &str,
+        target_generation: u64,
+    ) -> Result<(), CassieError> {
+        Self::record_maintenance_debt_in_tx(tx, collection, ROLLUP_ARTIFACT, target_generation)
     }
 
     fn record_maintenance_debt_in_tx(
@@ -160,6 +175,58 @@ impl Midge {
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)
     }
 
+    pub(crate) fn record_rollup_maintenance_failure(
+        &self,
+        collection: &str,
+        target_generation: u64,
+        error: &CassieError,
+    ) -> Result<(), CassieError> {
+        self.record_maintenance_failure(collection, ROLLUP_ARTIFACT, target_generation, error)
+    }
+
+    pub(crate) fn clear_rollup_maintenance_debt(
+        &self,
+        collection: &str,
+        target_generation: u64,
+    ) -> Result<(), CassieError> {
+        self.clear_maintenance_debt(collection, ROLLUP_ARTIFACT, target_generation)
+    }
+
+    pub(crate) fn list_maintenance_debt(&self) -> Result<Vec<MaintenanceDebt>, CassieError> {
+        let mut debts = Vec::new();
+        for database in self.list_databases()? {
+            let tx = self.database_tx(&database.name, cntryl_midge::TransactionMode::ReadOnly)?;
+            let entries = tx
+                .scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
+                .map_err(CassieError::from)?;
+            for (_key, raw) in entries {
+                let debt = serde_json::from_slice::<MaintenanceDebt>(&raw).map_err(|error| {
+                    CassieError::Parse(format!("invalid maintenance debt: {error}"))
+                })?;
+                debts.push(debt);
+            }
+        }
+        Ok(debts)
+    }
+
+    pub(crate) fn maintenance_debt_for(
+        &self,
+        collection: &str,
+        artifact: &str,
+    ) -> Result<Option<MaintenanceDebt>, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
+        let Some(raw) = tx
+            .get(&Self::maintenance_debt_key(&collection, artifact))
+            .map_err(CassieError::from)?
+        else {
+            return Ok(None);
+        };
+        serde_json::from_slice(&raw)
+            .map(Some)
+            .map_err(|error| CassieError::Parse(format!("invalid maintenance debt: {error}")))
+    }
+
     /// Retries persisted rebuildable-artifact work before catalog hydration.
     ///
     /// # Errors
@@ -198,17 +265,28 @@ impl Midge {
     }
 
     #[doc(hidden)]
+    pub fn has_column_batch_maintenance_debt(&self, collection: &str) -> Result<bool, CassieError> {
+        self.has_maintenance_debt(collection, COLUMN_BATCH_ARTIFACT)
+    }
+
+    #[doc(hidden)]
     pub fn has_projection_hash_maintenance_debt(
         &self,
         collection: &str,
     ) -> Result<bool, CassieError> {
+        self.has_maintenance_debt(collection, PROJECTION_HASH_ARTIFACT)
+    }
+
+    #[doc(hidden)]
+    pub fn has_rollup_maintenance_debt(&self, collection: &str) -> Result<bool, CassieError> {
+        self.has_maintenance_debt(collection, ROLLUP_ARTIFACT)
+    }
+
+    fn has_maintenance_debt(&self, collection: &str, artifact: &str) -> Result<bool, CassieError> {
         let collection = self.canonical_collection_name(collection);
         let tx = self.begin_data_readonly_tx_for(&collection)?;
-        tx.get(&Self::maintenance_debt_key(
-            &collection,
-            PROJECTION_HASH_ARTIFACT,
-        ))
-        .map(|debt| debt.is_some())
-        .map_err(CassieError::from)
+        tx.get(&Self::maintenance_debt_key(&collection, artifact))
+            .map(|debt| debt.is_some())
+            .map_err(CassieError::from)
     }
 }

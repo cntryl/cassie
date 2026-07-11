@@ -94,10 +94,19 @@ impl Cassie {
         }
 
         let operations = copy_write_operations(writes)?;
+        let options = if self
+            .catalog
+            .list_rollups_for_source(&statement.table)
+            .is_empty()
+        {
+            DocumentWriteBatchOptions::buffered()
+        } else {
+            DocumentWriteBatchOptions::buffered().with_rollup_maintenance_debt()
+        };
         let report = self.midge.apply_document_write_batch_with_options(
             &statement.table,
             operations,
-            &DocumentWriteBatchOptions::buffered(),
+            &options,
         )?;
         finish_copy_batch(self, statement, &report.stats)?;
         self.runtime.set_data_epoch(self.midge.data_epoch()?);

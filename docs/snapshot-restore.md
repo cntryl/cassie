@@ -1,6 +1,6 @@
 # Snapshot And Restore
 
-Cassie v1 snapshots are local single-node recovery artifacts.
+Cassie snapshot manifest v2 defines local single-node recovery artifacts.
 They complement replay and rebuild; they do not provide remote backup orchestration, replication, quorum recovery, or distributed failover.
 
 ## Format
@@ -15,10 +15,11 @@ A snapshot directory contains:
 The copied Midge directory includes `cf0`, `cf1`, and every opaque per-database
 `db-*` family registered in the source catalog. The manifest records:
 
-- snapshot format version
+- snapshot manifest format version (currently 2)
 - Cassie version
 - generated timestamp in milliseconds
-- schema epoch
+- schema and data epochs
+- every collection and its current generation
 - compatibility status
 - Midge data path inside the snapshot
 - projection id, kind, collection, schema version, active version, source checkpoint, source position, and hash metadata
@@ -33,12 +34,12 @@ the same values after the copy. If the source changed during the copy, Cassie re
 payload and returns an error so the caller can retry.
 Restore snapshots into an empty local data directory with `Cassie::restore_snapshot`, then start a Cassie instance against that restored directory.
 
-Restore validates the manifest before copying data.
-It rejects unsupported snapshot format versions, incompatible Cassie versions, non-compatible status, unsupported Midge data paths, and invalid projection hash metadata.
+Restore validates the manifest before copying data and validates the copied Midge state before accepting the target.
+It rejects v1 and every other non-v2 snapshot manifest; Cassie does not provide a legacy snapshot reader or migration path. Restore also rejects incompatible Cassie versions, non-compatible status, unsupported Midge data paths, invalid projection hash metadata, epoch or collection-generation mismatches, projection-state mismatches, and malformed recovery journal/debt records.
 
 ## Safety Boundary
 
-Snapshot creation closes its metadata reader before copying the Midge directory so recovered local state is durable on disk before the filesystem copy.
+Snapshot creation closes its metadata reader before copying the Midge directory so recovered local state is durable on disk before the filesystem copy. Failed snapshot copies remove the partial snapshot directory, and failed restores remove the partial target directory; callers can retry from the original source or snapshot.
 Restored instances hydrate normal catalog, projection, and query state through the regular startup path.
 
 External tooling remains responsible for:

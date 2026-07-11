@@ -1,6 +1,9 @@
 use cassie::app::Cassie;
 use cassie::catalog::{canonical_relation_name, RollupState};
+use cassie::midge::adapter::set_rollup_maintenance_failure_point;
 use cassie::types::Value;
+
+static ROLLUP_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[path = "support/sql.rs"]
 mod support;
@@ -62,6 +65,7 @@ fn hourly_query(table: &str) -> String {
 fn should_rewrite_query_after_rollup_creation() {
     // Arrange
     with_fallback();
+    let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("rollup_rewrite");
 
     runtime().block_on(async {
@@ -118,6 +122,7 @@ fn should_rewrite_query_after_rollup_creation() {
 fn should_refresh_rollup_for_dml_movement() {
     // Arrange
     with_fallback();
+    let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("rollup_dml");
 
     runtime().block_on(async {
@@ -180,6 +185,7 @@ fn should_refresh_rollup_for_dml_movement() {
 fn should_cleanup_rollup_after_restart_drop() {
     // Arrange
     with_fallback();
+    let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("rollup_restart");
 
     runtime().block_on(async {
@@ -227,6 +233,7 @@ fn should_cleanup_rollup_after_restart_drop() {
 fn should_fallback_to_source_when_rollup_is_stale() {
     // Arrange
     with_fallback();
+    let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("rollup_stale");
 
     runtime().block_on(async {
@@ -253,6 +260,168 @@ fn should_fallback_to_source_when_rollup_is_stale() {
         // Assert
         assert_eq!(selected.rows.len(), 2);
         assert_eq!(metrics["rollups"]["stale_fallbacks"].as_u64(), Some(1));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+fn inject_rollup_refresh_failure(
+    cassie: &Cassie,
+    session: &cassie::app::CassieSession,
+    table: &str,
+) {
+    set_rollup_maintenance_failure_point(true);
+    let inserted = cassie
+        .execute_sql(
+            session,
+            &format!(
+                "INSERT INTO {table} (tenant, event_at, amount) VALUES ('a', '2026-01-01T01:30:00Z', 11)"
+            ),
+            vec![],
+        )
+        .unwrap();
+    assert_eq!(inserted.command, "INSERT 0 1");
+}
+
+#[test]
+fn should_record_rollup_debt_after_refresh_failure() {
+    // Arrange
+    with_fallback();
+    let _failpoint_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+    let path = data_dir("rollup_maintenance_debt");
+
+    runtime().block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        seed_events(&cassie, &session, "rollup_maintenance_events");
+        create_hourly_rollup(&cassie, &session, "rollup_maintenance_events");
+        inject_rollup_refresh_failure(&cassie, &session, "rollup_maintenance_events");
+
+        // Act
+        let source_rows = cassie
+            .execute_sql(
+                &session,
+                &hourly_query("rollup_maintenance_events"),
+                vec![],
+            )
+            .unwrap();
+        let debt = cassie
+            .execute_sql(
+                &session,
+                "SELECT artifact, target_generation, retry_count, last_error, fallback_reason FROM pg_catalog.pg_maintenance_debt WHERE collection = 'postgres.public.rollup_maintenance_events'",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(source_rows.rows.len(), 3, "{:?}", source_rows.rows);
+        assert_eq!(source_rows.rows[0][2], Value::Int64(2));
+        assert_eq!(source_rows.rows[0][3], Value::Int64(12));
+        assert_eq!(debt.rows.len(), 1);
+        assert_eq!(
+            debt.rows[0],
+            vec![
+                Value::String("rollup".to_string()),
+                Value::Int64(4),
+                Value::Int64(1),
+                Value::String("rollup maintenance failed (details redacted)".to_string()),
+                Value::String("maintenance_pending".to_string()),
+            ]
+        );
+        assert_eq!(
+            cassie.metrics()["rollups"]["last_fallback_reason"].as_str(),
+            Some("maintenance_pending")
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_retry_rollup_debt_on_startup() {
+    // Arrange
+    with_fallback();
+    let _failpoint_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+    let path = data_dir("rollup_maintenance_restart");
+
+    runtime().block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        seed_events(&cassie, &session, "rollup_restart_maintenance_events");
+        create_hourly_rollup(&cassie, &session, "rollup_restart_maintenance_events");
+        inject_rollup_refresh_failure(
+            &cassie,
+            &session,
+            "rollup_restart_maintenance_events",
+        );
+
+        drop(cassie);
+
+        // Act
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().unwrap();
+        let restarted_session = restarted.create_session("tester", None);
+        let recovered = restarted
+            .execute_sql(
+                &restarted_session,
+                &hourly_query("rollup_restart_maintenance_events"),
+                vec![],
+            )
+            .unwrap();
+        let remaining_debt = restarted
+            .execute_sql(
+                &restarted_session,
+                "SELECT artifact FROM pg_catalog.pg_maintenance_debt WHERE collection = 'postgres.public.rollup_restart_maintenance_events'",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(recovered.rows.len(), 3);
+        assert_eq!(recovered.rows[0][2], Value::Int64(2));
+        assert_eq!(recovered.rows[0][3], Value::Int64(12));
+        assert!(remaining_debt.rows.is_empty());
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_move_rollup_debt_with_collection_rename() {
+    // Arrange
+    with_fallback();
+    let _failpoint_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+    let path = data_dir("rollup_rename_debt");
+
+    runtime().block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        seed_events(&cassie, &session, "rollup_rename_events");
+        create_hourly_rollup(&cassie, &session, "rollup_rename_events");
+        inject_rollup_refresh_failure(&cassie, &session, "rollup_rename_events");
+        assert!(cassie
+            .midge
+            .has_rollup_maintenance_debt("rollup_rename_events")
+            .unwrap());
+
+        // Act
+        cassie
+            .midge
+            .rename_collection("rollup_rename_events", "rollup_renamed_events")
+            .unwrap();
+
+        // Assert
+        assert!(!cassie
+            .midge
+            .has_rollup_maintenance_debt("rollup_rename_events")
+            .unwrap());
+        assert!(cassie
+            .midge
+            .has_rollup_maintenance_debt("rollup_renamed_events")
+            .unwrap());
 
         let _ = std::fs::remove_dir_all(path);
     });

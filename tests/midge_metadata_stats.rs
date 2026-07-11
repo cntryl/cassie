@@ -471,11 +471,11 @@ fn should_reject_legacy_projection_metadata_on_reopen() {
         let result = restarted.startup();
 
         // Assert
-        let error = result.expect_err("legacy projection metadata should reject v2 startup");
+        let error = result.expect_err("legacy projection metadata should reject v5 startup");
         assert!(
             error
                 .to_string()
-                .contains("incompatible lexkey v4 storage layout"),
+                .contains("incompatible lexkey v5 storage layout"),
             "unexpected error: {error}"
         );
 

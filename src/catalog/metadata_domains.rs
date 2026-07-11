@@ -1,11 +1,40 @@
 use super::Catalog;
 use crate::catalog::{
     local_name, name_matches, normalize_role_name, parse_name, FunctionMeta, GraphMeta,
-    NamespaceMeta, ParsedName, ProcedureMeta, ProjectionKind, ProjectionMeta, RetentionPolicyMeta,
-    RoleMeta, RollupMeta, ViewMeta,
+    MaintenanceDebtMeta, NamespaceMeta, ParsedName, ProcedureMeta, ProjectionKind, ProjectionMeta,
+    RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
 };
 
 impl Catalog {
+    pub fn register_maintenance_debt(&self, metadata: MaintenanceDebtMeta) {
+        let key = format!("{}\0{}", metadata.collection, metadata.artifact);
+        self.maintenance_debts.write().insert(key, metadata);
+        self.bump_version();
+    }
+
+    pub fn unregister_maintenance_debt(&self, collection: &str, artifact: &str) {
+        let key = format!("{collection}\0{artifact}");
+        self.maintenance_debts.write().remove(&key);
+        self.bump_version();
+    }
+
+    #[must_use]
+    pub fn list_maintenance_debts(&self) -> Vec<MaintenanceDebtMeta> {
+        let mut out = self
+            .maintenance_debts
+            .read()
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        out.sort_by_key(|debt| {
+            (
+                debt.collection.to_ascii_lowercase(),
+                debt.artifact.to_ascii_lowercase(),
+            )
+        });
+        out
+    }
+
     pub fn register_graph(&self, metadata: GraphMeta) {
         self.graphs
             .write()

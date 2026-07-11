@@ -234,12 +234,52 @@ fn should_reject_v1_data_prefix_after_reopen() {
         assert!(
             error
                 .to_string()
-                .contains("incompatible lexkey v4 storage layout"),
+                .contains("incompatible lexkey v5 storage layout"),
             "unexpected error: {error}"
         );
 
         let _ = std::fs::remove_dir_all(path);
     });
+}
+
+#[test]
+fn should_reject_v4_layout_marker_with_expected_v5_diagnostic() {
+    // Arrange
+    let path = data_dir("v4_layout_marker_reject");
+    {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.midge.ensure_families_ready().unwrap();
+        let marker_key = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Schema, b"")
+            .unwrap()
+            .into_iter()
+            .find_map(|(key, value)| (value.as_slice() == b"cassie-midge-lexkey-v5").then_some(key))
+            .expect("v5 layout marker key");
+        let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
+        tx.put(marker_key, b"cassie-midge-lexkey-v4".to_vec(), None)
+            .unwrap();
+        tx.commit(cntryl_midge::WriteOptions::sync()).unwrap();
+    }
+
+    // Act
+    let restarted = Cassie::new_with_data_dir(&path).unwrap();
+    let error = restarted
+        .startup()
+        .expect_err("v4 layout marker should be rejected");
+
+    // Assert
+    let diagnostic = error.to_string();
+    assert!(
+        diagnostic.contains("found marker 'cassie-midge-lexkey-v4'"),
+        "unexpected error: {diagnostic}"
+    );
+    assert!(
+        diagnostic.contains("expected lexkey v5 marker 'cassie-midge-lexkey-v5'"),
+        "unexpected error: {diagnostic}"
+    );
+
+    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]

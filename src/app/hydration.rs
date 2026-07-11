@@ -16,6 +16,7 @@ impl Cassie {
         self.hydrate_collection_cardinality_stats()?;
         self.hydrate_programmable_metadata()?;
         self.hydrate_time_series_metadata()?;
+        self.hydrate_maintenance_debt()?;
         self.hydrate_roles()?;
         self.runtime.record_catalog_hydration(started_at.elapsed());
         Ok(())
@@ -249,6 +250,25 @@ impl Cassie {
         self.runtime.record_storage_access("schema", false, true);
         for metadata in retention_policies {
             self.catalog.register_retention_policy(metadata);
+        }
+        Ok(())
+    }
+
+    fn hydrate_maintenance_debt(&self) -> Result<(), CassieError> {
+        let debts = self.midge.list_maintenance_debt().map_err(|error| {
+            self.runtime.record_storage_access("data", false, false);
+            CassieError::Storage(format!("list maintenance debt: {error}"))
+        })?;
+        self.runtime.record_storage_access("data", false, true);
+        for debt in debts {
+            self.catalog
+                .register_maintenance_debt(crate::catalog::MaintenanceDebtMeta::new(
+                    debt.collection,
+                    debt.artifact,
+                    debt.target_generation,
+                    debt.retry_count,
+                    debt.last_error,
+                ));
         }
         Ok(())
     }

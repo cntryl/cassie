@@ -305,6 +305,11 @@ impl Midge {
                 ColumnBatchScanFallbackReason::NoCoveringIndex,
             ));
         };
+        if self.has_column_batch_maintenance_debt(collection)? {
+            return Ok(PreparedColumnBatchScan::Fallback(
+                ColumnBatchScanFallbackReason::MaintenancePending,
+            ));
+        }
         let Some(metadata) = self.get_column_batch_metadata(collection, &index.name)? else {
             return Ok(PreparedColumnBatchScan::Fallback(
                 ColumnBatchScanFallbackReason::MissingMetadata,

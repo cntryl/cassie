@@ -35,6 +35,18 @@ Supported:
 - Limited experimental CREATE PROCEDURE and CALL support for compatibility/admin workflows.
 - CAST(x AS type) and PostgreSQL-style x::type casts.
 
+These bullets describe the implemented baseline, not blanket PostgreSQL semantic parity. The
+following parts of that baseline remain experimental until the active remediation program closes
+them:
+
+- complete three-valued NULL behavior across expressions, lists, ranges, filters, and every join
+  implementation, plus typed incompatible-operand and division-by-zero errors;
+- table-free constant and parameter-only SELECT with correct prepared-statement metadata;
+- recursive CTE delta iteration, UNION versus UNION ALL behavior, aliases, and type/arity checks;
+- explicit ROWS window frames and deterministic rejection of unsupported frame families;
+- transaction-setting/DDL preflight, immediate single-collection staging enforcement, and safe
+  post-commit derived refresh handling.
+
 Cassie-specific read-model commands:
 
 - CREATE MATERIALIZED PROJECTION, REFRESH MATERIALIZED PROJECTION, DROP MATERIALIZED PROJECTION.
@@ -79,6 +91,10 @@ Supported:
 - Extended-query protocol errors enter sync-drain mode and return deterministic PostgreSQL-style error fields before ReadyForQuery.
 - Row description, data row, command complete, error response, and ready-for-query messages.
 - Text format and limited binary format paths are covered by tests for the currently implemented subset of result types; unsupported binary representations are rejected as unsupported features.
+
+Simple-query multi-statement splitting, complete advertised binary codecs, and a reachable
+SQLSTATE inventory remain experimental protocol boundaries; the current subset must not be read as
+binary or error-parity coverage for every advertised type and path.
 
 Unsupported or not yet guaranteed:
 

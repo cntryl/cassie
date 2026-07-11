@@ -70,8 +70,27 @@ impl Cassie {
         snapshot_dir: impl AsRef<Path>,
         options: CassieSnapshotOptions,
     ) -> Result<CassieSnapshotManifest, CassieError> {
-        let data_dir = data_dir.as_ref();
-        let snapshot_dir = snapshot_dir.as_ref();
+        Self::create_snapshot_with_copy_hook(
+            data_dir.as_ref(),
+            snapshot_dir.as_ref(),
+            options,
+            |_| Ok(()),
+        )
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when the snapshot source is invalid, copying fails, or source generation
+    /// changes during the copy.
+    fn create_snapshot_with_copy_hook<F>(
+        data_dir: &Path,
+        snapshot_dir: &Path,
+        options: CassieSnapshotOptions,
+        after_copy: F,
+    ) -> Result<CassieSnapshotManifest, CassieError>
+    where
+        F: FnOnce(&Path) -> Result<(), CassieError>,
+    {
         if !data_dir.is_dir() {
             return Err(CassieError::NotFound(format!(
                 "snapshot source data directory not found: {}",
@@ -85,27 +104,32 @@ impl Cassie {
         }
 
         prepare_empty_directory(snapshot_dir, "snapshot")?;
-        let manifest = {
-            let midge = Midge::new_strict_with_data_dir(data_dir)?;
-            midge.ensure_families_ready()?;
-            build_snapshot_manifest(&midge, options)?
-        };
-        let copied_midge_dir = snapshot_dir.join(SNAPSHOT_MIDGE_DIR);
-        copy_dir_recursive(data_dir, &copied_midge_dir)?;
-        let copied_generation = {
-            let midge = Midge::new_strict_with_data_dir(data_dir)?;
-            midge.ensure_families_ready()?;
-            build_snapshot_manifest(&midge, options)?
-        };
-        if !same_snapshot_generation(&manifest, &copied_generation) {
-            fs::remove_dir_all(&copied_midge_dir)
-                .map_err(|error| io_error("remove inconsistent snapshot copy", &error))?;
-            return Err(CassieError::Storage(
-                "snapshot source changed while copying; retry snapshot".to_string(),
-            ));
+        let result = (|| {
+            let manifest = {
+                let midge = Midge::new_strict_with_data_dir(data_dir)?;
+                midge.ensure_families_ready()?;
+                build_snapshot_manifest(&midge, options)?
+            };
+            let copied_midge_dir = snapshot_dir.join(SNAPSHOT_MIDGE_DIR);
+            copy_dir_recursive(data_dir, &copied_midge_dir)?;
+            after_copy(data_dir)?;
+            let copied_generation = {
+                let midge = Midge::new_strict_with_data_dir(data_dir)?;
+                midge.ensure_families_ready()?;
+                build_snapshot_manifest(&midge, options)?
+            };
+            if !same_snapshot_generation(&manifest, &copied_generation) {
+                return Err(CassieError::Storage(
+                    "snapshot source changed while copying; retry snapshot".to_string(),
+                ));
+            }
+            write_snapshot_manifest(snapshot_dir, &manifest)?;
+            Ok(manifest)
+        })();
+        if result.is_err() {
+            let _ = fs::remove_dir_all(snapshot_dir);
         }
-        write_snapshot_manifest(snapshot_dir, &manifest)?;
-        Ok(manifest)
+        result
     }
 
     /// # Errors
@@ -128,8 +152,15 @@ impl Cassie {
         }
 
         prepare_restore_target(target_data_dir)?;
-        copy_dir_recursive(&snapshot_midge_dir, target_data_dir)?;
-        Ok(manifest)
+        let result = (|| {
+            copy_dir_recursive(&snapshot_midge_dir, target_data_dir)?;
+            validate_restored_snapshot_state(target_data_dir, &manifest)?;
+            Ok(manifest.clone())
+        })();
+        if result.is_err() {
+            let _ = fs::remove_dir_all(target_data_dir);
+        }
+        result
     }
 }
 
@@ -181,6 +212,45 @@ fn same_snapshot_generation(
     before.schema_epoch == after.schema_epoch
         && before.data_epoch == after.data_epoch
         && before.collections == after.collections
+        && before.projections == after.projections
+}
+
+fn validate_restored_snapshot_state(
+    target_data_dir: &Path,
+    manifest: &CassieSnapshotManifest,
+) -> Result<(), CassieError> {
+    let midge = Midge::new_strict_with_data_dir(target_data_dir)?;
+    midge.ensure_families_ready()?;
+    midge.validate_recovery_state()?;
+    let restored = build_snapshot_manifest(
+        &midge,
+        CassieSnapshotOptions {
+            generated_ms: Some(manifest.generated_ms),
+        },
+    )?;
+    if restored.schema_epoch != manifest.schema_epoch {
+        return Err(CassieError::Storage(format!(
+            "snapshot schema epoch does not match restored schema: expected {}, got {}",
+            manifest.schema_epoch, restored.schema_epoch
+        )));
+    }
+    if restored.data_epoch != manifest.data_epoch {
+        return Err(CassieError::Storage(format!(
+            "snapshot data epoch does not match restored data: expected {}, got {}",
+            manifest.data_epoch, restored.data_epoch
+        )));
+    }
+    if restored.collections != manifest.collections {
+        return Err(CassieError::Storage(
+            "snapshot collection generations do not match restored data".to_string(),
+        ));
+    }
+    if restored.projections != manifest.projections {
+        return Err(CassieError::Storage(
+            "snapshot projection state does not match restored data".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn snapshot_projection_manifest(
@@ -389,4 +459,71 @@ fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), CassieError> {
 
 fn io_error(operation: &str, error: &std::io::Error) -> CassieError {
     CassieError::Storage(format!("{operation}: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_reject_snapshot_when_source_mutates_during_copy() {
+        // Arrange
+        let source = std::env::temp_dir().join(format!(
+            "cassie-snapshot-mutation-source-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let snapshot = std::env::temp_dir().join(format!(
+            "cassie-snapshot-mutation-bundle-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let cassie = Cassie::new_with_data_dir(&source).expect("create source Cassie");
+        cassie.startup().expect("start source Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE snapshot_mutation_docs (title TEXT)",
+                Vec::new(),
+            )
+            .expect("create source table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO snapshot_mutation_docs (title) VALUES ('before')",
+                Vec::new(),
+            )
+            .expect("seed source table");
+        drop(cassie);
+
+        // Act
+        let error = Cassie::create_snapshot_with_copy_hook(
+            &source,
+            &snapshot,
+            CassieSnapshotOptions {
+                generated_ms: Some(7_913),
+            },
+            |source| {
+                let cassie = Cassie::new_with_data_dir(source)?;
+                cassie.startup()?;
+                let session = cassie.create_session("tester", None);
+                cassie
+                    .execute_sql(
+                        &session,
+                        "INSERT INTO snapshot_mutation_docs (title) VALUES ('during-copy')",
+                        Vec::new(),
+                    )
+                    .map(|_| ())
+            },
+        )
+        .expect_err("source mutation must invalidate snapshot");
+
+        // Assert
+        assert!(error
+            .to_string()
+            .contains("snapshot source changed while copying"));
+        assert!(!snapshot.exists());
+
+        let _ = fs::remove_dir_all(source);
+        let _ = fs::remove_dir_all(snapshot);
+    }
 }

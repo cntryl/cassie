@@ -415,6 +415,100 @@ fn should_rebuild_missing_normalized_sidecars_on_restart() {
 }
 
 #[test]
+fn should_remove_vector_state_when_dropping_vector_field() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("drop_vector_field");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async move {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let collection = "drop_vector_field_docs";
+        let schema = Schema {
+            fields: vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "embedding".to_string(),
+                    data_type: DataType::Vector(3),
+                    nullable: true,
+                },
+            ],
+        };
+        cassie.midge.create_collection(collection, schema).unwrap();
+        let vector = VectorIndexRecord {
+            collection: collection.to_string(),
+            field: "embedding".to_string(),
+            source_field: "title".to_string(),
+            metadata: VectorIndexMetadata {
+                provider: "openai".to_string(),
+                model: "text-embedding-3-small".to_string(),
+                dimensions: 3,
+                metric: DistanceMetric::Cosine,
+                index_type: VectorIndexType::Hnsw,
+                hnsw: Some(HnswIndexOptions::default()),
+                hnsw_graph: None,
+                ivfflat: None,
+                ivfflat_training: None,
+            },
+        };
+        cassie.midge.put_vector_index(vector).unwrap();
+        cassie
+            .midge
+            .put_index(&IndexMeta {
+                collection: collection.to_string(),
+                name: "drop_vector_field_idx".to_string(),
+                field: "embedding".to_string(),
+                fields: vec!["embedding".to_string()],
+                expressions: Vec::new(),
+                include_fields: Vec::new(),
+                predicate: None,
+                kind: IndexKind::Vector,
+                unique: false,
+                options: BTreeMap::new(),
+            })
+            .unwrap();
+        assert!(cassie
+            .midge
+            .get_vector_index_state(collection, "embedding")
+            .unwrap()
+            .is_some());
+
+        // Act
+        cassie
+            .midge
+            .alter_collection_drop_column(collection, "embedding")
+            .unwrap();
+
+        // Assert
+        assert!(cassie
+            .midge
+            .get_vector_index(collection, "embedding")
+            .unwrap()
+            .is_none());
+        assert!(cassie
+            .midge
+            .get_vector_index_state(collection, "embedding")
+            .unwrap()
+            .is_none());
+        assert!(cassie
+            .midge
+            .get_index(collection, "drop_vector_field_idx")
+            .unwrap()
+            .is_none());
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_reject_normalized_sidecar_rebuild_when_index_dimensions_do_not_match_document_values() {
     // Arrange
     with_fallback();

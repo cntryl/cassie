@@ -15,6 +15,19 @@ struct PendingIndexPublication {
 }
 
 impl Midge {
+    pub(crate) fn validate_pending_index_publications(&self) -> Result<(), CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        let entries = tx
+            .scan(&Query::new().prefix(Self::index_publication_prefix().into()))
+            .map_err(CassieError::from)?;
+        for (_key, raw) in entries {
+            serde_json::from_slice::<PendingIndexPublication>(&raw).map_err(|error| {
+                CassieError::Parse(format!("invalid index publication: {error}"))
+            })?;
+        }
+        Ok(())
+    }
+
     pub(super) fn prepare_index_publication(&self, index: &IndexMeta) -> Result<(), CassieError> {
         let pending = PendingIndexPublication {
             state: IndexPublicationState::Prepared,

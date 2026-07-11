@@ -114,6 +114,14 @@ fn pg_catalog_core_schema(name: &str) -> Option<Vec<(String, DataType)>> {
             int("lag_rows"),
             text("bucket_expr"),
         ]),
+        "pg_catalog.pg_maintenance_debt" => Some(vec![
+            text("collection"),
+            text("artifact"),
+            int("target_generation"),
+            int("retry_count"),
+            text("last_error"),
+            text("fallback_reason"),
+        ]),
         "pg_catalog.pg_type" => Some(virtual_views_pg::type_schema()),
         _ => None,
     }
@@ -306,6 +314,7 @@ fn pg_catalog_core_rows(
         )),
         "pg_catalog.pg_roles" => Some(pg_roles_rows(catalog)),
         "pg_catalog.pg_rollups" => Some(pg_rollups_rows(catalog)),
+        "pg_catalog.pg_maintenance_debt" => Some(pg_maintenance_debt_rows(catalog)),
         "pg_catalog.pg_type" => Some(virtual_views_pg::pg_type(catalog)),
         _ => None,
     }
@@ -366,6 +375,23 @@ fn pg_rollups_rows(catalog: &Catalog) -> Vec<VirtualRow> {
                 string("state", rollup.state.as_str()),
                 int_value("lag_rows", rollup.refresh_cursor.lag_rows),
                 string("bucket_expr", rollup.bucket_expr),
+            ]
+        })
+        .collect()
+}
+
+fn pg_maintenance_debt_rows(catalog: &Catalog) -> Vec<VirtualRow> {
+    catalog
+        .list_maintenance_debts()
+        .into_iter()
+        .map(|debt| {
+            vec![
+                string("collection", debt.collection),
+                string("artifact", debt.artifact),
+                int_value("target_generation", debt.target_generation),
+                int_value("retry_count", debt.retry_count),
+                string("last_error", debt.last_error.unwrap_or_default()),
+                string("fallback_reason", debt.fallback_reason),
             ]
         })
         .collect()

@@ -4,6 +4,7 @@ use super::{
     FieldConstraint, Instant, MidgeScanTimings, RowDecode, RowFilter, TransactionRowChange, Uuid,
     VectorIndexRecord,
 };
+use crate::midge::adapter::DocumentWriteBatchOptions;
 
 impl Cassie {
     /// # Errors
@@ -75,9 +76,10 @@ impl Cassie {
             }
         }
 
+        let options = self.document_write_options(collection);
         let (row_id, stats, row_delta) = self
             .midge
-            .put_document_with_stats(collection, id, payload)?;
+            .put_document_with_stats_and_options(collection, id, payload, &options)?;
         self.runtime
             .record_projection_write_batch(collection.to_string(), &stats);
         self.refresh_runtime_data_epoch()?;
@@ -132,9 +134,13 @@ impl Cassie {
             }
         }
 
-        let (row_id, stats, row_delta) =
-            self.midge
-                .put_document_with_stats(collection, Some(id), payload)?;
+        let options = self.document_write_options(collection);
+        let (row_id, stats, row_delta) = self.midge.put_document_with_stats_and_options(
+            collection,
+            Some(id),
+            payload,
+            &options,
+        )?;
         self.runtime
             .record_projection_write_batch(collection.to_string(), &stats);
         self.refresh_runtime_data_epoch()?;
@@ -170,7 +176,10 @@ impl Cassie {
             }
         }
 
-        let (removed, stats, row_delta) = self.midge.delete_document_with_stats(collection, id)?;
+        let options = self.document_write_options(collection);
+        let (removed, stats, row_delta) = self
+            .midge
+            .delete_document_with_stats_and_options(collection, id, &options)?;
         self.runtime
             .record_projection_write_batch(collection.to_string(), &stats);
         self.refresh_runtime_data_epoch()?;
@@ -181,6 +190,15 @@ impl Cassie {
     fn refresh_runtime_data_epoch(&self) -> Result<(), CassieError> {
         self.runtime.set_data_epoch(self.midge.data_epoch()?);
         Ok(())
+    }
+
+    fn document_write_options(&self, collection: &str) -> DocumentWriteBatchOptions {
+        let options = DocumentWriteBatchOptions::sync();
+        if self.catalog.list_rollups_for_source(collection).is_empty() {
+            options
+        } else {
+            options.with_rollup_maintenance_debt()
+        }
     }
 
     pub(crate) fn referential_write_collections(&self, collection: &str) -> Vec<String> {

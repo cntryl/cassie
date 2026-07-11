@@ -8,6 +8,7 @@ pub(super) struct DroppedCollectionIndexes {
     pub columns: Vec<String>,
     pub scalars: Vec<String>,
     pub time_series: Vec<String>,
+    pub vectors: Vec<String>,
 }
 
 pub(super) fn drop_referencing_indexes_in_tx(
@@ -23,6 +24,7 @@ pub(super) fn drop_referencing_indexes_in_tx(
     let mut dropped_column_indexes = Vec::new();
     let mut dropped_scalar_indexes = Vec::new();
     let mut dropped_time_series_indexes = Vec::new();
+    let mut dropped_vector_indexes = Vec::new();
 
     for (key, value) in indexes {
         let Ok(metadata) = serde_json::from_slice::<IndexMeta>(&value) else {
@@ -51,6 +53,12 @@ pub(super) fn drop_referencing_indexes_in_tx(
             }
             IndexKind::Scalar => dropped_scalar_indexes.push((key, metadata.name)),
             IndexKind::TimeSeries => dropped_time_series_indexes.push((key, metadata.name)),
+            IndexKind::Vector => {
+                tx.delete(key).map_err(CassieError::from)?;
+                tx.delete(Midge::vector_index_key(collection, &metadata.field))
+                    .map_err(CassieError::from)?;
+                dropped_vector_indexes.push(metadata.field);
+            }
             _ => {}
         }
     }
@@ -75,6 +83,7 @@ pub(super) fn drop_referencing_indexes_in_tx(
         columns: dropped_column_indexes,
         scalars: scalar_names,
         time_series: time_series_names,
+        vectors: dropped_vector_indexes,
     })
 }
 
@@ -82,31 +91,50 @@ pub(super) fn delete_dropped_field_data(
     midge: &Midge,
     collection: &str,
     field: &str,
-    dropped_indexes: DroppedCollectionIndexes,
+    dropped_indexes: &DroppedCollectionIndexes,
 ) -> Result<(), CassieError> {
     let mut data_tx = midge.begin_data_rw_tx_for(collection)?;
     Midge::delete_normalized_vector_keys_with_prefix(
         &mut data_tx,
         Midge::normalized_vector_prefix(collection, field),
     )?;
-    for index_name in dropped_indexes.scalars {
+    for vector_field in &dropped_indexes.vectors {
+        Midge::delete_normalized_vector_keys_with_prefix(
+            &mut data_tx,
+            Midge::normalized_vector_prefix(collection, vector_field),
+        )?;
+        data_tx
+            .delete(Midge::vector_index_state_key(collection, vector_field))
+            .map_err(CassieError::from)?;
+    }
+    for index_name in &dropped_indexes.scalars {
         Midge::delete_keys_with_prefix(
             &mut data_tx,
-            Midge::scalar_index_data_prefix(collection, &index_name),
+            Midge::scalar_index_data_prefix(collection, index_name),
         )?;
     }
-    for index_name in dropped_indexes.time_series {
+    for index_name in &dropped_indexes.time_series {
         Midge::delete_keys_with_prefix(
             &mut data_tx,
-            Midge::time_series_index_data_prefix(collection, &index_name),
+            Midge::time_series_index_data_prefix(collection, index_name),
         )?;
     }
-    for index_name in dropped_indexes.columns {
+    for index_name in &dropped_indexes.columns {
         Midge::delete_keys_with_prefix(
             &mut data_tx,
-            Midge::column_batch_index_prefix(collection, &index_name),
+            Midge::column_batch_index_prefix(collection, index_name),
         )?;
     }
+    for index_name in &dropped_indexes.scalars {
+        Midge::delete_keys_with_prefix(
+            &mut data_tx,
+            Midge::unique_scalar_index_reservation_prefix(collection, index_name),
+        )?;
+    }
+    Midge::delete_keys_with_prefix(
+        &mut data_tx,
+        Midge::unique_constraint_reservation_field_prefix(collection, field),
+    )?;
     data_tx
         .commit(super::WriteOptions::sync())
         .map_err(CassieError::from)?;

@@ -15,7 +15,7 @@ tests, diagnostics, documentation, and performance evidence meet `docs/definitio
   open.
 - Write a focused failing `should_...` test first with `// Arrange / Act / Assert`.
 - Keep Midge as the only storage layer and pgwire as the primary query interface.
-- Use the clean-break lexkey v4 layout only. Do not add legacy readers, migrations, or compatibility
+- Use the clean-break lexkey v5 layout only. Do not add legacy readers, migrations, or compatibility
   ladders for old Cassie storage/snapshot formats.
 - Keep source and test files below 1,000 lines. Split an oversized touched file before adding
   material behavior.
@@ -46,21 +46,21 @@ tests, diagnostics, documentation, and performance evidence meet `docs/definitio
 
 ## Phase 0 — trustworthy gates and contract claims
 
-- [ ] Complete add-column recovery coverage and retain final gate evidence.
+- [x] Complete add-column recovery coverage and retain final gate evidence.
   - Baseline: `ALTER TABLE ... ADD COLUMN` now persists column-batch and projection-hash maintenance
     debt before post-commit refresh and retries it on startup.
   - Tests: keep the projection-hash interruption/restart regression in
     `tests/derived_state_recovery.rs`; add column-batch debt coverage when a column index exists.
   - Benchmark: N/A; record maintenance retry/fallback metrics instead.
-- [ ] Reconcile current documentation with source truth.
-  - Change `docs/snapshot-restore.md` and the recovery row in `docs/feature-support.md` from “v1
-    snapshot” wording to the current v2 manifest contract.
-  - Keep lexkey v4 and latest-only rejection wording consistent across README, feature support,
-    snapshot docs, tests, and startup diagnostics.
+- [x] Reconcile current documentation with source truth.
+  - Document the current v2 manifest contract and explicit v1/non-v2 rejection in
+    `docs/snapshot-restore.md` and the recovery row in `docs/feature-support.md`.
+  - Keep lexkey v5 current-layout and v4-and-older rejection wording consistent across README,
+    feature support, snapshot docs, tests, and startup diagnostics.
   - Narrow any Stable/Implemented claim whose remaining contract work is listed below, especially
     NULL semantics, recursive CTEs, window frames, binary pgwire, retrieval generation safety,
     REST authentication, analytics freshness, and production readiness.
-- [ ] Make gate results reproducible and retained.
+- [x] Make gate results reproducible and retained.
   - Ensure the full locked test suite completes deterministically in local and CI environments.
   - Upload failed-test output and relevant diagnostics in CI so a gate failure is actionable.
   - Keep UI adapter freshness, UI test/type/lint/build, bench compile, Rust build/test/fmt/clippy, and
@@ -79,21 +79,29 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - Persist debt or invalid generation in the same base-data transaction where possible.
   - Retry idempotently at startup and expose retry count, last error, target generation, and current
     fallback reason.
+  - [x] Rollup writes now use a source-scoped `rollup` debt record, a `maintenance_pending` read
+    fence, catalog diagnostics, and startup retry/clear coverage.
 - [ ] Complete schema-operation journal coverage.
   - Verify create/drop/rename collection, add/drop/rename field, and create/drop index behavior at
     every schema/data-family interruption point.
   - Ensure prepared operations are never query-visible, replay is idempotent, abandoned validation
     intents are discarded safely, and cleanup leaves no orphaned index/sidecar keys.
   - Add crash/failpoint and concurrent-write tests for each cross-family boundary.
+  - [x] Drop-collection replay now finishes data cleanup after an interrupted schema commit and is
+    safe across a second restart.
+  - [x] Collection-rename journals are published only after validation and move maintenance debt
+    alongside generation and other collection-prefixed state.
 - [ ] Make snapshot capture consistency executable, not documentation-only.
-  - Test a source mutation during copy and require retry/failure without leaving a usable partial
-    snapshot.
-  - Validate restored per-collection generations, schema/data epochs, journal/debt state, and query
-    results before accepting the restore.
-  - Add interrupted-copy cleanup and concurrent snapshot/write tests.
-- [ ] Resolve the planned “Merkle integrity index” row in `docs/feature-support.md`.
-  - Either define and implement a distinct persisted integrity-index contract, or remove/rename the
-    row if existing row/range/root hashes already satisfy the intended feature.
+  - [x] Test a source mutation during copy and require retry/failure without leaving a usable
+    partial snapshot.
+  - [x] Validate restored per-collection generations, schema/data epochs, journal/debt state, and
+    query results before accepting the restore.
+  - [ ] Add a true concurrent snapshot/write test; deterministic source-mutation rejection and
+    interrupted-copy cleanup are covered below.
+  - [x] Failed snapshot and restore copies remove partial directories before returning errors.
+- [x] Resolve the planned “Merkle integrity index” row in `docs/feature-support.md`; the current
+  contract is the existing persisted row/range/projection-root hash state, not a separate Merkle
+  index.
 - [ ] Implement safe executable repair for the currently dry-run-only index,
   projection-version, and full-rebuild scopes.
   - Keep repair local, admin-only, audited, idempotent, rollback-aware, and post-verified.
@@ -181,7 +189,7 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - Benchmark: Tier-4 10k/100k binary parameter/result round trips.
 - [ ] Complete common SQLSTATE coverage and documentation for all reachable unsupported paths.
 
-## Phase 5 — persisted retrieval in lexkey v4
+## Phase 5 — persisted retrieval in lexkey v5
 
 - [ ] Persist full-text retrieval state in Midge.
   - Store postings, term frequencies, document lengths, and corpus statistics with a built

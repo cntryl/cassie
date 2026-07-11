@@ -1,8 +1,9 @@
 use super::{
-    check_collection_rename_failure_point, check_field_drop_failure_point,
-    check_field_rename_failure_point, key_encoding, CassieError, CollectionMeta, FieldConstraint,
-    FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta, NormalizedVectorRecord,
-    ProjectionMeta, Query, RetentionPolicyMeta, RowSchema, Schema, WriteOptions,
+    check_collection_drop_failure_point, check_collection_rename_failure_point,
+    check_field_drop_failure_point, check_field_rename_failure_point, key_encoding, CassieError,
+    CollectionMeta, FieldConstraint, FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta,
+    NormalizedVectorRecord, ProjectionMeta, Query, RetentionPolicyMeta, RowSchema, Schema,
+    WriteOptions,
 };
 
 #[path = "schema_ops_helpers.rs"]
@@ -29,6 +30,8 @@ struct PendingFieldDrop {
     column_names: Vec<String>,
     scalar_names: Vec<String>,
     time_series_names: Vec<String>,
+    #[serde(default)]
+    vector_names: Vec<String>,
 }
 
 impl Midge {
@@ -296,13 +299,14 @@ impl Midge {
         schema_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
+        check_collection_drop_failure_point()?;
 
         self.delete_collection_data(name)?;
 
         Ok(())
     }
 
-    fn delete_collection_data(&self, name: &str) -> Result<(), CassieError> {
+    pub(super) fn delete_collection_data(&self, name: &str) -> Result<(), CassieError> {
         let mut data_tx = self.begin_data_rw_tx_for(name)?;
         let mut document_keys = Vec::new();
         for data_prefix in [
@@ -330,6 +334,25 @@ impl Midge {
         for key in document_keys {
             data_tx.delete(key).map_err(CassieError::from)?;
         }
+        let debt_entries = data_tx
+            .scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
+            .map_err(CassieError::from)?;
+        for (key, value) in debt_entries {
+            let collection_matches = serde_json::from_slice::<serde_json::Value>(&value)
+                .ok()
+                .and_then(|debt| {
+                    debt.get("collection")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string)
+                })
+                .is_some_and(|collection| collection == name);
+            if collection_matches {
+                data_tx.delete(key).map_err(CassieError::from)?;
+            }
+        }
+        data_tx
+            .delete(Self::collection_generation_key(name))
+            .map_err(CassieError::from)?;
         data_tx
             .delete(Self::root_hash_key(name))
             .map_err(CassieError::from)?;
@@ -469,6 +492,7 @@ impl Midge {
             column_names: dropped_indexes.columns.clone(),
             scalar_names: dropped_indexes.scalars.clone(),
             time_series_names: dropped_indexes.time_series.clone(),
+            vector_names: dropped_indexes.vectors.clone(),
         };
         tx.put(
             Self::field_drop_operation_key(collection, field),
@@ -494,7 +518,6 @@ impl Midge {
     ) -> Result<(), CassieError> {
         let collection_storage = self.canonical_collection_name(collection);
         let collection = collection_storage.as_str();
-        self.save_pending_field_rename(collection, current_name, next_name)?;
         let mut tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(collection);
         let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
@@ -551,6 +574,18 @@ impl Midge {
             next_name,
         )?;
 
+        let pending = PendingFieldRename {
+            collection: collection.to_string(),
+            current_name: current_name.to_string(),
+            next_name: next_name.to_string(),
+        };
+        tx.put(
+            Self::field_rename_operation_key(collection, current_name, next_name),
+            serde_json::to_vec(&pending).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         check_field_rename_failure_point()?;
         self.complete_field_rename_data(collection, current_name, next_name)?;
@@ -569,7 +604,6 @@ impl Midge {
         let next_name_storage = self.canonical_collection_name(next_name);
         let current_name = current_name_storage.as_str();
         let next_name = next_name_storage.as_str();
-        self.save_pending_collection_rename(current_name, next_name)?;
         let mut schema_tx = self.begin_schema_rw_tx()?;
         schema_ops_helpers::rename_collection_schema_entries(
             &mut schema_tx,
@@ -591,6 +625,19 @@ impl Midge {
 
         schema_ops_helpers::transfer_collection_sidecars(&mut schema_tx, current_name, next_name)?;
 
+        let pending = PendingCollectionRename {
+            current_name: current_name.to_string(),
+            next_name: next_name.to_string(),
+        };
+        schema_tx
+            .put(
+                Self::schema_operation_key(current_name, next_name),
+                serde_json::to_vec(&pending)
+                    .map_err(|error| CassieError::Parse(error.to_string()))?,
+                None,
+            )
+            .map_err(CassieError::from)?;
+
         schema_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
@@ -611,6 +658,7 @@ impl Midge {
             next_name,
         )?;
         schema_ops_helpers::rename_collection_prefixed_data(&mut data_tx, current_name, next_name)?;
+        Self::rename_collection_maintenance_debt_in_tx(&mut data_tx, current_name, next_name)?;
         if let Some(generation) = data_tx
             .get(&Self::collection_generation_key(current_name))
             .map_err(CassieError::from)?
@@ -642,6 +690,35 @@ impl Midge {
             .map_err(CassieError::from)?;
         self.rebuild_time_series_indexes_for_collection(next_name)?;
         self.rebuild_projection_hashes(next_name)?;
+        Ok(())
+    }
+
+    fn rename_collection_maintenance_debt_in_tx(
+        tx: &mut cntryl_midge::Transaction,
+        current_name: &str,
+        next_name: &str,
+    ) -> Result<(), CassieError> {
+        let entries = tx
+            .scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
+            .map_err(CassieError::from)?;
+        for (key, value) in entries {
+            let Ok(mut debt) =
+                serde_json::from_slice::<super::maintenance::MaintenanceDebt>(&value)
+            else {
+                continue;
+            };
+            if debt.collection != current_name {
+                continue;
+            }
+            debt.collection = next_name.to_string();
+            tx.delete(key).map_err(CassieError::from)?;
+            tx.put(
+                Self::maintenance_debt_key(next_name, &debt.artifact),
+                serde_json::to_vec(&debt).map_err(|error| CassieError::Parse(error.to_string()))?,
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
         Ok(())
     }
 
@@ -730,27 +807,6 @@ impl Midge {
         Ok(())
     }
 
-    fn save_pending_field_rename(
-        &self,
-        collection: &str,
-        current: &str,
-        next: &str,
-    ) -> Result<(), CassieError> {
-        let pending = PendingFieldRename {
-            collection: collection.to_string(),
-            current_name: current.to_string(),
-            next_name: next.to_string(),
-        };
-        let mut tx = self.begin_schema_rw_tx()?;
-        tx.put(
-            Self::field_rename_operation_key(collection, current, next),
-            serde_json::to_vec(&pending).map_err(|error| CassieError::Parse(error.to_string()))?,
-            None,
-        )
-        .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
-    }
-
     fn clear_pending_field_rename(
         &self,
         collection: &str,
@@ -768,10 +824,11 @@ impl Midge {
             self,
             &pending.collection,
             &pending.field,
-            schema_ops_helpers::DroppedCollectionIndexes {
+            &schema_ops_helpers::DroppedCollectionIndexes {
                 columns: pending.column_names.clone(),
                 scalars: pending.scalar_names.clone(),
                 time_series: pending.time_series_names.clone(),
+                vectors: pending.vector_names.clone(),
             },
         )?;
         self.rebuild_scalar_indexes_for_collection(&pending.collection)?;
@@ -815,21 +872,6 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::field_drop_operation_key(collection, field))
             .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
-    }
-
-    fn save_pending_collection_rename(&self, current: &str, next: &str) -> Result<(), CassieError> {
-        let rename = PendingCollectionRename {
-            current_name: current.to_string(),
-            next_name: next.to_string(),
-        };
-        let mut tx = self.begin_schema_rw_tx()?;
-        tx.put(
-            Self::schema_operation_key(current, next),
-            serde_json::to_vec(&rename).map_err(|error| CassieError::Parse(error.to_string()))?,
-            None,
-        )
-        .map_err(CassieError::from)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)
     }
 

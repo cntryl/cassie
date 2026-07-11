@@ -51,7 +51,7 @@ Current PostgreSQL-like session/database model:
 - Each session is bound to one existing database; `current_database()`, `current_schema()`, `SHOW search_path`, and `SET search_path` follow that session scope.
 - Unqualified names resolve through the session `search_path` within the current database only.
 - Cross-database `database.schema.relation` references are intentionally unsupported.
-- Cassie-owned Midge layout is a clean-break lexkey `v4`; older flat or `v1`/`v2`/`v3` data directories must be recreated instead of migrated in place.
+- Cassie-owned Midge layout is a clean-break lexkey `v5`; `v4` and older data directories must be recreated instead of migrated in place.
 - Local operational assignment metadata plus external route, drain, move, failure, and rollback contracts for node, tenant, partition, and projection routing.
 - Local snapshot and restore workflow for single-node Midge-backed recovery.
 - Advisory capacity-management guidance using metrics, EXPLAIN, catalog diagnostics, host disk measurements, and manual benchmark scenarios.

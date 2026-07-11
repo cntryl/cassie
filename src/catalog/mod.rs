@@ -4,6 +4,7 @@ pub mod consistency;
 pub mod constraints;
 pub mod graphs;
 pub mod indexes;
+pub mod maintenance;
 pub mod metadata;
 pub mod operational;
 pub mod programs;
@@ -45,6 +46,7 @@ pub use indexes::{
     ColumnBatchPayload, ColumnBatchRow, ColumnBatchSegmentMeta, ColumnBatchValueRun, IndexKind,
     IndexMeta,
 };
+pub use maintenance::MaintenanceDebtMeta;
 pub use metadata::Catalog;
 pub use operational::{OperationalAssignmentMeta, OperationalAssignmentState};
 pub use programs::{FunctionArgMeta, FunctionMeta, ProcedureMeta, ViewMeta, Volatility};

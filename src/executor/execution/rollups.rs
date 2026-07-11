@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::catalog::{RollupAggregateMeta, RollupDefinition, RollupMeta, RollupState};
+use crate::catalog::{
+    MaintenanceDebtMeta, RollupAggregateMeta, RollupDefinition, RollupMeta, RollupState,
+};
 use crate::executor::batch::{self, Batch, BatchRow};
 use crate::sql::ast::{Expr, FunctionCall, QuerySource, SelectItem};
 use crate::types::{DataType, FieldSchema, Schema, Value};
@@ -11,6 +13,7 @@ use super::{
     aggregate_exec, check_timeout, filter, projection, scan, sort, Cassie, FunctionMeta,
     LogicalPlan, QueryError, QueryExecutionControls, QueryResult,
 };
+use crate::midge::adapter::check_rollup_maintenance_failure_point;
 
 pub(super) fn create_rollup(
     cassie: &Cassie,
@@ -100,8 +103,33 @@ pub(super) fn refresh_rollups_for_source(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
-    for rollup in cassie.catalog.list_rollups_for_source(source) {
-        refresh_rollup(cassie, &rollup.name, user_functions, controls)?;
+    let generation = cassie
+        .midge
+        .collection_generation(source)
+        .map_err(QueryError::Cassie)?;
+    let refresh = check_rollup_maintenance_failure_point()
+        .map_err(QueryError::Cassie)
+        .and_then(|()| {
+            for rollup in cassie.catalog.list_rollups_for_source(source) {
+                refresh_rollup(cassie, &rollup.name, user_functions, controls)?;
+            }
+            Ok(())
+        });
+    match refresh {
+        Ok(()) => {
+            let _ = cassie
+                .midge
+                .clear_rollup_maintenance_debt(source, generation);
+            let _ = sync_rollup_debt_catalog(cassie, source);
+        }
+        Err(error) => {
+            let storage_error = crate::app::CassieError::Execution(error.to_string());
+            let _ =
+                cassie
+                    .midge
+                    .record_rollup_maintenance_failure(source, generation, &storage_error);
+            let _ = sync_rollup_debt_catalog(cassie, source);
+        }
     }
     Ok(())
 }
@@ -124,6 +152,14 @@ pub(super) fn try_execute_rollup_query(
         cassie.runtime.record_rollup_fallback("no-match");
         return Ok(None);
     };
+    if cassie
+        .midge
+        .has_rollup_maintenance_debt(source)
+        .map_err(QueryError::Cassie)?
+    {
+        cassie.runtime.record_rollup_fallback("maintenance_pending");
+        return Ok(None);
+    }
     if !rollup.is_fresh() {
         cassie.runtime.record_rollup_fallback("stale");
         return Ok(None);
@@ -176,9 +212,38 @@ pub(super) fn rewrite_name_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Opti
     let QuerySource::Collection(source) = &plan.source else {
         return None;
     };
+    if cassie
+        .midge
+        .has_rollup_maintenance_debt(source)
+        .ok()
+        .is_none_or(|pending| pending)
+    {
+        return None;
+    }
     matching_rollup(cassie, source, plan)
         .filter(RollupMeta::is_fresh)
         .map(|rollup| rollup.name)
+}
+
+fn sync_rollup_debt_catalog(cassie: &Cassie, source: &str) -> Result<(), QueryError> {
+    let Some(debt) = cassie
+        .midge
+        .maintenance_debt_for(source, "rollup")
+        .map_err(QueryError::Cassie)?
+    else {
+        cassie.catalog.unregister_maintenance_debt(source, "rollup");
+        return Ok(());
+    };
+    cassie
+        .catalog
+        .register_maintenance_debt(MaintenanceDebtMeta::new(
+            debt.collection,
+            debt.artifact,
+            debt.target_generation,
+            debt.retry_count,
+            debt.last_error,
+        ));
+    Ok(())
 }
 
 fn metadata_from_statement(

@@ -102,7 +102,11 @@ impl Midge {
     ) -> Result<(), CassieError> {
         match &cleanup.action {
             PendingSchemaCleanupAction::Table { table } => {
-                self.drop_collection(table)?;
+                if self.collection_schema(table).is_some() {
+                    self.drop_collection(table)?;
+                } else {
+                    self.delete_collection_data(table)?;
+                }
             }
             PendingSchemaCleanupAction::Index { table, index } => {
                 self.complete_drop_index_cleanup(table, index)?;

@@ -8,6 +8,8 @@ use super::{
 use std::collections::BTreeMap;
 use std::time::Duration;
 
+#[path = "documents/commit.rs"]
+mod commit;
 #[path = "documents/ordered_scan.rs"]
 mod ordered_scan;
 pub(crate) use ordered_scan::OrderedRowScanRequest;
@@ -36,6 +38,7 @@ pub(crate) struct DocumentWriteBatchOptions {
     pub commit: WriteOptions,
     pub refresh_after_commit: bool,
     pub normalized_vector_collection: Option<String>,
+    pub record_rollup_maintenance_debt: bool,
 }
 
 impl DocumentWriteBatchOptions {
@@ -44,6 +47,7 @@ impl DocumentWriteBatchOptions {
             commit: WriteOptions::sync(),
             refresh_after_commit: true,
             normalized_vector_collection: None,
+            record_rollup_maintenance_debt: false,
         }
     }
 
@@ -52,7 +56,13 @@ impl DocumentWriteBatchOptions {
             commit: WriteOptions::buffered(),
             refresh_after_commit: true,
             normalized_vector_collection: None,
+            record_rollup_maintenance_debt: false,
         }
+    }
+
+    pub(crate) fn with_rollup_maintenance_debt(mut self) -> Self {
+        self.record_rollup_maintenance_debt = true;
+        self
     }
 }
 
@@ -202,15 +212,16 @@ impl Midge {
         Ok(report.row_delta < 0)
     }
 
-    pub(crate) fn put_document_with_stats(
+    pub(crate) fn put_document_with_stats_and_options(
         &self,
         collection: &str,
         id: Option<String>,
         payload: serde_json::Value,
+        options: &DocumentWriteBatchOptions,
     ) -> Result<(String, crate::runtime::ProjectionWriteStats, i64), CassieError> {
         let storage_collection = self.canonical_collection_name(collection);
         let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
-        let mut options = DocumentWriteBatchOptions::sync();
+        let mut options = options.clone();
         options.normalized_vector_collection = Some(collection.to_string());
         let report = self.apply_document_write_batch_with_options(
             &storage_collection,
@@ -223,15 +234,17 @@ impl Midge {
         Ok((doc_id, report.stats, report.row_delta))
     }
 
-    pub(crate) fn delete_document_with_stats(
+    pub(crate) fn delete_document_with_stats_and_options(
         &self,
         collection: &str,
         id: &str,
+        options: &DocumentWriteBatchOptions,
     ) -> Result<(bool, crate::runtime::ProjectionWriteStats, i64), CassieError> {
         let collection = self.canonical_collection_name(collection);
-        let report = self.apply_document_write_batch(
+        let report = self.apply_document_write_batch_with_options(
             &collection,
             vec![DocumentWriteOp::Delete { id: id.to_string() }],
+            options,
         )?;
         Ok((report.row_delta < 0, report.stats, report.row_delta))
     }
@@ -859,63 +872,6 @@ impl Midge {
                 .saturating_add(time_series_puts)
                 .saturating_add(graph_puts),
         ))
-    }
-
-    fn finish_document_write_batches(
-        &self,
-        options: &DocumentWriteBatchOptions,
-        mut tx: cntryl_midge::Transaction,
-        mut reports: BTreeMap<String, DocumentWriteBatchReport>,
-        changed_collections: Vec<String>,
-    ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
-        if changed_collections.is_empty() {
-            tx.rollback().map_err(CassieError::from)?;
-            return Ok(reports);
-        }
-
-        let mut generations = BTreeMap::new();
-        for collection in &changed_collections {
-            let generation = Self::increment_collection_generation_in_tx(&mut tx, collection)?;
-            self.stamp_normalized_vectors_generation_in_tx(&mut tx, collection, generation)?;
-            self.stamp_vector_index_states_generation_in_tx(&mut tx, collection, generation)?;
-            Self::record_column_batch_maintenance_debt_in_tx(&mut tx, collection, generation)?;
-            Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, collection, generation)?;
-            generations.insert(collection.clone(), generation);
-        }
-        let epoch = Self::increment_data_epoch_in_tx(&mut tx)?;
-        if let Err(error) = super::check_document_write_conflict_injection() {
-            tx.rollback().map_err(CassieError::from)?;
-            return Err(error);
-        }
-        tx.commit(options.commit).map_err(CassieError::from)?;
-        let mut sorted_changed_collections = changed_collections;
-        sorted_changed_collections.sort();
-
-        for collection in &sorted_changed_collections {
-            let Some(report) = reports.get_mut(collection) else {
-                return Err(CassieError::Execution(format!(
-                    "missing write report for collection '{collection}'"
-                )));
-            };
-            report.data_epoch = Some(epoch);
-            report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
-        }
-
-        if options.refresh_after_commit {
-            for collection in sorted_changed_collections {
-                if let Some(report) = reports.get(&collection) {
-                    let generation = generations[&collection];
-                    let _ = self.complete_column_batch_maintenance(&collection, generation);
-                    let _ = self.complete_projection_hash_maintenance(
-                        &collection,
-                        generation,
-                        report.row_delta,
-                    );
-                }
-            }
-        }
-
-        Ok(reports)
     }
 
     pub(crate) fn flush_data_family(&self) -> Result<(), CassieError> {

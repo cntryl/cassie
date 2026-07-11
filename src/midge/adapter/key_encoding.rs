@@ -395,6 +395,14 @@ pub(super) fn unique_constraint_reservation_prefix(collection: &str) -> Vec<u8> 
     data_scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"constraint"])
 }
 
+pub(super) fn unique_constraint_reservation_field_prefix(collection: &str, field: &str) -> Vec<u8> {
+    data_scoped_prefix(
+        FAMILY_UNIQUE_RESERVATION,
+        collection,
+        &[b"constraint", field.as_bytes()],
+    )
+}
+
 pub(super) fn unique_constraint_reservation_key(
     collection: &str,
     field: &str,
@@ -427,6 +435,17 @@ pub(super) fn unique_scalar_index_reservation_key(
 
 pub(super) fn unique_index_reservation_prefix(collection: &str) -> Vec<u8> {
     data_scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"index"])
+}
+
+pub(super) fn unique_scalar_index_reservation_prefix(
+    collection: &str,
+    index_name: &str,
+) -> Vec<u8> {
+    data_scoped_prefix(
+        FAMILY_UNIQUE_RESERVATION,
+        collection,
+        &[b"index", index_name.as_bytes()],
+    )
 }
 
 pub(super) fn column_batch_metadata_key(collection: &str, index_name: &str) -> Vec<u8> {

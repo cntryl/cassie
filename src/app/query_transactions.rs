@@ -73,7 +73,14 @@ impl Cassie {
 
         let mut changed_collections = Vec::new();
         if !writes.is_empty() {
-            let options = DocumentWriteBatchOptions::sync();
+            let has_rollup = writes
+                .keys()
+                .any(|collection| !self.catalog.list_rollups_for_source(collection).is_empty());
+            let options = if has_rollup {
+                DocumentWriteBatchOptions::sync().with_rollup_maintenance_debt()
+            } else {
+                DocumentWriteBatchOptions::sync()
+            };
             let reports = self
                 .midge
                 .apply_document_write_batches_with_options(&writes, &options)

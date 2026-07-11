@@ -214,7 +214,7 @@ fn should_restore_snapshot_to_new_data_dir_for_startup_query() {
 }
 
 #[test]
-fn should_reject_incompatible_snapshot_manifest_before_restore() {
+fn should_reject_v1_snapshot_manifest_with_expected_v2_before_restore() {
     // Arrange
     with_fallback();
     let source = data_dir("snapshot_incompatible_source");
@@ -232,7 +232,7 @@ fn should_reject_incompatible_snapshot_manifest_before_restore() {
     let manifest_path = std::path::Path::new(&snapshot).join("cassie-snapshot-manifest.json");
     let mut manifest: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
-    manifest["format_version"] = serde_json::json!(99);
+    manifest["format_version"] = serde_json::json!(1);
     std::fs::write(
         &manifest_path,
         serde_json::to_vec_pretty(&manifest).unwrap(),
@@ -245,9 +245,121 @@ fn should_reject_incompatible_snapshot_manifest_before_restore() {
     // Assert
     assert!(error
         .to_string()
-        .contains("snapshot manifest version 99 is unsupported"));
+        .contains("snapshot manifest version 1 is unsupported; expected 2"));
     assert!(!std::path::Path::new(&restored).exists());
 
     let _ = std::fs::remove_dir_all(source);
     let _ = std::fs::remove_dir_all(snapshot);
+}
+
+#[test]
+fn should_reject_restore_when_manifest_epoch_does_not_match_copied_state() {
+    // Arrange
+    with_fallback();
+    let source = data_dir("snapshot_epoch_mismatch_source");
+    let snapshot = data_dir("snapshot_epoch_mismatch_bundle");
+    let restored = data_dir("snapshot_epoch_mismatch_restored");
+    seed_replayed_projection(&source, "snapshot_epoch_mismatch_docs");
+    Cassie::create_snapshot_from_data_dir(
+        &source,
+        &snapshot,
+        CassieSnapshotOptions {
+            generated_ms: Some(4_691),
+        },
+    )
+    .expect("create snapshot");
+    let manifest_path = std::path::Path::new(&snapshot).join("cassie-snapshot-manifest.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["data_epoch"] = serde_json::json!(manifest["data_epoch"].as_u64().unwrap() + 1);
+    std::fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
+
+    // Act
+    let error = Cassie::restore_snapshot(&snapshot, &restored).unwrap_err();
+
+    // Assert
+    assert!(error
+        .to_string()
+        .contains("snapshot data epoch does not match restored data"));
+    assert!(!std::path::Path::new(&restored).exists());
+
+    let _ = std::fs::remove_dir_all(source);
+    let _ = std::fs::remove_dir_all(snapshot);
+    let _ = std::fs::remove_dir_all(restored);
+}
+
+#[cfg(unix)]
+#[test]
+fn should_remove_partial_snapshot_after_copy_error() {
+    // Arrange
+    with_fallback();
+    let source = data_dir("snapshot_copy_error_source");
+    let snapshot = data_dir("snapshot_copy_error_bundle");
+    seed_replayed_projection(&source, "snapshot_copy_error_docs");
+    let regular_file = std::path::Path::new(&source).join("aaa-copy-marker");
+    std::fs::write(&regular_file, b"copy before failure").unwrap();
+    let special_file = std::path::Path::new(&source).join("zzz-copy-link");
+    std::os::unix::fs::symlink("missing-target", &special_file).unwrap();
+
+    // Act
+    let error = Cassie::create_snapshot_from_data_dir(
+        &source,
+        &snapshot,
+        CassieSnapshotOptions {
+            generated_ms: Some(5_791),
+        },
+    )
+    .unwrap_err();
+
+    // Assert
+    assert!(error
+        .to_string()
+        .contains("snapshot copy does not support special file"));
+    assert!(!std::path::Path::new(&snapshot).exists());
+
+    let _ = std::fs::remove_dir_all(source);
+    let _ = std::fs::remove_dir_all(snapshot);
+}
+
+#[cfg(unix)]
+#[test]
+fn should_remove_partial_restore_after_copy_error() {
+    // Arrange
+    with_fallback();
+    let source = data_dir("restore_copy_error_source");
+    let snapshot = data_dir("restore_copy_error_bundle");
+    let target = data_dir("restore_copy_error_target");
+    seed_replayed_projection(&source, "restore_copy_error_docs");
+    Cassie::create_snapshot_from_data_dir(
+        &source,
+        &snapshot,
+        CassieSnapshotOptions {
+            generated_ms: Some(6_802),
+        },
+    )
+    .unwrap();
+    let snapshot_midge = std::path::Path::new(&snapshot).join("midge");
+    std::fs::write(
+        snapshot_midge.join("aaa-copy-marker"),
+        b"copy before failure",
+    )
+    .unwrap();
+    std::os::unix::fs::symlink("missing-target", snapshot_midge.join("zzz-copy-link")).unwrap();
+
+    // Act
+    let error = Cassie::restore_snapshot(&snapshot, &target).unwrap_err();
+
+    // Assert
+    assert!(error
+        .to_string()
+        .contains("snapshot copy does not support special file"));
+    assert!(!std::path::Path::new(&target).exists());
+
+    let _ = std::fs::remove_dir_all(source);
+    let _ = std::fs::remove_dir_all(snapshot);
+    let _ = std::fs::remove_dir_all(target);
 }

@@ -37,6 +37,8 @@ static DOCUMENT_WRITE_FAILPOINT: AtomicU8 = AtomicU8::new(0);
 static DOCUMENT_WRITE_FAILPOINT_TEST_GUARD: OnceLock<parking_lot::Mutex<()>> = OnceLock::new();
 static COLUMN_BATCH_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static PROJECTION_HASH_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
+static ROLLUP_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
+static COLLECTION_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static INDEX_PUBLICATION_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static COLLECTION_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
@@ -119,6 +121,34 @@ pub(crate) fn check_projection_hash_maintenance_failure_point() -> Result<(), Ca
     if PROJECTION_HASH_MAINTENANCE_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
         return Err(CassieError::Execution(
             "injected test failure during projection hash maintenance".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn set_rollup_maintenance_failure_point(enabled: bool) {
+    ROLLUP_MAINTENANCE_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub(crate) fn check_rollup_maintenance_failure_point() -> Result<(), CassieError> {
+    if ROLLUP_MAINTENANCE_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        return Err(CassieError::Execution(
+            "injected test failure during rollup maintenance".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn set_collection_drop_failure_point(enabled: bool) {
+    COLLECTION_DROP_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub(crate) fn check_collection_drop_failure_point() -> Result<(), CassieError> {
+    if COLLECTION_DROP_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        return Err(CassieError::Execution(
+            "injected test failure after collection drop schema commit".to_string(),
         ));
     }
     Ok(())
@@ -377,6 +407,14 @@ impl Midge {
 
     fn maintenance_debt_prefix() -> Vec<u8> {
         key_encoding::maintenance_debt_prefix()
+    }
+
+    fn unique_constraint_reservation_field_prefix(collection: &str, field: &str) -> Vec<u8> {
+        key_encoding::unique_constraint_reservation_field_prefix(collection, field)
+    }
+
+    fn unique_scalar_index_reservation_prefix(collection: &str, index_name: &str) -> Vec<u8> {
+        key_encoding::unique_scalar_index_reservation_prefix(collection, index_name)
     }
 
     fn index_publication_key(collection: &str, index: &str) -> Vec<u8> {

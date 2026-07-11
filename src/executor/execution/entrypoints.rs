@@ -131,7 +131,12 @@ pub(crate) fn refresh_rollups_for_source_external(
     source: &str,
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
-    let user_functions = HashMap::new();
+    let user_functions = cassie
+        .catalog
+        .list_functions()
+        .into_iter()
+        .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
+        .collect::<HashMap<_, _>>();
     rollups::refresh_rollups_for_source(cassie, source, &user_functions, controls)
 }
 

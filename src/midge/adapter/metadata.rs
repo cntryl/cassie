@@ -233,6 +233,9 @@ impl Midge {
             Self::normalized_vector_prefix(collection, field),
         )?;
         data_tx
+            .delete(Self::vector_index_state_key(collection, field))
+            .map_err(CassieError::from)?;
+        data_tx
             .commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
         Ok(())

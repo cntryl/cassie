@@ -1,4 +1,4 @@
-use cassie::app::Cassie;
+use cassie::app::{Cassie, CassieSession};
 use cassie::midge::adapter::{
     set_column_batch_maintenance_failure_point, set_projection_hash_maintenance_failure_point,
     ColumnBatchScanDecision, RowFilter,
@@ -7,9 +7,15 @@ use cassie::types::{DataType, FieldSchema, Value};
 #[path = "support/sql.rs"]
 mod support;
 use support::{canonical_test_collection, canonical_test_index, data_dir, with_fallback};
+
+static COLUMN_BATCH_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[test]
 fn should_recover_column_batch_debt_without_serving_stale_rows() {
     // Arrange
+    let _failpoint_guard = COLUMN_BATCH_FAILPOINT_GUARD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     with_fallback();
     let path = data_dir("derived_state_column_batch_recovery");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -88,7 +94,8 @@ fn should_recover_column_batch_debt_without_serving_stale_rows() {
         );
         assert!(matches!(
             artifact_read,
-            ColumnBatchScanDecision::Fallback(reason) if reason.as_str() == "generation_mismatch"
+            ColumnBatchScanDecision::Fallback(reason)
+                if reason.as_str() == "maintenance_pending"
         ));
         assert_eq!(recovered_result.rows, fallback_result.rows);
         assert_eq!(
@@ -98,6 +105,92 @@ fn should_recover_column_batch_debt_without_serving_stale_rows() {
                 .collection_generation(&collection)
                 .expect("collection generation")
         );
+    });
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_recover_add_column_column_batch_debt_after_restart() {
+    // Arrange
+    let _failpoint_guard = COLUMN_BATCH_FAILPOINT_GUARD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    with_fallback();
+    let path = data_dir("derived_state_add_column_batch_recovery");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        let collection = seed_add_column_batch_recovery(&cassie, &session);
+
+        // Act
+        set_column_batch_maintenance_failure_point(true);
+        let alter_result = cassie.execute_sql(
+            &session,
+            "ALTER TABLE derived_state_add_column_batch_docs ADD COLUMN subtitle TEXT",
+            vec![],
+        );
+        let schema_after_failure = cassie
+            .midge
+            .collection_schema(&collection)
+            .expect("durable schema after interrupted maintenance");
+        let debt_after_failure = cassie
+            .midge
+            .has_column_batch_maintenance_debt(&collection)
+            .expect("read durable debt");
+        let artifact_read = stale_artifact_read(&cassie, &collection);
+        let fallback_result = cassie
+            .execute_sql(
+                &session,
+                "SELECT title, score FROM derived_state_add_column_batch_docs WHERE score = 2",
+                vec![],
+            )
+            .expect("stale artifact must fall back to rows");
+        let fallback_metrics = cassie.metrics();
+        drop(cassie);
+        let recovered = recover_add_column_batch(&path);
+
+        // Assert
+        assert!(alter_result.is_err());
+        assert!(schema_after_failure
+            .fields
+            .iter()
+            .any(|field| field.name == "subtitle"));
+        assert!(debt_after_failure);
+        assert!(matches!(
+            artifact_read,
+            ColumnBatchScanDecision::Fallback(reason)
+                if reason.as_str() == "maintenance_pending"
+        ));
+        assert_eq!(
+            fallback_result.rows,
+            vec![vec![Value::String("alpha".to_string()), Value::Int64(2)]]
+        );
+        assert!(fallback_metrics["column_batches"]["fallback_scans"]
+            .as_u64()
+            .is_some_and(|count| count > 0));
+        assert_eq!(
+            fallback_metrics["column_batches"]["last_fallback_reason"],
+            "maintenance_pending"
+        );
+        assert_eq!(
+            recovered.rows,
+            vec![vec![
+                Value::String("alpha".to_string()),
+                Value::Int64(2),
+                Value::Null,
+            ]]
+        );
+        assert!(matches!(
+            recovered.artifact_read,
+            ColumnBatchScanDecision::Hit(_)
+        ));
+        assert!(!recovered.debt);
+        assert_eq!(recovered.built_generation, recovered.collection_generation);
     });
     let _ = std::fs::remove_dir_all(path);
 }
@@ -171,6 +264,77 @@ fn should_recover_add_column_projection_hash_debt_after_restart() {
         .any(|field| field.name == "subtitle"));
 
     let _ = std::fs::remove_dir_all(path);
+}
+
+fn seed_add_column_batch_recovery(cassie: &Cassie, session: &CassieSession) -> String {
+    cassie
+        .execute_sql(
+            session,
+            "CREATE TABLE derived_state_add_column_batch_docs (title TEXT, score INT)",
+            vec![],
+        )
+        .expect("create table");
+    cassie
+        .execute_sql(
+            session,
+            "INSERT INTO derived_state_add_column_batch_docs (title, score) VALUES ('alpha', 2)",
+            vec![],
+        )
+        .expect("insert row");
+    cassie
+        .execute_sql(
+            session,
+            "CREATE INDEX derived_state_add_column_batch_idx ON derived_state_add_column_batch_docs USING column (title, score)",
+            vec![],
+        )
+        .expect("create column index");
+    canonical_test_collection(cassie, "derived_state_add_column_batch_docs")
+}
+
+struct RecoveredColumnBatch {
+    rows: Vec<Vec<Value>>,
+    artifact_read: ColumnBatchScanDecision,
+    debt: bool,
+    built_generation: u64,
+    collection_generation: u64,
+}
+
+fn recover_add_column_batch(path: &str) -> RecoveredColumnBatch {
+    let restarted = Cassie::new_with_data_dir(path).expect("reopen Cassie");
+    restarted.startup().expect("retry maintenance debt");
+    let session = restarted.create_session("tester", None);
+    let rows = restarted
+        .execute_sql(
+            &session,
+            "SELECT title, score, subtitle FROM derived_state_add_column_batch_docs WHERE score = 2",
+            vec![],
+        )
+        .expect("query after recovery")
+        .rows;
+    let collection = canonical_test_collection(&restarted, "derived_state_add_column_batch_docs");
+    let index = canonical_test_index(
+        &restarted,
+        &collection,
+        "derived_state_add_column_batch_idx",
+    );
+    let metadata = restarted
+        .midge
+        .get_column_batch_metadata(&collection, &index)
+        .expect("read metadata")
+        .expect("metadata after recovery");
+    RecoveredColumnBatch {
+        rows,
+        artifact_read: stale_artifact_read(&restarted, &collection),
+        debt: restarted
+            .midge
+            .has_column_batch_maintenance_debt(&collection)
+            .expect("read recovered debt state"),
+        built_generation: metadata.built_generation,
+        collection_generation: restarted
+            .midge
+            .collection_generation(&collection)
+            .expect("collection generation"),
+    }
 }
 
 fn stale_artifact_read(cassie: &Cassie, collection: &str) -> ColumnBatchScanDecision {

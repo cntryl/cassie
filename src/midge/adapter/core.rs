@@ -149,13 +149,10 @@ impl Midge {
             Some(value) if value == key_encoding::LAYOUT_MARKER_VALUE => Ok(()),
             Some(value) => {
                 let version = String::from_utf8_lossy(&value);
-                let version_label = if version.contains("v4") {
-                    "4"
-                } else {
-                    key_encoding::LAYOUT_VERSION
-                };
+                let expected = String::from_utf8_lossy(key_encoding::LAYOUT_MARKER_VALUE);
                 Err(CassieError::StorageBootstrap(format!(
-                    "incompatible lexkey v{version_label} storage layout marker {version:?}; recreate the Midge data directory"
+                    "incompatible Midge storage layout: found marker '{version}'; expected lexkey v{} marker '{expected}'; recreate the Midge data directory",
+                    key_encoding::LAYOUT_VERSION
                 )))
             }
             None => {
@@ -194,7 +191,8 @@ impl Midge {
                     .map_err(CassieError::from)?;
                 if scan.next().is_some() {
                     return Err(CassieError::StorageBootstrap(format!(
-                        "incompatible lexkey v4 storage layout: found legacy key prefix '{}' in {family_name}; recreate the Midge data directory",
+                        "incompatible lexkey v{} storage layout: found legacy key prefix '{}' in {family_name}; recreate the Midge data directory",
+                        key_encoding::LAYOUT_VERSION,
                         String::from_utf8_lossy(prefix)
                     )));
                 }
@@ -205,7 +203,8 @@ impl Midge {
                 .map_err(CassieError::from)?;
             if v2_scan.next().is_some() {
                 return Err(CassieError::StorageBootstrap(format!(
-                    "incompatible lexkey v4 storage layout: found v2 keys in {family_name}; recreate the Midge data directory"
+                    "incompatible lexkey v{} storage layout: found v2 keys in {family_name}; recreate the Midge data directory",
+                    key_encoding::LAYOUT_VERSION
                 )));
             }
         }

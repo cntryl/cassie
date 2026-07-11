@@ -17,28 +17,28 @@ Experimental surfaces require the evidence gates in [Experimental Promotion Crit
 
 | Category | Supported Items | Status | Compatibility |
 | --- | --- | --- | --- |
-| Query | SELECT, FROM, WHERE | Stable | PostgreSQL-like |
-| Projection | `*`, explicit columns, aliases, expressions, scalar functions | Stable | PostgreSQL-like |
-| Filtering | `=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`, AND, OR, NOT | Stable | PostgreSQL-like |
-| Nulls | IS NULL, IS NOT NULL | Stable | PostgreSQL-like |
-| Lists | IN, NOT IN | Stable | PostgreSQL-like |
-| Ranges | BETWEEN, NOT BETWEEN | Stable | PostgreSQL-like |
+| Query | SELECT, FROM, WHERE | Stable/Experimental | PostgreSQL-like for table-backed reads; table-free constant/parameter-only SELECT remains experimental |
+| Projection | `*`, explicit columns, aliases, expressions, scalar functions | Stable/Experimental | PostgreSQL-like for covered expression/result-type shapes |
+| Filtering | `=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`, AND, OR, NOT | Stable/Experimental | PostgreSQL-like for non-NULL compatible operands; full three-valued semantics and typed incompatible-operand rejection remain open |
+| Nulls | IS NULL, IS NOT NULL, NULL in expressions and predicates | Stable/Experimental | Explicit null checks are supported; complete three-valued propagation remains open |
+| Lists | IN, NOT IN | Stable/Experimental | PostgreSQL-like for covered values; NULL-containing list semantics remain open |
+| Ranges | BETWEEN, NOT BETWEEN | Stable/Experimental | PostgreSQL-like for covered values; complete NULL propagation remains open |
 | Ordering | ORDER BY, ASC, DESC, NULLS FIRST, NULLS LAST, aliases | Stable | PostgreSQL-like |
 | Pagination | LIMIT, OFFSET | Stable | PostgreSQL-like |
 | Deduplication | DISTINCT, DISTINCT ON | Stable | PostgreSQL-like |
 | Aggregates | count, sum, avg, min, max | Stable | PostgreSQL-like |
 | Grouping | GROUP BY, HAVING | Stable | PostgreSQL-like |
-| Joins | INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL OUTER JOIN, CROSS JOIN | Stable | PostgreSQL-like |
+| Joins | INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL OUTER JOIN, CROSS JOIN | Stable/Experimental | PostgreSQL-like for covered predicates; NULL-key equivalence across all implementations remains open |
 | Semi/anti joins | EXISTS, NOT EXISTS | Stable | PostgreSQL-like |
 | Lateral | LATERAL, CROSS APPLY, OUTER APPLY | Stable | PostgreSQL-like with Cassie syntax support |
 | Subqueries | scalar subqueries, FROM subqueries, predicate subqueries, correlated subqueries | Stable | PostgreSQL-like |
-| CTEs | WITH, WITH RECURSIVE | Stable/Experimental | PostgreSQL-like where behavior is known; unsupported recursive edge cases are rejected deterministically |
+| CTEs | WITH, WITH RECURSIVE | Stable/Experimental | Non-recursive CTEs and covered recursion work; recursive delta iteration, UNION deduplication, aliases, and type/arity validation remain open |
 | Set operations | UNION, UNION ALL, INTERSECT, EXCEPT | Stable | PostgreSQL-like |
-| Window functions | row_number, rank, dense_rank, lag, lead, first_value, last_value, supported frames | Stable/Experimental | PostgreSQL-like where implemented; frame semantics are being aligned with documented limits |
+| Window functions | row_number, rank, dense_rank, lag, lead, first_value, last_value, supported frames | Stable/Experimental | Covered functions work; explicit ROWS frames and deterministic rejection of unsupported frame families remain open |
 | DML | INSERT, UPDATE, DELETE, RETURNING, `COPY ... FROM STDIN WITH (FORMAT csv)` | Stable/Experimental | PostgreSQL-like plus simple-query CSV bulk load |
 | DDL | CREATE/DROP DATABASE, CREATE/ALTER/DROP TABLE, CREATE/ALTER/DROP SCHEMA, CREATE/DROP INDEX, CREATE ROLLUP, REFRESH ROLLUP, DROP ROLLUP, CREATE/ALTER/DROP/ENFORCE RETENTION POLICY | Stable/Experimental by object type | PostgreSQL-like plus Cassie-specific analytics |
 | Session scope | `current_database()`, `current_schema()`, `SHOW search_path`, `SET search_path` | Stable | PostgreSQL-like current-database session model |
-| Transactions | BEGIN, COMMIT, ROLLBACK, savepoints | Stable/Experimental | PostgreSQL-like with explicit single-collection/DDL limits |
+| Transactions | BEGIN, COMMIT, ROLLBACK, savepoints | Stable/Experimental | Single-collection baseline; immediate second-collection rejection, unsupported setting/DDL preflight, and post-commit refresh handling remain open |
 | Views | CREATE VIEW, DROP VIEW, nested views | Stable | PostgreSQL-like read-only view behavior |
 | Functions | scalar functions, user-defined functions | Stable/Experimental | PostgreSQL-like where documented |
 | Procedures | CREATE PROCEDURE, CALL | Experimental | Limited compatibility/admin surface, not a business-logic platform |
@@ -91,7 +91,7 @@ Unsupported procedural expectations include:
 | Graph | outbound/inbound adjacency sidecars for graph edge tables | Experimental | Cassie-specific |
 | Column-store | USING column indexes, compressed column batches, covered scan acceleration, segment pruning | Stable/Experimental | Cassie-specific |
 | Time-series | timestamp range index metadata and planner selection | Experimental | Cassie-specific |
-| Merkle | integrity index | Planned | Cassie-specific |
+| Integrity hashes | deterministic row, range, and projection-root hashes with persisted verification metadata | Experimental | Cassie-specific; no separate Merkle index is persisted |
 
 ## Constraint Support
 
@@ -127,11 +127,11 @@ Unsupported procedural expectations include:
 | Category | Supported Items | Status | Compatibility |
 | --- | --- | --- | --- |
 | PostgreSQL wire | startup, passwordless startup when auth is disabled, cleartext-password auth when enabled, simple query, extended query, parse, bind, describe, execute, sync, flush, close, simple-query COPY FROM STDIN CSV | Stable/Experimental | PostgreSQL-compatible subset |
-| Pgwire results | row description, data row, command complete, SQLSTATE-style error response, ready for query | Stable | PostgreSQL-compatible subset |
+| Pgwire results | row description, data row, command complete, SQLSTATE-style error response, ready for query | Stable/Experimental | Text results are the baseline; binary codecs and unsupported-format rejection are incomplete by type |
 | Pgwire compatibility | prepared statements, portals, text and limited binary formats, catalog introspection, shared semantic error mapping for malformed SQL, missing relations, missing schemas, unsupported features, deadlines, auth failures, and retryable-storage failures | Stable/Experimental | PostgreSQL-compatible subset |
 | Role access | authenticated administrators retain the supported SQL surface; authenticated non-admin roles are read-only and may use SELECT, EXPLAIN SELECT, SHOW, SET, and transaction control | Stable baseline | SQLSTATE `42501` and HTTP 403 for forbidden statements; no GRANT/capability SQL |
 | HTTP | SQL query, search query, vector query, hybrid query, document APIs, admin manifest export and consistency-check APIs, shared semantic error mapping, and bearer-style admin auth | Stable/Experimental | Cassie REST API |
-| Recovery | v1 local snapshots with `cassie-snapshot-manifest.json`, copied Midge data directory, manifest compatibility validation, restore to empty local data directory | Experimental | Cassie-specific local recovery; no remote orchestration or replication |
+| Recovery | v2 local snapshot manifests with `cassie-snapshot-manifest.json`, schema/data epochs, per-collection generations, copy-consistency and manifest compatibility validation, copied Midge data directory, restore-to-empty validation of epochs/generations/projections and recovery journals/debt, and cleanup of failed copy targets | Experimental | Cassie-specific local recovery; v1 and every other non-v2 manifest are rejected; no remote orchestration or replication |
 | Observability | EXPLAIN, EXPLAIN ANALYZE, query stats, operator stats, cost-model diagnostics, index used, index feedback marker, operator feedback state/reason/cost/confidence diagnostics, adaptive decision/alternative/guard diagnostics, runtime operator switch candidate/pair/threshold/reason diagnostics, join strategy/key/sort/vectorized/fallback diagnostics, time-series index diagnostics, column-batch index used, storage-mode diagnostics, aggregate acceleration, rollup rewrite selected, mixed execution stages, analytical projection markers, rows scanned | Experimental | PostgreSQL-like entry points with Cassie output |
 | Projection operations | active version, source checkpoint, lag, freshness, rebuild state, verification state, root state, last replay batch, last error, version state | Experimental | Cassie-specific |
 | Operational scale | local node identity, projection ownership, tenant routing hints, partition assignment metadata, generation/state, `pg_catalog.pg_operational_assignments`, external route/drain/move contract | Experimental | Cassie-specific metadata for external orchestration; no distributed query behavior |
@@ -166,6 +166,7 @@ Unsupported procedural expectations include:
 - `pg_catalog.pg_projection_repair_reports` exposes persisted local repair audit records, including source integrity counts, scope, action, executable flag, verification requirement, and post-verification state.
 - `pg_catalog.pg_projection_comparison_reports` exposes persisted local-vs-manifest comparison reports after restart hydration.
 - `pg_catalog.pg_projection_consistency_reports` exposes persisted multi-instance consistency reports, including manifest count, instance ids, mismatch counts, stale/incompatible/unverifiable counts, and deterministic diagnostic samples after restart hydration.
+- `pg_catalog.pg_maintenance_debt` exposes persisted derived-state debt by collection and artifact, including target generation, retry count, redacted last error, and the current `maintenance_pending` fallback reason.
 - `pg_catalog.pg_operational_assignments` exposes local assignment metadata for external node, tenant, partition, and projection routing. Cassie stores and reports this metadata and documents route/drain/move semantics, but does not route, forward, fan out, or filter queries from it.
 - `Cassie::create_snapshot_from_data_dir` and `Cassie::restore_snapshot` provide local snapshot/restore admin APIs around a Cassie manifest and copied Midge data directory. External tooling owns scheduling, transport, retention, encryption, and failover routing.
 - `Cassie::begin_database_backup` and `Cassie::begin_database_restore` provide checksummed, logical per-database image streams; pgwire exposes them as `BACKUP DATABASE ... TO STDOUT` and `RESTORE DATABASE ... FROM STDIN`.

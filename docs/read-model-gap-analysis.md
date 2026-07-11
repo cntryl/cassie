@@ -36,7 +36,7 @@ The largest remaining gaps are production evidence and operational depth gaps, n
 - **Core read-model database:** SELECT, predicates, ordering, pagination, joins, aggregates, windows, DML, DDL, constraints, indexes, catalog views, and pgwire flows are implemented and tested.
 - **Projection lifecycle:** projection checkpoints, replay metadata, idempotent replay, materialized projections, versioned builds, active-version swaps, freshness, verification, and projection operations views exist as experimental Cassie-specific surfaces.
 - **Verification and consistency:** row hashes, range hashes, projection roots, rebuild verification, integrity reports, projection diffing, manifest comparison, repair planning, local repair audit reports, and offline multi-instance consistency reports are implemented at baseline.
-- **Recovery:** local v1 snapshots combine a copied Midge data directory with a Cassie manifest that records schema epoch, projection checkpoint/version, hash metadata, generated timestamp, Cassie version, and compatibility status.
+- **Recovery:** local snapshots combine a copied Midge data directory with a v2 Cassie manifest that records schema/data epochs, per-collection generations, projection checkpoint/version, hash metadata, generated timestamp, Cassie version, and compatibility status. Snapshot creation verifies that epochs and generations remain stable during the copy; v1 and every other non-v2 manifest are rejected.
 - **Retrieval:** full-text search, vector search, pgvector-style operators, hybrid scoring, HNSW/IVFFlat metadata and execution paths, and embedding-provider validation exist.
 - **Analytics:** column batches, segment pruning, aggregate acceleration, `time_bucket`, rollups, retention policies, analytical projection routing, EXPLAIN, and metrics are represented.
 - **Operational signals:** `/health`, `/liveness`, runtime metrics, projection metrics, pgwire/rest metrics, EXPLAIN ANALYZE deltas, and catalog diagnostics exist.
@@ -148,6 +148,7 @@ Evidence:
 - Time-series range scans can use persisted bucket-native membership for supported minute/hour/day bucket widths, then load authoritative row blobs for correctness. Row-backed fallback remains available with EXPLAIN metadata and runtime counters for selected scans, rows, bucket-native hits, scanned buckets, skipped buckets, last index, and fallbacks.
 - Insert/update/delete/restart correctness is tested against authoritative row blobs.
 - Retention enforcement uses normal document deletion, refreshes rollups, and marks dependent materialized projections stale for re-verification.
+- Rollup source writes publish a source-scoped maintenance debt in the same data transaction before post-commit refresh. Reads fence ready rollups while that debt exists, expose `maintenance_pending`, and startup retries the refresh before clearing the debt.
 - Manual benchmark scenarios cover time-window scans, retention enforcement, and rollup refresh at 10k and 100k fixture scales.
 
 Impact:

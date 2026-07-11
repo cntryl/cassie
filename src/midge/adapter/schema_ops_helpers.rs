@@ -666,8 +666,7 @@ pub(super) fn rename_collection_prefixed_data(
                 continue;
             };
             let id = id.to_vec();
-            data_tx.delete(key).map_err(CassieError::from)?;
-            if is_normalized_vector {
+            let (next_key, next_value) = if is_normalized_vector {
                 let mut record: NormalizedVectorRecord =
                     serde_json::from_slice(&value).map_err(|error| {
                         CassieError::Parse(format!(
@@ -677,18 +676,16 @@ pub(super) fn rename_collection_prefixed_data(
                 record.collection = next_name.to_string();
                 let next_key =
                     Midge::normalized_vector_key(&record.collection, &record.field, &record.id);
-                data_tx
-                    .put(
-                        next_key,
-                        serde_json::to_vec(&record)
-                            .map_err(|error| CassieError::Parse(error.to_string()))?,
-                        None,
-                    )
-                    .map_err(CassieError::from)?;
+                let next_value = serde_json::to_vec(&record)
+                    .map_err(|error| CassieError::Parse(error.to_string()))?;
+                (next_key, next_value)
             } else {
-                let next_key = [next_prefix.as_slice(), id.as_slice()].concat();
+                ([next_prefix.as_slice(), id.as_slice()].concat(), value)
+            };
+            data_tx.delete(key).map_err(CassieError::from)?;
+            if data_tx.get(&next_key).map_err(CassieError::from)?.is_none() {
                 data_tx
-                    .put(next_key, value, None)
+                    .put(next_key, next_value, None)
                     .map_err(CassieError::from)?;
             }
         }

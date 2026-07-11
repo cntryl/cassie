@@ -11,6 +11,7 @@ mod support;
 use support::{data_dir, with_fallback};
 
 static COLLECTION_DROP_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static COLLECTION_RENAME_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 static INDEX_DROP_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[test]
@@ -242,6 +243,7 @@ fn should_replay_drop_index_cleanup_after_metadata_interrupt() {
 fn should_replay_collection_rename_data_after_schema_commit_interruption() {
     // Arrange
     with_fallback();
+    let _failpoint_guard = COLLECTION_RENAME_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("schema_operation_rename_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");
@@ -283,6 +285,70 @@ fn should_replay_collection_rename_data_after_schema_commit_interruption() {
     assert_eq!(documents.len(), 1);
     assert_eq!(documents[0].id, "doc-1");
     assert_eq!(documents[0].payload, serde_json::json!({"title": "alpha"}));
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_preserve_destination_write_when_collection_rename_replays() {
+    // Arrange
+    with_fallback();
+    let _failpoint_guard = COLLECTION_RENAME_FAILPOINT_GUARD.lock().unwrap();
+    let path = data_dir("schema_operation_rename_destination_write");
+    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    cassie.startup().expect("start Cassie");
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+    cassie
+        .midge
+        .create_collection("rename_destination_before", schema)
+        .expect("create collection");
+    cassie
+        .midge
+        .put_document(
+            "rename_destination_before",
+            Some("shared-row".to_string()),
+            serde_json::json!({"title": "before"}),
+        )
+        .expect("seed source document");
+
+    // Act
+    set_collection_rename_failure_point(true);
+    assert!(cassie
+        .midge
+        .rename_collection("rename_destination_before", "rename_destination_after")
+        .is_err());
+    cassie
+        .midge
+        .put_document(
+            "rename_destination_after",
+            Some("shared-row".to_string()),
+            serde_json::json!({"title": "after"}),
+        )
+        .expect("write to committed destination collection");
+    drop(cassie);
+    let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+    restarted
+        .startup()
+        .expect("replay rename without data loss");
+
+    // Assert
+    let documents = restarted
+        .midge
+        .scan_documents("rename_destination_after")
+        .expect("scan renamed documents");
+    assert_eq!(documents.len(), 1);
+    assert_eq!(documents[0].id, "shared-row");
+    assert_eq!(documents[0].payload, serde_json::json!({"title": "after"}));
+    assert!(restarted
+        .midge
+        .collection_schema("rename_destination_before")
+        .is_none());
 
     let _ = std::fs::remove_dir_all(path);
 }

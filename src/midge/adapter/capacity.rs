@@ -124,6 +124,13 @@ impl CapacityReport {
             .supported = false;
         self.errors.push(format!("{family}: {}", error.to_string()));
     }
+
+    fn record_family_only(&mut self, family: &str, key_bytes: u64, value_bytes: u64) {
+        self.families
+            .entry(family.to_string())
+            .or_insert_with(CapacityBucket::supported)
+            .record(key_bytes, value_bytes);
+    }
 }
 
 impl Midge {
@@ -133,7 +140,6 @@ impl Midge {
 
         for family in [
             CapacityFamily::Storage(FAMILY_SCHEMA, StorageFamily::Schema),
-            CapacityFamily::Storage(FAMILY_DATA, StorageFamily::Data),
             CapacityFamily::Storage(FAMILY_TEMP, StorageFamily::Temp),
             CapacityFamily::Named(FAMILY_DEFAULT, DEFAULT_FAMILY_NAME),
         ] {
@@ -154,6 +160,31 @@ impl Midge {
                     usize_to_u64(key.len()),
                     usize_to_u64(value.len()),
                 );
+            }
+        }
+
+        let databases = match self.list_databases() {
+            Ok(databases) => databases,
+            Err(error) => {
+                report.record_family_error(FAMILY_DATA, &error);
+                return report;
+            }
+        };
+        for database in databases {
+            let entries = match self.raw_scan_prefix_database(&database.name, b"") {
+                Ok(entries) => entries,
+                Err(error) => {
+                    report.record_family_error(&database.name, &error);
+                    continue;
+                }
+            };
+            let family_name = format!("database:{}", database.name);
+            for (key, value) in entries {
+                let category = capacity_category_for_entry(FAMILY_DATA, &key, &value, &prefixes);
+                let key_bytes = usize_to_u64(key.len());
+                let value_bytes = usize_to_u64(value.len());
+                report.record(FAMILY_DATA, category, key_bytes, value_bytes);
+                report.record_family_only(&family_name, key_bytes, value_bytes);
             }
         }
 

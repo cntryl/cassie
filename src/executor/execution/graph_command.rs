@@ -6,6 +6,7 @@ pub(super) fn create_graph_collection(
     builtin_fields: Vec<(String, DataType)>,
     user_fields: &[crate::sql::ast::FieldDefinition],
 ) -> Result<(), QueryError> {
+    let storage_collection = cassie.midge.canonical_collection_name(collection);
     let mut schema_fields = builtin_fields
         .into_iter()
         .map(|(name, data_type)| FieldSchema {
@@ -23,10 +24,10 @@ pub(super) fn create_graph_collection(
     let schema = Schema {
         fields: schema_fields,
     };
-    let metadata = catalog::CollectionMeta::new(collection, None);
+    let metadata = catalog::CollectionMeta::new(&storage_collection, None);
     cassie
         .midge
-        .create_collection_with_meta(collection, &schema, &metadata)
+        .create_collection_with_meta(&storage_collection, &schema, &metadata)
         .map_err(|error| QueryError::General(error.to_string()))?;
     let constraints = user_fields
         .iter()
@@ -34,7 +35,7 @@ pub(super) fn create_graph_collection(
         .collect::<Vec<_>>();
     cassie
         .midge
-        .save_constraints(collection, constraints.as_slice())
+        .save_constraints(&storage_collection, constraints.as_slice())
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_collection_meta_with_constraints(
         metadata,

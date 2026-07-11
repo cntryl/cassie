@@ -108,7 +108,7 @@ impl Midge {
         }
 
         let rows = self.scan_rows_for_rebuild(&index.collection, RowDecode::Full)?;
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
         Self::delete_keys_with_prefix(
             &mut tx,
             Self::scalar_index_data_prefix(&index.collection, &index.name),
@@ -129,7 +129,7 @@ impl Midge {
         collection: &str,
         index_name: &str,
     ) -> Result<(), CassieError> {
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         Self::delete_keys_with_prefix(
             &mut tx,
             Self::scalar_index_data_prefix(collection, index_name),
@@ -143,14 +143,16 @@ impl Midge {
         index: &IndexMeta,
         request: &ScalarIndexScanRequest,
     ) -> Result<Vec<ScalarIndexScanHit>, CassieError> {
-        if !Self::scalar_index_supports_storage(index) {
+        let mut index = index.clone();
+        index.collection = self.canonical_collection_name(&index.collection);
+        if !Self::scalar_index_supports_storage(&index) {
             return Err(CassieError::Unsupported(format!(
                 "scalar index '{}' is not storage-backed",
                 index.name
             )));
         }
 
-        let tx = self.begin_data_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&index.collection)?;
         let data_prefix = Self::scalar_index_data_prefix(&index.collection, &index.name);
         let seek_prefix = key_encoding::scalar_index_seek_prefix(
             &index.collection,

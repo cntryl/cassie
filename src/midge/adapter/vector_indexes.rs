@@ -12,6 +12,8 @@ impl Midge {
         &self,
         mut metadata: crate::embeddings::VectorIndexRecord,
     ) -> Result<(), CassieError> {
+        let requested_collection = metadata.collection.clone();
+        metadata.collection = self.canonical_collection_name(&metadata.collection);
         let records = self.normalized_vector_records_for_index(&metadata)?;
         let state = match metadata.metadata.index_type {
             crate::embeddings::VectorIndexType::Hnsw => VectorIndexState {
@@ -33,7 +35,11 @@ impl Midge {
         };
         metadata.metadata.hnsw_graph = None;
         metadata.metadata.ivfflat_training = None;
-        self.write_normalized_vectors_for_index(&metadata, &records)?;
+        let mut stored_records = records;
+        for record in &mut stored_records {
+            record.collection.clone_from(&requested_collection);
+        }
+        self.write_normalized_vectors_for_index(&metadata, &stored_records)?;
         self.write_vector_index_state(&metadata.collection, &metadata.field, state)?;
         self.write_vector_index_metadata(&metadata)?;
         Ok(())
@@ -47,16 +53,17 @@ impl Midge {
         collection: &str,
         field: &str,
     ) -> Result<Option<VectorIndexState>, CassieError> {
-        let tx = self.begin_data_readonly_tx()?;
+        let collection = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         let Some(raw) = tx
-            .get(&Self::vector_index_state_key(collection, field))
+            .get(&Self::vector_index_state_key(&collection, field))
             .map_err(CassieError::from)?
         else {
             return Ok(None);
         };
         let state: VectorIndexState = serde_json::from_slice(&raw)
             .map_err(|error| CassieError::Parse(format!("invalid vector index state: {error}")))?;
-        if state.built_generation != self.collection_generation(collection)? {
+        if state.built_generation != self.collection_generation(&collection)? {
             return Ok(None);
         }
         Ok(Some(state))
@@ -71,8 +78,9 @@ impl Midge {
         field: &str,
         mut state: VectorIndexState,
     ) -> Result<(), CassieError> {
-        state.built_generation = self.collection_generation(collection)?;
-        self.write_vector_index_state(collection, field, state)
+        let collection = self.canonical_collection_name(collection);
+        state.built_generation = self.collection_generation(&collection)?;
+        self.write_vector_index_state(&collection, field, state)
     }
 
     fn write_vector_index_state(
@@ -82,7 +90,7 @@ impl Midge {
         mut state: VectorIndexState,
     ) -> Result<(), CassieError> {
         state.built_generation = self.collection_generation(collection)?;
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         Self::write_vector_index_state_to_tx(&mut tx, collection, field, &state)?;
         drop(state);
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)
@@ -136,7 +144,7 @@ impl Midge {
         built_generation: u64,
     ) -> Result<(), CassieError> {
         for index in self
-            .list_vector_indexes()?
+            .list_vector_indexes_canonical()?
             .into_iter()
             .filter(|index| index.collection == collection)
         {
@@ -166,7 +174,7 @@ impl Midge {
         built_generation: u64,
     ) -> Result<(), CassieError> {
         for index in self
-            .list_vector_indexes()?
+            .list_vector_indexes_canonical()?
             .into_iter()
             .filter(|index| index.collection == collection)
         {
@@ -232,10 +240,12 @@ impl Midge {
         collection: &str,
         field: &str,
     ) -> Result<Option<crate::embeddings::VectorIndexRecord>, CassieError> {
+        let requested_collection = collection.to_string();
+        let collection = self.canonical_collection_name(collection);
         let tx = self.begin_schema_readonly_tx()?;
 
         let raw = tx
-            .get(&Self::vector_index_key(collection, field))
+            .get(&Self::vector_index_key(&collection, field))
             .map_err(CassieError::from)?;
         let Some(raw) = raw else {
             return Ok(None);
@@ -245,6 +255,9 @@ impl Midge {
             CassieError::Parse(format!("invalid vector index metadata: {error}"))
         })?;
         self.hydrate_vector_index_state(&mut record)?;
+        if !requested_collection.eq_ignore_ascii_case(&collection) {
+            record.collection = self.display_collection_name(&requested_collection);
+        }
         Ok(Some(record))
     }
 
@@ -252,6 +265,17 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn list_vector_indexes(
+        &self,
+    ) -> Result<Vec<crate::embeddings::VectorIndexRecord>, CassieError> {
+        self.list_vector_indexes_canonical().map(|mut records| {
+            for record in &mut records {
+                record.collection = self.display_collection_name(&record.collection);
+            }
+            records
+        })
+    }
+
+    pub(crate) fn list_vector_indexes_canonical(
         &self,
     ) -> Result<Vec<crate::embeddings::VectorIndexRecord>, CassieError> {
         let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::vector_index_prefix())?;
@@ -348,11 +372,12 @@ impl Midge {
 
     pub(super) fn write_normalized_vector_records(
         tx: &mut cntryl_midge::Transaction,
+        collection: &str,
         records: &[NormalizedVectorRecord],
     ) -> Result<(), CassieError> {
         for record in records {
             tx.put(
-                Self::normalized_vector_key(&record.collection, &record.field, &record.id),
+                Self::normalized_vector_key(collection, &record.field, &record.id),
                 serde_json::to_vec(record)
                     .map_err(|error| CassieError::Parse(error.to_string()))?,
                 None,
@@ -448,12 +473,20 @@ impl Midge {
         for record in &mut records {
             record.built_generation = generation;
         }
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
         Self::delete_normalized_vector_keys_with_prefix(
             &mut tx,
             Self::normalized_vector_prefix(&index.collection, &index.field),
         )?;
-        Self::write_normalized_vector_records(&mut tx, &records)?;
+        for record in &records {
+            tx.put(
+                Self::normalized_vector_key(&index.collection, &record.field, &record.id),
+                serde_json::to_vec(record)
+                    .map_err(|error| CassieError::Parse(error.to_string()))?,
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
     }
@@ -570,7 +603,7 @@ impl Midge {
         collection: &str,
     ) -> Result<usize, CassieError> {
         let mut refreshed = 0usize;
-        for index in self.list_vector_indexes()? {
+        for index in self.list_vector_indexes_canonical()? {
             if index.collection != collection
                 || index.metadata.index_type != crate::embeddings::VectorIndexType::Hnsw
             {
@@ -595,7 +628,7 @@ impl Midge {
         collection: &str,
     ) -> Result<usize, CassieError> {
         let mut refreshed = 0usize;
-        for index in self.list_vector_indexes()? {
+        for index in self.list_vector_indexes_canonical()? {
             if index.collection != collection
                 || index.metadata.index_type != crate::embeddings::VectorIndexType::IvfFlat
             {
@@ -620,20 +653,24 @@ impl Midge {
         collection: &str,
         field: &str,
     ) -> Result<Vec<NormalizedVectorRecord>, CassieError> {
-        let entries = self.raw_scan_prefix(
-            StorageFamily::Data,
-            &Self::normalized_vector_prefix(collection, field),
+        let requested_collection = collection.to_string();
+        let collection = self.canonical_collection_name(collection);
+        let entries = self.raw_scan_prefix_for_collection(
+            &collection,
+            &Self::normalized_vector_prefix(&collection, field),
         )?;
         let mut out: Vec<NormalizedVectorRecord> = Vec::with_capacity(entries.len());
 
         for (_key, raw_value) in entries {
-            let Ok(record) = serde_json::from_slice(&raw_value) else {
+            let Ok(record) = serde_json::from_slice::<NormalizedVectorRecord>(&raw_value) else {
                 continue;
             };
+            let mut record = record;
+            record.collection.clone_from(&requested_collection);
             out.push(record);
         }
 
-        let generation = self.collection_generation(collection)?;
+        let generation = self.collection_generation(&collection)?;
         if out
             .iter()
             .any(|record| record.built_generation != generation)
@@ -653,20 +690,23 @@ impl Midge {
         field: &str,
         id: &str,
     ) -> Result<Option<NormalizedVectorRecord>, CassieError> {
-        let tx = self.begin_data_readonly_tx()?;
+        let requested_collection = collection.to_string();
+        let collection = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         let raw = tx
-            .get(&Self::normalized_vector_key(collection, field, id))
+            .get(&Self::normalized_vector_key(&collection, field, id))
             .map_err(CassieError::from)?;
         let Some(raw) = raw else {
             return Ok(None);
         };
 
-        let record: NormalizedVectorRecord = serde_json::from_slice(&raw).map_err(|error| {
+        let mut record: NormalizedVectorRecord = serde_json::from_slice(&raw).map_err(|error| {
             CassieError::Parse(format!("invalid normalized vector metadata: {error}"))
         })?;
-        if record.built_generation != self.collection_generation(collection)? {
+        if record.built_generation != self.collection_generation(&collection)? {
             return Ok(None);
         }
+        record.collection = requested_collection;
         Ok(Some(record))
     }
 }

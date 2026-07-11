@@ -48,9 +48,9 @@ use state::{
     DescribeTarget, FrontendMessage, HandshakeError, HandshakeState, SessionState, StartupFrame,
 };
 use writers::{
-    write_auth_cleartext, write_auth_ok, write_copy_in_response, write_error_response,
-    write_parameter_statuses, write_ready_for_query, write_simple_query_result,
-    write_ssl_not_supported,
+    write_auth_cleartext, write_auth_ok, write_copy_data, write_copy_done, write_copy_in_response,
+    write_copy_out_response, write_error_response, write_parameter_statuses, write_ready_for_query,
+    write_simple_query_result, write_ssl_not_supported,
 };
 
 pub async fn run_connection(

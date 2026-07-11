@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 pub const DEFAULT_SCHEMA: &str = "public";
 pub const PG_CATALOG_SCHEMA: &str = "pg_catalog";
@@ -8,6 +9,10 @@ pub const INFORMATION_SCHEMA: &str = "information_schema";
 pub struct DatabaseMeta {
     pub name: String,
     pub description: Option<String>,
+    /// Stable physical Midge column-family name. This is intentionally opaque and
+    /// must not be derived from the logical database name so logical renames do
+    /// not require a data-plane rewrite.
+    pub physical_family: String,
 }
 
 impl DatabaseMeta {
@@ -16,8 +21,26 @@ impl DatabaseMeta {
         Self {
             name: name.into(),
             description,
+            physical_family: new_physical_family_name(),
         }
     }
+
+    #[must_use]
+    pub fn with_physical_family(
+        name: impl Into<String>,
+        description: Option<String>,
+        physical_family: impl Into<String>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            description,
+            physical_family: physical_family.into(),
+        }
+    }
+}
+
+fn new_physical_family_name() -> String {
+    format!("db-{}", Uuid::new_v4().simple())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

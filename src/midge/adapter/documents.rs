@@ -31,10 +31,11 @@ pub(crate) struct DocumentWriteBatchReport {
     pub data_epoch: Option<u64>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct DocumentWriteBatchOptions {
     pub commit: WriteOptions,
     pub refresh_after_commit: bool,
+    pub normalized_vector_collection: Option<String>,
 }
 
 impl DocumentWriteBatchOptions {
@@ -42,6 +43,7 @@ impl DocumentWriteBatchOptions {
         Self {
             commit: WriteOptions::sync(),
             refresh_after_commit: true,
+            normalized_vector_collection: None,
         }
     }
 
@@ -49,6 +51,7 @@ impl DocumentWriteBatchOptions {
         Self {
             commit: WriteOptions::buffered(),
             refresh_after_commit: true,
+            normalized_vector_collection: None,
         }
     }
 }
@@ -103,13 +106,17 @@ impl Midge {
         id: Option<String>,
         payload: serde_json::Value,
     ) -> Result<String, CassieError> {
+        let storage_collection = self.canonical_collection_name(collection);
         let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
-        self.apply_document_write_batch(
-            collection,
+        let mut options = DocumentWriteBatchOptions::sync();
+        options.normalized_vector_collection = Some(collection.to_string());
+        self.apply_document_write_batch_with_options(
+            &storage_collection,
             vec![DocumentWriteOp::Put {
                 id: doc_id.clone(),
                 payload,
             }],
+            &options,
         )?;
         Ok(doc_id)
     }
@@ -122,6 +129,7 @@ impl Midge {
         collection: &str,
         documents: Vec<(Option<String>, serde_json::Value)>,
     ) -> Result<Vec<String>, CassieError> {
+        let storage_collection = self.canonical_collection_name(collection);
         let ops = documents
             .into_iter()
             .map(|(id, payload)| DocumentWriteOp::Put {
@@ -129,7 +137,10 @@ impl Midge {
                 payload,
             })
             .collect::<Vec<_>>();
-        let report = self.apply_document_write_batch(collection, ops)?;
+        let mut options = DocumentWriteBatchOptions::sync();
+        options.normalized_vector_collection = Some(collection.to_string());
+        let report =
+            self.apply_document_write_batch_with_options(&storage_collection, ops, &options)?;
         Ok(report.ids)
     }
 
@@ -141,11 +152,12 @@ impl Midge {
         collection: &str,
         id: &str,
     ) -> Result<Option<DocumentRef>, CassieError> {
-        let row_schema = self.row_schema(collection)?;
-        if self.collection_uses_column_store(collection)? {
-            let tx = self.begin_data_readonly_tx()?;
+        let collection = self.canonical_collection_name(collection);
+        let row_schema = self.row_schema(&collection)?;
+        if self.collection_uses_column_store(&collection)? {
+            let tx = self.begin_data_readonly_tx_for(&collection)?;
             let Some(payload) =
-                Self::load_column_store_document_from_tx(&tx, collection, id, &row_schema)?
+                Self::load_column_store_document_from_tx(&tx, &collection, id, &row_schema)?
             else {
                 return Ok(None);
             };
@@ -155,14 +167,14 @@ impl Midge {
             }));
         }
 
-        let tx = self.begin_data_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         let payload = match tx
-            .get(&Self::row_key(collection, id))
+            .get(&Self::row_key(&collection, id))
             .map_err(CassieError::from)?
         {
             Some(payload) => Some(payload),
             None => tx
-                .get(&Self::doc_key(collection, id))
+                .get(&Self::doc_key(&collection, id))
                 .map_err(CassieError::from)?,
         };
 
@@ -181,9 +193,10 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_document(&self, collection: &str, id: &str) -> Result<bool, CassieError> {
-        let _row_schema = self.row_schema(collection)?;
+        let collection = self.canonical_collection_name(collection);
+        let _row_schema = self.row_schema(&collection)?;
         let report = self.apply_document_write_batch(
-            collection,
+            &collection,
             vec![DocumentWriteOp::Delete { id: id.to_string() }],
         )?;
         Ok(report.row_delta < 0)
@@ -195,13 +208,17 @@ impl Midge {
         id: Option<String>,
         payload: serde_json::Value,
     ) -> Result<(String, crate::runtime::ProjectionWriteStats, i64), CassieError> {
+        let storage_collection = self.canonical_collection_name(collection);
         let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
-        let report = self.apply_document_write_batch(
-            collection,
+        let mut options = DocumentWriteBatchOptions::sync();
+        options.normalized_vector_collection = Some(collection.to_string());
+        let report = self.apply_document_write_batch_with_options(
+            &storage_collection,
             vec![DocumentWriteOp::Put {
                 id: doc_id.clone(),
                 payload,
             }],
+            &options,
         )?;
         Ok((doc_id, report.stats, report.row_delta))
     }
@@ -211,8 +228,9 @@ impl Midge {
         collection: &str,
         id: &str,
     ) -> Result<(bool, crate::runtime::ProjectionWriteStats, i64), CassieError> {
+        let collection = self.canonical_collection_name(collection);
         let report = self.apply_document_write_batch(
-            collection,
+            &collection,
             vec![DocumentWriteOp::Delete { id: id.to_string() }],
         )?;
         Ok((report.row_delta < 0, report.stats, report.row_delta))
@@ -226,7 +244,7 @@ impl Midge {
         self.apply_document_write_batch_with_options(
             collection,
             operations,
-            DocumentWriteBatchOptions::sync(),
+            &DocumentWriteBatchOptions::sync(),
         )
     }
 
@@ -234,21 +252,22 @@ impl Midge {
         &self,
         collection: &str,
         operations: Vec<DocumentWriteOp>,
-        options: DocumentWriteBatchOptions,
+        options: &DocumentWriteBatchOptions,
     ) -> Result<DocumentWriteBatchReport, CassieError> {
         if operations.is_empty() {
             return Ok(DocumentWriteBatchReport::default());
         }
+        let collection = self.canonical_collection_name(collection);
         let mut writes = BTreeMap::new();
-        writes.insert(collection.to_string(), operations);
+        writes.insert(collection.clone(), operations);
         let mut reports = self.apply_document_write_batches_with_options(&writes, options)?;
-        Ok(reports.remove(collection).unwrap_or_default())
+        Ok(reports.remove(&collection).unwrap_or_default())
     }
 
     pub(crate) fn apply_document_write_batches_with_options(
         &self,
         writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
-        options: DocumentWriteBatchOptions,
+        options: &DocumentWriteBatchOptions,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
         if writes.is_empty() {
             return Ok(BTreeMap::new());
@@ -284,18 +303,39 @@ impl Midge {
                 prepared_writes.push((collection.clone(), context, prepared));
             }
 
-            let mut tx = self.begin_data_rw_tx()?;
+            let database = crate::catalog::relation_database_name(
+                collections.first().map_or("", |(collection, _)| collection),
+            )
+            .unwrap_or_else(|| self.default_database.clone());
+            if collections.iter().any(|(collection, _)| {
+                crate::catalog::relation_database_name(collection)
+                    .is_some_and(|candidate| !candidate.eq_ignore_ascii_case(&database))
+            }) {
+                return Err(CassieError::Unsupported(
+                    "one transaction cannot access multiple databases".to_string(),
+                ));
+            }
+            let mut tx = self.database_tx(&database, cntryl_midge::TransactionMode::ReadWrite)?;
+            tx.set_conflict_policy(cntryl_midge::ConflictPolicy::AbortOnWriteConflict);
             let mut reports = BTreeMap::new();
             let mut changed_collections = Vec::new();
 
             for (collection, context, prepared_collection) in prepared_writes {
                 let mut report = DocumentWriteBatchReport::default();
+                let normalized_vector_collection = options
+                    .normalized_vector_collection
+                    .as_deref()
+                    .and_then(|candidate| {
+                        (self.canonical_collection_name(candidate) == collection)
+                            .then_some(candidate)
+                    });
                 for prepared in prepared_collection {
                     Self::apply_prepared_document_write(
                         &mut tx,
                         &collection,
                         &context,
                         prepared,
+                        normalized_vector_collection,
                         &mut report,
                     )?;
                 }
@@ -327,7 +367,7 @@ impl Midge {
         let row_schema = self.row_schema(collection)?;
         let uses_column_store = self.collection_uses_column_store(collection)?;
         let vector_indexes = self
-            .list_vector_indexes()?
+            .list_vector_indexes_canonical()?
             .into_iter()
             .filter(|index| index.collection == collection)
             .collect::<Vec<_>>();
@@ -432,6 +472,7 @@ impl Midge {
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared: PreparedWrite,
+        normalized_vector_collection: Option<&str>,
         report: &mut DocumentWriteBatchReport,
     ) -> Result<(), CassieError> {
         let existing = Self::existing_document_state_for_prepared_write(
@@ -441,7 +482,15 @@ impl Midge {
             &prepared.id,
         )?;
         if prepared.row_blob.is_some() {
-            return Self::apply_prepared_put(tx, collection, context, prepared, &existing, report);
+            return Self::apply_prepared_put(
+                tx,
+                collection,
+                context,
+                prepared,
+                normalized_vector_collection,
+                &existing,
+                report,
+            );
         }
         Self::apply_prepared_delete(tx, collection, context, &prepared, &existing, report)
     }
@@ -497,7 +546,8 @@ impl Midge {
         tx: &mut cntryl_midge::Transaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
-        prepared: PreparedWrite,
+        mut prepared: PreparedWrite,
+        normalized_vector_collection: Option<&str>,
         existing: &ExistingDocumentState,
         report: &mut DocumentWriteBatchReport,
     ) -> Result<(), CassieError> {
@@ -550,7 +600,12 @@ impl Midge {
         if existing.legacy_exists {
             tx.delete(legacy_key).map_err(CassieError::from)?;
         }
-        Self::write_normalized_vector_records(tx, &prepared.normalized_records)?;
+        if let Some(normalized_vector_collection) = normalized_vector_collection {
+            for record in &mut prepared.normalized_records {
+                record.collection = normalized_vector_collection.to_string();
+            }
+        }
+        Self::write_normalized_vector_records(tx, collection, &prepared.normalized_records)?;
         check_document_write_failure_point(DocumentWriteFailurePoint::NormalizedVector)?;
         let index_changes = Self::sync_secondary_indexes_for_write(
             tx,
@@ -808,7 +863,7 @@ impl Midge {
 
     fn finish_document_write_batches(
         &self,
-        options: DocumentWriteBatchOptions,
+        options: &DocumentWriteBatchOptions,
         mut tx: cntryl_midge::Transaction,
         mut reports: BTreeMap<String, DocumentWriteBatchReport>,
         changed_collections: Vec<String>,
@@ -864,10 +919,8 @@ impl Midge {
     }
 
     pub(crate) fn flush_data_family(&self) -> Result<(), CassieError> {
-        let layout = self.ensure_families_ready()?;
-        self.engine
-            .flush_cf(&layout.data)
-            .map_err(CassieError::from)
+        let family = self.database_family(&self.default_database)?;
+        self.engine.flush_cf(&family).map_err(CassieError::from)
     }
 
     /// Returns the durable data epoch, or zero before the first changed write.
@@ -876,7 +929,19 @@ impl Midge {
     ///
     /// Returns an error when the persisted epoch is malformed or cannot be read.
     pub fn data_epoch(&self) -> Result<u64, CassieError> {
-        let tx = self.begin_data_readonly_tx()?;
+        let tx = self.database_tx(
+            &self.default_database,
+            cntryl_midge::TransactionMode::ReadOnly,
+        )?;
+        Self::load_data_epoch_from_tx(&tx)
+    }
+
+    pub(crate) fn data_epoch_for_database(&self, database: &str) -> Result<u64, CassieError> {
+        let tx = self.database_tx(database, cntryl_midge::TransactionMode::ReadOnly)?;
+        Self::load_data_epoch_from_tx(&tx)
+    }
+
+    fn load_data_epoch_from_tx(tx: &cntryl_midge::Transaction) -> Result<u64, CassieError> {
         let Some(raw) = tx.get(&Self::data_epoch_key()).map_err(CassieError::from)? else {
             return Ok(0);
         };
@@ -893,9 +958,10 @@ impl Midge {
     ///
     /// Returns an error when the persisted generation is malformed or cannot be read.
     pub fn collection_generation(&self, collection: &str) -> Result<u64, CassieError> {
-        let tx = self.begin_data_readonly_tx()?;
+        let collection = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         let Some(raw) = tx
-            .get(&Self::collection_generation_key(collection))
+            .get(&Self::collection_generation_key(&collection))
             .map_err(CassieError::from)?
         else {
             return Ok(0);
@@ -1022,19 +1088,20 @@ impl Midge {
         filter: Option<&RowFilter>,
         limit: Option<usize>,
     ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
+        let collection = self.canonical_collection_name(collection);
         let scan_started = Instant::now();
         let mut row_decode = Duration::ZERO;
-        let row_schema = self.row_schema(collection)?;
+        let row_schema = self.row_schema(&collection)?;
         let (projection, include_historical_aliases) = decode.into_projection();
 
-        let tx = self.begin_data_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         let batch_size = batch_size.max(1);
         let limit = limit.unwrap_or(usize::MAX);
-        if self.collection_uses_column_store(collection)? {
+        if self.collection_uses_column_store(&collection)? {
             return Self::scan_column_store_rows_batched(
                 &tx,
                 ColumnStoreScanRequest {
-                    collection,
+                    collection: &collection,
                     row_schema: &row_schema,
                     batch_size,
                     projection: projection.as_ref(),
@@ -1058,8 +1125,8 @@ impl Midge {
         let mut emitted = 0usize;
 
         for (prefix, include_seen) in [
-            (Self::row_prefix(collection), true),
-            (Self::doc_prefix(collection), false),
+            (Self::row_prefix(&collection), true),
+            (Self::doc_prefix(&collection), false),
         ] {
             let iter = tx
                 .scan(&Query::new().prefix(prefix.clone().into()))

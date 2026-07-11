@@ -1,15 +1,17 @@
 use super::{
-    allow_memory_fallback, env, key_encoding, CassieError, Engine, OnceLock, Path, Query,
-    StorageFamily, StorageLayout, TransactionMode, WriteOptions, DATA_FAMILY_NAME,
-    SCHEMA_FAMILY_NAME, TEMP_FAMILY_NAME,
+    allow_memory_fallback, env, key_encoding, CassieError, ColumnFamilyHandle, Engine, OnceLock,
+    Path, Query, StorageFamily, StorageLayout, TransactionMode, WriteOptions,
 };
+use parking_lot::RwLock;
 use parking_lot::{Mutex, ReentrantMutex};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 pub struct Midge {
     pub(super) engine: Engine,
     pub(super) storage_layout: OnceLock<StorageLayout>,
+    pub(super) database_families: RwLock<BTreeMap<String, super::DatabaseFamily>>,
+    pub(super) default_database: String,
     collection_write_gates: Mutex<HashMap<String, Arc<ReentrantMutex<()>>>>,
     referential_write_gate: ReentrantMutex<()>,
 }
@@ -28,6 +30,16 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn new_with_data_dir(data_dir: impl AsRef<Path>) -> Result<Self, CassieError> {
+        Self::new_with_data_dir_and_default_database(data_dir, "postgres")
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn new_with_data_dir_and_default_database(
+        data_dir: impl AsRef<Path>,
+        default_database: impl Into<String>,
+    ) -> Result<Self, CassieError> {
         let options = cntryl_midge::OpenOptions::local(data_dir.as_ref()).build();
 
         let engine = match Engine::open(options) {
@@ -45,6 +57,8 @@ impl Midge {
         Ok(Self {
             engine,
             storage_layout: OnceLock::new(),
+            database_families: RwLock::new(BTreeMap::new()),
+            default_database: default_database.into(),
             collection_write_gates: Mutex::new(HashMap::new()),
             referential_write_gate: ReentrantMutex::new(()),
         })
@@ -54,10 +68,22 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn new_strict_with_data_dir(data_dir: impl AsRef<Path>) -> Result<Self, CassieError> {
+        Self::new_strict_with_data_dir_and_default_database(data_dir, "postgres")
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn new_strict_with_data_dir_and_default_database(
+        data_dir: impl AsRef<Path>,
+        default_database: impl Into<String>,
+    ) -> Result<Self, CassieError> {
         let options = cntryl_midge::OpenOptions::local(data_dir.as_ref()).build();
         Ok(Self {
             engine: Engine::open(options).map_err(CassieError::from)?,
             storage_layout: OnceLock::new(),
+            database_families: RwLock::new(BTreeMap::new()),
+            default_database: default_database.into(),
             collection_write_gates: Mutex::new(HashMap::new()),
             referential_write_gate: ReentrantMutex::new(()),
         })
@@ -68,16 +94,29 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn bootstrap_families(&self) -> Result<StorageLayout, CassieError> {
         let schema = self.get_or_create_family(StorageFamily::Schema)?;
-        let data = self.get_or_create_family(StorageFamily::Data)?;
         let temp = self.get_or_create_family(StorageFamily::Temp)?;
 
-        if schema.id() == data.id() || schema.id() == temp.id() || data.id() == temp.id() {
+        if schema.id() == temp.id() {
             return Err(CassieError::StorageBootstrap(
-                "family ids must be distinct for schema/data/temp families".to_string(),
+                "family ids must be distinct for schema/temp families".to_string(),
             ));
         }
 
-        Ok(StorageLayout { schema, data, temp })
+        self.ensure_lexkey_layout_ready(&schema, &temp)?;
+        self.replay_database_lifecycle_operations(&schema)?;
+        let default_family = self.ensure_default_database(&schema)?;
+        let database_families = self.load_database_families(&schema)?;
+        *self.database_families.write() = database_families.clone();
+
+        Ok(StorageLayout {
+            schema,
+            data: default_family.handle,
+            temp,
+            database_families: database_families
+                .into_iter()
+                .map(|(name, family)| (name, family.handle))
+                .collect(),
+        })
     }
 
     /// # Errors
@@ -86,7 +125,6 @@ impl Midge {
     pub fn ensure_families_ready(&self) -> Result<&StorageLayout, CassieError> {
         if self.storage_layout.get().is_none() {
             let layout = self.bootstrap_families()?;
-            self.ensure_lexkey_layout_ready(&layout)?;
             let _ = self.storage_layout.set(layout);
         }
 
@@ -95,21 +133,31 @@ impl Midge {
         })
     }
 
-    fn ensure_lexkey_layout_ready(&self, layout: &StorageLayout) -> Result<(), CassieError> {
-        self.reject_legacy_layout_prefixes(layout)?;
+    fn ensure_lexkey_layout_ready(
+        &self,
+        schema: &ColumnFamilyHandle,
+        temp: &ColumnFamilyHandle,
+    ) -> Result<(), CassieError> {
+        self.reject_legacy_layout_prefixes(schema, temp)?;
 
         let marker_key = key_encoding::layout_marker_key();
         let mut tx = self
             .engine
-            .begin_tx(layout.schema.id(), TransactionMode::ReadWrite)
+            .begin_tx(schema.id(), TransactionMode::ReadWrite)
             .map_err(CassieError::from)?;
         match tx.get(&marker_key).map_err(CassieError::from)? {
             Some(value) if value == key_encoding::LAYOUT_MARKER_VALUE => Ok(()),
-            Some(value) => Err(CassieError::StorageBootstrap(format!(
-                "incompatible lexkey v{} storage layout marker {:?}; recreate the Midge data directory",
-                key_encoding::LAYOUT_VERSION,
-                String::from_utf8_lossy(&value)
-            ))),
+            Some(value) => {
+                let version = String::from_utf8_lossy(&value);
+                let version_label = if version.contains("v4") {
+                    "4"
+                } else {
+                    key_encoding::LAYOUT_VERSION
+                };
+                Err(CassieError::StorageBootstrap(format!(
+                    "incompatible lexkey v{version_label} storage layout marker {version:?}; recreate the Midge data directory"
+                )))
+            }
             None => {
                 tx.put(marker_key, key_encoding::LAYOUT_MARKER_VALUE.to_vec(), None)
                     .map_err(CassieError::from)?;
@@ -118,27 +166,27 @@ impl Midge {
         }
     }
 
-    fn reject_legacy_layout_prefixes(&self, layout: &StorageLayout) -> Result<(), CassieError> {
-        for (family_name, family_id, prefixes) in [
-            (
-                SCHEMA_FAMILY_NAME,
-                layout.schema.id(),
-                key_encoding::LEGACY_SCHEMA_PREFIXES,
-            ),
-            (
-                DATA_FAMILY_NAME,
-                layout.data.id(),
-                key_encoding::LEGACY_DATA_PREFIXES,
-            ),
-            (
-                TEMP_FAMILY_NAME,
-                layout.temp.id(),
-                key_encoding::LEGACY_TEMP_PREFIXES,
-            ),
-        ] {
+    fn reject_legacy_layout_prefixes(
+        &self,
+        schema: &ColumnFamilyHandle,
+        temp: &ColumnFamilyHandle,
+    ) -> Result<(), CassieError> {
+        let families = self
+            .engine
+            .list_column_families()
+            .map_err(CassieError::from)?;
+        for family in families {
+            let prefixes = if family.id() == schema.id() {
+                key_encoding::LEGACY_SCHEMA_PREFIXES
+            } else if family.id() == temp.id() {
+                key_encoding::LEGACY_TEMP_PREFIXES
+            } else {
+                key_encoding::LEGACY_DATA_PREFIXES
+            };
+            let family_name = family.name();
             let tx = self
                 .engine
-                .begin_tx(family_id, TransactionMode::ReadOnly)
+                .begin_tx(family.id(), TransactionMode::ReadOnly)
                 .map_err(CassieError::from)?;
             for prefix in prefixes {
                 let mut scan = tx
@@ -146,8 +194,7 @@ impl Midge {
                     .map_err(CassieError::from)?;
                 if scan.next().is_some() {
                     return Err(CassieError::StorageBootstrap(format!(
-                        "incompatible lexkey v{} storage layout: found v1 key prefix '{}' in {family_name}; recreate the Midge data directory",
-                        key_encoding::LAYOUT_VERSION,
+                        "incompatible lexkey v4 storage layout: found legacy key prefix '{}' in {family_name}; recreate the Midge data directory",
                         String::from_utf8_lossy(prefix)
                     )));
                 }
@@ -158,8 +205,7 @@ impl Midge {
                 .map_err(CassieError::from)?;
             if v2_scan.next().is_some() {
                 return Err(CassieError::StorageBootstrap(format!(
-                    "incompatible lexkey v{} storage layout: found v2 keys in {family_name}; recreate the Midge data directory",
-                    key_encoding::LAYOUT_VERSION
+                    "incompatible lexkey v4 storage layout: found v2 keys in {family_name}; recreate the Midge data directory"
                 )));
             }
         }
@@ -167,7 +213,18 @@ impl Midge {
     }
 
     pub fn storage_layout(&self) -> Option<StorageLayout> {
-        self.storage_layout.get().cloned()
+        let layout = self.storage_layout.get()?.clone();
+        let families = self.database_families.read();
+        Some(StorageLayout {
+            data: families
+                .get(&self.default_database.to_ascii_lowercase())
+                .map_or(layout.data.clone(), |family| family.handle.clone()),
+            database_families: families
+                .iter()
+                .map(|(name, family)| (name.clone(), family.handle.clone()))
+                .collect(),
+            ..layout
+        })
     }
 
     pub(crate) fn with_collection_write_gates<T>(

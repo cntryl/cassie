@@ -14,12 +14,13 @@ impl Midge {
         E: From<CassieError>,
         F: FnMut(DocumentRef) -> Result<bool, E>,
     {
+        let collection = self.canonical_collection_name(collection);
         if self
-            .collection_uses_column_store(collection)
+            .collection_uses_column_store(&collection)
             .map_err(E::from)?
         {
             let (batches, _) = self
-                .scan_rows_batched(collection, 1024, decode, None, None)
+                .scan_rows_batched(&collection, 1024, decode, None, None)
                 .map_err(E::from)?;
             let mut emitted = 0usize;
             for document in batches.into_iter().flatten() {
@@ -31,15 +32,17 @@ impl Midge {
             return Ok(emitted);
         }
 
-        let row_schema = self.row_schema(collection).map_err(E::from)?;
+        let row_schema = self.row_schema(&collection).map_err(E::from)?;
         let (projection, include_historical_aliases) = decode.into_projection();
-        let tx = self.begin_data_readonly_tx().map_err(E::from)?;
+        let tx = self
+            .begin_data_readonly_tx_for(&collection)
+            .map_err(E::from)?;
         let mut seen_ids = HashSet::new();
         let mut emitted = 0usize;
 
         for (prefix, include_seen) in [
-            (Self::row_prefix(collection), true),
-            (Self::doc_prefix(collection), false),
+            (Self::row_prefix(&collection), true),
+            (Self::doc_prefix(&collection), false),
         ] {
             let iter = tx
                 .scan(&Query::new().prefix(prefix.clone().into()))

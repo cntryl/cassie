@@ -198,9 +198,9 @@ pub(super) fn bind_drop_view(
 pub(super) fn bind_create_graph(
     mut statement: crate::sql::ast::CreateGraphStatement,
     catalog: &Catalog,
-    context: &BindingContext,
+    _context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateGraphStatement, CassieError> {
-    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    statement.name = normalize_graph_name(statement.name.trim())?;
     if statement.name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE GRAPH requires a graph name".into(),
@@ -225,6 +225,16 @@ pub(super) fn bind_create_graph(
     validate_graph_fields("nodes", &statement.node_fields)?;
     validate_graph_fields("edges", &statement.edge_fields)?;
     Ok(statement)
+}
+
+fn normalize_graph_name(raw: &str) -> Result<String, CassieError> {
+    match crate::catalog::parse_name(raw).map_err(CassieError::Planner)? {
+        crate::catalog::ParsedName::Unqualified(name)
+        | crate::catalog::ParsedName::SchemaQualified { name, .. } => Ok(name),
+        crate::catalog::ParsedName::DatabaseQualified { .. } => Err(CassieError::Unsupported(
+            "cross-database graph references are not supported".to_string(),
+        )),
+    }
 }
 
 pub(super) fn bind_create_index(
@@ -414,6 +424,9 @@ pub(super) fn bind_alter_table(
         .map(|field| field.name.to_ascii_lowercase())
         .collect::<HashSet<_>>();
 
+    if let AlterTableOperation::RenameTo { table: target } = &mut statement.operation {
+        *target = normalize_relation_name(target.trim(), context)?;
+    }
     validate_alter_schema(&table, &statement.operation, &existing_fields, catalog)?;
     validate_alter_constraint_targets(&statement.operation, catalog)?;
 

@@ -232,14 +232,16 @@ mod column_batches;
 mod column_store;
 mod databases;
 pub(crate) use column_store::{ColumnStoreScanRequest, OrderedColumnStoreScanRequest};
+pub(super) use databases::DatabaseFamily;
+pub(crate) use databases::StagedDatabaseFamily;
 pub(crate) mod documents;
 mod fresh_documents;
 mod graphs;
 mod key_encoding;
 mod layout;
 use layout::{
-    allow_memory_fallback, FamilyScope, RawStorageEntry, DATA_FAMILY_NAME, DEFAULT_FAMILY_NAME,
-    SCHEMA_FAMILY_NAME, TEMP_FAMILY_NAME,
+    allow_memory_fallback, FamilyScope, RawStorageEntry, DEFAULT_FAMILY_NAME, SCHEMA_FAMILY_NAME,
+    TEMP_FAMILY_NAME,
 };
 pub use layout::{StorageFamily, StorageLayout};
 mod index_publication;
@@ -859,15 +861,16 @@ impl Midge {
     }
 
     fn row_schema(&self, collection: &str) -> Result<RowSchema, CassieError> {
+        let collection = self.canonical_collection_name(collection);
         let tx = self.begin_schema_readonly_tx()?;
-        if let Some(row_schema) = Self::load_row_schema_from_tx(&tx, collection)? {
+        if let Some(row_schema) = Self::load_row_schema_from_tx(&tx, &collection)? {
             return Ok(row_schema);
         }
 
         let raw = tx
-            .get(&Self::collection_schema_key(collection))
+            .get(&Self::collection_schema_key(&collection))
             .map_err(CassieError::from)?
-            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.clone()))?;
         let schema: Schema = serde_json::from_slice(&raw).map_err(|error| {
             CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
         })?;

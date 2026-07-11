@@ -133,17 +133,18 @@ impl Midge {
         &self,
         request: OrderedRowScanRequest<'_>,
     ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
+        let collection = self.canonical_collection_name(request.collection);
         let scan_started = Instant::now();
-        let row_schema = self.row_schema(request.collection)?;
+        let row_schema = self.row_schema(&collection)?;
         let (projection, include_historical_aliases) = request.decode.into_projection();
-        let tx = self.begin_data_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         let batch_size = request.batch_size.max(1);
         let limit = request.limit.unwrap_or(usize::MAX);
-        if self.collection_uses_column_store(request.collection)? {
+        if self.collection_uses_column_store(&collection)? {
             return Self::scan_ordered_column_store_rows_batched_by_id(
                 &tx,
                 OrderedColumnStoreScanRequest {
-                    collection: request.collection,
+                    collection: &collection,
                     row_schema: &row_schema,
                     batch_size,
                     projection: projection.as_ref(),
@@ -160,7 +161,7 @@ impl Midge {
 
         let mut sources = Self::ordered_scan_sources(
             &tx,
-            request.collection,
+            &collection,
             request.start_bound,
             request.end_bound,
             request.reverse,

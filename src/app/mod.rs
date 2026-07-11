@@ -72,6 +72,7 @@ pub use state::{Cassie, CassieRuntimeConfigState};
 mod auth;
 mod bulk_ingest;
 mod consistency;
+mod database_images;
 mod defaults;
 mod diagnostics;
 mod document_scans;
@@ -95,6 +96,7 @@ mod vector_search;
 mod write_refresh;
 
 pub use consistency::ProjectionManifestExportOptions;
+pub use database_images::{DatabaseBackupStream, DatabaseRestoreSession, DATABASE_IMAGE_VERSION};
 pub use query_explain::{QueryExplainOutput, QueryExplainPlan};
 pub use replay::{ProjectionReplayBatch, ProjectionReplayEvent, ProjectionReplayReport};
 pub use snapshots::{CassieSnapshotManifest, CassieSnapshotOptions};

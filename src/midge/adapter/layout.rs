@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::env;
 
 use cntryl_midge::ColumnFamilyHandle;
@@ -5,8 +6,10 @@ use cntryl_midge::ColumnFamilyHandle;
 use crate::app::CassieError;
 
 pub(crate) const SCHEMA_FAMILY_NAME: &str = "cf0";
-pub(crate) const DATA_FAMILY_NAME: &str = "cf1";
-pub(crate) const TEMP_FAMILY_NAME: &str = "cf2";
+pub(crate) const TEMP_FAMILY_NAME: &str = "cf1";
+/// Compatibility label only. V5 has no shared data family; `StorageFamily::Data`
+/// resolves to the configured default database family at transaction time.
+pub(crate) const DATA_FAMILY_NAME: &str = "database";
 pub(crate) const DEFAULT_FAMILY_NAME: &str = "default";
 
 pub(crate) type RawStorageEntry = (Vec<u8>, Vec<u8>);
@@ -97,6 +100,9 @@ impl FamilyScope {
 #[derive(Debug, Clone)]
 pub struct StorageLayout {
     pub schema: ColumnFamilyHandle,
+    /// Compatibility alias for the default database family. It is never a
+    /// shared data family and is not used for internal routing.
     pub data: ColumnFamilyHandle,
     pub temp: ColumnFamilyHandle,
+    pub database_families: BTreeMap<String, ColumnFamilyHandle>,
 }

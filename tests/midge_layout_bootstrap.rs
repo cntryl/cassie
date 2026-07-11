@@ -34,7 +34,7 @@ fn put_legacy_document(cassie: &Cassie, collection: &str, id: &str, payload: &se
 }
 
 #[test]
-fn should_bootstrap_cf0_cf1_cf2_idempotently() {
+fn should_bootstrap_required_families_idempotently() {
     // Arrange
     let path = data_dir("bootstrap");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -62,10 +62,9 @@ fn should_bootstrap_cf0_cf1_cf2_idempotently() {
         let second_ids = normalize_family_ids(&reloaded);
 
         // Assert
-        assert_eq!(
-            first_state.1,
-            ("cf0".to_string(), "cf1".to_string(), "cf2".to_string())
-        );
+        assert_eq!(first_state.1 .0, "cf0");
+        assert!(first_state.1 .1.starts_with("db-"));
+        assert_eq!(first_state.1 .2, "cf1");
         assert_eq!(second_ids, first_state.0);
 
         let _ = std::fs::remove_dir_all(path);
@@ -145,7 +144,7 @@ fn should_route_schema_data_temp_across_families() {
         assert!(legacy_schema_entries.is_empty());
         assert!(schema_entries
             .iter()
-            .any(|(_, value)| value.as_slice() == b"cassie-midge-lexkey-v4"));
+            .any(|(_, value)| value.as_slice() == b"cassie-midge-lexkey-v5"));
         assert!(
             temp_entries.is_empty(),
             "temp family should start empty in bootstrap state"
@@ -261,8 +260,8 @@ fn should_bootstrap_via_startup_path() {
 
         // Assert
         assert_eq!(layout.schema.name(), "cf0");
-        assert_eq!(layout.data.name(), "cf1");
-        assert_eq!(layout.temp.name(), "cf2");
+        assert!(layout.data.name().starts_with("db-"));
+        assert_eq!(layout.temp.name(), "cf1");
 
         let _ = std::fs::remove_dir_all(path);
     });

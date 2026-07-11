@@ -84,7 +84,7 @@ impl Midge {
         if self.collection_generation(collection)? != target_generation {
             return Ok(());
         }
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         tx.delete(Self::maintenance_debt_key(
             collection,
             COLUMN_BATCH_ARTIFACT,
@@ -122,7 +122,7 @@ impl Midge {
         if self.collection_generation(collection)? != target_generation {
             return Ok(());
         }
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         tx.delete(Self::maintenance_debt_key(collection, artifact))
             .map_err(CassieError::from)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)
@@ -136,7 +136,7 @@ impl Midge {
         _error: &CassieError,
     ) -> Result<(), CassieError> {
         let key = Self::maintenance_debt_key(collection, artifact);
-        let read_tx = self.begin_data_readonly_tx()?;
+        let read_tx = self.begin_data_readonly_tx_for(collection)?;
         let retry_count = read_tx
             .get(&key)
             .map_err(CassieError::from)?
@@ -149,7 +149,7 @@ impl Midge {
             retry_count,
             last_error: Some(format!("{artifact} maintenance failed (details redacted)")),
         };
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         tx.put(
             key,
             serde_json::to_vec(&debt)
@@ -167,14 +167,18 @@ impl Midge {
     /// Returns an error when maintenance debt cannot be read or its collection generation cannot
     /// be loaded. Individual rebuild failures remain durable debt for a later retry.
     pub fn retry_maintenance_debt(&self) -> Result<(), CassieError> {
-        let tx = self.begin_data_readonly_tx()?;
-        let entries = tx
-            .scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
-            .map_err(CassieError::from)?;
-        let debts = entries
-            .into_iter()
-            .filter_map(|(_, raw)| serde_json::from_slice::<MaintenanceDebt>(&raw).ok())
-            .collect::<Vec<_>>();
+        let mut debts = Vec::new();
+        for database in self.list_databases()? {
+            let tx = self.database_tx(&database.name, cntryl_midge::TransactionMode::ReadOnly)?;
+            let entries = tx
+                .scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
+                .map_err(CassieError::from)?;
+            debts.extend(
+                entries
+                    .into_iter()
+                    .filter_map(|(_, raw)| serde_json::from_slice::<MaintenanceDebt>(&raw).ok()),
+            );
+        }
         for debt in debts {
             if debt.artifact == COLUMN_BATCH_ARTIFACT {
                 let generation = self.collection_generation(&debt.collection)?;
@@ -198,9 +202,10 @@ impl Midge {
         &self,
         collection: &str,
     ) -> Result<bool, CassieError> {
-        let tx = self.begin_data_readonly_tx()?;
+        let collection = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         tx.get(&Self::maintenance_debt_key(
-            collection,
+            &collection,
             PROJECTION_HASH_ARTIFACT,
         ))
         .map(|debt| debt.is_some())

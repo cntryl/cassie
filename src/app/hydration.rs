@@ -40,7 +40,7 @@ impl Cassie {
     }
 
     fn hydrate_namespaces(&self) {
-        let namespaces = self.midge.list_namespaces();
+        let namespaces = self.midge.list_namespaces_canonical();
         self.runtime.record_storage_access("schema", false, true);
         for namespace in namespaces {
             self.catalog.register_namespace(&namespace, None);
@@ -153,10 +153,13 @@ impl Cassie {
             self.catalog.register_operational_assignment(assignment);
         }
 
-        let indexes = self.midge.list_vector_indexes().map_err(|error| {
-            self.runtime.record_storage_access("schema", false, false);
-            CassieError::Storage(format!("list vector indexes: {error}"))
-        })?;
+        let indexes = self
+            .midge
+            .list_vector_indexes_canonical()
+            .map_err(|error| {
+                self.runtime.record_storage_access("schema", false, false);
+                CassieError::Storage(format!("list vector indexes: {error}"))
+            })?;
         self.runtime.record_storage_access("schema", false, true);
         for index in indexes {
             self.catalog.register_vector_index(index.clone());
@@ -193,7 +196,7 @@ impl Cassie {
     }
 
     fn hydrate_collection_cardinality_stats(&self) -> Result<(), CassieError> {
-        for collection in self.catalog.list_collections() {
+        for collection in self.catalog.list_collections_canonical() {
             self.hydrate_cardinality_stats(&collection.name)?;
         }
         Ok(())

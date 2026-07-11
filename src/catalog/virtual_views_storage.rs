@@ -13,7 +13,7 @@ pub(super) fn schema() -> Vec<(String, DataType)> {
 
 pub(super) fn rows(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = catalog
-        .list_collections()
+        .list_collections_canonical()
         .into_iter()
         .filter_map(|collection| {
             if current_database

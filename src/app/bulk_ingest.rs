@@ -97,7 +97,7 @@ impl Cassie {
         let report = self.midge.apply_document_write_batch_with_options(
             &statement.table,
             operations,
-            DocumentWriteBatchOptions::buffered(),
+            &DocumentWriteBatchOptions::buffered(),
         )?;
         finish_copy_batch(self, statement, &report.stats)?;
         self.runtime.set_data_epoch(self.midge.data_epoch()?);

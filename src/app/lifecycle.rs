@@ -29,7 +29,10 @@ impl Cassie {
         data_dir: impl AsRef<Path>,
         runtime_config: CassieRuntimeConfig,
     ) -> Result<Self, CassieError> {
-        let midge = Arc::new(Midge::new_with_data_dir(data_dir.as_ref())?);
+        let midge = Arc::new(Midge::new_with_data_dir_and_default_database(
+            data_dir.as_ref(),
+            &runtime_config.database,
+        )?);
         let embedding_provider = build_embedding_provider(&runtime_config)?;
         let CassieRuntimeConfig {
             user: auth_user,
@@ -110,10 +113,25 @@ impl Cassie {
             .list_databases()
             .map_err(|error| CassieError::Storage(format!("list databases: {error}")))?;
         if !databases.is_empty() {
+            let public_schema = canonical_schema_name(&self.default_database, DEFAULT_SCHEMA);
+            if !self
+                .midge
+                .list_namespaces_canonical()
+                .iter()
+                .any(|namespace| namespace.eq_ignore_ascii_case(&public_schema))
+            {
+                self.midge
+                    .create_namespace(&public_schema)
+                    .map_err(|error| {
+                        CassieError::Storage(format!("bootstrap public schema: {error}"))
+                    })?;
+            }
             return Ok(());
         }
 
-        if !self.midge.list_namespaces().is_empty() || !self.midge.list_collections().is_empty() {
+        if !self.midge.list_namespaces_canonical().is_empty()
+            || !self.midge.list_collections().is_empty()
+        {
             return Ok(());
         }
 

@@ -54,7 +54,7 @@ impl Midge {
             ));
         }
         if self
-            .list_vector_indexes()?
+            .list_vector_indexes_canonical()?
             .iter()
             .any(|index| index.collection.eq_ignore_ascii_case(collection))
         {
@@ -83,7 +83,7 @@ impl Midge {
         let row_schema = self.row_schema(collection)?;
         let write_gate = self.collection_write_gate(collection);
         let _write_guard = write_gate.lock();
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         let mut ids = Vec::with_capacity(documents.len());
 
         for (id, payload) in documents {
@@ -183,7 +183,7 @@ impl Midge {
         }
 
         let rows = self.scan_rows_for_rebuild(&index.collection, RowDecode::Full)?;
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
         Self::delete_keys_with_prefix(
             &mut tx,
             Self::time_series_index_data_prefix(&index.collection, &index.name),
@@ -205,7 +205,7 @@ impl Midge {
         collection: &str,
         index_name: &str,
     ) -> Result<(), CassieError> {
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         Self::delete_keys_with_prefix(
             &mut tx,
             Self::time_series_index_data_prefix(collection, index_name),
@@ -225,7 +225,7 @@ impl Midge {
             )));
         }
 
-        let tx = self.begin_data_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(&index.collection)?;
         let scan =
             tx.scan(&Query::new().prefix(
                 Self::time_series_index_data_prefix(&index.collection, &index.name).into(),
@@ -278,7 +278,7 @@ impl Midge {
             .iter()
             .map(|hit| hit.id.clone())
             .collect::<std::collections::HashSet<_>>();
-        let tx = self.begin_data_readonly_tx()?;
+        let tx = self.begin_data_readonly_tx_for(collection)?;
         let mut documents = Vec::with_capacity(wanted.len());
         let mut seen = std::collections::HashSet::new();
 

@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{check_document_write_failure_point, DocumentWriteFailurePoint};
 
-use super::{encode_row, CassieError, Midge, StorageFamily, Uuid, WriteOptions};
+use super::{encode_row, CassieError, Midge, Uuid, WriteOptions};
+use crate::catalog::name_matches;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct GraphEdgeRecord {
@@ -43,7 +44,7 @@ impl Midge {
             .iter()
             .any(|index| index.collection.eq_ignore_ascii_case(collection))
             || self
-                .list_vector_indexes()?
+                .list_vector_indexes_canonical()?
                 .iter()
                 .any(|index| index.collection.eq_ignore_ascii_case(collection))
         {
@@ -59,7 +60,7 @@ impl Midge {
         let graph = self.graph_for_edge_collection(collection)?;
         let write_gate = self.collection_write_gate(collection);
         let _write_guard = write_gate.lock();
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         let mut ids = Vec::with_capacity(documents.len());
 
         for (id, payload) in documents {
@@ -95,10 +96,10 @@ impl Midge {
         &self,
         collection: &str,
     ) -> Result<Option<crate::catalog::GraphMeta>, CassieError> {
-        Ok(self
-            .list_graphs()?
-            .into_iter()
-            .find(|graph| graph.edge_collection.eq_ignore_ascii_case(collection)))
+        Ok(self.list_graphs()?.into_iter().find(|graph| {
+            name_matches(&graph.edge_collection, collection)
+                || name_matches(collection, &graph.edge_collection)
+        }))
     }
 
     pub(crate) fn sync_graph_adjacency_for_document(
@@ -145,16 +146,26 @@ impl Midge {
     ) -> Result<Vec<GraphEdgeRecord>, CassieError> {
         let mut out = Vec::new();
         if direction.eq_ignore_ascii_case("out") || direction.eq_ignore_ascii_case("both") {
-            out.extend(self.scan_graph_edges_by_prefix(
-                &Self::graph_outbound_prefix(&graph.name, node_type, node_id),
-                edge_types,
-            )?);
+            out.extend(
+                self.scan_graph_edges_by_prefix(
+                    crate::catalog::relation_database_name(&graph.name)
+                        .as_deref()
+                        .unwrap_or(self.default_database.as_str()),
+                    &Self::graph_outbound_prefix(&graph.name, node_type, node_id),
+                    edge_types,
+                )?,
+            );
         }
         if direction.eq_ignore_ascii_case("in") || direction.eq_ignore_ascii_case("both") {
-            out.extend(self.scan_graph_edges_by_prefix(
-                &Self::graph_inbound_prefix(&graph.name, node_type, node_id),
-                edge_types,
-            )?);
+            out.extend(
+                self.scan_graph_edges_by_prefix(
+                    crate::catalog::relation_database_name(&graph.name)
+                        .as_deref()
+                        .unwrap_or(self.default_database.as_str()),
+                    &Self::graph_inbound_prefix(&graph.name, node_type, node_id),
+                    edge_types,
+                )?,
+            );
         }
         out.sort_by(|left, right| {
             left.weight
@@ -166,10 +177,11 @@ impl Midge {
 
     fn scan_graph_edges_by_prefix(
         &self,
+        database: &str,
         prefix: &[u8],
         edge_types: &[String],
     ) -> Result<Vec<GraphEdgeRecord>, CassieError> {
-        let entries = self.raw_scan_prefix(StorageFamily::Data, prefix)?;
+        let entries = self.raw_scan_prefix_database(database, prefix)?;
         let mut out = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let record: GraphEdgeRecord = serde_json::from_slice(&raw_value)

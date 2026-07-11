@@ -297,7 +297,11 @@ impl Cassie {
             .candidates
             .iter()
             .find(|candidate| match candidate_index {
-                Some(index_name) => candidate.selected_index.as_deref() == Some(index_name),
+                Some(index_name) => candidate.selected_index.as_deref().is_some_and(|selected| {
+                    selected.eq_ignore_ascii_case(index_name)
+                        || crate::catalog::name_matches(selected, index_name)
+                        || crate::catalog::name_matches(index_name, selected)
+                }),
                 None => candidate.selected_index.is_none(),
             })
             .ok_or_else(|| {

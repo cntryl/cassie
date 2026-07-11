@@ -575,7 +575,7 @@ fn rename_schema_descendants(
 ) -> Result<(), QueryError> {
     let collection_renames = cassie
         .catalog
-        .list_collections()
+        .list_collections_canonical()
         .into_iter()
         .filter(|collection| object_in_schema(&collection.name, current_schema))
         .map(|collection| {
@@ -846,7 +846,7 @@ fn rename_schema_materialized_projections(
 fn schema_is_empty(cassie: &Cassie, schema: &str) -> bool {
     !cassie
         .catalog
-        .list_collections()
+        .list_collections_canonical()
         .into_iter()
         .any(|collection| object_in_schema(&collection.name, schema))
         && !cassie
@@ -894,7 +894,7 @@ fn database_is_empty(cassie: &Cassie, database: &str) -> bool {
         })
         && !cassie
             .catalog
-            .list_collections()
+            .list_collections_canonical()
             .into_iter()
             .any(|collection| {
                 crate::catalog::relation_belongs_to_database(&collection.name, database)

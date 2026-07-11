@@ -1,7 +1,8 @@
 use super::writers::write_command_complete;
 use super::{
-    cassie_pg_error, read_frontend_message, run_pgwire_blocking, str, write_copy_in_response,
-    write_error_response, write_ready_for_query, Arc, AsyncWrite, BufReader, Cassie, CassieSession,
+    cassie_pg_error, read_frontend_message, run_pgwire_blocking, str, write_copy_data,
+    write_copy_done, write_copy_in_response, write_copy_out_response, write_error_response,
+    write_ready_for_query, Arc, AsyncWrite, BufReader, Cassie, CassieError, CassieSession,
     FrontendMessage, HandshakeError, PgWireError, PgWireSeverity, MAX_FRONTEND_MESSAGE_BYTES,
 };
 use crate::sql::ast::{CopyStatement, QueryStatement};
@@ -32,6 +33,9 @@ pub(super) async fn try_handle_simple_copy_query(
     reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
+    if let Some(command) = parse_database_copy_command(sql) {
+        return handle_database_copy(cassie, session, command, reader, write_half).await;
+    }
     let sql = sql.to_string();
     let context = binding_context(&cassie, &session);
     let session_for_parse = session.clone();
@@ -77,6 +81,330 @@ pub(super) async fn try_handle_simple_copy_query(
     } else {
         SimpleCopyOutcome::ConnectionClosed
     }
+}
+
+#[derive(Debug, Clone)]
+enum DatabaseCopyCommand {
+    Backup { source: String },
+    Restore { target: String },
+}
+
+fn parse_database_copy_command(sql: &str) -> Option<DatabaseCopyCommand> {
+    let tokens = sql
+        .trim()
+        .trim_end_matches(';')
+        .split_whitespace()
+        .collect::<Vec<_>>();
+    if tokens.len() == 5
+        && tokens[0].eq_ignore_ascii_case("backup")
+        && tokens[1].eq_ignore_ascii_case("database")
+        && tokens[3].eq_ignore_ascii_case("to")
+        && tokens[4].eq_ignore_ascii_case("stdout")
+    {
+        return Some(DatabaseCopyCommand::Backup {
+            source: tokens[2].to_string(),
+        });
+    }
+    if tokens.len() == 5
+        && tokens[0].eq_ignore_ascii_case("restore")
+        && tokens[1].eq_ignore_ascii_case("database")
+        && tokens[3].eq_ignore_ascii_case("from")
+        && tokens[4].eq_ignore_ascii_case("stdin")
+    {
+        return Some(DatabaseCopyCommand::Restore {
+            target: tokens[2].to_string(),
+        });
+    }
+    None
+}
+
+async fn handle_database_copy(
+    cassie: Arc<Cassie>,
+    session: CassieSession,
+    command: DatabaseCopyCommand,
+    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> SimpleCopyOutcome {
+    if session.is_authenticated_read_only() {
+        let error = PgWireError::from_cassie_error(
+            PgWireSeverity::Error,
+            &crate::app::CassieError::InsufficientPrivilege,
+        );
+        if write_error_response(write_half, &error).await.is_err()
+            || write_ready_for_query(write_half, &session).await.is_err()
+        {
+            return SimpleCopyOutcome::ConnectionClosed;
+        }
+        return SimpleCopyOutcome::Handled;
+    }
+    if session.is_transaction_active() {
+        let error = PgWireError::from_cassie_error(
+            PgWireSeverity::Error,
+            &crate::app::CassieError::Unsupported(
+                "database backup and restore are not supported inside an explicit transaction"
+                    .to_string(),
+            ),
+        );
+        if write_error_response(write_half, &error).await.is_err()
+            || write_ready_for_query(write_half, &session).await.is_err()
+        {
+            return SimpleCopyOutcome::ConnectionClosed;
+        }
+        return SimpleCopyOutcome::Handled;
+    }
+
+    match command {
+        DatabaseCopyCommand::Backup { source } => {
+            handle_database_backup(cassie, session, source, write_half).await
+        }
+        DatabaseCopyCommand::Restore { target } => {
+            handle_database_restore(cassie, session, target, reader, write_half).await
+        }
+    }
+}
+
+async fn handle_database_backup(
+    cassie: Arc<Cassie>,
+    session: CassieSession,
+    source: String,
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> SimpleCopyOutcome {
+    let stream = run_pgwire_blocking(
+        cassie.clone(),
+        "pgwire_database_backup_begin",
+        move |cassie| cassie.begin_database_backup(&source),
+    )
+    .await;
+    let mut stream = match stream {
+        Ok(stream) => stream,
+        Err(error) => {
+            let pg_error = cassie_pg_error(&error);
+            if write_error_response(write_half, &pg_error).await.is_err()
+                || write_ready_for_query(write_half, &session).await.is_err()
+            {
+                return SimpleCopyOutcome::ConnectionClosed;
+            }
+            return SimpleCopyOutcome::Handled;
+        }
+    };
+    if write_copy_out_response(write_half).await.is_err() {
+        return SimpleCopyOutcome::ConnectionClosed;
+    }
+    loop {
+        let result =
+            run_pgwire_blocking(cassie.clone(), "pgwire_database_backup_chunk", move |_| {
+                let chunk = stream.next_chunk()?;
+                Ok((stream, chunk))
+            })
+            .await;
+        match result {
+            Ok((next_stream, Some(chunk))) => {
+                stream = next_stream;
+                if write_copy_data(write_half, &chunk).await.is_err() {
+                    return SimpleCopyOutcome::ConnectionClosed;
+                }
+            }
+            Ok((_, None)) => {
+                if write_copy_done(write_half).await.is_err()
+                    || write_command_complete(write_half, "BACKUP").await.is_err()
+                    || write_ready_for_query(write_half, &session).await.is_err()
+                {
+                    return SimpleCopyOutcome::ConnectionClosed;
+                }
+                return SimpleCopyOutcome::Handled;
+            }
+            Err(error) => {
+                let pg_error = cassie_pg_error(&error);
+                if write_error_response(write_half, &pg_error).await.is_err()
+                    || write_ready_for_query(write_half, &session).await.is_err()
+                {
+                    return SimpleCopyOutcome::ConnectionClosed;
+                }
+                return SimpleCopyOutcome::Handled;
+            }
+        }
+    }
+}
+
+async fn handle_database_restore(
+    cassie: Arc<Cassie>,
+    session: CassieSession,
+    target: String,
+    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> SimpleCopyOutcome {
+    let restore = run_pgwire_blocking(
+        cassie.clone(),
+        "pgwire_database_restore_begin",
+        move |cassie| cassie.begin_database_restore(&target),
+    )
+    .await;
+    let restore = match restore {
+        Ok(restore) => restore,
+        Err(error) => {
+            let pg_error = cassie_pg_error(&error);
+            if write_error_response(write_half, &pg_error).await.is_err()
+                || write_ready_for_query(write_half, &session).await.is_err()
+            {
+                return SimpleCopyOutcome::ConnectionClosed;
+            }
+            return SimpleCopyOutcome::Handled;
+        }
+    };
+    if write_copy_in_response(write_half, 1).await.is_err() {
+        return SimpleCopyOutcome::ConnectionClosed;
+    }
+
+    consume_database_restore(cassie, session, restore, reader, write_half).await
+}
+
+async fn consume_database_restore(
+    cassie: Arc<Cassie>,
+    session: CassieSession,
+    mut restore: crate::app::DatabaseRestoreSession,
+    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> SimpleCopyOutcome {
+    loop {
+        match read_frontend_message(reader).await {
+            Ok(FrontendMessage::CopyData(chunk)) => {
+                match push_database_restore_chunk(cassie.clone(), restore, chunk).await {
+                    Ok(Ok(next_restore)) => restore = next_restore,
+                    Ok(Err((next_restore, error))) => {
+                        let _ = abort_database_restore(cassie.clone(), next_restore).await;
+                        return write_restore_error(write_half, &session, error).await;
+                    }
+                    Err(error) => {
+                        return write_restore_error(write_half, &session, error).await;
+                    }
+                }
+            }
+            Ok(FrontendMessage::CopyDone) => {
+                return finish_database_restore(cassie, session, restore, write_half).await;
+            }
+            Ok(FrontendMessage::CopyFail(message)) => {
+                return fail_database_restore(cassie, session, restore, message, write_half).await;
+            }
+            Ok(FrontendMessage::Terminate) | Err(HandshakeError::Closed) => {
+                let _ = abort_database_restore(cassie, restore).await;
+                return SimpleCopyOutcome::ConnectionClosed;
+            }
+            Ok(_) | Err(HandshakeError::Invalid(_)) => {
+                let _ = abort_database_restore(cassie, restore).await;
+                let error = PgWireError::protocol(
+                    "unexpected frontend message during RESTORE FROM STDIN".to_string(),
+                );
+                if write_error_response(write_half, &error).await.is_err()
+                    || write_ready_for_query(write_half, &session).await.is_err()
+                {
+                    return SimpleCopyOutcome::ConnectionClosed;
+                }
+                return SimpleCopyOutcome::Handled;
+            }
+        }
+    }
+}
+
+async fn push_database_restore_chunk(
+    cassie: Arc<Cassie>,
+    restore: crate::app::DatabaseRestoreSession,
+    chunk: Vec<u8>,
+) -> Result<
+    Result<crate::app::DatabaseRestoreSession, (crate::app::DatabaseRestoreSession, CassieError)>,
+    CassieError,
+> {
+    let result = run_pgwire_blocking(cassie, "pgwire_database_restore_chunk", move |_| {
+        let mut restore = restore;
+        let pushed = restore.push_chunk(&chunk);
+        Ok((restore, pushed))
+    })
+    .await;
+    match result {
+        Ok((restore, Ok(()))) => Ok(Ok(restore)),
+        Ok((restore, Err(error))) => Ok(Err((restore, error))),
+        Err(error) => Err(error),
+    }
+}
+
+async fn finish_database_restore(
+    cassie: Arc<Cassie>,
+    session: CassieSession,
+    restore: crate::app::DatabaseRestoreSession,
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> SimpleCopyOutcome {
+    let result = run_pgwire_blocking(
+        cassie.clone(),
+        "pgwire_database_restore_finish",
+        move |_| {
+            let mut restore = restore;
+            let finished = restore.finish();
+            Ok((restore, finished))
+        },
+    )
+    .await;
+    match result {
+        Ok((_, Ok(()))) => {
+            if write_command_complete(write_half, "RESTORE").await.is_err()
+                || write_ready_for_query(write_half, &session).await.is_err()
+            {
+                SimpleCopyOutcome::ConnectionClosed
+            } else {
+                SimpleCopyOutcome::Handled
+            }
+        }
+        Ok((restore, Err(error))) => {
+            let _ = abort_database_restore(cassie, restore).await;
+            write_restore_error(write_half, &session, error).await
+        }
+        Err(error) => write_restore_error(write_half, &session, error).await,
+    }
+}
+
+async fn fail_database_restore(
+    cassie: Arc<Cassie>,
+    session: CassieSession,
+    restore: crate::app::DatabaseRestoreSession,
+    message: String,
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> SimpleCopyOutcome {
+    let _ = abort_database_restore(cassie, restore).await;
+    let error = PgWireError::new(
+        PgWireSeverity::Error,
+        "57014",
+        format!("RESTORE failed: {message}"),
+    );
+    if write_error_response(write_half, &error).await.is_err()
+        || write_ready_for_query(write_half, &session).await.is_err()
+    {
+        SimpleCopyOutcome::ConnectionClosed
+    } else {
+        SimpleCopyOutcome::Handled
+    }
+}
+
+async fn write_restore_error(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+    error: CassieError,
+) -> SimpleCopyOutcome {
+    let pg_error = cassie_pg_error(&error);
+    if write_error_response(write_half, &pg_error).await.is_err()
+        || write_ready_for_query(write_half, session).await.is_err()
+    {
+        SimpleCopyOutcome::ConnectionClosed
+    } else {
+        SimpleCopyOutcome::Handled
+    }
+}
+
+async fn abort_database_restore(
+    cassie: Arc<Cassie>,
+    mut restore: crate::app::DatabaseRestoreSession,
+) -> Result<(), crate::app::CassieError> {
+    run_pgwire_blocking(cassie, "pgwire_database_restore_abort", move |_| {
+        restore.abort()
+    })
+    .await
 }
 
 fn copy_response_column_count(cassie: &Cassie, statement: &CopyStatement) -> usize {

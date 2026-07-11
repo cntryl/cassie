@@ -37,9 +37,15 @@ impl Midge {
         schema: &Schema,
         metadata: &CollectionMeta,
     ) -> Result<(), CassieError> {
+        let name = self.canonical_collection_name(name);
+        let mut metadata = metadata.clone();
+        metadata.name.clone_from(&name);
+        if let Some(database) = crate::catalog::relation_database_name(&name) {
+            let _ = self.database_family(&database)?;
+        }
         let mut tx = self.begin_schema_rw_tx()?;
 
-        let schema_key = Self::collection_schema_key(name);
+        let schema_key = Self::collection_schema_key(&name);
         if tx.get(&schema_key).map_err(CassieError::from)?.is_none() {
             let schema_bytes = serde_json::to_vec(schema)
                 .map_err(|error| CassieError::Parse(error.to_string()))?;
@@ -48,40 +54,40 @@ impl Midge {
         }
         let row_schema = RowSchema::from_schema(schema);
         if tx
-            .get(&Self::row_schema_key(name))
+            .get(&Self::row_schema_key(&name))
             .map_err(CassieError::from)?
             .is_none()
         {
-            Self::save_row_schema_to_tx(&mut tx, name, &row_schema)?;
+            Self::save_row_schema_to_tx(&mut tx, &name, &row_schema)?;
         }
         if tx
-            .get(&Self::projection_key(name))
+            .get(&Self::projection_key(&name))
             .map_err(CassieError::from)?
             .is_none()
         {
             Self::save_projection_metadata_to_tx(
                 &mut tx,
-                &ProjectionMeta::new(name, row_schema.schema_version),
+                &ProjectionMeta::new(&name, row_schema.schema_version),
             )?;
         }
         if tx
-            .get(Self::cardinality_key(name).as_slice())
+            .get(Self::cardinality_key(&name).as_slice())
             .map_err(CassieError::from)?
             .is_none()
         {
             Self::save_cardinality_stats_to_tx(
                 &mut tx,
-                name,
+                &name,
                 &CollectionCardinalityStats::default(),
             )?;
         }
-        if Self::load_collection_metadata_from_tx(&tx, name)?.is_none() {
-            Self::save_collection_metadata_to_tx(&mut tx, metadata)?;
+        if Self::load_collection_metadata_from_tx(&tx, &name)?.is_none() {
+            Self::save_collection_metadata_to_tx(&mut tx, &metadata)?;
         }
 
         let mut collections = Self::load_collections(&tx)?;
-        if !collections.iter().any(|entry| entry == name) {
-            collections.push(name.to_string());
+        if !collections.iter().any(|entry| entry == &name) {
+            collections.push(name.clone());
             collections.sort();
             Self::save_collections(&mut tx, &collections)?;
         }
@@ -94,15 +100,16 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn collection_metadata(&self, name: &str) -> Result<Option<CollectionMeta>, CassieError> {
+        let name = self.canonical_collection_name(name);
         let tx = self.begin_schema_readonly_tx()?;
-        if let Some(metadata) = Self::load_collection_metadata_from_tx(&tx, name)? {
+        if let Some(metadata) = Self::load_collection_metadata_from_tx(&tx, &name)? {
             return Ok(Some(metadata));
         }
         let exists = tx
-            .get(&Self::collection_schema_key(name))
+            .get(&Self::collection_schema_key(&name))
             .map_err(CassieError::from)?
             .is_some();
-        Ok(exists.then(|| CollectionMeta::new(name, None)))
+        Ok(exists.then(|| CollectionMeta::new(&name, None)))
     }
 
     pub(crate) fn storage_mode_for_collection(

@@ -275,6 +275,24 @@ pub(super) async fn write_copy_in_response(
     write_backend_frame(write_half, b'G', &payload).await
 }
 
+pub(super) async fn write_copy_out_response(
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> io::Result<()> {
+    let payload = [0_u8, 0_u8, 0_u8, 1_u8, 0_u8, 0_u8];
+    write_backend_frame(write_half, b'H', &payload).await
+}
+
+pub(super) async fn write_copy_data(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    data: &[u8],
+) -> io::Result<()> {
+    write_backend_frame(write_half, b'd', data).await
+}
+
+pub(super) async fn write_copy_done(write_half: &mut (impl AsyncWrite + Unpin)) -> io::Result<()> {
+    write_backend_frame(write_half, b'c', &[]).await
+}
+
 pub(super) fn append_command_complete_frame(frame: &mut Vec<u8>, command: &str) -> io::Result<()> {
     let mut payload = Vec::new();
     payload.extend_from_slice(command.as_bytes());

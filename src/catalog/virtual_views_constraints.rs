@@ -64,7 +64,7 @@ pub(super) fn table_constraints(
 ) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
     let mut seen = BTreeSet::new();
-    for collection in catalog.list_collections() {
+    for collection in catalog.list_collections_canonical() {
         if current_database
             .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
         {
@@ -118,7 +118,7 @@ pub(super) fn key_column_usage(
     current_database: Option<&str>,
 ) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
-    for collection in catalog.list_collections() {
+    for collection in catalog.list_collections_canonical() {
         if current_database
             .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
         {
@@ -164,7 +164,7 @@ pub(super) fn referential_constraints(
     current_database: Option<&str>,
 ) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
-    for collection in catalog.list_collections() {
+    for collection in catalog.list_collections_canonical() {
         if current_database
             .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
         {
@@ -213,7 +213,7 @@ pub(super) fn referential_constraints(
 
 pub(super) fn pg_constraint(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
-    for collection in catalog.list_collections() {
+    for collection in catalog.list_collections_canonical() {
         if current_database
             .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
         {

@@ -1,9 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{
-    encode_row, CassieError, Midge, ProjectionMeta, Query, RowSchema, StorageFamily, WriteOptions,
-};
+use super::{encode_row, CassieError, Midge, ProjectionMeta, Query, RowSchema, WriteOptions};
 
 const ROW_HASH_ALGORITHM: &str = "cassie-fnv128";
 const ROW_HASH_DIGEST_LENGTH: u16 = 16;
@@ -122,9 +120,10 @@ impl Midge {
         collection: &str,
         row_id: &str,
     ) -> Result<Option<RowHashRecord>, CassieError> {
-        let tx = self.begin_data_readonly_tx()?;
+        let collection = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         let Some(raw) = tx
-            .get(&Self::row_hash_key(collection, row_id))
+            .get(&Self::row_hash_key(&collection, row_id))
             .map_err(CassieError::from)?
         else {
             return Ok(None);
@@ -138,8 +137,9 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn list_row_hashes(&self, collection: &str) -> Result<Vec<RowHashRecord>, CassieError> {
+        let collection = self.canonical_collection_name(collection);
         let entries =
-            self.raw_scan_prefix(StorageFamily::Data, &Self::row_hash_prefix(collection))?;
+            self.raw_scan_prefix_for_collection(&collection, &Self::row_hash_prefix(&collection))?;
         let mut out = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice::<RowHashRecord>(&raw_value) else {
@@ -155,8 +155,9 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn list_range_hashes(&self, collection: &str) -> Result<Vec<RangeHashRecord>, CassieError> {
-        let entries =
-            self.raw_scan_prefix(StorageFamily::Data, &Self::range_hash_prefix(collection))?;
+        let collection = self.canonical_collection_name(collection);
+        let entries = self
+            .raw_scan_prefix_for_collection(&collection, &Self::range_hash_prefix(&collection))?;
         let mut out = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice::<RangeHashRecord>(&raw_value) else {
@@ -172,16 +173,17 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn root_hash(&self, collection: &str) -> Result<Option<RootHashRecord>, CassieError> {
-        let tx = self.begin_data_readonly_tx()?;
+        let collection = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         let Some(raw) = tx
-            .get(&Self::root_hash_key(collection))
+            .get(&Self::root_hash_key(&collection))
             .map_err(CassieError::from)?
         else {
             return Ok(None);
         };
         let root: RootHashRecord = serde_json::from_slice(&raw)
             .map_err(|error| CassieError::Parse(format!("invalid root hash metadata: {error}")))?;
-        if root.built_generation != self.collection_generation(collection)? {
+        if root.built_generation != self.collection_generation(&collection)? {
             return Ok(None);
         }
         Ok(Some(root))
@@ -196,10 +198,11 @@ impl Midge {
         row_id: &str,
         payload: &serde_json::Value,
     ) -> Result<RowHashRecord, CassieError> {
-        let row_schema = self.row_schema(collection)?;
+        let collection = self.canonical_collection_name(collection);
+        let row_schema = self.row_schema(&collection)?;
         Ok(compute_row_hash_record(
-            collection,
-            collection,
+            &collection,
+            &collection,
             None,
             &row_schema,
             row_id,
@@ -214,16 +217,17 @@ impl Midge {
         &self,
         collection: &str,
     ) -> Result<RootHashRecord, CassieError> {
-        let row_schema = self.row_schema(collection)?;
-        let generation = self.collection_generation(collection)?;
-        let documents = self.scan_documents(collection)?;
+        let collection = self.canonical_collection_name(collection);
+        let row_schema = self.row_schema(&collection)?;
+        let generation = self.collection_generation(&collection)?;
+        let documents = self.scan_documents(&collection)?;
         let mut live_ids = BTreeSet::new();
         let mut records = Vec::with_capacity(documents.len());
         for document in documents {
             live_ids.insert(document.id.clone());
             records.push(compute_row_hash_record(
-                collection,
-                collection,
+                &collection,
+                &collection,
                 None,
                 &row_schema,
                 &document.id,
@@ -233,9 +237,9 @@ impl Midge {
         records.sort_by_key(|record| record.row_id.clone());
 
         let ranges =
-            build_range_hash_records(collection, None, row_schema.schema_version, &records);
+            build_range_hash_records(&collection, None, row_schema.schema_version, &records);
         let root = build_root_hash_record(
-            collection,
+            &collection,
             None,
             row_schema.schema_version,
             generation,
@@ -243,9 +247,9 @@ impl Midge {
             &ranges,
         );
 
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
         let existing =
-            self.raw_scan_prefix(StorageFamily::Data, &Self::row_hash_prefix(collection))?;
+            self.raw_scan_prefix_for_collection(&collection, &Self::row_hash_prefix(&collection))?;
         for (key, value) in existing {
             let Ok(record) = serde_json::from_slice::<RowHashRecord>(&value) else {
                 continue;
@@ -254,7 +258,7 @@ impl Midge {
                 tx.delete(key).map_err(CassieError::from)?;
             }
         }
-        delete_keys_with_prefix_from_tx(&mut tx, Self::range_hash_prefix(collection))?;
+        delete_keys_with_prefix_from_tx(&mut tx, Self::range_hash_prefix(&collection))?;
         for record in &records {
             write_row_hash_record_to_tx(&mut tx, record)?;
         }
@@ -264,7 +268,7 @@ impl Midge {
         write_root_hash_record_to_tx(&mut tx, &root)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
 
-        self.update_projection_hash_metadata(collection, &records, &ranges, &root)?;
+        self.update_projection_hash_metadata(&collection, &records, &ranges, &root)?;
         Ok(root)
     }
 
@@ -275,7 +279,7 @@ impl Midge {
     ) -> Result<(super::documents::DocumentWriteBatchReport, RootHashRecord), CassieError> {
         let row_schema = self.row_schema(collection)?;
         let generation = self.collection_generation(collection)?;
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
         let mut report = super::documents::DocumentWriteBatchReport::default();
         let mut records = Vec::with_capacity(documents.len());
 
@@ -716,7 +720,7 @@ fn verify_projection_index_component(
     }
     checked_components.push("indexes".to_string());
     let indexes = midge.list_indexes()?;
-    let vector_indexes = midge.list_vector_indexes()?;
+    let vector_indexes = midge.list_vector_indexes_canonical()?;
     if indexes.iter().all(|index| index.collection != collection)
         && vector_indexes
             .iter()

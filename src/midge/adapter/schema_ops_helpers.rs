@@ -1,12 +1,13 @@
 use super::{
-    CassieError, ColumnBatchMetadata, FieldConstraint, IndexKind, IndexMeta, Midge,
-    NormalizedVectorRecord, ProjectionMeta, Query, RetentionPolicyMeta,
+    CassieError, FieldConstraint, IndexKind, IndexMeta, Midge, NormalizedVectorRecord,
+    ProjectionMeta, Query, RetentionPolicyMeta,
 };
-use crate::catalog::{canonical_relation_name, local_name, RelationId};
+use crate::catalog::{canonical_relation_name, local_name, ColumnBatchMetadata, RelationId};
 
 pub(super) struct DroppedCollectionIndexes {
-    pub scalar_names: Vec<String>,
-    pub time_series_names: Vec<String>,
+    pub columns: Vec<String>,
+    pub scalars: Vec<String>,
+    pub time_series: Vec<String>,
 }
 
 pub(super) fn drop_referencing_indexes_in_tx(
@@ -19,6 +20,7 @@ pub(super) fn drop_referencing_indexes_in_tx(
         .scan(&Query::new().prefix(index_prefix.into()))
         .map_err(CassieError::from)?;
     let mut dropped_column_index_keys = Vec::new();
+    let mut dropped_column_indexes = Vec::new();
     let mut dropped_scalar_indexes = Vec::new();
     let mut dropped_time_series_indexes = Vec::new();
 
@@ -43,19 +45,18 @@ pub(super) fn drop_referencing_indexes_in_tx(
             continue;
         }
         match metadata.kind {
-            IndexKind::Column => dropped_column_index_keys.push((key, metadata.name)),
+            IndexKind::Column => {
+                dropped_column_index_keys.push(key);
+                dropped_column_indexes.push(metadata.name);
+            }
             IndexKind::Scalar => dropped_scalar_indexes.push((key, metadata.name)),
             IndexKind::TimeSeries => dropped_time_series_indexes.push((key, metadata.name)),
             _ => {}
         }
     }
 
-    for (key, index_name) in dropped_column_index_keys {
+    for key in dropped_column_index_keys {
         tx.delete(key).map_err(CassieError::from)?;
-        Midge::delete_keys_with_prefix(
-            tx,
-            Midge::column_batch_index_prefix(collection, &index_name),
-        )?;
     }
 
     let mut scalar_names = Vec::new();
@@ -71,8 +72,9 @@ pub(super) fn drop_referencing_indexes_in_tx(
     }
 
     Ok(DroppedCollectionIndexes {
-        scalar_names,
-        time_series_names,
+        columns: dropped_column_indexes,
+        scalars: scalar_names,
+        time_series: time_series_names,
     })
 }
 
@@ -82,21 +84,27 @@ pub(super) fn delete_dropped_field_data(
     field: &str,
     dropped_indexes: DroppedCollectionIndexes,
 ) -> Result<(), CassieError> {
-    let mut data_tx = midge.begin_data_rw_tx()?;
+    let mut data_tx = midge.begin_data_rw_tx_for(collection)?;
     Midge::delete_normalized_vector_keys_with_prefix(
         &mut data_tx,
         Midge::normalized_vector_prefix(collection, field),
     )?;
-    for index_name in dropped_indexes.scalar_names {
+    for index_name in dropped_indexes.scalars {
         Midge::delete_keys_with_prefix(
             &mut data_tx,
             Midge::scalar_index_data_prefix(collection, &index_name),
         )?;
     }
-    for index_name in dropped_indexes.time_series_names {
+    for index_name in dropped_indexes.time_series {
         Midge::delete_keys_with_prefix(
             &mut data_tx,
             Midge::time_series_index_data_prefix(collection, &index_name),
+        )?;
+    }
+    for index_name in dropped_indexes.columns {
+        Midge::delete_keys_with_prefix(
+            &mut data_tx,
+            Midge::column_batch_index_prefix(collection, &index_name),
         )?;
     }
     data_tx
@@ -255,7 +263,7 @@ pub(super) fn rename_normalized_vector_records(
     current_name: &str,
     next_name: &str,
 ) -> Result<(), CassieError> {
-    let mut data_tx = midge.begin_data_rw_tx()?;
+    let mut data_tx = midge.begin_data_rw_tx_for(collection)?;
     let scan = data_tx
         .scan(
             &Query::new().prefix(Midge::normalized_vector_prefix(collection, current_name).into()),
@@ -490,43 +498,18 @@ pub(super) fn rename_collection_column_batch_metadata(
     current_name: &str,
     next_name: &str,
 ) -> Result<(), CassieError> {
-    let index_prefix = Midge::index_collection_prefix(current_name);
-    let indexes = tx
-        .scan(&Query::new().prefix(index_prefix.into()))
+    let entries = tx
+        .scan(&Query::new().prefix(Midge::column_batch_collection_prefix(current_name).into()))
         .map_err(CassieError::from)?;
-    let mut column_indexes = Vec::new();
-    for (_key, value) in indexes {
-        let Ok(metadata) = serde_json::from_slice::<IndexMeta>(&value) else {
+    for (key, value) in entries {
+        let Ok(mut metadata) = serde_json::from_slice::<ColumnBatchMetadata>(&value) else {
             continue;
         };
-        if metadata.kind == IndexKind::Column {
-            column_indexes.push(metadata);
-        }
-    }
-    for index in column_indexes {
-        let current_index_name = index.name.clone();
-        let Some(value) = tx
-            .get(&Midge::column_batch_metadata_key(
-                current_name,
-                &current_index_name,
-            ))
-            .map_err(CassieError::from)?
-        else {
-            continue;
-        };
-        let mut metadata: ColumnBatchMetadata =
-            serde_json::from_slice(&value).map_err(|error| {
-                CassieError::Parse(format!("invalid column batch metadata: {error}"))
-            })?;
         let next_index_name =
-            renamed_scoped_relation_name(current_name, next_name, &current_index_name);
+            renamed_scoped_relation_name(current_name, next_name, &metadata.index_name);
         metadata.collection = next_name.to_string();
         metadata.index_name.clone_from(&next_index_name);
-        tx.delete(Midge::column_batch_metadata_key(
-            current_name,
-            &current_index_name,
-        ))
-        .map_err(CassieError::from)?;
+        tx.delete(key).map_err(CassieError::from)?;
         tx.put(
             Midge::column_batch_metadata_key(next_name, &next_index_name),
             serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?,

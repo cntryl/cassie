@@ -666,7 +666,7 @@ fn bool(name: &str) -> (String, DataType) {
 
 fn information_schema_tables(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = catalog
-        .list_collections()
+        .list_collections_canonical()
         .into_iter()
         .filter(|collection| {
             current_database
@@ -707,7 +707,7 @@ fn information_schema_columns(
     current_database: Option<&str>,
 ) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
-    for collection in catalog.list_collections() {
+    for collection in catalog.list_collections_canonical() {
         if current_database
             .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
         {

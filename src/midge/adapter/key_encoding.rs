@@ -3,17 +3,18 @@ use cntryl_lexkey::{Encoder, LexKey};
 use crate::app::CassieError;
 use crate::catalog::split_identifier_path;
 
-pub(super) const LAYOUT_VERSION: &str = "4";
-pub(super) const LAYOUT_MARKER_VALUE: &[u8] = b"cassie-midge-lexkey-v4";
+pub(super) const LAYOUT_VERSION: &str = "5";
+pub(super) const LAYOUT_MARKER_VALUE: &[u8] = b"cassie-midge-lexkey-v5";
 
 const ROOT: &[u8] = b"cassie";
 const LEXKEY: &[u8] = b"lexkey";
-const VERSION: &[u8] = b"v4";
+const VERSION: &[u8] = b"v5";
 const LEGACY_VERSION_V2: &[u8] = b"v2";
 
 const FAMILY_LAYOUT: &[u8] = b"layout";
 const FAMILY_DATABASE: &[u8] = b"database";
 const FAMILY_DATABASES: &[u8] = b"databases";
+const FAMILY_DATABASE_LIFECYCLE: &[u8] = b"database-lifecycle";
 const FAMILY_COLLECTION_SCHEMA: &[u8] = b"schema";
 const FAMILY_ROW_SCHEMA: &[u8] = b"row-schema";
 const FAMILY_PROJECTION: &[u8] = b"projection";
@@ -138,11 +139,11 @@ pub(super) fn data_epoch_key() -> Vec<u8> {
 }
 
 pub(super) fn collection_generation_key(collection: &str) -> Vec<u8> {
-    scoped_key(FAMILY_COLLECTION_GENERATION, collection, &[])
+    data_scoped_key(FAMILY_COLLECTION_GENERATION, collection, &[])
 }
 
 pub(super) fn maintenance_debt_key(collection: &str, artifact: &str) -> Vec<u8> {
-    scoped_key(FAMILY_MAINTENANCE_DEBT, collection, &[artifact.as_bytes()])
+    data_scoped_key(FAMILY_MAINTENANCE_DEBT, collection, &[artifact.as_bytes()])
 }
 
 pub(super) fn maintenance_debt_prefix() -> Vec<u8> {
@@ -168,6 +169,14 @@ pub(super) fn database_prefix() -> Vec<u8> {
 
 pub(super) fn databases_key() -> Vec<u8> {
     key(FAMILY_DATABASES, &[])
+}
+
+pub(super) fn database_lifecycle_key(operation_id: &str) -> Vec<u8> {
+    key(FAMILY_DATABASE_LIFECYCLE, &[operation_id.as_bytes()])
+}
+
+pub(super) fn database_lifecycle_prefix() -> Vec<u8> {
+    prefix(FAMILY_DATABASE_LIFECYCLE, &[])
 }
 
 pub(super) fn collection_schema_key(collection: &str) -> Vec<u8> {
@@ -238,16 +247,16 @@ pub(super) fn operational_assignment_prefix() -> Vec<u8> {
 }
 
 pub(super) fn row_hash_key(collection: &str, row_id: &str) -> Vec<u8> {
-    scoped_key(FAMILY_ROW_HASH, collection, &[row_id.as_bytes()])
+    data_scoped_key(FAMILY_ROW_HASH, collection, &[row_id.as_bytes()])
 }
 
 pub(super) fn row_hash_prefix(collection: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_ROW_HASH, collection, &[])
+    data_scoped_prefix(FAMILY_ROW_HASH, collection, &[])
 }
 
 pub(super) fn range_hash_key(collection: &str, range_id: u64) -> Vec<u8> {
     let encoded_range_id = LexKey::encode_u64(range_id);
-    scoped_key(
+    data_scoped_key(
         FAMILY_RANGE_HASH,
         collection,
         &[encoded_range_id.as_bytes()],
@@ -255,11 +264,11 @@ pub(super) fn range_hash_key(collection: &str, range_id: u64) -> Vec<u8> {
 }
 
 pub(super) fn range_hash_prefix(collection: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_RANGE_HASH, collection, &[])
+    data_scoped_prefix(FAMILY_RANGE_HASH, collection, &[])
 }
 
 pub(super) fn root_hash_key(collection: &str) -> Vec<u8> {
-    scoped_key(FAMILY_ROOT_HASH, collection, &[])
+    data_scoped_key(FAMILY_ROOT_HASH, collection, &[])
 }
 
 pub(super) fn schema_collection_prefix() -> Vec<u8> {
@@ -275,11 +284,11 @@ pub(super) fn vector_index_prefix() -> Vec<u8> {
 }
 
 pub(super) fn vector_index_state_key(collection: &str, field: &str) -> Vec<u8> {
-    scoped_key(FAMILY_VECTOR_INDEX_STATE, collection, &[field.as_bytes()])
+    data_scoped_key(FAMILY_VECTOR_INDEX_STATE, collection, &[field.as_bytes()])
 }
 
 pub(super) fn vector_index_state_prefix(collection: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_VECTOR_INDEX_STATE, collection, &[])
+    data_scoped_prefix(FAMILY_VECTOR_INDEX_STATE, collection, &[])
 }
 
 pub(super) fn vector_index_collection_prefix(collection: &str) -> Vec<u8> {
@@ -287,7 +296,7 @@ pub(super) fn vector_index_collection_prefix(collection: &str) -> Vec<u8> {
 }
 
 pub(super) fn normalized_vector_key(collection: &str, field: &str, id: &str) -> Vec<u8> {
-    scoped_key(
+    data_scoped_key(
         FAMILY_NORMALIZED_VECTOR,
         collection,
         &[field.as_bytes(), id.as_bytes()],
@@ -295,11 +304,11 @@ pub(super) fn normalized_vector_key(collection: &str, field: &str, id: &str) -> 
 }
 
 pub(super) fn normalized_vector_prefix(collection: &str, field: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_NORMALIZED_VECTOR, collection, &[field.as_bytes()])
+    data_scoped_prefix(FAMILY_NORMALIZED_VECTOR, collection, &[field.as_bytes()])
 }
 
 pub(super) fn normalized_vector_collection_prefix(collection: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_NORMALIZED_VECTOR, collection, &[])
+    data_scoped_prefix(FAMILY_NORMALIZED_VECTOR, collection, &[])
 }
 
 pub(super) fn index_key(collection: &str, name: &str) -> Vec<u8> {
@@ -359,11 +368,11 @@ pub(super) fn field_drop_operation_prefix() -> Vec<u8> {
 }
 
 pub(super) fn scalar_index_collection_prefix(collection: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_SCALAR_INDEX, collection, &[])
+    data_scoped_prefix(FAMILY_SCALAR_INDEX, collection, &[])
 }
 
 pub(super) fn scalar_index_data_prefix(collection: &str, index_name: &str) -> Vec<u8> {
-    scoped_prefix(
+    data_scoped_prefix(
         FAMILY_SCALAR_INDEX,
         collection,
         &[index_name.as_bytes(), b"data"],
@@ -371,11 +380,11 @@ pub(super) fn scalar_index_data_prefix(collection: &str, index_name: &str) -> Ve
 }
 
 pub(super) fn time_series_index_collection_prefix(collection: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_TIME_SERIES_INDEX, collection, &[])
+    data_scoped_prefix(FAMILY_TIME_SERIES_INDEX, collection, &[])
 }
 
 pub(super) fn time_series_index_data_prefix(collection: &str, index_name: &str) -> Vec<u8> {
-    scoped_prefix(
+    data_scoped_prefix(
         FAMILY_TIME_SERIES_INDEX,
         collection,
         &[index_name.as_bytes(), b"data"],
@@ -383,7 +392,7 @@ pub(super) fn time_series_index_data_prefix(collection: &str, index_name: &str) 
 }
 
 pub(super) fn unique_constraint_reservation_prefix(collection: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"constraint"])
+    data_scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"constraint"])
 }
 
 pub(super) fn unique_constraint_reservation_key(
@@ -391,7 +400,7 @@ pub(super) fn unique_constraint_reservation_key(
     field: &str,
     value: &serde_json::Value,
 ) -> Result<Vec<u8>, CassieError> {
-    let mut key = scoped_key(
+    let mut key = data_scoped_key(
         FAMILY_UNIQUE_RESERVATION,
         collection,
         &[b"constraint", field.as_bytes()],
@@ -405,7 +414,7 @@ pub(super) fn unique_scalar_index_reservation_key(
     index_name: &str,
     values: &[serde_json::Value],
 ) -> Result<Vec<u8>, CassieError> {
-    let mut key = scoped_key(
+    let mut key = data_scoped_key(
         FAMILY_UNIQUE_RESERVATION,
         collection,
         &[b"index", index_name.as_bytes()],
@@ -417,11 +426,11 @@ pub(super) fn unique_scalar_index_reservation_key(
 }
 
 pub(super) fn unique_index_reservation_prefix(collection: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"index"])
+    data_scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"index"])
 }
 
 pub(super) fn column_batch_metadata_key(collection: &str, index_name: &str) -> Vec<u8> {
-    scoped_key(
+    data_scoped_key(
         FAMILY_COLUMN_BATCH,
         collection,
         &[index_name.as_bytes(), b"metadata"],
@@ -434,7 +443,7 @@ pub(super) fn column_batch_segment_key(
     segment_id: u64,
 ) -> Vec<u8> {
     let encoded_segment = LexKey::encode_u64(segment_id);
-    scoped_key(
+    data_scoped_key(
         FAMILY_COLUMN_BATCH,
         collection,
         &[
@@ -446,11 +455,11 @@ pub(super) fn column_batch_segment_key(
 }
 
 pub(super) fn column_batch_index_prefix(collection: &str, index_name: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_COLUMN_BATCH, collection, &[index_name.as_bytes()])
+    data_scoped_prefix(FAMILY_COLUMN_BATCH, collection, &[index_name.as_bytes()])
 }
 
 pub(super) fn column_batch_collection_prefix(collection: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_COLUMN_BATCH, collection, &[])
+    data_scoped_prefix(FAMILY_COLUMN_BATCH, collection, &[])
 }
 
 pub(super) fn function_key(name: &str) -> Vec<u8> {
@@ -518,19 +527,19 @@ pub(super) fn collections_key() -> Vec<u8> {
 }
 
 pub(super) fn row_prefix(collection: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_ROW, collection, &[])
+    data_scoped_prefix(FAMILY_ROW, collection, &[])
 }
 
 pub(super) fn row_key(collection: &str, id: &str) -> Vec<u8> {
-    scoped_key(FAMILY_ROW, collection, &[id.as_bytes()])
+    data_scoped_key(FAMILY_ROW, collection, &[id.as_bytes()])
 }
 
 pub(super) fn doc_prefix(collection: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_LEGACY_DOC, collection, &[])
+    data_scoped_prefix(FAMILY_LEGACY_DOC, collection, &[])
 }
 
 pub(super) fn doc_key(collection: &str, id: &str) -> Vec<u8> {
-    scoped_key(FAMILY_LEGACY_DOC, collection, &[id.as_bytes()])
+    data_scoped_key(FAMILY_LEGACY_DOC, collection, &[id.as_bytes()])
 }
 
 pub(super) fn cardinality_key(collection: &str) -> Vec<u8> {
@@ -555,19 +564,19 @@ pub(super) fn collection_metadata_key(name: &str) -> Vec<u8> {
 }
 
 pub(super) fn column_store_collection_prefix(collection: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_COLUMN_STORE, collection, &[])
+    data_scoped_prefix(FAMILY_COLUMN_STORE, collection, &[])
 }
 
 pub(super) fn column_store_row_prefix(collection: &str) -> Vec<u8> {
-    scoped_prefix(FAMILY_COLUMN_STORE, collection, &[b"row"])
+    data_scoped_prefix(FAMILY_COLUMN_STORE, collection, &[b"row"])
 }
 
 pub(super) fn column_store_row_key(collection: &str, id: &str) -> Vec<u8> {
-    scoped_key(FAMILY_COLUMN_STORE, collection, &[b"row", id.as_bytes()])
+    data_scoped_key(FAMILY_COLUMN_STORE, collection, &[b"row", id.as_bytes()])
 }
 
 pub(super) fn column_store_deleted_key(collection: &str, id: &str) -> Vec<u8> {
-    scoped_key(
+    data_scoped_key(
         FAMILY_COLUMN_STORE,
         collection,
         &[b"deleted", id.as_bytes()],
@@ -575,7 +584,7 @@ pub(super) fn column_store_deleted_key(collection: &str, id: &str) -> Vec<u8> {
 }
 
 pub(super) fn column_store_field_key(collection: &str, field: &str, id: &str) -> Vec<u8> {
-    scoped_key(
+    data_scoped_key(
         FAMILY_COLUMN_STORE,
         collection,
         &[b"field", field.as_bytes(), id.as_bytes()],
@@ -610,7 +619,7 @@ pub(super) fn graph_key(name: &str) -> Vec<u8> {
 }
 
 pub(super) fn graph_outbound_prefix(graph: &str, source_type: &str, source_id: &str) -> Vec<u8> {
-    scoped_prefix(
+    data_scoped_prefix(
         FAMILY_GRAPH_ADJACENCY,
         graph,
         &[b"out", source_type.as_bytes(), source_id.as_bytes()],
@@ -618,7 +627,7 @@ pub(super) fn graph_outbound_prefix(graph: &str, source_type: &str, source_id: &
 }
 
 pub(super) fn graph_inbound_prefix(graph: &str, target_type: &str, target_id: &str) -> Vec<u8> {
-    scoped_prefix(
+    data_scoped_prefix(
         FAMILY_GRAPH_ADJACENCY,
         graph,
         &[b"in", target_type.as_bytes(), target_id.as_bytes()],
@@ -634,7 +643,7 @@ pub(super) fn graph_outbound_edge_key(
     target_id: &str,
     edge_id: &str,
 ) -> Vec<u8> {
-    scoped_key(
+    data_scoped_key(
         FAMILY_GRAPH_ADJACENCY,
         graph,
         &[
@@ -658,7 +667,7 @@ pub(super) fn graph_inbound_edge_key(
     source_id: &str,
     edge_id: &str,
 ) -> Vec<u8> {
-    scoped_key(
+    data_scoped_key(
         FAMILY_GRAPH_ADJACENCY,
         graph,
         &[
@@ -704,7 +713,7 @@ pub(super) fn time_series_index_entry_key(
     bucket_key: &str,
     id: &str,
 ) -> Vec<u8> {
-    scoped_key(
+    data_scoped_key(
         FAMILY_TIME_SERIES_INDEX,
         collection,
         &[
@@ -792,6 +801,14 @@ fn scoped_prefix(family: &[u8], scoped_name: &str, extra_components: &[&[u8]]) -
     encode_scoped(family, scoped_name, extra_components, true)
 }
 
+fn data_scoped_key(family: &[u8], scoped_name: &str, extra_components: &[&[u8]]) -> Vec<u8> {
+    encode_data_scoped(family, scoped_name, extra_components, false)
+}
+
+fn data_scoped_prefix(family: &[u8], scoped_name: &str, extra_components: &[&[u8]]) -> Vec<u8> {
+    encode_data_scoped(family, scoped_name, extra_components, true)
+}
+
 fn encode_scoped(
     family: &[u8],
     scoped_name: &str,
@@ -807,12 +824,39 @@ fn encode_scoped(
     encode(family, &components, trailing_separator)
 }
 
+fn encode_data_scoped(
+    family: &[u8],
+    scoped_name: &str,
+    extra_components: &[&[u8]],
+    trailing_separator: bool,
+) -> Vec<u8> {
+    let owned_components = data_scoped_components(scoped_name);
+    let mut components = owned_components
+        .iter()
+        .map(String::as_bytes)
+        .collect::<Vec<_>>();
+    components.extend_from_slice(extra_components);
+    encode(family, &components, trailing_separator)
+}
+
 fn scoped_components(raw: &str) -> Vec<String> {
     split_identifier_path(raw)
         .unwrap_or_else(|_| vec![raw.trim().to_string()])
         .into_iter()
         .filter(|component| !component.is_empty())
         .collect()
+}
+
+/// Convert a canonical `database.schema.relation` name to the local key scope
+/// used inside that database's physical family. Schema/catalog keys continue to
+/// use `scoped_components` so the global catalog remains database-qualified.
+fn data_scoped_components(raw: &str) -> Vec<String> {
+    let components = scoped_components(raw);
+    if components.len() >= 3 {
+        components[1..].to_vec()
+    } else {
+        components
+    }
 }
 
 fn encode(family: &[u8], components: &[&[u8]], trailing_separator: bool) -> Vec<u8> {

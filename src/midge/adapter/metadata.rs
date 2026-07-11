@@ -11,7 +11,9 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_index(&self, metadata: &IndexMeta) -> Result<(), CassieError> {
-        self.prepare_index_publication(metadata)?;
+        let mut metadata = metadata.clone();
+        metadata.collection = self.canonical_collection_name(&metadata.collection);
+        self.prepare_index_publication(&metadata)?;
         check_index_publication_failure_point()?;
         self.replay_pending_index_publications()
     }
@@ -24,9 +26,10 @@ impl Midge {
         collection: &str,
         name: &str,
     ) -> Result<Option<IndexMeta>, CassieError> {
+        let collection = self.canonical_collection_name(collection);
         let tx = self.begin_schema_readonly_tx()?;
         let raw = tx
-            .get(&Self::index_key(collection, name))
+            .get(&Self::index_key(&collection, name))
             .map_err(CassieError::from)?;
         if let Some(raw) = raw {
             return serde_json::from_slice(&raw)
@@ -41,7 +44,7 @@ impl Midge {
             let Ok(record) = serde_json::from_slice::<IndexMeta>(&raw_value) else {
                 continue;
             };
-            if name_matches(&record.collection, collection) && name_matches(&record.name, name) {
+            if name_matches(&record.collection, &collection) && name_matches(&record.name, name) {
                 return Ok(Some(record));
             }
         }
@@ -224,7 +227,7 @@ impl Midge {
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
 
-        let mut data_tx = self.begin_data_rw_tx()?;
+        let mut data_tx = self.begin_data_rw_tx_for(collection)?;
         Self::delete_normalized_vector_keys_with_prefix(
             &mut data_tx,
             Self::normalized_vector_prefix(collection, field),
@@ -364,9 +367,10 @@ impl Midge {
         &self,
         collection: &str,
     ) -> Result<Option<CollectionCardinalityStats>, CassieError> {
+        let collection = self.canonical_collection_name(collection);
         let tx = self.begin_schema_readonly_tx()?;
-        let stats = Self::load_cardinality_stats_from_tx(&tx, collection)?;
-        let generation = self.collection_generation(collection)?;
+        let stats = Self::load_cardinality_stats_from_tx(&tx, &collection)?;
+        let generation = self.collection_generation(&collection)?;
         if stats
             .as_ref()
             .is_some_and(|stats| stats.built_generation != generation)
@@ -404,10 +408,11 @@ impl Midge {
         collection: &str,
         stats: &CollectionCardinalityStats,
     ) -> Result<(), CassieError> {
+        let collection = self.canonical_collection_name(collection);
         let mut stats = stats.clone();
-        stats.built_generation = self.collection_generation(collection)?;
+        stats.built_generation = self.collection_generation(&collection)?;
         let mut tx = self.begin_schema_rw_tx()?;
-        Self::save_cardinality_stats_to_tx(&mut tx, collection, &stats)?;
+        Self::save_cardinality_stats_to_tx(&mut tx, &collection, &stats)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
     }
@@ -416,8 +421,9 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_cardinality_stats(&self, collection: &str) -> Result<(), CassieError> {
+        let collection = self.canonical_collection_name(collection);
         let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::cardinality_key(collection))
+        tx.delete(Self::cardinality_key(&collection))
             .map_err(CassieError::from)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
@@ -430,7 +436,8 @@ impl Midge {
         &self,
         collection: &str,
     ) -> Result<CollectionCardinalityStats, CassieError> {
-        let documents = self.scan_documents(collection)?;
+        let collection = self.canonical_collection_name(collection);
+        let documents = self.scan_documents(&collection)?;
         let row_count = documents.len() as u64;
         let mut stats = CollectionCardinalityStats {
             row_count,
@@ -438,7 +445,7 @@ impl Midge {
             ..CollectionCardinalityStats::default()
         };
 
-        if let Some(schema) = self.collection_schema(collection) {
+        if let Some(schema) = self.collection_schema(&collection) {
             for field in schema.fields {
                 stats.set_field_stats(
                     field.name.clone(),
@@ -461,7 +468,7 @@ impl Midge {
             );
         }
 
-        for record in self.list_vector_indexes()? {
+        for record in self.list_vector_indexes_canonical()? {
             if record.collection != collection {
                 continue;
             }
@@ -475,7 +482,7 @@ impl Midge {
             );
         }
 
-        self.save_cardinality_stats(collection, &stats)?;
+        self.save_cardinality_stats(&collection, &stats)?;
         Ok(stats)
     }
 
@@ -719,11 +726,12 @@ impl Midge {
     }
 
     pub fn collection_schema(&self, name: &str) -> Option<Schema> {
+        let name = self.canonical_collection_name(name);
         let tx = self.begin_schema_readonly_tx().ok()?;
-        if let Ok(Some(row_schema)) = Self::load_row_schema_from_tx(&tx, name) {
+        if let Ok(Some(row_schema)) = Self::load_row_schema_from_tx(&tx, &name) {
             return Some(row_schema.active_schema());
         }
-        let raw = tx.get(&Self::collection_schema_key(name)).ok()??;
+        let raw = tx.get(&Self::collection_schema_key(&name)).ok()??;
         serde_json::from_slice(&raw).ok()
     }
 
@@ -734,8 +742,15 @@ impl Midge {
         &self,
         collection: &str,
     ) -> Result<Option<ProjectionMeta>, CassieError> {
+        let canonical = self.canonical_collection_name(collection);
         let tx = self.begin_schema_readonly_tx()?;
-        Self::load_projection_metadata_from_tx(&tx, collection)
+        let Some(mut metadata) = Self::load_projection_metadata_from_tx(&tx, &canonical)? else {
+            return Ok(None);
+        };
+        if !collection.eq_ignore_ascii_case(&canonical) {
+            metadata.collection = collection.to_string();
+        }
+        Ok(Some(metadata))
     }
 
     pub fn list_collections(&self) -> Vec<String> {

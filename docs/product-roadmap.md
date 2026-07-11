@@ -38,7 +38,7 @@ The current ordered closure program is the Audit Remediation Program in this tas
 3. Phase 2 — derived-state publication and crash recovery.
 4. Phase 3 — stable SQL semantics.
 5. Phase 4 — transaction and pgwire contract alignment.
-6. Phase 5 — persisted retrieval in lexkey v4.
+6. Phase 5 — persisted retrieval in lexkey v5.
 7. Phase 6 — scoped REST, TLS, sessions, and UI.
 8. Phase 7 — analytics, recovery, and operational correctness.
 9. Phase 8 — benchmark and promotion evidence.
@@ -231,7 +231,7 @@ Goal: support horizontal expansion through externally orchestrated independent C
 | Local node/projection/tenant/partition assignment metadata | Implemented baseline | Experimental Cassie-specific |
 | Assignment catalog diagnostics | Implemented baseline | Experimental Cassie-specific |
 | External routing and projection ownership orchestration | Documented contract | External system contract |
-| Snapshot and restore | Implemented baseline | Experimental Cassie-specific local recovery |
+| Snapshot and restore | Implemented baseline | Experimental Cassie-specific local recovery; whole-server snapshots include dynamic database families |
 | Capacity management guidance | Documented baseline | Experimental operational documentation |
 
 ## Remaining Roadmap Themes

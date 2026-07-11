@@ -5,10 +5,10 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use crate::catalog::{
-    name_matches, CollectionCardinalityStats, CollectionMeta, CollectionSchema,
-    CollectionStorageMode, DatabaseMeta, FieldConstraint, FieldMeta, FunctionMeta, GraphMeta,
-    IndexKind, IndexMeta, NamespaceMeta, OperationalAssignmentMeta, ProcedureMeta,
-    ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta, ProjectionMeta,
+    local_name, name_matches, parse_name, CollectionCardinalityStats, CollectionMeta,
+    CollectionSchema, CollectionStorageMode, DatabaseMeta, FieldConstraint, FieldMeta,
+    FunctionMeta, GraphMeta, IndexKind, IndexMeta, NamespaceMeta, OperationalAssignmentMeta,
+    ProcedureMeta, ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta, ProjectionMeta,
     ProjectionRepairReportMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, SequenceMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
@@ -176,6 +176,15 @@ impl Catalog {
 
     #[must_use]
     pub fn list_collections(&self) -> Vec<CollectionMeta> {
+        let mut out = self.list_collections_canonical();
+        for collection in &mut out {
+            collection.name = local_name(&collection.name);
+        }
+        out
+    }
+
+    #[must_use]
+    pub(crate) fn list_collections_canonical(&self) -> Vec<CollectionMeta> {
         let collections = self.collections.read();
         let mut out = collections.values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|entry| entry.name.to_ascii_lowercase());
@@ -347,7 +356,7 @@ impl Catalog {
     #[must_use]
     pub fn get_index(&self, collection: &str, name: &str) -> Option<IndexMeta> {
         let indexes = self.indexes.read();
-        indexes
+        let metadata = indexes
             .get(&Self::index_key(collection, name))
             .cloned()
             .or_else(|| {
@@ -358,7 +367,17 @@ impl Catalog {
                             && name_matches(&index.name, name)
                     })
                     .cloned()
-            })
+            })?;
+        if matches!(
+            parse_name(collection),
+            Ok(crate::catalog::ParsedName::Unqualified(_))
+        ) {
+            let mut display = metadata;
+            display.collection = local_name(&display.collection);
+            Some(display)
+        } else {
+            Some(metadata)
+        }
     }
 
     #[must_use]
@@ -830,7 +849,7 @@ impl Catalog {
         vector_field: &str,
     ) -> Option<VectorIndexRecord> {
         let indexes = self.vector_indexes.read();
-        indexes
+        let record = indexes
             .get(&Self::vector_index_key(collection, vector_field))
             .cloned()
             .or_else(|| {
@@ -841,7 +860,17 @@ impl Catalog {
                             && record.field.eq_ignore_ascii_case(vector_field)
                     })
                     .cloned()
-            })
+            })?;
+        if matches!(
+            parse_name(collection),
+            Ok(crate::catalog::ParsedName::Unqualified(_))
+        ) {
+            let mut display = record;
+            display.collection = local_name(&display.collection);
+            Some(display)
+        } else {
+            Some(record)
+        }
     }
 
     #[must_use]

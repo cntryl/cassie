@@ -14,5 +14,8 @@ pub mod sql;
 pub mod types;
 pub mod vector;
 
-pub use app::{Cassie, CassieError, CassieRuntimeConfigState, CassieSession};
+pub use app::{
+    Cassie, CassieError, CassieRuntimeConfigState, CassieSession, DatabaseBackupStream,
+    DatabaseRestoreSession,
+};
 pub use config::CassieRuntimeConfig;

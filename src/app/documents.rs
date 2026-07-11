@@ -196,7 +196,7 @@ impl Cassie {
                 collections.push(canonical_name(&referenced_table));
             }
         }
-        for candidate in self.catalog.list_collections() {
+        for candidate in self.catalog.list_collections_canonical() {
             if self
                 .catalog
                 .get_constraints(&candidate.name)

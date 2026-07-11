@@ -73,12 +73,10 @@ impl Cassie {
 
         let mut changed_collections = Vec::new();
         if !writes.is_empty() {
+            let options = DocumentWriteBatchOptions::sync();
             let reports = self
                 .midge
-                .apply_document_write_batches_with_options(
-                    &writes,
-                    DocumentWriteBatchOptions::sync(),
-                )
+                .apply_document_write_batches_with_options(&writes, &options)
                 .inspect_err(|_| session.mark_transaction_failed())?;
             let mut latest_epoch = None;
             for (collection, report) in reports {

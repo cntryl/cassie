@@ -191,7 +191,7 @@ fn referencing_constraints(
     referenced_table: &str,
 ) -> Vec<(String, crate::catalog::FieldConstraint)> {
     let mut out = Vec::new();
-    for collection in cassie.catalog.list_collections() {
+    for collection in cassie.catalog.list_collections_canonical() {
         for constraint in cassie.catalog.get_constraints(&collection.name) {
             if constraint
                 .references_table

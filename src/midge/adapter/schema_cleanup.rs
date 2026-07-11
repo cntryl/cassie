@@ -32,21 +32,20 @@ impl Midge {
         table: &str,
         blocked_by_epoch: u64,
     ) -> Result<(), CassieError> {
+        let table = self.canonical_collection_name(table);
         let tx = self.begin_schema_readonly_tx()?;
         if tx
-            .get(&Self::collection_schema_key(table))
+            .get(&Self::collection_schema_key(&table))
             .map_err(CassieError::from)?
             .is_none()
         {
-            return Err(CassieError::CollectionNotFound(table.to_string()));
+            return Err(CassieError::CollectionNotFound(table));
         }
         drop(tx);
         self.save_pending_schema_cleanup(&PendingSchemaCleanup {
             cleanup_id: Uuid::new_v4().to_string(),
             blocked_by_epoch,
-            action: PendingSchemaCleanupAction::Table {
-                table: table.to_string(),
-            },
+            action: PendingSchemaCleanupAction::Table { table },
         })
     }
 

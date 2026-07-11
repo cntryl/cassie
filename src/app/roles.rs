@@ -18,6 +18,10 @@ impl Cassie {
             return Ok(());
         }
 
+        if self.midge.get_database(database)?.is_some() {
+            return Ok(());
+        }
+
         Err(CassieError::CatalogObjectNotFound {
             kind: CatalogObjectKind::Database,
             name: database.to_string(),

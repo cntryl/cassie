@@ -17,10 +17,11 @@ impl Midge {
         collection: &str,
         documents: Vec<(Option<String>, serde_json::Value)>,
     ) -> Result<Vec<String>, CassieError> {
+        let collection = self.canonical_collection_name(collection);
         if documents.is_empty() {
             return Ok(Vec::new());
         }
-        if self.collection_uses_column_store(collection)? {
+        if self.collection_uses_column_store(&collection)? {
             return Err(CassieError::Unsupported(
                 "fresh document load requires row storage".to_string(),
             ));
@@ -28,11 +29,11 @@ impl Midge {
         if self
             .list_indexes()?
             .iter()
-            .any(|index| index.collection.eq_ignore_ascii_case(collection))
+            .any(|index| index.collection.eq_ignore_ascii_case(&collection))
             || self
-                .list_vector_indexes()?
+                .list_vector_indexes_canonical()?
                 .iter()
-                .any(|index| index.collection.eq_ignore_ascii_case(collection))
+                .any(|index| index.collection.eq_ignore_ascii_case(&collection))
         {
             return Err(CassieError::Unsupported(
                 "fresh document load does not maintain secondary indexes".to_string(),
@@ -40,32 +41,32 @@ impl Midge {
         }
 
         let schema = self
-            .collection_schema(collection)
-            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
-        let row_schema = self.row_schema(collection)?;
-        let write_gate = self.collection_write_gate(collection);
+            .collection_schema(&collection)
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.clone()))?;
+        let row_schema = self.row_schema(&collection)?;
+        let write_gate = self.collection_write_gate(&collection);
         let _write_guard = write_gate.lock();
-        let mut tx = self.begin_data_rw_tx()?;
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
         let mut ids = Vec::with_capacity(documents.len());
 
         for (id, payload) in documents {
             Self::validate_document(&schema, &payload)?;
             let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
             let row_blob = encode_row(&row_schema, &payload)?;
-            tx.put(Self::row_key(collection, &id), row_blob, None)
+            tx.put(Self::row_key(&collection, &id), row_blob, None)
                 .map_err(CassieError::from)?;
-            Self::write_document_hash_to_tx(&mut tx, collection, &id, &row_schema, &payload)?;
+            Self::write_document_hash_to_tx(&mut tx, &collection, &id, &row_schema, &payload)?;
             ids.push(id);
         }
 
         let row_delta = i64::try_from(ids.len()).unwrap_or(i64::MAX);
-        let generation = Self::increment_collection_generation_in_tx(&mut tx, collection)?;
-        Self::record_column_batch_maintenance_debt_in_tx(&mut tx, collection, generation)?;
-        Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, collection, generation)?;
+        let generation = Self::increment_collection_generation_in_tx(&mut tx, &collection)?;
+        Self::record_column_batch_maintenance_debt_in_tx(&mut tx, &collection, generation)?;
+        Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, &collection, generation)?;
         Self::increment_data_epoch_in_tx(&mut tx)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
-        let _ = self.complete_column_batch_maintenance(collection, generation);
-        let _ = self.complete_projection_hash_maintenance(collection, generation, row_delta);
+        let _ = self.complete_column_batch_maintenance(&collection, generation);
+        let _ = self.complete_projection_hash_maintenance(&collection, generation, row_delta);
         Ok(ids)
     }
 }

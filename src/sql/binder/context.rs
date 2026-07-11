@@ -151,52 +151,98 @@ pub fn resolve_relation_name(
 ) -> Result<String, CassieError> {
     let parsed = parse_name(raw).map_err(CassieError::Planner)?;
     if !context.scopes_database_objects() {
-        if catalog.relation_exists(raw) || crate::catalog::virtual_views::schema(raw).is_some() {
-            return Ok(raw.to_string());
-        }
-
-        if let ParsedName::Unqualified(name) = &parsed {
-            for schema in &context.search_path {
-                let candidate = format!("{schema}.{name}");
-                if catalog.relation_exists(&candidate)
-                    || crate::catalog::virtual_views::schema(&candidate).is_some()
-                {
-                    return Ok(candidate);
-                }
-            }
-        }
-
-        return match parsed {
-            ParsedName::Unqualified(name) => {
-                for system_schema in ["pg_catalog", "information_schema"] {
-                    let candidate = format!("{system_schema}.{name}");
-                    if crate::catalog::virtual_views::schema(&candidate).is_some() {
-                        return Ok(candidate);
-                    }
-                }
-                Err(CassieError::CatalogObjectNotFound {
-                    kind: CatalogObjectKind::Relation,
-                    name,
-                })
-            }
-            ParsedName::SchemaQualified { schema, name } => {
-                let candidate = format!("{schema}.{name}");
-                if catalog.relation_exists(&candidate)
-                    || crate::catalog::virtual_views::schema(&candidate).is_some()
-                {
-                    return Ok(candidate);
-                }
-                Err(CassieError::CatalogObjectNotFound {
-                    kind: CatalogObjectKind::Relation,
-                    name: candidate,
-                })
-            }
-            ParsedName::DatabaseQualified { .. } => Err(CassieError::Unsupported(
-                "cross-database relation references are not supported".to_string(),
-            )),
-        };
+        return resolve_unscoped_relation_name(parsed, catalog, context);
     }
 
+    resolve_scoped_relation_name(parsed, catalog, context)
+}
+
+fn resolve_unscoped_relation_name(
+    parsed: ParsedName,
+    catalog: &crate::catalog::Catalog,
+    context: &BindingContext,
+) -> Result<String, CassieError> {
+    match parsed {
+        ParsedName::Unqualified(name) => {
+            for schema in &context.search_path {
+                let scoped_candidate = if is_system_schema(schema) {
+                    format!("{schema}.{name}")
+                } else {
+                    canonical_relation_name(&context.database, schema, &name)
+                };
+                if catalog.relation_exists(&scoped_candidate)
+                    || crate::catalog::virtual_views::schema(&scoped_candidate).is_some()
+                {
+                    return Ok(scoped_candidate);
+                }
+            }
+            // Preserve support for catalogs populated directly by older callers while
+            // preferring the canonical database-scoped name whenever it exists.
+            if catalog.relation_exists(&name) {
+                return Ok(name);
+            }
+            for system_schema in ["pg_catalog", "information_schema"] {
+                let candidate = format!("{system_schema}.{name}");
+                if crate::catalog::virtual_views::schema(&candidate).is_some() {
+                    return Ok(candidate);
+                }
+            }
+            Err(CassieError::CatalogObjectNotFound {
+                kind: CatalogObjectKind::Relation,
+                name,
+            })
+        }
+        ParsedName::SchemaQualified { schema, name } => {
+            let candidate = if is_system_schema(&schema) {
+                format!("{schema}.{name}")
+            } else {
+                canonical_relation_name(&context.database, &schema, &name)
+            };
+            if catalog.relation_exists(&candidate)
+                || crate::catalog::virtual_views::schema(&candidate).is_some()
+            {
+                return Ok(candidate);
+            }
+            let legacy_candidate = format!("{schema}.{name}");
+            if catalog.relation_exists(&legacy_candidate)
+                || crate::catalog::virtual_views::schema(&legacy_candidate).is_some()
+            {
+                return Ok(legacy_candidate);
+            }
+            Err(CassieError::CatalogObjectNotFound {
+                kind: CatalogObjectKind::Relation,
+                name: candidate,
+            })
+        }
+        ParsedName::DatabaseQualified {
+            database,
+            schema,
+            name,
+        } => {
+            if !database.eq_ignore_ascii_case(&context.database) {
+                return Err(CassieError::Unsupported(
+                    "cross-database relation references are not supported".to_string(),
+                ));
+            }
+            let candidate = canonical_relation_name(&database, &schema, &name);
+            if catalog.relation_exists(&candidate)
+                || crate::catalog::virtual_views::schema(&candidate).is_some()
+            {
+                return Ok(candidate);
+            }
+            Err(CassieError::CatalogObjectNotFound {
+                kind: CatalogObjectKind::Relation,
+                name: candidate,
+            })
+        }
+    }
+}
+
+fn resolve_scoped_relation_name(
+    parsed: ParsedName,
+    catalog: &crate::catalog::Catalog,
+    context: &BindingContext,
+) -> Result<String, CassieError> {
     match parsed {
         ParsedName::Unqualified(name) => {
             for schema in &context.search_path {

@@ -184,7 +184,7 @@ fn section(id: &str, label: &str, items: Vec<QuerySchemaItem>) -> QuerySchemaSec
 fn table_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
     let mut items: Vec<QuerySchemaItem> = cassie
         .catalog
-        .list_collections()
+        .list_collections_canonical()
         .into_iter()
         .map(|collection| {
             let column_count = cassie
@@ -223,7 +223,7 @@ fn view_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
 
 fn index_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
     let mut items = Vec::new();
-    for collection in cassie.catalog.list_collections() {
+    for collection in cassie.catalog.list_collections_canonical() {
         for index in cassie.catalog.list_indexes(collection.name.as_str()) {
             let fields = if index.normalized_fields().is_empty() {
                 index.normalized_expressions().join(", ")

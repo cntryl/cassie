@@ -1,9 +1,8 @@
 use super::{
     check_collection_rename_failure_point, check_field_drop_failure_point,
-    check_field_rename_failure_point, key_encoding, CassieError, CollectionMeta,
-    ColumnBatchMetadata, FieldConstraint, FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta,
-    NormalizedVectorRecord, ProjectionMeta, Query, RetentionPolicyMeta, RowSchema, Schema,
-    WriteOptions,
+    check_field_rename_failure_point, key_encoding, CassieError, CollectionMeta, FieldConstraint,
+    FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta, NormalizedVectorRecord,
+    ProjectionMeta, Query, RetentionPolicyMeta, RowSchema, Schema, WriteOptions,
 };
 
 #[path = "schema_ops_helpers.rs"]
@@ -26,6 +25,8 @@ struct PendingFieldRename {
 struct PendingFieldDrop {
     collection: String,
     field: String,
+    #[serde(default)]
+    column_names: Vec<String>,
     scalar_names: Vec<String>,
     time_series_names: Vec<String>,
 }
@@ -46,6 +47,9 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn create_namespace(&self, namespace: &str) -> Result<(), CassieError> {
+        if let Some(database) = crate::catalog::schema_database_name(namespace) {
+            let _ = self.database_family(&database)?;
+        }
         let mut tx = self.begin_schema_rw_tx()?;
 
         let namespace_key = Self::namespace_key(namespace);
@@ -58,7 +62,11 @@ impl Midge {
         }
 
         let mut namespaces = Self::load_namespaces(&tx)?;
-        if !namespaces.iter().any(|entry| entry == namespace) {
+        let canonical = self.canonical_namespace_name(namespace);
+        if !namespaces
+            .iter()
+            .any(|entry| self.canonical_namespace_name(entry) == canonical)
+        {
             namespaces.push(namespace.to_string());
             namespaces.sort();
             Self::save_namespaces(&mut tx, &namespaces)?;
@@ -69,6 +77,17 @@ impl Midge {
     }
 
     pub fn list_namespaces(&self) -> Vec<String> {
+        self.list_namespaces_raw()
+    }
+
+    pub(crate) fn list_namespaces_canonical(&self) -> Vec<String> {
+        self.list_namespaces_raw()
+            .into_iter()
+            .map(|namespace| self.canonical_namespace_name(&namespace))
+            .collect()
+    }
+
+    fn list_namespaces_raw(&self) -> Vec<String> {
         let Ok(tx) = self.begin_schema_readonly_tx() else {
             return Vec::new();
         };
@@ -105,19 +124,27 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn drop_namespace(&self, namespace: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
-        let namespace_key = Self::namespace_key(namespace);
-
         let mut namespaces = Self::load_namespaces(&tx)?;
-        let namespace_exists = tx.get(&namespace_key).map_err(CassieError::from)?.is_some()
-            || namespaces.iter().any(|entry| entry == namespace);
-        if !namespace_exists {
+        let canonical = self.canonical_namespace_name(namespace);
+        let stored = namespaces
+            .iter()
+            .find(|entry| self.canonical_namespace_name(entry) == canonical)
+            .cloned()
+            .or_else(|| {
+                tx.get(&Self::namespace_key(namespace))
+                    .ok()
+                    .flatten()
+                    .map(|_| namespace.to_string())
+            });
+        let Some(stored) = stored else {
             return Err(CassieError::NotFound(format!(
                 "namespace '{namespace}' does not exist"
             )));
-        }
+        };
 
-        tx.delete(namespace_key).map_err(CassieError::from)?;
-        namespaces.retain(|entry| entry != namespace);
+        tx.delete(Self::namespace_key(&stored))
+            .map_err(CassieError::from)?;
+        namespaces.retain(|entry| entry != &stored);
         Self::save_namespaces(&mut tx, &namespaces)?;
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
@@ -129,7 +156,14 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn rename_namespace(&self, current_name: &str, next_name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
-        let current_key = Self::namespace_key(current_name);
+        let mut namespaces = Self::load_namespaces(&tx)?;
+        let current_canonical = self.canonical_namespace_name(current_name);
+        let current_name = namespaces
+            .iter()
+            .find(|entry| self.canonical_namespace_name(entry) == current_canonical)
+            .cloned()
+            .unwrap_or_else(|| current_name.to_string());
+        let current_key = Self::namespace_key(&current_name);
         let next_key = Self::namespace_key(next_name);
 
         let current_raw = tx
@@ -139,7 +173,12 @@ impl Midge {
                 CassieError::NotFound(format!("namespace '{current_name}' does not exist"))
             })?;
 
-        if tx.get(&next_key).map_err(CassieError::from)?.is_some() {
+        let next_canonical = self.canonical_namespace_name(next_name);
+        if tx.get(&next_key).map_err(CassieError::from)?.is_some()
+            || namespaces
+                .iter()
+                .any(|entry| self.canonical_namespace_name(entry) == next_canonical)
+        {
             return Err(CassieError::Unsupported(format!(
                 "namespace '{next_name}' already exists"
             )));
@@ -147,7 +186,6 @@ impl Midge {
 
         let metadata: NamespaceMeta = serde_json::from_slice(&current_raw)
             .map_err(|error| CassieError::Parse(format!("invalid namespace metadata: {error}")))?;
-        let mut namespaces = Self::load_namespaces(&tx)?;
         if namespaces.is_empty() {
             let scan = tx
                 .scan(&Query::new().prefix(Self::namespace_prefix().into()))
@@ -162,7 +200,7 @@ impl Midge {
             }
         }
 
-        namespaces.retain(|entry| entry != current_name);
+        namespaces.retain(|entry| entry != &current_name);
         namespaces.push(next_name.to_string());
         namespaces.sort();
         namespaces.dedup();
@@ -186,6 +224,8 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn drop_collection(&self, name: &str) -> Result<(), CassieError> {
+        let name_storage = self.canonical_collection_name(name);
+        let name = name_storage.as_str();
         let mut schema_tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(name);
         if schema_tx
@@ -234,7 +274,6 @@ impl Midge {
         for key in retention_keys {
             schema_tx.delete(key).map_err(CassieError::from)?;
         }
-        Self::delete_keys_with_prefix(&mut schema_tx, Self::column_batch_collection_prefix(name))?;
         Self::delete_collection_metadata_to_tx(&mut schema_tx, name)?;
 
         schema_tx
@@ -258,7 +297,13 @@ impl Midge {
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
 
-        let mut data_tx = self.begin_data_rw_tx()?;
+        self.delete_collection_data(name)?;
+
+        Ok(())
+    }
+
+    fn delete_collection_data(&self, name: &str) -> Result<(), CassieError> {
+        let mut data_tx = self.begin_data_rw_tx_for(name)?;
         let mut document_keys = Vec::new();
         for data_prefix in [
             Self::row_prefix(name),
@@ -290,9 +335,7 @@ impl Midge {
             .map_err(CassieError::from)?;
         data_tx
             .commit(WriteOptions::sync())
-            .map_err(CassieError::from)?;
-
-        Ok(())
+            .map_err(CassieError::from)
     }
 
     /// # Errors
@@ -303,6 +346,8 @@ impl Midge {
         collection: &str,
         field: FieldSchema,
     ) -> Result<(), CassieError> {
+        let collection_storage = self.canonical_collection_name(collection);
+        let collection = collection_storage.as_str();
         let mut tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(collection);
         let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
@@ -340,7 +385,7 @@ impl Midge {
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
 
-        let mut data_tx = self.begin_data_rw_tx()?;
+        let mut data_tx = self.begin_data_rw_tx_for(collection)?;
         Self::delete_normalized_vector_keys_with_prefix(
             &mut data_tx,
             Self::normalized_vector_prefix(collection, &field_name),
@@ -349,7 +394,7 @@ impl Midge {
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
         let generation = self.collection_generation(collection)?;
-        let mut maintenance_tx = self.begin_data_rw_tx()?;
+        let mut maintenance_tx = self.begin_data_rw_tx_for(collection)?;
         Self::record_column_batch_maintenance_debt_in_tx(
             &mut maintenance_tx,
             collection,
@@ -376,6 +421,8 @@ impl Midge {
         collection: &str,
         field: &str,
     ) -> Result<(), CassieError> {
+        let collection_storage = self.canonical_collection_name(collection);
+        let collection = collection_storage.as_str();
         let mut tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(collection);
         let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
@@ -419,8 +466,9 @@ impl Midge {
         let pending = PendingFieldDrop {
             collection: collection.to_string(),
             field: field.to_string(),
-            scalar_names: dropped_indexes.scalar_names.clone(),
-            time_series_names: dropped_indexes.time_series_names.clone(),
+            column_names: dropped_indexes.columns.clone(),
+            scalar_names: dropped_indexes.scalars.clone(),
+            time_series_names: dropped_indexes.time_series.clone(),
         };
         tx.put(
             Self::field_drop_operation_key(collection, field),
@@ -444,6 +492,8 @@ impl Midge {
         current_name: &str,
         next_name: &str,
     ) -> Result<(), CassieError> {
+        let collection_storage = self.canonical_collection_name(collection);
+        let collection = collection_storage.as_str();
         self.save_pending_field_rename(collection, current_name, next_name)?;
         let mut tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(collection);
@@ -515,6 +565,10 @@ impl Midge {
         current_name: &str,
         next_name: &str,
     ) -> Result<(), CassieError> {
+        let current_name_storage = self.canonical_collection_name(current_name);
+        let next_name_storage = self.canonical_collection_name(next_name);
+        let current_name = current_name_storage.as_str();
+        let next_name = next_name_storage.as_str();
         self.save_pending_collection_rename(current_name, next_name)?;
         let mut schema_tx = self.begin_schema_rw_tx()?;
         schema_ops_helpers::rename_collection_schema_entries(
@@ -524,11 +578,6 @@ impl Midge {
         )?;
 
         schema_ops_helpers::rename_collection_vector_indexes(
-            &mut schema_tx,
-            current_name,
-            next_name,
-        )?;
-        schema_ops_helpers::rename_collection_column_batch_metadata(
             &mut schema_tx,
             current_name,
             next_name,
@@ -555,7 +604,12 @@ impl Midge {
         current_name: &str,
         next_name: &str,
     ) -> Result<(), CassieError> {
-        let mut data_tx = self.begin_data_rw_tx()?;
+        let mut data_tx = self.begin_data_rw_tx_for(current_name)?;
+        schema_ops_helpers::rename_collection_column_batch_metadata(
+            &mut data_tx,
+            current_name,
+            next_name,
+        )?;
         schema_ops_helpers::rename_collection_prefixed_data(&mut data_tx, current_name, next_name)?;
         if let Some(generation) = data_tx
             .get(&Self::collection_generation_key(current_name))
@@ -715,8 +769,9 @@ impl Midge {
             &pending.collection,
             &pending.field,
             schema_ops_helpers::DroppedCollectionIndexes {
-                scalar_names: pending.scalar_names.clone(),
-                time_series_names: pending.time_series_names.clone(),
+                columns: pending.column_names.clone(),
+                scalars: pending.scalar_names.clone(),
+                time_series: pending.time_series_names.clone(),
             },
         )?;
         self.rebuild_scalar_indexes_for_collection(&pending.collection)?;

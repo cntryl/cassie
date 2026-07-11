@@ -1,7 +1,8 @@
 use super::Catalog;
 use crate::catalog::{
-    name_matches, normalize_role_name, FunctionMeta, GraphMeta, NamespaceMeta, ProcedureMeta,
-    ProjectionKind, ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
+    local_name, name_matches, normalize_role_name, parse_name, FunctionMeta, GraphMeta,
+    NamespaceMeta, ParsedName, ProcedureMeta, ProjectionKind, ProjectionMeta, RetentionPolicyMeta,
+    RoleMeta, RollupMeta, ViewMeta,
 };
 
 impl Catalog {
@@ -54,12 +55,19 @@ impl Catalog {
     #[must_use]
     pub fn get_projection_metadata(&self, collection: &str) -> Option<ProjectionMeta> {
         let projections = self.projections.read();
-        projections.get(collection).cloned().or_else(|| {
+        let metadata = projections.get(collection).cloned().or_else(|| {
             projections
                 .iter()
                 .find(|(stored, _)| name_matches(stored, collection))
                 .map(|(_, metadata)| metadata.clone())
-        })
+        })?;
+        if matches!(parse_name(collection), Ok(ParsedName::Unqualified(_))) {
+            let mut display = metadata;
+            display.collection = local_name(&display.collection);
+            Some(display)
+        } else {
+            Some(metadata)
+        }
     }
 
     #[must_use]

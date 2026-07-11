@@ -33,6 +33,7 @@ fn read_plan_section(cassie: &Cassie, physical: &crate::planner::physical::Physi
         .catalog
         .collection_storage_mode(&physical.collection)
         .map_or_else(|| "unknown".to_string(), |mode| mode.as_str().to_string());
+    let selected_index = physical.read.selected_index.as_deref().unwrap_or("none");
     format!(
         "collection={} operators={} predicate_pushdown={} projection_pruning={} scan_fields={} limit_pushdown={} scan_limit={} access_path={} access_path_reason={} fallback_reason={} pagination_strategy={} top_k_mode={} early_stop={} projection_shape={} storage_mode={} index_aware={} index={} index_feedback={}",
         physical.collection,
@@ -51,7 +52,7 @@ fn read_plan_section(cassie: &Cassie, physical: &crate::planner::physical::Physi
         physical.projection.shape.as_str(),
         storage_mode,
         physical.read.selected_index.is_some(),
-        physical.read.selected_index.as_deref().unwrap_or("none"),
+        selected_index,
         index_feedback(physical)
     )
 }

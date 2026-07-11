@@ -12,7 +12,8 @@ A snapshot directory contains:
 | `cassie-snapshot-manifest.json` | Cassie manifest with compatibility and projection metadata. |
 | `midge/` | Recursive copy of the local Midge data directory. |
 
-The manifest records:
+The copied Midge directory includes `cf0`, `cf1`, and every opaque per-database
+`db-*` family registered in the source catalog. The manifest records:
 
 - snapshot format version
 - Cassie version

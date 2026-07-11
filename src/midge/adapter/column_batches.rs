@@ -106,6 +106,7 @@ impl Midge {
         &self,
         collection: &str,
     ) -> Result<usize, CassieError> {
+        let collection = self.canonical_collection_name(collection);
         let mut rebuilt = 0usize;
         for index in self.list_indexes()? {
             if index.collection == collection && index.kind == IndexKind::Column {
@@ -129,8 +130,10 @@ impl Midge {
             ));
         }
 
+        let mut index = index.clone();
+        index.collection = self.canonical_collection_name(&index.collection);
         let fields = index.normalized_fields();
-        let segment_size = column_index_segment_size(index)?;
+        let segment_size = column_index_segment_size(&index)?;
         let mut documents = self.scan_documents(&index.collection)?;
         documents.sort_by(|left, right| left.id.cmp(&right.id));
 
@@ -181,12 +184,12 @@ impl Midge {
             segments,
         };
 
-        let mut schema_tx = self.begin_schema_rw_tx()?;
+        let mut data_tx = self.begin_data_rw_tx_for(&index.collection)?;
         Self::delete_keys_with_prefix(
-            &mut schema_tx,
+            &mut data_tx,
             Self::column_batch_index_prefix(&index.collection, &index.name),
         )?;
-        schema_tx
+        data_tx
             .put(
                 Self::column_batch_metadata_key(&index.collection, &index.name),
                 serde_json::to_vec(&metadata)
@@ -194,15 +197,6 @@ impl Midge {
                 None,
             )
             .map_err(CassieError::from)?;
-        schema_tx
-            .commit(WriteOptions::sync())
-            .map_err(CassieError::from)?;
-
-        let mut data_tx = self.begin_data_rw_tx()?;
-        Self::delete_keys_with_prefix(
-            &mut data_tx,
-            Self::column_batch_index_prefix(&index.collection, &index.name),
-        )?;
         for (segment_id, payload) in payloads {
             data_tx
                 .put(
@@ -228,9 +222,19 @@ impl Midge {
         collection: &str,
         index_name: &str,
     ) -> Result<Option<ColumnBatchMetadata>, CassieError> {
-        let tx = self.begin_schema_readonly_tx()?;
+        let stored_index = self.get_index(collection, index_name)?;
+        let stored_collection = stored_index
+            .as_ref()
+            .map_or_else(|| collection.to_string(), |index| index.collection.clone());
+        let stored_index_name = stored_index
+            .as_ref()
+            .map_or_else(|| index_name.to_string(), |index| index.name.clone());
+        let tx = self.begin_data_readonly_tx_for(&stored_collection)?;
         let Some(raw) = tx
-            .get(&Self::column_batch_metadata_key(collection, index_name))
+            .get(&Self::column_batch_metadata_key(
+                &stored_collection,
+                &stored_index_name,
+            ))
             .map_err(CassieError::from)?
         else {
             return Ok(None);
@@ -248,19 +252,17 @@ impl Midge {
         collection: &str,
         index_name: &str,
     ) -> Result<(), CassieError> {
-        let mut schema_tx = self.begin_schema_rw_tx()?;
-        Self::delete_keys_with_prefix(
-            &mut schema_tx,
-            Self::column_batch_index_prefix(collection, index_name),
-        )?;
-        schema_tx
-            .commit(WriteOptions::sync())
-            .map_err(CassieError::from)?;
-
-        let mut data_tx = self.begin_data_rw_tx()?;
+        let stored_index = self.get_index(collection, index_name)?;
+        let stored_collection = stored_index
+            .as_ref()
+            .map_or_else(|| collection.to_string(), |index| index.collection.clone());
+        let stored_index_name = stored_index
+            .as_ref()
+            .map_or_else(|| index_name.to_string(), |index| index.name.clone());
+        let mut data_tx = self.begin_data_rw_tx_for(&stored_collection)?;
         Self::delete_keys_with_prefix(
             &mut data_tx,
-            Self::column_batch_index_prefix(collection, index_name),
+            Self::column_batch_index_prefix(&stored_collection, &stored_index_name),
         )?;
         data_tx
             .commit(WriteOptions::sync())
@@ -280,14 +282,15 @@ impl Midge {
         segment_filter: Option<&ColumnBatchScanFilter>,
         limit: Option<usize>,
     ) -> Result<ColumnBatchScanDecision, CassieError> {
+        let collection = self.canonical_collection_name(collection);
         let started = Instant::now();
-        let plan = match self.prepare_column_batch_scan(collection, batch_size, fields, limit)? {
+        let plan = match self.prepare_column_batch_scan(&collection, batch_size, fields, limit)? {
             PreparedColumnBatchScan::Ready(plan) => *plan,
             PreparedColumnBatchScan::Fallback(reason) => {
                 return Ok(ColumnBatchScanDecision::Fallback(reason));
             }
         };
-        self.execute_column_batch_scan(collection, fields, filter, segment_filter, started, plan)
+        self.execute_column_batch_scan(&collection, fields, filter, segment_filter, started, plan)
     }
 
     fn prepare_column_batch_scan(
@@ -346,7 +349,7 @@ impl Midge {
         plan: ColumnBatchScanPlan,
     ) -> Result<ColumnBatchScanDecision, CassieError> {
         let mut state = ColumnBatchScanState::new(plan.batch_size);
-        let data_tx = self.begin_data_readonly_tx()?;
+        let data_tx = self.begin_data_readonly_tx_for(collection)?;
         for segment in &plan.metadata.segments {
             if !column_batch_segment_may_match(segment, segment_filter) {
                 state.skipped_segments += 1;

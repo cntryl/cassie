@@ -40,6 +40,7 @@ static PROJECTION_HASH_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false
 static ROLLUP_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static COLLECTION_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static INDEX_PUBLICATION_FAILPOINT: AtomicBool = AtomicBool::new(false);
+static INDEX_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static COLLECTION_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
@@ -163,6 +164,20 @@ pub(crate) fn check_index_publication_failure_point() -> Result<(), CassieError>
     if INDEX_PUBLICATION_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
         return Err(CassieError::Execution(
             "injected test failure during index publication".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn set_index_drop_failure_point(enabled: bool) {
+    INDEX_DROP_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub(crate) fn check_index_drop_failure_point() -> Result<(), CassieError> {
+    if INDEX_DROP_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        return Err(CassieError::Execution(
+            "injected test failure during index drop cleanup".to_string(),
         ));
     }
     Ok(())

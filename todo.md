@@ -91,6 +91,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     safe across a second restart.
   - [x] Collection-rename journals are published only after validation and move maintenance debt
     alongside generation and other collection-prefixed state.
+  - [x] Drop-index cleanup removes scalar/time-series sidecars before metadata and retries safely
+    after an injected metadata-interruption failure.
 - [x] Make snapshot capture consistency executable, not documentation-only.
   - [x] Test a source mutation during copy and require retry/failure without leaving a usable
     partial snapshot.

@@ -1,8 +1,8 @@
 use super::{
-    check_index_publication_failure_point, key_encoding, payload_contains_index_membership,
-    payload_contains_vector_membership, CassieError, CollectionCardinalityStats, FieldConstraint,
-    IndexKind, IndexMeta, Midge, ProjectionMeta, Query, RetentionPolicyMeta, RoleMeta, RollupMeta,
-    Schema, StorageFamily, WriteOptions,
+    check_index_drop_failure_point, check_index_publication_failure_point, key_encoding,
+    payload_contains_index_membership, payload_contains_vector_membership, CassieError,
+    CollectionCardinalityStats, FieldConstraint, IndexKind, IndexMeta, Midge, ProjectionMeta,
+    Query, RetentionPolicyMeta, RoleMeta, RollupMeta, Schema, StorageFamily, WriteOptions,
 };
 use crate::catalog::name_matches;
 
@@ -78,19 +78,20 @@ impl Midge {
             || (collection.to_string(), name.to_string()),
             |index| (index.collection.clone(), index.name.clone()),
         );
-        let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::index_key(&stored_collection, &stored_name))
-            .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
-            .map_err(CassieError::from)?;
-        if let Some(index) = metadata {
+        if let Some(index) = metadata.as_ref() {
             if index.kind == IndexKind::Scalar {
                 self.delete_scalar_index_data(&index.collection, &index.name)?;
             }
             if index.kind == IndexKind::TimeSeries {
                 self.delete_time_series_index_data(&index.collection, &index.name)?;
             }
+            check_index_drop_failure_point()?;
         }
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.delete(Self::index_key(&stored_collection, &stored_name))
+            .map_err(CassieError::from)?;
+        tx.commit(cntryl_midge::WriteOptions::sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 

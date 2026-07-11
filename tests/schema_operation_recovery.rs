@@ -1,7 +1,8 @@
 use cassie::app::Cassie;
 use cassie::midge::adapter::{
     set_collection_drop_failure_point, set_collection_rename_failure_point,
-    set_field_drop_failure_point, set_field_rename_failure_point,
+    set_field_drop_failure_point, set_field_rename_failure_point, set_index_drop_failure_point,
+    Midge, StorageFamily,
 };
 use cassie::types::{DataType, FieldSchema, Schema};
 
@@ -10,6 +11,7 @@ mod support;
 use support::{data_dir, with_fallback};
 
 static COLLECTION_DROP_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static INDEX_DROP_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[test]
 fn should_discard_rejected_collection_rename_intent_on_restart() {
@@ -142,6 +144,95 @@ fn should_replay_drop_collection_cleanup_after_schema_commit() {
     assert!(restarted_again
         .midge
         .collection_schema("drop_recovery")
+        .is_none());
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_replay_drop_index_cleanup_after_metadata_interrupt() {
+    // Arrange
+    with_fallback();
+    let _failpoint_guard = INDEX_DROP_FAILPOINT_GUARD.lock().unwrap();
+    let path = data_dir("schema_operation_drop_index_recovery");
+    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    cassie.startup().expect("start Cassie");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE drop_index_recovery (title TEXT)",
+            vec![],
+        )
+        .expect("create table");
+    cassie
+        .execute_sql(
+            &session,
+            "INSERT INTO drop_index_recovery (title) VALUES ('alpha')",
+            vec![],
+        )
+        .expect("seed row");
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE INDEX drop_index_recovery_title_idx ON drop_index_recovery USING btree (title)",
+            vec![],
+        )
+        .expect("create index");
+    let collection = cassie
+        .catalog
+        .get_schema("drop_index_recovery")
+        .expect("catalog collection")
+        .collection;
+    let prefix = Midge::scalar_index_collection_prefix_for_diagnostics(&collection);
+    assert!(!cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, &prefix)
+        .expect("read scalar sidecars")
+        .is_empty());
+    cassie
+        .midge
+        .defer_drop_index("drop_index_recovery", "drop_index_recovery_title_idx", 0)
+        .expect("defer index cleanup");
+    set_index_drop_failure_point(true);
+
+    // Act
+    assert!(cassie
+        .run_deferred_schema_cleanup_for_diagnostics()
+        .is_err());
+    assert!(cassie
+        .midge
+        .get_index(&collection, "drop_index_recovery_title_idx")
+        .expect("read interrupted metadata")
+        .is_some());
+    assert!(cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, &prefix)
+        .expect("read cleaned scalar sidecars")
+        .is_empty());
+    drop(cassie);
+    let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+    restarted.startup().expect("replay index cleanup");
+    let restarted_again = Cassie::new_with_data_dir(&path).expect("reopen Cassie again");
+    restarted_again
+        .startup()
+        .expect("replay index cleanup idempotently");
+
+    // Assert
+    assert!(restarted
+        .midge
+        .get_index(&collection, "drop_index_recovery_title_idx")
+        .expect("read removed metadata")
+        .is_none());
+    assert!(restarted
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, &prefix)
+        .expect("read removed scalar sidecars")
+        .is_empty());
+    assert!(restarted_again
+        .midge
+        .get_index(&collection, "drop_index_recovery_title_idx")
+        .expect("read removed metadata after second restart")
         .is_none());
 
     let _ = std::fs::remove_dir_all(path);

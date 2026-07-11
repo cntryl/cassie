@@ -1,8 +1,9 @@
 use cassie::app::Cassie;
 use cassie::midge::adapter::{
-    set_column_batch_maintenance_failure_point, ColumnBatchScanDecision, RowFilter,
+    set_column_batch_maintenance_failure_point, set_projection_hash_maintenance_failure_point,
+    ColumnBatchScanDecision, RowFilter,
 };
-use cassie::types::Value;
+use cassie::types::{DataType, FieldSchema, Value};
 #[path = "support/sql.rs"]
 mod support;
 use support::{canonical_test_collection, canonical_test_index, data_dir, with_fallback};
@@ -98,6 +99,77 @@ fn should_recover_column_batch_debt_without_serving_stale_rows() {
                 .expect("collection generation")
         );
     });
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_recover_add_column_projection_hash_debt_after_restart() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("derived_state_add_column_recovery");
+    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    cassie.startup().expect("start Cassie");
+    let collection = "derived_state_add_column_docs";
+    cassie
+        .midge
+        .create_collection(
+            collection,
+            cassie::types::Schema {
+                fields: vec![FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            },
+        )
+        .expect("create collection");
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("doc-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .expect("seed document");
+    cassie
+        .midge
+        .rebuild_projection_hashes(collection)
+        .expect("build initial hashes");
+
+    // Act
+    set_projection_hash_maintenance_failure_point(true);
+    assert!(cassie
+        .midge
+        .alter_collection_add_column(
+            collection,
+            FieldSchema {
+                name: "subtitle".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        )
+        .is_err());
+    assert!(cassie
+        .midge
+        .has_projection_hash_maintenance_debt(collection)
+        .expect("read durable debt"));
+    drop(cassie);
+    let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+    restarted.startup().expect("recover maintenance debt");
+
+    // Assert
+    assert!(!restarted
+        .midge
+        .has_projection_hash_maintenance_debt(collection)
+        .expect("debt cleared"));
+    assert!(restarted
+        .midge
+        .collection_schema(collection)
+        .expect("schema")
+        .fields
+        .iter()
+        .any(|field| field.name == "subtitle"));
+
     let _ = std::fs::remove_dir_all(path);
 }
 

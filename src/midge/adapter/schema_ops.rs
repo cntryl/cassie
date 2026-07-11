@@ -348,8 +348,23 @@ impl Midge {
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
-        let _ = self.rebuild_column_batches_for_collection(collection)?;
-        self.rebuild_projection_hashes(collection)?;
+        let generation = self.collection_generation(collection)?;
+        let mut maintenance_tx = self.begin_data_rw_tx()?;
+        Self::record_column_batch_maintenance_debt_in_tx(
+            &mut maintenance_tx,
+            collection,
+            generation,
+        )?;
+        Self::record_projection_hash_maintenance_debt_in_tx(
+            &mut maintenance_tx,
+            collection,
+            generation,
+        )?;
+        maintenance_tx
+            .commit(WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        self.complete_column_batch_maintenance(collection, generation)?;
+        self.complete_projection_hash_maintenance(collection, generation, 0)?;
         Ok(())
     }
 

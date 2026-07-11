@@ -678,7 +678,7 @@ fn should_reject_work_after_transaction_error_until_rollback() {
 }
 
 #[test]
-fn should_apply_multi_collection_transaction_commit_atomically() {
+fn should_reject_multi_collection_transaction_commit() {
     // Arrange
     with_fallback();
     let path = data_dir("transaction_multi_collection_atomic");
@@ -697,7 +697,6 @@ fn should_apply_multi_collection_transaction_commit_atomically() {
         cassie
             .execute_sql(&session, "CREATE TABLE tx_multi_b (email TEXT)", vec![])
             .unwrap();
-        let before_epoch = cassie.midge.data_epoch().unwrap_or(0);
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
 
         // Act
@@ -715,17 +714,20 @@ fn should_apply_multi_collection_transaction_commit_atomically() {
                 vec![],
             )
             .unwrap();
-        cassie.execute_sql(&session, "COMMIT", vec![]).unwrap();
-        let after_epoch = cassie.midge.data_epoch().unwrap();
+        let commit = cassie.execute_sql(&session, "COMMIT", vec![]);
+        cassie.execute_sql(&session, "ROLLBACK", vec![]).unwrap();
 
         // Assert
-        assert_eq!(after_epoch, before_epoch.saturating_add(1));
+        assert!(commit.is_err());
+        assert!(commit
+            .unwrap_err()
+            .to_string()
+            .contains("only one collection"));
         let collected_from_a = cassie
             .execute_sql(&session, "SELECT id FROM tx_multi_a", vec![])
             .unwrap()
             .rows;
-        assert_eq!(collected_from_a.len(), 1);
-        assert_eq!(collected_from_a[0].len(), 1);
+        assert!(collected_from_a.is_empty());
         let collected_from_b = cassie
             .execute_sql(
                 &session,
@@ -734,10 +736,7 @@ fn should_apply_multi_collection_transaction_commit_atomically() {
             )
             .unwrap()
             .rows;
-        assert_eq!(
-            collected_from_b,
-            vec![vec![Value::String("alice@example.com".to_string())]]
-        );
+        assert!(collected_from_b.is_empty());
 
         let _ = std::fs::remove_dir_all(path);
     });

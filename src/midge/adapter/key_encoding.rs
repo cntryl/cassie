@@ -392,7 +392,7 @@ pub(super) fn scalar_index_data_prefix(collection: &str, index_name: &str) -> Ve
     data_scoped_prefix(
         FAMILY_SCALAR_INDEX,
         collection,
-        &[index_name.as_bytes(), b"data"],
+        &[index_name.as_bytes(), b"d"],
     )
 }
 
@@ -404,19 +404,19 @@ pub(super) fn time_series_index_data_prefix(collection: &str, index_name: &str) 
     data_scoped_prefix(
         FAMILY_TIME_SERIES_INDEX,
         collection,
-        &[index_name.as_bytes(), b"data"],
+        &[index_name.as_bytes(), b"d"],
     )
 }
 
 pub(super) fn unique_constraint_reservation_prefix(collection: &str) -> Vec<u8> {
-    data_scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"constraint"])
+    data_scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"c"])
 }
 
 pub(super) fn unique_constraint_reservation_field_prefix(collection: &str, field: &str) -> Vec<u8> {
     data_scoped_prefix(
         FAMILY_UNIQUE_RESERVATION,
         collection,
-        &[b"constraint", field.as_bytes()],
+        &[b"c", field.as_bytes()],
     )
 }
 
@@ -428,7 +428,7 @@ pub(super) fn unique_constraint_reservation_key(
     let mut key = data_scoped_key(
         FAMILY_UNIQUE_RESERVATION,
         collection,
-        &[b"constraint", field.as_bytes()],
+        &[b"c", field.as_bytes()],
     );
     append_scalar_value(&mut key, value)?;
     Ok(key)
@@ -442,7 +442,7 @@ pub(super) fn unique_scalar_index_reservation_key(
     let mut key = data_scoped_key(
         FAMILY_UNIQUE_RESERVATION,
         collection,
-        &[b"index", index_name.as_bytes()],
+        &[b"i", index_name.as_bytes()],
     );
     for value in values {
         append_scalar_value(&mut key, value)?;
@@ -451,7 +451,7 @@ pub(super) fn unique_scalar_index_reservation_key(
 }
 
 pub(super) fn unique_index_reservation_prefix(collection: &str) -> Vec<u8> {
-    data_scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"index"])
+    data_scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"i"])
 }
 
 pub(super) fn unique_scalar_index_reservation_prefix(
@@ -461,7 +461,7 @@ pub(super) fn unique_scalar_index_reservation_prefix(
     data_scoped_prefix(
         FAMILY_UNIQUE_RESERVATION,
         collection,
-        &[b"index", index_name.as_bytes()],
+        &[b"i", index_name.as_bytes()],
     )
 }
 
@@ -469,7 +469,7 @@ pub(super) fn column_batch_metadata_key(collection: &str, index_name: &str) -> V
     data_scoped_key(
         FAMILY_COLUMN_BATCH,
         collection,
-        &[index_name.as_bytes(), b"metadata"],
+        &[index_name.as_bytes(), b"m"],
     )
 }
 
@@ -482,11 +482,7 @@ pub(super) fn column_batch_segment_key(
     data_scoped_key(
         FAMILY_COLUMN_BATCH,
         collection,
-        &[
-            index_name.as_bytes(),
-            b"segment",
-            encoded_segment.as_bytes(),
-        ],
+        &[index_name.as_bytes(), b"s", encoded_segment.as_bytes()],
     )
 }
 
@@ -604,26 +600,22 @@ pub(super) fn column_store_collection_prefix(collection: &str) -> Vec<u8> {
 }
 
 pub(super) fn column_store_row_prefix(collection: &str) -> Vec<u8> {
-    data_scoped_prefix(FAMILY_COLUMN_STORE, collection, &[b"row"])
+    data_scoped_prefix(FAMILY_COLUMN_STORE, collection, &[b"r"])
 }
 
 pub(super) fn column_store_row_key(collection: &str, id: &str) -> Vec<u8> {
-    data_scoped_key(FAMILY_COLUMN_STORE, collection, &[b"row", id.as_bytes()])
+    data_scoped_key(FAMILY_COLUMN_STORE, collection, &[b"r", id.as_bytes()])
 }
 
 pub(super) fn column_store_deleted_key(collection: &str, id: &str) -> Vec<u8> {
-    data_scoped_key(
-        FAMILY_COLUMN_STORE,
-        collection,
-        &[b"deleted", id.as_bytes()],
-    )
+    data_scoped_key(FAMILY_COLUMN_STORE, collection, &[b"x", id.as_bytes()])
 }
 
 pub(super) fn column_store_field_key(collection: &str, field: &str, id: &str) -> Vec<u8> {
     data_scoped_key(
         FAMILY_COLUMN_STORE,
         collection,
-        &[b"field", field.as_bytes(), id.as_bytes()],
+        &[b"f", field.as_bytes(), id.as_bytes()],
     )
 }
 
@@ -681,7 +673,7 @@ pub(super) fn time_series_index_entry_key(
         collection,
         &[
             index_name.as_bytes(),
-            b"data",
+            b"d",
             bucket_key.as_bytes(),
             id.as_bytes(),
         ],
@@ -901,97 +893,4 @@ fn append_terminated_component(key: &mut Vec<u8>, bytes: &[u8]) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn should_build_deterministic_lexkey_storage_keys() {
-        // Arrange
-        let left = row_key("events", "id-1");
-
-        // Act
-        let right = row_key("events", "id-1");
-        let other_family = row_hash_key("events", "id-1");
-
-        // Assert
-        assert_eq!(left, right);
-        assert_ne!(left, other_family);
-        assert!(!left.starts_with(b"__cassie__/"));
-        assert!(!left.starts_with(b"r/"));
-    }
-
-    #[test]
-    fn should_build_prefix_that_matches_only_child_keys() {
-        // Arrange
-        let prefix = row_prefix("orders");
-        let matching = row_key("orders", "1");
-        let sibling = row_key("orders-archive", "1");
-
-        // Act
-        let decoded = utf8_suffix_after_prefix(&matching, &prefix);
-
-        // Assert
-        assert!(matching.starts_with(&prefix));
-        assert!(!sibling.starts_with(&prefix));
-        assert_eq!(decoded.as_deref(), Some("1"));
-    }
-
-    #[test]
-    fn should_preserve_scalar_value_ordering() {
-        // Arrange
-        let values = vec![
-            json!(null),
-            json!(false),
-            json!(true),
-            json!(-10),
-            json!(0),
-            json!(7),
-            json!(-1.25),
-            json!(2.5),
-            json!("a\u{0}a"),
-            json!("aa"),
-        ];
-
-        // Act
-        let encoded = values
-            .iter()
-            .map(|value| {
-                let mut key = Vec::new();
-                append_scalar_value(&mut key, value).expect("scalar value");
-                key
-            })
-            .collect::<Vec<_>>();
-        let mut sorted = encoded.clone();
-        sorted.sort();
-
-        // Assert
-        assert_eq!(encoded, sorted);
-    }
-
-    #[test]
-    fn should_reject_unsupported_scalar_value_without_panicking() {
-        // Arrange
-        let value = json!([]);
-        let mut key = Vec::new();
-
-        // Act
-        let result = append_scalar_value(&mut key, &value);
-
-        // Assert
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn should_include_embedded_nul_text_in_scalar_order() {
-        // Arrange
-        let before = scalar_index_entry_key("events", "idx", &[json!("a\u{0}a")], "1").unwrap();
-        let after = scalar_index_entry_key("events", "idx", &[json!("aa")], "1").unwrap();
-
-        // Act
-        let is_ordered = before < after;
-
-        // Assert
-        assert!(is_ordered);
-    }
-}
+mod key_encoding_tests;

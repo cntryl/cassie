@@ -19,7 +19,7 @@ pub(crate) fn graph_outbound_prefix(graph: &str, source_type: &str, source_id: &
     data_scoped_prefix(
         FAMILY_GRAPH_ADJACENCY,
         graph,
-        &[b"out", source_type.as_bytes(), source_id.as_bytes()],
+        &[b"O", source_type.as_bytes(), source_id.as_bytes()],
     )
 }
 
@@ -27,7 +27,7 @@ pub(crate) fn graph_inbound_prefix(graph: &str, target_type: &str, target_id: &s
     data_scoped_prefix(
         FAMILY_GRAPH_ADJACENCY,
         graph,
-        &[b"in", target_type.as_bytes(), target_id.as_bytes()],
+        &[b"I", target_type.as_bytes(), target_id.as_bytes()],
     )
 }
 
@@ -44,7 +44,7 @@ pub(crate) fn graph_outbound_edge_key(
         FAMILY_GRAPH_ADJACENCY,
         graph,
         &[
-            b"out",
+            b"O",
             source_type.as_bytes(),
             source_id.as_bytes(),
             edge_type.as_bytes(),
@@ -68,7 +68,7 @@ pub(crate) fn graph_inbound_edge_key(
         FAMILY_GRAPH_ADJACENCY,
         graph,
         &[
-            b"in",
+            b"I",
             target_type.as_bytes(),
             target_id.as_bytes(),
             edge_type.as_bytes(),

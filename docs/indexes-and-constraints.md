@@ -196,6 +196,8 @@ Current guarantee:
 - Edge rows use typed source/target ids, `edge_type`, and non-negative numeric `weight`.
 - `graph_neighbors`, `graph_expand`, and `graph_shortest_path` are SQL table functions.
 - Adjacency sidecars are accelerators; edge row blobs remain authoritative.
+- Dropping a graph node or edge backing collection removes its outbound/inbound adjacency sidecars,
+  including replay after an interrupted schema commit.
 - EXPLAIN reports `access_path=graph_adjacency`, and `/metrics` reports graph traversal counters.
 
 Current limitation:

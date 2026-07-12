@@ -10,6 +10,10 @@ impl Midge {
         mut tx: cntryl_midge::Transaction,
         mut reports: BTreeMap<String, DocumentWriteBatchReport>,
         changed_collections: Vec<String>,
+        vector_records_by_collection: &BTreeMap<
+            String,
+            Vec<(String, Vec<crate::embeddings::NormalizedVectorRecord>)>,
+        >,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
         if changed_collections.is_empty() {
             tx.rollback().map_err(CassieError::from)?;
@@ -19,7 +23,11 @@ impl Midge {
         let mut generations = BTreeMap::new();
         for collection in &changed_collections {
             let generation = Self::increment_collection_generation_in_tx(&mut tx, collection)?;
-            self.stamp_normalized_vectors_generation_in_tx(&mut tx, collection, generation)?;
+            if let Some(records) = vector_records_by_collection.get(collection) {
+                Self::stamp_normalized_vectors_generation_in_tx(
+                    &mut tx, collection, generation, records,
+                )?;
+            }
             self.stamp_vector_index_states_generation_in_tx(&mut tx, collection, generation)?;
             Self::record_column_batch_maintenance_debt_in_tx(&mut tx, collection, generation)?;
             Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, collection, generation)?;

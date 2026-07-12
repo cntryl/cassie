@@ -334,6 +334,19 @@ pub use verification::{
     IntegrityCheckReport, RangeHashRecord, RootHashRecord, RowHashRecord, StoredHashState,
 };
 
+pub(crate) fn collect_scan(
+    scan: cntryl_midge::ScanIterator<'_>,
+) -> Result<Vec<RawStorageEntry>, CassieError> {
+    scan.try_collect()
+        .map(|entries| {
+            entries
+                .into_iter()
+                .map(|(key, value)| (key.to_vec(), value.to_vec()))
+                .collect()
+        })
+        .map_err(CassieError::from)
+}
+
 impl Midge {
     fn collection_schema_key(collection: &str) -> Vec<u8> {
         key_encoding::collection_schema_key(collection)
@@ -497,6 +510,10 @@ impl Midge {
 
     fn graph_key(name: &str) -> Vec<u8> {
         key_encoding::graph_key(name)
+    }
+
+    fn graph_adjacency_prefix(graph: &str) -> Vec<u8> {
+        key_encoding::graph_adjacency_prefix(graph)
     }
 
     fn graph_outbound_prefix(graph: &str, source_type: &str, source_id: &str) -> Vec<u8> {

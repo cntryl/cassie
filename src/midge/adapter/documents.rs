@@ -1,17 +1,16 @@
 use super::{
-    check_document_write_failure_point, decode_projected_row,
-    decode_projected_row_matching_with_aliases, decode_projected_row_with_aliases, decode_row,
-    encode_row, key_encoding, CassieError, ColumnStoreScanRequest, DataType, DocumentRef,
-    DocumentWriteFailurePoint, FieldConstraint, HashSet, IndexKind, IndexMeta, Instant, Midge,
-    MidgeScanTimings, Query, RowDecode, RowFilter, RowSchema, Schema, Uuid, WriteOptions,
+    check_document_write_failure_point, decode_row, encode_row, key_encoding, CassieError,
+    DataType, DocumentRef, DocumentWriteFailurePoint, FieldConstraint, IndexKind, IndexMeta, Midge,
+    NormalizedVectorRecord, RowSchema, Schema, Uuid, WriteOptions,
 };
 use std::collections::BTreeMap;
-use std::time::Duration;
 
 #[path = "documents/commit.rs"]
 mod commit;
 #[path = "documents/ordered_scan.rs"]
 mod ordered_scan;
+#[path = "documents/read.rs"]
+mod read;
 pub(crate) use ordered_scan::OrderedRowScanRequest;
 
 #[derive(Debug, Clone)]
@@ -73,6 +72,8 @@ struct PreparedWrite {
     payload: Option<serde_json::Value>,
     normalized_records: Vec<crate::embeddings::NormalizedVectorRecord>,
 }
+
+type VectorRecordsByField = Vec<(String, Vec<NormalizedVectorRecord>)>;
 
 struct DocumentWriteBatchContext {
     schema: Schema,
@@ -332,34 +333,35 @@ impl Midge {
             tx.set_conflict_policy(cntryl_midge::ConflictPolicy::AbortOnWriteConflict);
             let mut reports = BTreeMap::new();
             let mut changed_collections = Vec::new();
+            let mut vector_records_by_collection = BTreeMap::new();
 
             for (collection, context, prepared_collection) in prepared_writes {
-                let mut report = DocumentWriteBatchReport::default();
-                let normalized_vector_collection = options
-                    .normalized_vector_collection
-                    .as_deref()
-                    .and_then(|candidate| {
-                        (self.canonical_collection_name(candidate) == collection)
-                            .then_some(candidate)
-                    });
-                for prepared in prepared_collection {
-                    Self::apply_prepared_document_write(
-                        &mut tx,
-                        &collection,
-                        &context,
-                        prepared,
-                        normalized_vector_collection,
-                        &mut report,
-                    )?;
-                }
+                let (report, vector_records) = self.apply_prepared_collection_writes(
+                    &mut tx,
+                    &collection,
+                    &context,
+                    prepared_collection,
+                    options,
+                )?;
                 if report_has_changes(&report) {
-                    Self::refresh_vector_index_states_in_tx(&mut tx, &context.vector_indexes)?;
+                    Self::refresh_vector_index_states_in_tx(
+                        &mut tx,
+                        &context.vector_indexes,
+                        &vector_records,
+                    )?;
+                    vector_records_by_collection.insert(collection.clone(), vector_records);
                     changed_collections.push(collection.clone());
                 }
                 reports.insert(collection, report);
             }
 
-            match self.finish_document_write_batches(options, tx, reports, changed_collections) {
+            match self.finish_document_write_batches(
+                options,
+                tx,
+                reports,
+                changed_collections,
+                &vector_records_by_collection,
+            ) {
                 Ok(reports) => return Ok(reports),
                 Err(error)
                     if attempts < 8
@@ -368,6 +370,48 @@ impl Midge {
                 Err(error) => return Err(error),
             }
         }
+    }
+
+    fn apply_prepared_collection_writes(
+        &self,
+        tx: &mut cntryl_midge::Transaction,
+        collection: &str,
+        context: &DocumentWriteBatchContext,
+        prepared_collection: Vec<PreparedWrite>,
+        options: &DocumentWriteBatchOptions,
+    ) -> Result<(DocumentWriteBatchReport, VectorRecordsByField), CassieError> {
+        let mut report = DocumentWriteBatchReport::default();
+        let normalized_vector_collection = options
+            .normalized_vector_collection
+            .as_deref()
+            .and_then(|candidate| {
+                (self.canonical_collection_name(candidate) == collection).then_some(candidate)
+            });
+        let mut vector_records = self.normalized_vector_records_after_prepared_writes(
+            &context.vector_indexes,
+            &prepared_collection,
+        )?;
+        if let Some(display_collection) = normalized_vector_collection {
+            for (_, records) in &mut vector_records {
+                for record in records {
+                    record.collection = display_collection.to_string();
+                }
+            }
+        }
+        for prepared in prepared_collection {
+            Self::apply_prepared_document_write(
+                tx,
+                collection,
+                context,
+                prepared,
+                normalized_vector_collection,
+                &mut report,
+            )?;
+        }
+        if report_has_changes(&report) {
+            Self::refresh_vector_index_states_in_tx(tx, &context.vector_indexes, &vector_records)?;
+        }
+        Ok((report, vector_records))
     }
 
     fn document_write_batch_context(
@@ -478,6 +522,36 @@ impl Midge {
             }
         }
         Ok(prepared)
+    }
+
+    fn normalized_vector_records_after_prepared_writes(
+        &self,
+        indexes: &[crate::embeddings::VectorIndexRecord],
+        prepared: &[PreparedWrite],
+    ) -> Result<Vec<(String, Vec<NormalizedVectorRecord>)>, CassieError> {
+        indexes
+            .iter()
+            .map(|index| {
+                let mut records = self.normalized_vector_records_for_index(index)?;
+                for write in prepared {
+                    records.retain(|record| record.id != write.id);
+                    if let Some(payload) = write.payload.as_ref() {
+                        if let Some(record) = Self::normalized_vector_record_from_value(
+                            &index.collection,
+                            &index.field,
+                            &write.id,
+                            index.metadata.dimensions,
+                            index.metadata.metric,
+                            payload.get(&index.field),
+                        )? {
+                            records.push(record);
+                        }
+                    }
+                }
+                records.sort_by(|left, right| left.id.cmp(&right.id));
+                Ok((index.field.clone(), records))
+            })
+            .collect()
     }
 
     fn apply_prepared_document_write(
@@ -872,302 +946,6 @@ impl Midge {
                 .saturating_add(time_series_puts)
                 .saturating_add(graph_puts),
         ))
-    }
-
-    pub(crate) fn flush_data_family(&self) -> Result<(), CassieError> {
-        let family = self.database_family(&self.default_database)?;
-        self.engine.flush_cf(&family).map_err(CassieError::from)
-    }
-
-    /// Returns the durable data epoch, or zero before the first changed write.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the persisted epoch is malformed or cannot be read.
-    pub fn data_epoch(&self) -> Result<u64, CassieError> {
-        let tx = self.database_tx(
-            &self.default_database,
-            cntryl_midge::TransactionMode::ReadOnly,
-        )?;
-        Self::load_data_epoch_from_tx(&tx)
-    }
-
-    pub(crate) fn data_epoch_for_database(&self, database: &str) -> Result<u64, CassieError> {
-        let tx = self.database_tx(database, cntryl_midge::TransactionMode::ReadOnly)?;
-        Self::load_data_epoch_from_tx(&tx)
-    }
-
-    fn load_data_epoch_from_tx(tx: &cntryl_midge::Transaction) -> Result<u64, CassieError> {
-        let Some(raw) = tx.get(&Self::data_epoch_key()).map_err(CassieError::from)? else {
-            return Ok(0);
-        };
-        let bytes: [u8; 8] = raw
-            .as_ref()
-            .try_into()
-            .map_err(|_| CassieError::Parse("invalid persisted data epoch".to_string()))?;
-        Ok(u64::from_be_bytes(bytes))
-    }
-
-    /// Returns the durable generation for a collection, or zero before its first changed write.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the persisted generation is malformed or cannot be read.
-    pub fn collection_generation(&self, collection: &str) -> Result<u64, CassieError> {
-        let collection = self.canonical_collection_name(collection);
-        let tx = self.begin_data_readonly_tx_for(&collection)?;
-        let Some(raw) = tx
-            .get(&Self::collection_generation_key(&collection))
-            .map_err(CassieError::from)?
-        else {
-            return Ok(0);
-        };
-        let bytes: [u8; 8] = raw.as_ref().try_into().map_err(|_| {
-            CassieError::Parse("invalid persisted collection generation".to_string())
-        })?;
-        Ok(u64::from_be_bytes(bytes))
-    }
-
-    pub(super) fn increment_data_epoch_in_tx(
-        tx: &mut cntryl_midge::Transaction,
-    ) -> Result<u64, CassieError> {
-        let next = match tx.get(&Self::data_epoch_key()).map_err(CassieError::from)? {
-            Some(raw) => {
-                let bytes: [u8; 8] = raw
-                    .as_ref()
-                    .try_into()
-                    .map_err(|_| CassieError::Parse("invalid persisted data epoch".to_string()))?;
-                u64::from_be_bytes(bytes).wrapping_add(1)
-            }
-            None => 1,
-        };
-        tx.put(Self::data_epoch_key(), next.to_be_bytes().to_vec(), None)
-            .map_err(CassieError::from)?;
-        Ok(next)
-    }
-
-    pub(super) fn increment_collection_generation_in_tx(
-        tx: &mut cntryl_midge::Transaction,
-        collection: &str,
-    ) -> Result<u64, CassieError> {
-        let key = Self::collection_generation_key(collection);
-        let next = match tx.get(&key).map_err(CassieError::from)? {
-            Some(raw) => {
-                let bytes: [u8; 8] = raw.as_ref().try_into().map_err(|_| {
-                    CassieError::Parse("invalid persisted collection generation".to_string())
-                })?;
-                u64::from_be_bytes(bytes).wrapping_add(1)
-            }
-            None => 1,
-        };
-        tx.put(key, next.to_be_bytes().to_vec(), None)
-            .map_err(CassieError::from)?;
-        Ok(next)
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
-    pub fn scan_documents_batched(
-        &self,
-        collection: &str,
-        batch_size: usize,
-    ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
-        self.scan_rows_batched(collection, batch_size, RowDecode::Full, None, None)
-            .map(|(rows, _)| rows)
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
-    pub fn scan_rows_for_rebuild(
-        &self,
-        collection: &str,
-        decode: RowDecode,
-    ) -> Result<Vec<DocumentRef>, CassieError> {
-        self.scan_rows_batched(collection, 1024, decode, None, None)
-            .map(|(batches, _)| batches.into_iter().flatten().collect())
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
-    pub fn scan_rows_batched_limit(
-        &self,
-        collection: &str,
-        batch_size: usize,
-        decode: RowDecode,
-        limit: Option<usize>,
-    ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
-        self.scan_rows_batched(collection, batch_size, decode, None, limit)
-            .map(|(rows, _)| rows)
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
-    pub fn scan_rows_batched_limit_with_timings(
-        &self,
-        collection: &str,
-        batch_size: usize,
-        decode: RowDecode,
-        limit: Option<usize>,
-    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
-        self.scan_rows_batched(collection, batch_size, decode, None, limit)
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
-    pub fn scan_projected_rows_batched_filter_limit_with_timings(
-        &self,
-        collection: &str,
-        batch_size: usize,
-        fields: Vec<String>,
-        filter: Option<&RowFilter>,
-        limit: Option<usize>,
-    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
-        self.scan_rows_batched(
-            collection,
-            batch_size,
-            RowDecode::ProjectedHistorical(fields),
-            filter,
-            limit,
-        )
-    }
-
-    pub(super) fn scan_rows_batched(
-        &self,
-        collection: &str,
-        batch_size: usize,
-        decode: RowDecode,
-        filter: Option<&RowFilter>,
-        limit: Option<usize>,
-    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
-        let collection = self.canonical_collection_name(collection);
-        let scan_started = Instant::now();
-        let mut row_decode = Duration::ZERO;
-        let row_schema = self.row_schema(&collection)?;
-        let (projection, include_historical_aliases) = decode.into_projection();
-
-        let tx = self.begin_data_readonly_tx_for(&collection)?;
-        let batch_size = batch_size.max(1);
-        let limit = limit.unwrap_or(usize::MAX);
-        if self.collection_uses_column_store(&collection)? {
-            return Self::scan_column_store_rows_batched(
-                &tx,
-                ColumnStoreScanRequest {
-                    collection: &collection,
-                    row_schema: &row_schema,
-                    batch_size,
-                    projection: projection.as_ref(),
-                    filter,
-                    limit,
-                },
-            );
-        }
-        let mut results = Vec::new();
-        if limit == 0 {
-            return Ok((
-                results,
-                MidgeScanTimings {
-                    scan: scan_started.elapsed(),
-                    row_decode,
-                },
-            ));
-        }
-        let mut current = Vec::with_capacity(batch_size);
-        let mut seen_ids = HashSet::new();
-        let mut emitted = 0usize;
-
-        for (prefix, include_seen) in [
-            (Self::row_prefix(&collection), true),
-            (Self::doc_prefix(&collection), false),
-        ] {
-            let iter = tx
-                .scan(&Query::new().prefix(prefix.clone().into()))
-                .map_err(CassieError::from)?;
-            for (raw_key, raw_value) in iter {
-                let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &prefix) else {
-                    continue;
-                };
-                if id.is_empty() || (!include_seen && seen_ids.contains(&id)) {
-                    continue;
-                }
-                seen_ids.insert(id.clone());
-
-                let decode_started = Instant::now();
-                let payload = match (projection.as_ref(), filter) {
-                    (Some(projection), Some(filter)) => decode_projected_row_matching_with_aliases(
-                        &row_schema,
-                        &raw_value,
-                        projection,
-                        &filter.field,
-                        &filter.value,
-                        include_historical_aliases,
-                    )?,
-                    (Some(projection), None) => Some(if include_historical_aliases {
-                        decode_projected_row_with_aliases(&row_schema, &raw_value, projection)?
-                    } else {
-                        decode_projected_row(&row_schema, &raw_value, projection)?
-                    }),
-                    (None, _) => Some(decode_row(&row_schema, &raw_value)?),
-                };
-                row_decode += decode_started.elapsed();
-                let Some(payload) = payload else {
-                    continue;
-                };
-                current.push(DocumentRef { id, payload });
-                emitted += 1;
-                if current.len() >= batch_size {
-                    results.push(current);
-                    current = Vec::with_capacity(batch_size);
-                }
-                if emitted >= limit {
-                    if !current.is_empty() {
-                        results.push(current);
-                    }
-                    return Ok((
-                        results,
-                        MidgeScanTimings {
-                            scan: scan_started.elapsed().saturating_sub(row_decode),
-                            row_decode,
-                        },
-                    ));
-                }
-            }
-        }
-
-        if !current.is_empty() {
-            results.push(current);
-        }
-
-        Ok((
-            results,
-            MidgeScanTimings {
-                scan: scan_started.elapsed().saturating_sub(row_decode),
-                row_decode,
-            },
-        ))
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
-    pub fn scan_documents(&self, collection: &str) -> Result<Vec<DocumentRef>, CassieError> {
-        self.scan_documents_batched(collection, 1024)
-            .map(|batches| batches.into_iter().flatten().collect())
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
-    pub fn all_fields_json(
-        &self,
-        collection: &str,
-    ) -> Result<Vec<(String, serde_json::Value)>, CassieError> {
-        self.scan_documents(collection)
-            .map(|docs| docs.into_iter().map(|doc| (doc.id, doc.payload)).collect())
     }
 
     pub(super) fn validate_document(

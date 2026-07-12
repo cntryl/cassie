@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
-    key_encoding, CassieError, ColumnFamilyHandle, DatabaseMeta, Midge, Query, RawStorageEntry,
-    TransactionMode, WriteOptions,
+    collect_scan, key_encoding, CassieError, ColumnFamilyHandle, DatabaseMeta, Midge, Query,
+    RawStorageEntry, TransactionMode, WriteOptions,
 };
 
 /// The resolved physical owner of one logical database.
@@ -76,9 +76,10 @@ impl Midge {
         schema: &ColumnFamilyHandle,
     ) -> Result<(), CassieError> {
         let tx = self.begin_schema_tx_for_handle(schema, TransactionMode::ReadOnly)?;
-        let entries = tx
-            .scan(&Query::new().prefix(key_encoding::database_lifecycle_prefix().into()))
-            .map_err(CassieError::from)?;
+        let entries = collect_scan(
+            tx.scan(&Query::new().prefix(key_encoding::database_lifecycle_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
         let mut records = Vec::new();
         for (_key, value) in entries {
             let record: DatabaseLifecycleRecord =
@@ -146,9 +147,10 @@ impl Midge {
         let tx = self.begin_schema_tx_for_handle(schema, TransactionMode::ReadOnly)?;
         let mut names = Self::load_databases(&tx)?;
         if names.is_empty() {
-            let scan = tx
-                .scan(&Query::new().prefix(Self::database_prefix().into()))
-                .map_err(CassieError::from)?;
+            let scan = collect_scan(
+                tx.scan(&Query::new().prefix(Self::database_prefix().into()))
+                    .map_err(CassieError::from)?,
+            )?;
             for (_key, raw_value) in scan {
                 if let Ok(metadata) = serde_json::from_slice::<DatabaseMeta>(&raw_value) {
                     names.push(metadata.name);
@@ -275,9 +277,8 @@ impl Midge {
             .engine
             .begin_tx(handle.id(), TransactionMode::ReadOnly)
             .map_err(CassieError::from)?;
-        let has_data = data_tx
-            .scan(&Query::new())
-            .map_err(CassieError::from)?
+        let has_data = collect_scan(data_tx.scan(&Query::new()).map_err(CassieError::from)?)?
+            .into_iter()
             .any(|(key, _)| is_database_data_key(&key));
         if has_data {
             return Err(CassieError::Unsupported(format!(
@@ -636,9 +637,10 @@ impl Midge {
         let tx = self.begin_schema_readonly_tx()?;
         let mut names = Self::load_databases(&tx)?;
         if names.is_empty() {
-            let scan = tx
-                .scan(&Query::new().prefix(Self::database_prefix().into()))
-                .map_err(CassieError::from)?;
+            let scan = collect_scan(
+                tx.scan(&Query::new().prefix(Self::database_prefix().into()))
+                    .map_err(CassieError::from)?,
+            )?;
             let prefix = Self::database_prefix();
             for (raw_key, raw_value) in scan {
                 if let Ok(metadata) = serde_json::from_slice::<DatabaseMeta>(&raw_value) {

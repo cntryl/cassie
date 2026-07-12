@@ -198,6 +198,9 @@ fn should_recover_add_column_column_batch_debt_after_restart() {
 #[test]
 fn should_recover_add_column_projection_hash_debt_after_restart() {
     // Arrange
+    let _failpoint_guard = COLUMN_BATCH_FAILPOINT_GUARD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     with_fallback();
     let path = data_dir("derived_state_add_column_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");

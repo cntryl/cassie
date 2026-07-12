@@ -1,6 +1,6 @@
 use super::{
-    check_document_write_failure_point, key_encoding, CassieError, DocumentWriteFailurePoint,
-    Midge, RowDecode,
+    check_document_write_failure_point, collect_scan, key_encoding, CassieError,
+    DocumentWriteFailurePoint, Midge, RowDecode,
 };
 use crate::catalog::{IndexKind, IndexMeta};
 use crate::executor::filter;
@@ -175,7 +175,7 @@ impl Midge {
             query = query.reverse();
         }
 
-        let scan = tx.scan(&query).map_err(CassieError::from)?;
+        let scan = collect_scan(tx.scan(&query).map_err(CassieError::from)?)?;
         let mut hits = Vec::new();
         let limit = request.limit.unwrap_or(usize::MAX);
 

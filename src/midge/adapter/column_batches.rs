@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
 
 use super::{
-    CassieError, ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchFieldSummary,
+    collect_scan, CassieError, ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchFieldSummary,
     ColumnBatchMetadata, ColumnBatchPayload, ColumnBatchRow, ColumnBatchScanDecision,
     ColumnBatchScanFallbackReason, ColumnBatchScanFilter, ColumnBatchScanOp,
     ColumnBatchScanOutcome, ColumnBatchScanPredicate, ColumnBatchSegmentMeta, ColumnBatchValueRun,
@@ -393,9 +393,10 @@ impl Midge {
         tx: &mut cntryl_midge::Transaction,
         prefix: Vec<u8>,
     ) -> Result<(), CassieError> {
-        let scan = tx
-            .scan(&Query::new().prefix(prefix.into()))
-            .map_err(CassieError::from)?;
+        let scan = collect_scan(
+            tx.scan(&Query::new().prefix(prefix.into()))
+                .map_err(CassieError::from)?,
+        )?;
         let mut keys = Vec::new();
         for (key, _) in scan {
             keys.push(key);

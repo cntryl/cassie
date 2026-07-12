@@ -99,6 +99,11 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     visible, including restart replay after an interrupted publication.
   - [x] Drop-index cleanup removes scalar/time-series sidecars before metadata and retries safely
     after an injected metadata-interruption failure.
+  - [x] Add-column journals publish the schema commit before generation-bound column-batch and
+    projection-hash debt, replay both artifacts idempotently after restart, and clear the intent
+    only after derived state is current.
+  - [x] Dropping a graph backing collection removes its outbound/inbound adjacency sidecars during
+    replay, including after an interrupted schema commit, without leaving orphaned edges.
 - [x] Make snapshot capture consistency executable, not documentation-only.
   - [x] Test a source mutation during copy and require retry/failure without leaving a usable
     partial snapshot.

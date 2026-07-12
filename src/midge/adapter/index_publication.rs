@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{CassieError, IndexKind, IndexMeta, Midge, Query, WriteOptions};
+use super::{collect_scan, CassieError, IndexKind, IndexMeta, Midge, Query, WriteOptions};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 enum IndexPublicationState {
@@ -17,9 +17,10 @@ struct PendingIndexPublication {
 impl Midge {
     pub(crate) fn validate_pending_index_publications(&self) -> Result<(), CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
-        let entries = tx
-            .scan(&Query::new().prefix(Self::index_publication_prefix().into()))
-            .map_err(CassieError::from)?;
+        let entries = collect_scan(
+            tx.scan(&Query::new().prefix(Self::index_publication_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
         for (_key, raw) in entries {
             serde_json::from_slice::<PendingIndexPublication>(&raw).map_err(|error| {
                 CassieError::Parse(format!("invalid index publication: {error}"))
@@ -51,9 +52,10 @@ impl Midge {
     /// Returns an error when a pending record cannot be read, rebuilt, or published.
     pub fn replay_pending_index_publications(&self) -> Result<(), CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
-        let entries = tx
-            .scan(&Query::new().prefix(Self::index_publication_prefix().into()))
-            .map_err(CassieError::from)?;
+        let entries = collect_scan(
+            tx.scan(&Query::new().prefix(Self::index_publication_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
         let mut pending = entries
             .into_iter()
             .map(|(_, raw)| {

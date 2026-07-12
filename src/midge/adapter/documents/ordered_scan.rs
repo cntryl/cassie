@@ -3,10 +3,9 @@ use std::time::{Duration, Instant};
 
 use crate::midge::adapter::OrderedColumnStoreScanRequest;
 
-use super::super::OrderedRowBound;
-use super::{
+use super::super::{
     decode_projected_row, decode_projected_row_with_aliases, decode_row, key_encoding, CassieError,
-    DocumentRef, Midge, MidgeScanTimings, Query, RowDecode, RowSchema,
+    DocumentRef, Midge, MidgeScanTimings, OrderedRowBound, Query, RowDecode, RowSchema,
 };
 
 fn empty_scan_result(started: Instant) -> (Vec<Vec<DocumentRef>>, MidgeScanTimings) {
@@ -61,8 +60,8 @@ enum OrderedScanSelection {
 struct OrderedScanSources {
     row_prefix: Vec<u8>,
     doc_prefix: Vec<u8>,
-    row_iter: cntryl_midge::ScanIterator,
-    doc_iter: cntryl_midge::ScanIterator,
+    row_iter: std::vec::IntoIter<(Vec<u8>, Vec<u8>)>,
+    doc_iter: std::vec::IntoIter<(Vec<u8>, Vec<u8>)>,
     row_next: Option<OrderedScanEntry>,
     doc_next: Option<OrderedScanEntry>,
 }
@@ -187,22 +186,28 @@ impl Midge {
     ) -> Result<OrderedScanSources, CassieError> {
         let row_prefix = Self::row_prefix(collection);
         let doc_prefix = Self::doc_prefix(collection);
-        let mut row_iter = tx
-            .scan(&Self::ordered_row_query(
+        let row_iter = crate::midge::adapter::collect_scan(
+            tx.scan(&Self::ordered_row_query(
                 &row_prefix,
                 start_bound,
                 end_bound,
                 reverse,
             ))
-            .map_err(CassieError::from)?;
-        let mut doc_iter = tx
-            .scan(&Self::ordered_row_query(
+            .map_err(CassieError::from)?,
+        )?
+        .into_iter();
+        let doc_iter = crate::midge::adapter::collect_scan(
+            tx.scan(&Self::ordered_row_query(
                 &doc_prefix,
                 start_bound,
                 end_bound,
                 reverse,
             ))
-            .map_err(CassieError::from)?;
+            .map_err(CassieError::from)?,
+        )?
+        .into_iter();
+        let mut row_iter = row_iter;
+        let mut doc_iter = doc_iter;
         let row_next = Self::ordered_next_entry(&mut row_iter, &row_prefix);
         let doc_next = Self::ordered_next_entry(&mut doc_iter, &doc_prefix);
         Ok(OrderedScanSources {
@@ -284,7 +289,7 @@ impl Midge {
     }
 
     fn ordered_next_entry(
-        iter: &mut cntryl_midge::ScanIterator,
+        iter: &mut impl Iterator<Item = (Vec<u8>, Vec<u8>)>,
         prefix: &[u8],
     ) -> Option<OrderedScanEntry> {
         for (raw_key, raw_value) in iter.by_ref() {

@@ -1,8 +1,9 @@
 use super::{
-    check_index_drop_failure_point, check_index_publication_failure_point, key_encoding,
-    payload_contains_index_membership, payload_contains_vector_membership, CassieError,
-    CollectionCardinalityStats, FieldConstraint, IndexKind, IndexMeta, Midge, ProjectionMeta,
-    Query, RetentionPolicyMeta, RoleMeta, RollupMeta, Schema, StorageFamily, WriteOptions,
+    check_index_drop_failure_point, check_index_publication_failure_point, collect_scan,
+    key_encoding, payload_contains_index_membership, payload_contains_vector_membership,
+    CassieError, CollectionCardinalityStats, FieldConstraint, IndexKind, IndexMeta, Midge,
+    ProjectionMeta, Query, RetentionPolicyMeta, RoleMeta, RollupMeta, Schema, StorageFamily,
+    WriteOptions,
 };
 use crate::catalog::name_matches;
 
@@ -37,9 +38,10 @@ impl Midge {
                 .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")));
         }
 
-        let entries = tx
-            .scan(&Query::new().prefix(Self::index_prefix().into()))
-            .map_err(CassieError::from)?;
+        let entries = collect_scan(
+            tx.scan(&Query::new().prefix(Self::index_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
         for (_key, raw_value) in entries {
             let Ok(record) = serde_json::from_slice::<IndexMeta>(&raw_value) else {
                 continue;
@@ -775,7 +777,10 @@ impl Midge {
         let Ok(tx) = self.begin_schema_readonly_tx() else {
             return Vec::new();
         };
-        let Ok(scan) = tx.scan(&Query::new().prefix(Self::schema_collection_prefix().into()))
+        let Ok(scan) = tx
+            .scan(&Query::new().prefix(Self::schema_collection_prefix().into()))
+            .map_err(CassieError::from)
+            .and_then(collect_scan)
         else {
             return Vec::new();
         };

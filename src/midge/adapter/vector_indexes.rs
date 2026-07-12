@@ -1,7 +1,7 @@
 use super::{
-    check_document_write_failure_point, normalize_vector, CassieError, DocumentWriteFailurePoint,
-    Midge, NormalizedVectorRecord, Query, StorageFamily, VectorIndexRecord, VectorIndexState,
-    WriteOptions,
+    check_document_write_failure_point, collect_scan, normalize_vector, CassieError,
+    DocumentWriteFailurePoint, Midge, NormalizedVectorRecord, Query, StorageFamily,
+    VectorIndexRecord, VectorIndexState, WriteOptions,
 };
 
 impl Midge {
@@ -113,10 +113,13 @@ impl Midge {
     pub(super) fn refresh_vector_index_states_in_tx(
         tx: &mut cntryl_midge::Transaction,
         indexes: &[VectorIndexRecord],
+        records_by_field: &[(String, Vec<NormalizedVectorRecord>)],
     ) -> Result<(), CassieError> {
         for index in indexes {
-            let records =
-                Self::normalized_vector_records_from_tx(tx, &index.collection, &index.field)?;
+            let records = records_by_field
+                .iter()
+                .find(|(field, _)| field == &index.field)
+                .map_or_else(Vec::new, |(_, records)| records.clone());
             let state = match index.metadata.index_type {
                 crate::embeddings::VectorIndexType::Hnsw => VectorIndexState {
                     built_generation: 0,
@@ -168,29 +171,17 @@ impl Midge {
     }
 
     pub(super) fn stamp_normalized_vectors_generation_in_tx(
-        &self,
         tx: &mut cntryl_midge::Transaction,
         collection: &str,
         built_generation: u64,
+        records_by_field: &[(String, Vec<NormalizedVectorRecord>)],
     ) -> Result<(), CassieError> {
-        for index in self
-            .list_vector_indexes_canonical()?
-            .into_iter()
-            .filter(|index| index.collection == collection)
-        {
-            let entries = tx
-                .scan(
-                    &Query::new()
-                        .prefix(Self::normalized_vector_prefix(collection, &index.field).into()),
-                )
-                .map_err(CassieError::from)?;
-            for (key, raw) in entries {
-                let Ok(mut record) = serde_json::from_slice::<NormalizedVectorRecord>(&raw) else {
-                    continue;
-                };
+        for (field, records) in records_by_field {
+            for record in records {
+                let mut record = record.clone();
                 record.built_generation = built_generation;
                 tx.put(
-                    key,
+                    Self::normalized_vector_key(collection, field, &record.id),
                     serde_json::to_vec(&record)
                         .map_err(|error| CassieError::Parse(error.to_string()))?,
                     None,
@@ -199,22 +190,6 @@ impl Midge {
             }
         }
         Ok(())
-    }
-
-    fn normalized_vector_records_from_tx(
-        tx: &cntryl_midge::Transaction,
-        collection: &str,
-        field: &str,
-    ) -> Result<Vec<NormalizedVectorRecord>, CassieError> {
-        let scan = tx
-            .scan(&Query::new().prefix(Self::normalized_vector_prefix(collection, field).into()))
-            .map_err(CassieError::from)?;
-        let mut records = scan
-            .into_iter()
-            .filter_map(|(_key, raw)| serde_json::from_slice(&raw).ok())
-            .collect::<Vec<NormalizedVectorRecord>>();
-        records.sort_by(|left, right| left.id.cmp(&right.id));
-        Ok(records)
     }
 
     fn write_vector_index_metadata(
@@ -392,9 +367,10 @@ impl Midge {
         tx: &mut cntryl_midge::Transaction,
         prefix: Vec<u8>,
     ) -> Result<(), CassieError> {
-        let scan = tx
-            .scan(&Query::new().prefix(prefix.into()))
-            .map_err(CassieError::from)?;
+        let scan = collect_scan(
+            tx.scan(&Query::new().prefix(prefix.into()))
+                .map_err(CassieError::from)?,
+        )?;
         let mut keys = Vec::new();
         for (key, _) in scan {
             keys.push(key);
@@ -437,7 +413,7 @@ impl Midge {
         Ok(records.len())
     }
 
-    fn normalized_vector_records_for_index(
+    pub(super) fn normalized_vector_records_for_index(
         &self,
         index: &VectorIndexRecord,
     ) -> Result<Vec<NormalizedVectorRecord>, CassieError> {

@@ -1,8 +1,8 @@
 use super::{
     check_collection_drop_failure_point, check_collection_rename_failure_point,
     check_field_add_failure_point, check_field_drop_failure_point,
-    check_field_rename_failure_point, key_encoding, CassieError,
-    CollectionMeta, FieldConstraint, FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta,
+    check_field_rename_failure_point, collect_scan, key_encoding, CassieError, CollectionMeta,
+    FieldConstraint, FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta,
     NormalizedVectorRecord, ProjectionMeta, Query, RetentionPolicyMeta, RowSchema, Schema,
     WriteOptions,
 };
@@ -112,7 +112,11 @@ impl Midge {
             }
         }
 
-        let Ok(scan) = tx.scan(&Query::new().prefix(Self::namespace_prefix().into())) else {
+        let Ok(scan) = tx
+            .scan(&Query::new().prefix(Self::namespace_prefix().into()))
+            .map_err(CassieError::from)
+            .and_then(collect_scan)
+        else {
             return Vec::new();
         };
 
@@ -198,9 +202,10 @@ impl Midge {
         let metadata: NamespaceMeta = serde_json::from_slice(&current_raw)
             .map_err(|error| CassieError::Parse(format!("invalid namespace metadata: {error}")))?;
         if namespaces.is_empty() {
-            let scan = tx
-                .scan(&Query::new().prefix(Self::namespace_prefix().into()))
-                .map_err(CassieError::from)?;
+            let scan = collect_scan(
+                tx.scan(&Query::new().prefix(Self::namespace_prefix().into()))
+                    .map_err(CassieError::from)?,
+            )?;
             let namespace_prefix = Self::namespace_prefix();
             for (raw_key, _raw_value) in scan {
                 if let Some(name) =
@@ -248,9 +253,11 @@ impl Midge {
         }
 
         let vector_prefix = Self::vector_index_collection_prefix(name);
-        let vector_indexes = schema_tx
-            .scan(&Query::new().prefix(vector_prefix.into()))
-            .map_err(CassieError::from)?;
+        let vector_indexes = collect_scan(
+            schema_tx
+                .scan(&Query::new().prefix(vector_prefix.into()))
+                .map_err(CassieError::from)?,
+        )?;
         let mut vector_keys = Vec::new();
         for (key, _value) in vector_indexes {
             vector_keys.push(key);
@@ -260,9 +267,11 @@ impl Midge {
         }
 
         let index_prefix = Self::index_collection_prefix(name);
-        let index_scan = schema_tx
-            .scan(&Query::new().prefix(index_prefix.into()))
-            .map_err(CassieError::from)?;
+        let index_scan = collect_scan(
+            schema_tx
+                .scan(&Query::new().prefix(index_prefix.into()))
+                .map_err(CassieError::from)?,
+        )?;
         let mut index_keys = Vec::new();
         for (key, _) in index_scan {
             index_keys.push(key);
@@ -270,9 +279,11 @@ impl Midge {
         for key in index_keys {
             schema_tx.delete(key).map_err(CassieError::from)?;
         }
-        let retention_scan = schema_tx
-            .scan(&Query::new().prefix(Self::retention_prefix().into()))
-            .map_err(CassieError::from)?;
+        let retention_scan = collect_scan(
+            schema_tx
+                .scan(&Query::new().prefix(Self::retention_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
         let mut retention_keys = Vec::new();
         for (key, value) in retention_scan {
             let Ok(policy) = serde_json::from_slice::<RetentionPolicyMeta>(&value) else {
@@ -315,9 +326,20 @@ impl Midge {
     }
 
     pub(super) fn delete_collection_data(&self, name: &str) -> Result<(), CassieError> {
+        let graph_adjacency_prefixes = self
+            .list_graphs()?
+            .into_iter()
+            .filter(|graph| {
+                crate::catalog::name_matches(&graph.node_collection, name)
+                    || crate::catalog::name_matches(name, &graph.node_collection)
+                    || crate::catalog::name_matches(&graph.edge_collection, name)
+                    || crate::catalog::name_matches(name, &graph.edge_collection)
+            })
+            .map(|graph| Self::graph_adjacency_prefix(&graph.name))
+            .collect::<Vec<_>>();
         let mut data_tx = self.begin_data_rw_tx_for(name)?;
         let mut document_keys = Vec::new();
-        for data_prefix in [
+        let mut data_prefixes = vec![
             Self::row_prefix(name),
             Self::doc_prefix(name),
             Self::scalar_index_collection_prefix(name),
@@ -330,10 +352,14 @@ impl Midge {
             Self::column_store_collection_prefix(name),
             Self::row_hash_prefix(name),
             Self::range_hash_prefix(name),
-        ] {
-            let documents = data_tx
-                .scan(&Query::new().prefix(data_prefix.into()))
-                .map_err(CassieError::from)?;
+        ];
+        data_prefixes.extend(graph_adjacency_prefixes);
+        for data_prefix in data_prefixes {
+            let documents = collect_scan(
+                data_tx
+                    .scan(&Query::new().prefix(data_prefix.into()))
+                    .map_err(CassieError::from)?,
+            )?;
             for (key, _value) in documents {
                 document_keys.push(key);
             }
@@ -342,9 +368,11 @@ impl Midge {
         for key in document_keys {
             data_tx.delete(key).map_err(CassieError::from)?;
         }
-        let debt_entries = data_tx
-            .scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
-            .map_err(CassieError::from)?;
+        let debt_entries = collect_scan(
+            data_tx
+                .scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
         for (key, value) in debt_entries {
             let collection_matches = serde_json::from_slice::<serde_json::Value>(&value)
                 .ok()
@@ -381,9 +409,7 @@ impl Midge {
         let collection = collection_storage.as_str();
         let write_gate = self.collection_write_gate(collection);
         let _write_guard = write_gate.lock();
-        let target_generation = self
-            .collection_generation(collection)?
-            .saturating_add(1);
+        let target_generation = self.collection_generation(collection)?.saturating_add(1);
         let mut tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(collection);
         let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
@@ -705,9 +731,10 @@ impl Midge {
         current_name: &str,
         next_name: &str,
     ) -> Result<(), CassieError> {
-        let entries = tx
-            .scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
-            .map_err(CassieError::from)?;
+        let entries = collect_scan(
+            tx.scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
         for (key, value) in entries {
             let Ok(mut debt) =
                 serde_json::from_slice::<super::maintenance::MaintenanceDebt>(&value)
@@ -736,9 +763,10 @@ impl Midge {
     /// Returns an error when a journal record cannot be read, replayed, or cleared.
     pub fn replay_pending_schema_operations(&self) -> Result<(), CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
-        let entries = tx
-            .scan(&Query::new().prefix(Self::schema_operation_prefix().into()))
-            .map_err(CassieError::from)?;
+        let entries = collect_scan(
+            tx.scan(&Query::new().prefix(Self::schema_operation_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
         let pending = entries
             .into_iter()
             .map(|(_, raw)| {
@@ -795,9 +823,10 @@ impl Midge {
 
     fn replay_pending_field_adds(&self) -> Result<(), CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
-        let entries = tx
-            .scan(&Query::new().prefix(Self::field_add_operation_prefix().into()))
-            .map_err(CassieError::from)?;
+        let entries = collect_scan(
+            tx.scan(&Query::new().prefix(Self::field_add_operation_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
         let pending = entries
             .into_iter()
             .map(|(_, raw)| {
@@ -846,9 +875,10 @@ impl Midge {
 
     fn replay_pending_field_renames(&self) -> Result<(), CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
-        let entries = tx
-            .scan(&Query::new().prefix(Self::field_rename_operation_prefix().into()))
-            .map_err(CassieError::from)?;
+        let entries = collect_scan(
+            tx.scan(&Query::new().prefix(Self::field_rename_operation_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
         let pending = entries
             .into_iter()
             .map(|(_, raw)| {
@@ -919,9 +949,10 @@ impl Midge {
 
     fn replay_pending_field_drops(&self) -> Result<(), CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
-        let entries = tx
-            .scan(&Query::new().prefix(Self::field_drop_operation_prefix().into()))
-            .map_err(CassieError::from)?;
+        let entries = collect_scan(
+            tx.scan(&Query::new().prefix(Self::field_drop_operation_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
         let pending = entries
             .into_iter()
             .map(|(_, raw)| {

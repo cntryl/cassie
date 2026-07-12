@@ -46,8 +46,6 @@ fn should_replay_add_column_derived_state_after_schema_commit_interruption() {
         )
         .expect("create column index");
     let collection = canonical_test_collection(&cassie, "field_add_recovery");
-    eprintln!("field add collection={collection} generation_before={}", cassie.midge.collection_generation(&collection).expect("generation before"));
-
     // Act
     set_field_add_failure_point(true);
     assert!(cassie
@@ -73,8 +71,6 @@ fn should_replay_add_column_derived_state_after_schema_commit_interruption() {
 
     let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
     restarted.startup().expect("replay field add");
-    eprintln!("field add schema ops after startup={:?}", restarted.midge.raw_scan_prefix(StorageFamily::Schema, b"").expect("schema scan").iter().filter(|(key, _)| String::from_utf8_lossy(key).contains("field-add")).map(|(key, _)| String::from_utf8_lossy(key).to_string()).collect::<Vec<_>>());
-    eprintln!("field add data keys after startup={:?}", restarted.midge.raw_scan_prefix(StorageFamily::Data, b"").expect("data scan").iter().filter(|(key, _)| String::from_utf8_lossy(key).contains("generation") || String::from_utf8_lossy(key).contains("root-hash")).map(|(key, value)| (String::from_utf8_lossy(key).to_string(), value.len())).collect::<Vec<_>>());
     let restarted_session = restarted.create_session("tester", None);
     let result = restarted
         .execute_sql(
@@ -92,12 +88,12 @@ fn should_replay_add_column_derived_state_after_schema_commit_interruption() {
         .midge
         .collection_generation(&collection)
         .expect("read collection generation");
-    eprintln!("field add generation_after={generation} root_generation={}", root.built_generation);
     let metadata = restarted
         .midge
         .get_column_batch_metadata(&collection, "field_add_recovery_cover")
         .expect("read rebuilt column batches")
         .expect("column batches after replay");
+    drop(restarted);
     let restarted_again = Cassie::new_with_data_dir(&path).expect("reopen Cassie again");
     restarted_again
         .startup()
@@ -255,6 +251,86 @@ fn should_replay_drop_collection_cleanup_after_schema_commit() {
         .midge
         .collection_schema("drop_recovery")
         .is_none());
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_replay_drop_graph_collection_cleanup_without_orphaned_adjacency() {
+    // Arrange
+    with_fallback();
+    let _failpoint_guard = COLLECTION_DROP_FAILPOINT_GUARD.lock().unwrap();
+    let path = data_dir("schema_operation_drop_graph_recovery");
+    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    cassie.startup().expect("start Cassie");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE GRAPH drop_graph_recovery (NODES (label TEXT), EDGES (source TEXT))",
+            vec![],
+        )
+        .expect("create graph");
+    cassie
+        .execute_sql(
+            &session,
+            "INSERT INTO drop_graph_recovery_nodes (node_type, node_id, label) VALUES ('person', 'alice', 'Alice'), ('person', 'bob', 'Bob')",
+            vec![],
+        )
+        .expect("seed graph nodes");
+    cassie
+        .execute_sql(
+            &session,
+            "INSERT INTO drop_graph_recovery_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight, source) VALUES ('e1', 'person', 'alice', 'person', 'bob', 'knows', 1, 'direct')",
+            vec![],
+        )
+        .expect("seed graph edge");
+    let before_drop = cassie
+        .execute_sql(
+            &session,
+            "SELECT edge_id FROM graph_neighbors('drop_graph_recovery', 'person', 'alice', 'out', 'knows', 10)",
+            vec![],
+        )
+        .expect("read graph adjacency before drop");
+    assert_eq!(before_drop.rows.len(), 1);
+    let edge_collection = canonical_test_collection(&cassie, "drop_graph_recovery_edges");
+    cassie
+        .midge
+        .defer_drop_collection(&edge_collection, 0)
+        .expect("defer graph edge collection drop");
+    set_collection_drop_failure_point(true);
+
+    // Act
+    assert!(cassie
+        .run_deferred_schema_cleanup_for_diagnostics()
+        .is_err());
+    drop(cassie);
+    let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+    restarted.startup().expect("replay graph collection drop");
+    let restarted_session = restarted.create_session("tester", None);
+    let after_drop = restarted
+        .execute_sql(
+            &restarted_session,
+            "SELECT edge_id FROM graph_neighbors('drop_graph_recovery', 'person', 'alice', 'out', 'knows', 10)",
+            vec![],
+        )
+        .expect("read graph adjacency after drop");
+    drop(restarted);
+    let restarted_again = Cassie::new_with_data_dir(&path).expect("reopen Cassie again");
+    restarted_again
+        .startup()
+        .expect("replay graph collection drop idempotently");
+
+    // Assert
+    assert!(after_drop.rows.is_empty());
+    let after_second_restart = restarted_again
+        .execute_sql(
+            &restarted_again.create_session("tester", None),
+            "SELECT edge_id FROM graph_neighbors('drop_graph_recovery', 'person', 'alice', 'out', 'knows', 10)",
+            vec![],
+        )
+        .expect("read graph adjacency after second restart");
+    assert!(after_second_restart.rows.is_empty());
 
     let _ = std::fs::remove_dir_all(path);
 }

@@ -3,6 +3,14 @@ use cntryl_lexkey::{Encoder, LexKey};
 use crate::app::CassieError;
 use crate::catalog::split_identifier_path;
 
+#[path = "key_encoding/graph.rs"]
+mod graph;
+
+pub(super) use graph::{
+    graph_adjacency_prefix, graph_inbound_edge_key, graph_inbound_prefix, graph_key,
+    graph_outbound_edge_key, graph_outbound_prefix, graph_prefix,
+};
+
 pub(super) const LAYOUT_VERSION: &str = "5";
 pub(super) const LAYOUT_MARKER_VALUE: &[u8] = b"cassie-midge-lexkey-v5";
 
@@ -635,79 +643,6 @@ pub(super) fn retention_prefix() -> Vec<u8> {
 pub(super) fn retention_key(name: &str) -> Vec<u8> {
     let normalized = name.trim().to_ascii_lowercase();
     scoped_key(FAMILY_RETENTION, &normalized, &[])
-}
-
-pub(super) fn graph_prefix() -> Vec<u8> {
-    prefix(FAMILY_GRAPH, &[])
-}
-
-pub(super) fn graph_key(name: &str) -> Vec<u8> {
-    let normalized = name.trim().to_ascii_lowercase();
-    scoped_key(FAMILY_GRAPH, &normalized, &[])
-}
-
-pub(super) fn graph_outbound_prefix(graph: &str, source_type: &str, source_id: &str) -> Vec<u8> {
-    data_scoped_prefix(
-        FAMILY_GRAPH_ADJACENCY,
-        graph,
-        &[b"out", source_type.as_bytes(), source_id.as_bytes()],
-    )
-}
-
-pub(super) fn graph_inbound_prefix(graph: &str, target_type: &str, target_id: &str) -> Vec<u8> {
-    data_scoped_prefix(
-        FAMILY_GRAPH_ADJACENCY,
-        graph,
-        &[b"in", target_type.as_bytes(), target_id.as_bytes()],
-    )
-}
-
-pub(super) fn graph_outbound_edge_key(
-    graph: &str,
-    source_type: &str,
-    source_id: &str,
-    edge_type: &str,
-    target_type: &str,
-    target_id: &str,
-    edge_id: &str,
-) -> Vec<u8> {
-    data_scoped_key(
-        FAMILY_GRAPH_ADJACENCY,
-        graph,
-        &[
-            b"out",
-            source_type.as_bytes(),
-            source_id.as_bytes(),
-            edge_type.as_bytes(),
-            target_type.as_bytes(),
-            target_id.as_bytes(),
-            edge_id.as_bytes(),
-        ],
-    )
-}
-
-pub(super) fn graph_inbound_edge_key(
-    graph: &str,
-    target_type: &str,
-    target_id: &str,
-    edge_type: &str,
-    source_type: &str,
-    source_id: &str,
-    edge_id: &str,
-) -> Vec<u8> {
-    data_scoped_key(
-        FAMILY_GRAPH_ADJACENCY,
-        graph,
-        &[
-            b"in",
-            target_type.as_bytes(),
-            target_id.as_bytes(),
-            edge_type.as_bytes(),
-            source_type.as_bytes(),
-            source_id.as_bytes(),
-            edge_id.as_bytes(),
-        ],
-    )
 }
 
 pub(super) fn utf8_suffix_after_prefix(key: &[u8], prefix: &[u8]) -> Option<String> {

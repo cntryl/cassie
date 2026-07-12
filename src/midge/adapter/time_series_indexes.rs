@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use time::{format_description::well_known::Rfc3339, Duration as TimeDuration, OffsetDateTime};
 
 use super::{
-    check_document_write_failure_point, decode_projected_row, encode_row, key_encoding,
-    CassieError, DocumentRef, DocumentWriteFailurePoint, Midge, RowDecode, Uuid,
+    check_document_write_failure_point, collect_scan, decode_projected_row, encode_row,
+    key_encoding, CassieError, DocumentRef, DocumentWriteFailurePoint, Midge, RowDecode, Uuid,
 };
 use crate::catalog::{IndexKind, IndexMeta};
 
@@ -226,11 +226,12 @@ impl Midge {
         }
 
         let tx = self.begin_data_readonly_tx_for(&index.collection)?;
-        let scan =
+        let scan = collect_scan(
             tx.scan(&Query::new().prefix(
                 Self::time_series_index_data_prefix(&index.collection, &index.name).into(),
             ))
-            .map_err(CassieError::from)?;
+            .map_err(CassieError::from)?,
+        )?;
         let mut seen_ids = std::collections::BTreeSet::new();
         let mut hits = Vec::new();
 
@@ -286,9 +287,10 @@ impl Midge {
             (Self::row_prefix(collection), true),
             (Self::doc_prefix(collection), false),
         ] {
-            let iter = tx
-                .scan(&Query::new().prefix(prefix.clone().into()))
-                .map_err(CassieError::from)?;
+            let iter = collect_scan(
+                tx.scan(&Query::new().prefix(prefix.clone().into()))
+                    .map_err(CassieError::from)?,
+            )?;
             for (raw_key, raw_value) in iter {
                 let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &prefix) else {
                     continue;

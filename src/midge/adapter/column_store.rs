@@ -1,7 +1,7 @@
 use super::{
-    key_encoding, CassieError, CollectionCardinalityStats, CollectionMeta, CollectionStorageMode,
-    DocumentRef, HashSet, Instant, Midge, MidgeScanTimings, OrderedRowBound, ProjectionMeta, Query,
-    RowFilter, RowSchema, Schema, WriteOptions,
+    collect_scan, key_encoding, CassieError, CollectionCardinalityStats, CollectionMeta,
+    CollectionStorageMode, DocumentRef, HashSet, Instant, Midge, MidgeScanTimings, OrderedRowBound,
+    ProjectionMeta, Query, RowFilter, RowSchema, Schema, WriteOptions,
 };
 use std::time::Duration;
 
@@ -294,9 +294,10 @@ impl Midge {
         let mut current = Vec::with_capacity(request.batch_size.max(1));
         let mut emitted = 0usize;
         let row_prefix = Self::column_store_row_prefix(request.collection);
-        let scan = tx
-            .scan(&Query::new().prefix(row_prefix.clone().into()))
-            .map_err(CassieError::from)?;
+        let scan = collect_scan(
+            tx.scan(&Query::new().prefix(row_prefix.clone().into()))
+                .map_err(CassieError::from)?,
+        )?;
 
         for (raw_key, _raw_value) in scan {
             let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &row_prefix) else {
@@ -369,9 +370,10 @@ impl Midge {
 
         let row_prefix = Self::column_store_row_prefix(request.collection);
         let mut ids = Vec::new();
-        let scan = tx
-            .scan(&Query::new().prefix(row_prefix.clone().into()))
-            .map_err(CassieError::from)?;
+        let scan = collect_scan(
+            tx.scan(&Query::new().prefix(row_prefix.clone().into()))
+                .map_err(CassieError::from)?,
+        )?;
         for (raw_key, _raw_value) in scan {
             let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &row_prefix) else {
                 continue;

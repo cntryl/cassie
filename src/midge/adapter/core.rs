@@ -6,6 +6,7 @@ use parking_lot::RwLock;
 use parking_lot::{Mutex, ReentrantMutex};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+use std::time::Duration;
 
 pub struct Midge {
     pub(super) engine: Engine,
@@ -14,6 +15,14 @@ pub struct Midge {
     pub(super) default_database: String,
     collection_write_gates: Mutex<HashMap<String, Arc<ReentrantMutex<()>>>>,
     referential_write_gate: ReentrantMutex<()>,
+}
+
+impl Drop for Midge {
+    fn drop(&mut self) {
+        if let Err(error) = self.engine.shutdown(Duration::from_secs(5)) {
+            tracing::warn!(%error, "Midge graceful shutdown did not complete");
+        }
+    }
 }
 
 impl Midge {
@@ -40,14 +49,20 @@ impl Midge {
         data_dir: impl AsRef<Path>,
         default_database: impl Into<String>,
     ) -> Result<Self, CassieError> {
-        let options = cntryl_midge::OpenOptions::local(data_dir.as_ref()).build();
+        let options = cntryl_midge::OpenOptions::local(data_dir.as_ref())
+            .build()
+            .map_err(CassieError::from)?;
 
         let engine = match Engine::open(options) {
             Ok(engine) => engine,
             Err(error) => {
                 if allow_memory_fallback() {
-                    Engine::open(cntryl_midge::OpenOptions::in_memory().build())
-                        .map_err(CassieError::from)?
+                    Engine::open(
+                        cntryl_midge::OpenOptions::in_memory()
+                            .build()
+                            .map_err(CassieError::from)?,
+                    )
+                    .map_err(CassieError::from)?
                 } else {
                     return Err(CassieError::from(error));
                 }
@@ -78,7 +93,9 @@ impl Midge {
         data_dir: impl AsRef<Path>,
         default_database: impl Into<String>,
     ) -> Result<Self, CassieError> {
-        let options = cntryl_midge::OpenOptions::local(data_dir.as_ref()).build();
+        let options = cntryl_midge::OpenOptions::local(data_dir.as_ref())
+            .build()
+            .map_err(CassieError::from)?;
         Ok(Self {
             engine: Engine::open(options).map_err(CassieError::from)?,
             storage_layout: OnceLock::new(),
@@ -186,10 +203,12 @@ impl Midge {
                 .begin_tx(family.id(), TransactionMode::ReadOnly)
                 .map_err(CassieError::from)?;
             for prefix in prefixes {
-                let mut scan = tx
+                let scan = tx
                     .scan(&Query::new().prefix(prefix.to_vec().into()))
+                    .map_err(CassieError::from)?
+                    .try_collect()
                     .map_err(CassieError::from)?;
-                if scan.next().is_some() {
+                if !scan.is_empty() {
                     return Err(CassieError::StorageBootstrap(format!(
                         "incompatible lexkey v{} storage layout: found legacy key prefix '{}' in {family_name}; recreate the Midge data directory",
                         key_encoding::LAYOUT_VERSION,

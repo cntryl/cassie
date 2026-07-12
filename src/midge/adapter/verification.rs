@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{encode_row, CassieError, Midge, ProjectionMeta, Query, RowSchema, WriteOptions};
+use super::{
+    collect_scan, encode_row, CassieError, Midge, ProjectionMeta, Query, RowSchema, WriteOptions,
+};
 
 const ROW_HASH_ALGORITHM: &str = "cassie-fnv128";
 const ROW_HASH_DIGEST_LENGTH: u16 = 16;
@@ -893,9 +895,10 @@ fn delete_keys_with_prefix_from_tx(
     tx: &mut cntryl_midge::Transaction,
     prefix: Vec<u8>,
 ) -> Result<(), CassieError> {
-    let scan = tx
-        .scan(&Query::new().prefix(prefix.into()))
-        .map_err(CassieError::from)?;
+    let scan = collect_scan(
+        tx.scan(&Query::new().prefix(prefix.into()))
+            .map_err(CassieError::from)?,
+    )?;
     let mut keys = Vec::new();
     for (key, _value) in scan {
         keys.push(key);

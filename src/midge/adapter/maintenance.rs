@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     check_column_batch_maintenance_failure_point, check_projection_hash_maintenance_failure_point,
-    CassieError, Midge, Query, WriteOptions,
+    collect_scan, CassieError, Midge, Query, WriteOptions,
 };
 
 const COLUMN_BATCH_ARTIFACT: &str = "column_batch";
@@ -196,9 +196,10 @@ impl Midge {
         let mut debts = Vec::new();
         for database in self.list_databases()? {
             let tx = self.database_tx(&database.name, cntryl_midge::TransactionMode::ReadOnly)?;
-            let entries = tx
-                .scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
-                .map_err(CassieError::from)?;
+            let entries = collect_scan(
+                tx.scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
+                    .map_err(CassieError::from)?,
+            )?;
             for (_key, raw) in entries {
                 let debt = serde_json::from_slice::<MaintenanceDebt>(&raw).map_err(|error| {
                     CassieError::Parse(format!("invalid maintenance debt: {error}"))
@@ -237,9 +238,10 @@ impl Midge {
         let mut debts = Vec::new();
         for database in self.list_databases()? {
             let tx = self.database_tx(&database.name, cntryl_midge::TransactionMode::ReadOnly)?;
-            let entries = tx
-                .scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
-                .map_err(CassieError::from)?;
+            let entries = collect_scan(
+                tx.scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
+                    .map_err(CassieError::from)?,
+            )?;
             debts.extend(
                 entries
                     .into_iter()

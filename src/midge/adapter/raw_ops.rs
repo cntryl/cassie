@@ -1,5 +1,6 @@
 use super::{
-    CassieError, Midge, Query, RawStorageEntry, StorageFamily, TransactionMode, WriteOptions,
+    collect_scan, CassieError, Midge, Query, RawStorageEntry, StorageFamily, TransactionMode,
+    WriteOptions,
 };
 
 impl Midge {
@@ -38,15 +39,11 @@ impl Midge {
         prefix: &[u8],
     ) -> Result<Vec<RawStorageEntry>, CassieError> {
         let tx = self.transaction(family, TransactionMode::ReadOnly)?;
-        let iterator = tx
-            .scan(&Query::new().prefix(prefix.to_vec().into()))
-            .map_err(CassieError::from)?;
-
-        let mut values = Vec::new();
-        for (key, value) in iterator {
-            values.push((key, value));
-        }
-        Ok(values)
+        let values = collect_scan(
+            tx.scan(&Query::new().prefix(prefix.to_vec().into()))
+                .map_err(CassieError::from)?,
+        );
+        values
     }
 
     /// # Errors
@@ -58,11 +55,11 @@ impl Midge {
         prefix: &[u8],
     ) -> Result<Vec<RawStorageEntry>, CassieError> {
         let tx = self.database_tx(database, TransactionMode::ReadOnly)?;
-        let iterator = tx
-            .scan(&Query::new().prefix(prefix.to_vec().into()))
-            .map_err(CassieError::from)?;
-
-        Ok(iterator.collect())
+        let values = collect_scan(
+            tx.scan(&Query::new().prefix(prefix.to_vec().into()))
+                .map_err(CassieError::from)?,
+        );
+        values
     }
 
     pub(crate) fn raw_scan_database_page(
@@ -79,8 +76,9 @@ impl Midge {
             query = query.start_key(after.to_vec().into());
         }
         let tx = self.database_tx(database, TransactionMode::ReadOnly)?;
-        let iterator = tx.scan(&query).map_err(CassieError::from)?;
-        Ok(iterator
+        let entries = collect_scan(tx.scan(&query).map_err(CassieError::from)?)?;
+        Ok(entries
+            .into_iter()
             .filter(|(key, _)| after.is_none_or(|cursor| key.as_slice() > cursor))
             .take(limit)
             .collect())
@@ -92,10 +90,11 @@ impl Midge {
         prefix: &[u8],
     ) -> Result<Vec<RawStorageEntry>, CassieError> {
         let tx = self.database_tx_for_collection(collection, TransactionMode::ReadOnly)?;
-        let iterator = tx
-            .scan(&Query::new().prefix(prefix.to_vec().into()))
-            .map_err(CassieError::from)?;
-        Ok(iterator.collect())
+        let values = collect_scan(
+            tx.scan(&Query::new().prefix(prefix.to_vec().into()))
+                .map_err(CassieError::from)?,
+        );
+        values
     }
 
     /// # Errors
@@ -107,15 +106,11 @@ impl Midge {
         prefix: &[u8],
     ) -> Result<Vec<RawStorageEntry>, CassieError> {
         let tx = self.transaction_by_name(family, TransactionMode::ReadOnly)?;
-        let iterator = tx
-            .scan(&Query::new().prefix(prefix.to_vec().into()))
-            .map_err(CassieError::from)?;
-
-        let mut values = Vec::new();
-        for (key, value) in iterator {
-            values.push((key, value));
-        }
-        Ok(values)
+        let values = collect_scan(
+            tx.scan(&Query::new().prefix(prefix.to_vec().into()))
+                .map_err(CassieError::from)?,
+        );
+        values
     }
 
     /// # Errors
@@ -123,9 +118,9 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn clear_temp_family(&self) -> Result<usize, CassieError> {
         let mut tx = self.temp_tx(TransactionMode::ReadWrite)?;
-        let iterator = tx.scan(&Query::new()).map_err(CassieError::from)?;
+        let entries = collect_scan(tx.scan(&Query::new()).map_err(CassieError::from)?)?;
         let mut keys = Vec::new();
-        for (raw_key, _) in iterator {
+        for (raw_key, _) in entries {
             keys.push(raw_key);
         }
 

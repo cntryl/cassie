@@ -1,6 +1,6 @@
 use super::{
-    decode_projected_row, decode_projected_row_with_aliases, decode_row, key_encoding, CassieError,
-    DocumentRef, HashSet, Midge, Query, RowDecode,
+    collect_scan, decode_projected_row, decode_projected_row_with_aliases, decode_row,
+    key_encoding, CassieError, DocumentRef, HashSet, Midge, Query, RowDecode,
 };
 
 impl Midge {
@@ -44,10 +44,11 @@ impl Midge {
             (Self::row_prefix(&collection), true),
             (Self::doc_prefix(&collection), false),
         ] {
-            let iter = tx
+            let scan = tx
                 .scan(&Query::new().prefix(prefix.clone().into()))
                 .map_err(CassieError::from)
                 .map_err(E::from)?;
+            let iter = collect_scan(scan).map_err(E::from)?;
             for (raw_key, raw_value) in iter {
                 let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &prefix) else {
                     continue;

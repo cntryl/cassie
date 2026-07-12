@@ -1,4 +1,4 @@
-use crate::midge::adapter::{DocumentWriteBatchOptions, DocumentWriteOp};
+use crate::midge::adapter::DocumentWriteOp;
 use std::collections::BTreeMap;
 
 use super::{
@@ -73,14 +73,8 @@ impl Cassie {
 
         let mut changed_collections = Vec::new();
         if !writes.is_empty() {
-            let has_rollup = writes
-                .keys()
-                .any(|collection| !self.catalog.list_rollups_for_source(collection).is_empty());
-            let options = if has_rollup {
-                DocumentWriteBatchOptions::sync().with_rollup_maintenance_debt()
-            } else {
-                DocumentWriteBatchOptions::sync()
-            };
+            let collection = writes.keys().next().expect("non-empty writes");
+            let options = self.document_write_options(collection);
             let reports = self
                 .midge
                 .apply_document_write_batches_with_options(&writes, &options)
@@ -111,6 +105,7 @@ impl Cassie {
         for collection in changed_collections {
             crate::executor::refresh_rollups_for_source_external(self, &collection, &controls)
                 .map_err(|error| CassieError::Execution(format!("{error:?}")))?;
+            let _ = crate::executor::mark_source_projections_stale_external(self, &collection);
         }
         session.commit_transaction();
         Ok(())

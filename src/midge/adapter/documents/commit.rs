@@ -34,6 +34,11 @@ impl Midge {
             if options.record_rollup_maintenance_debt {
                 Self::record_rollup_maintenance_debt_in_tx(&mut tx, collection, generation)?;
             }
+            if options.record_materialized_projection_maintenance_debt {
+                Self::record_materialized_projection_maintenance_debt_in_tx(
+                    &mut tx, collection, generation,
+                )?;
+            }
             generations.insert(collection.clone(), generation);
         }
         let epoch = Self::increment_data_epoch_in_tx(&mut tx)?;

@@ -56,6 +56,8 @@ mod cache;
 mod error;
 mod session;
 mod state;
+mod vector_write;
+mod write_options;
 
 use cache::{
     current_time_millis, NormalizedVectorCacheEntry, NormalizedVectorCacheKey, PlanCacheProvenance,

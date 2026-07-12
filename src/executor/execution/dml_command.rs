@@ -594,5 +594,5 @@ fn apply_write_side_effects(
     } else {
         super::rollups::mark_source_rollups_stale(cassie, table)?;
     }
-    super::materialized_projection::mark_source_projections_stale(cassie, table)
+    Ok(())
 }

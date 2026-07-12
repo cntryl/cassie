@@ -1,16 +1,19 @@
 use super::{
     check_document_write_failure_point, decode_row, encode_row, key_encoding, CassieError,
     DataType, DocumentRef, DocumentWriteFailurePoint, FieldConstraint, IndexKind, IndexMeta, Midge,
-    NormalizedVectorRecord, RowSchema, Schema, Uuid, WriteOptions,
+    NormalizedVectorRecord, RowSchema, Schema, Uuid,
 };
 use std::collections::BTreeMap;
 
 #[path = "documents/commit.rs"]
 mod commit;
+#[path = "documents/options.rs"]
+mod options;
 #[path = "documents/ordered_scan.rs"]
 mod ordered_scan;
 #[path = "documents/read.rs"]
 mod read;
+pub(crate) use options::DocumentWriteBatchOptions;
 pub(crate) use ordered_scan::OrderedRowScanRequest;
 
 #[derive(Debug, Clone)]
@@ -30,39 +33,6 @@ pub(crate) struct DocumentWriteBatchReport {
     pub row_delta: i64,
     pub stats: crate::runtime::ProjectionWriteStats,
     pub data_epoch: Option<u64>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct DocumentWriteBatchOptions {
-    pub commit: WriteOptions,
-    pub refresh_after_commit: bool,
-    pub normalized_vector_collection: Option<String>,
-    pub record_rollup_maintenance_debt: bool,
-}
-
-impl DocumentWriteBatchOptions {
-    pub(crate) fn sync() -> Self {
-        Self {
-            commit: WriteOptions::sync(),
-            refresh_after_commit: true,
-            normalized_vector_collection: None,
-            record_rollup_maintenance_debt: false,
-        }
-    }
-
-    pub(crate) fn buffered() -> Self {
-        Self {
-            commit: WriteOptions::buffered(),
-            refresh_after_commit: true,
-            normalized_vector_collection: None,
-            record_rollup_maintenance_debt: false,
-        }
-    }
-
-    pub(crate) fn with_rollup_maintenance_debt(mut self) -> Self {
-        self.record_rollup_maintenance_debt = true;
-        self
-    }
 }
 
 #[derive(Debug)]

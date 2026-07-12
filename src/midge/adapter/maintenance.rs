@@ -8,6 +8,7 @@ use super::{
 const COLUMN_BATCH_ARTIFACT: &str = "column_batch";
 const PROJECTION_HASH_ARTIFACT: &str = "projection_hash";
 pub(crate) const ROLLUP_ARTIFACT: &str = "rollup";
+pub(crate) const MATERIALIZED_PROJECTION_ARTIFACT: &str = "materialized_projection";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct MaintenanceDebt {
@@ -57,6 +58,19 @@ impl Midge {
         target_generation: u64,
     ) -> Result<(), CassieError> {
         Self::record_maintenance_debt_in_tx(tx, collection, ROLLUP_ARTIFACT, target_generation)
+    }
+
+    pub(super) fn record_materialized_projection_maintenance_debt_in_tx(
+        tx: &mut cntryl_midge::Transaction,
+        collection: &str,
+        target_generation: u64,
+    ) -> Result<(), CassieError> {
+        Self::record_maintenance_debt_in_tx(
+            tx,
+            collection,
+            MATERIALIZED_PROJECTION_ARTIFACT,
+            target_generation,
+        )
     }
 
     fn record_maintenance_debt_in_tx(
@@ -192,6 +206,32 @@ impl Midge {
         self.clear_maintenance_debt(collection, ROLLUP_ARTIFACT, target_generation)
     }
 
+    pub(crate) fn record_materialized_projection_maintenance_failure(
+        &self,
+        collection: &str,
+        target_generation: u64,
+        error: &CassieError,
+    ) -> Result<(), CassieError> {
+        self.record_maintenance_failure(
+            collection,
+            MATERIALIZED_PROJECTION_ARTIFACT,
+            target_generation,
+            error,
+        )
+    }
+
+    pub(crate) fn clear_materialized_projection_maintenance_debt(
+        &self,
+        collection: &str,
+        target_generation: u64,
+    ) -> Result<(), CassieError> {
+        self.clear_maintenance_debt(
+            collection,
+            MATERIALIZED_PROJECTION_ARTIFACT,
+            target_generation,
+        )
+    }
+
     pub(crate) fn list_maintenance_debt(&self) -> Result<Vec<MaintenanceDebt>, CassieError> {
         let mut debts = Vec::new();
         for database in self.list_databases()? {
@@ -282,6 +322,14 @@ impl Midge {
     #[doc(hidden)]
     pub fn has_rollup_maintenance_debt(&self, collection: &str) -> Result<bool, CassieError> {
         self.has_maintenance_debt(collection, ROLLUP_ARTIFACT)
+    }
+
+    #[doc(hidden)]
+    pub fn has_materialized_projection_maintenance_debt(
+        &self,
+        collection: &str,
+    ) -> Result<bool, CassieError> {
+        self.has_maintenance_debt(collection, MATERIALIZED_PROJECTION_ARTIFACT)
     }
 
     fn has_maintenance_debt(&self, collection: &str, artifact: &str) -> Result<bool, CassieError> {

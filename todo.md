@@ -81,6 +81,9 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     fallback reason.
   - [x] Rollup writes now use a source-scoped `rollup` debt record, a `maintenance_pending` read
     fence, catalog diagnostics, and startup retry/clear coverage.
+  - [x] Materialized and analytical source writes now persist a generation-bound
+    `materialized_projection` debt in the base-write transaction, fence reads while stale marking
+    is pending, and replay stale metadata idempotently after restart with retry/error diagnostics.
 - [ ] Complete schema-operation journal coverage.
   - Verify create/drop/rename collection, add/drop/rename field, and create/drop index behavior at
     every schema/data-family interruption point.

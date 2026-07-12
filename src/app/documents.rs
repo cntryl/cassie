@@ -2,10 +2,7 @@ use super::vector_helpers::project_payload_fields;
 use super::{
     BTreeMap, Cassie, CassieError, CassieSession, ConstraintCheck, ConstraintOperator, DocumentRef,
     FieldConstraint, Instant, MidgeScanTimings, RowDecode, RowFilter, TransactionRowChange, Uuid,
-    VectorIndexRecord,
 };
-use crate::midge::adapter::DocumentWriteBatchOptions;
-
 impl Cassie {
     /// # Errors
     ///
@@ -190,15 +187,6 @@ impl Cassie {
     fn refresh_runtime_data_epoch(&self) -> Result<(), CassieError> {
         self.runtime.set_data_epoch(self.midge.data_epoch()?);
         Ok(())
-    }
-
-    fn document_write_options(&self, collection: &str) -> DocumentWriteBatchOptions {
-        let options = DocumentWriteBatchOptions::sync();
-        if self.catalog.list_rollups_for_source(collection).is_empty() {
-            options
-        } else {
-            options.with_rollup_maintenance_debt()
-        }
     }
 
     pub(crate) fn referential_write_collections(&self, collection: &str) -> Vec<String> {
@@ -996,53 +984,6 @@ impl Cassie {
         }
 
         Ok(None)
-    }
-
-    fn apply_vector_indexes(
-        &self,
-        _collection: &str,
-        payload: &mut serde_json::Value,
-        indexes: &[VectorIndexRecord],
-    ) -> Result<(), CassieError> {
-        let object = payload.as_object_mut().ok_or_else(|| {
-            CassieError::InvalidEmbedding("document payload must be a JSON object".to_string())
-        })?;
-
-        for index in indexes {
-            self.validate_embedding_compatibility(index, None)?;
-
-            let source_value = object.get(&index.source_field).ok_or_else(|| {
-                CassieError::InvalidEmbedding(format!(
-                    "missing source field '{}' for vector index '{}' on collection '{}'",
-                    index.source_field, index.field, index.collection
-                ))
-            })?;
-
-            let source = if let Some(value) = source_value.as_str() {
-                value.to_string()
-            } else {
-                source_value.to_string()
-            };
-
-            let embedding = self
-                .embedding_provider
-                .embed_query(&source)
-                .map_err(CassieError::from)?;
-            Self::validate_embedding_payload(index, &embedding)?;
-
-            object.insert(
-                index.field.clone(),
-                serde_json::Value::Array(
-                    embedding
-                        .values
-                        .into_iter()
-                        .map(serde_json::Value::from)
-                        .collect(),
-                ),
-            );
-        }
-
-        Ok(())
     }
 
     pub(crate) fn refresh_projection_metadata(&self, collection: &str) -> Result<(), CassieError> {

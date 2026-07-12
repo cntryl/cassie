@@ -12,6 +12,7 @@ impl Cassie {
             return Ok(());
         }
 
+        let _ = crate::executor::mark_source_projections_stale_external(self, collection);
         if self.can_increment_cardinality_after_write(collection, row_delta, stats)? {
             self.increment_cardinality_stats(collection, row_delta)?;
         } else {

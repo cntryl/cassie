@@ -8,6 +8,8 @@ use super::{
 };
 use crate::midge::adapter::RootHashRecord;
 
+pub(super) use super::materialized_projection_maintenance::mark_source_projections_stale;
+
 pub(super) fn reject_write(cassie: &Cassie, relation: &str) -> Result<(), QueryError> {
     if cassie.catalog.is_materialized_projection(relation)
         || cassie
@@ -18,36 +20,6 @@ pub(super) fn reject_write(cassie: &Cassie, relation: &str) -> Result<(), QueryE
         return Err(QueryError::General(format!(
             "materialized projection '{relation}' is read-only"
         )));
-    }
-    Ok(())
-}
-
-pub(super) fn mark_source_projections_stale(
-    cassie: &Cassie,
-    source: &str,
-) -> Result<(), QueryError> {
-    for mut projection in cassie.catalog.list_projection_metadata() {
-        let Some(materialized) = projection.materialized.as_mut() else {
-            continue;
-        };
-        if !materialized
-            .source_collections
-            .iter()
-            .any(|candidate| candidate == source)
-        {
-            continue;
-        }
-        materialized.state = catalog::MaterializedProjectionState::Stale;
-        projection.freshness = catalog::ProjectionFreshness::Stale;
-        projection.hashes.rows.state = catalog::ProjectionVerificationState::Stale;
-        projection.hashes.ranges.state = catalog::ProjectionVerificationState::Stale;
-        projection.hashes.root.state = catalog::ProjectionVerificationState::Stale;
-        projection.verification.state = catalog::ProjectionVerificationState::Pending;
-        projection.lag = projection.lag.saturating_add(1);
-        cassie
-            .runtime
-            .record_projection_stale_mark(projection.collection.clone());
-        persist_projection_metadata(cassie, projection)?;
     }
     Ok(())
 }

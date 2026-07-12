@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use super::{Cassie, CassieError, CassieSession, TransactionRowChange, Uuid};
 use crate::catalog::FieldMeta;
-use crate::midge::adapter::{DocumentWriteBatchOptions, DocumentWriteOp};
+use crate::midge::adapter::DocumentWriteOp;
 use crate::sql::ast::{CopyFormat, CopyStatement};
 use crate::types::DataType;
 
@@ -94,15 +94,7 @@ impl Cassie {
         }
 
         let operations = copy_write_operations(writes)?;
-        let options = if self
-            .catalog
-            .list_rollups_for_source(&statement.table)
-            .is_empty()
-        {
-            DocumentWriteBatchOptions::buffered()
-        } else {
-            DocumentWriteBatchOptions::buffered().with_rollup_maintenance_debt()
-        };
+        let options = self.buffered_document_write_options(&statement.table);
         let report = self.midge.apply_document_write_batch_with_options(
             &statement.table,
             operations,

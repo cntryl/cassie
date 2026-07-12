@@ -34,7 +34,7 @@ The largest remaining gaps are production evidence and operational depth gaps, n
 ## Current Strengths
 
 - **Core read-model database:** SELECT, predicates, ordering, pagination, joins, aggregates, windows, DML, DDL, constraints, indexes, catalog views, and pgwire flows are implemented and tested.
-- **Projection lifecycle:** projection checkpoints, replay metadata, idempotent replay, materialized projections, versioned builds, active-version swaps, freshness, verification, and projection operations views exist as experimental Cassie-specific surfaces.
+- **Projection lifecycle:** projection checkpoints, replay metadata, idempotent replay, materialized projections, versioned builds, active-version swaps, freshness, generation-bound materialized-projection maintenance debt, verification, and projection operations views exist as experimental Cassie-specific surfaces.
 - **Verification and consistency:** row hashes, range hashes, projection roots, rebuild verification, integrity reports, projection diffing, manifest comparison, repair planning, local repair audit reports, and offline multi-instance consistency reports are implemented at baseline.
 - **Recovery:** local snapshots combine a copied Midge data directory with a v2 Cassie manifest that records schema/data epochs, per-collection generations, projection checkpoint/version, hash metadata, generated timestamp, Cassie version, and compatibility status. Snapshot creation verifies that epochs and generations remain stable during the copy; v1 and every other non-v2 manifest are rejected.
 - **Retrieval:** full-text search, vector search, pgvector-style operators, hybrid scoring, HNSW/IVFFlat metadata and execution paths, and embedding-provider validation exist.
@@ -332,7 +332,7 @@ Cassie fully satisfies the README goals when:
 - A single node has documented performance feedback loops and advisory capacity guidance for core read-model workloads.
 - Independent nodes can be assigned projection/tenant/partition ownership without adding distributed query semantics.
 - Operators have documented routing, ownership, snapshot, restore, health, and capacity workflows.
-- Replay, rebuild, verification, repair, and swap workflows are deterministic, observable, and tested after restart.
+- Replay, rebuild, verification, repair, swap, and materialized-projection stale-debt workflows are deterministic, observable, and tested after restart.
 - Query planning exposes optimized and degraded paths for supported read-model query shapes.
 - Search, vector, hybrid, analytics, and time-series paths have exactness/fallback documentation and benchmark evidence.
 - PostgreSQL compatibility is validated through a client matrix focused on read-model use cases.

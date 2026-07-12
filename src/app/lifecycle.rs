@@ -100,6 +100,7 @@ impl Cassie {
 
         self.hydrate_catalog()
             .map_err(|error| CassieError::Storage(format!("catalog hydration: {error}")))?;
+        self.retry_materialized_projection_maintenance_debt()?;
         self.retry_rollup_maintenance_debt()?;
         self.hydrate_runtime_feedback()?;
         self.runtime.mark_started();
@@ -119,6 +120,24 @@ impl Cassie {
         let controls = self.runtime.query_controls(std::time::Instant::now());
         for source in sources {
             crate::executor::refresh_rollups_for_source_external(self, &source, &controls)
+                .map_err(|error| CassieError::Execution(error.to_string()))?;
+        }
+        Ok(())
+    }
+
+    fn retry_materialized_projection_maintenance_debt(&self) -> Result<(), CassieError> {
+        let debts = self
+            .midge
+            .list_maintenance_debt()?
+            .into_iter()
+            .filter(|debt| debt.artifact == "materialized_projection")
+            .collect::<Vec<_>>();
+        for debt in debts {
+            let generation = self.midge.collection_generation(&debt.collection)?;
+            if generation < debt.target_generation {
+                continue;
+            }
+            crate::executor::mark_source_projections_stale_external(self, &debt.collection)
                 .map_err(|error| CassieError::Execution(error.to_string()))?;
         }
         Ok(())

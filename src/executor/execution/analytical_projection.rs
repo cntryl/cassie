@@ -72,6 +72,9 @@ fn analytical_projection_fallback(
             {
                 return None;
             }
+            if materialized_projection_maintenance_pending(cassie, source) {
+                return Some((projection.collection, "maintenance_pending".to_string()));
+            }
             if projection.freshness != catalog::ProjectionFreshness::Fresh {
                 return Some((projection.collection, "stale-or-unverified".to_string()));
             }
@@ -120,6 +123,7 @@ fn covered_analytical_projection(
                     .source_collections
                     .iter()
                     .any(|candidate| candidate == source)
+                || materialized_projection_maintenance_pending(cassie, source)
             {
                 return None;
             }
@@ -137,6 +141,13 @@ fn covered_analytical_projection(
                 None
             }
         })
+}
+
+fn materialized_projection_maintenance_pending(cassie: &Cassie, source: &str) -> bool {
+    cassie
+        .midge
+        .has_materialized_projection_maintenance_debt(source)
+        .unwrap_or(true)
 }
 
 fn plan_needed_columns(plan: &LogicalPlan) -> Option<BTreeSet<String>> {

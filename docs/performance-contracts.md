@@ -172,12 +172,14 @@ Phase 05 write work should fail the contract when Cassie hides Midge locality be
 
 Transaction staging is a correctness boundary rather than a throughput claim. The session must
 reject a second collection at the staging call, preserve the first collection's transaction-local
-changes for rollback, and preflight foreign-key actions that would stage related collections.
-`CassieError::Unsupported` is reported as SQLSTATE `0A000`; runtime query-error diagnostics and
-pgwire ReadyForQuery statuses (`T`, `E`, and `I`) are the evidence surface. This guard is covered
-by `tests/transaction_staging.rs` and `tests/pgwire_transaction_staging.rs`; it is deliberately
-not promoted into a 10k/100k throughput benchmark because rejected operations must not be counted
-as successful writes.
+changes for rollback, and preflight foreign-key actions that would stage related collections. The
+same boundary accepts only default/`READ COMMITTED` isolation and rejects DDL/catalog/projection
+operations and COPY before mutation. `CassieError::Unsupported` is reported as SQLSTATE `0A000`;
+runtime query-error diagnostics and pgwire ReadyForQuery statuses (`T`, `E`, and `I`) are the
+evidence surface. This guard is covered by `tests/transaction_staging.rs`,
+`tests/transaction_semantics.rs`, `tests/pgwire_transaction_staging.rs`, and
+`tests/pgwire_transaction_semantics.rs`; it is deliberately not promoted into a 10k/100k
+throughput benchmark because rejected operations must not be counted as successful writes.
 
 For write-side patterns, SQL, REST, replay, and rebuild commands are interfaces.
 They are not the required execution model.

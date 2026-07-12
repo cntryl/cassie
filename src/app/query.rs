@@ -428,6 +428,10 @@ impl Cassie {
                 "transaction is failed; rollback required".to_string(),
             ));
         }
+        super::transaction_semantics::ensure_supported_transaction_semantics(
+            session,
+            &parsed.statement,
+        )?;
         Ok(())
     }
 

@@ -89,7 +89,7 @@ Goal: provide the core PostgreSQL-like query surface expected by application cod
 | Set operations | Implemented | Stable |
 | Window functions | Implemented | Experimental with documented ROWS frames and deterministic unsupported-family errors |
 | DML and RETURNING | Implemented | Stable for projection-state mutation paths |
-| Transactions and savepoints | Implemented | Stable/Experimental with immediate single-collection staging, foreign-key action preflight, and DDL restrictions |
+| Transactions and savepoints | Implemented | Stable/Experimental with default/READ COMMITTED isolation, immediate single-collection staging, foreign-key action preflight, and DDL/COPY restrictions |
 
 ## Schema & Catalog
 

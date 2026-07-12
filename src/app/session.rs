@@ -136,6 +136,14 @@ impl CassieSession {
                 "transaction already in progress".to_string(),
             ));
         }
+        if matches!(
+            isolation,
+            Some(TransactionIsolation::RepeatableRead | TransactionIsolation::Serializable)
+        ) {
+            return Err(CassieError::Unsupported(
+                "only READ COMMITTED transaction isolation is supported".to_string(),
+            ));
+        }
 
         transaction.status = SessionTransactionStatus::InTransaction;
         transaction.isolation = isolation;

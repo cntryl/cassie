@@ -217,12 +217,14 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - Tests: `tests/transaction_staging.rs` covers write/delete timing, rollback recovery, no
     partial mutation, and delete-cascade preflight; `tests/pgwire_transaction_staging.rs` covers
     SQLSTATE `0A000` and ReadyForQuery `E/T/I` status.
-- [ ] Reject transaction semantics Cassie does not provide.
+- [x] Reject transaction semantics Cassie does not provide.
   - Accept only the documented default/read-committed contract.
   - Reject SERIALIZABLE, REPEATABLE READ, `SET TRANSACTION`, DDL in active transactions, and
     unsupported COPY/foreign-key cascade shapes before any catalog/data mutation with `0A000`.
-  - Tests: every schema/index/view/projection DDL family, COPY, isolation levels, cascades, and no
-    partial state.
+  - Tests: `tests/transaction_semantics.rs` covers schema/table/index/view/sequence/rollup/
+    materialized-projection DDL, COPY, isolation levels, staged-state rollback, and no partial
+    catalog/data state; `tests/pgwire_transaction_semantics.rs` covers `0A000` and ReadyForQuery
+    states.
 - [ ] Fix the irreversible COMMIT boundary.
   - Once base writes commit, clear committed session state before any fallible derived refresh.
   - Persist stale/maintenance debt for rollup or other derived-refresh failure instead of returning

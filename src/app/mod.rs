@@ -94,6 +94,7 @@ mod replay;
 mod roles;
 mod schema_cleanup;
 mod snapshots;
+mod transaction_semantics;
 mod vector_helpers;
 mod vector_search;
 mod write_refresh;

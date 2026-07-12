@@ -69,6 +69,35 @@ pub(super) async fn try_handle_simple_copy_query(
         }
     };
 
+    if session.is_transaction_failed() {
+        let error = PgWireError::from_cassie_error(
+            PgWireSeverity::Error,
+            &CassieError::Execution("transaction is failed; rollback required".to_string()),
+        );
+        if write_error_response(write_half, &error).await.is_err()
+            || write_ready_for_query(write_half, &session).await.is_err()
+        {
+            return SimpleCopyOutcome::ConnectionClosed;
+        }
+        return SimpleCopyOutcome::Handled;
+    }
+
+    if session.is_transaction_active() {
+        session.mark_transaction_failed();
+        let error = PgWireError::from_cassie_error(
+            PgWireSeverity::Error,
+            &CassieError::Unsupported(
+                "COPY inside an active transaction is not supported".to_string(),
+            ),
+        );
+        if write_error_response(write_half, &error).await.is_err()
+            || write_ready_for_query(write_half, &session).await.is_err()
+        {
+            return SimpleCopyOutcome::ConnectionClosed;
+        }
+        return SimpleCopyOutcome::Handled;
+    }
+
     let column_count = copy_response_column_count(&cassie, &statement);
     if write_copy_in_response(write_half, column_count)
         .await
@@ -137,7 +166,8 @@ async fn handle_database_copy(
         }
         return SimpleCopyOutcome::Handled;
     }
-    if session.is_transaction_active() {
+    if session.is_transaction_failed() || session.is_transaction_active() {
+        session.mark_transaction_failed();
         let error = PgWireError::from_cassie_error(
             PgWireSeverity::Error,
             &crate::app::CassieError::Unsupported(

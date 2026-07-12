@@ -111,7 +111,13 @@ fn validate_copy_request(
     session: &CassieSession,
     statement: &CopyStatement,
 ) -> Result<(), CassieError> {
+    if session.is_transaction_failed() {
+        return Err(CassieError::Execution(
+            "transaction is failed; rollback required".to_string(),
+        ));
+    }
     if session.is_transaction_active() {
+        session.mark_transaction_failed();
         return Err(CassieError::Unsupported(
             "COPY inside an active transaction is not supported".to_string(),
         ));

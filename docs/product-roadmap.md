@@ -236,7 +236,7 @@ Goal: support horizontal expansion through externally orchestrated independent C
 
 ## Remaining Roadmap Themes
 
-- Keep projection repair admin-only, audited, local, verification-led, and aligned with the [Projection Repair Runbook](projection-repair-runbook.md) as remaining rollback and evidence boundaries mature.
+- Keep projection repair admin-only, audited, local, verification-led, and aligned with the [Projection Repair Runbook](projection-repair-runbook.md) as remaining manifest evidence boundaries mature.
 - Keep operational scale local and externally orchestrated: Cassie exposes assignment metadata and a router/drain/move contract, but does not perform distributed query planning, cross-node routing, replication, quorum reads, or consensus.
 - Use [Capacity Management](capacity-management.md) as the current advisory sizing baseline; `/metrics.capacity` reports local logical key/value bytes, while capacity-based admission and capacity movement remain future depth.
 - Improve manual performance scenarios as benchmark evidence stabilizes and larger fixtures become practical.

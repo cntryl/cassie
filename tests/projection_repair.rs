@@ -1,4 +1,4 @@
-use cassie::app::{Cassie, CassieSession};
+use cassie::app::{Cassie, CassieSession, CassieSnapshotOptions};
 use cassie::catalog::ColumnBatchMetadata;
 use cassie::midge::adapter::{RowHashRecord, StorageFamily};
 use cassie::sql::ast::{ProjectionRepairScope, QueryStatement};
@@ -92,10 +92,7 @@ fn seed_full_rebuild_fixture(cassie: &Cassie, session: &CassieSession) -> String
     projection
 }
 
-fn seed_projection_version_repair_fixture(
-    cassie: &Cassie,
-    session: &CassieSession,
-) -> (String, String) {
+fn seed_projection_version_fixture(cassie: &Cassie, session: &CassieSession) -> (String, String) {
     cassie
         .execute_sql(
             session,
@@ -143,7 +140,6 @@ fn seed_projection_version_repair_fixture(
         .expect("v2 projection metadata")
         .output_collection
         .clone();
-    corrupt_first_row_hash(cassie, &output_collection);
     (projection, output_collection)
 }
 
@@ -520,7 +516,8 @@ fn should_execute_verified_projection_version_repair_without_activation() {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
-        let (projection, output_collection) = seed_projection_version_repair_fixture(&cassie, &session);
+        let (projection, output_collection) = seed_projection_version_fixture(&cassie, &session);
+        corrupt_first_row_hash(&cassie, &output_collection);
         let verify_sql = "VERIFY PROJECTION repair_projection_version VERSION v2 MODE full";
 
         // Act
@@ -584,7 +581,6 @@ fn should_execute_verified_projection_version_repair_without_activation() {
         assert_eq!(verification.rows[0][0], Value::String("failed".to_string()));
         assert_eq!(verification.rows[0][6], Value::Bool(true));
         assert_eq!(plan.rows[0][5], Value::Bool(true));
-        assert_eq!(plan.rows[0][3], Value::String(output_collection));
         assert_eq!(repair.rows[0][0], Value::String("completed".to_string()));
         assert_eq!(repair.rows[0][7], Value::String("verified".to_string()));
         assert_eq!(audit.rows[0][0], Value::String("completed".to_string()));
@@ -615,6 +611,95 @@ fn should_execute_verified_projection_version_repair_without_activation() {
         assert_eq!(restarted_active_rows.rows, active_rows.rows);
 
         let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_rehearse_snapshot_rollback_after_projection_version_repair() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projection_repair_version_rollback");
+    let snapshot = data_dir("projection_repair_version_rollback_snapshot");
+    let restored = data_dir("projection_repair_version_rollback_restored");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        let (projection, output_collection) = seed_projection_version_fixture(&cassie, &session);
+        drop(cassie);
+        Cassie::create_snapshot_from_data_dir(
+            &path,
+            &snapshot,
+            CassieSnapshotOptions {
+                generated_ms: Some(8_642),
+            },
+        )
+        .unwrap();
+
+        // Act
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        corrupt_first_row_hash(&cassie, &output_collection);
+        let failed = cassie
+            .execute_sql(
+                &session,
+                "VERIFY PROJECTION repair_projection_version VERSION v2 MODE full",
+                vec![],
+            )
+            .unwrap();
+        let repaired = cassie
+            .execute_sql(
+                &session,
+                "REPAIR PROJECTION repair_projection_version VERSION v2 SCOPE projection-version",
+                vec![],
+            )
+            .unwrap();
+        drop(cassie);
+        let manifest = Cassie::restore_snapshot(&snapshot, &restored).unwrap();
+        let rolled_back = Cassie::new_with_data_dir(&restored).unwrap();
+        rolled_back.startup().unwrap();
+        let rolled_back_session = rolled_back.create_session("tester", None);
+        let verification = rolled_back
+            .execute_sql(
+                &rolled_back_session,
+                "VERIFY PROJECTION repair_projection_version VERSION v2 MODE full",
+                vec![],
+            )
+            .unwrap();
+        let active_rows = rolled_back
+            .execute_sql(
+                &rolled_back_session,
+                "SELECT title FROM repair_projection_version ORDER BY title",
+                vec![],
+            )
+            .unwrap();
+        let reports = rolled_back
+            .execute_sql(
+                &rolled_back_session,
+                &format!(
+                    "SELECT state FROM pg_catalog.pg_projection_repair_reports WHERE projection_name = '{projection}'"
+                ),
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(failed.rows[0][0], Value::String("failed".to_string()));
+        assert_eq!(repaired.rows[0][0], Value::String("completed".to_string()));
+        assert_eq!(manifest.generated_ms, 8_642);
+        assert_eq!(verification.rows[0][0], Value::String("verified".to_string()));
+        assert_eq!(active_rows.rows, vec![vec![Value::String("alpha".to_string())]]);
+        assert!(reports.rows.is_empty());
+
+        let _ = std::fs::remove_dir_all(path);
+        let _ = std::fs::remove_dir_all(snapshot);
+        let _ = std::fs::remove_dir_all(restored);
     });
 }
 

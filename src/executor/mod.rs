@@ -12,6 +12,7 @@ pub use aggregate::columns_from_projection;
 pub(crate) use execution::rollup_rewrite_name_for_plan;
 pub(crate) use execution::{
     mark_source_projections_stale_external, refresh_rollups_for_source_external,
+    sync_derived_maintenance_debt_external,
 };
 
 static MATERIALIZED_PROJECTION_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);

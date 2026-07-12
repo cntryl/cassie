@@ -225,7 +225,7 @@ pub(super) fn rewrite_name_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Opti
         .map(|rollup| rollup.name)
 }
 
-fn sync_rollup_debt_catalog(cassie: &Cassie, source: &str) -> Result<(), QueryError> {
+pub(super) fn sync_rollup_debt_catalog(cassie: &Cassie, source: &str) -> Result<(), QueryError> {
     let Some(debt) = cassie
         .midge
         .maintenance_debt_for(source, "rollup")

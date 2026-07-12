@@ -1,9 +1,10 @@
 use super::types::ExecutionBreakdownDurations;
 use super::{
     build_select_result, dml_command, execute_physical_plan, execute_plan_with_execution_breakdown,
-    materialized_projection, plan_needs_user_functions, rollups, Arc, Cassie, CassieSession,
-    CteContext, ExecutionBreakdownOutput, FunctionMeta, HashMap, Instant, LogicalPlan,
-    PhysicalPlan, QueryError, QueryExecutionControls, QueryResult, Value,
+    materialized_projection, materialized_projection_maintenance, plan_needs_user_functions,
+    rollups, Arc, Cassie, CassieSession, CteContext, ExecutionBreakdownOutput, FunctionMeta,
+    HashMap, Instant, LogicalPlan, PhysicalPlan, QueryError, QueryExecutionControls, QueryResult,
+    Value,
 };
 
 /// # Errors
@@ -145,6 +146,14 @@ pub(crate) fn mark_source_projections_stale_external(
     source: &str,
 ) -> Result<(), QueryError> {
     materialized_projection::mark_source_projections_stale(cassie, source)
+}
+
+pub(crate) fn sync_derived_maintenance_debt_external(
+    cassie: &Cassie,
+    source: &str,
+) -> Result<(), QueryError> {
+    rollups::sync_rollup_debt_catalog(cassie, source)?;
+    materialized_projection_maintenance::sync_debt_catalog(cassie, source)
 }
 
 pub(crate) fn rollup_rewrite_name_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Option<String> {

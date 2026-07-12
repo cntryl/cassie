@@ -181,6 +181,17 @@ evidence surface. This guard is covered by `tests/transaction_staging.rs`,
 `tests/pgwire_transaction_semantics.rs`; it is deliberately not promoted into a 10k/100k
 throughput benchmark because rejected operations must not be counted as successful writes.
 
+### Irreversible COMMIT boundary
+
+Transaction base writes are committed with derived refresh deferred until the session's staged
+state has been cleared. Column-batch, projection-hash, rollup, and materialized-projection refresh
+failures remain generation-bound maintenance debt; reads expose the pending fallback state and
+startup retries the debt. A second COMMIT without a new transaction is rejected, so a client retry
+cannot duplicate a durable write. This is a correctness and recovery contract, not a successful-write
+throughput claim. Evidence is in `tests/transaction_commit_boundary.rs`,
+`tests/analytical_projection_recovery.rs`, `tests/time_series_rollups.rs`,
+`tests/derived_state_recovery.rs`, and `tests/projection_hash_recovery.rs`.
+
 For write-side patterns, SQL, REST, replay, and rebuild commands are interfaces.
 They are not the required execution model.
 

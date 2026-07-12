@@ -58,6 +58,7 @@ mod result;
 pub(crate) use entrypoints::{
     mark_source_projections_stale_external, refresh_rollups_for_source_external,
     rollup_rewrite_name_for_plan, run_with_session_controls,
+    sync_derived_maintenance_debt_external,
 };
 pub use entrypoints::{run, run_with_controls, run_with_execution_breakdown};
 

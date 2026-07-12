@@ -225,12 +225,17 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     materialized-projection DDL, COPY, isolation levels, staged-state rollback, and no partial
     catalog/data state; `tests/pgwire_transaction_semantics.rs` covers `0A000` and ReadyForQuery
     states.
-- [ ] Fix the irreversible COMMIT boundary.
+- [x] Fix the irreversible COMMIT boundary.
   - Once base writes commit, clear committed session state before any fallible derived refresh.
-  - Persist stale/maintenance debt for rollup or other derived-refresh failure instead of returning
-    an apparently retryable COMMIT that can duplicate a durable write.
-  - Tests: injected post-commit refresh failure, retry/rollback behavior, restart recovery, and no
-    duplicate writes.
+  - Persist generation-bound stale/maintenance debt for rollup, materialized projection, column-batch,
+    and projection-hash refresh failures instead of returning an apparently retryable COMMIT that can
+    duplicate a durable write. COMMIT now requires an active transaction, and derived refreshes run
+    only after the session is cleared.
+  - Tests: `tests/transaction_commit_boundary.rs` covers injected post-commit rollup/materialized
+    refresh failure, non-retryable COMMIT, durable row visibility, restart recovery, and no duplicate
+    writes; existing `tests/analytical_projection_recovery.rs`, `tests/time_series_rollups.rs`,
+    `tests/derived_state_recovery.rs`, and `tests/projection_hash_recovery.rs` retain artifact-level
+    retry coverage.
 - [ ] Implement quote/comment-aware pgwire simple-query multi-statement execution in a focused
   module.
   - Split on real statement separators while preserving semicolons in strings, quoted identifiers,

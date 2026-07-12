@@ -232,6 +232,18 @@ impl Midge {
         )
     }
 
+    pub(crate) fn refresh_document_maintenance_after_commit(
+        &self,
+        collection: &str,
+        row_delta: i64,
+    ) -> Result<(), CassieError> {
+        let generation = self.collection_generation(collection)?;
+        let column_batches = self.complete_column_batch_maintenance(collection, generation);
+        let projection_hashes =
+            self.complete_projection_hash_maintenance(collection, generation, row_delta);
+        column_batches.and(projection_hashes)
+    }
+
     pub(crate) fn list_maintenance_debt(&self) -> Result<Vec<MaintenanceDebt>, CassieError> {
         let mut debts = Vec::new();
         for database in self.list_databases()? {

@@ -52,6 +52,11 @@ impl Cassie {
                 "transaction is failed; rollback required".to_string(),
             ));
         }
+        if !session.is_transaction_active() {
+            return Err(CassieError::Execution(
+                "COMMIT requires an active transaction".to_string(),
+            ));
+        }
         let mut writes = BTreeMap::new();
         for (collection, collection_writes) in session.transaction_writes() {
             let write_ops = collection_writes
@@ -74,7 +79,8 @@ impl Cassie {
         let mut changed_collections = Vec::new();
         if !writes.is_empty() {
             let collection = writes.keys().next().expect("non-empty writes");
-            let options = self.document_write_options(collection);
+            let mut options = self.document_write_options(collection);
+            options.refresh_after_commit = false;
             let reports = self
                 .midge
                 .apply_document_write_batches_with_options(&writes, &options)
@@ -91,7 +97,7 @@ impl Cassie {
                     || report.stats.metadata_deletes > 0
                     || report.stats.batch_flushes > 0
                 {
-                    changed_collections.push(collection);
+                    changed_collections.push((collection, report.row_delta));
                 }
                 latest_epoch = latest_epoch.or(report.data_epoch);
             }
@@ -99,15 +105,21 @@ impl Cassie {
                 self.runtime.set_data_epoch(epoch);
             }
         }
-        changed_collections.sort();
-        changed_collections.dedup();
-        let controls = self.runtime.query_controls(std::time::Instant::now());
-        for collection in changed_collections {
-            crate::executor::refresh_rollups_for_source_external(self, &collection, &controls)
-                .map_err(|error| CassieError::Execution(format!("{error:?}")))?;
-            let _ = crate::executor::mark_source_projections_stale_external(self, &collection);
-        }
+
         session.commit_transaction();
+
+        changed_collections.sort_by(|left, right| left.0.cmp(&right.0));
+        changed_collections.dedup_by(|left, right| left.0 == right.0);
+        let controls = self.runtime.query_controls(std::time::Instant::now());
+        for (collection, row_delta) in changed_collections {
+            let _ = self
+                .midge
+                .refresh_document_maintenance_after_commit(&collection, row_delta);
+            let _ =
+                crate::executor::refresh_rollups_for_source_external(self, &collection, &controls);
+            let _ = crate::executor::mark_source_projections_stale_external(self, &collection);
+            let _ = crate::executor::sync_derived_maintenance_debt_external(self, &collection);
+        }
         Ok(())
     }
 }

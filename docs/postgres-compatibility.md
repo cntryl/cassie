@@ -40,7 +40,7 @@ following parts of that baseline remain experimental until the active remediatio
 them:
 
 - deterministic rejection of unsupported RANGE, GROUPS, and EXCLUDE window frames;
-- safe post-commit derived refresh handling.
+- generation-bound post-commit derived refresh debt and non-retryable durable COMMIT behavior.
 
 Transaction DML is intentionally limited to one staged collection. A write or delete targeting a
 second collection is rejected before COMMIT with SQLSTATE `0A000`, changes the session to the
@@ -54,6 +54,12 @@ The explicit transaction contract accepts the default or `READ COMMITTED` isolat
 `SERIALIZABLE`, `REPEATABLE READ`, `SET TRANSACTION`, DDL/catalog/projection operations, and
 COPY are rejected with `0A000` before catalog, row, or COPY-stream mutation. Rejected active-
 transaction commands enter the failed state and require ROLLBACK.
+
+After a successful base write, Cassie clears the session's staged transaction state before running
+column-batch, projection-hash, rollup, or materialized-projection refresh work. A refresh failure
+leaves generation-bound maintenance debt for deterministic fallback and startup replay; it does not
+return a retryable COMMIT result. A second COMMIT without a new BEGIN is rejected. The boundary and
+restart behavior are covered by `tests/transaction_commit_boundary.rs`.
 
 Cassie-specific read-model commands:
 

@@ -148,7 +148,20 @@ fn build_repair_plan(
             integrity.repairable
                 && integrity.mode == ProjectionVerificationMode::IndexesOnly.as_str()
         }
-        ProjectionRepairScope::ProjectionVersion => false,
+        ProjectionRepairScope::ProjectionVersion => {
+            version_id.as_deref().is_some_and(|version_id| {
+                metadata.kind == catalog::ProjectionKind::Materialized
+                    && target.version_id.as_deref() == Some(version_id)
+                    && integrity.version_id.as_deref() == Some(version_id)
+                    && integrity.repairable
+                    && integrity.mode == ProjectionVerificationMode::Full.as_str()
+                    && metadata.versions.iter().any(|version| {
+                        version.version_id == version_id
+                            && integrity.target.as_deref()
+                                == Some(version.output_collection.as_str())
+                    })
+            })
+        }
         ProjectionRepairScope::FullRebuild => {
             metadata.kind == catalog::ProjectionKind::Materialized
                 && integrity.repairable
@@ -198,12 +211,59 @@ fn execute_repair_action(cassie: &Cassie, plan: &RepairPlan) -> Result<(), Query
             .with_collection_write_gates(std::slice::from_ref(&plan.target_collection), || {
                 execute_index_repair(cassie, &plan.target_collection)
             }),
-        ProjectionRepairScope::ProjectionVersion => Err(QueryError::General(format!(
-            "repair scope '{}' is not executable by Cassie",
-            plan.scope.as_str()
-        ))),
+        ProjectionRepairScope::ProjectionVersion => execute_projection_version_repair(cassie, plan),
         ProjectionRepairScope::FullRebuild => execute_full_rebuild_repair(cassie, plan),
     }
+}
+
+fn execute_projection_version_repair(cassie: &Cassie, plan: &RepairPlan) -> Result<(), QueryError> {
+    let metadata = cassie
+        .catalog
+        .get_materialized_projection(&plan.projection_name)
+        .ok_or_else(|| {
+            QueryError::General(format!(
+                "materialized projection '{}' does not exist",
+                plan.projection_name
+            ))
+        })?;
+    let version_id = plan.version_id.as_deref().ok_or_else(|| {
+        QueryError::General("projection-version repair requires an explicit version".to_string())
+    })?;
+    let version = metadata
+        .versions
+        .iter()
+        .find(|version| version.version_id == version_id)
+        .ok_or_else(|| {
+            QueryError::General(format!("projection version '{version_id}' does not exist"))
+        })?;
+    if version.output_collection != plan.target_collection {
+        return Err(QueryError::General(format!(
+            "integrity report target does not match projection version '{version_id}'"
+        )));
+    }
+    let mut gated_collections = vec![plan.target_collection.clone()];
+    if let Some(materialized) = metadata.materialized.as_ref() {
+        gated_collections.extend(materialized.source_collections.iter().cloned());
+    }
+    let user_functions = cassie
+        .catalog
+        .list_functions()
+        .into_iter()
+        .map(|function| (function.name.to_ascii_lowercase(), function))
+        .collect::<std::collections::HashMap<_, _>>();
+    let controls = cassie.runtime.query_controls(std::time::Instant::now());
+    cassie
+        .midge
+        .with_collection_write_gates(&gated_collections, || {
+            super::materialized_projection_versions::repair_materialized_projection_version(
+                cassie,
+                &plan.projection_name,
+                version_id,
+                &user_functions,
+                &controls,
+            )
+            .map(|_| ())
+        })
 }
 
 fn execute_full_rebuild_repair(cassie: &Cassie, plan: &RepairPlan) -> Result<(), QueryError> {

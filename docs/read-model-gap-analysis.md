@@ -50,7 +50,7 @@ The largest remaining gaps are production evidence and operational depth gaps, n
 | Operational scale over distributed SQL | Offline manifests explicitly avoid distributed query/replication semantics; local assignment metadata, external routing contracts, local snapshot/restore, and capacity guidance are available. | Deployment-specific router integrations, fleet monitoring thresholds, and production evidence remain outside Cassie. | P2 |
 | Purpose-built read models | Primary/secondary lookups, range queries, tenant filtered pages, narrow mixed-order equality-prefix scans, exact expression-index equality seeks, guarded adaptive planning, aggregations, search, vector, hybrid, projections, time-series bucket membership, and analytics exist. | Remaining depth is focused on larger analytical fixtures and projection-shaped layout guidance. | P2 |
 | Performance is a feature | Broad benchmark suite, performance contracts, manifest-owned 10k/100k manual scenarios, capacity signal guidance, and advisory capacity byte data exist. | Future work should improve scenario quality, capture repeatable local evidence, and add larger scale points. | P2 |
-| Event-sourcing native | Replay batches, checkpoint metadata, duplicate skip ledger, materialized projection builds, handler determinism contracts, replay failure guidance, verification, repair plans, local hash repair, repair runbooks, swaps, and local snapshot/restore exist. | Projection-version repair, rollback rehearsal, and larger-manifest evidence remain production-depth blockers; index and active materialized full-rebuild repairs now have bounded local mutation contracts. | P2 |
+| Event-sourcing native | Replay batches, checkpoint metadata, duplicate skip ledger, materialized projection builds, handler determinism contracts, replay failure guidance, verification, repair plans, local hash repair, repair runbooks, swaps, and local snapshot/restore exist. | Rollback rehearsal and larger-manifest evidence remain production-depth blockers; index, explicit projection-version, and active materialized full-rebuild repairs now have bounded local mutation contracts. | P2 |
 | Simplicity wins | Docs now frame Cassie as a read-model database, reject distributed SQL, define procedures as limited compatibility/admin support rather than application business logic, and provide experimental promotion criteria. | Individual experimental surfaces still need surface-specific evidence before any future promotion. | P3 |
 | Practical PostgreSQL access | pgwire startup, auth, simple/extended query, prepared statements, catalog probes, session-scope/search-path client coverage, SQLSTATE-style errors, a maintained client matrix, default tokio-postgres coverage, plus opt-in psql, Prisma CLI, and SQLAlchemy Core probes exist. | sqlx/diesel automation, broader Prisma/SQLAlchemy/pgAdmin4 behavior, migration-tool depth, and native extension integration remain future probe depth. | P1 |
 
@@ -102,13 +102,13 @@ Evidence:
 
 - Verification, diffing, manifest comparison, and consistency reports exist.
 - `PLAN REPAIR PROJECTION` returns deterministic dry-run plans for row, range, index, projection-version, and full-rebuild scopes.
-- `REPAIR PROJECTION` executes safe local row/range hash rebuilds, verified index-sidecar rebuilds, or active materialized full rebuilds when the latest integrity report and scope contract are repairable, audits the action, and immediately verifies the projection.
-- [Projection Repair Runbook](projection-repair-runbook.md) documents plan, execute, verify, audit, rollback/escalate, and unsupported-scope procedures.
+- `REPAIR PROJECTION` executes safe local row/range hash rebuilds, verified index-sidecar rebuilds, explicit materialized version rebuilds without activation, or active materialized full rebuilds when the latest integrity report and scope contract are repairable, audits the action, and immediately verifies the projection.
+- [Projection Repair Runbook](projection-repair-runbook.md) documents plan, execute, verify, audit, rollback/escalate, and scope-boundary procedures.
 
 Impact:
 
 Operators can detect divergence or stale materialization and use Cassie-defined admin commands plus a runbook for repair planning and safe local hash repair.
-Projection-version repair remains a deterministic dry-run/error surface; index and active materialized full-rebuild repair now execute only under their bounded local mutation contracts.
+Index, explicit projection-version, and active materialized full-rebuild repair now execute only under their bounded local mutation contracts; rollback rehearsal and larger-manifest evidence remain open.
 
 Recommendation:
 
@@ -292,7 +292,7 @@ Closed baseline:
 - [Operational Scale](operational-scale.md): local assignment metadata, restart hydration, catalog diagnostics, external router/drain/move contracts, rollback semantics, and capacity movement guidance.
 - [Snapshot And Restore](snapshot-restore.md): local Midge-directory snapshot bundle, Cassie compatibility manifest, restore validation, and query-after-restore smoke coverage.
 - [Performance Contracts](performance-contracts.md): manifest-owned 10k/100k manual benchmark scenarios for core read, replay, rebuild, verification, search/vector/hybrid, pgwire, and HTTP workloads.
-- [Feature Support](feature-support.md): projection repair planning, local row/range/index/full-rebuild repair, persisted repair audit reports, and admin-only/no-distributed repair boundaries.
+- [Feature Support](feature-support.md): projection repair planning, local row/range/index/projection-version/full-rebuild repair, persisted repair audit reports, and admin-only/no-distributed repair boundaries.
 - [Performance Contracts](performance-contracts.md): read-optimization MVP baseline for point lookup, scalar index seek/prefix/range scans, ordered bounded scans, row-id keyset/top-k, and tenant filtered pages.
 - [Performance Contracts](performance-contracts.md): time-series baseline for bucket-native membership, row-backed fallback, bucket diagnostics, retention freshness effects, rollup refresh, and manual 10k/100k feedback benches.
 - [PostgreSQL Compatibility](postgres-compatibility.md): maintained read-model client matrix, default tokio-postgres compatibility coverage, opt-in psql probe, and explicit planned/unsupported client boundaries.
@@ -317,7 +317,7 @@ Closed baseline:
 - [Time-series bucket-native storage](indexes-and-constraints.md): persisted bucket membership, row-backed fallback, mutation/restart/retention correctness, EXPLAIN storage diagnostics, and manual benchmark ownership.
 - [PostgreSQL Compatibility](postgres-compatibility.md): default deterministic tokio-postgres baseline plus opt-in psql, Prisma CLI, and SQLAlchemy Core probe coverage.
 - [Capacity Management](capacity-management.md): advisory local key/value byte accounting by Midge family and major Cassie read-model category through `/metrics.capacity`.
-- [Projection Repair Runbook](projection-repair-runbook.md): admin-only local plan, execute, verify, audit, rollback/escalate, and unsupported-scope procedures for projection repair.
+- [Projection Repair Runbook](projection-repair-runbook.md): admin-only local plan, execute, verify, audit, rollback/escalate, and scope-boundary procedures for projection repair.
 - [Feature Support](feature-support.md): adaptive read-operator selection confidence and cost-savings gates with EXPLAIN fallback diagnostics.
 - [Experimental Promotion Criteria](experimental-promotion-criteria.md): evidence gates for catalog, procedure, rollup, HNSW, embedding, and related experimental surfaces.
 

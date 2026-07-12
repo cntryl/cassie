@@ -77,6 +77,7 @@ mod dml_command;
 mod dml_referential_actions;
 mod graph_command;
 mod materialized_projection;
+mod materialized_projection_versions;
 mod projection_diff;
 mod projection_repair;
 mod retention;

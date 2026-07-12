@@ -167,7 +167,12 @@ pub(super) fn alter_materialized_projection(
 ) -> Result<QueryResult, QueryError> {
     match &statement.operation {
         crate::sql::ast::AlterMaterializedProjectionOperation::BuildVersion => {
-            build_projection_version(cassie, &statement.name, user_functions, controls)
+            super::materialized_projection_versions::build_projection_version(
+                cassie,
+                &statement.name,
+                user_functions,
+                controls,
+            )
         }
         crate::sql::ast::AlterMaterializedProjectionOperation::ActivateVersion {
             version_id,
@@ -351,61 +356,6 @@ fn u64_to_i64(value: u64) -> i64 {
     i64::try_from(value).unwrap_or(i64::MAX)
 }
 
-fn build_projection_version(
-    cassie: &Cassie,
-    name: &str,
-    user_functions: &HashMap<String, FunctionMeta>,
-    controls: &QueryExecutionControls,
-) -> Result<QueryResult, QueryError> {
-    let mut metadata = cassie
-        .catalog
-        .get_materialized_projection(name)
-        .ok_or_else(|| {
-            QueryError::General(format!("materialized projection '{name}' does not exist"))
-        })?;
-    let materialized = metadata.materialized.clone().ok_or_else(|| {
-        QueryError::General(format!(
-            "materialized projection '{name}' is missing definition"
-        ))
-    })?;
-    let next_ordinal = metadata.versions.len() + 1;
-    let version_id = format!("v{next_ordinal}");
-    let output_collection = catalog::materialized_output_collection(name, &version_id);
-    metadata.versions.push(catalog::ProjectionVersionMeta {
-        version_id: version_id.clone(),
-        output_collection,
-        definition_fingerprint: materialized.definition_fingerprint,
-        source_schema_epoch: cassie.catalog.version(),
-        state: catalog::ProjectionVersionState::Building,
-        created_ms: now_ms(),
-        activated_ms: None,
-        retired_ms: None,
-        last_error: None,
-        verification: catalog::ProjectionRebuildVerificationMeta::default(),
-    });
-    persist_projection_metadata(cassie, metadata.clone())?;
-
-    match build_specific_version(cassie, &mut metadata, &version_id, user_functions, controls) {
-        Ok(()) => {
-            persist_projection_metadata(cassie, metadata)?;
-            Ok(empty_command("ALTER MATERIALIZED PROJECTION"))
-        }
-        Err(error) => {
-            if let Some(version) = metadata
-                .versions
-                .iter_mut()
-                .find(|version| version.version_id == version_id)
-            {
-                version.state = catalog::ProjectionVersionState::Failed;
-                version.last_error = Some(error.to_string());
-            }
-            metadata.last_error = Some(error.to_string());
-            let _ = persist_projection_metadata(cassie, metadata);
-            Err(error)
-        }
-    }
-}
-
 fn activate_projection_version(
     cassie: &Cassie,
     name: &str,
@@ -509,7 +459,7 @@ fn build_active_version(
     Ok(())
 }
 
-fn build_specific_version(
+pub(super) fn build_specific_version(
     cassie: &Cassie,
     metadata: &mut catalog::ProjectionMeta,
     version_id: &str,
@@ -642,7 +592,7 @@ fn set_projection_building(
     persist_projection_metadata(cassie, metadata.clone())
 }
 
-fn persist_projection_metadata(
+pub(super) fn persist_projection_metadata(
     cassie: &Cassie,
     metadata: catalog::ProjectionMeta,
 ) -> Result<(), QueryError> {
@@ -976,7 +926,7 @@ fn fnv1a64(input: &str) -> u64 {
     hash
 }
 
-fn now_ms() -> u64 {
+pub(super) fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| {
@@ -984,7 +934,7 @@ fn now_ms() -> u64 {
         })
 }
 
-fn empty_command(command: &str) -> QueryResult {
+pub(super) fn empty_command(command: &str) -> QueryResult {
     QueryResult {
         columns: Vec::new(),
         rows: Vec::new(),

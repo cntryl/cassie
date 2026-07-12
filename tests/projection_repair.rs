@@ -92,6 +92,61 @@ fn seed_full_rebuild_fixture(cassie: &Cassie, session: &CassieSession) -> String
     projection
 }
 
+fn seed_projection_version_repair_fixture(
+    cassie: &Cassie,
+    session: &CassieSession,
+) -> (String, String) {
+    cassie
+        .execute_sql(
+            session,
+            "CREATE TABLE repair_projection_version_source (title TEXT)",
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            session,
+            "INSERT INTO repair_projection_version_source (title) VALUES ('alpha')",
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            session,
+            "CREATE MATERIALIZED PROJECTION repair_projection_version AS SELECT title FROM repair_projection_version_source",
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            session,
+            "INSERT INTO repair_projection_version_source (title) VALUES ('bravo')",
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            session,
+            "ALTER MATERIALIZED PROJECTION repair_projection_version BUILD VERSION",
+            vec![],
+        )
+        .unwrap();
+    let metadata = cassie
+        .catalog
+        .get_materialized_projection("repair_projection_version")
+        .expect("materialized projection metadata");
+    let projection = metadata.collection.clone();
+    let output_collection = metadata
+        .versions
+        .iter()
+        .find(|version| version.version_id == "v2")
+        .expect("v2 projection metadata")
+        .output_collection
+        .clone();
+    corrupt_first_row_hash(cassie, &output_collection);
+    (projection, output_collection)
+}
+
 #[test]
 fn should_parse_projection_repair_commands() {
     // Arrange
@@ -446,6 +501,118 @@ fn should_execute_verified_full_rebuild_repair_with_audit() {
             vec![vec![Value::String("alpha".to_string()), Value::Int64(1)]]
         );
         assert_eq!(restarted_selected.rows, selected.rows);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_execute_verified_projection_version_repair_without_activation() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projection_repair_version_execute");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        let (projection, output_collection) = seed_projection_version_repair_fixture(&cassie, &session);
+        let verify_sql = "VERIFY PROJECTION repair_projection_version VERSION v2 MODE full";
+
+        // Act
+        let verification = cassie.execute_sql(&session, verify_sql, vec![]).unwrap();
+        let plan = cassie
+            .execute_sql(
+                &session,
+                "PLAN REPAIR PROJECTION repair_projection_version VERSION v2 SCOPE projection-version",
+                vec![],
+            )
+            .unwrap();
+        let repair = cassie
+            .execute_sql(
+                &session,
+                "REPAIR PROJECTION repair_projection_version VERSION v2 SCOPE projection-version",
+                vec![],
+            )
+            .unwrap();
+        let audit = cassie
+            .execute_sql(
+                &session,
+                &format!(
+                    "SELECT state, scope, action, post_verification_state FROM pg_catalog.pg_projection_repair_reports WHERE projection_name = '{projection}'"
+                ),
+                vec![],
+            )
+            .unwrap();
+        let versions = cassie
+            .execute_sql(
+                &session,
+                &format!(
+                    "SELECT version_id, state FROM pg_catalog.pg_projection_versions WHERE projection_name = '{projection}' ORDER BY version_id"
+                ),
+                vec![],
+            )
+            .unwrap();
+        let active_rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM repair_projection_version ORDER BY title",
+                vec![],
+            )
+            .unwrap();
+        drop(cassie);
+
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().unwrap();
+        let restarted_session = restarted.create_session("tester", None);
+        let restarted_verification = restarted
+            .execute_sql(&restarted_session, verify_sql, vec![])
+            .unwrap();
+        let restarted_active_rows = restarted
+            .execute_sql(
+                &restarted_session,
+                "SELECT title FROM repair_projection_version ORDER BY title",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(verification.rows[0][0], Value::String("failed".to_string()));
+        assert_eq!(verification.rows[0][6], Value::Bool(true));
+        assert_eq!(plan.rows[0][5], Value::Bool(true));
+        assert_eq!(plan.rows[0][3], Value::String(output_collection));
+        assert_eq!(repair.rows[0][0], Value::String("completed".to_string()));
+        assert_eq!(repair.rows[0][7], Value::String("verified".to_string()));
+        assert_eq!(audit.rows[0][0], Value::String("completed".to_string()));
+        assert_eq!(audit.rows[0][1], Value::String("projection_version".to_string()));
+        assert_eq!(
+            audit.rows[0][2],
+            Value::String("refresh_projection_version".to_string())
+        );
+        assert_eq!(audit.rows[0][3], Value::String("verified".to_string()));
+        assert_eq!(
+            versions.rows,
+            vec![
+                vec![
+                    Value::String("v1".to_string()),
+                    Value::String("active".to_string())
+                ],
+                vec![
+                    Value::String("v2".to_string()),
+                    Value::String("built".to_string())
+                ]
+            ]
+        );
+        assert_eq!(active_rows.rows, vec![vec![Value::String("alpha".to_string())]]);
+        assert_eq!(
+            restarted_verification.rows[0][0],
+            Value::String("verified".to_string())
+        );
+        assert_eq!(restarted_active_rows.rows, active_rows.rows);
 
         let _ = std::fs::remove_dir_all(path);
     });

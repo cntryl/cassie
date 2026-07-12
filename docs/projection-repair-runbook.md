@@ -30,10 +30,11 @@ explicit, and verification-gated:
 REPAIR PROJECTION projection_name SCOPE row;
 REPAIR PROJECTION projection_name SCOPE range;
 REPAIR PROJECTION projection_name SCOPE index;
+REPAIR PROJECTION materialized_projection_name VERSION v2 SCOPE projection-version;
 REPAIR PROJECTION materialized_projection_name SCOPE full-rebuild;
 ```
 
-Cassie rebuilds local projection hashes for row/range scopes, rebuilds verified index sidecars for index scope, or refreshes the active materialized projection for full-rebuild scope. Full rebuild gates all source collections and the output collection while it replaces the output. Every successful repair immediately runs `VERIFY PROJECTION <name> MODE full` and persists an audit row in `pg_catalog.pg_projection_repair_reports` with `state = completed` and the post-verification state.
+Cassie rebuilds local projection hashes for row/range scopes, rebuilds verified index sidecars for index scope, rebuilds the explicitly named materialized version for projection-version scope without activating it, or refreshes the active materialized projection for full-rebuild scope. Version and full-rebuild repairs gate all source collections and the target output collection while replacing the output. Every successful repair immediately runs `VERIFY PROJECTION <name> MODE full` (with `VERSION` for projection-version repairs) and persists an audit row in `pg_catalog.pg_projection_repair_reports` with `state = completed` and the post-verification state.
 
 ## Verify And Audit
 
@@ -49,9 +50,9 @@ VERIFY PROJECTION projection_name MODE full;
 
 Proceed only when the latest repair report and integrity report are `verified`. If verification remains failed, stop serving the affected projection path or route externally according to the deployment policy.
 
-## Unsupported Scopes
+## Scope Boundaries
 
-`projection-version` remains plan-only/error-only. It remains a deterministic dry-run plan through `PLAN REPAIR PROJECTION`; `REPAIR PROJECTION` rejects it until a safe version-targeted mutation, idempotency, audit, post-verification, and rollback contract is implemented. Index repair is limited to verified local sidecars. Full rebuild is limited to the active version of a materialized projection with a repairable `MODE full` integrity report.
+Projection-version repair requires an explicit `VERSION <version_id>` and a repairable `MODE full` integrity report for that exact output. It rebuilds the target version without changing activation state. Index repair is limited to verified local sidecars. Full rebuild is limited to the active version of a materialized projection with a repairable `MODE full` integrity report.
 
 ## Rollback Or Escalate
 

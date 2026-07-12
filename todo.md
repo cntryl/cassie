@@ -110,8 +110,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
 - [x] Resolve the planned “Merkle integrity index” row in `docs/feature-support.md`; the current
   contract is the existing persisted row/range/projection-root hash state, not a separate Merkle
   index.
-- [ ] Implement safe executable repair for the currently dry-run-only
-  projection-version scope.
+- [ ] Complete safe executable repair for projection scopes; rollback rehearsal and
+  larger-manifest verification evidence remain.
   - Keep repair local, admin-only, audited, idempotent, rollback-aware, and post-verified.
   - Add interruption/restart tests and larger-manifest verification evidence.
   - [x] Index scope now repairs verified column-batch sidecars under a collection write gate,
@@ -119,6 +119,9 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - [x] Full-rebuild scope now refreshes an active materialized projection only after a
     repairable full integrity report, gates source/output collections, records an audit report,
     requires post-verification, and survives restart.
+  - [x] Projection-version scope now rebuilds an explicitly verified materialized version under
+    source/output gates, preserves activation state, records an audit report, requires
+    post-verification, and survives restart.
 
 ## Phase 3 — stable SQL semantics
 

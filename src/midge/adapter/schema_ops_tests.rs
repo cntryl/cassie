@@ -65,3 +65,65 @@ fn should_serialize_field_rename_with_collection_writes() {
     drop(midge);
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_serialize_collection_rename_with_collection_writes() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!(
+        "cassie_collection_write_gate_{}",
+        uuid::Uuid::new_v4()
+    ));
+    let midge = Arc::new(Midge::new_with_data_dir(&path).expect("create Midge"));
+    midge
+        .create_collection(
+            "collection_rename_gate",
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "value".to_string(),
+                    data_type: crate::types::DataType::Text,
+                    nullable: true,
+                }],
+            },
+        )
+        .expect("create collection");
+    let collection = midge.canonical_collection_name("collection_rename_gate");
+    let gate = midge.collection_write_gate(&collection);
+    let write_guard = gate.lock();
+    let (started_tx, started_rx) = mpsc::channel();
+    let (completed_tx, completed_rx) = mpsc::channel();
+    let worker_midge = Arc::clone(&midge);
+
+    let worker = thread::spawn(move || {
+        started_tx.send(()).expect("signal collection rename start");
+        let result =
+            worker_midge.rename_collection("collection_rename_gate", "collection_rename_gate_next");
+        completed_tx
+            .send(result)
+            .expect("signal collection rename finish");
+    });
+    started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("collection rename should start");
+
+    // Act
+    let early_result = completed_rx.recv_timeout(Duration::from_millis(100)).ok();
+    let blocked_while_write_guard_held = early_result.is_none();
+    drop(write_guard);
+    let result = early_result.unwrap_or_else(|| {
+        completed_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("collection rename should finish after the write gate is released")
+    });
+    worker.join().expect("join collection rename");
+
+    // Assert
+    assert!(blocked_while_write_guard_held);
+    assert!(result.is_ok());
+    assert!(midge.collection_schema("collection_rename_gate").is_none());
+    assert!(midge
+        .collection_schema("collection_rename_gate_next")
+        .is_some());
+
+    drop(midge);
+    let _ = std::fs::remove_dir_all(path);
+}

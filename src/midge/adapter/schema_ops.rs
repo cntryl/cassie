@@ -638,13 +638,14 @@ impl Midge {
         let next_name_storage = self.canonical_collection_name(next_name);
         let current_name = current_name_storage.as_str();
         let next_name = next_name_storage.as_str();
+        let write_gate = self.collection_write_gate(current_name);
+        let _write_guard = write_gate.lock();
         let mut schema_tx = self.begin_schema_rw_tx()?;
         schema_ops_helpers::rename_collection_schema_entries(
             &mut schema_tx,
             current_name,
             next_name,
         )?;
-
         schema_ops_helpers::rename_collection_vector_indexes(
             &mut schema_tx,
             current_name,
@@ -656,7 +657,6 @@ impl Midge {
             current_name,
             next_name,
         )?;
-
         schema_ops_helpers::transfer_collection_sidecars(&mut schema_tx, current_name, next_name)?;
 
         let pending = PendingCollectionRename {

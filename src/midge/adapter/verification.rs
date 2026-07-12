@@ -220,6 +220,8 @@ impl Midge {
         collection: &str,
     ) -> Result<RootHashRecord, CassieError> {
         let collection = self.canonical_collection_name(collection);
+        let write_gate = self.collection_write_gate(&collection);
+        let _write_guard = write_gate.lock();
         let row_schema = self.row_schema(&collection)?;
         let generation = self.collection_generation(&collection)?;
         let documents = self.scan_documents(&collection)?;

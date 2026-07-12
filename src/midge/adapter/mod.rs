@@ -324,6 +324,9 @@ mod streaming_scans;
 pub(crate) mod time_series_indexes;
 mod vector_indexes;
 mod verification;
+#[cfg(test)]
+#[path = "verification_tests.rs"]
+mod verification_tests;
 
 pub(crate) use documents::{DocumentWriteBatchOptions, DocumentWriteOp, OrderedRowScanRequest};
 pub(crate) use graphs::GraphEdgeRecord;

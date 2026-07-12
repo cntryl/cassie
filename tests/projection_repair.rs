@@ -1,4 +1,4 @@
-use cassie::app::{Cassie, CassieSession, CassieSnapshotOptions};
+use cassie::app::{Cassie, CassieSession, CassieSnapshotOptions, ProjectionManifestExportOptions};
 use cassie::catalog::ColumnBatchMetadata;
 use cassie::midge::adapter::{RowHashRecord, StorageFamily};
 use cassie::sql::ast::{ProjectionRepairScope, QueryStatement};
@@ -318,6 +318,113 @@ fn should_execute_verified_local_hash_repair_with_audit() {
 
         let _ = std::fs::remove_dir_all(path);
     });
+}
+
+#[test]
+fn should_repair_large_projection_hash_manifest_after_restart() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("projection_repair_large_manifest");
+    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE repair_large_manifest_docs (title TEXT, score INT)",
+            vec![],
+        )
+        .expect("create table");
+    let projection = canonical_test_collection(&cassie, "repair_large_manifest_docs");
+    let documents = (0..1_024)
+        .map(|index| {
+            (
+                Some(format!("doc-{index:04}")),
+                serde_json::json!({"title": format!("title-{index}"), "score": index}),
+            )
+        })
+        .collect();
+    cassie
+        .midge
+        .put_documents(&projection, documents)
+        .expect("seed large manifest");
+    cassie
+        .midge
+        .rebuild_projection_hashes(&projection)
+        .expect("build initial ranges");
+    corrupt_first_row_hash(&cassie, &projection);
+
+    // Act
+    let verification = cassie
+        .execute_sql(
+            &session,
+            "VERIFY PROJECTION repair_large_manifest_docs MODE hashes_only",
+            vec![],
+        )
+        .expect("verify large manifest");
+    let plan = cassie
+        .execute_sql(
+            &session,
+            "PLAN REPAIR PROJECTION repair_large_manifest_docs SCOPE range",
+            vec![],
+        )
+        .expect("plan range repair");
+    let repair = cassie
+        .execute_sql(
+            &session,
+            "REPAIR PROJECTION repair_large_manifest_docs SCOPE range",
+            vec![],
+        )
+        .expect("repair large manifest");
+    let mut options = ProjectionManifestExportOptions::for_instance("large-manifest");
+    options.generated_ms = Some(4_000_000_000_000);
+    options.include_row_hashes = true;
+    let manifest = cassie
+        .export_projection_verification_manifest(&projection, options)
+        .expect("export repaired manifest");
+    let root = cassie
+        .midge
+        .root_hash(&projection)
+        .expect("read repaired root")
+        .expect("repaired root");
+
+    // Assert
+    assert_eq!(verification.rows[0][0], Value::String("failed".to_string()));
+    assert_eq!(verification.rows[0][5], Value::Int64(1));
+    assert_eq!(plan.rows[0][5], Value::Bool(true));
+    assert_eq!(repair.rows[0][0], Value::String("completed".to_string()));
+    assert_eq!(repair.rows[0][7], Value::String("verified".to_string()));
+    assert_eq!(root.row_count, 1_024);
+    assert_eq!(root.range_count, 4);
+    assert_eq!(
+        manifest.root.as_ref().expect("manifest root").row_count,
+        1_024
+    );
+    assert_eq!(manifest.ranges.len(), 4);
+    assert_eq!(manifest.row_hashes.len(), 1_024);
+    assert_eq!(
+        manifest
+            .ranges
+            .iter()
+            .map(|range| range.row_count)
+            .sum::<u64>(),
+        1_024
+    );
+    drop(cassie);
+
+    let restarted = Cassie::new_with_data_dir(&path).expect("restart cassie");
+    restarted.startup().expect("restart startup");
+    let restarted_root = restarted
+        .midge
+        .root_hash(&projection)
+        .expect("read root after restart")
+        .expect("root after restart");
+    assert_eq!(
+        restarted_root.built_generation,
+        restarted.midge.collection_generation(&projection).unwrap()
+    );
+
+    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]

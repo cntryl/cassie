@@ -598,9 +598,10 @@ Phase 02 adds compile-validated benchmark coverage for projection lifecycle cost
 | Lag catch-up replay | `projection_lag_catchup` in `tier2_subsystem_ingest` |
 | Materialized projection refresh | `projection_refresh` in `tier3_system_rebuild` |
 | Rebuild verification | `projection_verify` in `tier3_system_rebuild` |
+| Large row/range manifest repair and reopen | `should_repair_large_projection_hash_manifest_after_restart` in `tests/projection_repair.rs` |
 | Version swap latency | `projection_swap` in `tier3_system_rebuild` |
 
-Initial targets are comparative rather than SLA-grade: verification and swap costs must be visible separately from rebuild/query costs, fixtures must be deterministic, and benchmarks must not require services outside Cassie and Midge.
+Initial targets are comparative rather than SLA-grade: verification and swap costs must be visible separately from rebuild/query costs, the repair fixture must preserve row/range counts and generation after restart, fixtures must be deterministic, and benchmarks must not require services outside Cassie and Midge.
 
 ## Pattern Contracts
 

@@ -34,7 +34,7 @@ REPAIR PROJECTION materialized_projection_name VERSION v2 SCOPE projection-versi
 REPAIR PROJECTION materialized_projection_name SCOPE full-rebuild;
 ```
 
-Cassie rebuilds local projection hashes for row/range scopes, rebuilds verified index sidecars for index scope, rebuilds the explicitly named materialized version for projection-version scope without activating it, or refreshes the active materialized projection for full-rebuild scope. Version and full-rebuild repairs gate all source collections and the target output collection while replacing the output. Every successful repair immediately runs `VERIFY PROJECTION <name> MODE full` (with `VERSION` for projection-version repairs) and persists an audit row in `pg_catalog.pg_projection_repair_reports` with `state = completed` and the post-verification state.
+Cassie rebuilds local projection hashes for row/range scopes, rebuilds verified index sidecars for index scope, rebuilds the explicitly named materialized version for projection-version scope without activating it, or refreshes the active materialized projection for full-rebuild scope. Row/range and index repairs hold the affected collection write gate through the rebuild; version and full-rebuild repairs gate all source collections and the target output collection while replacing the output. Every successful repair immediately runs `VERIFY PROJECTION <name> MODE full` (with `VERSION` for projection-version repairs) and persists an audit row in `pg_catalog.pg_projection_repair_reports` with `state = completed` and the post-verification state. The local recovery fixture covers a 1,024-row/four-range row-hash manifest through repair, export, and restart.
 
 ## Verify And Audit
 

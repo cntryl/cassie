@@ -104,6 +104,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     only after derived state is current.
   - [x] Dropping a graph backing collection removes its outbound/inbound adjacency sidecars during
     replay, including after an interrupted schema commit, without leaving orphaned edges.
+  - [x] Field rename and drop operations now hold the collection write gate through schema journal
+    publication and derived-sidecar replay, serializing them with concurrent DML.
 - [x] Make snapshot capture consistency executable, not documentation-only.
   - [x] Test a source mutation during copy and require retry/failure without leaving a usable
     partial snapshot.

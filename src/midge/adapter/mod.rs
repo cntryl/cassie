@@ -316,6 +316,9 @@ pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
 mod scan_types;
 mod schema_cleanup;
 mod schema_ops;
+#[cfg(test)]
+#[path = "schema_ops_tests.rs"]
+mod schema_ops_tests;
 mod sequences;
 mod streaming_scans;
 pub(crate) mod time_series_indexes;

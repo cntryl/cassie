@@ -86,7 +86,6 @@ impl Midge {
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
     }
-
     pub fn list_namespaces(&self) -> Vec<String> {
         self.list_namespaces_raw()
     }
@@ -479,6 +478,8 @@ impl Midge {
     ) -> Result<(), CassieError> {
         let collection_storage = self.canonical_collection_name(collection);
         let collection = collection_storage.as_str();
+        let write_gate = self.collection_write_gate(collection);
+        let _write_guard = write_gate.lock();
         let mut tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(collection);
         let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
@@ -490,7 +491,6 @@ impl Midge {
             CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
         })?;
         let original_schema = schema.clone();
-
         let field_count_before = schema.fields.len();
         schema.fields.retain(|entry| entry.name != field);
         if schema.fields.len() == field_count_before {
@@ -551,6 +551,8 @@ impl Midge {
     ) -> Result<(), CassieError> {
         let collection_storage = self.canonical_collection_name(collection);
         let collection = collection_storage.as_str();
+        let write_gate = self.collection_write_gate(collection);
+        let _write_guard = write_gate.lock();
         let mut tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(collection);
         let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
@@ -562,7 +564,6 @@ impl Midge {
             CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
         })?;
         let original_schema = schema.clone();
-
         if schema
             .fields
             .iter()

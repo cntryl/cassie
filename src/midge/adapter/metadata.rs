@@ -75,6 +75,8 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_index(&self, collection: &str, name: &str) -> Result<(), CassieError> {
+        let write_gate = self.collection_write_gate(&self.canonical_collection_name(collection));
+        let _write_guard = write_gate.lock();
         let metadata = self.get_index(collection, name)?;
         let (stored_collection, stored_name) = metadata.as_ref().map_or_else(
             || (collection.to_string(), name.to_string()),

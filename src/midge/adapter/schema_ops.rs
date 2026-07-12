@@ -53,7 +53,6 @@ impl Midge {
         let _ = fields;
         result
     }
-
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
@@ -62,7 +61,6 @@ impl Midge {
             let _ = self.database_family(&database)?;
         }
         let mut tx = self.begin_schema_rw_tx()?;
-
         let namespace_key = Self::namespace_key(namespace);
         if tx.get(&namespace_key).map_err(CassieError::from)?.is_none() {
             let metadata = NamespaceMeta::new(namespace, None);
@@ -241,6 +239,8 @@ impl Midge {
     pub fn drop_collection(&self, name: &str) -> Result<(), CassieError> {
         let name_storage = self.canonical_collection_name(name);
         let name = name_storage.as_str();
+        let write_gate = self.collection_write_gate(name);
+        let _write_guard = write_gate.lock();
         let mut schema_tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(name);
         if schema_tx

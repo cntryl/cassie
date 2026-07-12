@@ -2,7 +2,7 @@ use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::Duration;
 
-use super::{FieldSchema, Midge, Schema};
+use super::{FieldSchema, IndexKind, IndexMeta, Midge, Schema};
 
 #[test]
 fn should_serialize_field_rename_with_collection_writes() {
@@ -123,6 +123,142 @@ fn should_serialize_collection_rename_with_collection_writes() {
     assert!(midge
         .collection_schema("collection_rename_gate_next")
         .is_some());
+
+    drop(midge);
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_serialize_collection_drop_with_collection_writes() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!(
+        "cassie_collection_drop_gate_{}",
+        uuid::Uuid::new_v4()
+    ));
+    let midge = Arc::new(Midge::new_with_data_dir(&path).expect("create Midge"));
+    midge
+        .create_collection(
+            "collection_drop_gate",
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "value".to_string(),
+                    data_type: crate::types::DataType::Text,
+                    nullable: true,
+                }],
+            },
+        )
+        .expect("create collection");
+    let collection = midge.canonical_collection_name("collection_drop_gate");
+    let gate = midge.collection_write_gate(&collection);
+    let write_guard = gate.lock();
+    let (started_tx, started_rx) = mpsc::channel();
+    let (completed_tx, completed_rx) = mpsc::channel();
+    let worker_midge = Arc::clone(&midge);
+
+    let worker = thread::spawn(move || {
+        started_tx.send(()).expect("signal collection drop start");
+        let result = worker_midge.drop_collection("collection_drop_gate");
+        completed_tx
+            .send(result)
+            .expect("signal collection drop finish");
+    });
+    started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("collection drop should start");
+
+    // Act
+    let early_result = completed_rx.recv_timeout(Duration::from_millis(100)).ok();
+    let blocked_while_write_guard_held = early_result.is_none();
+    drop(write_guard);
+    let result = early_result.unwrap_or_else(|| {
+        completed_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("collection drop should finish after the write gate is released")
+    });
+    worker.join().expect("join collection drop");
+
+    // Assert
+    assert!(blocked_while_write_guard_held);
+    assert!(result.is_ok());
+    assert!(midge.collection_schema("collection_drop_gate").is_none());
+
+    drop(midge);
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_serialize_index_drop_with_collection_writes() {
+    // Arrange
+    let path =
+        std::env::temp_dir().join(format!("cassie_index_drop_gate_{}", uuid::Uuid::new_v4()));
+    let midge = Arc::new(Midge::new_with_data_dir(&path).expect("create Midge"));
+    midge
+        .create_collection(
+            "index_drop_gate",
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "value".to_string(),
+                    data_type: crate::types::DataType::Text,
+                    nullable: true,
+                }],
+            },
+        )
+        .expect("create collection");
+    midge
+        .put_document(
+            "index_drop_gate",
+            Some("row-1".to_string()),
+            serde_json::json!({"value": "alpha"}),
+        )
+        .expect("seed document");
+    midge
+        .put_index(&IndexMeta {
+            collection: "index_drop_gate".to_string(),
+            name: "index_drop_gate_value".to_string(),
+            field: "value".to_string(),
+            fields: vec!["value".to_string()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: false,
+            options: std::collections::BTreeMap::new(),
+        })
+        .expect("create scalar index");
+    let collection = midge.canonical_collection_name("index_drop_gate");
+    let gate = midge.collection_write_gate(&collection);
+    let write_guard = gate.lock();
+    let (started_tx, started_rx) = mpsc::channel();
+    let (completed_tx, completed_rx) = mpsc::channel();
+    let worker_midge = Arc::clone(&midge);
+
+    let worker = thread::spawn(move || {
+        started_tx.send(()).expect("signal index drop start");
+        let result = worker_midge.delete_index("index_drop_gate", "index_drop_gate_value");
+        completed_tx.send(result).expect("signal index drop finish");
+    });
+    started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("index drop should start");
+
+    // Act
+    let early_result = completed_rx.recv_timeout(Duration::from_millis(100)).ok();
+    let blocked_while_write_guard_held = early_result.is_none();
+    drop(write_guard);
+    let result = early_result.unwrap_or_else(|| {
+        completed_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("index drop should finish after the write gate is released")
+    });
+    worker.join().expect("join index drop");
+
+    // Assert
+    assert!(blocked_while_write_guard_held);
+    assert!(result.is_ok());
+    assert!(midge
+        .get_index("index_drop_gate", "index_drop_gate_value")
+        .expect("read dropped index")
+        .is_none());
 
     drop(midge);
     let _ = std::fs::remove_dir_all(path);

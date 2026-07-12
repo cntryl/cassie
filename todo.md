@@ -108,6 +108,10 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     publication and derived-sidecar replay, serializing them with concurrent DML.
   - [x] Collection rename now holds the source collection write gate through schema journal
     publication and derived-sidecar replay, serializing it with concurrent DML.
+  - [x] Collection drop holds the collection write gate through schema metadata publication and
+    data-family cleanup, serializing it with concurrent DML.
+  - [x] Index drop holds the collection write gate through sidecar cleanup and metadata removal,
+    serializing it with concurrent DML.
 - [x] Make snapshot capture consistency executable, not documentation-only.
   - [x] Test a source mutation during copy and require retry/failure without leaving a usable
     partial snapshot.

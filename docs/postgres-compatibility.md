@@ -39,8 +39,6 @@ These bullets describe the implemented baseline, not blanket PostgreSQL semantic
 following parts of that baseline remain experimental until the active remediation program closes
 them:
 
-- complete three-valued NULL behavior across expressions, lists, ranges, filters, and every join
-  implementation, plus typed incompatible-operand and division-by-zero errors;
 - table-free constant and parameter-only SELECT with correct prepared-statement metadata;
 - recursive CTE delta iteration, UNION versus UNION ALL behavior, aliases, and type/arity checks;
 - explicit ROWS window frames and deterministic rejection of unsupported frame families;

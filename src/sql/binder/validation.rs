@@ -1,8 +1,246 @@
 use super::{
-    CassieError, Catalog, CommonTableExpression, CteQuery, Expr, FunctionCall, HashMap, HashSet,
-    OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
+    BinaryOp, CassieError, Catalog, CommonTableExpression, CteQuery, DataType, Expr, FunctionCall,
+    HashMap, HashSet, OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem,
+    SelectStatement,
 };
 use crate::catalog::name_matches;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OperandFamily {
+    Numeric,
+    Boolean,
+    Text,
+    Temporal,
+    Vector,
+    Json,
+    Other,
+}
+
+impl OperandFamily {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Numeric => "numeric",
+            Self::Boolean => "boolean",
+            Self::Text => "text",
+            Self::Temporal => "temporal",
+            Self::Vector => "vector",
+            Self::Json => "json",
+            Self::Other => "other",
+        }
+    }
+}
+
+pub(super) fn validate_select_operand_families(
+    select: &SelectStatement,
+    catalog: &Catalog,
+) -> Result<(), CassieError> {
+    let field_types = crate::sql::source_field_type_map(&select.source, catalog);
+    for item in &select.projection {
+        validate_select_item_operand_families(item, &field_types)?;
+    }
+    if let Some(filter) = &select.filter {
+        validate_expression_operand_families(filter, &field_types)?;
+    }
+    for expression in &select.distinct_on {
+        validate_expression_operand_families(expression, &field_types)?;
+    }
+    for expression in &select.group_by {
+        validate_expression_operand_families(expression, &field_types)?;
+    }
+    if let Some(having) = &select.having {
+        validate_expression_operand_families(having, &field_types)?;
+    }
+    for order in &select.order {
+        validate_expression_operand_families(&order.expr, &field_types)?;
+    }
+    Ok(())
+}
+
+fn validate_select_item_operand_families(
+    item: &SelectItem,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<(), CassieError> {
+    match item {
+        SelectItem::Wildcard | SelectItem::Column { .. } => Ok(()),
+        SelectItem::Function { function, .. } => {
+            for argument in &function.args {
+                validate_expression_operand_families(argument, field_types)?;
+            }
+            Ok(())
+        }
+        SelectItem::WindowFunction { function, .. } => {
+            for argument in &function.args {
+                validate_expression_operand_families(argument, field_types)?;
+            }
+            for expression in &function.partition_by {
+                validate_expression_operand_families(expression, field_types)?;
+            }
+            for order in &function.order_by {
+                validate_expression_operand_families(&order.expr, field_types)?;
+            }
+            Ok(())
+        }
+        SelectItem::Expr { expr, .. } => validate_expression_operand_families(expr, field_types),
+    }
+}
+
+pub(super) fn validate_expression_operand_families(
+    expr: &Expr,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<(), CassieError> {
+    let _ = expression_operand_family(expr, field_types)?;
+    Ok(())
+}
+
+fn expression_operand_family(
+    expr: &Expr,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<Option<OperandFamily>, CassieError> {
+    match expr {
+        Expr::Column(name) => {
+            Ok(crate::sql::field_type_for_column(field_types, name).map(data_type_family))
+        }
+        Expr::StringLiteral(value) => Ok(Some(string_literal_family(value))),
+        Expr::NumberLiteral(_) => Ok(Some(OperandFamily::Numeric)),
+        Expr::BoolLiteral(_) => Ok(Some(OperandFamily::Boolean)),
+        Expr::Null | Expr::Param(_) | Expr::Exists(_) => Ok(None),
+        Expr::Function(function) => {
+            for argument in &function.args {
+                validate_expression_operand_families(argument, field_types)?;
+            }
+            Ok(None)
+        }
+        Expr::Cast { expr, data_type } => {
+            validate_expression_operand_families(expr, field_types)?;
+            Ok(Some(data_type_family(data_type)))
+        }
+        Expr::IsNull { expr, .. } | Expr::Not { expr } => {
+            validate_expression_operand_families(expr, field_types)?;
+            Ok(Some(OperandFamily::Boolean))
+        }
+        Expr::Binary { left, op, right } => {
+            let left_family = expression_operand_family(left, field_types)?;
+            let right_family = expression_operand_family(right, field_types)?;
+            match op {
+                BinaryOp::And | BinaryOp::Or => Ok(Some(OperandFamily::Boolean)),
+                BinaryOp::Eq
+                | BinaryOp::NotEq
+                | BinaryOp::Lt
+                | BinaryOp::Lte
+                | BinaryOp::Gt
+                | BinaryOp::Gte => {
+                    require_compatible_families(left_family, right_family, "comparison")?;
+                    Ok(Some(OperandFamily::Boolean))
+                }
+                BinaryOp::Like => {
+                    require_family(left_family, OperandFamily::Text, "LIKE")?;
+                    require_family(right_family, OperandFamily::Text, "LIKE")?;
+                    Ok(Some(OperandFamily::Boolean))
+                }
+                BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+                    require_family(left_family, OperandFamily::Numeric, "arithmetic")?;
+                    require_family(right_family, OperandFamily::Numeric, "arithmetic")?;
+                    Ok(Some(OperandFamily::Numeric))
+                }
+                BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
+                    require_family(left_family, OperandFamily::Vector, "vector distance")?;
+                    require_family(right_family, OperandFamily::Vector, "vector distance")?;
+                    Ok(Some(OperandFamily::Numeric))
+                }
+            }
+        }
+        Expr::InList { expr, values, .. } => {
+            let expression_family = expression_operand_family(expr, field_types)?;
+            for value in values {
+                let value_family = expression_operand_family(value, field_types)?;
+                require_compatible_families(expression_family, value_family, "IN")?;
+            }
+            Ok(Some(OperandFamily::Boolean))
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            let expression_family = expression_operand_family(expr, field_types)?;
+            let low_family = expression_operand_family(low, field_types)?;
+            let high_family = expression_operand_family(high, field_types)?;
+            require_compatible_families(expression_family, low_family, "BETWEEN")?;
+            require_compatible_families(expression_family, high_family, "BETWEEN")?;
+            Ok(Some(OperandFamily::Boolean))
+        }
+    }
+}
+
+fn require_compatible_families(
+    left: Option<OperandFamily>,
+    right: Option<OperandFamily>,
+    operation: &str,
+) -> Result<(), CassieError> {
+    let (Some(left), Some(right)) = (left, right) else {
+        return Ok(());
+    };
+    if families_compatible(left, right) {
+        return Ok(());
+    }
+    Err(CassieError::Planner(format!(
+        "incompatible {operation} operands: {} and {}",
+        left.label(),
+        right.label()
+    )))
+}
+
+fn string_literal_family(value: &str) -> OperandFamily {
+    if serde_json::from_str::<Vec<f32>>(value)
+        .ok()
+        .is_some_and(|values| !values.is_empty())
+    {
+        OperandFamily::Vector
+    } else {
+        OperandFamily::Text
+    }
+}
+
+fn require_family(
+    family: Option<OperandFamily>,
+    expected: OperandFamily,
+    operation: &str,
+) -> Result<(), CassieError> {
+    let Some(family) = family else {
+        return Ok(());
+    };
+    if family == expected {
+        return Ok(());
+    }
+    Err(CassieError::Planner(format!(
+        "incompatible {operation} operand family: expected {}, got {}",
+        expected.label(),
+        family.label()
+    )))
+}
+
+fn families_compatible(left: OperandFamily, right: OperandFamily) -> bool {
+    left == right
+        || matches!(
+            (left, right),
+            (OperandFamily::Temporal, OperandFamily::Text)
+                | (OperandFamily::Text, OperandFamily::Temporal)
+        )
+}
+
+const fn data_type_family(data_type: &DataType) -> OperandFamily {
+    match data_type {
+        DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float => {
+            OperandFamily::Numeric
+        }
+        DataType::Boolean => OperandFamily::Boolean,
+        DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => OperandFamily::Text,
+        DataType::Date | DataType::Time | DataType::Timestamp => OperandFamily::Temporal,
+        DataType::Vector(_) => OperandFamily::Vector,
+        DataType::Json => OperandFamily::Json,
+        DataType::Uuid | DataType::Bytea | DataType::Array(_) | DataType::Null => {
+            OperandFamily::Other
+        }
+    }
+}
 
 pub(super) fn select_contains_parameters(select: &SelectStatement) -> bool {
     select.ctes.iter().any(cte_contains_parameters)

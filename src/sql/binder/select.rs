@@ -1,10 +1,11 @@
 use super::{
     bind_statement, collect_projection_aliases, mem, qualified_fields,
     recursive_cte_references_self, resolve_relation_name, validate_distinct_on_order_prefix,
-    validate_expression, validate_expression_references, validate_functions,
-    validate_order_by_references, validate_projection_references, virtual_views, BindingContext,
-    CassieError, Catalog, CteQuery, CteScope, DataType, Expr, FunctionCall, HashSet, QuerySource,
-    QueryStatement, SelectItem, SelectSet, SelectStatement,
+    validate_expression, validate_expression_operand_families, validate_expression_references,
+    validate_functions, validate_order_by_references, validate_projection_references,
+    validate_select_operand_families, virtual_views, BindingContext, CassieError, Catalog,
+    CteQuery, CteScope, DataType, Expr, FunctionCall, HashSet, QuerySource, QueryStatement,
+    SelectItem, SelectSet, SelectStatement,
 };
 
 pub(super) fn bind_select(
@@ -111,6 +112,7 @@ pub(super) fn bind_select_with_lateral_fields(
 
     let projection_aliases = collect_projection_aliases(&select);
     validate_bound_select_references(&select, &known_fields, &projection_aliases)?;
+    validate_select_operand_families(&select, catalog)?;
 
     if let Some(set) = set {
         let right = bind_select(*set.right, catalog, &scope, context)?;
@@ -291,6 +293,8 @@ pub(super) fn bind_query_source_with_lateral_fields(
             };
             let known_fields = source_fields(catalog, &joined, scope)?;
             validate_expression(&on, &known_fields, &HashSet::new(), false)?;
+            let field_types = crate::sql::source_field_type_map(&joined, catalog);
+            validate_expression_operand_families(&on, &field_types)?;
             Ok(joined)
         }
     }

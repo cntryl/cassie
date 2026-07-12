@@ -58,7 +58,7 @@ tests, diagnostics, documentation, and performance evidence meet `docs/definitio
   - Keep lexkey v5 current-layout and v4-and-older rejection wording consistent across README,
     feature support, snapshot docs, tests, and startup diagnostics.
   - Narrow any Stable/Implemented claim whose remaining contract work is listed below, especially
-    NULL semantics, recursive CTEs, window frames, binary pgwire, retrieval generation safety,
+    table-free queries, recursive CTEs, window frames, binary pgwire, retrieval generation safety,
     REST authentication, analytics freshness, and production readiness.
 - [x] Make gate results reproducible and retained.
   - Ensure the full locked test suite completes deterministically in local and CI environments.
@@ -157,15 +157,17 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
 
 ## Phase 3 — stable SQL semantics
 
-- [ ] Implement PostgreSQL-like three-valued NULL logic in `src/executor/filter.rs` and every join
+- [x] Implement PostgreSQL-like three-valued NULL logic in `src/executor/filter.rs` and every join
   path.
-  - Propagate unknown through comparisons, arithmetic, `LIKE`, `BETWEEN`, `IN`, and `NOT IN`.
-  - Implement the complete `AND`/`OR`/`NOT` truth tables; null equality keys must not join under `=`.
-  - Add binder-time rejection of incompatible comparison/arithmetic operand families.
-  - Return a typed division-by-zero error and SQLSTATE `22012` instead of `0.0`.
-  - Tests: add `tests/integration_sql_null_semantics.rs` for truth tables, predicates, arithmetic,
-    list/null behavior, and merge/vectorized/fallback join equivalence; add pgwire `22012` coverage.
-  - Benchmark: N/A beyond regression checks; correctness is the gate.
+  - [x] Propagate unknown through comparisons, arithmetic, `LIKE`, `BETWEEN`, `IN`, and `NOT IN`.
+  - [x] Implement the complete `AND`/`OR`/`NOT` truth tables; null equality keys never join under
+    `=` across nested-loop, merge, vectorized, bounded, and indexed join paths.
+  - [x] Add binder-time rejection of incompatible comparison/arithmetic operand families.
+  - [x] Return a typed division-by-zero error and SQLSTATE `22012` instead of `0.0`.
+  - [x] `tests/integration_sql_null_semantics.rs` covers truth tables, predicates, arithmetic,
+    list/null behavior, and engine error mapping; `tests/integration_sql_joins.rs` covers
+    merge/vectorized NULL-key equivalence and `tests/pgwire_simple_query.rs` covers `22012`.
+  - [x] Benchmark: N/A beyond regression checks; correctness is the gate.
 - [ ] Complete constant and parameter-only `SELECT`.
   - Accept supported scalar literals, expressions, aliases, booleans, NULL, and bare/cast parameters
     without `FROM` through parser, binder, planner, and `QuerySource::SingleRow` execution.

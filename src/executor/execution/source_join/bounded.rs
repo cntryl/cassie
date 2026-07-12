@@ -163,7 +163,7 @@ fn execute_indexed_bounded_inner_join(
                     None,
                     env.session,
                 )?
-                .as_bool()
+                .is_true()
                 {
                     matched_rows += 1;
                     joined.push(combined);
@@ -294,10 +294,9 @@ pub(super) fn try_execute_streaming_bounded_inner_join(
 
     let mut build = std::collections::HashMap::<String, Vec<usize>>::new();
     for (index, right_row) in right_rows.iter().enumerate() {
-        build
-            .entry(row_join_key(right_row, &spec.keys.right))
-            .or_default()
-            .push(index);
+        if let Some(key) = row_join_key(right_row, &spec.keys.right) {
+            build.entry(key).or_default().push(index);
+        }
     }
 
     let batch_size = limits.vectorized_join_batch_size.max(1);
@@ -330,10 +329,9 @@ fn execute_left_build_streaming_bounded_inner_join(
 
     let mut build = std::collections::HashMap::<String, Vec<usize>>::new();
     for (index, left_row) in left_rows.iter().enumerate() {
-        build
-            .entry(row_join_key(left_row, &spec.keys.left))
-            .or_default()
-            .push(index);
+        if let Some(key) = row_join_key(left_row, &spec.keys.left) {
+            build.entry(key).or_default().push(index);
+        }
     }
 
     let batch_size = env
@@ -400,7 +398,9 @@ fn execute_dense_streaming_bounded_inner_join(
                 spec.left_collection,
             );
             probe_rows += 1;
-            let left_key = row_join_key(&left_row, &spec.keys.left);
+            let Some(left_key) = row_join_key(&left_row, &spec.keys.left) else {
+                return Ok(true);
+            };
 
             let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
                 spec.right_collection,
@@ -416,7 +416,10 @@ fn execute_dense_streaming_bounded_inner_join(
                         spec.right_collection,
                     );
                     build_rows += 1;
-                    if left_key != row_join_key(&right_row, &spec.keys.right) {
+                    let Some(right_key) = row_join_key(&right_row, &spec.keys.right) else {
+                        return Ok(true);
+                    };
+                    if left_key != right_key {
                         return Ok(true);
                     }
 
@@ -430,7 +433,7 @@ fn execute_dense_streaming_bounded_inner_join(
                         None,
                         env.session,
                     )?
-                    .as_bool()
+                    .is_true()
                     {
                         matched_rows += 1;
                         joined.push(combined);
@@ -549,7 +552,9 @@ fn stream_left_rows_against_right(
                 spec.left_collection,
             );
             probe_rows += 1;
-            let key = row_join_key(&left_row, &spec.keys.left);
+            let Some(key) = row_join_key(&left_row, &spec.keys.left) else {
+                return Ok(true);
+            };
 
             if let Some(right_indexes) = build.get(&key) {
                 for right_index in right_indexes {
@@ -563,7 +568,7 @@ fn stream_left_rows_against_right(
                         None,
                         env.session,
                     )?
-                    .as_bool()
+                    .is_true()
                     {
                         matched_rows += 1;
                         joined.push(combined);
@@ -608,7 +613,9 @@ fn stream_right_rows_against_left(
                 spec.right_collection,
             );
             probe_rows += 1;
-            let key = row_join_key(&right_row, &spec.keys.right);
+            let Some(key) = row_join_key(&right_row, &spec.keys.right) else {
+                return Ok(true);
+            };
 
             if let Some(left_indexes) = build.get(&key) {
                 for left_index in left_indexes {
@@ -622,7 +629,7 @@ fn stream_right_rows_against_left(
                         None,
                         env.session,
                     )?
-                    .as_bool()
+                    .is_true()
                     {
                         matched_rows += 1;
                         joined.push(combined);

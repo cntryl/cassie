@@ -22,7 +22,7 @@ pub use functions::registry;
 pub use parser::{parse_statement, SqlError, SqlErrorKind};
 
 const UNKNOWN_PARAMETER_TYPE_OID: i32 = 705;
-type FieldTypeMap = HashMap<String, DataType>;
+pub(crate) type FieldTypeMap = HashMap<String, DataType>;
 
 #[must_use]
 pub fn parameter_count(statement: &ParsedStatement) -> usize {
@@ -346,7 +346,7 @@ fn set_parameter_type_oid(oids: &mut [i32], index: usize, data_type: &DataType) 
     }
 }
 
-fn source_field_type_map(
+pub(crate) fn source_field_type_map(
     source: &ast::QuerySource,
     catalog: &crate::catalog::Catalog,
 ) -> FieldTypeMap {
@@ -400,7 +400,10 @@ fn column_expr_type<'a>(expr: &ast::Expr, field_types: &'a FieldTypeMap) -> Opti
     }
 }
 
-fn field_type_for_column<'a>(field_types: &'a FieldTypeMap, column: &str) -> Option<&'a DataType> {
+pub(crate) fn field_type_for_column<'a>(
+    field_types: &'a FieldTypeMap,
+    column: &str,
+) -> Option<&'a DataType> {
     let column = column
         .trim_matches('"')
         .rsplit('.')

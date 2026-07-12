@@ -153,7 +153,7 @@ fn should_execute_left_join_query() {
 }
 
 #[test]
-fn should_execute_merge_join_duplicate_null_keys() {
+fn should_not_join_null_keys_in_merge_join() {
     // Arrange
     with_fallback();
     let path = data_dir("join_merge_duplicate_null_keys");
@@ -207,8 +207,7 @@ fn should_execute_merge_join_duplicate_null_keys() {
                 vec![Value::String("ada".to_string()), Value::Int64(42)],
                 vec![Value::String("ada".to_string()), Value::Int64(99)],
                 vec![Value::String("ada-alt".to_string()), Value::Int64(42)],
-                vec![Value::String("ada-alt".to_string()), Value::Int64(99)],
-                vec![Value::String("unknown".to_string()), Value::Int64(7)]
+                vec![Value::String("ada-alt".to_string()), Value::Int64(99)]
             ]
         );
 
@@ -221,7 +220,7 @@ fn should_execute_merge_join_duplicate_null_keys() {
 }
 
 #[test]
-fn should_execute_vectorized_inner_join_duplicate_null_keys() {
+fn should_not_join_null_keys_in_vectorized_inner_join() {
     // Arrange
     with_fallback();
     let path = data_dir("join_vectorized_inner_duplicate_null_keys");
@@ -276,8 +275,7 @@ fn should_execute_vectorized_inner_join_duplicate_null_keys() {
                 vec![Value::String("ada".to_string()), Value::Int64(42)],
                 vec![Value::String("ada".to_string()), Value::Int64(99)],
                 vec![Value::String("ada-alt".to_string()), Value::Int64(42)],
-                vec![Value::String("ada-alt".to_string()), Value::Int64(99)],
-                vec![Value::String("unknown".to_string()), Value::Int64(7)]
+                vec![Value::String("ada-alt".to_string()), Value::Int64(99)]
             ]
         );
 

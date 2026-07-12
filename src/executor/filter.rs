@@ -148,15 +148,88 @@ pub(crate) enum ScalarValue {
     Str(String),
 }
 
-impl ScalarValue {
-    pub(crate) fn as_bool(&self) -> bool {
-        match self {
-            ScalarValue::Bool(v) => *v,
-            ScalarValue::Int(v) => *v != 0,
-            ScalarValue::Float(v) => *v != 0.0,
-            ScalarValue::Str(v) => !v.is_empty(),
-            ScalarValue::Null => false,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PredicateResult {
+    True,
+    False,
+    Unknown,
+}
+
+impl PredicateResult {
+    fn and(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::False, _) | (_, Self::False) => Self::False,
+            (Self::True, Self::True) => Self::True,
+            _ => Self::Unknown,
         }
+    }
+
+    fn or(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::True, _) | (_, Self::True) => Self::True,
+            (Self::False, Self::False) => Self::False,
+            _ => Self::Unknown,
+        }
+    }
+
+    const fn not(self) -> Self {
+        match self {
+            Self::True => Self::False,
+            Self::False => Self::True,
+            Self::Unknown => Self::Unknown,
+        }
+    }
+
+    const fn is_true(self) -> bool {
+        matches!(self, Self::True)
+    }
+
+    const fn into_scalar(self) -> ScalarValue {
+        match self {
+            Self::True => ScalarValue::Bool(true),
+            Self::False => ScalarValue::Bool(false),
+            Self::Unknown => ScalarValue::Null,
+        }
+    }
+}
+
+impl ScalarValue {
+    pub(crate) fn predicate_result(&self) -> PredicateResult {
+        match self {
+            ScalarValue::Bool(value) => {
+                if *value {
+                    PredicateResult::True
+                } else {
+                    PredicateResult::False
+                }
+            }
+            ScalarValue::Int(value) => {
+                if *value == 0 {
+                    PredicateResult::False
+                } else {
+                    PredicateResult::True
+                }
+            }
+            ScalarValue::Float(value) => {
+                if *value == 0.0 {
+                    PredicateResult::False
+                } else {
+                    PredicateResult::True
+                }
+            }
+            ScalarValue::Str(value) => {
+                if value.is_empty() {
+                    PredicateResult::False
+                } else {
+                    PredicateResult::True
+                }
+            }
+            ScalarValue::Null => PredicateResult::Unknown,
+        }
+    }
+
+    pub(crate) fn is_true(&self) -> bool {
+        self.predicate_result().is_true()
     }
 
     pub(crate) fn as_str(&self) -> Option<&str> {
@@ -288,7 +361,7 @@ fn eval_filter<R: RowAccess + ?Sized>(
             session,
         },
     )?;
-    Ok(value.as_bool())
+    Ok(value.is_true())
 }
 
 pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
@@ -519,88 +592,110 @@ fn decode_bytea(value: &str) -> Result<(), QueryError> {
     Ok(())
 }
 
-fn binary_scalar(left: &ScalarValue, op: &BinaryOp, right: &ScalarValue) -> ScalarValue {
-    match op {
-        BinaryOp::And => ScalarValue::Bool(left.as_bool() && right.as_bool()),
-        BinaryOp::Or => ScalarValue::Bool(left.as_bool() || right.as_bool()),
-        BinaryOp::Eq => ScalarValue::Bool(eq_value(left, right)),
-        BinaryOp::NotEq => ScalarValue::Bool(!eq_value(left, right)),
-        BinaryOp::Lt => ScalarValue::Bool(ordered_cmp(left, right, std::cmp::Ordering::is_lt)),
-        BinaryOp::Lte => ScalarValue::Bool(ordered_cmp(left, right, |ordering| !ordering.is_gt())),
-        BinaryOp::Gt => ScalarValue::Bool(ordered_cmp(left, right, std::cmp::Ordering::is_gt)),
-        BinaryOp::Gte => ScalarValue::Bool(ordered_cmp(left, right, |ordering| !ordering.is_lt())),
-        BinaryOp::Like => ScalarValue::Bool(like_match(left.as_str(), right.as_str())),
-        BinaryOp::Add => ScalarValue::Float(binary_math(left, right, |a, b| a + b)),
-        BinaryOp::Sub => ScalarValue::Float(binary_math(left, right, |a, b| a - b)),
-        BinaryOp::Mul => ScalarValue::Float(binary_math(left, right, |a, b| a * b)),
+fn binary_scalar(
+    left: &ScalarValue,
+    op: &BinaryOp,
+    right: &ScalarValue,
+) -> Result<ScalarValue, QueryError> {
+    let result = match op {
+        BinaryOp::And => left
+            .predicate_result()
+            .and(right.predicate_result())
+            .into_scalar(),
+        BinaryOp::Or => left
+            .predicate_result()
+            .or(right.predicate_result())
+            .into_scalar(),
+        BinaryOp::Eq => comparison_result(eq_value(left, right)),
+        BinaryOp::NotEq => comparison_result(eq_value(left, right).map(|value| !value)),
+        BinaryOp::Lt => comparison_result(ordered_cmp(left, right, std::cmp::Ordering::is_lt)),
+        BinaryOp::Lte => comparison_result(ordered_cmp(left, right, |ordering| !ordering.is_gt())),
+        BinaryOp::Gt => comparison_result(ordered_cmp(left, right, std::cmp::Ordering::is_gt)),
+        BinaryOp::Gte => comparison_result(ordered_cmp(left, right, |ordering| !ordering.is_lt())),
+        BinaryOp::Like => comparison_result(like_match(left.as_str(), right.as_str())),
+        BinaryOp::Add => math_result(left, right, |a, b| a + b),
+        BinaryOp::Sub => math_result(left, right, |a, b| a - b),
+        BinaryOp::Mul => math_result(left, right, |a, b| a * b),
         BinaryOp::Div => {
-            ScalarValue::Float(binary_math(
-                left,
-                right,
-                |a, b| {
-                    if b == 0.0 {
-                        0.0
-                    } else {
-                        a / b
-                    }
-                },
-            ))
+            if right.to_f64().is_some_and(|value| value == 0.0) && left.to_f64().is_some() {
+                return Err(QueryError::General("division by zero".to_string()));
+            }
+            math_result(left, right, |a, b| a / b)
         }
         BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
-            ScalarValue::Float(vector_distance(op, left, right))
+            if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
+                ScalarValue::Null
+            } else {
+                ScalarValue::Float(vector_distance(op, left, right))
+            }
         }
-    }
+    };
+    Ok(result)
 }
 
-fn like_match(value: Option<&str>, pattern: Option<&str>) -> bool {
+fn comparison_result(result: Option<bool>) -> ScalarValue {
+    result.map_or(ScalarValue::Null, ScalarValue::Bool)
+}
+
+fn like_match(value: Option<&str>, pattern: Option<&str>) -> Option<bool> {
     match (value, pattern) {
         (Some(value), Some(pattern)) => {
             let value = value.to_lowercase();
             let pattern = pattern.to_lowercase();
             if pattern == "%" {
-                return true;
+                return Some(true);
             }
             if !pattern.starts_with('%') && !pattern.ends_with('%') {
-                return value == pattern;
+                return Some(value == pattern);
             }
             if pattern.starts_with('%') && pattern.ends_with('%') {
                 let contains_expr = pattern.trim_matches('%');
-                return value.contains(contains_expr);
+                return Some(value.contains(contains_expr));
             }
             if pattern.starts_with('%') {
                 let suffix = pattern.trim_start_matches('%');
-                return value.ends_with(suffix);
+                return Some(value.ends_with(suffix));
             }
             if pattern.ends_with('%') {
                 let prefix = pattern.trim_end_matches('%');
-                return value.starts_with(prefix);
+                return Some(value.starts_with(prefix));
             }
-            false
+            Some(false)
         }
-        _ => false,
+        _ => None,
     }
 }
 
-fn number_cmp(left: &ScalarValue, right: &ScalarValue, cmp: impl Fn(f64, f64) -> bool) -> bool {
-    cmp(left.to_f64().unwrap_or(0.0), right.to_f64().unwrap_or(0.0))
+fn math_result(
+    left: &ScalarValue,
+    right: &ScalarValue,
+    op: impl Fn(f64, f64) -> f64,
+) -> ScalarValue {
+    binary_math(left, right, op).map_or(ScalarValue::Null, ScalarValue::Float)
 }
 
 fn ordered_cmp(
     left: &ScalarValue,
     right: &ScalarValue,
     cmp: impl Fn(std::cmp::Ordering) -> bool,
-) -> bool {
+) -> Option<bool> {
     match (left.to_f64(), right.to_f64()) {
-        (Some(left), Some(right)) => left.partial_cmp(&right).is_some_and(&cmp),
+        (Some(left), Some(right)) => left.partial_cmp(&right).map(cmp),
         _ => left
             .as_str()
             .zip(right.as_str())
-            .is_some_and(|(left, right)| cmp(left.cmp(right))),
+            .map(|(left, right)| cmp(left.cmp(right))),
     }
 }
 
-fn binary_math(left: &ScalarValue, right: &ScalarValue, op: impl Fn(f64, f64) -> f64) -> f64 {
-    op(left.to_f64().unwrap_or(0.0), right.to_f64().unwrap_or(0.0))
+fn binary_math(
+    left: &ScalarValue,
+    right: &ScalarValue,
+    op: impl Fn(f64, f64) -> f64,
+) -> Option<f64> {
+    left.to_f64()
+        .zip(right.to_f64())
+        .map(|(left, right)| op(left, right))
 }
 
 fn vector_distance(op: &BinaryOp, left: &ScalarValue, right: &ScalarValue) -> f64 {
@@ -624,32 +719,35 @@ fn vector_distance(op: &BinaryOp, left: &ScalarValue, right: &ScalarValue) -> f6
     }
 }
 
-fn eq_value(left: &ScalarValue, right: &ScalarValue) -> bool {
+fn eq_value(left: &ScalarValue, right: &ScalarValue) -> Option<bool> {
+    if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
+        return None;
+    }
+
     match (left, right) {
-        (ScalarValue::Null, ScalarValue::Null) => true,
-        (ScalarValue::Bool(left), ScalarValue::Bool(right)) => left == right,
-        (ScalarValue::Int(left), ScalarValue::Int(right)) => left == right,
-        (ScalarValue::Float(left), ScalarValue::Float(right)) => left == right,
-        (ScalarValue::Str(left), ScalarValue::Str(right)) => left == right,
+        (ScalarValue::Bool(left), ScalarValue::Bool(right)) => Some(left == right),
+        (ScalarValue::Int(left), ScalarValue::Int(right)) => Some(left == right),
+        (ScalarValue::Float(left), ScalarValue::Float(right)) => Some(left == right),
+        (ScalarValue::Str(left), ScalarValue::Str(right)) => Some(left == right),
         (ScalarValue::Int(left), ScalarValue::Float(right)) => {
-            parse_i64_to_f64(*left).is_some_and(|left| left == *right)
+            parse_i64_to_f64(*left).map(|left| left == *right)
         }
         (ScalarValue::Float(left), ScalarValue::Int(right)) => {
-            parse_i64_to_f64(*right).is_some_and(|right| *left == right)
+            parse_i64_to_f64(*right).map(|right| *left == right)
         }
         (ScalarValue::Bool(left), ScalarValue::Int(right)) => {
-            (*left && *right != 0) || (!*left && *right == 0)
+            Some((*left && *right != 0) || (!*left && *right == 0))
         }
         (ScalarValue::Int(left), ScalarValue::Bool(right)) => {
-            (*left != 0 && *right) || (*left == 0 && !*right)
+            Some((*left != 0 && *right) || (*left == 0 && !*right))
         }
         (ScalarValue::Bool(left), ScalarValue::Float(right)) => {
-            (*left && *right != 0.0) || (!*left && *right == 0.0)
+            Some((*left && *right != 0.0) || (!*left && *right == 0.0))
         }
         (ScalarValue::Float(left), ScalarValue::Bool(right)) => {
-            (*left != 0.0 && *right) || (*left == 0.0 && !*right)
+            Some((*left != 0.0 && *right) || (*left == 0.0 && !*right))
         }
-        _ => false,
+        _ => Some(false),
     }
 }
 
@@ -704,7 +802,7 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
 ) -> Result<ScalarValue, QueryError> {
     let left = eval_scalar_with_context(row, left, context)?;
     let right = eval_scalar_with_context(row, right, context)?;
-    Ok(binary_scalar(&left, op, &right))
+    binary_scalar(&left, op, &right)
 }
 
 fn eval_is_null_expr<R: RowAccess + ?Sized>(
@@ -726,17 +824,23 @@ fn eval_in_list_expr<R: RowAccess + ?Sized>(
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
     let left = eval_scalar_with_context(row, expr, context)?;
-    let contains = values
-        .iter()
-        .map(|value| eval_scalar_with_context(row, value, context))
-        .collect::<Result<Vec<_>, _>>()?
-        .iter()
-        .any(|right| eq_value(&left, right));
-    Ok(ScalarValue::Bool(if negated {
-        !contains
+    let mut result = PredicateResult::False;
+    for value in values {
+        let right = eval_scalar_with_context(row, value, context)?;
+        result = match eq_value(&left, &right) {
+            Some(true) => PredicateResult::True,
+            None if matches!(result, PredicateResult::False) => PredicateResult::Unknown,
+            Some(false) | None => result,
+        };
+        if result.is_true() {
+            break;
+        }
+    }
+    if negated {
+        Ok(result.not().into_scalar())
     } else {
-        contains
-    }))
+        Ok(result.into_scalar())
+    }
 }
 
 fn eval_between_expr<R: RowAccess + ?Sized>(
@@ -750,13 +854,17 @@ fn eval_between_expr<R: RowAccess + ?Sized>(
     let value = eval_scalar_with_context(row, expr, context)?;
     let low = eval_scalar_with_context(row, low, context)?;
     let high = eval_scalar_with_context(row, high, context)?;
-    let in_range = number_cmp(&value, &low, |left, right| left >= right)
-        && number_cmp(&value, &high, |left, right| left <= right);
-    Ok(ScalarValue::Bool(if negated {
-        !in_range
+    let in_range = ordered_cmp(&value, &low, |ordering| !ordering.is_lt())
+        .map_or(PredicateResult::Unknown, bool_to_predicate)
+        .and(
+            ordered_cmp(&value, &high, |ordering| !ordering.is_gt())
+                .map_or(PredicateResult::Unknown, bool_to_predicate),
+        );
+    if negated {
+        Ok(in_range.not().into_scalar())
     } else {
-        in_range
-    }))
+        Ok(in_range.into_scalar())
+    }
 }
 
 fn eval_not_expr<R: RowAccess + ?Sized>(
@@ -764,7 +872,16 @@ fn eval_not_expr<R: RowAccess + ?Sized>(
     expr: &Expr,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
-    eval_scalar_with_context(row, expr, context).map(|value| ScalarValue::Bool(!value.as_bool()))
+    eval_scalar_with_context(row, expr, context)
+        .map(|value| value.predicate_result().not().into_scalar())
+}
+
+fn bool_to_predicate(value: bool) -> PredicateResult {
+    if value {
+        PredicateResult::True
+    } else {
+        PredicateResult::False
+    }
 }
 
 fn eval_cast_expr<R: RowAccess + ?Sized>(

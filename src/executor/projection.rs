@@ -55,7 +55,6 @@ where
                     let value = precomputed_key
                         .as_ref()
                         .and_then(|precomputed_key| row.get(precomputed_key))
-                        .or_else(|| row.get(key))
                         .cloned()
                         .map_or_else(
                             || {
@@ -325,6 +324,8 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
+    use crate::sql::ast::BinaryOp;
+
     #[test]
     fn should_project_column_aliases() {
         // Arrange
@@ -355,6 +356,34 @@ mod tests {
             projected[0].get("headline"),
             Some(&Value::String("alpha".to_string()))
         );
+    }
+
+    #[test]
+    fn should_evaluate_expression_when_alias_matches_source_column() {
+        // Arrange
+        let rows = vec![vec![("n".to_string(), Value::Int64(1))]];
+        let projection = vec![SelectItem::Expr {
+            expr: Expr::Binary {
+                left: Box::new(Expr::Column("n".to_string())),
+                op: BinaryOp::Add,
+                right: Box::new(Expr::NumberLiteral(1.0)),
+            },
+            alias: Some("n".to_string()),
+        }];
+
+        // Act
+        let projected = project_rows::<Vec<(String, Value)>>(
+            rows,
+            projection.as_slice(),
+            &[],
+            None,
+            &HashMap::new(),
+            None,
+        )
+        .expect("project expression");
+
+        // Assert
+        assert_eq!(projected[0].get("n"), Some(&Value::Float64(2.0)));
     }
 
     #[test]

@@ -220,6 +220,28 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         });
     }
 
+    parse_arithmetic_expression(raw)
+}
+
+fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
+    for (operator, parsed) in [(" + ", BinaryOp::Add), (" - ", BinaryOp::Sub)] {
+        if let Some((left, right)) = split_top_level(raw, operator) {
+            return Ok(Expr::Binary {
+                left: Box::new(parse_arithmetic_expression(left)?),
+                right: Box::new(parse_arithmetic_expression(right)?),
+                op: parsed,
+            });
+        }
+    }
+    for (operator, parsed) in [(" * ", BinaryOp::Mul), (" / ", BinaryOp::Div)] {
+        if let Some((left, right)) = split_top_level(raw, operator) {
+            return Ok(Expr::Binary {
+                left: Box::new(parse_arithmetic_expression(left)?),
+                right: Box::new(parse_arithmetic_expression(right)?),
+                op: parsed,
+            });
+        }
+    }
     parse_expr_token(raw)
 }
 

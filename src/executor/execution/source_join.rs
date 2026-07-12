@@ -18,7 +18,7 @@ struct EquiJoinKeys {
 
 #[derive(Debug)]
 struct KeyedRow {
-    key: String,
+    key: Option<String>,
     row: BatchRow,
 }
 
@@ -149,7 +149,7 @@ fn execute_lateral_join<'a>(
                     None,
                     env.session,
                 )?
-                .as_bool();
+                .is_true();
             if passes {
                 matched = true;
                 matched_rows += 1;
@@ -205,7 +205,7 @@ fn execute_nested_loop_join(
                     None,
                     env.session,
                 )?
-                .as_bool();
+                .is_true();
             if passes {
                 matched = true;
                 matched_rows += 1;
@@ -312,8 +312,9 @@ fn execute_vectorized_join(
 
     let mut build = std::collections::HashMap::<String, Vec<&BatchRow>>::new();
     for right in spec.right_rows {
-        let key = row_join_key(right, &spec.keys.right);
-        build.entry(key).or_default().push(right);
+        if let Some(key) = row_join_key(right, &spec.keys.right) {
+            build.entry(key).or_default().push(right);
+        }
     }
 
     let mut probe_rows = 0usize;
@@ -327,7 +328,15 @@ fn execute_vectorized_join(
         batches += 1;
         for left in left_batch {
             probe_rows += 1;
-            let key = row_join_key(left, &spec.keys.left);
+            let Some(key) = row_join_key(left, &spec.keys.left) else {
+                if matches!(spec.kind, JoinKind::Left) {
+                    joined.push(combine_row_with_nulls(left, spec.right_columns));
+                    if joined.len() >= output_budget {
+                        break 'probe;
+                    }
+                }
+                continue;
+            };
             let mut matched = false;
             if let Some(right_group) = build.get(&key) {
                 for right in right_group {
@@ -403,17 +412,32 @@ fn execute_merge_join(
             std::cmp::Ordering::Equal => {
                 let left_end = keyed_group_end(&left_keyed, left_index);
                 let right_end = keyed_group_end(&right_keyed, right_index);
-                let result = merge_equal_key_groups(
-                    env,
-                    spec.kind,
-                    spec.on,
-                    &left_keyed[left_index..left_end],
-                    &right_keyed[right_index..right_end],
-                    spec.left_columns,
-                    spec.right_columns,
-                )?;
-                matched_rows += result.matched_rows;
-                joined.extend(result.joined);
+                if left_keyed[left_index].key.is_some() {
+                    let result = merge_equal_key_groups(
+                        env,
+                        spec.kind,
+                        spec.on,
+                        &left_keyed[left_index..left_end],
+                        &right_keyed[right_index..right_end],
+                        spec.left_columns,
+                        spec.right_columns,
+                    )?;
+                    matched_rows += result.matched_rows;
+                    joined.extend(result.joined);
+                } else {
+                    append_left_unmatched(
+                        &mut joined,
+                        spec.kind,
+                        &left_keyed[left_index..left_end],
+                        spec.right_columns,
+                    );
+                    append_right_unmatched(
+                        &mut joined,
+                        spec.kind,
+                        spec.left_columns,
+                        &right_keyed[right_index..right_end],
+                    );
+                }
                 left_index = left_end;
                 right_index = right_end;
             }
@@ -448,17 +472,16 @@ fn keyed_rows(rows: &[BatchRow], key_column: &str) -> Vec<KeyedRow> {
     rows.iter()
         .cloned()
         .map(|row| {
-            let key = row
-                .get(key_column)
-                .map_or_else(|| value_sort_key(&Value::Null), value_sort_key);
+            let key = row_join_key(&row, key_column);
             KeyedRow { key, row }
         })
         .collect()
 }
 
-fn row_join_key(row: &BatchRow, key_column: &str) -> String {
+fn row_join_key(row: &BatchRow, key_column: &str) -> Option<String> {
     row.get(key_column)
-        .map_or_else(|| value_sort_key(&Value::Null), value_sort_key)
+        .filter(|value| !matches!(value, Value::Null))
+        .map(value_sort_key)
 }
 
 fn estimate_vectorized_join_bytes(left_rows: usize, right_rows: usize) -> usize {
@@ -468,9 +491,9 @@ fn estimate_vectorized_join_bytes(left_rows: usize, right_rows: usize) -> usize 
 }
 
 fn keyed_group_end(rows: &[KeyedRow], start: usize) -> usize {
-    let key = rows[start].key.as_str();
+    let key = &rows[start].key;
     let mut end = start + 1;
-    while end < rows.len() && rows[end].key == key {
+    while end < rows.len() && &rows[end].key == key {
         end += 1;
     }
     end
@@ -627,7 +650,7 @@ fn merge_equal_key_groups(
                 None,
                 env.session,
             )?
-            .as_bool()
+            .is_true()
             {
                 left_matched[left_offset] = true;
                 right_matched[right_offset] = true;

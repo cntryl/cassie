@@ -19,16 +19,16 @@ Experimental surfaces require the evidence gates in [Experimental Promotion Crit
 | --- | --- | --- | --- |
 | Query | SELECT, FROM, WHERE | Stable/Experimental | PostgreSQL-like for table-backed reads; table-free constant/parameter-only SELECT remains experimental |
 | Projection | `*`, explicit columns, aliases, expressions, scalar functions | Stable/Experimental | PostgreSQL-like for covered expression/result-type shapes |
-| Filtering | `=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`, AND, OR, NOT | Stable/Experimental | PostgreSQL-like for non-NULL compatible operands; full three-valued semantics and typed incompatible-operand rejection remain open |
-| Nulls | IS NULL, IS NOT NULL, NULL in expressions and predicates | Stable/Experimental | Explicit null checks are supported; complete three-valued propagation remains open |
-| Lists | IN, NOT IN | Stable/Experimental | PostgreSQL-like for covered values; NULL-containing list semantics remain open |
-| Ranges | BETWEEN, NOT BETWEEN | Stable/Experimental | PostgreSQL-like for covered values; complete NULL propagation remains open |
+| Filtering | `=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`, AND, OR, NOT | Stable/Experimental | PostgreSQL-like three-valued semantics for compatible operands; binder rejects incompatible families |
+| Nulls | IS NULL, IS NOT NULL, NULL in expressions and predicates | Stable/Experimental | Explicit null checks and unknown propagation are covered across expressions and filters |
+| Lists | IN, NOT IN | Stable/Experimental | PostgreSQL-like, including NULL-containing list unknown results |
+| Ranges | BETWEEN, NOT BETWEEN | Stable/Experimental | PostgreSQL-like, including NULL operand and bound propagation |
 | Ordering | ORDER BY, ASC, DESC, NULLS FIRST, NULLS LAST, aliases | Stable | PostgreSQL-like |
 | Pagination | LIMIT, OFFSET | Stable | PostgreSQL-like |
 | Deduplication | DISTINCT, DISTINCT ON | Stable | PostgreSQL-like |
 | Aggregates | count, sum, avg, min, max | Stable | PostgreSQL-like |
 | Grouping | GROUP BY, HAVING | Stable | PostgreSQL-like |
-| Joins | INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL OUTER JOIN, CROSS JOIN | Stable/Experimental | PostgreSQL-like for covered predicates; NULL-key equivalence across all implementations remains open |
+| Joins | INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL OUTER JOIN, CROSS JOIN | Stable/Experimental | PostgreSQL-like for covered predicates; NULL equality keys never match across nested-loop, merge, vectorized, bounded, and indexed paths |
 | Semi/anti joins | EXISTS, NOT EXISTS | Stable | PostgreSQL-like |
 | Lateral | LATERAL, CROSS APPLY, OUTER APPLY | Stable | PostgreSQL-like with Cassie syntax support |
 | Subqueries | scalar subqueries, FROM subqueries, predicate subqueries, correlated subqueries | Stable | PostgreSQL-like |

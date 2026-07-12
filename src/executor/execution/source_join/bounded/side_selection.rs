@@ -319,7 +319,9 @@ fn sample_join_keys(
                 scan::projected_document_to_row(document, scan_fields, schema.as_ref()),
                 collection,
             );
-            keys.push(row_join_key(&row, key));
+            if let Some(join_key) = row_join_key(&row, key) {
+                keys.push(join_key);
+            }
             Ok(keys.len() < limit)
         },
     )?;

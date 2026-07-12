@@ -642,7 +642,6 @@ fn projected_pushdown_literal(expr: &Expr) -> Option<Value> {
     match expr {
         Expr::StringLiteral(value) => Some(Value::String(value.clone())),
         Expr::BoolLiteral(value) => Some(Value::Bool(*value)),
-        Expr::Null => Some(Value::Null),
         _ => None,
     }
 }
@@ -685,6 +684,9 @@ fn collect_column_batch_predicates(
                 return None;
             };
             if is_row_id_column(field) {
+                return None;
+            }
+            if matches!(low.as_ref(), Expr::Null) || matches!(high.as_ref(), Expr::Null) {
                 return None;
             }
             predicates.push(crate::midge::adapter::ColumnBatchScanPredicate {
@@ -731,16 +733,16 @@ fn column_batch_binary_predicate(
     serde_json::Value,
 )> {
     match (left, right) {
-        (Expr::Column(field), literal) if !is_row_id_column(field) => Some((
-            field.clone(),
-            column_batch_scan_op(op)?,
-            column_batch_literal(literal)?,
-        )),
-        (literal, Expr::Column(field)) if !is_row_id_column(field) => Some((
-            field.clone(),
-            reverse_column_batch_scan_op(op)?,
-            column_batch_literal(literal)?,
-        )),
+        (Expr::Column(field), literal) if !is_row_id_column(field) => {
+            let value = column_batch_literal(literal)?;
+            let scan_op = column_batch_scan_op(op)?;
+            (!value.is_null()).then_some((field.clone(), scan_op, value))
+        }
+        (literal, Expr::Column(field)) if !is_row_id_column(field) => {
+            let value = column_batch_literal(literal)?;
+            let scan_op = reverse_column_batch_scan_op(op)?;
+            (!value.is_null()).then_some((field.clone(), scan_op, value))
+        }
         _ => None,
     }
 }

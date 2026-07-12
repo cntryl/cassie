@@ -58,7 +58,7 @@ tests, diagnostics, documentation, and performance evidence meet `docs/definitio
   - Keep lexkey v5 current-layout and v4-and-older rejection wording consistent across README,
     feature support, snapshot docs, tests, and startup diagnostics.
   - Narrow any Stable/Implemented claim whose remaining contract work is listed below, especially
-    table-free queries, recursive CTEs, window frames, binary pgwire, retrieval generation safety,
+    recursive CTEs, window frames, binary pgwire, retrieval generation safety,
     REST authentication, analytics freshness, and production readiness.
 - [x] Make gate results reproducible and retained.
   - Ensure the full locked test suite completes deterministically in local and CI environments.
@@ -168,14 +168,19 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     list/null behavior, and engine error mapping; `tests/integration_sql_joins.rs` covers
     merge/vectorized NULL-key equivalence and `tests/pgwire_simple_query.rs` covers `22012`.
   - [x] Benchmark: N/A beyond regression checks; correctness is the gate.
-- [ ] Complete constant and parameter-only `SELECT`.
-  - Accept supported scalar literals, expressions, aliases, booleans, NULL, and bare/cast parameters
-    without `FROM` through parser, binder, planner, and `QuerySource::SingleRow` execution.
-  - Replace hard-coded float metadata for expression projections with expression-aware result types.
-  - Preserve explicit/inferred parameter OIDs through prepared-statement Describe.
-  - Tests: parser/engine/pgwire coverage for `SELECT 1`, strings, booleans, NULL, aliases,
-    expressions, `SELECT $1::INT`, explicit-OID `$1`, and table-free set operations.
-  - Benchmark: no dedicated benchmark required; include the path in protocol microbench coverage.
+- [x] Complete constant and parameter-only `SELECT`.
+  - [x] Accept supported scalar literals, expressions, aliases, booleans, NULL, and bare/cast
+    parameters without `FROM` through parser, binder, planner, and `QuerySource::SingleRow`
+    execution.
+  - [x] Replace hard-coded float metadata for expression projections with expression-aware result
+    types.
+  - [x] Preserve explicit/inferred parameter OIDs through prepared-statement Describe.
+  - [x] Tests: parser/engine/pgwire coverage in `tests/parser_expressions.rs`,
+    `tests/integration_sql_table_free.rs`, and `tests/pgwire_extended_metadata.rs` covers
+    `SELECT 1`, strings, booleans, NULL, aliases, expressions, `SELECT $1::INT`, explicit-OID
+    `$1`, and table-free set operations.
+  - [x] Benchmark: no dedicated benchmark required; the prepared protocol microbench now uses a
+    table-free parameterized query.
 - [ ] Correct recursive CTE working-table semantics.
   - Carry `UNION` versus `UNION ALL` in the AST.
   - Feed only the previous iteration’s delta into the recursive term.

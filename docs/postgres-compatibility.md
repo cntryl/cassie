@@ -39,7 +39,6 @@ These bullets describe the implemented baseline, not blanket PostgreSQL semantic
 following parts of that baseline remain experimental until the active remediation program closes
 them:
 
-- table-free constant and parameter-only SELECT with correct prepared-statement metadata;
 - recursive CTE delta iteration, UNION versus UNION ALL behavior, aliases, and type/arity checks;
 - explicit ROWS window frames and deterministic rejection of unsupported frame families;
 - transaction-setting/DDL preflight, immediate single-collection staging enforcement, and safe

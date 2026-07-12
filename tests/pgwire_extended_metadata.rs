@@ -261,6 +261,57 @@ fn should_reuse_unnamed_statement_metadata_lifecycle() {
 }
 
 #[test]
+fn should_preserve_table_free_parameter_oids_through_describe() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("table_free_parameter_metadata");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let server = spawn_server(cassie.clone()).await;
+        let mut socket = tokio::net::TcpStream::connect(server.addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+        complete_startup(&mut reader, &mut write_half).await;
+
+        // Act
+        write_frames(
+            &mut write_half,
+            vec![
+                parse_frame("table_free_inferred", "SELECT $1::INT AS value"),
+                describe_statement_frame("table_free_inferred"),
+                parse_frame_with_types("table_free_explicit", "SELECT $1 AS value", &[OID_BOOL]),
+                describe_statement_frame("table_free_explicit"),
+                sync_frame(),
+            ],
+        )
+        .await;
+        let frames = read_frames_until_ready(&mut reader).await;
+
+        // Assert
+        assert_eq!(
+            frames.iter().map(|frame| frame.0).collect::<Vec<_>>(),
+            vec![b'1', b't', b'T', b'1', b't', b'T', b'Z']
+        );
+        assert_eq!(parse_parameter_description(&frames[1].1), vec![OID_INT4]);
+        assert_eq!(parse_row_description(&frames[2].1)[0].type_oid, OID_INT4);
+        assert_eq!(parse_parameter_description(&frames[4].1), vec![OID_BOOL]);
+        assert_eq!(parse_row_description(&frames[5].1)[0].type_oid, OID_BOOL);
+
+        drop(socket);
+        server.stop().await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_recover_ready_state_after_extended_statement_error() {
     // Arrange
     with_fallback();

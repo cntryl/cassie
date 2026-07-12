@@ -17,7 +17,7 @@ Experimental surfaces require the evidence gates in [Experimental Promotion Crit
 
 | Category | Supported Items | Status | Compatibility |
 | --- | --- | --- | --- |
-| Query | SELECT, FROM, WHERE | Stable/Experimental | PostgreSQL-like for table-backed reads; table-free constant/parameter-only SELECT remains experimental |
+| Query | SELECT, FROM, WHERE | Stable/Experimental | PostgreSQL-like for table-backed reads and supported table-free literals, parameters, casts, and set operations |
 | Projection | `*`, explicit columns, aliases, expressions, scalar functions | Stable/Experimental | PostgreSQL-like for covered expression/result-type shapes |
 | Filtering | `=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`, AND, OR, NOT | Stable/Experimental | PostgreSQL-like three-valued semantics for compatible operands; binder rejects incompatible families |
 | Nulls | IS NULL, IS NOT NULL, NULL in expressions and predicates | Stable/Experimental | Explicit null checks and unknown propagation are covered across expressions and filters |

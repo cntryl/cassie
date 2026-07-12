@@ -453,7 +453,11 @@ async fn describe_prepared(
     prepared: PreparedStatement,
 ) -> Result<Vec<ColumnMeta>, ExtendedQueryError> {
     run_pgwire_blocking(cassie, "pgwire_describe", move |cassie| {
-        cassie.describe_parsed_statement(prepared.parsed, prepared.sql_fingerprint)
+        cassie.describe_parsed_statement_with_parameter_oids(
+            prepared.parsed,
+            prepared.sql_fingerprint,
+            &prepared.parameter_types,
+        )
     })
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))

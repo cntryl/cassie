@@ -252,6 +252,24 @@ fn should_parse_parameter_positions() {
 }
 
 #[test]
+fn should_parse_table_free_literal_parameter_projection() {
+    // Arrange
+    let sql = "SELECT 1 AS one, NULL AS missing, $1::INT AS value";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse should succeed");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    assert!(matches!(statement.source, QuerySource::SingleRow));
+    assert!(matches!(statement.projection[0], SelectItem::Expr { .. }));
+    assert!(matches!(statement.projection[1], SelectItem::Expr { .. }));
+    assert!(matches!(statement.projection[2], SelectItem::Expr { .. }));
+}
+
+#[test]
 fn should_parse_is_null_predicate() {
     // Arrange
     let sql = "SELECT title FROM docs WHERE archived_at IS NULL";

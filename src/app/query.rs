@@ -1,14 +1,14 @@
-use super::query_explain::{
-    QueryExplainOutput, QueryPlanAnalyze, QueryPlanAnalyzeDiagnostics, QueryPlanOperatorActual,
+use super::query_explain::QueryExplainOutput;
+use super::query_metrics::{
+    append_explain_analyze, structured_analyze, ExplainAnalyzeDeltas, ExplainAnalyzeReport,
+    RuntimeFeedbackDeltas,
 };
 use super::{
     current_time_millis, parser, query_cache, unsupported_sql_error, Arc, Cassie, CassieError,
     CassieSession, ColumnMeta, ExecutionMode, Instant, PlanCacheKey, PlanCacheProvenance,
-    QueryExecutionControls, QueryResult, QueryStatement, RuntimeFeedbackObservation,
-    TransactionAction, TransactionStatement, Value,
+    QueryExecutionControls, QueryResult, QueryStatement, TransactionAction, TransactionStatement,
+    Value,
 };
-use std::fmt::Write as _;
-
 const PLAN_CACHE_COST_MODEL_VERSION: u32 = 2;
 
 struct QueryCacheContext {
@@ -23,222 +23,12 @@ struct QueryFeedbackCapture {
     started_at: Instant,
 }
 
-struct RuntimeFeedbackDeltas {
-    storage_reads: u64,
-    storage_writes: u64,
-    temp_writes: u64,
-    candidate_count: u64,
-    result_count: u64,
-}
-
-impl RuntimeFeedbackDeltas {
-    fn from_snapshots(
-        before: &crate::runtime::RuntimeMetricsSnapshot,
-        after: &crate::runtime::RuntimeMetricsSnapshot,
-    ) -> Self {
-        Self {
-            storage_reads: after
-                .storage
-                .data
-                .reads
-                .saturating_sub(before.storage.data.reads),
-            storage_writes: after
-                .storage
-                .data
-                .writes
-                .saturating_sub(before.storage.data.writes),
-            temp_writes: after
-                .storage
-                .temp
-                .writes
-                .saturating_sub(before.storage.temp.writes),
-            candidate_count: search_candidate_delta(before, after),
-            result_count: search_result_delta(before, after),
-        }
-    }
-
-    fn to_observation(
-        &self,
-        execution: &Result<QueryResult, CassieError>,
-        elapsed_ms: u64,
-    ) -> RuntimeFeedbackObservation {
-        RuntimeFeedbackObservation {
-            rows_in: self.storage_reads.saturating_add(self.candidate_count).max(
-                execution
-                    .as_ref()
-                    .map_or(0, |result| result.rows.len() as u64),
-            ),
-            rows_out: execution
-                .as_ref()
-                .map_or(0, |result| result.rows.len() as u64),
-            elapsed_ms,
-            storage_reads: self.storage_reads,
-            storage_writes: self.storage_writes,
-            temp_writes: self.temp_writes,
-            candidate_count: self.candidate_count,
-            result_count: self.result_count,
-            error_class: execution
-                .as_ref()
-                .err()
-                .map(|error| crate::runtime::error_class(error).to_string()),
-            spilled: self.temp_writes > 0,
-            memory_pressure: self.temp_writes > 0,
-        }
-    }
-}
-
-struct ExplainAnalyzeReport {
-    result: QueryResult,
-    elapsed_ms: u128,
-    deltas: ExplainAnalyzeDeltas,
-}
-
-struct ExplainAnalyzeDeltas {
-    runtime: RuntimeFeedbackDeltas,
-    plan_cache_hits: u64,
-    plan_cache_misses: u64,
-    parallel_aggregations: u64,
-    parallel_aggregation_fallbacks: u64,
-    parallel_aggregation_workers: u64,
-    parallel_aggregation_groups: u64,
-    adaptive_plan_decisions: u64,
-    adaptive_plan_selected: u64,
-    operator_switch_attempts: u64,
-    operator_switch_successes: u64,
-    operator_switch_skips: u64,
-    operator_switch_fallbacks: u64,
-}
-
-impl ExplainAnalyzeDeltas {
-    fn from_snapshots(
-        before: &crate::runtime::RuntimeMetricsSnapshot,
-        after: &crate::runtime::RuntimeMetricsSnapshot,
-    ) -> Self {
-        Self {
-            runtime: RuntimeFeedbackDeltas::from_snapshots(before, after),
-            plan_cache_hits: after.plan_cache.hits.saturating_sub(before.plan_cache.hits),
-            plan_cache_misses: after
-                .plan_cache
-                .misses
-                .saturating_sub(before.plan_cache.misses),
-            parallel_aggregations: after
-                .parallel_aggregation
-                .aggregations
-                .saturating_sub(before.parallel_aggregation.aggregations),
-            parallel_aggregation_fallbacks: after
-                .parallel_aggregation
-                .fallback_aggregations
-                .saturating_sub(before.parallel_aggregation.fallback_aggregations),
-            parallel_aggregation_workers: after
-                .parallel_aggregation
-                .workers
-                .saturating_sub(before.parallel_aggregation.workers),
-            parallel_aggregation_groups: after
-                .parallel_aggregation
-                .groups
-                .saturating_sub(before.parallel_aggregation.groups),
-            adaptive_plan_decisions: after
-                .adaptive_candidates
-                .plan_decisions
-                .saturating_sub(before.adaptive_candidates.plan_decisions),
-            adaptive_plan_selected: after
-                .adaptive_candidates
-                .plan_selected_alternatives
-                .saturating_sub(before.adaptive_candidates.plan_selected_alternatives),
-            operator_switch_attempts: after
-                .adaptive_candidates
-                .operator_switch_attempts
-                .saturating_sub(before.adaptive_candidates.operator_switch_attempts),
-            operator_switch_successes: after
-                .adaptive_candidates
-                .operator_switch_successes
-                .saturating_sub(before.adaptive_candidates.operator_switch_successes),
-            operator_switch_skips: after
-                .adaptive_candidates
-                .operator_switch_skips
-                .saturating_sub(before.adaptive_candidates.operator_switch_skips),
-            operator_switch_fallbacks: after
-                .adaptive_candidates
-                .operator_switch_fallbacks
-                .saturating_sub(before.adaptive_candidates.operator_switch_fallbacks),
-        }
-    }
-
-    fn to_success_observation(
-        &self,
-        result: &QueryResult,
-        elapsed_ms: u64,
-    ) -> RuntimeFeedbackObservation {
-        RuntimeFeedbackObservation {
-            rows_in: self
-                .runtime
-                .storage_reads
-                .saturating_add(self.runtime.candidate_count)
-                .max(result.rows.len() as u64),
-            rows_out: result.rows.len() as u64,
-            elapsed_ms,
-            storage_reads: self.runtime.storage_reads,
-            storage_writes: self.runtime.storage_writes,
-            temp_writes: self.runtime.temp_writes,
-            candidate_count: self.runtime.candidate_count,
-            result_count: self.runtime.result_count,
-            error_class: None,
-            spilled: self.runtime.temp_writes > 0,
-            memory_pressure: self.runtime.temp_writes > 0,
-        }
-    }
-}
-
-fn search_candidate_delta(
-    before: &crate::runtime::RuntimeMetricsSnapshot,
-    after: &crate::runtime::RuntimeMetricsSnapshot,
-) -> u64 {
-    after
-        .search
-        .candidate_count_total
-        .saturating_sub(before.search.candidate_count_total)
-        .saturating_add(
-            after
-                .vector
-                .candidate_count_total
-                .saturating_sub(before.vector.candidate_count_total),
-        )
-        .saturating_add(
-            after
-                .hybrid
-                .candidate_count_total
-                .saturating_sub(before.hybrid.candidate_count_total),
-        )
-}
-
-fn search_result_delta(
-    before: &crate::runtime::RuntimeMetricsSnapshot,
-    after: &crate::runtime::RuntimeMetricsSnapshot,
-) -> u64 {
-    after
-        .search
-        .result_count_total
-        .saturating_sub(before.search.result_count_total)
-        .saturating_add(
-            after
-                .vector
-                .result_count_total
-                .saturating_sub(before.vector.result_count_total),
-        )
-        .saturating_add(
-            after
-                .hybrid
-                .result_count_total
-                .saturating_sub(before.hybrid.result_count_total),
-        )
-}
-
 impl Cassie {
     fn is_query_cacheable(statement: &QueryStatement) -> bool {
         matches!(statement, QueryStatement::Select(_))
     }
 
-    fn plan_cache_key_from_fingerprint(
+    pub(super) fn plan_cache_key_from_fingerprint(
         &self,
         sql_fingerprint: u64,
         parameter_shape: Vec<crate::runtime::ParameterShape>,
@@ -307,7 +97,7 @@ impl Cassie {
         )
     }
 
-    fn resolve_physical_plan(
+    pub(super) fn resolve_physical_plan(
         &self,
         parsed: crate::sql::ast::ParsedStatement,
         key: PlanCacheKey,
@@ -335,7 +125,7 @@ impl Cassie {
         Ok((plan, PlanCacheProvenance::Compiled))
     }
 
-    fn observe_query_plan_usage(
+    pub(super) fn observe_query_plan_usage(
         &self,
         key: &PlanCacheKey,
         plan: &Arc<crate::planner::physical::PhysicalPlan>,
@@ -413,86 +203,6 @@ impl Cassie {
         let parsed = parser::parse_statement(sql)?;
         let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
         self.describe_parsed_statement(parsed, sql_fingerprint)
-    }
-
-    pub(crate) fn describe_parsed_statement(
-        &self,
-        parsed: crate::sql::ast::ParsedStatement,
-        sql_fingerprint: u64,
-    ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
-        if matches!(parsed.statement, QueryStatement::Explain(_)) {
-            return Ok(vec![ColumnMeta::text("QUERY PLAN")]);
-        }
-        if matches!(parsed.statement, QueryStatement::Transaction(_)) {
-            return Ok(Vec::new());
-        }
-
-        let controls = self.runtime.query_controls(Instant::now());
-        if controls.is_timed_out() {
-            return Err(CassieError::DeadlineExceeded);
-        }
-
-        let cache_key = Self::is_query_cacheable(&parsed.statement).then(|| {
-            self.plan_cache_key_from_fingerprint(
-                sql_fingerprint,
-                Vec::new(),
-                ExecutionMode::DescribeQuery,
-                None,
-                &[crate::catalog::DEFAULT_SCHEMA.to_string()],
-            )
-        });
-        let (physical, provenance) = if let Some(key) = cache_key.clone() {
-            self.resolve_physical_plan(parsed, key, None, Some(&controls))?
-        } else {
-            (
-                self.compile_physical_plan(parsed, None, Some(&controls))?,
-                PlanCacheProvenance::Compiled,
-            )
-        };
-
-        let user_functions = if crate::executor::plan_needs_user_functions(&physical.logical) {
-            self.catalog
-                .list_functions()
-                .into_iter()
-                .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
-                .collect::<std::collections::HashMap<String, _>>()
-        } else {
-            std::collections::HashMap::new()
-        };
-        let collection_schema = self.catalog.get_schema(&physical.logical.collection);
-
-        if let Some(command) = physical.logical.command.as_ref() {
-            let returning = match command {
-                crate::planner::logical::LogicalCommand::Insert(statement) => {
-                    Some(statement.returning.as_slice())
-                }
-                crate::planner::logical::LogicalCommand::Update(statement) => {
-                    Some(statement.returning.as_slice())
-                }
-                crate::planner::logical::LogicalCommand::Delete(statement) => {
-                    Some(statement.returning.as_slice())
-                }
-                _ => None,
-            };
-            if let Some(returning) = returning {
-                return Ok(crate::executor::columns_from_projection(
-                    returning,
-                    collection_schema.as_ref(),
-                    &user_functions,
-                ));
-            }
-            return Ok(Vec::new());
-        }
-
-        if let Some(key) = cache_key.as_ref() {
-            self.observe_query_plan_usage(key, &physical, &provenance)?;
-        }
-
-        Ok(crate::executor::columns_from_projection(
-            &physical.logical.projection,
-            collection_schema.as_ref(),
-            &user_functions,
-        ))
     }
 
     pub(crate) fn execute_sql_with_mode(
@@ -998,133 +708,5 @@ impl Cassie {
             feedback_keys,
             &deltas.to_success_observation(result, elapsed_ms),
         );
-    }
-}
-
-fn append_explain_analyze(
-    plan: &mut String,
-    physical: &crate::planner::physical::PhysicalPlan,
-    report: &ExplainAnalyzeReport,
-) {
-    let actual_operators = actual_operator_diagnostics(physical, report);
-    let deltas = &report.deltas;
-    let runtime = &deltas.runtime;
-    let _ = write!(
-        plan,
-        " analyze=true actual_rows={} actual_ms={} operator_actuals={} diagnostics=plan_cache_hits_delta:{},plan_cache_misses_delta:{},storage_reads_delta:{},storage_writes_delta:{},temp_writes_delta:{},candidate_count_delta:{},result_count_delta:{},parallel_aggregations_delta:{},parallel_aggregation_fallback_delta:{},parallel_aggregation_workers_delta:{},parallel_aggregation_groups_delta:{},adaptive_plan_decisions_delta:{},adaptive_plan_selected_delta:{},operator_switch_attempts_delta:{},operator_switch_success_delta:{},operator_switch_skips_delta:{},operator_switch_fallbacks_delta:{}",
-        report.result.rows.len(),
-        report.elapsed_ms,
-        actual_operators,
-        deltas.plan_cache_hits,
-        deltas.plan_cache_misses,
-        runtime.storage_reads,
-        runtime.storage_writes,
-        runtime.temp_writes,
-        runtime.candidate_count,
-        runtime.result_count,
-        deltas.parallel_aggregations,
-        deltas.parallel_aggregation_fallbacks,
-        deltas.parallel_aggregation_workers,
-        deltas.parallel_aggregation_groups,
-        deltas.adaptive_plan_decisions,
-        deltas.adaptive_plan_selected,
-        deltas.operator_switch_attempts,
-        deltas.operator_switch_successes,
-        deltas.operator_switch_skips,
-        deltas.operator_switch_fallbacks
-    );
-}
-
-fn actual_operator_diagnostics(
-    physical: &crate::planner::physical::PhysicalPlan,
-    report: &ExplainAnalyzeReport,
-) -> String {
-    if physical.operators.is_empty() {
-        return "Command".to_string();
-    }
-    physical
-        .operators
-        .iter()
-        .map(|operator| {
-            format!(
-                "{operator:?}:rows_in:{} rows_out:{} elapsed_ms:{} storage_reads:{} storage_writes:{} temp_writes:{} candidates:{} results:{}",
-                physical.estimates.scan_rows,
-                report.result.rows.len(),
-                report.elapsed_ms,
-                report.deltas.runtime.storage_reads,
-                report.deltas.runtime.storage_writes,
-                report.deltas.runtime.temp_writes,
-                report.deltas.runtime.candidate_count,
-                report.deltas.runtime.result_count
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("|")
-}
-
-fn structured_analyze(
-    physical: &crate::planner::physical::PhysicalPlan,
-    report: &ExplainAnalyzeReport,
-) -> QueryPlanAnalyze {
-    QueryPlanAnalyze {
-        actual_rows: report.result.rows.len(),
-        actual_ms: report.elapsed_ms,
-        operator_actuals: structured_operator_actuals(physical, report),
-        diagnostics: structured_analyze_diagnostics(report),
-    }
-}
-
-fn structured_operator_actuals(
-    physical: &crate::planner::physical::PhysicalPlan,
-    report: &ExplainAnalyzeReport,
-) -> Vec<QueryPlanOperatorActual> {
-    if physical.operators.is_empty() {
-        return vec![operator_actual("Command", physical, report)];
-    }
-
-    physical
-        .operators
-        .iter()
-        .map(|operator| operator_actual(format!("{operator:?}"), physical, report))
-        .collect()
-}
-
-fn operator_actual(
-    operator: impl Into<String>,
-    physical: &crate::planner::physical::PhysicalPlan,
-    report: &ExplainAnalyzeReport,
-) -> QueryPlanOperatorActual {
-    QueryPlanOperatorActual {
-        operator: operator.into(),
-        rows_in: physical.estimates.scan_rows,
-        rows_out: report.result.rows.len(),
-        elapsed_ms: report.elapsed_ms,
-        storage_reads: report.deltas.runtime.storage_reads,
-        storage_writes: report.deltas.runtime.storage_writes,
-        temp_writes: report.deltas.runtime.temp_writes,
-        candidates: report.deltas.runtime.candidate_count,
-        results: report.deltas.runtime.result_count,
-    }
-}
-
-fn structured_analyze_diagnostics(report: &ExplainAnalyzeReport) -> QueryPlanAnalyzeDiagnostics {
-    QueryPlanAnalyzeDiagnostics {
-        plan_cache_hits: report.deltas.plan_cache_hits,
-        plan_cache_misses: report.deltas.plan_cache_misses,
-        storage_reads: report.deltas.runtime.storage_reads,
-        storage_writes: report.deltas.runtime.storage_writes,
-        temp_writes: report.deltas.runtime.temp_writes,
-        candidate_count: report.deltas.runtime.candidate_count,
-        result_count: report.deltas.runtime.result_count,
-        parallel_aggregations: report.deltas.parallel_aggregations,
-        parallel_aggregation_fallback: report.deltas.parallel_aggregation_fallbacks,
-        parallel_aggregation_workers: report.deltas.parallel_aggregation_workers,
-        parallel_aggregation_groups: report.deltas.parallel_aggregation_groups,
-        adaptive_plan_decisions: report.deltas.adaptive_plan_decisions,
-        adaptive_plan_selected: report.deltas.adaptive_plan_selected,
-        operator_switch_attempts: report.deltas.operator_switch_attempts,
-        operator_switch_success: report.deltas.operator_switch_successes,
-        operator_switch_skips: report.deltas.operator_switch_skips,
-        operator_switch_fallbacks: report.deltas.operator_switch_fallbacks,
     }
 }

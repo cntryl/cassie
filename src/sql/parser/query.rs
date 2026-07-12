@@ -4,9 +4,8 @@ use super::expr::{
     split_csv_quoted_by_space,
 };
 use super::{
-    parse_statement, CommonTableExpression, CteQuery, Expr, FunctionCall, HashSet, JoinKind,
-    OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SqlError,
-    WindowFunctionCall,
+    parse_statement, CommonTableExpression, CteQuery, Expr, HashSet, JoinKind, OrderExpr,
+    ParsedStatement, QuerySource, QueryStatement, SelectItem, SqlError, WindowFunctionCall,
 };
 
 #[path = "query_select.rs"]
@@ -88,18 +87,19 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
     let expr = parse_expression(expr_raw)?;
     Ok(match expr {
         Expr::Function(function) => SelectItem::Function { function, alias },
-        Expr::Cast { expr, data_type } => SelectItem::Function {
-            function: FunctionCall {
-                name: "CAST".to_string(),
-                args: vec![*expr, Expr::StringLiteral(data_type.type_name())],
-            },
-            alias,
-        },
+        Expr::Cast { .. }
+        | Expr::Binary { .. }
+        | Expr::BoolLiteral(_)
+        | Expr::Null
+        | Expr::NumberLiteral(_)
+        | Expr::Param(_)
+        | Expr::StringLiteral(_)
+        | Expr::IsNull { .. }
+        | Expr::InList { .. }
+        | Expr::Between { .. }
+        | Expr::Not { .. }
+        | Expr::Exists(_) => SelectItem::Expr { expr, alias },
         Expr::Column(name) => SelectItem::Column { name, alias },
-        Expr::Binary { .. } => SelectItem::Expr { expr, alias },
-        _ => {
-            return Err(SqlError::new("unsupported projection expression".into()));
-        }
     })
 }
 

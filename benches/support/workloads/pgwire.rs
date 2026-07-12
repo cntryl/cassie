@@ -184,8 +184,8 @@ pub async fn pgwire_transport_concurrent_connections(
 
 pub fn pgwire_prepared_statement_protocol_loop() -> usize {
     let messages = [
-        "PARSE stmt|SELECT id FROM bench_documents WHERE score = $1",
-        "BIND stmt|42",
+        "PARSE stmt|SELECT $1::INT AS value",
+        "BIND stmt|7",
         "DESCRIBE stmt",
         "EXECUTE stmt",
         "SYNC",

@@ -1,5 +1,5 @@
 use super::{
-    virtual_views, CassieError, Catalog, CommonTableExpression, CteQuery, DataType, Expr,
+    virtual_views, BinaryOp, CassieError, Catalog, CommonTableExpression, CteQuery, DataType, Expr,
     FieldSchema, FunctionCall, HashMap, QuerySource, QueryStatement, Schema, SelectItem,
     SelectStatement,
 };
@@ -235,15 +235,21 @@ pub(super) fn infer_projection_schema(
                     .to_string();
                 fields.push(FieldSchema {
                     name: output_name,
-                    data_type: infer_function_return_type(function, source_schema, user_functions)
-                        .unwrap_or(DataType::Text),
+                    data_type: infer_function_return_type(
+                        function,
+                        source_schema,
+                        user_functions,
+                        &[],
+                    )
+                    .unwrap_or(DataType::Text),
                     nullable: true,
                 });
             }
-            SelectItem::Expr { alias, .. } => {
+            SelectItem::Expr { expr, alias } => {
                 fields.push(FieldSchema {
                     name: alias.as_deref().unwrap_or("expr").to_string(),
-                    data_type: DataType::Float,
+                    data_type: infer_expr_type(expr, source_schema, user_functions, &[])
+                        .unwrap_or(DataType::Text),
                     nullable: true,
                 });
             }
@@ -275,6 +281,7 @@ pub(super) fn infer_function_return_type(
     function: &FunctionCall,
     source_schema: &Schema,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
 ) -> Option<DataType> {
     let name = function.name.to_ascii_lowercase();
     if let Some(metadata) = user_functions.get(&name).or_else(|| {
@@ -317,13 +324,13 @@ pub(super) fn infer_function_return_type(
         "coalesce" => function
             .args
             .iter()
-            .find_map(|arg| infer_expr_type(arg, source_schema))
+            .find_map(|arg| infer_expr_type(arg, source_schema, user_functions, parameter_types))
             .filter(|data_type| !matches!(data_type, DataType::Null))
             .or(Some(DataType::Text)),
         "abs" => function
             .args
             .first()
-            .and_then(|expr| infer_expr_type(expr, source_schema))
+            .and_then(|expr| infer_expr_type(expr, source_schema, user_functions, parameter_types))
             .map(|data_type| match data_type {
                 DataType::Int => DataType::Int,
                 _ => DataType::Float,
@@ -339,14 +346,67 @@ pub(super) fn infer_function_return_type(
     }
 }
 
-pub(super) fn infer_expr_type(expr: &Expr, source_schema: &Schema) -> Option<DataType> {
+pub(crate) fn infer_expr_type(
+    expr: &Expr,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
     match expr {
         Expr::Column(name) => schema_field_type(source_schema, name),
         Expr::Cast { data_type, .. } => Some(data_type.clone()),
+        Expr::Function(function) => {
+            infer_function_return_type(function, source_schema, user_functions, parameter_types)
+        }
         Expr::StringLiteral(_) => Some(DataType::Text),
         Expr::NumberLiteral(_) => Some(DataType::Float),
-        Expr::BoolLiteral(_) => Some(DataType::Boolean),
+        Expr::BoolLiteral(_)
+        | Expr::Exists(_)
+        | Expr::IsNull { .. }
+        | Expr::InList { .. }
+        | Expr::Between { .. }
+        | Expr::Not { .. } => Some(DataType::Boolean),
         Expr::Null => Some(DataType::Null),
+        Expr::Param(index) => parameter_types
+            .get(*index)
+            .copied()
+            .and_then(data_type_for_parameter_oid)
+            .or(Some(DataType::Null)),
+        Expr::Binary { op, .. } => match op {
+            BinaryOp::And
+            | BinaryOp::Or
+            | BinaryOp::Eq
+            | BinaryOp::NotEq
+            | BinaryOp::Lt
+            | BinaryOp::Lte
+            | BinaryOp::Gt
+            | BinaryOp::Gte
+            | BinaryOp::Like => Some(DataType::Boolean),
+            BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => Some(DataType::Float),
+            BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
+                Some(DataType::Float)
+            }
+        },
+    }
+}
+
+fn data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
+    match oid {
+        16 => Some(DataType::Boolean),
+        17 => Some(DataType::Bytea),
+        20 => Some(DataType::BigInt),
+        21 => Some(DataType::SmallInt),
+        23 => Some(DataType::Int),
+        25 => Some(DataType::Text),
+        114 => Some(DataType::Json),
+        701 => Some(DataType::Float),
+        1042 => Some(DataType::Char { length: None }),
+        1043 => Some(DataType::Varchar { length: None }),
+        1082 => Some(DataType::Date),
+        1083 => Some(DataType::Time),
+        1114 => Some(DataType::Timestamp),
+        2950 => Some(DataType::Uuid),
+        oid if oid > 33000 => usize::try_from(oid - 33000).ok().map(DataType::Vector),
         _ => None,
     }
 }

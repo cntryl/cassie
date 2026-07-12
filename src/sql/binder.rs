@@ -47,6 +47,7 @@ use context::{
     normalize_database_name, normalize_relation_name, normalize_schema_name, resolve_relation_name,
     resolve_schema_name,
 };
+pub(crate) use inference::infer_expr_type;
 pub use inference::infer_select_schema;
 use routines::{
     bind_call_procedure, bind_create_function, bind_create_procedure, bind_drop_function,

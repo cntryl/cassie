@@ -4,7 +4,7 @@ use std::hash::BuildHasher;
 use crate::catalog::{name_matches, CollectionSchema, FunctionMeta};
 use crate::executor::ColumnMeta;
 use crate::sql::ast::SelectItem;
-use crate::types::DataType;
+use crate::types::{DataType, FieldSchema, Schema};
 
 #[must_use]
 pub fn columns_from_projection<S: BuildHasher>(
@@ -12,9 +12,25 @@ pub fn columns_from_projection<S: BuildHasher>(
     collection_schema: Option<&CollectionSchema>,
     user_functions: &HashMap<String, FunctionMeta, S>,
 ) -> Vec<ColumnMeta> {
+    columns_from_projection_with_parameter_oids(projection, collection_schema, user_functions, &[])
+}
+
+#[must_use]
+pub fn columns_from_projection_with_parameter_oids<S: BuildHasher>(
+    projection: &[SelectItem],
+    collection_schema: Option<&CollectionSchema>,
+    user_functions: &HashMap<String, FunctionMeta, S>,
+    parameter_type_oids: &[i32],
+) -> Vec<ColumnMeta> {
     if projection.is_empty() {
         return vec![ColumnMeta::from_data_type("*", &DataType::Text)];
     }
+
+    let source_schema = projection_source_schema(collection_schema);
+    let user_functions = user_functions
+        .iter()
+        .map(|(name, metadata)| (name.clone(), metadata.clone()))
+        .collect::<HashMap<_, _>>();
 
     projection
         .iter()
@@ -48,22 +64,50 @@ pub fn columns_from_projection<S: BuildHasher>(
             }
             SelectItem::Function { function, alias } => {
                 let data_type =
-                    function_return_type(&function.name, user_functions).unwrap_or(DataType::Text);
+                    function_return_type(&function.name, &user_functions).unwrap_or(DataType::Text);
                 vec![ColumnMeta::from_data_type(
                     alias.clone().unwrap_or_else(|| function.name.clone()),
                     &data_type,
                 )]
             }
-            SelectItem::Expr { alias, .. } => vec![ColumnMeta::from_data_type(
-                alias.clone().unwrap_or_else(|| "expr".to_string()),
-                &DataType::Float,
-            )],
+            SelectItem::Expr { expr, alias } => {
+                let data_type = crate::sql::binder::infer_expr_type(
+                    expr,
+                    &source_schema,
+                    &user_functions,
+                    parameter_type_oids,
+                )
+                .unwrap_or(DataType::Text);
+                vec![ColumnMeta::from_data_type(
+                    alias.clone().unwrap_or_else(|| "expr".to_string()),
+                    &data_type,
+                )]
+            }
             SelectItem::WindowFunction { function, alias } => vec![ColumnMeta::from_data_type(
                 alias.clone().unwrap_or_else(|| function.name.clone()),
                 &DataType::BigInt,
             )],
         })
         .collect()
+}
+
+fn projection_source_schema(collection_schema: Option<&CollectionSchema>) -> Schema {
+    let Some(collection_schema) = collection_schema else {
+        return Schema { fields: Vec::new() };
+    };
+
+    let mut fields = Vec::with_capacity(collection_schema.fields.len() + 1);
+    fields.push(FieldSchema {
+        name: "id".to_string(),
+        data_type: DataType::Text,
+        nullable: true,
+    });
+    fields.extend(collection_schema.fields.iter().map(|field| FieldSchema {
+        name: field.name.clone(),
+        data_type: field.data_type.clone(),
+        nullable: true,
+    }));
+    Schema { fields }
 }
 
 fn function_return_type<S: BuildHasher>(

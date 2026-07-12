@@ -242,6 +242,38 @@ impl CassieSession {
         }
     }
 
+    pub(crate) fn preflight_transaction_collections(
+        &self,
+        collections: &[String],
+    ) -> Result<(), CassieError> {
+        let mut transaction = self.transaction.lock();
+        if transaction.status != SessionTransactionStatus::InTransaction {
+            return Ok(());
+        }
+
+        let mut requested = Vec::new();
+        for collection in collections {
+            if !requested
+                .iter()
+                .any(|existing: &String| existing.eq_ignore_ascii_case(collection))
+            {
+                requested.push(collection.clone());
+            }
+        }
+
+        let conflicts_with_staged = transaction.writes.keys().any(|staged| {
+            !requested
+                .iter()
+                .any(|requested| requested.eq_ignore_ascii_case(staged))
+        });
+        if requested.len() > 1 || conflicts_with_staged {
+            transaction.status = SessionTransactionStatus::Failed;
+            return Err(single_collection_transaction_error());
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn enter_procedure_call(&self, name: &str) -> Result<(), CassieError> {
         let mut procedure_calls = self.procedure_calls.lock();
         let normalized = name.to_ascii_lowercase();
@@ -265,22 +297,44 @@ impl CassieSession {
         collection: &str,
         id: String,
         payload: serde_json::Value,
-    ) {
+    ) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
+        if transaction
+            .writes
+            .keys()
+            .any(|staged| !staged.eq_ignore_ascii_case(collection))
+        {
+            transaction.status = SessionTransactionStatus::Failed;
+            return Err(single_collection_transaction_error());
+        }
         transaction
             .writes
             .entry(collection.to_string())
             .or_default()
             .insert(id, TransactionRowChange::Upsert(payload));
+        Ok(())
     }
 
-    pub(crate) fn stage_document_delete(&self, collection: &str, id: String) {
+    pub(crate) fn stage_document_delete(
+        &self,
+        collection: &str,
+        id: String,
+    ) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
+        if transaction
+            .writes
+            .keys()
+            .any(|staged| !staged.eq_ignore_ascii_case(collection))
+        {
+            transaction.status = SessionTransactionStatus::Failed;
+            return Err(single_collection_transaction_error());
+        }
         transaction
             .writes
             .entry(collection.to_string())
             .or_default()
             .insert(id, TransactionRowChange::Delete);
+        Ok(())
     }
 
     pub(crate) fn document_change(
@@ -312,4 +366,8 @@ impl CassieSession {
     ) -> BTreeMap<String, BTreeMap<String, TransactionRowChange>> {
         self.transaction.lock().writes.clone()
     }
+}
+
+fn single_collection_transaction_error() -> CassieError {
+    CassieError::Unsupported("transactions may modify only one collection".to_string())
 }

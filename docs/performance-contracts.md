@@ -168,6 +168,17 @@ Each supported write pattern should define:
 This is necessary because a replay or rebuild workflow can look fast in a small fixture while still using per-row catalog lookup, duplicate row rewrites, unnecessary index rewrites, or active-target rebuild writes.
 Phase 05 write work should fail the contract when Cassie hides Midge locality behind a generic mutation loop.
 
+### Transaction staging guard
+
+Transaction staging is a correctness boundary rather than a throughput claim. The session must
+reject a second collection at the staging call, preserve the first collection's transaction-local
+changes for rollback, and preflight foreign-key actions that would stage related collections.
+`CassieError::Unsupported` is reported as SQLSTATE `0A000`; runtime query-error diagnostics and
+pgwire ReadyForQuery statuses (`T`, `E`, and `I`) are the evidence surface. This guard is covered
+by `tests/transaction_staging.rs` and `tests/pgwire_transaction_staging.rs`; it is deliberately
+not promoted into a 10k/100k throughput benchmark because rejected operations must not be counted
+as successful writes.
+
 For write-side patterns, SQL, REST, replay, and rebuild commands are interfaces.
 They are not the required execution model.
 

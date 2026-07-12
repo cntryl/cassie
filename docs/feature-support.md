@@ -38,7 +38,7 @@ Experimental surfaces require the evidence gates in [Experimental Promotion Crit
 | DML | INSERT, UPDATE, DELETE, RETURNING, `COPY ... FROM STDIN WITH (FORMAT csv)` | Stable/Experimental | PostgreSQL-like plus simple-query CSV bulk load |
 | DDL | CREATE/DROP DATABASE, CREATE/ALTER/DROP TABLE, CREATE/ALTER/DROP SCHEMA, CREATE/DROP INDEX, CREATE ROLLUP, REFRESH ROLLUP, DROP ROLLUP, CREATE/ALTER/DROP/ENFORCE RETENTION POLICY | Stable/Experimental by object type | PostgreSQL-like plus Cassie-specific analytics |
 | Session scope | `current_database()`, `current_schema()`, `SHOW search_path`, `SET search_path` | Stable | PostgreSQL-like current-database session model |
-| Transactions | BEGIN, COMMIT, ROLLBACK, savepoints | Stable/Experimental | Single-collection baseline; immediate second-collection rejection, unsupported setting/DDL preflight, and post-commit refresh handling remain open |
+| Transactions | BEGIN, COMMIT, ROLLBACK, savepoints | Stable/Experimental | A transaction stages one collection only; a second staged write or delete fails immediately with `0A000`, marks the transaction failed, preserves prior staged state for rollback, and preflights cross-collection foreign-key actions. Unsupported setting/DDL preflight and post-commit refresh handling remain open |
 | Views | CREATE VIEW, DROP VIEW, nested views | Stable | PostgreSQL-like read-only view behavior |
 | Functions | scalar functions, user-defined functions | Stable/Experimental | PostgreSQL-like where documented |
 | Procedures | CREATE PROCEDURE, CALL | Experimental | Limited compatibility/admin surface, not a business-logic platform |

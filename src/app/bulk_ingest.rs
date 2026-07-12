@@ -81,7 +81,7 @@ impl Cassie {
                 true,
                 None,
             )?;
-            staging.stage_document_write(&statement.table, row_id, prepared);
+            staging.stage_document_write(&statement.table, row_id, prepared)?;
             affected = affected.saturating_add(1);
         }
 

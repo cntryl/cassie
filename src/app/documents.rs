@@ -68,7 +68,7 @@ impl Cassie {
         if let Some(session) = session {
             if session.is_transaction_active() {
                 let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
-                session.stage_document_write(collection, id.clone(), payload);
+                session.stage_document_write(collection, id.clone(), payload)?;
                 return Ok(id);
             }
         }
@@ -126,7 +126,7 @@ impl Cassie {
     ) -> Result<String, CassieError> {
         if let Some(session) = session {
             if session.is_transaction_active() {
-                session.stage_document_write(collection, id.clone(), payload);
+                session.stage_document_write(collection, id.clone(), payload)?;
                 return Ok(id);
             }
         }
@@ -168,7 +168,7 @@ impl Cassie {
                 let existed = self
                     .get_document_for_session(Some(session), collection, id)?
                     .is_some();
-                session.stage_document_delete(collection, id.to_string());
+                session.stage_document_delete(collection, id.to_string())?;
                 return Ok(existed);
             }
         }
@@ -187,39 +187,6 @@ impl Cassie {
     fn refresh_runtime_data_epoch(&self) -> Result<(), CassieError> {
         self.runtime.set_data_epoch(self.midge.data_epoch()?);
         Ok(())
-    }
-
-    pub(crate) fn referential_write_collections(&self, collection: &str) -> Vec<String> {
-        let canonical_name = |name: &str| {
-            self.catalog
-                .get_schema(name)
-                .map_or_else(|| name.to_string(), |schema| schema.collection)
-        };
-        let collection = canonical_name(collection);
-        let mut collections = vec![collection.clone()];
-        for constraint in self.catalog.get_constraints(&collection) {
-            if let Some(referenced_table) = constraint.references_table {
-                collections.push(canonical_name(&referenced_table));
-            }
-        }
-        for candidate in self.catalog.list_collections_canonical() {
-            if self
-                .catalog
-                .get_constraints(&candidate.name)
-                .iter()
-                .any(|constraint| {
-                    constraint
-                        .references_table
-                        .as_deref()
-                        .is_some_and(|referenced| {
-                            canonical_name(referenced).eq_ignore_ascii_case(&collection)
-                        })
-                })
-            {
-                collections.push(candidate.name);
-            }
-        }
-        collections
     }
 
     pub(crate) fn get_document_for_session(

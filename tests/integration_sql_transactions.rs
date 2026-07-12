@@ -707,20 +707,16 @@ fn should_reject_multi_collection_transaction_commit() {
                 vec![],
             )
             .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO tx_multi_b (email) VALUES ('alice@example.com')",
-                vec![],
-            )
-            .unwrap();
-        let commit = cassie.execute_sql(&session, "COMMIT", vec![]);
+        let second_collection = cassie.execute_sql(
+            &session,
+            "INSERT INTO tx_multi_b (email) VALUES ('alice@example.com')",
+            vec![],
+        );
         cassie.execute_sql(&session, "ROLLBACK", vec![]).unwrap();
 
         // Assert
-        assert!(commit.is_err());
-        assert!(commit
-            .unwrap_err()
+        assert!(second_collection
+            .expect_err("second collection should fail while staging")
             .to_string()
             .contains("only one collection"));
         let collected_from_a = cassie

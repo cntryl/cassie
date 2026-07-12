@@ -4,6 +4,7 @@ use super::{
     Cassie, CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta, HashMap,
     QueryError, QueryExecutionControls, QueryResult, Value,
 };
+use std::collections::BTreeSet;
 
 struct PreparedUpdateRow {
     row_id: String,
@@ -41,6 +42,23 @@ pub(in crate::executor::execution) fn execute_update(
         &schema,
         &matched_rows,
     )?;
+    if let Some(session) = session.filter(|session| session.is_transaction_active()) {
+        let mut collections = BTreeSet::from([statement.table.clone()]);
+        for prepared in &prepared_rows {
+            dml_referential_actions::preflight_update_actions(
+                cassie,
+                session,
+                &statement.table,
+                &prepared.before_payload,
+                &prepared.payload,
+                &mut collections,
+            )?;
+        }
+        let collections = collections.into_iter().collect::<Vec<_>>();
+        session
+            .preflight_transaction_collections(&collections)
+            .map_err(QueryError::from)?;
+    }
     let mut returning_rows = Vec::new();
     apply_update_rows(
         cassie,

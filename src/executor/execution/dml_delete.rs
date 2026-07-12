@@ -60,6 +60,12 @@ fn execute_delete_with_held_referential_gates(
                     statement.table
                 ))
             })?;
+        dml_referential_actions::preflight_delete_actions(
+            cassie,
+            session,
+            &statement.table,
+            &current.payload,
+        )?;
         dml_referential_actions::assert_no_referencing_rows(
             cassie,
             session,

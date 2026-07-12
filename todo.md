@@ -208,14 +208,15 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
 
 ## Phase 4 — transactions and pgwire contract alignment
 
-- [ ] Enforce the single-collection transaction limit at the second staged collection, not only at
+- [x] Enforce the single-collection transaction limit at the second staged collection, not only at
   COMMIT.
   - Make `CassieSession::stage_document_write/delete` fallible.
   - Reject the second collection with `CassieError::Unsupported`/SQLSTATE `0A000`, mark the
     transaction failed, preserve existing staged state for rollback, and preflight cross-collection
     foreign-key cascades.
-  - Tests: rejection timing, rollback recovery, no partial mutation, pgwire SQLSTATE, and
-    ReadyForQuery `E/T/I` status.
+  - Tests: `tests/transaction_staging.rs` covers write/delete timing, rollback recovery, no
+    partial mutation, and delete-cascade preflight; `tests/pgwire_transaction_staging.rs` covers
+    SQLSTATE `0A000` and ReadyForQuery `E/T/I` status.
 - [ ] Reject transaction semantics Cassie does not provide.
   - Accept only the documented default/read-committed contract.
   - Reject SERIALIZABLE, REPEATABLE READ, `SET TRANSACTION`, DDL in active transactions, and

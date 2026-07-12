@@ -73,17 +73,25 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
 
 ## Phase 2 — derived-state publication and crash recovery
 
-- [ ] Close every base-write-plus-derived-refresh boundary with “commit plus durable stale/debt
-  mark,” never an ambiguous failed write after base data is durable.
+- [x] Close every current base-write-plus-derived-refresh boundary with “commit plus durable
+  stale/debt mark,” never an ambiguous failed write after base data is durable.
   - Audit scalar/time-series/full-text/vector/graph/column-batch/rollup/analytical/hash paths.
   - Persist debt or invalid generation in the same base-data transaction where possible.
   - Retry idempotently at startup and expose retry count, last error, target generation, and current
     fallback reason.
+  - [x] Scalar, time-series, vector, and graph sidecars publish in the same Midge data transaction
+    as their source rows and carry the source collection generation; family failpoint tests reject
+    partial publication and generation tests fence old state.
+  - [x] Column-batch and projection-hash refreshes use the shared generation-bound debt contract,
+    startup replay, maintenance-pending fallback, and redacted retry diagnostics.
   - [x] Rollup writes now use a source-scoped `rollup` debt record, a `maintenance_pending` read
     fence, catalog diagnostics, and startup retry/clear coverage.
   - [x] Materialized and analytical source writes now persist a generation-bound
     `materialized_projection` debt in the base-write transaction, fence reads while stale marking
     is pending, and replay stale metadata idempotently after restart with retry/error diagnostics.
+  - [x] Full-text currently rebuilds its in-memory query-time index from authoritative rows and has
+    no independent post-commit persisted refresh boundary; persisted postings/statistics and their
+    publication debt remain the explicitly scoped Phase 5 retrieval slice.
 - [ ] Complete schema-operation journal coverage.
   - Verify create/drop/rename collection, add/drop/rename field, and create/drop index behavior at
     every schema/data-family interruption point.

@@ -58,7 +58,7 @@ tests, diagnostics, documentation, and performance evidence meet `docs/definitio
   - Keep lexkey v5 current-layout and v4-and-older rejection wording consistent across README,
     feature support, snapshot docs, tests, and startup diagnostics.
   - Narrow any Stable/Implemented claim whose remaining contract work is listed below, especially
-    recursive CTEs, window frames, binary pgwire, retrieval generation safety,
+    window frames, binary pgwire, retrieval generation safety,
     REST authentication, analytics freshness, and production readiness.
 - [x] Make gate results reproducible and retained.
   - Ensure the full locked test suite completes deterministically in local and CI environments.
@@ -181,16 +181,19 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     `$1`, and table-free set operations.
   - [x] Benchmark: no dedicated benchmark required; the prepared protocol microbench now uses a
     table-free parameterized query.
-- [ ] Correct recursive CTE working-table semantics.
-  - Carry `UNION` versus `UNION ALL` in the AST.
-  - Feed only the previous iteration’s delta into the recursive term.
-  - Deduplicate only `UNION`; preserve duplicates for `UNION ALL`.
-  - Apply CTE aliases and validate anchor/recursive arity and compatible types.
-  - Reject anchor self-reference, multiple unsupported recursive references, and unsupported shapes
-    deterministically.
-  - Tests: bounded `1..N`, UNION deduplication, UNION ALL duplicates, aliases, params, type/arity
-    errors, self-reference errors, depth/temp-memory limits, and tokio-postgres end-to-end behavior.
-  - Benchmark: 10k/100k bounded recursive workloads with depth, memory, and cardinality assertions.
+- [x] Correct recursive CTE working-table semantics.
+  - [x] Carry `UNION` versus `UNION ALL` in the AST.
+  - [x] Feed only the previous iteration’s delta into the recursive term.
+  - [x] Deduplicate only `UNION`; preserve duplicates for `UNION ALL`.
+  - [x] Apply CTE aliases and validate anchor/recursive arity and compatible types.
+  - [x] Reject anchor self-reference, multiple unsupported recursive references, and unsupported
+    shapes deterministically.
+  - [x] Tests: bounded `1..N`, UNION deduplication, UNION ALL duplicates, aliases, params,
+    type/arity errors, self-reference errors, depth/temp-memory limits, and tokio-postgres
+    end-to-end behavior in `tests/recursive_cte_semantics.rs`, `tests/executor_query_sources.rs`,
+    `tests/integration_sql_ctes.rs`, and `tests/compatibility_matrix.rs`.
+  - [x] Benchmark: Tier 3 `10k`/`100k` fanout workloads assert depth, 512 MiB temporary memory,
+    and output cardinality through `recursive_cte_query`.
 - [ ] Define and implement the window-frame contract.
   - Add explicit frame AST/parser representation and ordered default-frame behavior.
   - Support documented `ROWS` bounds and apply frames correctly to `first_value`/`last_value`.

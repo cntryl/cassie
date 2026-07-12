@@ -550,7 +550,7 @@ fn should_execute_recursive_cte_until_stabilization() {
     let result = cassie
         .execute_sql(
             &session,
-            "WITH RECURSIVE seq(n) AS (SELECT n FROM exec_cte_recursive WHERE n = 1 UNION ALL SELECT n FROM seq WHERE n = 1) SELECT n FROM seq ORDER BY n",
+            "WITH RECURSIVE seq(n) AS (SELECT n FROM exec_cte_recursive WHERE n = 1 UNION ALL SELECT CAST(n + 1 AS INT) FROM seq WHERE n < 2) SELECT n FROM seq ORDER BY n",
             vec![],
         )
 
@@ -564,7 +564,7 @@ fn should_execute_recursive_cte_until_stabilization() {
             _ => panic!("expected integer value"),
         })
         .collect::<Vec<_>>();
-    assert_eq!(values, vec![1]);
+    assert_eq!(values, vec![1, 2]);
 }
 
 #[test]

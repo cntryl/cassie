@@ -146,7 +146,9 @@ fn infer_select_parameter_type_oids(
             ast::CteQuery::Simple(statement) => {
                 infer_parameter_type_oids_query(&statement.statement, catalog, oids);
             }
-            ast::CteQuery::Recursive { base, recursive } => {
+            ast::CteQuery::Recursive {
+                base, recursive, ..
+            } => {
                 infer_parameter_type_oids_query(&base.statement, catalog, oids);
                 infer_parameter_type_oids_query(&recursive.statement, catalog, oids);
             }
@@ -505,7 +507,9 @@ fn parameter_count_select(statement: &ast::SelectStatement) -> usize {
 fn parameter_count_cte_query(query: &ast::CteQuery) -> usize {
     match query {
         ast::CteQuery::Simple(statement) => parameter_count_query(&statement.statement),
-        ast::CteQuery::Recursive { base, recursive } => {
+        ast::CteQuery::Recursive {
+            base, recursive, ..
+        } => {
             parameter_count_query(&base.statement).max(parameter_count_query(&recursive.statement))
         }
     }

@@ -141,7 +141,7 @@ fn should_execute_sql_with_recursive_cte() {
         let result = cassie
             .execute_sql(
                 &session,
-                "WITH RECURSIVE counter(n) AS (SELECT n FROM integration_recursive_cte WHERE n = 1 UNION ALL SELECT n FROM counter WHERE n = 1) SELECT n FROM counter ORDER BY n",
+                "WITH RECURSIVE counter(n) AS (SELECT n FROM integration_recursive_cte WHERE n = 1 UNION ALL SELECT CAST(n + 1 AS INT) FROM counter WHERE n < 2) SELECT n FROM counter ORDER BY n",
             vec![],
             )
 
@@ -157,7 +157,7 @@ fn should_execute_sql_with_recursive_cte() {
             .collect::<Vec<_>>();
 
         // Assert
-        assert_eq!(rows, vec![1]);
+        assert_eq!(rows, vec![1, 2]);
         let _ = std::fs::remove_dir_all(path);
     });
 }

@@ -7,6 +7,7 @@ use super::{
     parse_statement, CommonTableExpression, CteQuery, Expr, HashSet, JoinKind, OrderExpr,
     ParsedStatement, QuerySource, QueryStatement, SelectItem, SqlError, WindowFunctionCall,
 };
+use crate::sql::ast::SetOperator;
 
 #[path = "query_select.rs"]
 mod query_select;
@@ -380,7 +381,7 @@ pub(super) fn parse_cte_definitions(
         let (name, aliases) = parse_cte_header(head)?;
         let body_sql = parse_enclosed_parenthesized(body)
             .ok_or_else(|| SqlError::new(format!("invalid CTE body for '{name}'")))?;
-        let query = if let Some(query) = parse_recursive_cte_query(&body_sql) {
+        let query = if let Some(query) = parse_recursive_cte_query(&body_sql)? {
             query
         } else {
             let parsed_body = parse_statement(&body_sql).map_err(|error| {
@@ -414,18 +415,38 @@ pub(super) fn parse_cte_definitions(
     Ok(out)
 }
 
-pub(super) fn parse_recursive_cte_query(body: &str) -> Option<CteQuery> {
-    let union_pos = find_top_level_keyword(body, 0, "union all")?;
-    let base = body[..union_pos].trim();
-    let recursive = body[(union_pos + "union all".len())..].trim();
+pub(super) fn parse_recursive_cte_query(body: &str) -> Result<Option<CteQuery>, SqlError> {
+    let union_all_pos = find_top_level_keyword(body, 0, "union all");
+    let union_pos = find_top_level_keyword(body, 0, "union")
+        .filter(|position| Some(*position) != union_all_pos);
+    let Some((set_pos, set_token, operator)) = [
+        union_all_pos.map(|position| (position, "union all", SetOperator::UnionAll)),
+        union_pos.map(|position| (position, "union", SetOperator::Union)),
+    ]
+    .into_iter()
+    .flatten()
+    .min_by_key(|(position, _, _)| *position) else {
+        return Ok(None);
+    };
+
+    let base = body[..set_pos].trim();
+    let recursive = body[(set_pos + set_token.len())..].trim();
     if base.is_empty() || recursive.is_empty() {
-        return None;
+        return Err(SqlError::new(
+            "recursive CTE requires anchor and recursive terms".into(),
+        ));
     }
 
-    Some(CteQuery::Recursive {
-        base: Box::new(parse_statement(base).ok()?),
-        recursive: Box::new(parse_statement(recursive).ok()?),
-    })
+    let base = parse_statement(base)
+        .map_err(|error| SqlError::new(format!("invalid recursive CTE anchor: {error}")))?;
+    let recursive = parse_statement(recursive)
+        .map_err(|error| SqlError::new(format!("invalid recursive CTE recursive term: {error}")))?;
+
+    Ok(Some(CteQuery::Recursive {
+        operator,
+        base: Box::new(base),
+        recursive: Box::new(recursive),
+    }))
 }
 
 pub(super) fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlError> {

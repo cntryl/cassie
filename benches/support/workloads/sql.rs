@@ -83,6 +83,25 @@ pub fn execute_sql(ctx: &BenchContext, sql: &str) -> Ready<usize> {
     ready(std::hint::black_box(result.rows.len()))
 }
 
+pub fn recursive_cte_query(ctx: &BenchContext, upper_bound: usize) -> Ready<usize> {
+    let sql = format!(
+        "WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT CAST(seq.n + 1 AS INT) FROM seq JOIN recursive_cte_fanout ON recursive_cte_fanout.n = 1 WHERE seq.n < {upper_bound}) SELECT n FROM seq"
+    );
+    let result = ctx
+        .cassie
+        .execute_sql(&ctx.session, &sql, vec![])
+        .expect("execute recursive CTE benchmark");
+    let expected_rows = (0..upper_bound)
+        .scan(1_usize, |power, _| {
+            let current = *power;
+            *power = power.saturating_mul(10);
+            Some(current)
+        })
+        .sum::<usize>();
+    assert_eq!(result.rows.len(), expected_rows);
+    ready(std::hint::black_box(result.rows.len()))
+}
+
 pub fn simple_10k_query_breakdown(ctx: &BenchContext) -> Ready<QueryBreakdownMicros> {
     let sql = "SELECT id, title FROM bench_documents WHERE title = 'title-1'";
     let params = Vec::new();

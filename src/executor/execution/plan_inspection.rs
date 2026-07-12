@@ -73,7 +73,9 @@ pub(crate) fn plan_needs_user_functions(plan: &LogicalPlan) -> bool {
 fn cte_needs_user_functions(cte: &CommonTableExpression) -> bool {
     match &cte.query {
         CteQuery::Simple(statement) => parsed_statement_needs_user_functions(statement),
-        CteQuery::Recursive { base, recursive } => {
+        CteQuery::Recursive {
+            base, recursive, ..
+        } => {
             parsed_statement_needs_user_functions(base)
                 || parsed_statement_needs_user_functions(recursive)
         }
@@ -223,7 +225,9 @@ fn function_needs_user_functions(function: &FunctionCall) -> bool {
 fn cte_uses_function(cte: &CommonTableExpression, function_name: &str) -> bool {
     match &cte.query {
         CteQuery::Simple(statement) => parsed_statement_uses_function(statement, function_name),
-        CteQuery::Recursive { base, recursive } => {
+        CteQuery::Recursive {
+            base, recursive, ..
+        } => {
             parsed_statement_uses_function(base, function_name)
                 || parsed_statement_uses_function(recursive, function_name)
         }
@@ -255,7 +259,9 @@ pub(super) fn plan_uses_vector_operator(plan: &LogicalPlan) -> bool {
 fn cte_uses_vector_operator(cte: &CommonTableExpression) -> bool {
     match &cte.query {
         CteQuery::Simple(statement) => parsed_statement_uses_vector_operator(statement),
-        CteQuery::Recursive { base, recursive } => {
+        CteQuery::Recursive {
+            base, recursive, ..
+        } => {
             parsed_statement_uses_vector_operator(base)
                 || parsed_statement_uses_vector_operator(recursive)
         }

@@ -266,7 +266,9 @@ pub(super) fn select_contains_parameters(select: &SelectStatement) -> bool {
 pub(super) fn cte_contains_parameters(cte: &CommonTableExpression) -> bool {
     match &cte.query {
         CteQuery::Simple(statement) => parsed_statement_contains_parameters(statement.as_ref()),
-        CteQuery::Recursive { base, recursive } => {
+        CteQuery::Recursive {
+            base, recursive, ..
+        } => {
             parsed_statement_contains_parameters(base.as_ref())
                 || parsed_statement_contains_parameters(recursive.as_ref())
         }
@@ -767,7 +769,9 @@ pub(super) fn collect_functions(statement: &SelectStatement, out: &mut Vec<Funct
                     collect_functions(select, out);
                 }
             }
-            CteQuery::Recursive { base, recursive } => {
+            CteQuery::Recursive {
+                base, recursive, ..
+            } => {
                 if let QueryStatement::Select(select) = &base.statement {
                     collect_functions(select, out);
                 }
@@ -862,21 +866,27 @@ pub(super) fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
 }
 
 pub(super) fn recursive_cte_references_self(statement: &ParsedStatement, cte_name: &str) -> bool {
+    recursive_cte_reference_count(statement, cte_name) > 0
+}
+
+pub(super) fn recursive_cte_reference_count(statement: &ParsedStatement, cte_name: &str) -> usize {
     match &statement.statement {
-        QueryStatement::Select(select) => source_references_cte(&select.source, cte_name),
-        _ => false,
+        QueryStatement::Select(select) => source_cte_reference_count(&select.source, cte_name),
+        _ => 0,
     }
 }
 
-pub(super) fn source_references_cte(source: &QuerySource, cte_name: &str) -> bool {
+fn source_cte_reference_count(source: &QuerySource, cte_name: &str) -> usize {
     match source {
         QuerySource::Cte(name) | QuerySource::Collection(name) => {
-            name.eq_ignore_ascii_case(cte_name)
+            usize::from(name.eq_ignore_ascii_case(cte_name))
         }
-        QuerySource::TableFunction { .. } | QuerySource::SingleRow => false,
-        QuerySource::Subquery { select, .. } => source_references_cte(&select.source, cte_name),
+        QuerySource::TableFunction { .. } | QuerySource::SingleRow => 0,
+        QuerySource::Subquery { select, .. } => {
+            source_cte_reference_count(&select.source, cte_name)
+        }
         QuerySource::Join { left, right, .. } => {
-            source_references_cte(left, cte_name) || source_references_cte(right, cte_name)
+            source_cte_reference_count(left, cte_name) + source_cte_reference_count(right, cte_name)
         }
     }
 }

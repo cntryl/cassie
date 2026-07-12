@@ -1,11 +1,11 @@
 use super::{
-    bind_statement, collect_projection_aliases, mem, qualified_fields,
-    recursive_cte_references_self, resolve_relation_name, validate_distinct_on_order_prefix,
-    validate_expression, validate_expression_operand_families, validate_expression_references,
-    validate_functions, validate_order_by_references, validate_projection_references,
-    validate_select_operand_families, virtual_views, BindingContext, CassieError, Catalog,
-    CteQuery, CteScope, DataType, Expr, FunctionCall, HashSet, QuerySource, QueryStatement,
-    SelectItem, SelectSet, SelectStatement,
+    bind_recursive_cte_query, bind_statement, collect_projection_aliases, mem, qualified_fields,
+    resolve_relation_name, validate_distinct_on_order_prefix, validate_expression,
+    validate_expression_operand_families, validate_expression_references, validate_functions,
+    validate_order_by_references, validate_projection_references, validate_select_operand_families,
+    virtual_views, BindingContext, CassieError, Catalog, CteQuery, CteScope, DataType, Expr,
+    FieldSchema, FunctionCall, HashMap, HashSet, QuerySource, QueryStatement, Schema, SelectItem,
+    SelectSet, SelectStatement,
 };
 
 pub(super) fn bind_select(
@@ -43,35 +43,27 @@ pub(super) fn bind_select_with_lateral_fields(
             )));
         }
 
+        let declared_aliases = cte.aliases.clone();
         let query = match cte.query {
             CteQuery::Simple(next) => {
                 CteQuery::Simple(Box::new(bind_statement(*next, catalog, &scope, context)?))
             }
-            CteQuery::Recursive { base, recursive } => {
-                if cte.aliases.is_empty() {
-                    return Err(CassieError::Planner(format!(
-                        "recursive CTE '{cte_name}' requires column aliases"
-                    )));
-                }
-
-                let mut recursive_scope = scope.clone();
-                recursive_scope.insert(cte_name_lc.clone(), cte.aliases.clone());
-
-                let bound_base = bind_statement(*base, catalog, &recursive_scope, context)?;
-                let bound_recursive =
-                    bind_statement(*recursive, catalog, &recursive_scope, context)?;
-
-                if !recursive_cte_references_self(&bound_recursive, cte_name) {
-                    return Err(CassieError::Planner(format!(
-                        "recursive CTE '{cte_name}' must reference itself in recursive term"
-                    )));
-                }
-
+            CteQuery::Recursive {
+                operator,
+                base,
+                recursive,
+            } => bind_recursive_cte_query(
                 CteQuery::Recursive {
-                    base: Box::new(bound_base),
-                    recursive: Box::new(bound_recursive),
-                }
-            }
+                    operator,
+                    base,
+                    recursive,
+                },
+                &declared_aliases,
+                catalog,
+                &scope,
+                cte_name,
+                context,
+            )?,
         };
 
         let visible_fields = cte_output_fields(&query)?;
@@ -89,11 +81,15 @@ pub(super) fn bind_select_with_lateral_fields(
                 .map(|alias| alias.to_ascii_lowercase())
                 .collect()
         };
-        scope.insert(cte_name_lc, aliases);
+        scope.insert(cte_name_lc, aliases.clone());
 
         bound_ctes.push(crate::sql::ast::CommonTableExpression {
             name: cte.name,
-            aliases: cte.aliases,
+            aliases: if declared_aliases.is_empty() {
+                aliases
+            } else {
+                declared_aliases
+            },
             query,
         });
     }
@@ -154,6 +150,124 @@ fn validate_bound_select_references(
     validate_order_by_references(&select.order, known_fields, projection_aliases)?;
     validate_distinct_on_order_prefix(&select.distinct_on, &select.order)?;
     Ok(())
+}
+
+pub(super) fn validate_recursive_cte_shape(
+    base: &crate::sql::ast::ParsedStatement,
+    recursive: &crate::sql::ast::ParsedStatement,
+    catalog: &Catalog,
+    outer_scope: &CteScope,
+    cte_name: &str,
+    aliases: &[String],
+) -> Result<(), CassieError> {
+    let QueryStatement::Select(base_select) = &base.statement else {
+        return Err(CassieError::Planner(
+            "recursive CTE anchor must be a SELECT statement".into(),
+        ));
+    };
+    let QueryStatement::Select(recursive_select) = &recursive.statement else {
+        return Err(CassieError::Planner(
+            "recursive CTE term must be a SELECT statement".into(),
+        ));
+    };
+    if base_select.set.is_some() || recursive_select.set.is_some() {
+        return Err(CassieError::Planner(format!(
+            "recursive CTE '{cte_name}' has unsupported nested set operation"
+        )));
+    }
+
+    let user_functions = catalog
+        .list_functions()
+        .into_iter()
+        .map(|function| (function.name.to_ascii_lowercase(), function))
+        .collect::<HashMap<_, _>>();
+    let outer_schemas = outer_scope
+        .iter()
+        .map(|(name, aliases)| {
+            (
+                name.clone(),
+                Schema {
+                    fields: aliases
+                        .iter()
+                        .map(|alias| FieldSchema {
+                            name: alias.clone(),
+                            data_type: DataType::Null,
+                            nullable: true,
+                        })
+                        .collect(),
+                },
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    let mut base_schema = super::inference::infer_select_schema_with_scope(
+        base_select,
+        catalog,
+        &outer_schemas,
+        &user_functions,
+    )?;
+    if base_schema.fields.len() != aliases.len() {
+        return Err(CassieError::Planner(format!(
+            "recursive CTE '{cte_name}' column count mismatch: {} != {}",
+            base_schema.fields.len(),
+            aliases.len()
+        )));
+    }
+    for (field, alias) in base_schema.fields.iter_mut().zip(aliases) {
+        field.name.clone_from(alias);
+    }
+    let mut recursive_schemas = outer_schemas;
+    recursive_schemas.insert(cte_name.to_ascii_lowercase(), base_schema.clone());
+    let recursive_schema = super::inference::infer_select_schema_with_scope(
+        recursive_select,
+        catalog,
+        &recursive_schemas,
+        &user_functions,
+    )?;
+
+    if base_schema.fields.len() != recursive_schema.fields.len() {
+        return Err(CassieError::Planner(format!(
+            "recursive CTE '{cte_name}' column count mismatch: {} != {}",
+            base_schema.fields.len(),
+            recursive_schema.fields.len()
+        )));
+    }
+
+    for (index, (base_field, recursive_field)) in base_schema
+        .fields
+        .iter()
+        .zip(recursive_schema.fields.iter())
+        .enumerate()
+    {
+        if !recursive_types_compatible(&base_field.data_type, &recursive_field.data_type) {
+            return Err(CassieError::Planner(format!(
+                "recursive CTE '{cte_name}' column {} has incompatible types: {} != {}",
+                index + 1,
+                base_field.data_type.type_name(),
+                recursive_field.data_type.type_name()
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn recursive_types_compatible(base: &DataType, recursive: &DataType) -> bool {
+    if matches!(base, DataType::Null) || matches!(recursive, DataType::Null) {
+        return true;
+    }
+    match (base, recursive) {
+        (
+            DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float,
+            DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float,
+        )
+        | (
+            DataType::Text | DataType::Char { .. } | DataType::Varchar { .. },
+            DataType::Text | DataType::Char { .. } | DataType::Varchar { .. },
+        ) => true,
+        (DataType::Array(base), DataType::Array(recursive)) => {
+            recursive_types_compatible(base, recursive)
+        }
+        _ => base == recursive,
+    }
 }
 
 pub(super) fn cte_output_fields(cte_query: &CteQuery) -> Result<Vec<String>, CassieError> {

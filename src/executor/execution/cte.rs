@@ -3,6 +3,7 @@ use super::{
     BatchRow, Cassie, CassieSession, CommonTableExpression, CteQuery, FunctionMeta, HashMap,
     HashSet, QueryError, QueryExecutionControls, Value,
 };
+use crate::sql::ast::SetOperator;
 
 pub(super) type CteRows = Vec<Vec<(String, Value)>>;
 pub(super) type CteContext = HashMap<String, CteRows>;
@@ -35,10 +36,15 @@ pub(super) fn execute_cte<'a>(
             )?
             .into_iter()
             .map(BatchRow::into_entries)
-            .collect()
+            .collect::<Vec<_>>()
         }
-        CteQuery::Recursive { base, recursive } => {
+        CteQuery::Recursive {
+            operator,
+            base,
+            recursive,
+        } => {
             let base_plan = build_logical_plan(base.as_ref())?;
+            let recursive_plan = build_logical_plan(recursive.as_ref())?;
             let mut rows = execute_plan(
                 cassie,
                 session,
@@ -51,15 +57,19 @@ pub(super) fn execute_cte<'a>(
             .into_iter()
             .map(BatchRow::into_entries)
             .collect::<Vec<_>>();
+            rows = rename_cte_rows(rows, &cte.aliases);
 
-            cte_context.insert(cte_name.clone(), rows.clone());
-
-            let mut seen: HashSet<String> = rows.iter().map(row_signature).collect();
+            let mut seen: HashSet<String> = HashSet::new();
+            if matches!(operator, SetOperator::Union) {
+                rows.retain(|row| seen.insert(row_signature(row)));
+            }
+            let mut delta = rows.clone();
+            ensure_temp_budget_for_rows(controls, &rows)?;
+            cte_context.insert(cte_name.clone(), delta.clone());
             let mut stabilized = false;
 
             for _ in 0..controls.cte_recursion_depth {
                 check_timeout(controls)?;
-                let recursive_plan = build_logical_plan(recursive.as_ref())?;
                 let recursive_rows = execute_plan(
                     cassie,
                     session,
@@ -72,23 +82,31 @@ pub(super) fn execute_cte<'a>(
                 .into_iter()
                 .map(BatchRow::into_entries)
                 .collect::<Vec<_>>();
+                let recursive_rows = rename_cte_rows(recursive_rows, &cte.aliases);
 
-                let mut new_rows = Vec::new();
-                for row in recursive_rows {
-                    let signature = row_signature(&row);
-                    if seen.insert(signature) {
-                        rows.push(row.clone());
-                        new_rows.push(row);
+                let new_rows = match operator {
+                    SetOperator::Union => recursive_rows
+                        .into_iter()
+                        .filter(|row| seen.insert(row_signature(row)))
+                        .collect::<Vec<_>>(),
+                    SetOperator::UnionAll => recursive_rows,
+                    _ => {
+                        return Err(QueryError::General(
+                            "unsupported recursive CTE set operator".to_string(),
+                        ));
                     }
-                }
+                };
 
                 if new_rows.is_empty() {
                     stabilized = true;
                     break;
                 }
 
+                rows.extend(new_rows.iter().cloned());
+                delta = new_rows;
                 ensure_temp_budget_for_rows(controls, &rows)?;
-                cte_context.insert(cte_name.clone(), rows.clone());
+                ensure_temp_budget_for_rows(controls, &delta)?;
+                cte_context.insert(cte_name.clone(), delta.clone());
             }
 
             if !stabilized {
@@ -102,6 +120,7 @@ pub(super) fn execute_cte<'a>(
         }
     };
 
+    let output = rename_cte_rows(output, &cte.aliases);
     if let Some(previous_rows) = previous {
         cte_context.insert(cte_name, previous_rows);
     } else {
@@ -109,4 +128,26 @@ pub(super) fn execute_cte<'a>(
     }
 
     Ok(output)
+}
+
+fn rename_cte_rows(rows: CteRows, aliases: &[String]) -> CteRows {
+    if aliases.is_empty() || aliases.iter().any(|alias| alias == "*") {
+        return rows;
+    }
+    rows.into_iter()
+        .map(|row| {
+            row.into_iter()
+                .enumerate()
+                .map(|(index, (_, value))| {
+                    (
+                        aliases
+                            .get(index)
+                            .cloned()
+                            .unwrap_or_else(|| format!("column_{}", index + 1)),
+                        value,
+                    )
+                })
+                .collect()
+        })
+        .collect()
 }

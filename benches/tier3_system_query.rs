@@ -96,6 +96,7 @@ fn main() {
     let mut runner = stress::runner(BENCHMARK);
 
     bench_base_10k_cases(&mut runner, &runtime);
+    bench_recursive_cte_cases(&mut runner, &runtime);
     bench_simple_100k_case(&mut runner, &runtime);
     bench_scalar_100k_cases(&mut runner, &runtime);
     bench_mixed_direction_scalar_case(&mut runner, &runtime, "10k", 10_000);
@@ -106,6 +107,37 @@ fn main() {
     bench_time_series_case(&mut runner, &runtime, "100k", 100_000);
 
     runner.finish();
+}
+
+fn bench_recursive_cte_cases(
+    runner: &mut stress::CassieStressRunner,
+    runtime: &tokio::runtime::Runtime,
+) {
+    for (scale, upper_bound) in [("10k", 5_usize), ("100k", 6_usize)] {
+        if !should_run_case(runner, "recursive_cte_query", scale) {
+            continue;
+        }
+
+        let benchmark =
+            performance_benchmarks::expect_benchmark(BENCHMARK, "recursive_cte_query", scale);
+        let context = runtime
+            .block_on(workloads::recursive_cte_context(
+                &format!("tier3-query-recursive-{scale}"),
+                upper_bound,
+            ))
+            .expect("recursive CTE benchmark context");
+        let warmed_rows = runtime.block_on(workloads::recursive_cte_query(&context, upper_bound));
+        assert!(warmed_rows >= 10_000);
+
+        runner.fixed_timed_counted_usize(
+            stress::StressCase::fixed_operations(3, benchmark.workload, benchmark.fixture_scale)
+                .metadata("operation_unit", "result_row")
+                .metadata("expected_rows", warmed_rows.to_string())
+                .metadata("cte_recursion_depth", upper_bound.to_string())
+                .metadata("temp_spill_budget_bytes", (512 * 1024 * 1024).to_string()),
+            || runtime.block_on(workloads::recursive_cte_query(&context, upper_bound)),
+        );
+    }
 }
 
 fn bench_base_10k_cases(

@@ -32,7 +32,7 @@ Experimental surfaces require the evidence gates in [Experimental Promotion Crit
 | Semi/anti joins | EXISTS, NOT EXISTS | Stable | PostgreSQL-like |
 | Lateral | LATERAL, CROSS APPLY, OUTER APPLY | Stable | PostgreSQL-like with Cassie syntax support |
 | Subqueries | scalar subqueries, FROM subqueries, predicate subqueries, correlated subqueries | Stable | PostgreSQL-like |
-| CTEs | WITH, WITH RECURSIVE | Stable/Experimental | Non-recursive CTEs and covered recursion work; recursive delta iteration, UNION deduplication, aliases, and type/arity validation remain open |
+| CTEs | WITH, WITH RECURSIVE | Stable/Experimental | Recursive terms use a generation-local working delta; UNION deduplicates, UNION ALL preserves duplicates, aliases and type/arity validation are deterministic, and depth/temp-memory limits remain enforced |
 | Set operations | UNION, UNION ALL, INTERSECT, EXCEPT | Stable | PostgreSQL-like |
 | Window functions | row_number, rank, dense_rank, lag, lead, first_value, last_value, supported frames | Stable/Experimental | Covered functions work; explicit ROWS frames and deterministic rejection of unsupported frame families remain open |
 | DML | INSERT, UPDATE, DELETE, RETURNING, `COPY ... FROM STDIN WITH (FORMAT csv)` | Stable/Experimental | PostgreSQL-like plus simple-query CSV bulk load |

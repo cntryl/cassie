@@ -583,6 +583,18 @@ These categories define the minimum performance-contract surface for Cassie V1 r
 | Hybrid search | text + vector + structured filters |
 | Time bucket | daily/hourly buckets |
 | Column batch | analytical read-model scans |
+| Recursive working table | bounded `WITH RECURSIVE` expansion with delta-only iterations |
+
+### Recursive working-table contract
+
+Recursive CTE execution materializes only the previous iteration as the recursive working table.
+`UNION ALL` preserves duplicate rows; `UNION` deduplicates anchor and recursive deltas by row
+signature. Anchor/recursive arity and compatible type families are validated before execution,
+column aliases are applied to every working row, and anchor self-reference, multiple recursive
+references, nested set shapes, depth exhaustion, and temporary-memory exhaustion return
+deterministic errors. Tier 3 owns the `10k` and `100k` fanout scenarios
+`perf.core_read.recursive_cte.10k` and `perf.core_read.recursive_cte.100k`; each asserts result
+cardinality, recursion depth, and a 512 MiB temporary-memory budget.
 | Projection replay | idempotent event replay, duplicate handling, lag catch-up |
 | Projection rebuild | materialized refresh, rebuild verification, version swap |
 | Join-like reads | preferably pre-projected rather than runtime-heavy joins |

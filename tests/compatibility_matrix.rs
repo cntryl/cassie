@@ -879,7 +879,7 @@ fn should_run_recursive_cte_with_tokio_postgres() {
             .expect("seed row should be inserted");
         let rows = client
             .query(
-                "WITH RECURSIVE seq(n) AS (SELECT n FROM compat_recursive_seed WHERE n = 1 UNION ALL SELECT n FROM seq WHERE n = 1) SELECT n FROM seq ORDER BY n",
+                "WITH RECURSIVE seq(n) AS (SELECT n FROM compat_recursive_seed WHERE n = 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 2) SELECT n FROM seq ORDER BY n",
                 &[],
             )
             .await
@@ -890,7 +890,7 @@ fn should_run_recursive_cte_with_tokio_postgres() {
             .into_iter()
             .map(|row| row.try_get::<_, String>(0).expect("cte value"))
             .collect::<Vec<_>>();
-        assert_eq!(values, vec!["1".to_string()]);
+        assert_eq!(values, vec!["1".to_string(), "2".to_string()]);
 
         drop(client);
         server.shutdown(connection).await;

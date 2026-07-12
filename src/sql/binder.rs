@@ -27,6 +27,8 @@ mod commands;
 mod context;
 #[path = "binder/inference.rs"]
 mod inference;
+#[path = "binder/recursive.rs"]
+mod recursive;
 #[path = "binder/routines.rs"]
 mod routines;
 #[path = "binder/schema.rs"]
@@ -49,6 +51,7 @@ use context::{
 };
 pub(crate) use inference::infer_expr_type;
 pub use inference::infer_select_schema;
+use recursive::bind_recursive_cte_query;
 use routines::{
     bind_call_procedure, bind_create_function, bind_create_procedure, bind_drop_function,
     bind_drop_procedure,
@@ -60,11 +63,11 @@ use schema::{
 use schema_sequences::{bind_create_sequence, bind_drop_sequence};
 use select::bind_select;
 use validation::{
-    collect_item, collect_projection_aliases, qualified_fields, recursive_cte_references_self,
-    select_contains_parameters, validate_distinct_on_order_prefix, validate_expression,
-    validate_expression_operand_families, validate_expression_references, validate_function_calls,
-    validate_functions, validate_order_by_references, validate_projection_references,
-    validate_select_operand_families,
+    collect_item, collect_projection_aliases, qualified_fields, recursive_cte_reference_count,
+    recursive_cte_references_self, select_contains_parameters, validate_distinct_on_order_prefix,
+    validate_expression, validate_expression_operand_families, validate_expression_references,
+    validate_function_calls, validate_functions, validate_order_by_references,
+    validate_projection_references, validate_select_operand_families,
 };
 
 #[derive(Debug, Clone)]

@@ -331,10 +331,6 @@ fn context_with_index_options_and_runtime(
     Ok(ctx)
 }
 
-pub fn empty_context(label: &str) -> Ready<Result<BenchContext, CassieError>> {
-    ready(empty_context_now(label))
-}
-
 pub fn recursive_cte_context(
     label: &str,
     recursion_depth: usize,
@@ -382,21 +378,6 @@ fn recursive_cte_expected_rows(recursion_depth: usize) -> usize {
             Some(current)
         })
         .sum()
-}
-
-fn empty_context_now(label: &str) -> Result<BenchContext, CassieError> {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
-    let dir = benchmark_data_dir(label);
-
-    let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
-    cassie.startup()?;
-    let session = cassie.create_session("benchmark", None);
-    Ok(BenchContext {
-        cassie,
-        session,
-        collection: "bench_documents".to_string(),
-        _embedding_server: None,
-    })
 }
 
 pub fn context_with_mock_tei_embeddings(

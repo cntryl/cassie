@@ -2,6 +2,8 @@
 
 #[path = "workloads/context.rs"]
 mod context;
+#[path = "workloads/empty_context.rs"]
+mod empty_context;
 #[path = "workloads/hotpath.rs"]
 mod hotpath;
 #[path = "workloads/http.rs"]
@@ -17,10 +19,11 @@ mod system;
 
 pub use context::{
     column_batch_context, context, context_with_mock_tei_embeddings, disk_context_with_temp_budget,
-    empty_context, graph_context, recursive_cte_context, replay_context, runtime, scalar_context,
+    graph_context, recursive_cte_context, replay_context, runtime, scalar_context,
     time_series_context, time_series_disk_context_with_temp_budget, unindexed_context,
     unindexed_disk_context_with_temp_budget, BenchContext,
 };
+pub use empty_context::{empty_context, empty_context_with_temp_budget};
 pub use hotpath::*;
 pub use http::*;
 pub use join_context::*;

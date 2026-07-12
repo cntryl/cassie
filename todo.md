@@ -194,15 +194,17 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     `tests/integration_sql_ctes.rs`, and `tests/compatibility_matrix.rs`.
   - [x] Benchmark: Tier 3 `10k`/`100k` fanout workloads assert depth, 512 MiB temporary memory,
     and output cardinality through `recursive_cte_query`.
-- [ ] Define and implement the window-frame contract.
-  - Add explicit frame AST/parser representation and ordered default-frame behavior.
-  - Support documented `ROWS` bounds and apply frames correctly to `first_value`/`last_value`.
-  - Keep ranking/offset functions frame-independent.
-  - Reject `RANGE`, `GROUPS`, `EXCLUDE`, invalid bound order, and negative offsets with deterministic
-    `0A000` until supported.
-  - Tests: default, whole-partition, bounded preceding/current/following, peers, empty/single-row
-    partitions, invalid/rejected frames, and pgwire errors.
-  - Benchmark: 10k/100k partitioned frame workloads with memory/result checks.
+- [x] Define and implement the window-frame contract.
+  - [x] Add explicit frame AST/parser representation and ordered default-frame behavior.
+  - [x] Support documented `ROWS` bounds and apply frames correctly to `first_value`/`last_value`.
+  - [x] Keep ranking/offset functions frame-independent.
+  - [x] Reject `RANGE`, `GROUPS`, `EXCLUDE`, invalid bound order, and negative offsets with
+    deterministic `0A000` unsupported errors.
+  - [x] Tests: default, whole-partition, bounded preceding/current/following, peers, empty/single-row
+    partitions, invalid/rejected frames, and pgwire errors in `tests/window_frames.rs`; existing
+    aggregate window expectations and parser regressions remain covered.
+  - [x] Benchmark: Tier 3 `10k`/`100k` partitioned frame workloads assert result rows/columns and
+    a 512 MiB temporary-memory budget through `window_frame_query`.
 
 ## Phase 4 — transactions and pgwire contract alignment
 

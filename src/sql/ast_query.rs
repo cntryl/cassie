@@ -132,6 +132,30 @@ pub struct WindowFunctionCall {
     pub args: Vec<Expr>,
     pub partition_by: Vec<Expr>,
     pub order_by: Vec<OrderExpr>,
+    pub frame: Option<WindowFrame>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WindowFrame {
+    pub unit: WindowFrameUnit,
+    pub start: WindowFrameBound,
+    pub end: WindowFrameBound,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WindowFrameUnit {
+    Rows,
+    Range,
+    Groups,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WindowFrameBound {
+    UnboundedPreceding,
+    Preceding(u64),
+    CurrentRow,
+    Following(u64),
+    UnboundedFollowing,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

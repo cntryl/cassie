@@ -102,6 +102,57 @@ pub fn recursive_cte_query(ctx: &BenchContext, upper_bound: usize) -> Ready<usiz
     ready(std::hint::black_box(result.rows.len()))
 }
 
+pub fn window_frame_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, cassie::app::CassieError>> {
+    ready(window_frame_context_now(label, dataset_rows))
+}
+
+fn window_frame_context_now(
+    label: &str,
+    dataset_rows: usize,
+) -> Result<BenchContext, cassie::app::CassieError> {
+    let context =
+        super::empty_context::empty_context_with_temp_budget(label, dataset_rows).into_inner()?;
+    context.cassie.execute_sql(
+        &context.session,
+        "CREATE TABLE bench_documents (id TEXT, status TEXT, score INT)",
+        vec![],
+    )?;
+    let documents = (0..dataset_rows)
+        .map(|index| {
+            (
+                Some(format!("doc-{index}")),
+                serde_json::json!({
+                    "id": format!("doc-{index}"),
+                    "status": if index % 2 == 0 { "approved" } else { "pending" },
+                    "score": i64::try_from(index % 100).unwrap_or(i64::MAX),
+                }),
+            )
+        })
+        .collect::<Vec<_>>();
+    context
+        .cassie
+        .midge
+        .put_documents(&context.collection, documents)?;
+    Ok(context)
+}
+
+pub fn window_frame_query(ctx: &BenchContext, expected_rows: usize) -> Ready<usize> {
+    let result = ctx
+        .cassie
+        .execute_sql(
+            &ctx.session,
+            "SELECT status, score, first_value(score) OVER (PARTITION BY status ORDER BY score ROWS BETWEEN 3 PRECEDING AND 3 FOLLOWING) AS first_score, last_value(score) OVER (PARTITION BY status ORDER BY score ROWS BETWEEN 3 PRECEDING AND 3 FOLLOWING) AS last_score FROM bench_documents ORDER BY status, score, id",
+            vec![],
+        )
+        .expect("execute window frame benchmark");
+    assert_eq!(result.rows.len(), expected_rows);
+    assert!(result.rows.iter().all(|row| row.len() == 4));
+    ready(std::hint::black_box(result.rows.len()))
+}
+
 pub fn simple_10k_query_breakdown(ctx: &BenchContext) -> Ready<QueryBreakdownMicros> {
     let sql = "SELECT id, title FROM bench_documents WHERE title = 'title-1'";
     let params = Vec::new();

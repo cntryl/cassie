@@ -87,7 +87,7 @@ Goal: provide the core PostgreSQL-like query surface expected by application cod
 | Subqueries and correlated subqueries | Implemented | Stable |
 | CTEs and recursive CTEs | Implemented | Stable/Experimental |
 | Set operations | Implemented | Stable |
-| Window functions | Implemented | Experimental with phase-3 frame-contract alignment |
+| Window functions | Implemented | Experimental with documented ROWS frames and deterministic unsupported-family errors |
 | DML and RETURNING | Implemented | Stable for projection-state mutation paths |
 | Transactions and savepoints | Implemented | Stable/Experimental with single-collection and DDL restrictions |
 

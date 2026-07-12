@@ -7,7 +7,7 @@ use super::{
     parse_statement, CommonTableExpression, CteQuery, Expr, HashSet, JoinKind, OrderExpr,
     ParsedStatement, QuerySource, QueryStatement, SelectItem, SqlError, WindowFunctionCall,
 };
-use crate::sql::ast::SetOperator;
+use crate::sql::ast::{SetOperator, WindowFrame, WindowFrameBound, WindowFrameUnit};
 
 #[path = "query_select.rs"]
 mod query_select;
@@ -141,43 +141,156 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
 
     let over_body = strip_parentheses(over_raw.trim())
         .ok_or_else(|| SqlError::new("window function OVER clause requires parentheses".into()))?;
-    let (partition_by, order_by) = parse_window_spec(over_body)?;
+    let (partition_by, order_by, frame) = parse_window_spec(over_body)?;
     Ok(Some(WindowFunctionCall {
         name: function.name,
         args: function.args,
         partition_by,
         order_by,
+        frame,
     }))
 }
 
-pub(super) fn parse_window_spec(raw: &str) -> Result<(Vec<Expr>, Vec<OrderExpr>), SqlError> {
+type WindowSpec = (Vec<Expr>, Vec<OrderExpr>, Option<WindowFrame>);
+
+pub(super) fn parse_window_spec(raw: &str) -> Result<WindowSpec, SqlError> {
     let raw = raw.trim();
     if raw.is_empty() {
-        return Ok((Vec::new(), Vec::new()));
+        return Ok((Vec::new(), Vec::new(), None));
     }
 
-    let lower = raw.to_lowercase();
+    let rows_pos = find_top_level_keyword(raw, 0, "rows");
+    for (keyword, label) in [("range", "RANGE"), ("groups", "GROUPS")] {
+        if find_top_level_keyword(raw, 0, keyword).is_some() {
+            return Err(SqlError::unsupported(format!(
+                "{label} window frames are unsupported"
+            )));
+        }
+    }
+    if find_top_level_keyword(raw, 0, "exclude").is_some() {
+        return Err(SqlError::unsupported(
+            "EXCLUDE window frames are unsupported".into(),
+        ));
+    }
+
+    let (spec_raw, frame) = if let Some(rows_pos) = rows_pos {
+        let frame_raw = raw[rows_pos + "rows".len()..].trim();
+        if frame_raw.is_empty() {
+            return Err(SqlError::unsupported(
+                "ROWS window frame requires bounds".into(),
+            ));
+        }
+        (&raw[..rows_pos], Some(parse_rows_frame(frame_raw)?))
+    } else {
+        (raw, None)
+    };
+    let lower = spec_raw.trim().to_lowercase();
     if lower.starts_with("partition by ") {
-        let rest = raw["partition by ".len()..].trim();
+        let rest = spec_raw.trim()["partition by ".len()..].trim();
         if let Some((partition_raw, order_raw)) = split_top_level(rest, " order by ") {
             let partition_by = split_csv(partition_raw)
                 .into_iter()
                 .map(parse_expression)
                 .collect::<Result<Vec<_>, _>>()?;
-            return Ok((partition_by, parse_order_by(order_raw)?));
+            return Ok((partition_by, parse_order_by(order_raw)?, frame));
         }
         let partition_by = split_csv(rest)
             .into_iter()
             .map(parse_expression)
             .collect::<Result<Vec<_>, _>>()?;
-        return Ok((partition_by, Vec::new()));
+        return Ok((partition_by, Vec::new(), frame));
     }
 
     if lower.starts_with("order by ") {
-        return Ok((Vec::new(), parse_order_by(&raw["order by ".len()..])?));
+        return Ok((
+            Vec::new(),
+            parse_order_by(&spec_raw.trim()["order by ".len()..])?,
+            frame,
+        ));
     }
 
-    Err(SqlError::new("unsupported window function syntax".into()))
+    Err(SqlError::unsupported(
+        "unsupported window function syntax".into(),
+    ))
+}
+
+fn parse_rows_frame(raw: &str) -> Result<WindowFrame, SqlError> {
+    let lower = raw.to_ascii_lowercase();
+    let (start_raw, end_raw) = if let Some(body) = lower.strip_prefix("between ") {
+        let (start, end) = split_top_level(body, " and ").ok_or_else(|| {
+            SqlError::unsupported("ROWS BETWEEN requires start and end bounds".into())
+        })?;
+        (start.trim(), end.trim())
+    } else {
+        (lower.trim(), "current row")
+    };
+    let start = parse_window_bound(start_raw)?;
+    let end = parse_window_bound(end_raw)?;
+    if !valid_window_bound_order(start, end) {
+        return Err(SqlError::unsupported(
+            "invalid window frame bounds: start must precede end".into(),
+        ));
+    }
+    Ok(WindowFrame {
+        unit: WindowFrameUnit::Rows,
+        start,
+        end,
+    })
+}
+
+fn parse_window_bound(raw: &str) -> Result<WindowFrameBound, SqlError> {
+    let raw = raw.trim();
+    match raw {
+        "unbounded preceding" => Ok(WindowFrameBound::UnboundedPreceding),
+        "current row" => Ok(WindowFrameBound::CurrentRow),
+        "unbounded following" => Ok(WindowFrameBound::UnboundedFollowing),
+        _ => {
+            let (value, bound) = if let Some(value) = raw.strip_suffix(" preceding") {
+                (value, true)
+            } else if let Some(value) = raw.strip_suffix(" following") {
+                (value, false)
+            } else {
+                return Err(SqlError::unsupported(format!(
+                    "invalid window frame bound '{raw}'"
+                )));
+            };
+            if value.trim_start().starts_with('-') {
+                return Err(SqlError::unsupported(
+                    "negative window frame offsets are unsupported".into(),
+                ));
+            }
+            let value = value.trim().parse::<u64>().map_err(|_| {
+                SqlError::unsupported(format!("invalid window frame offset '{value}'"))
+            })?;
+            Ok(if bound {
+                WindowFrameBound::Preceding(value)
+            } else {
+                WindowFrameBound::Following(value)
+            })
+        }
+    }
+}
+
+fn valid_window_bound_order(start: WindowFrameBound, end: WindowFrameBound) -> bool {
+    if matches!(start, WindowFrameBound::UnboundedPreceding)
+        || matches!(end, WindowFrameBound::UnboundedFollowing)
+    {
+        return true;
+    }
+    if matches!(
+        start,
+        WindowFrameBound::Preceding(_) | WindowFrameBound::CurrentRow
+    ) && matches!(
+        end,
+        WindowFrameBound::CurrentRow | WindowFrameBound::Following(_)
+    ) {
+        return true;
+    }
+    match (start, end) {
+        (WindowFrameBound::Preceding(start), WindowFrameBound::Preceding(end)) => start >= end,
+        (WindowFrameBound::Following(start), WindowFrameBound::Following(end)) => start <= end,
+        _ => false,
+    }
 }
 
 pub(super) fn parse_query_source(raw: &str) -> Result<QuerySource, SqlError> {

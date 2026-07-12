@@ -26,7 +26,7 @@ Supported:
 - Scalar subqueries, FROM subqueries, predicate subqueries, and correlated subqueries.
 - WITH and WITH RECURSIVE.
 - UNION, UNION ALL, INTERSECT, and EXCEPT.
-- row_number, rank, dense_rank, lag, lead, first_value, and last_value.
+- row_number, rank, dense_rank, lag, lead, first_value, and last_value with documented ROWS frames.
 - INSERT, UPDATE, DELETE, and RETURNING.
 - COPY FROM STDIN over pgwire simple query with CSV payloads and optional HEADER.
 - BEGIN, COMMIT, ROLLBACK, SAVEPOINT, ROLLBACK TO, and RELEASE SAVEPOINT.
@@ -39,7 +39,7 @@ These bullets describe the implemented baseline, not blanket PostgreSQL semantic
 following parts of that baseline remain experimental until the active remediation program closes
 them:
 
-- explicit ROWS window frames and deterministic rejection of unsupported frame families;
+- deterministic rejection of unsupported RANGE, GROUPS, and EXCLUDE window frames;
 - transaction-setting/DDL preflight, immediate single-collection staging enforcement, and safe
   post-commit derived refresh handling.
 

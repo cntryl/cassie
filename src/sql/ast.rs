@@ -10,7 +10,7 @@ mod ast_query;
 pub use ast_query::{
     BinaryOp, Bm25Params, CommonTableExpression, CteQuery, Expr, FunctionCall, JoinKind,
     NullsOrder, OrderExpr, QuerySource, SelectItem, SelectSet, SelectStatement, SetOperator,
-    SortDirection, WindowFunctionCall,
+    SortDirection, WindowFrame, WindowFrameBound, WindowFrameUnit, WindowFunctionCall,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

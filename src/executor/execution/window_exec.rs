@@ -5,7 +5,9 @@ use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::{self, Batch, BatchRow};
 use crate::executor::filter;
-use crate::sql::ast::{SelectItem, SortDirection, WindowFunctionCall};
+use crate::sql::ast::{
+    SelectItem, SortDirection, WindowFrame, WindowFrameBound, WindowFrameUnit, WindowFunctionCall,
+};
 use crate::types::Value;
 
 use super::{compare_query_values, value_sort_key, QueryError};
@@ -146,6 +148,7 @@ fn evaluate_window_partition(
     context: &WindowExecutionContext<'_>,
 ) -> Result<(), QueryError> {
     sort_partition(rows, function, indices, context);
+    let frame = effective_window_frame(function);
     let mut dense_rank = 1i64;
     let mut previous_peer_key: Option<String> = None;
     for (position, index) in indices.iter().enumerate() {
@@ -155,8 +158,11 @@ fn evaluate_window_partition(
         }
         previous_peer_key = Some(peer_key);
         values[*index] = window_value_at(
-            position,
-            dense_rank,
+            WindowValuePosition {
+                position,
+                dense_rank,
+                frame: &frame,
+            },
             rows,
             function,
             function_name,
@@ -178,9 +184,15 @@ fn sort_partition(
     });
 }
 
-fn window_value_at(
+#[derive(Clone, Copy)]
+struct WindowValuePosition<'a> {
     position: usize,
     dense_rank: i64,
+    frame: &'a WindowFrame,
+}
+
+fn window_value_at(
+    value_position: WindowValuePosition<'_>,
     rows: &[BatchRow],
     function: &WindowFunctionCall,
     function_name: &str,
@@ -189,20 +201,113 @@ fn window_value_at(
 ) -> Result<Value, QueryError> {
     match function_name {
         "row_number" => Ok(Value::Int64(
-            i64::try_from(position + 1).unwrap_or(i64::MAX),
+            i64::try_from(value_position.position + 1).unwrap_or(i64::MAX),
         )),
-        "rank" => Ok(rank_value(position, rows, function, indices, context)),
-        "dense_rank" => Ok(Value::Int64(dense_rank)),
+        "rank" => Ok(rank_value(
+            value_position.position,
+            rows,
+            function,
+            indices,
+            context,
+        )),
+        "dense_rank" => Ok(Value::Int64(value_position.dense_rank)),
         "lag" => window_arg_value(
-            indices.get(position.wrapping_sub(1)).copied(),
+            indices
+                .get(value_position.position.wrapping_sub(1))
+                .copied(),
             rows,
             function,
             context,
         ),
-        "lead" => window_arg_value(indices.get(position + 1).copied(), rows, function, context),
-        "first_value" => window_arg_value(indices.first().copied(), rows, function, context),
-        "last_value" => window_arg_value(indices.last().copied(), rows, function, context),
+        "lead" => window_arg_value(
+            indices.get(value_position.position + 1).copied(),
+            rows,
+            function,
+            context,
+        ),
+        "first_value" => framed_window_arg_value(
+            value_position.position,
+            indices,
+            rows,
+            function,
+            value_position.frame,
+            true,
+            context,
+        ),
+        "last_value" => framed_window_arg_value(
+            value_position.position,
+            indices,
+            rows,
+            function,
+            value_position.frame,
+            false,
+            context,
+        ),
         _ => Ok(Value::Null),
+    }
+}
+
+fn effective_window_frame(function: &WindowFunctionCall) -> WindowFrame {
+    function.frame.clone().unwrap_or(WindowFrame {
+        unit: WindowFrameUnit::Rows,
+        start: WindowFrameBound::UnboundedPreceding,
+        end: if function.order_by.is_empty() {
+            WindowFrameBound::UnboundedFollowing
+        } else {
+            WindowFrameBound::CurrentRow
+        },
+    })
+}
+
+fn framed_window_arg_value(
+    position: usize,
+    indices: &[usize],
+    rows: &[BatchRow],
+    function: &WindowFunctionCall,
+    frame: &WindowFrame,
+    first: bool,
+    context: &WindowExecutionContext<'_>,
+) -> Result<Value, QueryError> {
+    if !matches!(frame.unit, WindowFrameUnit::Rows) {
+        return Err(QueryError::General(
+            "unsupported window frame unit".to_string(),
+        ));
+    }
+    let Some((start, end)) = frame_row_bounds(position, indices.len(), frame) else {
+        return Ok(Value::Null);
+    };
+    let target = if first { start } else { end };
+    window_arg_value(Some(indices[target]), rows, function, context)
+}
+
+fn frame_row_bounds(
+    position: usize,
+    partition_len: usize,
+    frame: &WindowFrame,
+) -> Option<(usize, usize)> {
+    if partition_len == 0 {
+        return None;
+    }
+    let start = resolve_frame_bound(frame.start, position, partition_len);
+    let end = resolve_frame_bound(frame.end, position, partition_len);
+    let partition_len = i128::try_from(partition_len).ok()?;
+    if start > end || start >= partition_len || end < 0 {
+        return None;
+    }
+    let start = usize::try_from(start.max(0)).ok()?;
+    let end = usize::try_from(end.min(partition_len - 1)).ok()?;
+    Some((start, end))
+}
+
+fn resolve_frame_bound(bound: WindowFrameBound, position: usize, partition_len: usize) -> i128 {
+    let position = i128::try_from(position).unwrap_or(i128::MAX);
+    let partition_len = i128::try_from(partition_len).unwrap_or(i128::MAX);
+    match bound {
+        WindowFrameBound::UnboundedPreceding => 0,
+        WindowFrameBound::Preceding(offset) => position - i128::from(offset),
+        WindowFrameBound::CurrentRow => position,
+        WindowFrameBound::Following(offset) => position + i128::from(offset),
+        WindowFrameBound::UnboundedFollowing => partition_len,
     }
 }
 

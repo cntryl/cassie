@@ -34,7 +34,7 @@ Experimental surfaces require the evidence gates in [Experimental Promotion Crit
 | Subqueries | scalar subqueries, FROM subqueries, predicate subqueries, correlated subqueries | Stable | PostgreSQL-like |
 | CTEs | WITH, WITH RECURSIVE | Stable/Experimental | Recursive terms use a generation-local working delta; UNION deduplicates, UNION ALL preserves duplicates, aliases and type/arity validation are deterministic, and depth/temp-memory limits remain enforced |
 | Set operations | UNION, UNION ALL, INTERSECT, EXCEPT | Stable | PostgreSQL-like |
-| Window functions | row_number, rank, dense_rank, lag, lead, first_value, last_value, supported frames | Stable/Experimental | Covered functions work; explicit ROWS frames and deterministic rejection of unsupported frame families remain open |
+| Window functions | row_number, rank, dense_rank, lag, lead, first_value, last_value, documented ROWS frames | Stable/Experimental | Ordered defaults use a bounded ROWS contract; RANGE, GROUPS, and EXCLUDE return deterministic `0A000` unsupported errors |
 | DML | INSERT, UPDATE, DELETE, RETURNING, `COPY ... FROM STDIN WITH (FORMAT csv)` | Stable/Experimental | PostgreSQL-like plus simple-query CSV bulk load |
 | DDL | CREATE/DROP DATABASE, CREATE/ALTER/DROP TABLE, CREATE/ALTER/DROP SCHEMA, CREATE/DROP INDEX, CREATE ROLLUP, REFRESH ROLLUP, DROP ROLLUP, CREATE/ALTER/DROP/ENFORCE RETENTION POLICY | Stable/Experimental by object type | PostgreSQL-like plus Cassie-specific analytics |
 | Session scope | `current_database()`, `current_schema()`, `SHOW search_path`, `SET search_path` | Stable | PostgreSQL-like current-database session model |

@@ -585,6 +585,19 @@ These categories define the minimum performance-contract surface for Cassie V1 r
 | Column batch | analytical read-model scans |
 | Recursive working table | bounded `WITH RECURSIVE` expansion with delta-only iterations |
 
+### Window-frame contract
+
+Window functions use deterministic `ROWS` frames. With no `ORDER BY`, the default frame is the
+whole partition; with `ORDER BY`, the default is `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT
+ROW`. Explicit `ROWS` supports unbounded, preceding, current-row, and following bounds, including
+bounded preceding/following intervals. `first_value` and `last_value` read the active frame;
+ranking and offset functions remain frame-independent. Row frames count ordered rows, so peers do
+not collapse into a single frame position. Empty frames and empty/single-row partitions return
+NULL or the available row deterministically. `RANGE`, `GROUPS`, `EXCLUDE`, invalid bound order,
+and negative offsets return SQLSTATE `0A000`. Tier 3 owns
+`perf.core_read.window_frames.10k` and `perf.core_read.window_frames.100k`; each asserts result
+cardinality, four result columns, and a 512 MiB temporary-memory budget.
+
 ### Recursive working-table contract
 
 Recursive CTE execution materializes only the previous iteration as the recursive working table.

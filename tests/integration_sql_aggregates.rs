@@ -327,7 +327,7 @@ fn should_execute_basic_value_window_functions_query() {
                     Value::Null,
                     Value::String("beta".to_string()),
                     Value::String("alpha".to_string()),
-                    Value::String("gamma".to_string())
+                    Value::String("alpha".to_string())
                 ],
                 vec![
                     Value::String("beta".to_string()),
@@ -336,7 +336,7 @@ fn should_execute_basic_value_window_functions_query() {
                     Value::String("alpha".to_string()),
                     Value::String("gamma".to_string()),
                     Value::String("alpha".to_string()),
-                    Value::String("gamma".to_string())
+                    Value::String("beta".to_string())
                 ],
                 vec![
                     Value::String("gamma".to_string()),

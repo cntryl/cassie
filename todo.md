@@ -92,12 +92,15 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - [x] Full-text currently rebuilds its in-memory query-time index from authoritative rows and has
     no independent post-commit persisted refresh boundary; persisted postings/statistics and their
     publication debt remain the explicitly scoped Phase 5 retrieval slice.
-- [ ] Complete schema-operation journal coverage.
-  - Verify create/drop/rename collection, add/drop/rename field, and create/drop index behavior at
-    every schema/data-family interruption point.
-  - Ensure prepared operations are never query-visible, replay is idempotent, abandoned validation
-    intents are discarded safely, and cleanup leaves no orphaned index/sidecar keys.
-  - Add crash/failpoint and concurrent-write tests for each cross-family boundary.
+- [x] Complete schema-operation journal coverage.
+  - [x] Verify create/drop/rename collection, add/drop/rename field, and create/drop index behavior
+    at every schema/data-family interruption point. Collection creation is a single atomic schema
+    transaction; dependent collection and field changes use journals; index creation uses prepared
+    publication; and destructive cleanup uses deferred, epoch-aware operations.
+  - [x] Ensure prepared operations are never query-visible, replay is idempotent, abandoned
+    validation intents are discarded safely, and cleanup leaves no orphaned index/sidecar keys.
+  - [x] Crash/failpoint and concurrent-write tests cover each cross-family boundary, including
+    scalar, time-series, vector, column-batch, projection-hash, graph, and row data families.
   - [x] Drop-collection replay now finishes data cleanup after an interrupted schema commit and is
     safe across a second restart.
   - [x] Collection-rename journals are published only after validation and move maintenance debt

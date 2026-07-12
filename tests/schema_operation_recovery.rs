@@ -1,18 +1,127 @@
 use cassie::app::Cassie;
 use cassie::midge::adapter::{
     set_collection_drop_failure_point, set_collection_rename_failure_point,
-    set_field_drop_failure_point, set_field_rename_failure_point, set_index_drop_failure_point,
-    Midge, StorageFamily,
+    set_field_add_failure_point, set_field_drop_failure_point, set_field_rename_failure_point,
+    set_index_drop_failure_point, Midge, StorageFamily,
 };
 use cassie::types::{DataType, FieldSchema, Schema};
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{canonical_test_collection, data_dir, with_fallback};
 
 static COLLECTION_DROP_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 static COLLECTION_RENAME_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 static INDEX_DROP_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static FIELD_ADD_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[test]
+fn should_replay_add_column_derived_state_after_schema_commit_interruption() {
+    // Arrange
+    with_fallback();
+    let _failpoint_guard = FIELD_ADD_FAILPOINT_GUARD.lock().unwrap();
+    let path = data_dir("schema_operation_field_add_recovery");
+    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    cassie.startup().expect("start Cassie");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE field_add_recovery (keep TEXT)",
+            vec![],
+        )
+        .expect("create table");
+    cassie
+        .execute_sql(
+            &session,
+            "INSERT INTO field_add_recovery (keep) VALUES ('alpha')",
+            vec![],
+        )
+        .expect("seed row");
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE INDEX field_add_recovery_cover ON field_add_recovery USING column (keep)",
+            vec![],
+        )
+        .expect("create column index");
+    let collection = canonical_test_collection(&cassie, "field_add_recovery");
+    eprintln!("field add collection={collection} generation_before={}", cassie.midge.collection_generation(&collection).expect("generation before"));
+
+    // Act
+    set_field_add_failure_point(true);
+    assert!(cassie
+        .midge
+        .alter_collection_add_column(
+            &collection,
+            FieldSchema {
+                name: "added".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        )
+        .is_err());
+    let schema_after_interrupt = cassie
+        .midge
+        .collection_schema(&collection)
+        .expect("schema remains durable");
+    assert!(schema_after_interrupt
+        .fields
+        .iter()
+        .any(|field| field.name == "added"));
+    drop(cassie);
+
+    let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+    restarted.startup().expect("replay field add");
+    eprintln!("field add schema ops after startup={:?}", restarted.midge.raw_scan_prefix(StorageFamily::Schema, b"").expect("schema scan").iter().filter(|(key, _)| String::from_utf8_lossy(key).contains("field-add")).map(|(key, _)| String::from_utf8_lossy(key).to_string()).collect::<Vec<_>>());
+    eprintln!("field add data keys after startup={:?}", restarted.midge.raw_scan_prefix(StorageFamily::Data, b"").expect("data scan").iter().filter(|(key, _)| String::from_utf8_lossy(key).contains("generation") || String::from_utf8_lossy(key).contains("root-hash")).map(|(key, value)| (String::from_utf8_lossy(key).to_string(), value.len())).collect::<Vec<_>>());
+    let restarted_session = restarted.create_session("tester", None);
+    let result = restarted
+        .execute_sql(
+            &restarted_session,
+            "SELECT keep, added FROM field_add_recovery",
+            vec![],
+        )
+        .expect("query after field-add replay");
+    let root = restarted
+        .midge
+        .root_hash(&collection)
+        .expect("read rebuilt projection root")
+        .expect("projection root after replay");
+    let generation = restarted
+        .midge
+        .collection_generation(&collection)
+        .expect("read collection generation");
+    eprintln!("field add generation_after={generation} root_generation={}", root.built_generation);
+    let metadata = restarted
+        .midge
+        .get_column_batch_metadata(&collection, "field_add_recovery_cover")
+        .expect("read rebuilt column batches")
+        .expect("column batches after replay");
+    let restarted_again = Cassie::new_with_data_dir(&path).expect("reopen Cassie again");
+    restarted_again
+        .startup()
+        .expect("replay field add idempotently");
+
+    // Assert
+    assert_eq!(
+        result.rows,
+        vec![vec![
+            cassie::types::Value::String("alpha".to_string()),
+            cassie::types::Value::Null,
+        ]]
+    );
+    assert_eq!(generation, 2);
+    assert_eq!(root.built_generation, generation);
+    assert_eq!(metadata.built_generation, generation);
+    assert!(restarted_again
+        .midge
+        .root_hash(&collection)
+        .expect("read root after second restart")
+        .is_some());
+
+    let _ = std::fs::remove_dir_all(path);
+}
 
 #[test]
 fn should_discard_rejected_collection_rename_intent_on_restart() {

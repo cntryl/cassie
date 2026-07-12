@@ -1,6 +1,7 @@
 use super::{
     check_collection_drop_failure_point, check_collection_rename_failure_point,
-    check_field_drop_failure_point, check_field_rename_failure_point, key_encoding, CassieError,
+    check_field_add_failure_point, check_field_drop_failure_point,
+    check_field_rename_failure_point, key_encoding, CassieError,
     CollectionMeta, FieldConstraint, FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta,
     NormalizedVectorRecord, ProjectionMeta, Query, RetentionPolicyMeta, RowSchema, Schema,
     WriteOptions,
@@ -13,6 +14,13 @@ mod schema_ops_helpers;
 struct PendingCollectionRename {
     current_name: String,
     next_name: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct PendingFieldAdd {
+    collection: String,
+    field: FieldSchema,
+    target_generation: u64,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -371,6 +379,11 @@ impl Midge {
     ) -> Result<(), CassieError> {
         let collection_storage = self.canonical_collection_name(collection);
         let collection = collection_storage.as_str();
+        let write_gate = self.collection_write_gate(collection);
+        let _write_guard = write_gate.lock();
+        let target_generation = self
+            .collection_generation(collection)?
+            .saturating_add(1);
         let mut tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(collection);
         let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
@@ -405,35 +418,29 @@ impl Midge {
             serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(schema_key, schema_bytes, None)
             .map_err(CassieError::from)?;
+        let pending = PendingFieldAdd {
+            collection: collection.to_string(),
+            field: schema
+                .fields
+                .iter()
+                .find(|entry| entry.name == field_name)
+                .cloned()
+                .ok_or_else(|| {
+                    CassieError::Execution("added field missing from updated schema".to_string())
+                })?,
+            target_generation,
+        };
+        tx.put(
+            Self::field_add_operation_key(collection, &field_name),
+            serde_json::to_vec(&pending).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
 
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
-
-        let mut data_tx = self.begin_data_rw_tx_for(collection)?;
-        Self::delete_normalized_vector_keys_with_prefix(
-            &mut data_tx,
-            Self::normalized_vector_prefix(collection, &field_name),
-        )?;
-        data_tx
-            .commit(WriteOptions::sync())
-            .map_err(CassieError::from)?;
-        let generation = self.collection_generation(collection)?;
-        let mut maintenance_tx = self.begin_data_rw_tx_for(collection)?;
-        Self::record_column_batch_maintenance_debt_in_tx(
-            &mut maintenance_tx,
-            collection,
-            generation,
-        )?;
-        Self::record_projection_hash_maintenance_debt_in_tx(
-            &mut maintenance_tx,
-            collection,
-            generation,
-        )?;
-        maintenance_tx
-            .commit(WriteOptions::sync())
-            .map_err(CassieError::from)?;
-        self.complete_column_batch_maintenance(collection, generation)?;
-        self.complete_projection_hash_maintenance(collection, generation, 0)?;
-        Ok(())
+        check_field_add_failure_point()?;
+        self.complete_field_add_data(&pending)?;
+        self.clear_pending_field_add(collection, &field_name)
     }
 
     /// # Errors
@@ -746,9 +753,81 @@ impl Midge {
             }
             self.clear_pending_collection_rename(&rename.current_name, &rename.next_name)?;
         }
+        self.replay_pending_field_adds()?;
         self.replay_pending_field_renames()?;
         self.replay_pending_field_drops()?;
         Ok(())
+    }
+
+    fn complete_field_add_data(&self, pending: &PendingFieldAdd) -> Result<(), CassieError> {
+        let current_generation = self.collection_generation(&pending.collection)?;
+        let generation = current_generation.max(pending.target_generation);
+        let mut data_tx = self.begin_data_rw_tx_for(&pending.collection)?;
+        if current_generation < pending.target_generation {
+            data_tx
+                .put(
+                    Self::collection_generation_key(&pending.collection),
+                    generation.to_be_bytes().to_vec(),
+                    None,
+                )
+                .map_err(CassieError::from)?;
+        }
+        Self::delete_normalized_vector_keys_with_prefix(
+            &mut data_tx,
+            Self::normalized_vector_prefix(&pending.collection, &pending.field.name),
+        )?;
+        Self::record_column_batch_maintenance_debt_in_tx(
+            &mut data_tx,
+            &pending.collection,
+            generation,
+        )?;
+        Self::record_projection_hash_maintenance_debt_in_tx(
+            &mut data_tx,
+            &pending.collection,
+            generation,
+        )?;
+        data_tx
+            .commit(WriteOptions::sync())
+            .map_err(CassieError::from)?;
+        self.complete_column_batch_maintenance(&pending.collection, generation)?;
+        self.complete_projection_hash_maintenance(&pending.collection, generation, 0)
+    }
+
+    fn replay_pending_field_adds(&self) -> Result<(), CassieError> {
+        let tx = self.begin_schema_readonly_tx()?;
+        let entries = tx
+            .scan(&Query::new().prefix(Self::field_add_operation_prefix().into()))
+            .map_err(CassieError::from)?;
+        let pending = entries
+            .into_iter()
+            .map(|(_, raw)| {
+                serde_json::from_slice::<PendingFieldAdd>(&raw).map_err(|error| {
+                    CassieError::Parse(format!("invalid field add operation: {error}"))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        for add in pending {
+            let committed = self
+                .collection_schema(&add.collection)
+                .is_some_and(|schema| {
+                    schema
+                        .fields
+                        .iter()
+                        .any(|entry| entry.name.eq_ignore_ascii_case(&add.field.name))
+                });
+            if committed {
+                self.complete_field_add_data(&add)?;
+            }
+            self.clear_pending_field_add(&add.collection, &add.field.name)?;
+        }
+        Ok(())
+    }
+
+    fn clear_pending_field_add(&self, collection: &str, field: &str) -> Result<(), CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        tx.delete(Self::field_add_operation_key(collection, field))
+            .map_err(CassieError::from)?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
     }
 
     fn complete_field_rename_data(

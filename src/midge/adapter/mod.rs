@@ -42,6 +42,7 @@ static COLLECTION_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static INDEX_PUBLICATION_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static INDEX_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static COLLECTION_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
+static FIELD_ADD_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
 
@@ -192,6 +193,20 @@ pub(crate) fn check_collection_rename_failure_point() -> Result<(), CassieError>
     if COLLECTION_RENAME_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
         return Err(CassieError::Execution(
             "injected test failure after collection rename schema commit".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn set_field_add_failure_point(enabled: bool) {
+    FIELD_ADD_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub(crate) fn check_field_add_failure_point() -> Result<(), CassieError> {
+    if FIELD_ADD_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        return Err(CassieError::Execution(
+            "injected test failure after field add schema commit".to_string(),
         ));
     }
     Ok(())
@@ -654,6 +669,14 @@ impl Midge {
 
     fn field_rename_operation_key(collection: &str, current: &str, next: &str) -> Vec<u8> {
         key_encoding::field_rename_operation_key(collection, current, next)
+    }
+
+    fn field_add_operation_key(collection: &str, field: &str) -> Vec<u8> {
+        key_encoding::field_add_operation_key(collection, field)
+    }
+
+    fn field_add_operation_prefix() -> Vec<u8> {
+        key_encoding::field_add_operation_prefix()
     }
 
     fn field_rename_operation_prefix() -> Vec<u8> {

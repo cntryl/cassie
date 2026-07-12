@@ -96,6 +96,9 @@ Supported:
 - Cleartext-password authentication when Cassie auth is enabled.
 - Authenticated non-admin roles are limited to SELECT, EXPLAIN SELECT, SHOW, SET, and transaction-control statements; forbidden statements return SQLSTATE `42501`.
 - Simple query flow.
+- Quote/comment-aware simple-query batches with ordered result sequences, stop-on-first-error
+  behavior, ignored empty statements, one final ReadyForQuery, and deterministic `0A000` rejection
+  for mixed COPY/BACKUP/RESTORE batches.
 - Extended query flow: parse, bind, describe, execute, sync, flush, and close.
 - Prepared statements and portals.
 - Statement descriptions include parameter metadata for explicit type OIDs and supported inferred CRUD parameters.
@@ -106,9 +109,9 @@ Supported:
 - Row description, data row, command complete, error response, and ready-for-query messages.
 - Text format and limited binary format paths are covered by tests for the currently implemented subset of result types; unsupported binary representations are rejected as unsupported features.
 
-Simple-query multi-statement splitting, complete advertised binary codecs, and a reachable
-SQLSTATE inventory remain experimental protocol boundaries; the current subset must not be read as
-binary or error-parity coverage for every advertised type and path.
+Complete advertised binary codecs and a reachable SQLSTATE inventory remain experimental protocol
+boundaries; the current subset must not be read as binary or error-parity coverage for every
+advertised type and path.
 
 Unsupported or not yet guaranteed:
 

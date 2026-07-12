@@ -236,16 +236,20 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     writes; existing `tests/analytical_projection_recovery.rs`, `tests/time_series_rollups.rs`,
     `tests/derived_state_recovery.rs`, and `tests/projection_hash_recovery.rs` retain artifact-level
     retry coverage.
-- [ ] Implement quote/comment-aware pgwire simple-query multi-statement execution in a focused
+- [x] Implement quote/comment-aware pgwire simple-query multi-statement execution in a focused
   module.
-  - Split on real statement separators while preserving semicolons in strings, quoted identifiers,
-    line comments, and block comments.
-  - Execute in order, emit each result sequence, stop on first error, ignore empty statements, and
-    emit exactly one final ReadyForQuery.
-  - Define deterministic handling for COPY mixed into a multi-statement batch.
-  - Tests: ordered result sets, DDL+DML+SELECT, empty statements, quoted/comment semicolons,
-    stop-on-error, transaction batches, COPY rejection, and frame counts.
-  - Benchmark: Tier-4 real-transport 10k/100k multi-statement batches.
+  - `src/pgwire/connection/simple_query.rs` splits real statement separators while preserving
+    semicolons in strings and quoted identifiers, stripping line/block comments, and rejecting
+    unterminated quoted/comment forms with `42601`.
+  - Statements execute in order, each result sequence is emitted, execution stops on the first
+    error, empty statements are ignored, and exactly one final ReadyForQuery is emitted.
+  - COPY, BACKUP, and RESTORE are rejected with `0A000` when mixed with other statements before any
+    batch statement executes; the existing single-statement COPY stream remains supported.
+  - Tests: `tests/pgwire_simple_query_batch.rs` covers ordered DDL/DML/SELECT results, quoted and
+    commented semicolons, empty statements, stop-on-error, transaction batches, mixed-COPY rejection,
+    and exact frame counts.
+  - Benchmark: `perf.pgwire.multi_statement_query.10k` and `.100k` in Tier 4
+    `tier4_integration_pgwire` use real pgwire transport and three-result statement batches.
 - [ ] Finish binary pgwire formats.
   - Never advertise binary while sending text fallback bytes.
   - Add exact result and parameter codecs for every advertised OID, especially UUID and

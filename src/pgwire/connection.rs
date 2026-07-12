@@ -28,6 +28,8 @@ mod errors;
 mod extended;
 #[path = "connection/readers.rs"]
 mod readers;
+#[path = "connection/simple_query.rs"]
+mod simple_query;
 #[path = "connection/startup_params.rs"]
 mod startup_params;
 #[path = "connection/state.rs"]
@@ -366,32 +368,76 @@ async fn handle_simple_query(
             return ConnectionStep::Continue(HandshakeState::Ready);
         }
     };
-    let session_for_query = session.clone();
-    let sql_for_query = sql.clone();
-    if matches!(
-        copy::try_handle_simple_copy_query(
-            cassie.clone(),
-            session.clone(),
-            &sql,
-            reader,
-            write_half
+
+    let statements = match simple_query::split_simple_query(&sql) {
+        Ok(statements) => statements,
+        Err(simple_query::SplitError::Syntax(message)) => {
+            runtime.record_pgwire_protocol_error();
+            session.mark_transaction_failed();
+            let error = PgWireError::new(PgWireSeverity::Error, "42601", message);
+            if write_error_response(write_half, &error).await.is_err()
+                || write_ready_for_query(write_half, session).await.is_err()
+            {
+                return ConnectionStep::Break;
+            }
+            return ConnectionStep::Continue(HandshakeState::Ready);
+        }
+        Err(simple_query::SplitError::Unsupported(message)) => {
+            runtime.record_pgwire_protocol_error();
+            session.mark_transaction_failed();
+            let error = PgWireError::new(PgWireSeverity::Error, "0A000", message);
+            if write_error_response(write_half, &error).await.is_err()
+                || write_ready_for_query(write_half, session).await.is_err()
+            {
+                return ConnectionStep::Break;
+            }
+            return ConnectionStep::Continue(HandshakeState::Ready);
+        }
+    };
+
+    if statements.len() == 1
+        && matches!(
+            copy::try_handle_simple_copy_query(
+                cassie.clone(),
+                session.clone(),
+                &statements[0],
+                reader,
+                write_half
+            )
+            .await,
+            copy::SimpleCopyOutcome::Handled
         )
-        .await,
-        copy::SimpleCopyOutcome::Handled
-    ) {
+    {
         return ConnectionStep::Continue(HandshakeState::Ready);
     }
-    let query_result = run_pgwire_blocking(cassie, "pgwire_simple_query", move |cassie| {
-        cassie.execute_sql(&session_for_query, &sql_for_query, Vec::new())
-    })
-    .await;
-    if let Ok(result) = query_result {
-        let _ = write_simple_query_result(write_half, result).await;
-    } else if let Err(error) = query_result {
-        runtime.record_pgwire_protocol_error();
-        let pg_error = cassie_pg_error(&error);
-        let _ = write_error_response(write_half, &pg_error).await;
+
+    for statement in statements {
+        let session_for_query = session.clone();
+        let statement_for_query = statement.clone();
+        let query_result =
+            run_pgwire_blocking(cassie.clone(), "pgwire_simple_query", move |cassie| {
+                cassie.execute_sql(&session_for_query, &statement_for_query, Vec::new())
+            })
+            .await;
+        match query_result {
+            Ok(result) => {
+                if write_simple_query_result(write_half, result).await.is_err() {
+                    return ConnectionStep::Break;
+                }
+            }
+            Err(error) => {
+                runtime.record_pgwire_protocol_error();
+                let pg_error = cassie_pg_error(&error);
+                if write_error_response(write_half, &pg_error).await.is_err() {
+                    return ConnectionStep::Break;
+                }
+                break;
+            }
+        }
     }
-    let _ = write_ready_for_query(write_half, session).await;
+
+    if write_ready_for_query(write_half, session).await.is_err() {
+        return ConnectionStep::Break;
+    }
     ConnectionStep::Continue(HandshakeState::Ready)
 }

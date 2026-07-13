@@ -354,8 +354,9 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     `Secure` is deferred to the inbound-TLS slice.
   - Remove password/token persistence and per-request password headers from the UI.
   - Add global 401 handling, session bootstrap after reload, and server-backed logout.
-  - Tests: invalid login, revocation, password rotation, bearer rejection, cookie flags, reload,
-    and logout are covered; expiry, role deletion, session caps, UI bootstrap/redirect remain.
+  - [x] Invalid login, revocation, password rotation, bearer rejection, cookie flags, reload,
+    logout, and deleted-role session cleanup are covered; expiry and session-cap stress coverage
+    remain.
 - [ ] Add inbound REST TLS with rustls configuration and fail-closed non-loopback policy.
   - [x] Configure rustls certificate/key files, reject partial identities, require TLS for
     non-loopback REST listeners, and fail startup on missing or invalid identities.

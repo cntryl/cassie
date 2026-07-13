@@ -104,7 +104,14 @@ pub(crate) fn authenticate(
         return Err(CassieError::Unauthorized);
     }
     cassie.ensure_database_exists(&record.database)?;
-    let role = current_role(cassie, &record)?;
+    let role = match current_role(cassie, &record) {
+        Ok(role) => role,
+        Err(CassieError::Unauthorized) => {
+            cassie.midge.raw_delete(StorageFamily::Schema, &key)?;
+            return Err(CassieError::Unauthorized);
+        }
+        Err(error) => return Err(error),
+    };
     let session =
         CassieSession::authenticated(role.name.clone(), Some(record.database), role.is_admin);
     Ok(AuthenticatedPrincipal { session, role })
@@ -197,7 +204,7 @@ fn unix_seconds() -> Result<u64, CassieError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{authenticate, issue, revoke};
+    use super::{authenticate, issue, revoke, session_key};
     use crate::app::{Cassie, CassieError};
 
     fn cassie(label: &str) -> Cassie {
@@ -277,5 +284,33 @@ mod tests {
 
         // Assert
         assert!(matches!(error, CassieError::Unauthorized));
+    }
+
+    #[test]
+    fn should_remove_session_after_role_deletion() {
+        // Arrange
+        let cassie = cassie("role-deletion");
+        cassie
+            .create_role("deleted-reader", true, Some("password".to_string()), false)
+            .expect("create role");
+        let role = cassie
+            .authenticate_principal("deleted-reader", Some("password"), None)
+            .expect("reader role")
+            .role;
+        let token = issue(&cassie, &role, "cassie").expect("issue session");
+        cassie
+            .drop_role("deleted-reader", false)
+            .expect("drop role");
+
+        // Act
+        let error = authenticate(&cassie, &token).expect_err("deleted role is unauthorized");
+
+        // Assert
+        assert!(matches!(error, CassieError::Unauthorized));
+        assert!(cassie
+            .midge
+            .raw_get(crate::midge::StorageFamily::Schema, &session_key(&token))
+            .expect("session lookup")
+            .is_none());
     }
 }

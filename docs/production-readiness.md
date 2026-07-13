@@ -12,7 +12,7 @@ REST collection resource routing now creates one request context carrying the au
 session and role, resolves names against that session's database and search path, rejects
 ambiguous or cross-database names, and filters collection listings to the same scope. Opaque
 cookie sessions now issue cryptographically random tokens hashed in Midge, validate expiry and
-credential rotation, and support login/current-session/logout with HttpOnly, SameSite=Strict
+credential rotation, remove invalid sessions after role deletion, and support login/current-session/logout with HttpOnly, SameSite=Strict
 cookies. Inbound TLS configuration now fails closed for non-loopback listeners and loads a
 rustls server identity before accepting traffic. Secure cookie emission and the remaining HTTP
 hardening are still open. REST request bodies are capped at 8 MiB, HTTP/1 headers at 32 KiB,

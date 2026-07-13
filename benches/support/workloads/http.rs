@@ -2,9 +2,11 @@
 
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::env;
 use std::future::{ready, Ready};
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -35,6 +37,32 @@ pub struct HttpBenchContext {
     session_cookie: String,
     shutdown: Arc<Notify>,
     server: tokio::task::JoinHandle<Result<(), CassieError>>,
+}
+
+pub fn configure_http_tls() -> Result<(), CassieError> {
+    if env::var_os("CASSIE_REST_TLS_CERT_FILE").is_some()
+        || env::var_os("CASSIE_REST_TLS_KEY_FILE").is_some()
+    {
+        return Ok(());
+    }
+    let directory = env::temp_dir().join(format!("cassie-tier4-http-tls-{}", std::process::id()));
+    std::fs::create_dir_all(&directory)
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    let certificate_path = directory.join("cert.pem");
+    let key_path = directory.join("key.pem");
+    let identity = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    std::fs::write(&certificate_path, identity.cert.pem())
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    std::fs::write(&key_path, identity.key_pair.serialize_pem())
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    env::set_var("CASSIE_REST_TLS_CERT_FILE", path_string(&certificate_path));
+    env::set_var("CASSIE_REST_TLS_KEY_FILE", path_string(&key_path));
+    Ok(())
+}
+
+fn path_string(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
 }
 
 impl Drop for HttpBenchContext {

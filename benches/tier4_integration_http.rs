@@ -9,6 +9,7 @@ pub mod stress;
 mod workloads;
 
 fn main() {
+    workloads::configure_http_tls().expect("configure benchmark REST TLS identity");
     let runtime = workloads::runtime();
     let mut runner = stress::runner(BENCHMARK);
 

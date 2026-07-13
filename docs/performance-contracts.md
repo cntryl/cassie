@@ -860,7 +860,9 @@ The Tier-4 HTTP transport workload logs in once and sends the resulting opaque
 password-bearing bearer credential. When the benchmark context has a configured
 REST TLS identity, the same workload uses HTTPS with a local certificate
 verification override, so transport results can be compared without changing
-the authenticated request path.
+the authenticated request path. `tier4_integration_http` provisions a
+process-local self-signed identity when no TLS files are supplied, ensuring its
+default scenarios exercise HTTPS rather than silently falling back to plaintext.
 
 `time_series_window_scan` owns developer feedback for the bucket-native range path and its row-backed fallback.
 

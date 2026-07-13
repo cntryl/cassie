@@ -15,7 +15,8 @@ cookie sessions now issue cryptographically random tokens hashed in Midge, valid
 credential rotation, and support login/current-session/logout with HttpOnly, SameSite=Strict
 cookies. Inbound TLS configuration now fails closed for non-loopback listeners and loads a
 rustls server identity before accepting traffic. Secure cookie emission and the remaining HTTP
-hardening are still open.
+hardening are still open. REST request bodies are capped at 8 MiB, HTTP/1 headers at 32 KiB,
+and header reads at 10 seconds.
 For scalar-index and read-optimization work, local-dev evidence can validate access paths,
 diagnostics, and fallback behavior, but it does not establish production adaptive thresholds.
 Production use still needs deployment-profile values for adaptive cost savings, feedback confidence,

@@ -362,7 +362,9 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - Tests: valid identity loading, missing/invalid certificate, and plaintext policy are covered;
     an end-to-end HTTPS handshake remains in the Tier-4 HTTP evidence slice.
 - [ ] Bound and harden HTTP.
-  - Limit body/header sizes; add header/read/body/idle/request timeouts and slowloris protection.
+  - [x] Limit request bodies to 8 MiB, cap HTTP/1 header buffering at 32 KiB, and enforce a
+    10-second header-read deadline with Tokio timer integration; oversized bodies return 413.
+  - [ ] Add body/idle/request timeouts and complete slowloris protection.
   - Enforce content types/methods, explicit same-origin/CORS and CSRF policies, CSP,
     `X-Content-Type-Options`, frame/referrer policy, HSTS on TLS, no-store for auth/API, and immutable
     caching for hashed assets.

@@ -2,18 +2,18 @@ use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use bytes::Bytes;
-use http_body_util::{BodyExt, Full};
+use http_body_util::{BodyExt, Full, Limited};
 use hyper::{
-    body::Incoming,
+    body::{Body, Incoming},
     header::{HeaderMap, HeaderValue, ALLOW, CONNECTION, CONTENT_TYPE, SET_COOKIE},
     server::conn::http1,
     service::service_fn,
     Method, Request, Response, StatusCode,
 };
-use hyper_util::rt::TokioIo;
+use hyper_util::rt::{TokioIo, TokioTimer};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{Notify, Semaphore};
 use tokio::task;
@@ -23,6 +23,10 @@ use crate::app::Cassie;
 use crate::app::CassieSession;
 use crate::catalog::RoleMeta;
 use crate::rest::static_files::AdminUiStaticFiles;
+
+const MAX_REST_BODY_BYTES: usize = 8 * 1024 * 1024;
+const MAX_REST_HEADER_BYTES: usize = 32 * 1024;
+const REST_HEADER_READ_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// # Errors
 ///
@@ -119,7 +123,12 @@ where
         Ok::<_, Infallible>(too_many_connections_response())
     });
     let io = TokioIo::new(stream);
-    let connection = http1::Builder::new().serve_connection(io, service).await;
+    let connection = http1::Builder::new()
+        .timer(TokioTimer::new())
+        .header_read_timeout(REST_HEADER_READ_TIMEOUT)
+        .max_buf_size(MAX_REST_HEADER_BYTES)
+        .serve_connection(io, service)
+        .await;
     if let Err(error) = connection {
         tracing::warn!(%error, "rest admission rejection connection error");
     }
@@ -135,7 +144,12 @@ where
         async move { route(request, cassie, admin_ui).await }
     });
     let io = TokioIo::new(stream);
-    let connection = http1::Builder::new().serve_connection(io, service).await;
+    let connection = http1::Builder::new()
+        .timer(TokioTimer::new())
+        .header_read_timeout(REST_HEADER_READ_TIMEOUT)
+        .max_buf_size(MAX_REST_HEADER_BYTES)
+        .serve_connection(io, service)
+        .await;
     if let Err(error) = connection {
         tracing::warn!(%error, "rest connection error");
     }
@@ -301,8 +315,18 @@ async fn route_request_with_admin_ui(
         role,
         token,
     };
-    let body: RestBytes = request
-        .into_body()
+    let body = request.body();
+    if body
+        .size_hint()
+        .upper()
+        .is_some_and(|length| length > MAX_REST_BODY_BYTES as u64)
+    {
+        return Err((
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!("request body exceeds {MAX_REST_BODY_BYTES} bytes"),
+        ));
+    }
+    let body: RestBytes = Limited::new(request.into_body(), MAX_REST_BODY_BYTES)
         .collect()
         .await
         .map_err(|e| {

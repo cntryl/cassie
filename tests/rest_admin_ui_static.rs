@@ -309,6 +309,40 @@ fn should_preserve_existing_route_auth_behavior() {
 }
 
 #[test]
+fn should_reject_oversized_rest_request_body() {
+    // Arrange
+    with_fallback();
+    let data_dir = data_dir("oversized-body");
+    let dist = write_dist_fixture("oversized-body");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
+        let client = reqwest::Client::new();
+        let body = vec![b'x'; 8 * 1024 * 1024 + 1];
+
+        // Act
+        let response = client
+            .post(format!("{base_url}/api/v1/auth/login"))
+            .header("content-type", "application/json")
+            .body(body)
+            .send()
+            .await
+            .expect("oversized request");
+
+        // Assert
+        assert_eq!(response.status(), reqwest::StatusCode::PAYLOAD_TOO_LARGE);
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+        let _ = std::fs::remove_dir_all(dist);
+    });
+}
+
+#[test]
 fn should_not_serve_admin_shell_for_unmatched_api_routes() {
     // Arrange
     with_fallback();

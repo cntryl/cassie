@@ -53,6 +53,11 @@ fn write_dist_fixture(label: &str) -> PathBuf {
         "console.log('cassie admin asset');",
     )
     .expect("write asset");
+    std::fs::write(
+        dist.join("assets").join("app-AbCd1234.js"),
+        "console.log('hashed cassie admin asset');",
+    )
+    .expect("write hashed asset");
     dist
 }
 
@@ -167,11 +172,20 @@ fn should_serve_built_admin_assets() {
             .unwrap_or_default()
             .to_string();
         let asset_body = asset.text().await.expect("asset body");
+        let hashed_asset = client
+            .get(format!("{base_url}/assets/app-AbCd1234.js"))
+            .send()
+            .await
+            .expect("hashed asset request");
 
         // Assert
         assert!(asset_status.is_success());
         assert!(asset_content_type.contains("javascript"));
         assert!(asset_body.contains("cassie admin asset"));
+        assert_eq!(
+            hashed_asset.headers()["cache-control"],
+            "public, max-age=31536000, immutable"
+        );
 
         stop_rest_server(shutdown, server).await;
         let _ = std::fs::remove_dir_all(data_dir);

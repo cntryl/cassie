@@ -103,11 +103,11 @@ pub async fn run_with_shutdown_and_admin_ui_dir(
                     let _permit = permit;
                     if let Some(config) = tls_config {
                         match TlsAcceptor::from(config).accept(stream).await {
-                            Ok(stream) => serve_application(stream, cassie, admin_ui).await,
+                            Ok(stream) => serve_application(stream, cassie, admin_ui, true).await,
                             Err(error) => tracing::warn!(%error, "rest TLS handshake rejected"),
                         }
                     } else {
-                        serve_application(stream, cassie, admin_ui).await;
+                        serve_application(stream, cassie, admin_ui, false).await;
                     }
                 });
             }
@@ -136,14 +136,18 @@ where
     }
 }
 
-async fn serve_application<S>(stream: S, cassie: Arc<Cassie>, admin_ui: Arc<AdminUiStaticFiles>)
-where
+async fn serve_application<S>(
+    stream: S,
+    cassie: Arc<Cassie>,
+    admin_ui: Arc<AdminUiStaticFiles>,
+    secure_transport: bool,
+) where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     let service = service_fn(move |request: Request<hyper::body::Incoming>| {
         let cassie = cassie.clone();
         let admin_ui = admin_ui.clone();
-        async move { route_with_timeout(request, cassie, admin_ui).await }
+        async move { route_with_timeout(request, cassie, admin_ui, secure_transport).await }
     });
     let io = TokioIo::new(stream);
     let connection = http1::Builder::new()
@@ -161,8 +165,13 @@ async fn route_with_timeout(
     request: Request<hyper::body::Incoming>,
     cassie: Arc<Cassie>,
     admin_ui: Arc<AdminUiStaticFiles>,
+    secure_transport: bool,
 ) -> Result<Response<RestBody>, Infallible> {
-    apply_request_timeout(route(request, cassie, admin_ui), REST_REQUEST_TIMEOUT).await
+    apply_request_timeout(
+        route(request, cassie, admin_ui, secure_transport),
+        REST_REQUEST_TIMEOUT,
+    )
+    .await
 }
 
 async fn apply_request_timeout<F>(
@@ -202,16 +211,21 @@ async fn route(
     request: Request<hyper::body::Incoming>,
     cassie: Arc<Cassie>,
     admin_ui: Arc<AdminUiStaticFiles>,
+    secure_transport: bool,
 ) -> Result<Response<RestBody>, Infallible> {
     let is_api = request.uri().path().starts_with("/api/");
     let response = match route_request_with_admin_ui(request, cassie, admin_ui).await {
         Ok(response) => response,
         Err((status, message)) => json_response(status, &serde_json::json!({ "error": message })),
     };
-    Ok(with_security_headers(response, is_api))
+    Ok(with_security_headers(response, is_api, secure_transport))
 }
 
-fn with_security_headers(mut response: Response<RestBody>, is_api: bool) -> Response<RestBody> {
+fn with_security_headers(
+    mut response: Response<RestBody>,
+    is_api: bool,
+    secure_transport: bool,
+) -> Response<RestBody> {
     response.headers_mut().insert(
         "x-content-type-options",
         HeaderValue::from_static("nosniff"),
@@ -230,6 +244,12 @@ fn with_security_headers(mut response: Response<RestBody>, is_api: bool) -> Resp
         response
             .headers_mut()
             .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    }
+    if secure_transport {
+        response.headers_mut().insert(
+            "strict-transport-security",
+            HeaderValue::from_static("max-age=31536000"),
+        );
     }
     response
 }
@@ -1139,5 +1159,24 @@ mod tests {
             // Assert
             assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
         });
+    }
+
+    #[test]
+    fn should_add_hsts_only_for_secure_rest_responses() {
+        // Arrange
+        let response = json_response(StatusCode::OK, &serde_json::json!({}));
+        let secure_response = with_security_headers(response, false, true);
+        let response = json_response(StatusCode::OK, &serde_json::json!({}));
+
+        // Act
+        let plain_response = with_security_headers(response, false, false);
+
+        // Assert
+        assert!(secure_response
+            .headers()
+            .contains_key("strict-transport-security"));
+        assert!(!plain_response
+            .headers()
+            .contains_key("strict-transport-security"));
     }
 }

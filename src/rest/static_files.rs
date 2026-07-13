@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use bytes::Bytes;
 use http_body_util::Full;
 use hyper::{
-    header::{HeaderValue, CONTENT_TYPE},
+    header::{HeaderValue, CACHE_CONTROL, CONTENT_TYPE},
     Method, Response, StatusCode,
 };
 
@@ -95,7 +95,27 @@ fn file_response(path: &Path, body: Vec<u8>) -> Response<Full<Bytes>> {
     response
         .headers_mut()
         .insert(CONTENT_TYPE, HeaderValue::from_static(content_type(path)));
+    if is_hashed_asset(path) {
+        response.headers_mut().insert(
+            CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=31536000, immutable"),
+        );
+    }
     response
+}
+
+fn is_hashed_asset(path: &Path) -> bool {
+    path.parent()
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name == "assets")
+        && path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .and_then(|stem| stem.rsplit_once('-'))
+            .is_some_and(|(_, hash)| {
+                hash.len() >= 8 && hash.chars().all(|c| c.is_ascii_alphanumeric())
+            })
 }
 
 fn not_found_response() -> Response<Full<Bytes>> {

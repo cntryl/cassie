@@ -23,7 +23,8 @@ State-changing `/api/` requests require `application/json` and reject other medi
 When browsers send `Origin`, state-changing API requests must match the request `Host`; Cassie
 does not emit permissive CORS headers, and clients without `Origin` remain supported.
 API responses also emit `no-store`, `nosniff`, frame-deny, no-referrer, and baseline CSP headers;
-hashed-asset immutable caching and TLS-only HSTS remain open.
+hashed assets receive immutable caching and TLS responses receive HSTS. `/metrics` remains public
+by policy for readiness and local diagnostics; it is not an authenticated data API.
 For scalar-index and read-optimization work, local-dev evidence can validate access paths,
 diagnostics, and fallback behavior, but it does not establish production adaptive thresholds.
 Production use still needs deployment-profile values for adaptive cost savings, feedback confidence,

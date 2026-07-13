@@ -371,11 +371,13 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     415 responses for other content types.
   - [x] Reject state-changing `/api/` requests with an explicit cross-origin `Origin`; absent
     `Origin` remains allowed for non-browser clients and no permissive CORS headers are emitted.
+  - [x] Emit HSTS only for TLS-served responses and immutable one-year caching for hashed UI assets.
   - [ ] Add body/idle/request timeouts and complete slowloris protection.
   - Enforce content types/methods, explicit same-origin/CORS and CSRF policies, CSP,
     `X-Content-Type-Options`, frame/referrer policy, HSTS on TLS, no-store for auth/API, and immutable
     caching for hashed assets.
-  - Decide/document whether `/metrics` is public; test all probe/public boundaries.
+  - [x] Keep `/metrics` public for readiness and local diagnostics; test health, liveness, metrics,
+    unmatched API, and authenticated resource boundaries.
 - [ ] Update `public/openapi.yml` for scoped identities, cookie auth, sessions, limits, TLS/CSRF,
   and errors; regenerate `ui/src/adapters/generated/api.ts` and retain the drift gate.
 - [ ] Refresh Tier-4 HTTP evidence over the final authenticated TLS/session stack: login/session

@@ -90,6 +90,10 @@ pub async fn http_transport_context(ctx: &BenchContext) -> Result<HttpBenchConte
     let scheme = if secure { "https" } else { "http" };
     let base_url = format!("{scheme}://{addr}");
     wait_for_http_server(&client, &base_url).await?;
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(secure)
+        .build()
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
     let login = client
         .post(format!("{base_url}/api/v1/auth/login"))
         .json(&json!({
@@ -201,7 +205,7 @@ pub async fn http_transport_vector_search(ctx: &HttpBenchContext) -> usize {
     });
     let response = ctx
         .authorize(ctx.client.post(format!(
-            "{}/v1/collections/{}/search",
+            "{}/api/v1/collections/{}/search",
             ctx.base_url, ctx.collection
         )))
         .json(&body)
@@ -243,7 +247,7 @@ pub async fn http_transport_document_create_get_batch(
     for _ in 0..batch_size.max(1) {
         let created = ctx
             .authorize(ctx.client.post(format!(
-                "{}/v1/collections/{}/documents",
+                "{}/api/v1/collections/{}/documents",
                 ctx.base_url, ctx.collection
             )))
             .json(&payload)
@@ -258,7 +262,7 @@ pub async fn http_transport_document_create_get_batch(
         let id = created["id"].as_str().expect("created document id");
         let loaded = ctx
             .authorize(ctx.client.get(format!(
-                "{}/v1/collections/{}/documents/{id}",
+                "{}/api/v1/collections/{}/documents/{id}",
                 ctx.base_url, ctx.collection
             )))
             .send()
@@ -285,7 +289,7 @@ pub async fn http_transport_document_get_batch(ctx: &HttpBenchContext, batch_siz
         let id = format!("doc-{index}");
         let loaded = ctx
             .authorize(ctx.client.get(format!(
-                "{}/v1/collections/{}/documents/{id}",
+                "{}/api/v1/collections/{}/documents/{id}",
                 ctx.base_url, ctx.collection
             )))
             .send()
@@ -310,7 +314,7 @@ pub async fn http_transport_concurrent_document_gets(
     for index in 0..concurrency.max(1) {
         let client = ctx.client.clone();
         let url = format!(
-            "{}/v1/collections/{}/documents/doc-{}",
+            "{}/api/v1/collections/{}/documents/doc-{}",
             ctx.base_url,
             ctx.collection,
             index % 128

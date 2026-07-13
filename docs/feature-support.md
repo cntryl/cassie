@@ -150,7 +150,8 @@ Unsupported procedural expectations include:
 - REST HTTP transport rejects request bodies over 8 MiB, limits HTTP/1 header buffering to 32 KiB,
   and applies a 10-second header-read deadline; additional idle/request timeout and security-header
   hardening remains in progress. API responses emit `no-store`, `nosniff`, frame-deny,
-  no-referrer, and baseline CSP headers.
+  no-referrer, and baseline CSP headers; body collection and route execution have a 30-second
+  deadline with deterministic 408 responses.
 - Authenticated non-admin roles are read-only across pgwire and the REST SQL routes. DML, COPY, DDL, role/routine administration, projection lifecycle/repair, retention, and operational commands fail before planning or execution. Public embedded sessions created with `CassieSession::new` or `Cassie::create_session` remain trusted in-process callers.
 - Hosted embedding providers use provider-specific `CASSIE_VOYAGE_*` and `CASSIE_COHERE_*` settings. `CASSIE_LOCAL_MODEL` and `CASSIE_LOCAL_DIMENSIONS` enable the deterministic local provider for tests, development, and explicit local-only deployments.
 - `CREATE TABLE ... WITH (storage = column_store)` creates a column-store table. `pg_catalog.pg_table_storage` and EXPLAIN `storage_mode` expose the effective table mode (`row-store`, `column-indexed`, or `column-store`).

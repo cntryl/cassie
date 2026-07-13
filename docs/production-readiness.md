@@ -17,6 +17,8 @@ cookies. Inbound TLS configuration now fails closed for non-loopback listeners a
 rustls server identity before accepting traffic. Secure cookie emission and the remaining HTTP
 hardening are still open. REST request bodies are capped at 8 MiB, HTTP/1 headers at 32 KiB,
 and header reads at 10 seconds.
+Body collection and route execution also have a 30-second per-request deadline and return 408 on
+expiry without terminating unrelated keep-alive requests.
 API responses also emit `no-store`, `nosniff`, frame-deny, no-referrer, and baseline CSP headers;
 hashed-asset immutable caching and TLS-only HSTS remain open.
 For scalar-index and read-optimization work, local-dev evidence can validate access paths,

@@ -1,4 +1,5 @@
 use std::convert::Infallible;
+use std::future::Future;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -27,6 +28,7 @@ use crate::rest::static_files::AdminUiStaticFiles;
 const MAX_REST_BODY_BYTES: usize = 8 * 1024 * 1024;
 const MAX_REST_HEADER_BYTES: usize = 32 * 1024;
 const REST_HEADER_READ_TIMEOUT: Duration = Duration::from_secs(10);
+const REST_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// # Errors
 ///
@@ -141,7 +143,7 @@ where
     let service = service_fn(move |request: Request<hyper::body::Incoming>| {
         let cassie = cassie.clone();
         let admin_ui = admin_ui.clone();
-        async move { route(request, cassie, admin_ui).await }
+        async move { route_with_timeout(request, cassie, admin_ui).await }
     });
     let io = TokioIo::new(stream);
     let connection = http1::Builder::new()
@@ -152,6 +154,30 @@ where
         .await;
     if let Err(error) = connection {
         tracing::warn!(%error, "rest connection error");
+    }
+}
+
+async fn route_with_timeout(
+    request: Request<hyper::body::Incoming>,
+    cassie: Arc<Cassie>,
+    admin_ui: Arc<AdminUiStaticFiles>,
+) -> Result<Response<RestBody>, Infallible> {
+    apply_request_timeout(route(request, cassie, admin_ui), REST_REQUEST_TIMEOUT).await
+}
+
+async fn apply_request_timeout<F>(
+    future: F,
+    timeout: Duration,
+) -> Result<Response<RestBody>, Infallible>
+where
+    F: Future<Output = Result<Response<RestBody>, Infallible>>,
+{
+    match tokio::time::timeout(timeout, future).await {
+        Ok(response) => response,
+        Err(_) => Ok(json_response(
+            StatusCode::REQUEST_TIMEOUT,
+            &serde_json::json!({ "error": "REST request timed out" }),
+        )),
     }
 }
 
@@ -1006,6 +1032,31 @@ mod tests {
             assert!(mapped
                 .1
                 .contains("rest blocking boundary 'rest_retryable' failed"));
+        });
+    }
+
+    #[test]
+    fn should_map_expired_rest_request_deadline_to_request_timeout() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            // Act
+            let response = apply_request_timeout(
+                async {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    Ok(json_response(StatusCode::OK, &serde_json::json!({})))
+                },
+                Duration::from_millis(1),
+            )
+            .await
+            .expect("timeout response");
+
+            // Assert
+            assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
         });
     }
 }

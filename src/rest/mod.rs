@@ -5,5 +5,6 @@ pub mod health;
 pub mod indexes;
 pub mod query;
 pub mod router;
+pub(crate) mod scope;
 pub mod search;
 pub(crate) mod static_files;

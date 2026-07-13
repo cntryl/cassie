@@ -18,6 +18,7 @@ use tokio::sync::{Notify, Semaphore};
 use tokio::task;
 
 use crate::app::Cassie;
+use crate::app::CassieSession;
 use crate::catalog::RoleMeta;
 use crate::rest::static_files::AdminUiStaticFiles;
 
@@ -107,13 +108,19 @@ pub async fn run_with_shutdown_and_admin_ui_dir(
 
 type RestBody = Full<Bytes>;
 const AUTH_TOKEN_PREFIX: &str = "Bearer ";
+#[derive(Clone)]
+struct RestRequestContext {
+    session: CassieSession,
+    role: Option<RoleMeta>,
+}
+
 #[derive(Clone, Copy)]
 struct RouteDispatchContext<'a> {
     method: &'a Method,
     segments: &'a [&'a str],
     path: &'a str,
     started_at: Instant,
-    authenticated_role: Option<&'a RoleMeta>,
+    request_context: &'a RestRequestContext,
 }
 
 async fn route(
@@ -213,22 +220,23 @@ async fn route_request_with_admin_ui(
     };
     let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     let started_at = Instant::now();
-    let mut authenticated_role = None;
+    let mut role = None;
     if !is_route_public(&method, segments.as_slice()) && cassie.authentication_enabled() {
-        let role = match authenticate_rest_request(cassie.clone(), request.headers()).await {
-            Ok(role) => role,
-            Err((status, message)) => {
-                cassie.runtime.record_rest_request(
-                    method.as_str(),
-                    &path,
-                    status.as_u16(),
-                    started_at.elapsed(),
-                );
-                return Err((status, message));
-            }
-        };
+        let authenticated_role =
+            match authenticate_rest_request(cassie.clone(), request.headers()).await {
+                Ok(role) => role,
+                Err((status, message)) => {
+                    cassie.runtime.record_rest_request(
+                        method.as_str(),
+                        &path,
+                        status.as_u16(),
+                        started_at.elapsed(),
+                    );
+                    return Err((status, message));
+                }
+            };
 
-        if !role.is_admin && !is_read_only_sql_route(&method, segments.as_slice()) {
+        if !authenticated_role.is_admin && !is_read_only_sql_route(&method, segments.as_slice()) {
             cassie.runtime.record_rest_request(
                 method.as_str(),
                 &path,
@@ -237,8 +245,19 @@ async fn route_request_with_admin_ui(
             );
             return Err((StatusCode::FORBIDDEN, "forbidden".to_string()));
         }
-        authenticated_role = Some(role);
+        role = Some(authenticated_role);
     }
+    let session = role.as_ref().map_or_else(
+        || cassie.create_session(&cassie.auth_user, Some(cassie.default_database.clone())),
+        |role| {
+            CassieSession::authenticated(
+                role.name.clone(),
+                Some(cassie.default_database.clone()),
+                role.is_admin,
+            )
+        },
+    );
+    let request_context = RestRequestContext { session, role };
     let body: RestBytes = request
         .into_body()
         .collect()
@@ -260,7 +279,7 @@ async fn route_request_with_admin_ui(
             segments: segments.as_slice(),
             path: &path,
             started_at,
-            authenticated_role: authenticated_role.as_ref(),
+            request_context: &request_context,
         },
         cassie.clone(),
         admin_ui,
@@ -296,6 +315,7 @@ async fn route_dispatch(
         context.method,
         context.segments,
         cassie.clone(),
+        context.request_context,
         &body,
         context.path,
         context.started_at,
@@ -342,21 +362,15 @@ async fn dispatch_collection_routes(
     method: &Method,
     segments: &[&str],
     cassie: Arc<Cassie>,
+    request_context: &RestRequestContext,
     body: &RestBytes,
     path: &str,
     started_at: Instant,
 ) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
     match (method.as_str(), segments) {
-        ("GET", ["api", "v1", "collections"]) => run_rest_blocking_route(
-            cassie,
-            method,
-            path,
-            started_at,
-            "rest_route",
-            move |cassie| Ok(crate::rest::collections::list(&cassie)),
-        )
-        .await
-        .map(|value| Some(json_response(StatusCode::OK, &value))),
+        ("GET", ["api", "v1", "collections"]) => {
+            dispatch_collection_list(cassie, method, path, started_at, request_context).await
+        }
         ("POST", ["api", "v1", "collections"]) => {
             let body = body.clone();
             run_rest_blocking_route(
@@ -372,7 +386,7 @@ async fn dispatch_collection_routes(
         }
         ("POST", ["api", "v1", "collections", collection, "documents"]) => {
             let body = body.clone();
-            let collection = (*collection).to_string();
+            let collection = scoped_collection(&cassie, request_context, collection)?;
             run_rest_blocking_route(
                 cassie,
                 method,
@@ -386,7 +400,7 @@ async fn dispatch_collection_routes(
         }
         ("POST", ["api", "v1", "collections", collection, "indexes"]) => {
             let body = body.clone();
-            let collection = (*collection).to_string();
+            let collection = scoped_collection(&cassie, request_context, collection)?;
             run_rest_blocking_route(
                 cassie,
                 method,
@@ -400,7 +414,7 @@ async fn dispatch_collection_routes(
         }
         ("POST", ["api", "v1", "collections", collection, "search"]) => {
             let body = body.clone();
-            let collection = (*collection).to_string();
+            let collection = scoped_collection(&cassie, request_context, collection)?;
             run_rest_blocking_route(
                 cassie,
                 method,
@@ -415,7 +429,7 @@ async fn dispatch_collection_routes(
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
         ("GET", ["api", "v1", "collections", collection, "documents", id]) => {
-            let collection = (*collection).to_string();
+            let collection = scoped_collection(&cassie, request_context, collection)?;
             let id = (*id).to_string();
             run_rest_blocking_route(
                 cassie,
@@ -429,7 +443,7 @@ async fn dispatch_collection_routes(
             .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
         ("DELETE", ["api", "v1", "collections", collection, "documents", id]) => {
-            let collection = (*collection).to_string();
+            let collection = scoped_collection(&cassie, request_context, collection)?;
             let id = (*id).to_string();
             run_rest_blocking_route(
                 cassie,
@@ -446,11 +460,41 @@ async fn dispatch_collection_routes(
     }
 }
 
+async fn dispatch_collection_list(
+    cassie: Arc<Cassie>,
+    method: &Method,
+    path: &str,
+    started_at: Instant,
+    request_context: &RestRequestContext,
+) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
+    let session = request_context.session.clone();
+    run_rest_blocking_route(
+        cassie,
+        method,
+        path,
+        started_at,
+        "rest_route",
+        move |cassie| Ok(crate::rest::scope::list_collections(&cassie, &session)),
+    )
+    .await
+    .map(|value| Some(json_response(StatusCode::OK, &value)))
+}
+
+fn scoped_collection(
+    cassie: &Cassie,
+    request_context: &RestRequestContext,
+    requested: &str,
+) -> Result<String, (StatusCode, String)> {
+    crate::rest::scope::resolve_collection(cassie, &request_context.session, requested)
+        .map_err(|error| map_error(&error))
+}
+
 async fn dispatch_admin_routes(
     context: RouteDispatchContext<'_>,
     cassie: Arc<Cassie>,
     body: &RestBytes,
 ) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
+    let _authenticated_role = context.request_context.role.as_ref();
     if let Some(response) = dispatch_admin_query_routes(context, cassie.clone(), body).await? {
         return Ok(Some(response));
     }
@@ -533,7 +577,7 @@ async fn dispatch_admin_query_routes(
             ["api", "v1", "admin", "query", "execute"] | ["api", "v1", "admin", "query-executions"],
         ) => {
             let body = body.clone();
-            let session = rest_query_session(&cassie, context.authenticated_role);
+            let session = context.request_context.session.clone();
             run_rest_blocking_route(
                 cassie,
                 context.method,
@@ -553,7 +597,7 @@ async fn dispatch_admin_query_routes(
             | ["api", "v1", "admin", "query-validations"],
         ) => {
             let body = body.clone();
-            let session = rest_query_session(&cassie, context.authenticated_role);
+            let session = context.request_context.session.clone();
             run_rest_blocking_route(
                 cassie,
                 context.method,
@@ -573,7 +617,7 @@ async fn dispatch_admin_query_routes(
             | ["api", "v1", "admin", "query-explanations"],
         ) => {
             let body = body.clone();
-            let session = rest_query_session(&cassie, context.authenticated_role);
+            let session = context.request_context.session.clone();
             run_rest_blocking_route(
                 cassie,
                 context.method,
@@ -602,22 +646,6 @@ fn admin_query_route_allow(segments: &[&str]) -> Option<&'static str> {
         }
         _ => None,
     }
-}
-
-fn rest_query_session(
-    cassie: &Cassie,
-    authenticated_role: Option<&RoleMeta>,
-) -> crate::app::CassieSession {
-    authenticated_role.map_or_else(
-        || cassie.create_session(&cassie.auth_user, None),
-        |role| {
-            crate::app::CassieSession::authenticated(
-                role.name.clone(),
-                Some(cassie.default_database.clone()),
-                role.is_admin,
-            )
-        },
-    )
 }
 
 fn is_read_only_sql_route(method: &Method, segments: &[&str]) -> bool {

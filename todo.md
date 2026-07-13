@@ -341,9 +341,10 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
 ## Phase 6 — scoped REST, TLS, opaque sessions, and UI authentication
 
 - [ ] Bind every REST request to an authenticated database/schema session.
-  - Stop global suffix resolution in collections/documents/indexes/search handlers.
-  - Reject ambiguous names and scope listing/catalog/resource access to the request database and
-    search path.
+  - [x] Stop global suffix resolution at the REST router boundary for collections, documents,
+    indexes, and search handlers.
+  - [x] Reject ambiguous names and scope collection listing/resource access to the request
+    database and search path.
   - Tests: duplicate names across databases/schemas and admin/read-only authorization on every
     resource route.
 - [ ] Replace `Bearer <user>:<password>` and browser `localStorage` credentials with opaque server

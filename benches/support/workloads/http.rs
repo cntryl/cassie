@@ -413,7 +413,11 @@ async fn login_http_session(
             Err(_error) if attempt < 99 => {
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
-            Err(error) => return Err(CassieError::Execution(error.to_string())),
+            Err(error) => {
+                return Err(CassieError::Execution(format!(
+                    "REST login transport failed after retries: {error:?}"
+                )));
+            }
         }
     }
     Err(CassieError::Execution(

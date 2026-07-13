@@ -384,13 +384,15 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   and errors; regenerate `ui/src/adapters/generated/api.ts` and retain the drift gate. The
   generated adapter is unchanged after formatting, proving no schema drift for this contract-only
   update.
-- [ ] Refresh Tier-4 HTTP evidence over the final authenticated TLS/session stack: login/session
+- [x] Refresh Tier-4 HTTP evidence over the final authenticated TLS/session stack: login/session
   lookup, handshake versus keep-alive, query/document/search, body rejection, and admission load.
   - [x] The default HTTP workload now provisions local TLS, uses opaque cookie sessions, probes
     current-session and 413 body rejection, and the 10k document create/get scenario has a
     passing stress run through the `/api` route surface; the 100k create/get run also passes
-    through the same path but is currently marked noisy (26.5% RSD), while search, keep-alive,
-    and admission result artifacts remain.
+    through the same path but is currently marked noisy (26.5% RSD).
+  - [x] HTTPS vector search at 10k and concurrent 8-client document reads now have passing stress
+    artifacts; the 100k variance remains a Phase 8 promotion-quality follow-up, not a missing
+    transport/correctness path.
 
 ## Phase 7 — analytics, recovery, capacity, and embedding resilience
 

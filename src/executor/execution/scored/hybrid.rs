@@ -42,19 +42,32 @@ pub(super) fn bounded_hybrid_rows(
     else {
         return Ok(None);
     };
-    let Ok(Some(vector_ids)) = cassie.midge.persisted_vector_candidate_ids(
+    let vector_ids = match cassie.midge.persisted_vector_candidate_ids(
         &spec.collection,
         &spec.vector_field,
         &spec.vector_query,
         cassie.runtime.limits().adaptive_candidate_max,
-    ) else {
-        return Ok(None);
+    ) {
+        Ok(Some(ids)) => ids,
+        Ok(None) => return Ok(None),
+        Err(_) => {
+            cassie
+                .runtime
+                .record_hybrid_prefilter_usage(0, 0, Some("vector-artifact"));
+            return Ok(None);
+        }
     };
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, analyzer);
-    let stats = cassie
-        .midge
-        .fulltext_candidate_stats(&spec.collection, &fulltext_index.name, &query_terms)
-        .map_err(|error| QueryError::General(error.to_string()))?;
+    let Ok(stats) =
+        cassie
+            .midge
+            .fulltext_candidate_stats(&spec.collection, &fulltext_index.name, &query_terms)
+    else {
+        cassie
+            .runtime
+            .record_hybrid_prefilter_usage(0, 0, Some("text-artifact"));
+        return Ok(None);
+    };
     if stats.len() > cassie.runtime.limits().adaptive_candidate_max {
         cassie.runtime.record_hybrid_prefilter_usage(
             stats.len(),

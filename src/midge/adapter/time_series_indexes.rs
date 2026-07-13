@@ -348,10 +348,18 @@ impl Midge {
         let Some(bucket_key) = bucket_key_for_timestamp(index, payload, timestamp) else {
             return Ok(None);
         };
+        let Some((partition_key, bucket_start)) = bucket_key.split_once('\t') else {
+            return Ok(None);
+        };
+        let bucket_start_seconds = OffsetDateTime::parse(bucket_start, &Rfc3339)
+            .ok()
+            .map(OffsetDateTime::unix_timestamp)
+            .ok_or_else(|| CassieError::Parse("invalid time-series bucket bound".to_string()))?;
         let key = key_encoding::time_series_index_entry_key(
             &index.collection,
             &index.name,
-            &bucket_key,
+            partition_key,
+            bucket_start_seconds,
             id,
         );
         let value = serde_json::to_vec(&TimeSeriesIndexRecord {

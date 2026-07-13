@@ -388,8 +388,10 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
 - [ ] Make time-series state generation-safe and range-addressable.
   - [x] Add collection generation to bucket records/manifests, rebuild affected sidecars against the
     committed generation, and reject stale records with deterministic source-row fallback.
-  - Encode bucket/time bounds for range scans and point-fetch matching rows instead of full index and
-    row-prefix scans.
+  - [x] Encode bucket start bounds as ordered fixed-width integer key segments; dynamic partition
+    values remain prefix-addressable strings.
+  - Range-scan bucket bounds and point-fetch matching rows instead of full index and row-prefix
+    scans.
   - Tests: mutation/delete/retention, old generation, restart, concurrent rebuild/write, and bounded
     read counters.
 - [ ] Bind rollup and analytical projection readiness to exact source collection generation(s), not

@@ -730,19 +730,22 @@ pub(super) fn scalar_index_entry_key(
 pub(super) fn time_series_index_entry_key(
     collection: &str,
     index_name: &str,
-    bucket_key: &str,
+    partition_key: &str,
+    bucket_start_seconds: i64,
     id: &str,
 ) -> Vec<u8> {
-    data_scoped_key(
+    let mut key = data_scoped_key(
         FAMILY_TIME_SERIES_INDEX,
         collection,
-        &[
-            index_name.as_bytes(),
-            b"d",
-            bucket_key.as_bytes(),
-            id.as_bytes(),
-        ],
-    )
+        &[index_name.as_bytes(), b"d", partition_key.as_bytes()],
+    );
+    key.push(LexKey::SEPARATOR);
+    let mut encoder = Encoder::with_capacity(16);
+    encoder.encode_i64_into(bucket_start_seconds);
+    key.extend_from_slice(encoder.as_slice());
+    key.push(LexKey::SEPARATOR);
+    append_terminated_component(&mut key, id.as_bytes());
+    key
 }
 
 pub(super) fn scalar_index_seek_prefix(

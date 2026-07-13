@@ -186,3 +186,20 @@ fn should_use_compact_internal_markers_for_frequently_used_path_components() {
     assert_eq!(FULLTEXT_ARTIFACT_POSTINGS.len(), 1);
     assert_eq!(FULLTEXT_ARTIFACT_DOCUMENT.len(), 1);
 }
+
+#[test]
+fn should_encode_time_series_bucket_bounds_as_ordered_integers() {
+    // Arrange
+    let before = time_series_index_entry_key("events", "idx", "tenant", -1, "a");
+    let middle = time_series_index_entry_key("events", "idx", "tenant", 0, "a");
+    let after = time_series_index_entry_key("events", "idx", "tenant", 1, "a");
+
+    // Act
+    let ordered = before < middle && middle < after;
+
+    // Assert
+    assert!(ordered);
+    assert!(!middle
+        .windows(b"1970-01-01".len())
+        .any(|window| window == b"1970-01-01"));
+}

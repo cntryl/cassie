@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 use super::super::key_encoding;
 use super::{CassieError, Midge, VectorIndexRecord, WriteOptions};
@@ -11,6 +12,67 @@ pub(super) struct HnswSourceSummary {
 }
 
 impl Midge {
+    /// Reads only normalized vectors assigned to the selected IVF lists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the source summary or a selected candidate is stale or corrupt.
+    pub fn ivfflat_candidate_vectors(
+        &self,
+        collection: &str,
+        field: &str,
+        training: &crate::embeddings::IvfFlatTrainingState,
+        probed_lists: &BTreeSet<usize>,
+    ) -> Result<Vec<crate::embeddings::NormalizedVectorRecord>, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
+        let summary_raw = tx
+            .get(&key_encoding::ivfflat_source_summary_key(
+                &collection,
+                field,
+            ))
+            .map_err(CassieError::from)?
+            .ok_or_else(|| {
+                CassieError::Execution("ivfflat fallback:missing-source-summary".to_string())
+            })?;
+        let summary: HnswSourceSummary = serde_json::from_slice(&summary_raw).map_err(|error| {
+            CassieError::Parse(format!("invalid vector source summary: {error}"))
+        })?;
+        if summary.built_generation != self.collection_generation(&collection)?
+            || summary.source_fingerprint != training.source_fingerprint
+            || summary.row_count != training.row_count
+        {
+            return Err(CassieError::Execution(
+                "ivfflat fallback:stale-source-fingerprint".to_string(),
+            ));
+        }
+        let mut records = Vec::new();
+        for (id, list) in &training.assignments {
+            if !probed_lists.contains(list) {
+                continue;
+            }
+            let Some(raw) = tx
+                .get(&key_encoding::normalized_vector_key(&collection, field, id))
+                .map_err(CassieError::from)?
+            else {
+                return Err(CassieError::Execution(
+                    "ivfflat fallback:missing-candidate".to_string(),
+                ));
+            };
+            let record: crate::embeddings::NormalizedVectorRecord = serde_json::from_slice(&raw)
+                .map_err(|error| {
+                    CassieError::Parse(format!("invalid normalized vector candidate: {error}"))
+                })?;
+            if record.built_generation != summary.built_generation {
+                return Err(CassieError::Execution(
+                    "ivfflat fallback:stale-candidate-generation".to_string(),
+                ));
+            }
+            records.push(record);
+        }
+        Ok(records)
+    }
+
     /// Searches a generation-bound HNSW manifest by point-reading only requested nodes.
     ///
     /// # Errors
@@ -148,7 +210,34 @@ impl Midge {
     ) -> Result<(), CassieError> {
         let generation = self.collection_generation(collection)?;
         let mut tx = self.begin_data_rw_tx_for(collection)?;
-        Self::write_hnsw_source_summary_to_tx(&mut tx, collection, field, generation, graph)?;
+        Self::write_vector_source_summary_to_tx(
+            &mut tx,
+            collection,
+            field,
+            generation,
+            graph.source_fingerprint,
+            graph.row_count,
+        )?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+    }
+
+    pub(super) fn write_ivfflat_source_summary(
+        &self,
+        collection: &str,
+        field: &str,
+        source_fingerprint: u64,
+        row_count: usize,
+    ) -> Result<(), CassieError> {
+        let generation = self.collection_generation(collection)?;
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
+        Self::write_vector_source_summary_to_tx(
+            &mut tx,
+            collection,
+            field,
+            generation,
+            source_fingerprint,
+            row_count,
+        )?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)
     }
 
@@ -159,13 +248,31 @@ impl Midge {
         generation: u64,
         graph: &crate::embeddings::HnswGraphState,
     ) -> Result<(), CassieError> {
+        Self::write_vector_source_summary_to_tx(
+            tx,
+            collection,
+            field,
+            generation,
+            graph.source_fingerprint,
+            graph.row_count,
+        )
+    }
+
+    pub(super) fn write_vector_source_summary_to_tx(
+        tx: &mut cntryl_midge::Transaction,
+        collection: &str,
+        field: &str,
+        generation: u64,
+        source_fingerprint: u64,
+        row_count: usize,
+    ) -> Result<(), CassieError> {
         let summary = HnswSourceSummary {
             built_generation: generation,
-            source_fingerprint: graph.source_fingerprint,
-            row_count: graph.row_count,
+            source_fingerprint,
+            row_count,
         };
         tx.put(
-            key_encoding::hnsw_source_summary_key(collection, field),
+            key_encoding::ivfflat_source_summary_key(collection, field),
             serde_json::to_vec(&summary).map_err(|error| CassieError::Parse(error.to_string()))?,
             None,
         )

@@ -296,8 +296,10 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - [x] HNSW query traversal now point-reads reachable nodes, fences against a generation-bound
     source fingerprint summary, exact-reranks selected candidates, and records deterministic
     missing-node/manifest fallback reasons.
-  - Replace remaining full-prefix normalized-vector validation and IVF list membership scans with
-    bounded manifest/node/list membership/candidate reads.
+  - [x] IVF query execution now validates a generation-bound source summary and point-reads only
+    normalized vectors assigned to probed lists.
+  - Replace the remaining monolithic IVF assignment map with persisted list-membership manifests
+    and bounded list/candidate reads.
   - Point-read only selected candidates and exact-rerank against current source-row vectors.
   - Fall back deterministically when a candidate/vector is missing or its generation changes.
   - Tests: `tests/hnsw_indexes.rs` covers read-counter scaling, missing candidates, generation

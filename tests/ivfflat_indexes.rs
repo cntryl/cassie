@@ -297,6 +297,50 @@ fn should_use_trained_ivfflat_candidate_lists_for_top_k() {
 }
 
 #[test]
+fn should_read_only_probed_ivfflat_candidates() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ivfflat_point_reads");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let collection = "ivfflat_point_reads";
+    register_ivfflat_collection(&cassie, collection);
+    for index in 0..32 {
+        let embedding = if index < 16 {
+            [1.0, 0.0, 0.0]
+        } else {
+            [0.0, 1.0, 0.0]
+        };
+        put_ivfflat_document(&cassie, collection, &format!("doc-{index}"), embedding);
+    }
+    put_ivfflat_index(&cassie, collection, 7);
+    let before = cassie.metrics();
+    let session = cassie.create_session("tester", None);
+    let relation = cassie
+        .catalog
+        .get_schema(collection)
+        .expect("registered collection schema")
+        .collection
+        .clone();
+
+    // Act
+    cassie
+        .execute_sql(
+            &session,
+            &format!("SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM {relation} ORDER BY distance ASC LIMIT 1"),
+            vec![],
+        )
+        .unwrap();
+    let after = cassie.metrics();
+
+    // Assert
+    let reads = after["storage"]["data"]["reads"].as_u64().unwrap()
+        - before["storage"]["data"]["reads"].as_u64().unwrap();
+    assert!(reads < 32, "expected probed-list reads, observed {reads}");
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_refresh_ivfflat_training_after_document_writes() {
     // Arrange
     with_fallback();

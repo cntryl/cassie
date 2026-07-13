@@ -355,6 +355,10 @@ pub(super) fn hnsw_source_summary_key(collection: &str, field: &str) -> Vec<u8> 
     )
 }
 
+pub(super) fn ivfflat_source_summary_key(collection: &str, field: &str) -> Vec<u8> {
+    hnsw_source_summary_key(collection, field)
+}
+
 pub(super) fn vector_index_state_prefix(collection: &str) -> Vec<u8> {
     data_scoped_prefix(FAMILY_VECTOR_INDEX_STATE, collection, &[])
 }

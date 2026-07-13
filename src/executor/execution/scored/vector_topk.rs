@@ -197,30 +197,37 @@ fn execute_ivfflat_vector_top_k(
     let started_at = std::time::Instant::now();
     let normalized_query = crate::vector::normalize(&spec.query)
         .map_or_else(|| spec.query.clone(), |normalized| normalized.values);
-    let normalized_vectors = cassie
-        .midge
-        .list_normalized_vectors(&spec.collection, &spec.vector_field)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    if let Some(reason) = crate::vector::ivfflat::training_fallback_reason(
-        &training,
-        spec.query.len(),
-        &normalized_vectors,
-    ) {
+    if let Some(reason) =
+        crate::vector::ivfflat::training_manifest_fallback_reason(&training, spec.query.len())
+    {
         cassie.runtime.record_ivfflat_fallback(reason);
         return Ok(None);
     }
     let probed_lists = crate::vector::ivfflat::probe_lists(&normalized_query, &training);
+    let normalized_vectors = match cassie.midge.ivfflat_candidate_vectors(
+        &spec.collection,
+        &spec.vector_field,
+        &training,
+        &probed_lists,
+    ) {
+        Ok(records) => records,
+        Err(error) => {
+            let message = error.to_string();
+            if let Some(reason) = message
+                .split_once("ivfflat fallback:")
+                .map(|(_, reason)| reason)
+            {
+                cassie.runtime.record_ivfflat_fallback(reason);
+                return Ok(None);
+            }
+            return Err(QueryError::General(message));
+        }
+    };
     let top_needed = spec.limit.saturating_add(spec.offset).max(1);
     let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
     let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
     let mut candidate_count = 0usize;
     for record in normalized_vectors {
-        let Some(list) = training.assignments.get(&record.id) else {
-            continue;
-        };
-        if !probed_lists.contains(list) {
-            continue;
-        }
         let vector = crate::vector::ivfflat::denormalized_vector(&record).ok_or_else(|| {
             QueryError::General("invalid normalized vector magnitude".to_string())
         })?;

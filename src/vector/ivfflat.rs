@@ -80,6 +80,49 @@ pub fn training_compatible(
 }
 
 #[must_use]
+pub fn training_manifest_fallback_reason(
+    training: &IvfFlatTrainingState,
+    dimensions: usize,
+) -> Option<&'static str> {
+    if training.source_fingerprint == 0 {
+        return Some("missing-source-fingerprint");
+    }
+    if !training.trained {
+        return Some("untrained");
+    }
+    if training.lists == 0 || training.centroids.len() != training.lists {
+        return Some("invalid-centroid-count");
+    }
+    if training.list_sizes.len() != training.lists {
+        return Some("invalid-list-sizes");
+    }
+    if training.probes == 0 || training.probes > training.lists {
+        return Some("invalid-probes");
+    }
+    if training
+        .centroids
+        .iter()
+        .any(|centroid| centroid.len() != dimensions)
+    {
+        return Some("incompatible-centroid-dimensions");
+    }
+    if training.assignments.len() != training.row_count {
+        return Some("incomplete-assignments");
+    }
+    let mut observed_sizes = vec![0usize; training.lists];
+    for list in training.assignments.values() {
+        if *list >= training.lists {
+            return Some("assignment-list-out-of-bounds");
+        }
+        observed_sizes[*list] = observed_sizes[*list].saturating_add(1);
+    }
+    if observed_sizes != training.list_sizes {
+        return Some("stale-list-sizes");
+    }
+    None
+}
+
+#[must_use]
 pub fn probe_lists(normalized_query: &[f32], training: &IvfFlatTrainingState) -> BTreeSet<usize> {
     let mut ranked = training
         .centroids

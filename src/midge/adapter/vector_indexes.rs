@@ -56,6 +56,7 @@ impl Midge {
             crate::embeddings::VectorIndexType::BruteForce => VectorIndexState::default(),
         };
         let hnsw_graph = state.hnsw_graph.clone();
+        let ivfflat_training = state.ivfflat_training.clone();
         metadata.metadata.hnsw_graph = None;
         metadata.metadata.ivfflat_training = None;
         let mut stored_records = records;
@@ -66,6 +67,13 @@ impl Midge {
         self.write_vector_index_state(&metadata.collection, &metadata.field, state)?;
         if let Some(graph) = hnsw_graph {
             self.write_hnsw_source_summary(&metadata.collection, &metadata.field, &graph)?;
+        } else if let Some(training) = ivfflat_training {
+            self.write_ivfflat_source_summary(
+                &metadata.collection,
+                &metadata.field,
+                training.source_fingerprint,
+                training.row_count,
+            )?;
         }
         self.write_vector_index_metadata(&metadata)?;
         Ok(())
@@ -255,6 +263,15 @@ impl Midge {
                     &index.field,
                     0,
                     graph,
+                )?;
+            } else if let Some(training) = state.ivfflat_training.as_ref() {
+                Self::write_vector_source_summary_to_tx(
+                    tx,
+                    &index.collection,
+                    &index.field,
+                    0,
+                    training.source_fingerprint,
+                    training.row_count,
                 )?;
             }
         }

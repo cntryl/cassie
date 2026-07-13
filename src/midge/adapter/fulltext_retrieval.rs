@@ -208,6 +208,72 @@ impl Midge {
         }))
     }
 
+    /// Reads only the requested term postings and matching document statistics.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when metadata, postings, or document statistics are stale or corrupt.
+    pub fn fulltext_candidate_stats(
+        &self,
+        collection: &str,
+        index_name: &str,
+        terms: &[String],
+    ) -> Result<BTreeMap<String, PersistedFulltextDocumentStats>, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
+        let metadata_raw = tx
+            .get(&Self::fulltext_index_key(&collection, index_name))
+            .map_err(CassieError::from)?
+            .ok_or_else(|| CassieError::Execution("fulltext fallback:missing-index".to_string()))?;
+        let metadata: FulltextIndexMetadata = serde_json::from_slice(&metadata_raw)
+            .map_err(|error| CassieError::Parse(format!("invalid fulltext metadata: {error}")))?;
+        if metadata.version != STATE_VERSION
+            || metadata.built_generation != self.collection_generation(&collection)?
+        {
+            return Err(CassieError::Execution(
+                "fulltext fallback:stale-generation".to_string(),
+            ));
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        for term in terms {
+            let Some(raw) = tx
+                .get(&Self::fulltext_term_postings_key(
+                    &collection,
+                    index_name,
+                    term,
+                ))
+                .map_err(CassieError::from)?
+            else {
+                continue;
+            };
+            let postings: Vec<PersistedFulltextPosting> =
+                serde_json::from_slice(&raw).map_err(|error| {
+                    CassieError::Parse(format!("invalid fulltext posting: {error}"))
+                })?;
+            ids.extend(postings.into_iter().map(|posting| posting.document_id));
+        }
+        let mut stats = BTreeMap::new();
+        for id in ids {
+            let Some(raw) = tx
+                .get(&Self::fulltext_document_stats_key(
+                    &collection,
+                    index_name,
+                    &id,
+                ))
+                .map_err(CassieError::from)?
+            else {
+                return Err(CassieError::Execution(
+                    "fulltext fallback:missing-document-stats".to_string(),
+                ));
+            };
+            let document = serde_json::from_slice(&raw).map_err(|error| {
+                CassieError::Parse(format!("invalid fulltext document statistics: {error}"))
+            })?;
+            stats.insert(id, document);
+        }
+        Ok(stats)
+    }
+
     fn load_documents_from_tx(
         &self,
         tx: &cntryl_midge::Transaction,

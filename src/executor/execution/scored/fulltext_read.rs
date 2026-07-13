@@ -1,8 +1,8 @@
 use super::super::projected_read::{is_row_id_column, json_to_query_value};
 use super::{
     analyzer_for_search_field, batch, cached_search_context, filter, json_search_term_stats,
-    posting_list_candidate_ids, search_context_for_fields, BatchRow, Cassie, CassieSession,
-    FulltextFilteredReadSpec, HashMap, Instant, PostingListDocument, QueryError, Value,
+    posting_list_candidate_ids, BatchRow, Cassie, CassieSession, FulltextFilteredReadSpec, HashMap,
+    Instant, PostingListDocument, QueryError, Value,
 };
 
 struct TokenizedFulltextReadDocument {
@@ -39,7 +39,7 @@ pub(super) fn execute_fulltext_filtered_read(
             None,
         )
         .map_err(|error| QueryError::General(error.to_string()))?;
-    let search_index_options = search_context_for_fields(
+    let search_index_options = super::hybrid::search_context_for_fields(
         cassie,
         &spec.collection,
         std::slice::from_ref(&spec.text_field),

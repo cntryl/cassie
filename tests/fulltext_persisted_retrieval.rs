@@ -116,3 +116,44 @@ fn should_reload_persisted_fulltext_state_after_restart() {
     assert_eq!(state.total_documents, 1);
     assert_eq!(state.postings["alpha"][0].document_id, "d1");
 }
+
+#[test]
+fn should_bound_persisted_term_candidate_reads() {
+    // Arrange
+    let cassie = cassie_temp("fulltext_bounded_candidates");
+    let collection = "fulltext_bounded_candidates";
+    create_text_collection(&cassie, collection, &["id", "body"]);
+    for index in 0..64 {
+        let body = if index < 2 {
+            "alpha marker"
+        } else {
+            "unrelated"
+        };
+        put_document(
+            &cassie,
+            collection,
+            &format!("d{index}"),
+            serde_json::json!({"body": body}),
+        );
+    }
+    put_fulltext_index(&cassie, collection, "fulltext_body_idx", "body", &[]);
+    let before = cassie.metrics();
+
+    // Act
+    let candidates = cassie
+        .midge
+        .fulltext_candidate_stats(collection, "fulltext_body_idx", &["alpha".to_string()])
+        .expect("candidate stats");
+    let after = cassie.metrics();
+
+    // Assert
+    assert_eq!(candidates.len(), 2);
+    assert!(candidates.contains_key("d0"));
+    assert!(candidates.contains_key("d1"));
+    let reads = after["storage"]["data"]["reads"].as_u64().unwrap()
+        - before["storage"]["data"]["reads"].as_u64().unwrap();
+    assert!(
+        reads < 64,
+        "expected bounded persisted reads, observed {reads}"
+    );
+}

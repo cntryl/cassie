@@ -308,6 +308,9 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     open.
 - [ ] Replace hybrid full-row prefilter/merge with bounded persisted text and vector candidate
   streams, structured prefilter pushdown, explicit budgets, and exact final source-row scoring.
+  - [x] Read persisted text postings and matching document statistics, point-read source rows,
+    push supported filters down to the bounded set, and fall back when the candidate budget or
+    session state makes the bounded path unsafe.
   - Tests: stale text/vector/both, selective filters, caps, truncation, and fallback equivalence.
 - [ ] Add retrieval-stage diagnostics: posting reads, ANN node/list reads, generation rejection,
   exact rerank count, truncation, candidate budgets, and fallback reason.

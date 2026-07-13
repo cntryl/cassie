@@ -1,5 +1,6 @@
 #![allow(unused_imports, dead_code)]
 use cassie::app::Cassie;
+use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
 use cassie::embeddings::{
     openai::OpenAiConfig, DistanceMetric, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
@@ -312,4 +313,108 @@ fn should_reject_hybrid_text_candidate_without_vector() {
 
         let _ = std::fs::remove_dir_all(path);
     });
+}
+
+#[test]
+fn should_bound_hybrid_reads_to_persisted_text_candidates() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hybrid_bounded_candidates");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let collection = "hybrid_bounded_candidates";
+    let schema = Schema {
+        fields: vec![
+            FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "embedding".to_string(),
+                data_type: DataType::Vector(2),
+                nullable: true,
+            },
+        ],
+    };
+    cassie
+        .midge
+        .create_collection(collection, schema.clone())
+        .unwrap();
+    cassie.register_collection(
+        collection,
+        schema
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.data_type.clone()))
+            .collect(),
+    );
+    for index in 0..64 {
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some(format!("d{index}")),
+                serde_json::json!({
+                    "body": if index < 2 { "alpha marker" } else { "unrelated" },
+                    "embedding": [1.0, 0.0]
+                }),
+            )
+            .unwrap();
+    }
+    let fulltext = IndexMeta {
+        collection: collection.to_string(),
+        name: "fulltext_body_idx".to_string(),
+        field: "body".to_string(),
+        fields: vec!["body".to_string()],
+        expressions: Vec::new(),
+        include_fields: Vec::new(),
+        predicate: None,
+        kind: IndexKind::FullText,
+        unique: false,
+        options: std::collections::BTreeMap::new(),
+    };
+    cassie.midge.put_index(&fulltext).unwrap();
+    cassie.catalog.register_index(fulltext);
+    cassie
+        .midge
+        .put_vector_index(VectorIndexRecord {
+            collection: collection.to_string(),
+            field: "embedding".to_string(),
+            source_field: "body".to_string(),
+            metadata: VectorIndexMetadata {
+                provider: "manual".to_string(),
+                model: "manual".to_string(),
+                dimensions: 2,
+                metric: DistanceMetric::L2,
+                index_type: VectorIndexType::BruteForce,
+                hnsw: None,
+                hnsw_graph: None,
+                ivfflat: None,
+                ivfflat_training: None,
+            },
+        })
+        .unwrap();
+    let before = cassie.metrics();
+    let session = cassie.create_session("tester", None);
+
+    // Act
+    let result = cassie
+        .execute_sql(
+            &session,
+            "SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM hybrid_bounded_candidates ORDER BY score DESC LIMIT 1",
+            vec![],
+        )
+        .unwrap();
+    let after = cassie.metrics();
+
+    // Assert
+    assert_eq!(result.rows[0][0], Value::String("d0".to_string()));
+    let reads = after["storage"]["data"]["reads"].as_u64().unwrap()
+        - before["storage"]["data"]["reads"].as_u64().unwrap();
+    assert!(
+        reads < 64,
+        "expected bounded hybrid reads, observed {reads}"
+    );
+
+    let _ = std::fs::remove_dir_all(path);
 }

@@ -39,6 +39,14 @@ operator switching thresholds, and rollback/fallback evidence.
 | Limited procedures and CALL | `src/sql`, `src/executor`, `src/catalog` | Experimental compatibility/admin surface | Experimental baseline | `tests/executor_commands.rs`, `tests/parser_functions_roles.rs`, `tests/compatibility_matrix.rs` | Procedure rejection tests and pgwire compatibility coverage | Procedure metadata hydration covered | No PL/pgSQL, triggers, dynamic SQL, transaction-control procedures, recursive workflows, or business-logic platform semantics |
 | Capacity management | `src/midge`, `src/app`, `docs` | Experimental diagnostics | Experimental baseline | [Capacity Management](capacity-management.md), [Performance Contracts](performance-contracts.md), `tests/metrics_capacity.rs`, runtime metrics snapshots | Storage-family operation counts, `/metrics.capacity` advisory family/category byte totals, cache occupancy, fallback counters, column-batch byte totals, projection rebuild/write counters, manual benchmark scenarios with deployment-profile report lines | Capacity diagnostics are computed locally from Midge key/value scans and persist no separate metadata | Physical disk thresholds, admission-control policy, automatic movement, and production thresholds by deployment profile |
 
+### Hybrid retrieval implementation note
+
+When both a full-text and vector index are present, hybrid top-k execution reads only
+term postings, matching document statistics, and the corresponding source rows. Candidate
+budgets, generation failures, missing source rows, unsupported filters, and staged session
+writes fall back to the existing row path. Persisted vector candidate streams, truncation
+diagnostics, and larger-corpus/concurrency evidence remain open.
+
 ## Promotion Rules
 
 - Experimental surfaces must satisfy [Experimental Promotion Criteria](experimental-promotion-criteria.md) before a future issue promotes or narrows them.

@@ -8,10 +8,13 @@ use super::{
 
 #[path = "scored/fulltext_read.rs"]
 mod fulltext_read;
+#[path = "scored/hybrid.rs"]
+mod hybrid;
 #[path = "scored/vector_topk.rs"]
 mod vector_topk;
 
 use fulltext_read::execute_fulltext_filtered_read;
+use hybrid::{bounded_hybrid_rows, hybrid_search_documents, prefilter_hybrid_rows};
 use vector_topk::{
     adaptive_candidate_decision, record_adaptive_candidate_decision, vector_from_json,
 };
@@ -179,7 +182,7 @@ fn execute_fulltext_top_k(
             RowDecode::ProjectedHistorical(vec![spec.text_field.clone()]),
         )
         .map_err(|error| QueryError::General(error.to_string()))?;
-    let search_index_options = search_context_for_fields(
+    let search_index_options = hybrid::search_context_for_fields(
         cassie,
         &spec.collection,
         std::slice::from_ref(&spec.text_field),
@@ -359,16 +362,33 @@ fn execute_hybrid_top_k(
     let schema = cassie.catalog.get_schema(&spec.collection).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", spec.collection))
     })?;
-    let Some(rows) = prefilter_hybrid_rows(cassie, session, user_functions, params, spec, &schema)?
-    else {
-        return Ok(None);
-    };
-    let search_index_options = search_context_for_fields(
+    let search_index_options = hybrid::search_context_for_fields(
         cassie,
         &spec.collection,
         std::slice::from_ref(&spec.text_field),
     )?;
     let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
+    let bounded_rows = bounded_hybrid_rows(
+        cassie,
+        session,
+        user_functions,
+        params,
+        spec,
+        &schema,
+        &analyzer,
+    )?;
+    let rows = match bounded_rows {
+        Some(rows) => rows,
+        None => {
+            match prefilter_hybrid_rows(cassie, session, user_functions, params, spec, &schema)? {
+                Some(rows) => rows,
+                None => return Ok(None),
+            }
+        }
+    };
+    if rows.is_empty() {
+        return Ok(None);
+    }
     let search_documents = hybrid_search_documents(rows, spec, &analyzer);
     let search_context = cached_search_context(
         cassie,
@@ -439,58 +459,6 @@ fn execute_hybrid_top_k(
         .record_hybrid_execution(started_at.elapsed(), text_candidate_count, rows.len());
     record_adaptive_candidate_decision(cassie, &adaptive, text_candidate_count, rows.len());
     Ok(Some(rows))
-}
-
-fn prefilter_hybrid_rows(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    params: &[Value],
-    spec: &HybridTopKSpec,
-    schema: &CollectionSchema,
-) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let mut rows = batch::flatten_batches(scan::scan(cassie, session, &spec.collection)?);
-    if let Some(filter_expr) = &spec.filter {
-        if !vector_prefilter_supported(filter_expr, schema) {
-            return Ok(None);
-        }
-        let before = rows.len();
-        rows = filter::filter_rows(rows, filter_expr, params, None, user_functions, session)?;
-        cassie
-            .runtime
-            .record_hybrid_prefilter_usage(before, rows.len(), None);
-    }
-    Ok(Some(rows))
-}
-
-fn hybrid_search_documents(
-    rows: Vec<BatchRow>,
-    spec: &HybridTopKSpec,
-    analyzer: &AnalyzerConfig,
-) -> Vec<TokenizedHybridDocument> {
-    rows.into_iter()
-        .map(|row| TokenizedHybridDocument {
-            id: row
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string(),
-            text_stats: json_search_term_stats_value(row.get(&spec.text_field), analyzer),
-            vector: row.get(&spec.vector_field).and_then(value_to_vector),
-        })
-        .collect()
-}
-
-fn search_context_for_fields(
-    cassie: &Cassie,
-    collection: &str,
-    fields: &[String],
-) -> Result<FulltextIndexOptions, QueryError> {
-    let requested_fields = fields
-        .iter()
-        .map(|field| field.to_ascii_lowercase())
-        .collect::<HashSet<_>>();
-    load_fulltext_index_options(cassie, collection, &requested_fields)
 }
 
 struct FulltextTopKSpec {

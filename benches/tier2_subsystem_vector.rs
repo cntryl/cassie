@@ -24,7 +24,7 @@ fn main() {
     let runtime = workloads::runtime();
     let mut runner = stress::runner(BENCHMARK);
 
-    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000)] {
+    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000), ("250k", 250_000)] {
         let benchmark =
             performance_benchmarks::expect_benchmark(BENCHMARK, "vector_executor", dataset);
         let case =
@@ -100,7 +100,7 @@ fn bench_persisted_ann_paths(
     runtime: &tokio::runtime::Runtime,
     runner: &mut stress::CassieStressRunner,
 ) {
-    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000)] {
+    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000), ("250k", 250_000)] {
         bench_persisted_ann_path(runtime, runner, dataset, rows, "hnsw");
         bench_persisted_ann_path(runtime, runner, dataset, rows, "ivfflat");
     }

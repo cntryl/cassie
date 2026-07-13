@@ -224,8 +224,10 @@ fn should_register_persisted_ann_scenarios_at_required_scales() {
     let required = [
         ("vector_hnsw_persisted", "10k"),
         ("vector_hnsw_persisted", "100k"),
+        ("vector_hnsw_persisted", "250k"),
         ("vector_ivfflat_persisted", "10k"),
         ("vector_ivfflat_persisted", "100k"),
+        ("vector_ivfflat_persisted", "250k"),
     ];
 
     // Act
@@ -249,8 +251,10 @@ fn should_register_fulltext_temperature_scenarios_at_required_scales() {
     let required = [
         ("full_text_cold", "10k"),
         ("full_text_cold", "100k"),
+        ("full_text_cold", "250k"),
         ("full_text_warm", "10k"),
         ("full_text_warm", "100k"),
+        ("full_text_warm", "250k"),
     ];
 
     // Act

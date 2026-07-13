@@ -35,7 +35,7 @@ mod search_scenarios;
 #[path = "performance_benchmark_transport_scenarios.rs"]
 mod transport_scenarios;
 
-pub const SUPPORTED_SCALES: &[&str] = &["10k", "100k"];
+pub const SUPPORTED_SCALES: &[&str] = &["10k", "100k", "250k"];
 
 pub const REQUIRED_WORKLOAD_FAMILIES: &[&str] = &[
     "core_read",

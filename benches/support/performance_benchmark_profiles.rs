@@ -45,6 +45,19 @@ pub const DEPLOYMENT_PROFILES: &[DeploymentProfile] = &[
         known_non_goals: LOCAL_PROFILE_NON_GOALS,
         default_manual: true,
     },
+    DeploymentProfile {
+        profile_id: "local-dev-fallback-250k",
+        host_shape: "local developer workstation",
+        storage_mode: "in_memory_midge_fallback",
+        data_shape: "deterministic generated read-model fixture",
+        workload_mix: "single benchmark owner workload",
+        fixture_scale: "250k",
+        benchmark_command: "cargo bench --locked --bench <owner-benchmark>",
+        cache_evidence: "plan_cache.entries",
+        metrics_captured: STANDARD_METRICS_CAPTURED,
+        known_non_goals: LOCAL_PROFILE_NON_GOALS,
+        default_manual: true,
+    },
 ];
 
 pub fn deployment_profile_for_id(profile_id: &str) -> Option<&'static DeploymentProfile> {

@@ -12,7 +12,7 @@ fn main() {
     let runtime = workloads::runtime();
     let mut runner = stress::runner(BENCHMARK);
 
-    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000)] {
+    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000), ("250k", 250_000)] {
         let benchmark =
             performance_benchmarks::expect_benchmark(BENCHMARK, "full_text_executor", dataset);
         let case =
@@ -58,7 +58,7 @@ fn bench_fulltext_temperature(
     runtime: &tokio::runtime::Runtime,
     runner: &mut stress::CassieStressRunner,
 ) {
-    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000)] {
+    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000), ("250k", 250_000)] {
         for temperature in ["cold", "warm"] {
             let workload = format!("full_text_{temperature}");
             let benchmark = performance_benchmarks::expect_benchmark(BENCHMARK, &workload, dataset);

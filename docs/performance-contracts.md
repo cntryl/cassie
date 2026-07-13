@@ -712,6 +712,7 @@ with fallback/rollback evidence.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `local-dev-fallback-10k` | Local developer workstation | `in_memory_midge_fallback` | Deterministic generated read-model fixture | Single benchmark owner workload | 10k | `cargo bench --locked --bench <owner-benchmark>` | p50, p95, p99, throughput, fallback counters, cache occupancy, storage-family operations, feature-family metrics | Not SLA, not CI gate, not production-ready promotion, not disk sync unless `BENCH_MIDGE_DISK=1` |
 | `local-dev-fallback-100k` | Local developer workstation | `in_memory_midge_fallback` | Deterministic generated read-model fixture | Single benchmark owner workload | 100k | `cargo bench --locked --bench <owner-benchmark>` | p50, p95, p99, throughput, fallback counters, cache occupancy, storage-family operations, feature-family metrics | Not SLA, not CI gate, not production-ready promotion, not disk sync unless `BENCH_MIDGE_DISK=1` |
+| `local-dev-fallback-250k` | Local developer workstation | `in_memory_midge_fallback` | Deterministic generated read-model fixture | Single benchmark owner workload | 250k | `cargo bench --locked --bench <owner-benchmark>` | p50, p95, p99, throughput, fallback counters, cache occupancy, storage-family operations, feature-family metrics | Manual diagnostic only; not SLA, not CI gate, not production-ready promotion, not disk sync unless `BENCH_MIDGE_DISK=1` |
 
 Larger-scale fixture work remains backlog-only until the fixture generator, benchmark owner, storage
 mode, host shape, and evidence command are implemented. Do not add scenario constants or deployment
@@ -817,6 +818,8 @@ unproven fallbacks from selected bounded probes.
 | `perf.verification.full.100k` | Verification | `tier3_system_rebuild` | `projection_verify` | 100k |
 | `perf.search.fulltext.10k` | Search | `tier2_subsystem_search` | `full_text_executor` | 10k |
 | `perf.search.fulltext.100k` | Search | `tier2_subsystem_search` | `full_text_executor` | 100k |
+| `perf.search.fulltext_cold.250k` | Search | `tier2_subsystem_search` | `full_text_cold` | 250k |
+| `perf.search.fulltext_warm.250k` | Search | `tier2_subsystem_search` | `full_text_warm` | 250k |
 | `perf.search.fulltext_cold.10k` | Search | `tier2_subsystem_search` | `full_text_cold` | 10k |
 | `perf.search.fulltext_cold.100k` | Search | `tier2_subsystem_search` | `full_text_cold` | 100k |
 | `perf.search.fulltext_warm.10k` | Search | `tier2_subsystem_search` | `full_text_warm` | 10k |
@@ -827,8 +830,11 @@ unproven fallbacks from selected bounded probes.
 | `perf.vector.hnsw_persisted.100k` | Vector | `tier2_subsystem_vector` | `vector_hnsw_persisted` | 100k |
 | `perf.vector.ivfflat_persisted.10k` | Vector | `tier2_subsystem_vector` | `vector_ivfflat_persisted` | 10k |
 | `perf.vector.ivfflat_persisted.100k` | Vector | `tier2_subsystem_vector` | `vector_ivfflat_persisted` | 100k |
+| `perf.vector.hnsw_persisted.250k` | Vector | `tier2_subsystem_vector` | `vector_hnsw_persisted` | 250k |
+| `perf.vector.ivfflat_persisted.250k` | Vector | `tier2_subsystem_vector` | `vector_ivfflat_persisted` | 250k |
 | `perf.hybrid.executor.10k` | Hybrid | `tier2_subsystem_hybrid` | `hybrid_executor` | 10k |
 | `perf.hybrid.executor.100k` | Hybrid | `tier2_subsystem_hybrid` | `hybrid_executor` | 100k |
+| `perf.hybrid.executor.250k` | Hybrid | `tier2_subsystem_hybrid` | `hybrid_executor` | 250k |
 | `perf.graph.expand.10k` | Graph | `tier3_system_query` | `graph_expand_query` | 10k |
 | `perf.graph.expand.100k` | Graph | `tier3_system_query` | `graph_expand_query` | 100k |
 | `perf.time_series.window_scan.10k` | Time series | `tier3_system_query` | `time_series_window_scan` | 10k |

@@ -330,6 +330,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     rebuild artifacts remain open.
   - [x] Hybrid 10k/100k scenarios now build persisted text/vector fixtures and assert bounded
     posting/ANN reads, exact reranks, top-k cardinality, and no prefilter fallback.
+  - [x] Manual 250k full-text, persisted ANN, and hybrid scenarios now have a runnable fixture
+    scale/profile; retained disk-backed artifacts and promotion-quality repeatability remain open.
   - Cold/warm full-text at 10k, 100k, and a larger corpus with reads, memory, write amplification,
     and rebuild cost.
   - HNSW `ef_search` and IVFFlat lists/probes recall@k versus exact, latency, candidate reads,

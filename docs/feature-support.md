@@ -149,7 +149,8 @@ Unsupported procedural expectations include:
 - REST admin auth uses server-owned opaque `cassie_session` cookies issued by login/current-session/logout endpoints; password-bearing `Authorization` headers are rejected. Pgwire retains its protocol-native credential flow, while both interfaces share credential validation and role lookup.
 - REST HTTP transport rejects request bodies over 8 MiB, limits HTTP/1 header buffering to 32 KiB,
   and applies a 10-second header-read deadline; additional idle/request timeout and security-header
-  hardening remains in progress.
+  hardening remains in progress. API responses emit `no-store`, `nosniff`, frame-deny,
+  no-referrer, and baseline CSP headers.
 - Authenticated non-admin roles are read-only across pgwire and the REST SQL routes. DML, COPY, DDL, role/routine administration, projection lifecycle/repair, retention, and operational commands fail before planning or execution. Public embedded sessions created with `CassieSession::new` or `Cassie::create_session` remain trusted in-process callers.
 - Hosted embedding providers use provider-specific `CASSIE_VOYAGE_*` and `CASSIE_COHERE_*` settings. `CASSIE_LOCAL_MODEL` and `CASSIE_LOCAL_DIMENSIONS` enable the deterministic local provider for tests, development, and explicit local-only deployments.
 - `CREATE TABLE ... WITH (storage = column_store)` creates a column-store table. `pg_catalog.pg_table_storage` and EXPLAIN `storage_mode` expose the effective table mode (`row-store`, `column-indexed`, or `column-store`).

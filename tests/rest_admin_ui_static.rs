@@ -301,6 +301,14 @@ fn should_preserve_existing_route_auth_behavior() {
         assert!(targetz.status().is_success());
         assert!(metrics.status().is_success());
         assert_eq!(collections.status(), reqwest::StatusCode::UNAUTHORIZED);
+        assert_eq!(collections.headers()["cache-control"], "no-store");
+        assert_eq!(collections.headers()["x-content-type-options"], "nosniff");
+        assert_eq!(collections.headers()["x-frame-options"], "DENY");
+        assert_eq!(collections.headers()["referrer-policy"], "no-referrer");
+        assert!(collections.headers()["content-security-policy"]
+            .to_str()
+            .expect("CSP header")
+            .contains("default-src"));
 
         stop_rest_server(shutdown, server).await;
         let _ = std::fs::remove_dir_all(data_dir);

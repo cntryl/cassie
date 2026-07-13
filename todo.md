@@ -364,6 +364,7 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
 - [ ] Bound and harden HTTP.
   - [x] Limit request bodies to 8 MiB, cap HTTP/1 header buffering at 32 KiB, and enforce a
     10-second header-read deadline with Tokio timer integration; oversized bodies return 413.
+  - [x] Apply baseline `nosniff`, frame, referrer, CSP, and API `no-store` response headers.
   - [ ] Add body/idle/request timeouts and complete slowloris protection.
   - Enforce content types/methods, explicit same-origin/CORS and CSRF policies, CSP,
     `X-Content-Type-Options`, frame/referrer policy, HSTS on TLS, no-store for auth/API, and immutable

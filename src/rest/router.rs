@@ -8,7 +8,7 @@ use bytes::Bytes;
 use http_body_util::{BodyExt, Full, Limited};
 use hyper::{
     body::{Body, Incoming},
-    header::{HeaderMap, HeaderValue, ALLOW, CONNECTION, CONTENT_TYPE, SET_COOKIE},
+    header::{HeaderMap, HeaderValue, ALLOW, CACHE_CONTROL, CONNECTION, CONTENT_TYPE, SET_COOKIE},
     server::conn::http1,
     service::service_fn,
     Method, Request, Response, StatusCode,
@@ -177,11 +177,35 @@ async fn route(
     cassie: Arc<Cassie>,
     admin_ui: Arc<AdminUiStaticFiles>,
 ) -> Result<Response<RestBody>, Infallible> {
+    let is_api = request.uri().path().starts_with("/api/");
     let response = match route_request_with_admin_ui(request, cassie, admin_ui).await {
         Ok(response) => response,
         Err((status, message)) => json_response(status, &serde_json::json!({ "error": message })),
     };
-    Ok(response)
+    Ok(with_security_headers(response, is_api))
+}
+
+fn with_security_headers(mut response: Response<RestBody>, is_api: bool) -> Response<RestBody> {
+    response.headers_mut().insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
+    response
+        .headers_mut()
+        .insert("x-frame-options", HeaderValue::from_static("DENY"));
+    response
+        .headers_mut()
+        .insert("referrer-policy", HeaderValue::from_static("no-referrer"));
+    response.headers_mut().insert(
+        "content-security-policy",
+        HeaderValue::from_static("default-src 'self'; object-src 'none'; frame-ancestors 'none'"),
+    );
+    if is_api {
+        response
+            .headers_mut()
+            .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    }
+    response
 }
 
 type RestBytes = Bytes;

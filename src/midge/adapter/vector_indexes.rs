@@ -133,6 +133,98 @@ impl Midge {
         Ok(Some(state))
     }
 
+    /// Searches a generation-bound HNSW manifest by point-reading only requested nodes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when persisted vector state or graph nodes are unreadable.
+    pub fn search_hnsw_graph_point_read(
+        &self,
+        collection: &str,
+        field: &str,
+        query: &[f32],
+        options: &crate::embeddings::HnswIndexOptions,
+        limit: usize,
+    ) -> Result<Option<crate::vector::hnsw::HnswSearchResult>, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let normalized_vectors = self.list_normalized_vectors(&collection, field)?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
+        let Some(raw) = tx
+            .get(&Self::vector_index_state_key(&collection, field))
+            .map_err(CassieError::from)?
+        else {
+            return Ok(None);
+        };
+        let value: serde_json::Value = serde_json::from_slice(&raw)
+            .map_err(|error| CassieError::Parse(format!("invalid vector index state: {error}")))?;
+        if value["hnsw_graph"]["nodes"].is_array() {
+            return Ok(None);
+        }
+        let persisted: PersistedVectorIndexState = serde_json::from_value(value)
+            .map_err(|error| CassieError::Parse(format!("invalid vector index state: {error}")))?;
+        if persisted.built_generation != self.collection_generation(&collection)? {
+            return Err(CassieError::Execution(
+                "hnsw fallback:stale-graph".to_string(),
+            ));
+        }
+        let Some(manifest) = persisted.hnsw_graph else {
+            return Err(CassieError::Execution(
+                "hnsw fallback:missing-graph".to_string(),
+            ));
+        };
+        let Some(entry_point) = manifest.entry_point.as_deref() else {
+            return Ok(None);
+        };
+        let node_prefix = super::key_encoding::hnsw_graph_node_prefix(&collection, field);
+        let nodes = collect_scan(
+            tx.scan(&Query::new().prefix(node_prefix.into()))
+                .map_err(CassieError::from)?,
+        )?
+        .into_iter()
+        .map(|(_, raw)| {
+            serde_json::from_slice::<crate::embeddings::HnswGraphNode>(&raw)
+                .map_err(|error| CassieError::Parse(format!("invalid hnsw graph node: {error}")))
+        })
+        .collect::<Result<Vec<_>, CassieError>>()?;
+        let graph = crate::embeddings::HnswGraphState {
+            version: manifest.version,
+            source_fingerprint: manifest.source_fingerprint,
+            row_count: manifest.row_count,
+            dimensions: manifest.dimensions,
+            metric: manifest.metric,
+            entry_point: Some(entry_point.to_string()),
+            max_layer: manifest.max_layer,
+            nodes,
+        };
+        if let Some(reason) = crate::vector::hnsw::graph_fallback_reason(
+            Some(&graph),
+            manifest.metric,
+            manifest.dimensions,
+            &normalized_vectors,
+        ) {
+            return Err(CassieError::Execution(format!("hnsw fallback:{reason}")));
+        }
+        let result = crate::vector::hnsw::search_graph_with_node_loader(
+            manifest.metric,
+            entry_point,
+            manifest.max_layer,
+            query,
+            options,
+            limit,
+            |id| {
+                tx.get(&super::key_encoding::hnsw_graph_node_key(
+                    &collection,
+                    field,
+                    id,
+                ))
+                .ok()
+                .flatten()
+                .and_then(|raw| serde_json::from_slice(&raw).ok())
+            },
+        );
+        Ok(result)
+    }
+
     /// # Errors
     ///
     /// Returns an error when derived vector-index state cannot be persisted.
@@ -333,6 +425,34 @@ impl Midge {
             CassieError::Parse(format!("invalid vector index metadata: {error}"))
         })?;
         self.hydrate_vector_index_state(&mut record)?;
+        if !requested_collection.eq_ignore_ascii_case(&collection) {
+            record.collection = self.display_collection_name(&requested_collection);
+        }
+        Ok(Some(record))
+    }
+
+    /// Returns vector-index metadata without hydrating graph or IVF derived state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when vector-index metadata cannot be read or decoded.
+    pub fn get_vector_index_definition(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Option<crate::embeddings::VectorIndexRecord>, CassieError> {
+        let requested_collection = collection.to_string();
+        let collection = self.canonical_collection_name(collection);
+        let tx = self.begin_schema_readonly_tx()?;
+        let Some(raw) = tx
+            .get(&Self::vector_index_key(&collection, field))
+            .map_err(CassieError::from)?
+        else {
+            return Ok(None);
+        };
+        let mut record: VectorIndexRecord = serde_json::from_slice(&raw).map_err(|error| {
+            CassieError::Parse(format!("invalid vector index metadata: {error}"))
+        })?;
         if !requested_collection.eq_ignore_ascii_case(&collection) {
             record.collection = self.display_collection_name(&requested_collection);
         }

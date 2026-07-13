@@ -116,31 +116,32 @@ fn execute_hnsw_vector_top_k(
         cassie.runtime.record_hnsw_fallback("missing-options");
         return Ok(None);
     };
-    let normalized_vectors = cassie
-        .midge
-        .list_normalized_vectors(&spec.collection, &spec.vector_field)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    if let Some(reason) = crate::vector::hnsw::graph_fallback_reason(
-        index.metadata.hnsw_graph.as_ref(),
-        index.metadata.metric,
-        index.metadata.dimensions,
-        &normalized_vectors,
-    ) {
-        cassie.runtime.record_hnsw_fallback(reason);
-        return Ok(None);
-    }
-    let graph = index
-        .metadata
-        .hnsw_graph
-        .as_ref()
-        .expect("validated hnsw graph");
     let top_needed = spec.limit.saturating_add(spec.offset).max(1);
     let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
     let started_at = std::time::Instant::now();
-    let Some(search) = crate::vector::hnsw::search_graph(graph, &spec.query, options, top_needed)
-    else {
-        cassie.runtime.record_hnsw_fallback("search-unavailable");
-        return Ok(None);
+    let search = match cassie.midge.search_hnsw_graph_point_read(
+        &spec.collection,
+        &spec.vector_field,
+        &spec.query,
+        options,
+        top_needed,
+    ) {
+        Ok(Some(search)) => search,
+        Ok(None) => {
+            cassie.runtime.record_hnsw_fallback("missing-graph");
+            return Ok(None);
+        }
+        Err(error) => {
+            let message = error.to_string();
+            if let Some(reason) = message
+                .split_once("hnsw fallback:")
+                .map(|(_, reason)| reason)
+            {
+                cassie.runtime.record_hnsw_fallback(reason);
+                return Ok(None);
+            }
+            return Err(QueryError::General(message));
+        }
     };
     let rows = search
         .candidates
@@ -173,7 +174,7 @@ fn hnsw_index(
 ) -> Result<Option<crate::embeddings::VectorIndexRecord>, QueryError> {
     let index = cassie
         .midge
-        .get_vector_index(&spec.collection, &spec.vector_field)
+        .get_vector_index_definition(&spec.collection, &spec.vector_field)
         .map_err(|error| QueryError::General(error.to_string()))?;
     let Some(index) = index else {
         return Ok(None);

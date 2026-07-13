@@ -855,6 +855,13 @@ unproven fallbacks from selected bounded probes.
 | `perf.http.document_create_get.100k` | HTTP | `tier4_integration_http` | `http_document_create_get` | 100k |
 | `perf.http.vector_search.10k` | HTTP | `tier4_integration_http` | `http_vector_search` | 10k |
 
+The Tier-4 HTTP transport workload logs in once and sends the resulting opaque
+`cassie_session` cookie on every measured request; it never constructs a
+password-bearing bearer credential. When the benchmark context has a configured
+REST TLS identity, the same workload uses HTTPS with a local certificate
+verification override, so transport results can be compared without changing
+the authenticated request path.
+
 `time_series_window_scan` owns developer feedback for the bucket-native range path and its row-backed fallback.
 
 ### Evidence Labels

@@ -32,7 +32,7 @@ pub struct HttpBenchContext {
     base_url: String,
     collection: String,
     client: reqwest::Client,
-    auth_header: Option<String>,
+    session_cookie: String,
     shutdown: Arc<Notify>,
     server: tokio::task::JoinHandle<Result<(), CassieError>>,
 }
@@ -52,21 +52,41 @@ pub async fn http_transport_context(ctx: &BenchContext) -> Result<HttpBenchConte
         ctx.cassie.as_ref().clone(),
         shutdown.clone(),
     ));
-    let client = reqwest::Client::new();
-    let base_url = format!("http://{addr}");
     let config = CassieRuntimeConfig::from_env()
         .map_err(|error| CassieError::Configuration(error.to_string()))?;
-    let auth_header = if config.password.is_empty() {
-        None
-    } else {
-        Some(format!("{}:{}", config.user, config.password))
-    };
+    let secure = ctx.cassie.rest_tls_enabled();
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(secure)
+        .build()
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    let scheme = if secure { "https" } else { "http" };
+    let base_url = format!("{scheme}://{addr}");
     wait_for_http_server(&client, &base_url).await?;
+    let login = client
+        .post(format!("{base_url}/api/v1/auth/login"))
+        .json(&json!({
+            "username": config.user,
+            "password": config.password,
+        }))
+        .send()
+        .await
+        .map_err(|error| CassieError::Execution(error.to_string()))?
+        .error_for_status()
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    let session_cookie = login
+        .headers()
+        .get("set-cookie")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            CassieError::Execution("REST login did not issue a session cookie".to_string())
+        })?;
     Ok(HttpBenchContext {
         base_url,
         collection: ctx.collection.clone(),
         client,
-        auth_header,
+        session_cookie,
         shutdown,
         server,
     })
@@ -74,10 +94,7 @@ pub async fn http_transport_context(ctx: &BenchContext) -> Result<HttpBenchConte
 
 impl HttpBenchContext {
     fn authorize(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-        match &self.auth_header {
-            Some(token) => builder.bearer_auth(token),
-            None => builder,
-        }
+        builder.header(reqwest::header::COOKIE, &self.session_cookie)
     }
 }
 
@@ -258,13 +275,10 @@ pub async fn http_transport_concurrent_document_gets(
             ctx.collection,
             index % 128
         );
-        let auth_header = ctx.auth_header.clone();
+        let session_cookie = ctx.session_cookie.clone();
         tasks.spawn(async move {
             let request = client.get(url);
-            let request = match &auth_header {
-                Some(token) => request.bearer_auth(token),
-                None => request,
-            };
+            let request = request.header(reqwest::header::COOKIE, session_cookie);
             let loaded = request
                 .send()
                 .await

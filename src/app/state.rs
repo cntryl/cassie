@@ -30,4 +30,10 @@ pub struct Cassie {
     pub started: Arc<AtomicBool>,
 }
 
-impl Cassie {}
+impl Cassie {
+    /// Reports whether the REST listener has a configured TLS identity.
+    #[must_use]
+    pub fn rest_tls_enabled(&self) -> bool {
+        self.rest_tls_cert_file.is_some()
+    }
+}

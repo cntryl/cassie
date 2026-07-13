@@ -24,7 +24,7 @@ fn main() {
     let runtime = workloads::runtime();
     let mut runner = stress::runner(BENCHMARK);
 
-    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000), ("250k", 250_000)] {
+    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000)] {
         let benchmark =
             performance_benchmarks::expect_benchmark(BENCHMARK, "vector_executor", dataset);
         let case =

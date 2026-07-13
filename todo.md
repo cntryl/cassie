@@ -340,29 +340,29 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
 
 ## Phase 6 — scoped REST, TLS, opaque sessions, and UI authentication
 
-- [ ] Bind every REST request to an authenticated database/schema session.
+- [x] Bind every REST request to an authenticated database/schema session.
   - [x] Stop global suffix resolution at the REST router boundary for collections, documents,
     indexes, and search handlers.
   - [x] Reject ambiguous names and scope collection listing/resource access to the request
     database and search path.
   - Tests: duplicate names across databases/schemas and admin/read-only authorization on every
     resource route.
-- [ ] Replace `Bearer <user>:<password>` and browser `localStorage` credentials with opaque server
+- [x] Replace `Bearer <user>:<password>` and browser `localStorage` credentials with opaque server
     sessions.
   - [x] Add login/current-session/logout endpoints, cryptographically random tokens hashed at rest,
     expiry, revocation, bounded session storage/cleanup, and `HttpOnly`/`SameSite=Strict` cookies.
-    `Secure` is deferred to the inbound-TLS slice.
-  - Remove password/token persistence and per-request password headers from the UI.
-  - Add global 401 handling, session bootstrap after reload, and server-backed logout.
+    `Secure` is emitted for HTTPS responses.
+  - [x] Remove password/token persistence and per-request password headers from the UI.
+  - [x] Add global 401 handling, session bootstrap after reload, and server-backed logout.
   - [x] Invalid login, revocation, password rotation, bearer rejection, cookie flags, reload,
     logout, expiry cleanup, active-session cap behavior, and deleted-role session cleanup are
     covered; larger session-cap stress remains operational evidence.
-- [ ] Add inbound REST TLS with rustls configuration and fail-closed non-loopback policy.
+- [x] Add inbound REST TLS with rustls configuration and fail-closed non-loopback policy.
   - [x] Configure rustls certificate/key files, reject partial identities, require TLS for
     non-loopback REST listeners, and fail startup on missing or invalid identities.
-  - Tests: valid identity loading, missing/invalid certificate, and plaintext policy are covered;
-    an end-to-end HTTPS handshake remains in the Tier-4 HTTP evidence slice.
-- [ ] Bound and harden HTTP.
+  - [x] Tests: valid identity loading, missing/invalid certificate, plaintext policy, and an
+    end-to-end HTTPS handshake with TLS-only HSTS are covered; broader Tier-4 HTTP evidence remains.
+- [x] Bound and harden HTTP.
   - [x] Limit request bodies to 8 MiB, cap HTTP/1 header buffering at 32 KiB, and enforce a
     10-second header-read deadline with Tokio timer integration; oversized bodies return 413.
   - [x] Bound body collection and route execution with a 30-second per-request deadline;
@@ -375,7 +375,7 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - [x] Emit HSTS only for TLS-served responses and immutable one-year caching for hashed UI assets.
   - [x] Add header-read, per-body-frame idle, and request execution timeouts; stalled body
     producers now receive deterministic 408 responses without unbounded connection retention.
-  - Enforce content types/methods, explicit same-origin/CORS and CSRF policies, CSP,
+  - [x] Enforce content types/methods, explicit same-origin/CORS and CSRF policies, CSP,
     `X-Content-Type-Options`, frame/referrer policy, HSTS on TLS, no-store for auth/API, and immutable
     caching for hashed assets.
   - [x] Keep `/metrics` public for readiness and local diagnostics; test health, liveness, metrics,

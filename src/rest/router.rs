@@ -207,6 +207,7 @@ struct RouteDispatchContext<'a> {
     path: &'a str,
     started_at: Instant,
     request_context: &'a RestRequestContext,
+    secure_transport: bool,
 }
 
 async fn route(
@@ -216,7 +217,9 @@ async fn route(
     secure_transport: bool,
 ) -> Result<Response<RestBody>, Infallible> {
     let is_api = request.uri().path().starts_with("/api/");
-    let response = match route_request_with_admin_ui(request, cassie, admin_ui).await {
+    let response = match route_request_with_admin_ui(request, cassie, admin_ui, secure_transport)
+        .await
+    {
         Ok(response) => response,
         Err((status, message)) => json_response(status, &serde_json::json!({ "error": message })),
     };
@@ -401,6 +404,7 @@ pub async fn route_request(
         request,
         cassie,
         Arc::new(AdminUiStaticFiles::new(default_admin_ui_dir())),
+        false,
     )
     .await
 }
@@ -409,6 +413,7 @@ async fn route_request_with_admin_ui(
     request: Request<Incoming>,
     cassie: Arc<Cassie>,
     admin_ui: Arc<AdminUiStaticFiles>,
+    secure_transport: bool,
 ) -> Result<Response<RestBody>, (StatusCode, String)> {
     let method = request.method().clone();
     let path = normalized_request_path(request.uri().path());
@@ -471,6 +476,7 @@ async fn route_request_with_admin_ui(
             path: &path,
             started_at,
             request_context: &request_context,
+            secure_transport,
         },
         cassie.clone(),
         admin_ui,
@@ -637,7 +643,7 @@ async fn dispatch_auth_routes(
                         "role": principal.role.name,
                     }),
                 );
-                set_session_cookie(&mut response, &token, false);
+                set_session_cookie(&mut response, &token, false, context.secure_transport);
                 Some(response)
             })
         }
@@ -669,23 +675,24 @@ async fn dispatch_auth_routes(
             }
             let mut response =
                 json_response(StatusCode::OK, &serde_json::json!({"logged_out": true}));
-            set_session_cookie(&mut response, "", true);
+            set_session_cookie(&mut response, "", true, context.secure_transport);
             Ok(Some(response))
         }
         _ => Ok(None),
     }
 }
 
-fn set_session_cookie(response: &mut Response<RestBody>, token: &str, clear: bool) {
+fn set_session_cookie(response: &mut Response<RestBody>, token: &str, clear: bool, secure: bool) {
+    let secure_attribute = if secure { "; Secure" } else { "" };
     let value = if clear {
         format!(
-            "{}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict",
-            crate::rest::sessions::SESSION_COOKIE
+            "{}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict{secure_attribute}",
+            crate::rest::sessions::SESSION_COOKIE,
         )
     } else {
         format!(
-            "{}={token}; Path=/; HttpOnly; SameSite=Strict",
-            crate::rest::sessions::SESSION_COOKIE
+            "{}={token}; Path=/; HttpOnly; SameSite=Strict{secure_attribute}",
+            crate::rest::sessions::SESSION_COOKIE,
         )
     };
     if let Ok(header) = HeaderValue::from_str(&value) {

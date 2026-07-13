@@ -150,6 +150,8 @@ Unsupported procedural expectations include:
   bucket start bounds as fixed-width ordered integers; generation fencing and source-row fallback
   remain active while bounded range reads are completed.
 - REST admin auth uses server-owned opaque `cassie_session` cookies issued by login/current-session/logout endpoints; password-bearing `Authorization` headers are rejected. Expired, rotated, and deleted-role sessions are rejected and removed from the session store, and active sessions are bounded at 1,024. Pgwire retains its protocol-native credential flow, while both interfaces share credential validation and role lookup.
+- REST TLS accepts configured rustls certificate/key files, fails closed for non-loopback plaintext
+  listeners, and has an end-to-end HTTPS health path with TLS-only HSTS.
 - REST HTTP transport rejects request bodies over 8 MiB, limits HTTP/1 header buffering to 32 KiB,
   and applies 10-second header-read and per-body-frame idle deadlines. API responses emit `no-store`, `nosniff`, frame-deny,
   no-referrer, and baseline CSP headers; body collection and route execution have a 30-second

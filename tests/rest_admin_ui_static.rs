@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use cassie::app::Cassie;
+use cassie::config::CassieRuntimeConfig;
 use tokio::sync::Notify;
 use uuid::Uuid;
 
@@ -93,6 +94,99 @@ async fn stop_rest_server(
 ) {
     shutdown.notify_waiters();
     let _ = server.await;
+}
+
+async fn spawn_tls_rest_server(
+    cassie: Cassie,
+) -> (
+    String,
+    Arc<Notify>,
+    tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>,
+) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind listener");
+    let addr = listener.local_addr().expect("listener address");
+    drop(listener);
+
+    let shutdown = Arc::new(Notify::new());
+    let server = tokio::spawn(cassie::rest::router::run_with_shutdown(
+        addr.to_string(),
+        cassie,
+        shutdown.clone(),
+    ));
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    (format!("https://{addr}"), shutdown, server)
+}
+
+#[test]
+fn should_complete_rest_https_handshake() {
+    // Arrange
+    with_fallback();
+    let data_dir = data_dir("https-handshake");
+    let tls_dir = temp_path("https-identity");
+    std::fs::create_dir_all(&tls_dir).expect("create TLS directory");
+    let certificate = tls_dir.join("cert.pem");
+    let key = tls_dir.join("key.pem");
+    let identity = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])
+        .expect("certificate identity");
+    std::fs::write(&certificate, identity.cert.pem()).expect("certificate fixture");
+    std::fs::write(&key, identity.key_pair.serialize_pem()).expect("key fixture");
+    let config = CassieRuntimeConfig {
+        rest_tls_cert_file: Some(certificate.to_string_lossy().to_string()),
+        rest_tls_key_file: Some(key.to_string_lossy().to_string()),
+        ..CassieRuntimeConfig::default()
+    };
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&data_dir, config).expect("cassie");
+
+        // Act
+        let (base_url, shutdown, server) = spawn_tls_rest_server(cassie).await;
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .expect("TLS client");
+        let response = client
+            .get(format!("{base_url}/health"))
+            .send()
+            .await
+            .expect("HTTPS health request");
+
+        // Assert
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get("strict-transport-security")
+                .and_then(|value| value.to_str().ok()),
+            Some("max-age=31536000")
+        );
+        let login = client
+            .post(format!("{base_url}/api/v1/auth/login"))
+            .json(&serde_json::json!({
+                "username": "postgres",
+                "password": "postgres"
+            }))
+            .send()
+            .await
+            .expect("HTTPS login request");
+        let cookie = login
+            .headers()
+            .get("set-cookie")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default();
+        assert!(cookie.contains("Secure"));
+        stop_rest_server(shutdown, server).await;
+    });
+
+    let _ = std::fs::remove_dir_all(data_dir);
+    let _ = std::fs::remove_dir_all(tls_dir);
 }
 
 #[test]

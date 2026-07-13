@@ -14,8 +14,9 @@ ambiguous or cross-database names, and filters collection listings to the same s
 cookie sessions now issue cryptographically random tokens hashed in Midge, validate expiry and
 credential rotation, remove invalid sessions after role deletion, and support login/current-session/logout with HttpOnly, SameSite=Strict
 cookies. Inbound TLS configuration now fails closed for non-loopback listeners and loads a
-rustls server identity before accepting traffic. Secure cookie emission and the remaining HTTP
-hardening are still open. REST request bodies are capped at 8 MiB, HTTP/1 headers at 32 KiB,
+rustls server identity before accepting traffic; an end-to-end HTTPS health handshake verifies
+the TLS path and TLS-only HSTS; HTTPS session cookies carry `Secure`. REST request bodies are
+capped at 8 MiB, HTTP/1 headers at 32 KiB,
 and header reads at 10 seconds.
 Body collection and route execution also have a 30-second per-request deadline and return 408 on
 expiry without terminating unrelated keep-alive requests. Body frames also have a 10-second idle

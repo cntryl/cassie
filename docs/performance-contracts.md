@@ -714,9 +714,9 @@ with fallback/rollback evidence.
 | `local-dev-fallback-100k` | Local developer workstation | `in_memory_midge_fallback` | Deterministic generated read-model fixture | Single benchmark owner workload | 100k | `cargo bench --locked --bench <owner-benchmark>` | p50, p95, p99, throughput, fallback counters, cache occupancy, storage-family operations, feature-family metrics | Not SLA, not CI gate, not production-ready promotion, not disk sync unless `BENCH_MIDGE_DISK=1` |
 | `local-dev-fallback-250k` | Local developer workstation | `in_memory_midge_fallback` | Deterministic generated read-model fixture | Single benchmark owner workload | 250k | `cargo bench --locked --bench <owner-benchmark>` | p50, p95, p99, throughput, fallback counters, cache occupancy, storage-family operations, feature-family metrics | Manual diagnostic only; not SLA, not CI gate, not production-ready promotion, not disk sync unless `BENCH_MIDGE_DISK=1` |
 
-Larger-scale fixture work remains backlog-only until the fixture generator, benchmark owner, storage
-mode, host shape, and evidence command are implemented. Do not add scenario constants or deployment
-profiles for those scales before a runnable benchmark exists.
+The 250k retrieval fixture is runnable as a manual diagnostic profile. Retained disk-backed artifacts,
+repeatability, host-shape evidence, and promotion thresholds remain open; do not treat the profile as
+an SLA or production promotion claim.
 
 ### TDD Optimization Round 01
 

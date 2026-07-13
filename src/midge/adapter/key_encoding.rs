@@ -331,6 +331,22 @@ pub(super) fn vector_index_state_key(collection: &str, field: &str) -> Vec<u8> {
     data_scoped_key(FAMILY_VECTOR_INDEX_STATE, collection, &[field.as_bytes()])
 }
 
+pub(super) fn hnsw_graph_node_key(collection: &str, field: &str, id: &str) -> Vec<u8> {
+    data_scoped_key(
+        FAMILY_VECTOR_INDEX_STATE,
+        collection,
+        &[field.as_bytes(), b"n", id.as_bytes()],
+    )
+}
+
+pub(super) fn hnsw_graph_node_prefix(collection: &str, field: &str) -> Vec<u8> {
+    data_scoped_prefix(
+        FAMILY_VECTOR_INDEX_STATE,
+        collection,
+        &[field.as_bytes(), b"n"],
+    )
+}
+
 pub(super) fn vector_index_state_prefix(collection: &str) -> Vec<u8> {
     data_scoped_prefix(FAMILY_VECTOR_INDEX_STATE, collection, &[])
 }

@@ -3,6 +3,25 @@ use super::{
     DocumentWriteFailurePoint, Midge, NormalizedVectorRecord, Query, StorageFamily,
     VectorIndexRecord, VectorIndexState, WriteOptions,
 };
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PersistedHnswManifest {
+    version: u32,
+    source_fingerprint: u64,
+    row_count: usize,
+    dimensions: usize,
+    metric: crate::embeddings::DistanceMetric,
+    entry_point: Option<String>,
+    max_layer: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PersistedVectorIndexState {
+    built_generation: u64,
+    hnsw_graph: Option<PersistedHnswManifest>,
+    ivfflat_training: Option<crate::embeddings::IvfFlatTrainingState>,
+}
 
 impl Midge {
     /// # Errors
@@ -61,8 +80,53 @@ impl Midge {
         else {
             return Ok(None);
         };
-        let state: VectorIndexState = serde_json::from_slice(&raw)
+        let raw_json: serde_json::Value = serde_json::from_slice(&raw)
             .map_err(|error| CassieError::Parse(format!("invalid vector index state: {error}")))?;
+        let state = if raw_json["hnsw_graph"].get("nodes").is_some() {
+            serde_json::from_value(raw_json).map_err(|error| {
+                CassieError::Parse(format!("invalid vector index state: {error}"))
+            })?
+        } else {
+            let persisted: PersistedVectorIndexState =
+                serde_json::from_value(raw_json).map_err(|error| {
+                    CassieError::Parse(format!("invalid vector index state: {error}"))
+                })?;
+            let hnsw_graph = persisted
+                .hnsw_graph
+                .map(
+                    |manifest| -> Result<crate::embeddings::HnswGraphState, CassieError> {
+                        let prefix =
+                            super::key_encoding::hnsw_graph_node_prefix(&collection, field);
+                        let nodes = collect_scan(
+                            tx.scan(&Query::new().prefix(prefix.into()))
+                                .map_err(CassieError::from)?,
+                        )?
+                        .into_iter()
+                        .map(|(_, raw)| {
+                            serde_json::from_slice(raw.as_slice()).map_err(|error| {
+                                CassieError::Parse(format!("invalid hnsw graph node: {error}"))
+                            })
+                        })
+                        .collect::<Result<Vec<crate::embeddings::HnswGraphNode>, CassieError>>()?;
+                        Ok(crate::embeddings::HnswGraphState {
+                            version: manifest.version,
+                            source_fingerprint: manifest.source_fingerprint,
+                            row_count: manifest.row_count,
+                            dimensions: manifest.dimensions,
+                            metric: manifest.metric,
+                            entry_point: manifest.entry_point,
+                            max_layer: manifest.max_layer,
+                            nodes,
+                        })
+                    },
+                )
+                .transpose()?;
+            VectorIndexState {
+                built_generation: persisted.built_generation,
+                hnsw_graph,
+                ivfflat_training: persisted.ivfflat_training,
+            }
+        };
         if state.built_generation != self.collection_generation(&collection)? {
             return Ok(None);
         }
@@ -102,10 +166,49 @@ impl Midge {
         field: &str,
         state: &VectorIndexState,
     ) -> Result<(), CassieError> {
-        let value =
-            serde_json::to_vec(state).map_err(|error| CassieError::Parse(error.to_string()))?;
+        let node_prefix = super::key_encoding::hnsw_graph_node_prefix(collection, field);
+        let old_node_keys = collect_scan(
+            tx.scan(&Query::new().prefix(node_prefix.into()))
+                .map_err(CassieError::from)?,
+        )?
+        .into_iter()
+        .map(|(key, _)| key)
+        .collect::<Vec<_>>();
+        for key in old_node_keys {
+            tx.delete(key).map_err(CassieError::from)?;
+        }
+        let hnsw_graph = state
+            .hnsw_graph
+            .as_ref()
+            .map(|graph| PersistedHnswManifest {
+                version: graph.version,
+                source_fingerprint: graph.source_fingerprint,
+                row_count: graph.row_count,
+                dimensions: graph.dimensions,
+                metric: graph.metric,
+                entry_point: graph.entry_point.clone(),
+                max_layer: graph.max_layer,
+            });
+        let persisted = PersistedVectorIndexState {
+            built_generation: state.built_generation,
+            hnsw_graph,
+            ivfflat_training: state.ivfflat_training.clone(),
+        };
+        let value = serde_json::to_vec(&persisted)
+            .map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::vector_index_state_key(collection, field), value, None)
             .map_err(CassieError::from)?;
+        if let Some(graph) = &state.hnsw_graph {
+            for node in &graph.nodes {
+                tx.put(
+                    super::key_encoding::hnsw_graph_node_key(collection, field, &node.id),
+                    serde_json::to_vec(node)
+                        .map_err(|error| CassieError::Parse(error.to_string()))?,
+                    None,
+                )
+                .map_err(CassieError::from)?;
+            }
+        }
         check_document_write_failure_point(DocumentWriteFailurePoint::VectorState)?;
         Ok(())
     }
@@ -155,10 +258,10 @@ impl Midge {
             let Some(raw) = tx.get(&key).map_err(CassieError::from)? else {
                 continue;
             };
-            let Ok(mut state) = serde_json::from_slice::<VectorIndexState>(&raw) else {
+            let Ok(mut state) = serde_json::from_slice::<serde_json::Value>(&raw) else {
                 continue;
             };
-            state.built_generation = built_generation;
+            state["built_generation"] = serde_json::json!(built_generation);
             tx.put(
                 key,
                 serde_json::to_vec(&state)

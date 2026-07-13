@@ -490,3 +490,39 @@ fn should_fall_back_when_hnsw_graph_max_layer_is_invalid() {
 
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_store_hnsw_manifest_separately_from_point_readable_nodes() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hnsw_manifest_nodes");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    cassie.startup().unwrap();
+    let collection = "hnsw_manifest_nodes";
+    register_hnsw_collection(&cassie, collection);
+    put_hnsw_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+    put_hnsw_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+
+    // Act
+    put_hnsw_index(&cassie, collection, 2);
+    let entries = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, b"")
+        .unwrap();
+    let node_count = entries
+        .iter()
+        .filter(|(_, raw)| serde_json::from_slice::<cassie::embeddings::HnswGraphNode>(raw).is_ok())
+        .count();
+    let monolithic_graph_count = entries
+        .iter()
+        .filter(|(_, raw)| {
+            serde_json::from_slice::<cassie::embeddings::HnswGraphState>(raw).is_ok()
+        })
+        .count();
+
+    // Assert
+    assert_eq!(node_count, 2);
+    assert_eq!(monolithic_graph_count, 0);
+
+    let _ = std::fs::remove_dir_all(path);
+}

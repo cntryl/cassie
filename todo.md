@@ -283,7 +283,7 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - Persisted metadata/manifests are generation-checked and malformed postings/document statistics
     are rejected instead of silently omitted; the authoritative row-scan path remains equivalent.
   - Tests: `tests/fulltext_retrieval_corruption.rs` covers corrupt postings and query fallback.
-- [ ] Add full-text publication debt replay and retrieval-stage metrics.
+- [x] Add full-text publication debt replay and retrieval-stage metrics.
   - Persist full-text publication debt in the existing Midge maintenance journal when publication
     is interrupted, replay it idempotently at startup, and expose explicit retrieval-stage counters
     for row-scan fallback and its reason.
@@ -291,8 +291,10 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     and retrieval-stage metrics; corruption and fallback equivalence remain covered by
     `tests/fulltext_retrieval_corruption.rs`.
 - [ ] Make ANN storage reads genuinely bounded.
-  - Replace full-prefix normalized-vector validation and monolithic HNSW graph reads with an
-    addressable generation manifest plus point-readable graph nodes/list membership/candidates.
+  - [x] Persist HNSW generation manifests separately from compact, point-addressable graph nodes;
+    old monolithic states remain readable during the latest-only transition.
+  - Replace full-prefix normalized-vector validation and monolithic HNSW reads at query time with
+    bounded manifest/node/list membership/candidate reads.
   - Point-read only selected candidates and exact-rerank against current source-row vectors.
   - Fall back deterministically when a candidate/vector is missing or its generation changes.
   - Tests: read-counter scaling, concurrent generation changes, missing candidates, and equivalence

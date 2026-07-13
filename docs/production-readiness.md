@@ -20,6 +20,8 @@ and header reads at 10 seconds.
 Body collection and route execution also have a 30-second per-request deadline and return 408 on
 expiry without terminating unrelated keep-alive requests.
 State-changing `/api/` requests require `application/json` and reject other media types with 415.
+When browsers send `Origin`, state-changing API requests must match the request `Host`; Cassie
+does not emit permissive CORS headers, and clients without `Origin` remain supported.
 API responses also emit `no-store`, `nosniff`, frame-deny, no-referrer, and baseline CSP headers;
 hashed-asset immutable caching and TLS-only HSTS remain open.
 For scalar-index and read-optimization work, local-dev evidence can validate access paths,

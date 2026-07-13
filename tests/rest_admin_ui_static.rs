@@ -384,6 +384,40 @@ fn should_reject_non_json_rest_write_requests() {
 }
 
 #[test]
+fn should_reject_cross_origin_rest_state_changes() {
+    // Arrange
+    with_fallback();
+    let data_dir = data_dir("cross-origin");
+    let dist = write_dist_fixture("cross-origin");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
+        // Act
+        let response = reqwest::Client::new()
+            .post(format!("{base_url}/api/v1/auth/login"))
+            .header("origin", "https://evil.example")
+            .json(&serde_json::json!({
+                "username": "postgres",
+                "password": "postgres"
+            }))
+            .send()
+            .await
+            .expect("cross-origin request");
+
+        // Assert
+        assert_eq!(response.status(), reqwest::StatusCode::FORBIDDEN);
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+        let _ = std::fs::remove_dir_all(dist);
+    });
+}
+
+#[test]
 fn should_not_serve_admin_shell_for_unmatched_api_routes() {
     // Arrange
     with_fallback();

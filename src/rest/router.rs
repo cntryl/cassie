@@ -314,6 +314,7 @@ async fn route_request_with_admin_ui(
     let path = normalized_request_path(request.uri().path());
     let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     let started_at = Instant::now();
+    validate_rest_origin(&method, &path, &request)?;
     validate_rest_content_type(&method, &path, &request)?;
     let mut role = None;
     let mut token = None;
@@ -412,6 +413,44 @@ async fn route_request_with_admin_ui(
 
 fn requires_json_content_type(method: &Method, path: &str) -> bool {
     path.starts_with("/api/") && matches!(method, &Method::POST | &Method::PUT | &Method::PATCH)
+}
+
+fn validate_rest_origin(
+    method: &Method,
+    path: &str,
+    request: &Request<Incoming>,
+) -> Result<(), (StatusCode, String)> {
+    if !path.starts_with("/api/")
+        || !matches!(
+            method,
+            &Method::POST | &Method::PUT | &Method::PATCH | &Method::DELETE
+        )
+    {
+        return Ok(());
+    }
+    let Some(origin) = request.headers().get("origin") else {
+        return Ok(());
+    };
+    let Some(host) = request.headers().get("host") else {
+        return Err((
+            StatusCode::FORBIDDEN,
+            "REST state-changing requests require a Host header".to_string(),
+        ));
+    };
+    let origin = origin.to_str().ok();
+    let host = host.to_str().ok();
+    let same_origin = origin
+        .zip(host)
+        .and_then(|(origin, host)| origin.split_once("://").map(|(_, value)| (value, host)))
+        .is_some_and(|(origin_host, host)| origin_host.trim_end_matches('/') == host);
+    if same_origin {
+        Ok(())
+    } else {
+        Err((
+            StatusCode::FORBIDDEN,
+            "cross-origin REST state change rejected".to_string(),
+        ))
+    }
 }
 
 fn normalized_request_path(raw_path: &str) -> String {

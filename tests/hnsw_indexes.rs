@@ -270,6 +270,74 @@ fn should_refresh_hnsw_graph_after_document_mutations() {
 }
 
 #[test]
+fn should_keep_hnsw_reads_safe_during_concurrent_mutation() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hnsw_concurrent_mutation");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    cassie.startup().unwrap();
+    let collection = "hnsw_concurrent_mutation";
+    register_hnsw_collection(&cassie, collection);
+    put_hnsw_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+    put_hnsw_document(&cassie, collection, "middle", [0.5, 0.5, 0.0]);
+    put_hnsw_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+    put_hnsw_index(&cassie, collection, 2);
+    let cassie = std::sync::Arc::new(cassie);
+
+    // Act
+    let readers = (0..4)
+        .map(|_| {
+            let cassie = std::sync::Arc::clone(&cassie);
+            std::thread::spawn(move || {
+                let session = cassie.create_session("tester", None);
+                cassie
+                    .execute_sql(
+                        &session,
+                        "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM hnsw_concurrent_mutation ORDER BY distance ASC LIMIT 1",
+                        vec![],
+                    )
+                    .unwrap()
+                    .rows[0][0]
+                    .clone()
+            })
+        })
+        .collect::<Vec<_>>();
+    let writer = {
+        let cassie = std::sync::Arc::clone(&cassie);
+        std::thread::spawn(move || {
+            put_hnsw_document(
+                cassie.as_ref(),
+                "hnsw_concurrent_mutation",
+                "new-nearest",
+                [0.99, 0.0, 0.0],
+            );
+        })
+    };
+    writer.join().unwrap();
+    let results = readers
+        .into_iter()
+        .map(|reader| reader.join().unwrap())
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert_eq!(results.len(), 4);
+    assert!(results.into_iter().all(|value| {
+        value == Value::String("near".to_string())
+            || value == Value::String("new-nearest".to_string())
+    }));
+    assert_eq!(
+        stored_hnsw_index(cassie.as_ref(), collection)
+            .metadata
+            .hnsw_graph
+            .unwrap()
+            .row_count,
+        4
+    );
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_use_hnsw_graph_for_sql_vector_top_k_with_bounded_candidates() {
     // Arrange
     with_fallback();

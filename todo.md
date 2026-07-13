@@ -304,7 +304,7 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - [x] Point-read only selected candidates and exact-rerank against current source-row vectors.
   - [x] Fall back deterministically when a candidate/vector is missing or its generation changes.
   - Tests: `tests/hnsw_indexes.rs` covers read-counter scaling, missing candidates, generation
-    fencing, and fallback equivalence; concurrent mutation and IVF/larger-corpus evidence remain
+    fencing, fallback equivalence, and concurrent mutation; IVF and larger-corpus evidence remain
     open.
 - [ ] Replace hybrid full-row prefilter/merge with bounded persisted text and vector candidate
   streams, structured prefilter pushdown, explicit budgets, and exact final source-row scoring.

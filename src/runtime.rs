@@ -615,6 +615,37 @@ impl RuntimeState {
     /// # Panics
     ///
     /// Panics if an internal invariant required by this operation is violated.
+    pub fn record_hybrid_retrieval_diagnostics(
+        &self,
+        posting_reads: usize,
+        ann_reads: usize,
+        generation_rejections: usize,
+        exact_reranks: usize,
+        truncations: usize,
+        budget_rejections: usize,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.hybrid.retrieval_stage_queries_total += 1;
+        metrics.hybrid.posting_reads_total += posting_reads as u64;
+        metrics.hybrid.ann_reads_total += ann_reads as u64;
+        metrics.hybrid.generation_rejections_total += generation_rejections as u64;
+        metrics.hybrid.exact_reranks_total += exact_reranks as u64;
+        metrics.hybrid.truncation_count_total += truncations as u64;
+        metrics.hybrid.candidate_budget_rejections_total += budget_rejections as u64;
+    }
+
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
+    pub fn record_hybrid_budget_rejection(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.hybrid.truncation_count_total += 1;
+        metrics.hybrid.candidate_budget_rejections_total += 1;
+    }
+
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_storage_access(&self, family: &str, write: bool, success: bool) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         let family = family.to_ascii_lowercase();

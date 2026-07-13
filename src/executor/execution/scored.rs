@@ -404,41 +404,13 @@ fn execute_hybrid_top_k(
     )?;
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
     let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
-    let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
-    let mut text_candidate_count = 0usize;
-
-    for document in &search_documents {
-        if !candidate_ids.contains(document.id.as_str()) {
-            continue;
-        }
-        let search_score = search_context.score_term_stats(
-            Some(&spec.text_field),
-            &document.text_stats,
-            &query_terms,
-        );
-        if search_score == 0.0 {
-            continue;
-        }
-        text_candidate_count += 1;
-        let vector = document.vector.as_ref().ok_or_else(|| {
-            QueryError::General("vector_score expects vector in first argument".to_string())
-        })?;
-        if vector.len() != spec.vector_query.len() {
-            return Err(QueryError::General(format!(
-                "vector_score vector length mismatch: {} != {}",
-                vector.len(),
-                spec.vector_query.len()
-            )));
-        }
-        let vector_score = 1.0 / (1.0 + crate::vector::l2_distance(vector, &spec.vector_query));
-        let score = crate::hybrid::hybrid_score(search_score, vector_score, None);
-        let candidate = ScoredSearchCandidate {
-            sort_value: -score,
-            score,
-            id: document.id.clone(),
-        };
-        push_top_k(&mut top, spec.top_needed(), candidate);
-    }
+    let (top, text_candidate_count) = hybrid::score_hybrid_documents(
+        &search_documents,
+        &candidate_ids,
+        &search_context,
+        spec,
+        &query_terms,
+    )?;
 
     let rows = scored_candidates_to_rows(
         top,
@@ -448,6 +420,12 @@ fn execute_hybrid_top_k(
         &spec.score_column,
     );
     let candidate_count = candidate_ids.len();
+    hybrid::record_hybrid_diagnostics(
+        cassie,
+        query_terms.len(),
+        candidate_count,
+        text_candidate_count,
+    );
     cassie
         .runtime
         .record_search_execution(started_at.elapsed(), candidate_count, rows.len());

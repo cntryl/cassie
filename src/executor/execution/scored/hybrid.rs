@@ -6,6 +6,7 @@ use super::{
 use crate::executor::{batch, filter, scan};
 use crate::search::analyzer::AnalyzerConfig;
 use std::collections::HashMap;
+use std::collections::{BinaryHeap, HashSet};
 
 pub(super) fn search_context_for_fields(
     cassie: &Cassie,
@@ -17,6 +18,69 @@ pub(super) fn search_context_for_fields(
         .map(|field| field.to_ascii_lowercase())
         .collect::<std::collections::HashSet<_>>();
     super::load_fulltext_index_options(cassie, collection, &requested_fields)
+}
+
+pub(super) fn record_hybrid_diagnostics(
+    cassie: &Cassie,
+    posting_reads: usize,
+    ann_reads: usize,
+    exact_reranks: usize,
+) {
+    cassie.runtime.record_hybrid_retrieval_diagnostics(
+        posting_reads,
+        ann_reads,
+        0,
+        exact_reranks,
+        0,
+        0,
+    );
+}
+
+pub(super) fn score_hybrid_documents(
+    documents: &[super::TokenizedHybridDocument],
+    candidate_ids: &HashSet<String>,
+    search_context: &filter::SearchContext,
+    spec: &HybridTopKSpec,
+    query_terms: &[String],
+) -> Result<(BinaryHeap<super::ScoredSearchCandidate>, usize), QueryError> {
+    let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
+    let mut text_candidate_count = 0usize;
+    for document in documents {
+        if !candidate_ids.contains(document.id.as_str()) {
+            continue;
+        }
+        let search_score = search_context.score_term_stats(
+            Some(&spec.text_field),
+            &document.text_stats,
+            query_terms,
+        );
+        if search_score == 0.0 {
+            continue;
+        }
+        text_candidate_count += 1;
+        let vector = document.vector.as_ref().ok_or_else(|| {
+            QueryError::General("vector_score expects vector in first argument".to_string())
+        })?;
+        if vector.len() != spec.vector_query.len() {
+            return Err(QueryError::General(format!(
+                "vector_score vector length mismatch: {} != {}",
+                vector.len(),
+                spec.vector_query.len()
+            )));
+        }
+        let vector_score = 1.0 / (1.0 + crate::vector::l2_distance(vector, &spec.vector_query));
+        let score = crate::hybrid::hybrid_score(search_score, vector_score, None);
+        super::push_top_k(
+            &mut top,
+            spec.top_needed(),
+            super::ScoredSearchCandidate {
+                sort_value: -score,
+                score,
+                id: document.id.clone(),
+            },
+        );
+    }
+    Ok((top, text_candidate_count))
 }
 
 pub(super) fn bounded_hybrid_rows(
@@ -69,6 +133,7 @@ pub(super) fn bounded_hybrid_rows(
         return Ok(None);
     };
     if stats.len() > cassie.runtime.limits().adaptive_candidate_max {
+        cassie.runtime.record_hybrid_budget_rejection();
         cassie.runtime.record_hybrid_prefilter_usage(
             stats.len(),
             stats.len(),

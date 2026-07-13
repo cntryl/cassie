@@ -315,9 +315,7 @@ fn should_reject_hybrid_text_candidate_without_vector() {
     });
 }
 
-#[test]
-fn should_bound_hybrid_reads_to_persisted_text_candidates() {
-    // Arrange
+fn bounded_hybrid_fixture() -> (Cassie, String, &'static str) {
     with_fallback();
     let path = data_dir("hybrid_bounded_candidates");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
@@ -400,6 +398,13 @@ fn should_bound_hybrid_reads_to_persisted_text_candidates() {
             },
         })
         .unwrap();
+    (cassie, path, collection)
+}
+
+#[test]
+fn should_bound_hybrid_reads_to_persisted_text_candidates() {
+    // Arrange
+    let (cassie, path, collection) = bounded_hybrid_fixture();
     let before = cassie.metrics();
     let session = cassie.create_session("tester", None);
 
@@ -407,7 +412,7 @@ fn should_bound_hybrid_reads_to_persisted_text_candidates() {
     let result = cassie
         .execute_sql(
             &session,
-            "SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM hybrid_bounded_candidates ORDER BY score DESC LIMIT 1",
+            &format!("SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
             vec![],
         )
         .unwrap();
@@ -420,6 +425,18 @@ fn should_bound_hybrid_reads_to_persisted_text_candidates() {
     assert!(
         reads < 64,
         "expected bounded hybrid reads, observed {reads}"
+    );
+    assert!(
+        after["hybrid"]["posting_reads_total"].as_u64().unwrap()
+            > before["hybrid"]["posting_reads_total"].as_u64().unwrap()
+    );
+    assert!(
+        after["hybrid"]["ann_reads_total"].as_u64().unwrap()
+            > before["hybrid"]["ann_reads_total"].as_u64().unwrap()
+    );
+    assert!(
+        after["hybrid"]["exact_reranks_total"].as_u64().unwrap()
+            > before["hybrid"]["exact_reranks_total"].as_u64().unwrap()
     );
 
     let _ = std::fs::remove_dir_all(path);

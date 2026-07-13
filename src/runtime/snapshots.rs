@@ -80,8 +80,11 @@ pub struct ExecutionSnapshot {
     pub last_fallback_reason: String,
     pub retrieval_stage_queries_total: u64,
     pub posting_reads_total: u64,
+    pub ann_reads_total: u64,
     pub generation_rejections_total: u64,
     pub exact_reranks_total: u64,
+    pub truncation_count_total: u64,
+    pub candidate_budget_rejections_total: u64,
     pub row_scan_fallback_total: u64,
     pub retrieval_fallback_reasons: BTreeMap<String, u64>,
 }

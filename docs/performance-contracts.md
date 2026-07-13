@@ -853,7 +853,7 @@ unproven fallbacks from selected bounded probes.
 | Verification | `projection_hash_rows`, `verification_mismatch_count` | `VERIFY PROJECTION`, `projections.verifications` |
 | Search | `search.candidate_count_total`, `search_fallback` | `access_path=fulltext`, `search.latency_ms_total` |
 | Vector | `vector.candidate_count_total`, `vector.normalized_fallback_count_total` | `access_path=vector`, `vector.latency_ms_total` |
-| Hybrid | `hybrid.candidate_count_total`, `hybrid.prefilter_fallback_count_total` | `mixed_execution`, `hybrid.latency_ms_total` |
+| Hybrid | `hybrid.candidate_count_total`, `hybrid.prefilter_fallback_count_total`, `hybrid.posting_reads_total`, `hybrid.ann_reads_total`, `hybrid.exact_reranks_total`, `hybrid.truncation_count_total`, `hybrid.candidate_budget_rejections_total` | `mixed_execution`, `hybrid.latency_ms_total` |
 | Time series | `time_series.bucket_native_hits`, `time_series.fallback_reason`, `retention.skipped_rows`, `retention.errors`, `rollups.refreshes`, `rollups.stale_fallbacks` | `time_series_storage=bucket-native-v1`, `time_series.buckets_scanned`, `time_series.scans`, `ENFORCE RETENTION`, `retention.deleted_rows`, `REFRESH ROLLUP`, `rollups.rewrite_hits` |
 | pgwire | `pgwire.blocking_elapsed_ms_total`, `pgwire.protocol_errors_total` | `pgwire_simple_query`, `pgwire_multi_statement_query`, `pgwire_binary_query`, `pgwire_prepared_query`, `pgwire.simple_queries_total`, `pgwire.extended_queries_total` |
 | HTTP | `storage.data.writes`, `vector.normalized_fallback_count_total`, `rest.blocking_error_total` | `documents::create/get`, `http_vector_search`, `rest.requests_total` |

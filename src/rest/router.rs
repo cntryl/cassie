@@ -1,12 +1,13 @@
 use std::convert::Infallible;
+use std::error::Error;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use bytes::Bytes;
-use http_body_util::{BodyExt, Full, Limited};
+use bytes::{Bytes, BytesMut};
+use http_body_util::{BodyExt, Full, LengthLimitError, Limited};
 use hyper::{
     body::{Body, Incoming},
     header::{HeaderMap, HeaderValue, ALLOW, CACHE_CONTROL, CONNECTION, CONTENT_TYPE, SET_COOKIE},
@@ -28,6 +29,7 @@ use crate::rest::static_files::AdminUiStaticFiles;
 const MAX_REST_BODY_BYTES: usize = 8 * 1024 * 1024;
 const MAX_REST_HEADER_BYTES: usize = 32 * 1024;
 const REST_HEADER_READ_TIMEOUT: Duration = Duration::from_secs(10);
+const REST_BODY_IDLE_TIMEOUT: Duration = Duration::from_secs(10);
 const REST_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// # Errors
@@ -256,6 +258,84 @@ fn with_security_headers(
 
 type RestBytes = Bytes;
 
+#[derive(Debug)]
+enum RestBodyReadError {
+    TimedOut,
+    TooLarge,
+    Invalid(String),
+}
+
+async fn read_request_body(
+    request: Request<Incoming>,
+    cassie: &Arc<Cassie>,
+    method: &Method,
+    path: &str,
+    started_at: Instant,
+) -> Result<RestBytes, (StatusCode, String)> {
+    if request
+        .body()
+        .size_hint()
+        .upper()
+        .is_some_and(|length| length > MAX_REST_BODY_BYTES as u64)
+    {
+        return Err((
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!("request body exceeds {MAX_REST_BODY_BYTES} bytes"),
+        ));
+    }
+
+    match collect_request_body(request.into_body(), REST_BODY_IDLE_TIMEOUT).await {
+        Ok(body) => Ok(body),
+        Err(RestBodyReadError::TimedOut) => Err((
+            StatusCode::REQUEST_TIMEOUT,
+            "request body idle timeout".to_string(),
+        )),
+        Err(RestBodyReadError::TooLarge) => Err((
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!("request body exceeds {MAX_REST_BODY_BYTES} bytes"),
+        )),
+        Err(RestBodyReadError::Invalid(message)) => {
+            cassie.runtime.record_rest_request(
+                method.as_str(),
+                path,
+                StatusCode::BAD_REQUEST.as_u16(),
+                started_at.elapsed(),
+            );
+            Err((StatusCode::BAD_REQUEST, message))
+        }
+    }
+}
+
+async fn collect_request_body<B>(
+    body: B,
+    idle_timeout: Duration,
+) -> Result<RestBytes, RestBodyReadError>
+where
+    B: Body<Data = Bytes> + Unpin,
+    B::Error: Into<Box<dyn Error + Send + Sync>>,
+{
+    let mut body = Limited::new(body, MAX_REST_BODY_BYTES);
+    let mut bytes = BytesMut::new();
+    loop {
+        let frame = tokio::time::timeout(idle_timeout, body.frame())
+            .await
+            .map_err(|_| RestBodyReadError::TimedOut)?;
+        let Some(frame) = frame else {
+            return Ok(bytes.freeze());
+        };
+        let frame = frame.map_err(|error| {
+            if error.downcast_ref::<LengthLimitError>().is_some() {
+                RestBodyReadError::TooLarge
+            } else {
+                RestBodyReadError::Invalid(error.to_string())
+            }
+        })?;
+        if let Ok(data) = frame.into_data() {
+            bytes.extend_from_slice(&data);
+        }
+    }
+}
+
 fn json_response<T: serde::Serialize>(status: StatusCode, value: &T) -> Response<RestBody> {
     let body = serde_json::to_vec(value).unwrap_or_else(|_| b"{}".to_vec());
     let mut response = Response::new(Full::from(body));
@@ -382,30 +462,7 @@ async fn route_request_with_admin_ui(
         role,
         token,
     };
-    let body = request.body();
-    if body
-        .size_hint()
-        .upper()
-        .is_some_and(|length| length > MAX_REST_BODY_BYTES as u64)
-    {
-        return Err((
-            StatusCode::PAYLOAD_TOO_LARGE,
-            format!("request body exceeds {MAX_REST_BODY_BYTES} bytes"),
-        ));
-    }
-    let body: RestBytes = Limited::new(request.into_body(), MAX_REST_BODY_BYTES)
-        .collect()
-        .await
-        .map_err(|e| {
-            cassie.runtime.record_rest_request(
-                method.as_str(),
-                &path,
-                StatusCode::BAD_REQUEST.as_u16(),
-                started_at.elapsed(),
-            );
-            (StatusCode::BAD_REQUEST, e.to_string())
-        })?
-        .to_bytes();
+    let body = read_request_body(request, &cassie, &method, &path, started_at).await?;
 
     let response = route_dispatch(
         RouteDispatchContext {
@@ -1159,6 +1216,64 @@ mod tests {
             // Assert
             assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
         });
+    }
+
+    #[test]
+    fn should_collect_rest_body_with_an_idle_deadline() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let body = Full::from(Bytes::from_static(b"{}"));
+
+            // Act
+            let result = collect_request_body(body, Duration::from_secs(1)).await;
+
+            // Assert
+            assert_eq!(result.expect("body collection"), Bytes::from_static(b"{}"));
+        });
+    }
+
+    #[test]
+    fn should_reject_a_rest_body_that_stalls_between_frames() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            // Act
+            let result = collect_request_body(PendingBody, Duration::from_millis(1)).await;
+
+            // Assert
+            assert!(matches!(result, Err(RestBodyReadError::TimedOut)));
+        });
+    }
+
+    struct PendingBody;
+
+    impl Body for PendingBody {
+        type Data = Bytes;
+        type Error = Infallible;
+
+        fn poll_frame(
+            self: std::pin::Pin<&mut Self>,
+            _context: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Option<Result<hyper::body::Frame<Self::Data>, Self::Error>>> {
+            std::task::Poll::Pending
+        }
+
+        fn is_end_stream(&self) -> bool {
+            false
+        }
+
+        fn size_hint(&self) -> hyper::body::SizeHint {
+            hyper::body::SizeHint::default()
+        }
     }
 
     #[test]

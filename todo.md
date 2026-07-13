@@ -373,7 +373,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - [x] Reject state-changing `/api/` requests with an explicit cross-origin `Origin`; absent
     `Origin` remains allowed for non-browser clients and no permissive CORS headers are emitted.
   - [x] Emit HSTS only for TLS-served responses and immutable one-year caching for hashed UI assets.
-  - [ ] Add body/idle/request timeouts and complete slowloris protection.
+  - [x] Add header-read, per-body-frame idle, and request execution timeouts; stalled body
+    producers now receive deterministic 408 responses without unbounded connection retention.
   - Enforce content types/methods, explicit same-origin/CORS and CSRF policies, CSP,
     `X-Content-Type-Options`, frame/referrer policy, HSTS on TLS, no-store for auth/API, and immutable
     caching for hashed assets.

@@ -18,7 +18,8 @@ rustls server identity before accepting traffic. Secure cookie emission and the 
 hardening are still open. REST request bodies are capped at 8 MiB, HTTP/1 headers at 32 KiB,
 and header reads at 10 seconds.
 Body collection and route execution also have a 30-second per-request deadline and return 408 on
-expiry without terminating unrelated keep-alive requests.
+expiry without terminating unrelated keep-alive requests. Body frames also have a 10-second idle
+deadline to prevent slowloris-style request retention.
 State-changing `/api/` requests require `application/json` and reject other media types with 415.
 When browsers send `Origin`, state-changing API requests must match the request `Host`; Cassie
 does not emit permissive CORS headers, and clients without `Origin` remain supported.

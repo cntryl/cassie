@@ -294,7 +294,10 @@ fn should_document_rest_transport_policy_contract() {
         && openapi.contains("UnsupportedMediaType");
 
     // Assert
-    assert!(describes_limits, "OpenAPI must document enforced REST limits");
+    assert!(
+        describes_limits,
+        "OpenAPI must document enforced REST limits"
+    );
     assert!(
         describes_browser_policy,
         "OpenAPI must document same-origin and TLS browser policy"

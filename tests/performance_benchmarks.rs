@@ -219,6 +219,31 @@ fn should_keep_future_scale_placeholders_out_of_runnable_scenarios() {
 }
 
 #[test]
+fn should_register_persisted_ann_scenarios_at_required_scales() {
+    // Arrange
+    let required = [
+        ("vector_hnsw_persisted", "10k"),
+        ("vector_hnsw_persisted", "100k"),
+        ("vector_ivfflat_persisted", "10k"),
+        ("vector_ivfflat_persisted", "100k"),
+    ];
+
+    // Act
+    let missing = required
+        .into_iter()
+        .filter(|(workload, scale)| {
+            benchmark_for_benchmark("tier2_subsystem_vector", workload, scale).is_none()
+        })
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert!(
+        missing.is_empty(),
+        "missing persisted ANN scenarios: {missing:?}"
+    );
+}
+
+#[test]
 fn should_reject_tier2_to_tier4_optimization_rows_without_required_metadata() {
     // Arrange
     let artifact = r#"{

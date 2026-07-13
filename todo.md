@@ -321,6 +321,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
 - [x] Add retrieval-stage diagnostics: posting reads, ANN candidate reads, generation rejection,
   exact rerank count, truncation, candidate budgets, and fallback reason.
 - [ ] Benchmark retrieval truthfully.
+  - [x] Runnable persisted HNSW and IVFFlat SQL scenarios now build real indexed 10k and 100k
+    fixtures before timing top-k retrieval; the existing algorithm microbenchmarks remain separate.
   - Cold/warm full-text at 10k, 100k, and a larger corpus with reads, memory, write amplification,
     and rebuild cost.
   - HNSW `ef_search` and IVFFlat lists/probes recall@k versus exact, latency, candidate reads,

@@ -819,6 +819,10 @@ unproven fallbacks from selected bounded probes.
 | `perf.search.fulltext.100k` | Search | `tier2_subsystem_search` | `full_text_executor` | 100k |
 | `perf.vector.executor.10k` | Vector | `tier2_subsystem_vector` | `vector_executor` | 10k |
 | `perf.vector.executor.100k` | Vector | `tier2_subsystem_vector` | `vector_executor` | 100k |
+| `perf.vector.hnsw_persisted.10k` | Vector | `tier2_subsystem_vector` | `vector_hnsw_persisted` | 10k |
+| `perf.vector.hnsw_persisted.100k` | Vector | `tier2_subsystem_vector` | `vector_hnsw_persisted` | 100k |
+| `perf.vector.ivfflat_persisted.10k` | Vector | `tier2_subsystem_vector` | `vector_ivfflat_persisted` | 10k |
+| `perf.vector.ivfflat_persisted.100k` | Vector | `tier2_subsystem_vector` | `vector_ivfflat_persisted` | 100k |
 | `perf.hybrid.executor.10k` | Hybrid | `tier2_subsystem_hybrid` | `hybrid_executor` | 10k |
 | `perf.hybrid.executor.100k` | Hybrid | `tier2_subsystem_hybrid` | `hybrid_executor` | 100k |
 | `perf.graph.expand.10k` | Graph | `tier3_system_query` | `graph_expand_query` | 10k |

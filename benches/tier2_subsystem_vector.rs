@@ -51,6 +51,7 @@ fn main() {
         );
     }
     bench_candidate_paths(&mut runner);
+    bench_persisted_ann_paths(&runtime, &mut runner);
 
     runner.finish();
 }
@@ -92,6 +93,67 @@ fn bench_candidate_paths(runner: &mut stress::CassieStressRunner) {
     runner.fixed_timed_count(ivfflat, IVFFLAT_PROBE_BATCH, || {
         fixture.ivfflat_probe_batch(IVFFLAT_PROBE_BATCH)
     });
+}
+
+fn bench_persisted_ann_paths(
+    runtime: &tokio::runtime::Runtime,
+    runner: &mut stress::CassieStressRunner,
+) {
+    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000)] {
+        bench_persisted_ann_path(runtime, runner, dataset, rows, "hnsw");
+        bench_persisted_ann_path(runtime, runner, dataset, rows, "ivfflat");
+    }
+}
+
+fn bench_persisted_ann_path(
+    runtime: &tokio::runtime::Runtime,
+    runner: &mut stress::CassieStressRunner,
+    dataset: &str,
+    rows: usize,
+    index_type: &str,
+) {
+    let workload = match index_type {
+        "hnsw" => "vector_hnsw_persisted",
+        "ivfflat" => "vector_ivfflat_persisted",
+        _ => unreachable!("benchmark index type is fixed"),
+    };
+    let benchmark = performance_benchmarks::expect_benchmark(BENCHMARK, workload, dataset);
+    let case = stress::StressCase::fixed_operations(2, benchmark.workload, benchmark.fixture_scale);
+    if !runner.is_enabled(&case) {
+        return;
+    }
+
+    let context = runtime
+        .block_on(workloads::unindexed_context(
+            &format!("tier2-vector-{index_type}-{dataset}"),
+            rows,
+        ))
+        .expect("persisted ANN benchmark context");
+    let statement = match index_type {
+        "hnsw" => format!(
+            "CREATE INDEX {}_embedding_hnsw_idx ON {} USING vector (embedding) WITH (source_field = body, index_type = hnsw, ef_search = 40)",
+            context.collection, context.collection
+        ),
+        "ivfflat" => format!(
+            "CREATE INDEX {}_embedding_ivf_idx ON {} USING vector (embedding) WITH (source_field = body, index_type = ivfflat, lists = 16, probes = 4, training_sample_size = 1024, training_seed = 42)",
+            context.collection, context.collection
+        ),
+        _ => unreachable!("benchmark index type is fixed"),
+    };
+    let _ = runtime.block_on(workloads::execute_sql(&context, &statement));
+
+    runner.fixed_timed_count(
+        case.metadata("operation_unit", "query"),
+        QUERY_BATCH,
+        || {
+            run_sql_batch(
+                runtime,
+                &context,
+                "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20",
+                QUERY_BATCH,
+            )
+        },
+    );
 }
 
 struct VectorCandidateFixture {

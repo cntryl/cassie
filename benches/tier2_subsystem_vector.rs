@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 use cassie::embeddings::{
     DistanceMetric, HnswIndexOptions, IvfFlatTrainingState, NormalizedVectorRecord,
 };
+use cassie::types::Value;
 
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
@@ -124,23 +125,55 @@ fn bench_persisted_ann_path(
     }
 
     let context = runtime
-        .block_on(workloads::unindexed_context(
+        .block_on(workloads::context_with_mock_tei_embeddings(
             &format!("tier2-vector-{index_type}-{dataset}"),
             rows,
         ))
         .expect("persisted ANN benchmark context");
     let statement = match index_type {
-        "hnsw" => format!(
-            "CREATE INDEX {}_embedding_hnsw_idx ON {} USING vector (embedding) WITH (source_field = body, index_type = hnsw, ef_search = 40)",
+        "hnsw" => {
+            context
+                .cassie
+                .execute_sql(
+                    &context.session,
+                    &format!(
+                        "DROP INDEX {}_embedding_idx ON {}",
+                        context.collection, context.collection
+                    ),
+                    vec![],
+                )
+                .expect("drop default vector benchmark index");
+            format!(
+                "CREATE INDEX {}_embedding_hnsw_idx ON {} USING vector (embedding) WITH (source_field = body, metric = l2, index_type = hnsw, m = 32, ef_construction = 256, ef_search = 256)",
+                context.collection, context.collection
+            )
+        }
+        "ivfflat" => {
+            context
+                .cassie
+                .execute_sql(
+                    &context.session,
+                    &format!(
+                        "DROP INDEX {}_embedding_idx ON {}",
+                        context.collection, context.collection
+                    ),
+                    vec![],
+                )
+                .expect("drop default vector benchmark index");
+            format!(
+            "CREATE INDEX {}_embedding_ivf_idx ON {} USING vector (embedding) WITH (source_field = body, metric = l2, index_type = ivfflat, lists = 16, probes = 4, training_sample_size = 1024, training_seed = 42)",
             context.collection, context.collection
-        ),
-        "ivfflat" => format!(
-            "CREATE INDEX {}_embedding_ivf_idx ON {} USING vector (embedding) WITH (source_field = body, index_type = ivfflat, lists = 16, probes = 4, training_sample_size = 1024, training_seed = 42)",
-            context.collection, context.collection
-        ),
+            )
+        }
         _ => unreachable!("benchmark index type is fixed"),
     };
-    let _ = runtime.block_on(workloads::execute_sql(&context, &statement));
+    if !statement.is_empty() {
+        context
+            .cassie
+            .execute_sql(&context.session, &statement, vec![])
+            .expect("persisted ANN benchmark index");
+    }
+    assert_persisted_ann_correctness(runtime, &context, dataset, rows, index_type);
 
     runner.fixed_timed_count(
         case.metadata("operation_unit", "query"),
@@ -153,6 +186,85 @@ fn bench_persisted_ann_path(
                 QUERY_BATCH,
             )
         },
+    );
+}
+
+fn assert_persisted_ann_correctness(
+    runtime: &tokio::runtime::Runtime,
+    context: &workloads::BenchContext,
+    dataset: &str,
+    rows: usize,
+    index_type: &str,
+) {
+    let query = "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20";
+    let before = context.cassie.metrics();
+    let indexed = context
+        .cassie
+        .execute_sql(&context.session, query, vec![])
+        .expect("persisted ANN query");
+    let exact_context = runtime
+        .block_on(workloads::unindexed_context(
+            &format!("tier2-vector-exact-{index_type}-{dataset}"),
+            rows,
+        ))
+        .expect("exact ANN benchmark context");
+    let exact = exact_context
+        .cassie
+        .execute_sql(&exact_context.session, query, vec![])
+        .expect("exact vector query");
+
+    let exact_ids = exact
+        .rows
+        .iter()
+        .filter_map(|row| match row.first() {
+            Some(Value::String(id)) => Some(id.as_str()),
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let indexed_ids = indexed
+        .rows
+        .iter()
+        .filter_map(|row| match row.first() {
+            Some(Value::String(id)) => Some(id.as_str()),
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        indexed_ids.len(),
+        20,
+        "indexed {index_type} query must return top-k rows"
+    );
+    assert_eq!(exact_ids.len(), 20, "exact baseline must return top-k rows");
+    let overlap = indexed_ids.intersection(&exact_ids).count();
+    let minimum_overlap = if index_type == "hnsw" { 14 } else { 12 };
+    assert!(
+        overlap >= minimum_overlap,
+        "{index_type} recall@20 was {overlap}/20 for {dataset}"
+    );
+
+    let after = context.cassie.metrics();
+    let vector_before = &before["vector"];
+    let vector_after = &after["vector"];
+    let execution_key = format!("{index_type}_executions");
+    let fallback_key = format!("{index_type}_fallbacks");
+    assert!(
+        vector_after[&execution_key].as_u64().unwrap_or_default()
+            > vector_before[&execution_key].as_u64().unwrap_or_default(),
+        "{index_type} benchmark query did not execute the persisted index path"
+    );
+    assert_eq!(
+        vector_after[&fallback_key].as_u64().unwrap_or_default(),
+        vector_before[&fallback_key].as_u64().unwrap_or_default(),
+        "{index_type} benchmark query fell back"
+    );
+    assert!(
+        vector_after["candidate_count_total"]
+            .as_u64()
+            .unwrap_or_default()
+            > vector_before["candidate_count_total"]
+                .as_u64()
+                .unwrap_or_default(),
+        "{index_type} benchmark query did not report candidate reads"
     );
 }
 

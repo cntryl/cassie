@@ -13,7 +13,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use cassie::app::{Cassie, CassieError, CassieSession};
-use cassie::catalog::{CollectionSchema, FieldMeta};
+use cassie::catalog::{canonical_relation_name, CollectionSchema, FieldMeta};
 use cassie::config::{
     CassieRuntimeConfig, EmbeddingsRuntimeConfig, SelfHostedEmbeddingRuntimeConfig,
 };
@@ -597,7 +597,7 @@ fn create_and_register_bench_collection(
 
 fn register_schema(ctx: &BenchContext, schema: &Schema) {
     ctx.cassie.register_collection(
-        &ctx.collection,
+        canonical_relation_name("postgres", "public", &ctx.collection),
         schema
             .fields
             .iter()

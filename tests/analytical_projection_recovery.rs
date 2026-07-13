@@ -147,3 +147,38 @@ fn should_replay_materialized_projection_debt_after_post_commit_stale_failure() 
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_reject_analytical_projection_with_mismatched_source_generation() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("analytical_projection_generation_fence");
+
+    runtime().block_on(async {
+        let (cassie, session) = setup_source_and_projection(path.as_ref());
+        let mut projection = cassie
+            .catalog
+            .get_materialized_projection("analytical_debt")
+            .expect("projection metadata");
+        projection
+            .source_generations
+            .insert("postgres.public.analytical_debt_source".to_string(), 0);
+        cassie.midge.put_projection_metadata(&projection).unwrap();
+        cassie.catalog.register_projection_metadata(projection);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT tenant, amount FROM analytical_debt_source ORDER BY amount",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][1], Value::Int64(10));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}

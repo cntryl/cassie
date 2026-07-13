@@ -140,11 +140,7 @@ fn should_reject_rollup_with_mismatched_source_generation() {
 
         // Act
         let result = cassie
-            .execute_sql(
-                &session,
-                &hourly_query("rollup_generation_events"),
-                vec![],
-            )
+            .execute_sql(&session, &hourly_query("rollup_generation_events"), vec![])
             .unwrap();
         let metrics = cassie.metrics();
 

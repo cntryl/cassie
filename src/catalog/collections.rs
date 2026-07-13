@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::catalog::derive_scoped_name;
@@ -332,6 +334,8 @@ pub struct ProjectionMeta {
     #[serde(default)]
     pub source_identity: Option<String>,
     #[serde(default)]
+    pub source_generations: BTreeMap<String, u64>,
+    #[serde(default)]
     pub source_checkpoint: Option<String>,
     #[serde(default)]
     pub source_position: Option<u64>,
@@ -404,6 +408,7 @@ impl ProjectionMeta {
             lag: 0,
             rebuild_state: ProjectionRebuildState::Idle,
             source_identity: None,
+            source_generations: BTreeMap::new(),
             source_checkpoint: None,
             source_position: None,
             last_applied_event_id: None,
@@ -436,6 +441,7 @@ impl ProjectionMeta {
             lag: 0,
             rebuild_state: ProjectionRebuildState::Rebuilding,
             source_identity: spec.source_collections.first().cloned(),
+            source_generations: BTreeMap::new(),
             source_checkpoint: None,
             source_position: None,
             last_applied_event_id: None,

@@ -229,10 +229,7 @@ pub(super) fn rewrite_name_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Opti
     {
         return None;
     }
-    let source_generation = cassie
-        .midge
-        .collection_generation(source)
-        .ok()?;
+    let source_generation = cassie.midge.collection_generation(source).ok()?;
     matching_rollup(cassie, source, plan)
         .filter(|rollup| rollup.is_fresh(source_generation))
         .map(|rollup| rollup.name)

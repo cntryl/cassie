@@ -409,7 +409,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   global data epoch/row count or `ProjectionFreshness::Fresh` alone.
   - [x] Rollup refresh cursors now persist the source collection generation and rollup rewrites
     reject mismatched generations; existing debt remains generation-bound and replays at startup.
-  - [ ] Bind analytical projection metadata and multi-source readiness to exact source generations.
+  - [x] Bind analytical projection metadata and multi-source readiness to exact source generations;
+    covered reads now require every source generation snapshot to match.
   - Tests: rollup generation mismatch, failpoint-after-base-commit, multi-source generation mismatch,
     restart, and no stale serving.
 - [ ] Add local work admission beyond socket counts.

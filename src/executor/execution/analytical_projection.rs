@@ -75,7 +75,9 @@ fn analytical_projection_fallback(
             if materialized_projection_maintenance_pending(cassie, source) {
                 return Some((projection.collection, "maintenance_pending".to_string()));
             }
-            if projection.freshness != catalog::ProjectionFreshness::Fresh {
+            if projection.freshness != catalog::ProjectionFreshness::Fresh
+                || !source_generations_match(cassie, &projection, &materialized.source_collections)
+            {
                 return Some((projection.collection, "stale-or-unverified".to_string()));
             }
             let output_fields = materialized
@@ -115,6 +117,7 @@ fn covered_analytical_projection(
         .find_map(|projection| {
             let materialized = projection.materialized.as_ref()?;
             if projection.freshness != catalog::ProjectionFreshness::Fresh
+                || !source_generations_match(cassie, &projection, &materialized.source_collections)
                 || !materialized
                     .options
                     .get("analytical")
@@ -141,6 +144,22 @@ fn covered_analytical_projection(
                 None
             }
         })
+}
+
+fn source_generations_match(
+    cassie: &Cassie,
+    projection: &catalog::ProjectionMeta,
+    sources: &[String],
+) -> bool {
+    sources.iter().all(|source| {
+        cassie
+            .midge
+            .collection_generation(source)
+            .ok()
+            .is_some_and(|generation| {
+                projection.source_generations.get(source) == Some(&generation)
+            })
+    })
 }
 
 fn materialized_projection_maintenance_pending(cassie: &Cassie, source: &str) -> bool {

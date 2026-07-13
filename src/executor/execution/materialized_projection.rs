@@ -463,6 +463,17 @@ pub(super) fn build_specific_version(
         &[],
         controls,
     )?;
+    metadata.source_generations = materialized
+        .source_collections
+        .iter()
+        .filter_map(|source| {
+            cassie
+                .midge
+                .collection_generation(source)
+                .ok()
+                .map(|generation| (source.clone(), generation))
+        })
+        .collect();
     let root = replace_output_rows(cassie, &output_collection, &build.schema, rows)?;
     cassie
         .runtime

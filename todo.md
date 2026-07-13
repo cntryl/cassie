@@ -313,6 +313,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     session state makes the bounded path unsafe.
   - [x] Intersect bounded text candidates with generation-bound persisted HNSW/IVF candidate IDs
     before exact source-row scoring; stale or unsupported vector artifacts fall back.
+  - [x] Corrupt persisted text/vector artifacts now fall back to authoritative rows and expose
+    deterministic hybrid fallback reasons.
   - Tests: stale text/vector/both, selective filters, caps, truncation, and fallback equivalence.
 - [ ] Add retrieval-stage diagnostics: posting reads, ANN node/list reads, generation rejection,
   exact rerank count, truncation, candidate budgets, and fallback reason.

@@ -401,6 +401,24 @@ fn bounded_hybrid_fixture() -> (Cassie, String, &'static str) {
     (cassie, path, collection)
 }
 
+fn corrupt_matching_data_value(cassie: &Cassie, predicate: impl Fn(&serde_json::Value) -> bool) {
+    let key = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, b"")
+        .unwrap()
+        .into_iter()
+        .find_map(|(key, raw)| {
+            serde_json::from_slice::<serde_json::Value>(&raw)
+                .ok()
+                .filter(|value| predicate(value))
+                .map(|_| key)
+        })
+        .expect("matching persisted artifact");
+    let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
+    tx.put(key, b"corrupt".to_vec(), None).unwrap();
+    tx.commit(WriteOptions::sync()).unwrap();
+}
+
 #[test]
 fn should_bound_hybrid_reads_to_persisted_text_candidates() {
     // Arrange
@@ -439,5 +457,75 @@ fn should_bound_hybrid_reads_to_persisted_text_candidates() {
             > before["hybrid"]["exact_reranks_total"].as_u64().unwrap()
     );
 
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_fallback_when_hybrid_text_artifact_is_corrupt() {
+    // Arrange
+    let (cassie, path, collection) = bounded_hybrid_fixture();
+    corrupt_matching_data_value(&cassie, |value| {
+        value.get("index_name") == Some(&serde_json::json!("fulltext_body_idx"))
+    });
+    let before = cassie.metrics();
+    let session = cassie.create_session("tester", None);
+
+    // Act
+    let result = cassie
+        .execute_sql(
+            &session,
+            &format!("SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
+            vec![],
+        )
+        .unwrap();
+    let after = cassie.metrics();
+
+    // Assert
+    assert_eq!(result.rows[0][0], Value::String("d0".to_string()));
+    assert_eq!(
+        after["hybrid"]["prefilter_fallback_reasons"]["text-artifact"]
+            .as_u64()
+            .unwrap_or_default()
+            - before["hybrid"]["prefilter_fallback_reasons"]["text-artifact"]
+                .as_u64()
+                .unwrap_or_default(),
+        1
+    );
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_fallback_when_hybrid_vector_artifact_is_corrupt() {
+    // Arrange
+    let (cassie, path, collection) = bounded_hybrid_fixture();
+    corrupt_matching_data_value(&cassie, |value| {
+        value.get("source_fingerprint").is_some()
+            && value.get("row_count").is_some()
+            && value.get("built_generation").is_some()
+    });
+    let before = cassie.metrics();
+    let session = cassie.create_session("tester", None);
+
+    // Act
+    let result = cassie
+        .execute_sql(
+            &session,
+            &format!("SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
+            vec![],
+        )
+        .unwrap();
+    let after = cassie.metrics();
+
+    // Assert
+    assert_eq!(result.rows[0][0], Value::String("d0".to_string()));
+    assert_eq!(
+        after["hybrid"]["prefilter_fallback_reasons"]["vector-artifact"]
+            .as_u64()
+            .unwrap_or_default()
+            - before["hybrid"]["prefilter_fallback_reasons"]["vector-artifact"]
+                .as_u64()
+                .unwrap_or_default(),
+        1
+    );
     let _ = std::fs::remove_dir_all(path);
 }

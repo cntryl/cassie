@@ -38,6 +38,8 @@ impl Cassie {
             user: auth_user,
             database: default_database,
             password: auth_password,
+            rest_tls_cert_file,
+            rest_tls_key_file,
             limits,
             ..
         } = runtime_config;
@@ -53,6 +55,8 @@ impl Cassie {
             auth_user,
             auth_password,
             default_database,
+            rest_tls_cert_file,
+            rest_tls_key_file,
             started: Arc::new(AtomicBool::new(false)),
         })
     }

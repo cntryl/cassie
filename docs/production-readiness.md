@@ -13,8 +13,9 @@ session and role, resolves names against that session's database and search path
 ambiguous or cross-database names, and filters collection listings to the same scope. Opaque
 cookie sessions now issue cryptographically random tokens hashed in Midge, validate expiry and
 credential rotation, and support login/current-session/logout with HttpOnly, SameSite=Strict
-cookies. TLS-dependent Secure cookies, configurable session scope, UI bootstrap, and the remaining
-HTTP hardening are still open.
+cookies. Inbound TLS configuration now fails closed for non-loopback listeners and loads a
+rustls server identity before accepting traffic. Secure cookie emission and the remaining HTTP
+hardening are still open.
 For scalar-index and read-optimization work, local-dev evidence can validate access paths,
 diagnostics, and fallback behavior, but it does not establish production adaptive thresholds.
 Production use still needs deployment-profile values for adaptive cost savings, feedback confidence,

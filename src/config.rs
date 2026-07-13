@@ -20,12 +20,20 @@ pub enum CassieRuntimeConfigError {
 
     #[error("default bootstrap password is unsafe for non-loopback listener '{listener}'")]
     UnsafeDefaultPassword { listener: String },
+
+    #[error("REST TLS certificate and key must be configured together")]
+    RestTlsPair,
+
+    #[error("REST TLS is required for non-loopback listener '{listener}'")]
+    RestTlsRequired { listener: String },
 }
 
 #[derive(Debug, Clone)]
 pub struct CassieRuntimeConfig {
     pub pgwire_listen: String,
     pub rest_listen: String,
+    pub rest_tls_cert_file: Option<String>,
+    pub rest_tls_key_file: Option<String>,
     pub admin_ui_dir: String,
     pub user: String,
     pub database: String,
@@ -164,6 +172,8 @@ impl Default for CassieRuntimeConfig {
         Self {
             pgwire_listen: "127.0.0.1:5432".to_string(),
             rest_listen: "127.0.0.1:8080".to_string(),
+            rest_tls_cert_file: None,
+            rest_tls_key_file: None,
             admin_ui_dir: "./ui/dist".to_string(),
             user: "postgres".to_string(),
             database: "postgres".to_string(),
@@ -239,6 +249,8 @@ impl CassieRuntimeConfig {
         if let Some(v) = env_reader("CASSIE_REST_LISTEN") {
             config.rest_listen = v;
         }
+        config.rest_tls_cert_file = env_reader("CASSIE_REST_TLS_CERT_FILE");
+        config.rest_tls_key_file = env_reader("CASSIE_REST_TLS_KEY_FILE");
         if let Some(v) = env_reader("CASSIE_ADMIN_UI_DIR") {
             config.admin_ui_dir = v;
         }
@@ -270,6 +282,7 @@ impl CassieRuntimeConfig {
         config.limits = limits_from_env(&env_reader, &config.limits);
 
         validate_bootstrap_password(&config)?;
+        validate_rest_tls_policy(&config)?;
 
         Ok(config)
     }
@@ -290,6 +303,24 @@ fn validate_bootstrap_password(
                 listener: listener.clone(),
             });
         }
+    }
+    Ok(())
+}
+
+fn validate_rest_tls_policy(config: &CassieRuntimeConfig) -> Result<(), CassieRuntimeConfigError> {
+    if config.rest_tls_cert_file.is_some() != config.rest_tls_key_file.is_some() {
+        return Err(CassieRuntimeConfigError::RestTlsPair);
+    }
+
+    let Ok(address) = config.rest_listen.parse::<SocketAddr>() else {
+        return Ok(());
+    };
+    if !address.ip().is_loopback()
+        && (config.rest_tls_cert_file.is_none() || config.rest_tls_key_file.is_none())
+    {
+        return Err(CassieRuntimeConfigError::RestTlsRequired {
+            listener: config.rest_listen.clone(),
+        });
     }
     Ok(())
 }
@@ -781,6 +812,59 @@ mod tests {
 
         // Assert
         assert_eq!(config.password, "different-secret");
+    }
+
+    #[test]
+    fn should_require_rest_tls_for_non_loopback_listener() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_REST_LISTEN", "0.0.0.0:8080"),
+            ("CASSIE_ADMIN_PASSWORD", "different-secret"),
+        ]);
+
+        // Act
+        let error = CassieRuntimeConfig::from_env_reader(env_reader(values))
+            .expect_err("non-loopback REST must require TLS");
+
+        // Assert
+        assert!(error.to_string().contains("REST TLS"));
+        assert!(error.to_string().contains("0.0.0.0:8080"));
+    }
+
+    #[test]
+    fn should_reject_partial_rest_tls_configuration() {
+        // Arrange
+        let values = HashMap::from([("CASSIE_REST_TLS_CERT_FILE", "/tmp/cassie-cert.pem")]);
+
+        // Act
+        let error = CassieRuntimeConfig::from_env_reader(env_reader(values))
+            .expect_err("REST TLS requires both certificate and key");
+
+        // Assert
+        assert!(error.to_string().contains("certificate and key"));
+    }
+
+    #[test]
+    fn should_parse_rest_tls_file_paths() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_REST_TLS_CERT_FILE", "/etc/cassie/tls/cert.pem"),
+            ("CASSIE_REST_TLS_KEY_FILE", "/etc/cassie/tls/key.pem"),
+        ]);
+
+        // Act
+        let config =
+            CassieRuntimeConfig::from_env_reader(env_reader(values)).expect("REST TLS paths");
+
+        // Assert
+        assert_eq!(
+            config.rest_tls_cert_file.as_deref(),
+            Some("/etc/cassie/tls/cert.pem")
+        );
+        assert_eq!(
+            config.rest_tls_key_file.as_deref(),
+            Some("/etc/cassie/tls/key.pem")
+        );
     }
 
     #[test]

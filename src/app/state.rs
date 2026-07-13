@@ -25,6 +25,8 @@ pub struct Cassie {
     pub(crate) auth_user: String,
     pub(crate) auth_password: String,
     pub(crate) default_database: String,
+    pub(crate) rest_tls_cert_file: Option<String>,
+    pub(crate) rest_tls_key_file: Option<String>,
     pub started: Arc<AtomicBool>,
 }
 

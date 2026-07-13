@@ -357,7 +357,10 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - Tests: invalid login, revocation, password rotation, bearer rejection, cookie flags, reload,
     and logout are covered; expiry, role deletion, session caps, UI bootstrap/redirect remain.
 - [ ] Add inbound REST TLS with rustls configuration and fail-closed non-loopback policy.
-  - Tests: valid HTTPS, missing/invalid key/certificate, and plaintext policy.
+  - [x] Configure rustls certificate/key files, reject partial identities, require TLS for
+    non-loopback REST listeners, and fail startup on missing or invalid identities.
+  - Tests: valid identity loading, missing/invalid certificate, and plaintext policy are covered;
+    an end-to-end HTTPS handshake remains in the Tier-4 HTTP evidence slice.
 - [ ] Bound and harden HTTP.
   - Limit body/header sizes; add header/read/body/idle/request timeouts and slowloris protection.
   - Enforce content types/methods, explicit same-origin/CORS and CSRF policies, CSP,

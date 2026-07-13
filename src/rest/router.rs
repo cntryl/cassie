@@ -14,8 +14,10 @@ use hyper::{
     Method, Request, Response, StatusCode,
 };
 use hyper_util::rt::TokioIo;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{Notify, Semaphore};
 use tokio::task;
+use tokio_rustls::TlsAcceptor;
 
 use crate::app::Cassie;
 use crate::app::CassieSession;
@@ -54,6 +56,10 @@ pub async fn run_with_shutdown_and_admin_ui_dir(
     })?;
     let cassie = Arc::new(cassie);
     let admin_ui = Arc::new(AdminUiStaticFiles::new(admin_ui_dir));
+    let tls_config = crate::rest::tls::load_server_config(
+        cassie.rest_tls_cert_file.as_deref(),
+        cassie.rest_tls_key_file.as_deref(),
+    )?;
     let admission = Arc::new(Semaphore::new(
         cassie.runtime.limits().rest_max_connections.max(1),
     ));
@@ -71,32 +77,31 @@ pub async fn run_with_shutdown_and_admin_ui_dir(
             accept = listener.accept() => {
                 let (stream, _) = accept.map_err(|e| crate::app::CassieError::Execution(e.to_string()))?;
                 let Ok(permit) = admission.clone().try_acquire_owned() else {
+                    let tls_config = tls_config.clone();
                     tokio::spawn(async move {
-                        let service = service_fn(|_request: Request<hyper::body::Incoming>| async {
-                            Ok::<_, Infallible>(too_many_connections_response())
-                        });
-                        let io = TokioIo::new(stream);
-                        let connection = http1::Builder::new().serve_connection(io, service).await;
-                        if let Err(error) = connection {
-                            tracing::warn!(%error, "rest admission rejection connection error");
+                        if let Some(config) = tls_config {
+                            match TlsAcceptor::from(config).accept(stream).await {
+                                Ok(stream) => serve_rejection(stream).await,
+                                Err(error) => tracing::warn!(%error, "rest TLS handshake rejected"),
+                            }
+                        } else {
+                            serve_rejection(stream).await;
                         }
                     });
                     continue;
                 };
                 let cassie = cassie.clone();
                 let admin_ui = admin_ui.clone();
+                let tls_config = tls_config.clone();
                 tokio::spawn(async move {
                     let _permit = permit;
-                    let service = service_fn(move |request: Request<hyper::body::Incoming>| {
-                        let cassie = cassie.clone();
-                        let admin_ui = admin_ui.clone();
-                        async move { route(request, cassie, admin_ui).await }
-                    });
-                    let io = TokioIo::new(stream);
-
-                    let connection = http1::Builder::new().serve_connection(io, service).await;
-                    if let Err(error) = connection {
-                        tracing::warn!(%error, "rest connection error");
+                    if let Some(config) = tls_config {
+                        match TlsAcceptor::from(config).accept(stream).await {
+                            Ok(stream) => serve_application(stream, cassie, admin_ui).await,
+                            Err(error) => tracing::warn!(%error, "rest TLS handshake rejected"),
+                        }
+                    } else {
+                        serve_application(stream, cassie, admin_ui).await;
                     }
                 });
             }
@@ -104,6 +109,36 @@ pub async fn run_with_shutdown_and_admin_ui_dir(
     }
 
     Ok(())
+}
+
+async fn serve_rejection<S>(stream: S)
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let service = service_fn(|_request: Request<hyper::body::Incoming>| async {
+        Ok::<_, Infallible>(too_many_connections_response())
+    });
+    let io = TokioIo::new(stream);
+    let connection = http1::Builder::new().serve_connection(io, service).await;
+    if let Err(error) = connection {
+        tracing::warn!(%error, "rest admission rejection connection error");
+    }
+}
+
+async fn serve_application<S>(stream: S, cassie: Arc<Cassie>, admin_ui: Arc<AdminUiStaticFiles>)
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let service = service_fn(move |request: Request<hyper::body::Incoming>| {
+        let cassie = cassie.clone();
+        let admin_ui = admin_ui.clone();
+        async move { route(request, cassie, admin_ui).await }
+    });
+    let io = TokioIo::new(stream);
+    let connection = http1::Builder::new().serve_connection(io, service).await;
+    if let Err(error) = connection {
+        tracing::warn!(%error, "rest connection error");
+    }
 }
 
 type RestBody = Full<Bytes>;

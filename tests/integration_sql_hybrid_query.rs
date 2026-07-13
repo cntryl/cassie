@@ -316,9 +316,15 @@ fn should_reject_hybrid_text_candidate_without_vector() {
 }
 
 fn bounded_hybrid_fixture() -> (Cassie, String, &'static str) {
+    bounded_hybrid_fixture_with_max(100_000)
+}
+
+fn bounded_hybrid_fixture_with_max(max_candidates: usize) -> (Cassie, String, &'static str) {
     with_fallback();
     let path = data_dir("hybrid_bounded_candidates");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let mut config = CassieRuntimeConfig::from_env().unwrap();
+    config.limits.adaptive_candidate_max = max_candidates;
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
     let collection = "hybrid_bounded_candidates";
     let schema = Schema {
         fields: vec![
@@ -527,5 +533,83 @@ fn should_fallback_when_hybrid_vector_artifact_is_corrupt() {
                 .unwrap_or_default(),
         1
     );
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_report_hybrid_candidate_budget_rejection() {
+    // Arrange
+    let (cassie, path, collection) = bounded_hybrid_fixture_with_max(1);
+    let before = cassie.metrics();
+    let session = cassie.create_session("tester", None);
+
+    // Act
+    let result = cassie
+        .execute_sql(
+            &session,
+            &format!("SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
+            vec![],
+        )
+        .unwrap();
+    let after = cassie.metrics();
+
+    // Assert
+    assert_eq!(result.rows[0][0], Value::String("d0".to_string()));
+    assert_eq!(
+        after["hybrid"]["candidate_budget_rejections_total"]
+            .as_u64()
+            .unwrap_or_default()
+            - before["hybrid"]["candidate_budget_rejections_total"]
+                .as_u64()
+                .unwrap_or_default(),
+        1
+    );
+    assert_eq!(
+        after["hybrid"]["truncation_count_total"]
+            .as_u64()
+            .unwrap_or_default()
+            - before["hybrid"]["truncation_count_total"]
+                .as_u64()
+                .unwrap_or_default(),
+        1
+    );
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_execute_bounded_hybrid_queries_concurrently() {
+    // Arrange
+    let (cassie, path, collection) = bounded_hybrid_fixture();
+    let cassie = std::sync::Arc::new(cassie);
+
+    // Act
+    let handles = (0..4)
+        .map(|_| {
+            let cassie = std::sync::Arc::clone(&cassie);
+            let collection = collection.to_string();
+            std::thread::spawn(move || {
+                let session = cassie.create_session("tester", None);
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!("SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
+                        vec![],
+                    )
+                    .unwrap()
+                    .rows[0][0]
+                    .clone()
+            })
+        })
+        .collect::<Vec<_>>();
+    let results = handles
+        .into_iter()
+        .map(|handle| handle.join().unwrap())
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert_eq!(results.len(), 4);
+    assert!(results
+        .into_iter()
+        .all(|value| value == Value::String("d0".to_string())));
     let _ = std::fs::remove_dir_all(path);
 }

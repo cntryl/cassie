@@ -315,7 +315,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     before exact source-row scoring; stale or unsupported vector artifacts fall back.
   - [x] Corrupt persisted text/vector artifacts now fall back to authoritative rows and expose
     deterministic hybrid fallback reasons.
-  - Tests: stale text/vector/both, selective filters, caps, truncation, and fallback equivalence.
+  - [x] Tests cover stale text/vector artifacts, candidate-budget rejection, bounded concurrent
+    execution, and fallback equivalence; selective-filter and larger-corpus benchmarks remain.
 - [ ] Add retrieval-stage diagnostics: posting reads, ANN node/list reads, generation rejection,
   exact rerank count, truncation, candidate budgets, and fallback reason.
 - [ ] Benchmark retrieval truthfully.

@@ -110,6 +110,7 @@ pub async fn http_transport_context(ctx: &BenchContext) -> Result<HttpBenchConte
         .ok_or_else(|| {
             CassieError::Execution("REST login did not issue a session cookie".to_string())
         })?;
+    verify_authenticated_http_contract(&client, &base_url, &session_cookie).await?;
     Ok(HttpBenchContext {
         base_url,
         collection: ctx.collection.clone(),
@@ -220,6 +221,17 @@ pub async fn http_transport_document_create_get_batch(
     ctx: &HttpBenchContext,
     batch_size: usize,
 ) -> usize {
+    let session = ctx
+        .authorize(
+            ctx.client
+                .get(format!("{}/api/v1/auth/session", ctx.base_url)),
+        )
+        .send()
+        .await
+        .expect("send current-session request")
+        .error_for_status()
+        .expect("current-session status");
+    std::hint::black_box(session);
     let payload = json!({
         "title": "http-benchmark-title",
         "body": "alpha beta gamma",
@@ -344,6 +356,40 @@ async fn wait_for_http_server(client: &reqwest::Client, base_url: &str) -> Resul
     Err(CassieError::Execution(
         "rest benchmark server did not become ready".to_string(),
     ))
+}
+
+async fn verify_authenticated_http_contract(
+    client: &reqwest::Client,
+    base_url: &str,
+    session_cookie: &str,
+) -> Result<(), CassieError> {
+    let session = client
+        .get(format!("{base_url}/api/v1/auth/session"))
+        .header(reqwest::header::COOKIE, session_cookie)
+        .send()
+        .await
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    if !session.status().is_success() {
+        return Err(CassieError::Execution(format!(
+            "REST current-session probe returned {}",
+            session.status()
+        )));
+    }
+
+    let oversized = client
+        .post(format!("{base_url}/api/v1/auth/login"))
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .body(vec![b'x'; 8 * 1024 * 1024 + 1])
+        .send()
+        .await
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    if oversized.status() != reqwest::StatusCode::PAYLOAD_TOO_LARGE {
+        return Err(CassieError::Execution(format!(
+            "REST oversized-body probe returned {}",
+            oversized.status()
+        )));
+    }
+    Ok(())
 }
 
 fn reserve_local_addr() -> std::io::Result<String> {

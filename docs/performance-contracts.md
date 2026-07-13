@@ -863,6 +863,10 @@ verification override, so transport results can be compared without changing
 the authenticated request path. `tier4_integration_http` provisions a
 process-local self-signed identity when no TLS files are supplied, ensuring its
 default scenarios exercise HTTPS rather than silently falling back to plaintext.
+Each transport context also probes current-session authentication and the 413
+oversized-body boundary before timing workloads; measured create/get batches
+include a current-session lookup and the existing concurrent-request case
+provides keep-alive/admission-load coverage.
 
 `time_series_window_scan` owns developer feedback for the bucket-native range path and its row-backed fallback.
 

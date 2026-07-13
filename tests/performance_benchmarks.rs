@@ -244,6 +244,31 @@ fn should_register_persisted_ann_scenarios_at_required_scales() {
 }
 
 #[test]
+fn should_register_fulltext_temperature_scenarios_at_required_scales() {
+    // Arrange
+    let required = [
+        ("full_text_cold", "10k"),
+        ("full_text_cold", "100k"),
+        ("full_text_warm", "10k"),
+        ("full_text_warm", "100k"),
+    ];
+
+    // Act
+    let missing = required
+        .into_iter()
+        .filter(|(workload, scale)| {
+            benchmark_for_benchmark("tier2_subsystem_search", workload, scale).is_none()
+        })
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert!(
+        missing.is_empty(),
+        "missing full-text temperature scenarios: {missing:?}"
+    );
+}
+
+#[test]
 fn should_reject_tier2_to_tier4_optimization_rows_without_required_metadata() {
     // Arrange
     let artifact = r#"{

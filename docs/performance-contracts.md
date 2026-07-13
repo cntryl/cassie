@@ -817,6 +817,10 @@ unproven fallbacks from selected bounded probes.
 | `perf.verification.full.100k` | Verification | `tier3_system_rebuild` | `projection_verify` | 100k |
 | `perf.search.fulltext.10k` | Search | `tier2_subsystem_search` | `full_text_executor` | 10k |
 | `perf.search.fulltext.100k` | Search | `tier2_subsystem_search` | `full_text_executor` | 100k |
+| `perf.search.fulltext_cold.10k` | Search | `tier2_subsystem_search` | `full_text_cold` | 10k |
+| `perf.search.fulltext_cold.100k` | Search | `tier2_subsystem_search` | `full_text_cold` | 100k |
+| `perf.search.fulltext_warm.10k` | Search | `tier2_subsystem_search` | `full_text_warm` | 10k |
+| `perf.search.fulltext_warm.100k` | Search | `tier2_subsystem_search` | `full_text_warm` | 100k |
 | `perf.vector.executor.10k` | Vector | `tier2_subsystem_vector` | `vector_executor` | 10k |
 | `perf.vector.executor.100k` | Vector | `tier2_subsystem_vector` | `vector_executor` | 100k |
 | `perf.vector.hnsw_persisted.10k` | Vector | `tier2_subsystem_vector` | `vector_hnsw_persisted` | 10k |

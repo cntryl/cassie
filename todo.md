@@ -325,6 +325,9 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     fixtures before timing top-k retrieval, compare indexed top-k with an exact baseline, and
     assert index execution, candidate accounting, and no fallback; the existing algorithm
     microbenchmarks remain separate.
+  - [x] Full-text cold and warm 10k/100k scenarios now assert non-empty results, a full-text
+    EXPLAIN path, and candidate/cache evidence; retained larger-corpus, write-amplification, and
+    rebuild artifacts remain open.
   - Cold/warm full-text at 10k, 100k, and a larger corpus with reads, memory, write amplification,
     and rebuild cost.
   - HNSW `ef_search` and IVFFlat lists/probes recall@k versus exact, latency, candidate reads,

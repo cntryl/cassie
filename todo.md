@@ -311,6 +311,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - [x] Read persisted text postings and matching document statistics, point-read source rows,
     push supported filters down to the bounded set, and fall back when the candidate budget or
     session state makes the bounded path unsafe.
+  - [x] Intersect bounded text candidates with generation-bound persisted HNSW/IVF candidate IDs
+    before exact source-row scoring; stale or unsupported vector artifacts fall back.
   - Tests: stale text/vector/both, selective filters, caps, truncation, and fallback equivalence.
 - [ ] Add retrieval-stage diagnostics: posting reads, ANN node/list reads, generation rejection,
   exact rerank count, truncation, candidate budgets, and fallback reason.

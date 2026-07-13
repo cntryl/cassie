@@ -341,6 +341,46 @@ fn should_read_only_probed_ivfflat_candidates() {
 }
 
 #[test]
+fn should_read_persisted_ivfflat_candidate_ids_without_source_scan() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ivfflat_persisted_candidate_ids");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let collection = "ivfflat_persisted_candidate_ids";
+    register_ivfflat_collection(&cassie, collection);
+    for index in 0..32 {
+        let embedding = if index < 16 {
+            [1.0, 0.0, 0.0]
+        } else {
+            [0.0, 1.0, 0.0]
+        };
+        put_ivfflat_document(&cassie, collection, &format!("doc-{index}"), embedding);
+    }
+    put_ivfflat_index(&cassie, collection, 31);
+    let before = cassie.metrics();
+
+    // Act
+    let candidates = cassie
+        .midge
+        .persisted_vector_candidate_ids(collection, "embedding", &[1.0, 0.0, 0.0], 32)
+        .unwrap()
+        .expect("persisted ivfflat candidates");
+    let after = cassie.metrics();
+
+    // Assert
+    assert!(!candidates.is_empty());
+    assert!(candidates.len() <= 32);
+    let reads = after["storage"]["data"]["reads"].as_u64().unwrap()
+        - before["storage"]["data"]["reads"].as_u64().unwrap();
+    assert!(
+        reads < 32,
+        "expected persisted candidate reads, observed {reads}"
+    );
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_store_ivfflat_membership_outside_training_manifest() {
     // Arrange
     with_fallback();

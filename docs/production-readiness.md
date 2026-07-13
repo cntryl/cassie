@@ -42,10 +42,10 @@ operator switching thresholds, and rollback/fallback evidence.
 ### Hybrid retrieval implementation note
 
 When both a full-text and vector index are present, hybrid top-k execution reads only
-term postings, matching document statistics, and the corresponding source rows. Candidate
-budgets, generation failures, missing source rows, unsupported filters, and staged session
-writes fall back to the existing row path. Persisted vector candidate streams, truncation
-diagnostics, and larger-corpus/concurrency evidence remain open.
+term postings, matching document statistics, persisted HNSW/IVF vector candidates, and
+the intersected source rows. Candidate budgets, generation failures, missing source rows,
+unsupported filters, and staged session writes fall back to the existing row path.
+Truncation diagnostics and larger-corpus/concurrency evidence remain open.
 
 ## Promotion Rules
 

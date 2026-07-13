@@ -386,10 +386,16 @@ fn should_bound_hybrid_reads_to_persisted_text_candidates() {
                 model: "manual".to_string(),
                 dimensions: 2,
                 metric: DistanceMetric::L2,
-                index_type: VectorIndexType::BruteForce,
+                index_type: VectorIndexType::IvfFlat,
                 hnsw: None,
                 hnsw_graph: None,
-                ivfflat: None,
+                ivfflat: Some(cassie::embeddings::IvfFlatIndexOptions {
+                    version: 1,
+                    lists: 2,
+                    probes: 1,
+                    training_sample_size: 64,
+                    training_seed: 1,
+                }),
                 ivfflat_training: None,
             },
         })

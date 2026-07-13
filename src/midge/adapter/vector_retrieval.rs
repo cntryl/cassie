@@ -12,6 +12,73 @@ pub(super) struct HnswSourceSummary {
 }
 
 impl Midge {
+    /// Returns generation-bound vector candidate IDs without scanning source rows.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a persisted vector artifact is stale or corrupt.
+    pub fn persisted_vector_candidate_ids(
+        &self,
+        collection: &str,
+        field: &str,
+        query: &[f32],
+        limit: usize,
+    ) -> Result<Option<BTreeSet<String>>, CassieError> {
+        let Some(index) = self.get_vector_index_definition(collection, field)? else {
+            return Ok(None);
+        };
+        match index.metadata.index_type {
+            crate::embeddings::VectorIndexType::Hnsw => {
+                let Some(options) = index.metadata.hnsw.as_ref() else {
+                    return Err(CassieError::Execution(
+                        "hnsw fallback:missing-options".to_string(),
+                    ));
+                };
+                let Some(result) =
+                    self.search_hnsw_graph_point_read(collection, field, query, options, limit)?
+                else {
+                    return Ok(None);
+                };
+                Ok(Some(
+                    result
+                        .candidates
+                        .into_iter()
+                        .map(|candidate| candidate.id)
+                        .collect(),
+                ))
+            }
+            crate::embeddings::VectorIndexType::IvfFlat => {
+                let Some((training, membership_count)) =
+                    self.get_ivfflat_training_manifest(collection, field)?
+                else {
+                    return Ok(None);
+                };
+                if crate::vector::ivfflat::compact_manifest_fallback_reason(
+                    &training,
+                    query.len(),
+                    membership_count,
+                )
+                .is_some()
+                {
+                    return Ok(None);
+                }
+                let normalized = crate::vector::normalize(query)
+                    .map_or_else(|| query.to_vec(), |value| value.values);
+                let lists = crate::vector::ivfflat::probe_lists(&normalized, &training);
+                let records =
+                    self.ivfflat_candidate_vectors(collection, field, &training, &lists)?;
+                Ok(Some(
+                    records
+                        .into_iter()
+                        .take(limit)
+                        .map(|record| record.id)
+                        .collect(),
+                ))
+            }
+            crate::embeddings::VectorIndexType::BruteForce => Ok(None),
+        }
+    }
+
     /// Reads the compact IVF manifest without hydrating every list membership.
     ///
     /// # Errors

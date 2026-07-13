@@ -42,14 +42,14 @@ pub(super) fn bounded_hybrid_rows(
     else {
         return Ok(None);
     };
-    if cassie
-        .midge
-        .get_vector_index_definition(&spec.collection, &spec.vector_field)
-        .map_err(|error| QueryError::General(error.to_string()))?
-        .is_none()
-    {
+    let Ok(Some(vector_ids)) = cassie.midge.persisted_vector_candidate_ids(
+        &spec.collection,
+        &spec.vector_field,
+        &spec.vector_query,
+        cassie.runtime.limits().adaptive_candidate_max,
+    ) else {
         return Ok(None);
-    }
+    };
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, analyzer);
     let stats = cassie
         .midge
@@ -64,8 +64,11 @@ pub(super) fn bounded_hybrid_rows(
         return Ok(None);
     }
     let fields = vec![spec.text_field.clone(), spec.vector_field.clone()];
-    let mut rows = Vec::with_capacity(stats.len());
+    let mut rows = Vec::with_capacity(stats.len().min(vector_ids.len()));
     for id in stats.keys() {
+        if !vector_ids.contains(id) {
+            continue;
+        }
         let Some(document) = cassie
             .get_document_for_session(session, &spec.collection, id)
             .map_err(|error| QueryError::General(error.to_string()))?

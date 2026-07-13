@@ -311,14 +311,10 @@ async fn route_request_with_admin_ui(
     admin_ui: Arc<AdminUiStaticFiles>,
 ) -> Result<Response<RestBody>, (StatusCode, String)> {
     let method = request.method().clone();
-    let path = request.uri().path().trim_end_matches('/').to_string();
-    let path = if path.is_empty() {
-        "/".to_string()
-    } else {
-        path
-    };
+    let path = normalized_request_path(request.uri().path());
     let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     let started_at = Instant::now();
+    validate_rest_content_type(&method, &path, &request)?;
     let mut role = None;
     let mut token = None;
     let mut session = None;
@@ -412,6 +408,52 @@ async fn route_request_with_admin_ui(
     );
 
     Ok(response)
+}
+
+fn requires_json_content_type(method: &Method, path: &str) -> bool {
+    path.starts_with("/api/") && matches!(method, &Method::POST | &Method::PUT | &Method::PATCH)
+}
+
+fn normalized_request_path(raw_path: &str) -> String {
+    let path = raw_path.trim_end_matches('/');
+    if path.is_empty() {
+        "/".to_string()
+    } else {
+        path.to_string()
+    }
+}
+
+fn validate_rest_content_type(
+    method: &Method,
+    path: &str,
+    request: &Request<Incoming>,
+) -> Result<(), (StatusCode, String)> {
+    if requires_json_content_type(method, path)
+        && request_has_body(request)
+        && !has_json_content_type(request.headers())
+    {
+        return Err((
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "REST API request content type must be application/json".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn request_has_body(request: &Request<Incoming>) -> bool {
+    request
+        .body()
+        .size_hint()
+        .upper()
+        .is_none_or(|length| length > 0)
+}
+
+fn has_json_content_type(headers: &HeaderMap) -> bool {
+    headers
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("application/json"))
 }
 
 async fn route_dispatch(

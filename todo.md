@@ -367,6 +367,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - [x] Bound body collection and route execution with a 30-second per-request deadline;
     expired requests return 408 without applying a whole-connection timeout to keep-alive clients.
   - [x] Apply baseline `nosniff`, frame, referrer, CSP, and API `no-store` response headers.
+  - [x] Require `application/json` for state-changing `/api/` requests and return deterministic
+    415 responses for other content types.
   - [ ] Add body/idle/request timeouts and complete slowloris protection.
   - Enforce content types/methods, explicit same-origin/CORS and CSRF policies, CSP,
     `X-Content-Type-Options`, frame/referrer policy, HSTS on TLS, no-store for auth/API, and immutable

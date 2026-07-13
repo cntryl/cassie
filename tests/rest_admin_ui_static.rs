@@ -351,6 +351,39 @@ fn should_reject_oversized_rest_request_body() {
 }
 
 #[test]
+fn should_reject_non_json_rest_write_requests() {
+    // Arrange
+    with_fallback();
+    let data_dir = data_dir("non-json-body");
+    let dist = write_dist_fixture("non-json-body");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
+        // Act
+        let response = reqwest::Client::new()
+            .post(format!("{base_url}/api/v1/auth/login"))
+            .body("username=postgres&password=postgres")
+            .send()
+            .await
+            .expect("non-JSON request");
+
+        // Assert
+        assert_eq!(
+            response.status(),
+            reqwest::StatusCode::UNSUPPORTED_MEDIA_TYPE
+        );
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+        let _ = std::fs::remove_dir_all(dist);
+    });
+}
+
+#[test]
 fn should_not_serve_admin_shell_for_unmatched_api_routes() {
     // Arrange
     with_fallback();
